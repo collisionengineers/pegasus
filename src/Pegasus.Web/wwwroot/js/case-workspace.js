@@ -13,8 +13,10 @@
     function bindPreparations(root) {
         var form = document.getElementById('case-edit-form');
         if (!form) { return; }
+        // No early return on an empty card list: the crop editor is opened
+        // from the evidence viewer too, so window.pegasusOpenCaseCrop has to
+        // exist wherever the one Case form does (U5a).
         var cards = Array.prototype.slice.call((root || document).querySelectorAll('[data-preparation-card]'));
-        if (!cards.length) { return; }
         var staged = form.__pegasusPreparationStaged || (form.__pegasusPreparationStaged = {});
         function cardState(card) {
             var id = card.getAttribute('data-preparation-occurrence');
@@ -284,6 +286,44 @@
         });
     }
 
+    // The Files section's two tabs. Both panels are rendered, so with no
+    // script the section is the two lists one after the other; this turns the
+    // strip on and shows one at a time. The chosen tab rides in the URL hash
+    // through replaceState for an in-page click, but a hash is never sent to
+    // the server, so it cannot survive a form POST on its own: a tag/untag/
+    // create-tag redirect names the tab with a `?section=files` route value
+    // and a `#case-files-images` fragment instead, and this reads both back
+    // on load.
+    function bindFileTabs(root) {
+        Array.prototype.slice.call((root || document).querySelectorAll('[data-file-tabs-wrap]')).forEach(function (wrap) {
+            if (wrap.dataset.fileTabsBound) { return; }
+            var strip = wrap.querySelector('[data-file-tabs]');
+            var panels = Array.prototype.slice.call(wrap.querySelectorAll('[data-file-tab-panel]'));
+            var buttons = strip ? Array.prototype.slice.call(strip.querySelectorAll('[data-file-tab]')) : [];
+            if (!strip || !panels.length || !buttons.length) { return; }
+            wrap.dataset.fileTabsBound = 'true';
+            function show(name, remember) {
+                panels.forEach(function (panel) { panel.hidden = panel.getAttribute('data-file-tab-panel') !== name; });
+                buttons.forEach(function (button) { button.setAttribute('aria-selected', button.getAttribute('data-file-tab') === name ? 'true' : 'false'); });
+                wrap.setAttribute('data-file-tabs-active', name);
+                if (remember && window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', '#case-files-' + name);
+                }
+            }
+            buttons.forEach(function (button) {
+                button.addEventListener('click', function () { show(button.getAttribute('data-file-tab'), true); });
+            });
+            strip.hidden = false;
+            wrap.classList.add('is-tabbed');
+            var fromHash = (window.location.hash || '').replace('#case-files-', '');
+            var fromSection = new URLSearchParams(window.location.search).get('section') === 'files' ? 'images' : '';
+            var requested = fromHash || fromSection;
+            show(buttons.some(function (button) { return button.getAttribute('data-file-tab') === requested; })
+                ? requested
+                : buttons[0].getAttribute('data-file-tab'), false);
+        });
+    }
+
     function bindReportRecipients(root) {
         root.querySelectorAll('[data-add-report-recipient]').forEach(function (button) {
             if (button.dataset.recipientBound) { return; }
@@ -302,6 +342,6 @@
         });
     }
 
-    bindPreparations(document); bindDamage(document); bindReportRecipients(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(function (root) { bindPreparations(root); bindDamage(root); bindReportRecipients(root); });
+    bindPreparations(document); bindDamage(document); bindReportRecipients(document); bindFileTabs(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(function (root) { bindPreparations(root); bindDamage(root); bindReportRecipients(root); bindFileTabs(root); });
 })();

@@ -1,0 +1,63 @@
+@model Pegasus.Web.Pages.Cases.CaseImageTagPickerView
+@using Pegasus.Core.Documents
+@using Pegasus.Web.Presentation
+@using TagLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ImageTags
+@{
+    var view = Model;
+    var slug = view.OccurrenceId.ToString("N");
+}
+@* Each row is its own form: pressing it applies or removes that tag and the
+   page comes back with the chips redrawn. The disclosure is the browser's, so
+   nothing here needs script. *@
+<details class="tag-picker" data-tag-picker>
+    <summary class="btn btn--small">@TagLabels.Tag</summary>
+    <div class="tag-picker-body">
+        @foreach (var tag in view.Vocabulary)
+        {
+            var applied = view.IsApplied(tag.Id);
+            <form method="post"
+                  asp-page="/Cases/Custody"
+                  asp-route-id="@view.CaseId"
+                  asp-page-handler="@(applied ? "UntagImage" : "TagImage")">
+                <input type="hidden" name="id" value="@view.CaseId" />
+                <input type="hidden" name="occurrenceId" value="@view.OccurrenceId" />
+                <input type="hidden" name="tagId" value="@tag.Id" />
+                <input type="hidden" name="expectedVersion" value="@view.CaseVersion" />
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                <input type="hidden" name="editLeaseToken" value="@view.EditLeaseToken" />
+                <button type="submit"
+                        class="tag-option"
+                        aria-pressed="@(applied ? "true" : "false")">
+                    <span class="tag-swatch tag-swatch--@TagLabels.ColourToken(tag.Colour)" aria-hidden="true"></span>
+                    <span>@tag.Name</span>
+                    @if (applied)
+                    {
+                        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    }
+                </button>
+            </form>
+        }
+        <form method="post"
+              class="tag-picker-new"
+              asp-page="/Cases/Custody"
+              asp-route-id="@view.CaseId"
+              asp-page-handler="CreateImageTag">
+            <input type="hidden" name="id" value="@view.CaseId" />
+            <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+            <input type="hidden" name="editLeaseToken" value="@view.EditLeaseToken" />
+            <label class="sr-only" for="tag-name-@slug">@TagLabels.Name</label>
+            <input id="tag-name-@slug"
+                   name="name"
+                   maxlength="@ImageTagVocabulary.MaximumNameLength"
+                   placeholder="@TagLabels.NewTag" />
+            <label class="sr-only" for="tag-colour-@slug">@TagLabels.Colour</label>
+            <select id="tag-colour-@slug" name="colour">
+                @foreach (var colour in Enum.GetValues<ImageTagColour>())
+                {
+                    <option value="@colour">@TagLabels.ColourLabel(colour)</option>
+                }
+            </select>
+            <button type="submit" class="btn btn--small">@TagLabels.Create</button>
+        </form>
+    </div>
+</details>

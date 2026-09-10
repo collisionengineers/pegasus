@@ -291,7 +291,11 @@ reference.
 
 **Administration.** Automation & AI shows the active and failed job counts and
 the Stop/Start automation control; that control is the ADR-0026 kill switch,
-so stopping automation also stops the ledger.
+so stopping automation also stops the ledger. The Operations panel is the live
+work queue; the recorded history of the same jobs is
+[Action Logs](frd-04-parties-accounts-and-access.md#permanent-action-history),
+where an AI job row's Reference opens the Case or Unidentified record the job
+names.
 
 ### Estimate VAT on the rendered report
 

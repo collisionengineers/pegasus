@@ -14,6 +14,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
 
@@ -256,6 +257,30 @@ public sealed partial class OperationsWebTests
         // words for the queue and never the Core subject token.
         Assert.Contains("Unidentified queue", html, StringComparison.Ordinal);
         Assert.DoesNotContain("unidentified-queue", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AiJobListNamesWhoStartedEachJobAndNeverTheStoredSubjectId()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingOperationsStore();
+        var aiWork = new RecordingAiWorkStore();
+        using var factory = Configure(baseFactory, store, aiWork: aiWork);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Operations");
+
+        // The ledger stores the acting actor's subject id, which for staff is a
+        // GUID. FRD-11 gives Started by "a staff username or the connector
+        // client name", so the column resolves the name and never prints the
+        // recorded identifier.
+        var staffRow = RowContaining(html, RecordingAiWorkStore.EstimateInstruction);
+        Assert.Contains(DevelopmentOfflineIdentity.UserName, staffRow, StringComparison.Ordinal);
+        Assert.DoesNotContain(RecordingAiWorkStore.StaffCreator, staffRow, StringComparison.OrdinalIgnoreCase);
+
+        // A job the connector started keeps the client name it recorded.
+        var automationRow = RowContaining(html, "Unidentified queue");
+        Assert.Contains(RecordingAiWorkStore.AutomationCreator, automationRow, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -855,6 +880,15 @@ public sealed partial class OperationsWebTests
         public const string ExpiredInstruction = "A queued job expired without being claimed.";
         public const string LastWeekInstruction = "A job cancelled a week ago.";
         public const string MarketResearchInstruction = "Research comparable vehicles.";
+        public const string AutomationCreator = "overnight-pass";
+
+        /// <summary>
+        /// What the ledger actually stores for a staff creator: the actor's
+        /// subject id, never a username (<c>EfAiJobStore.CreateAsync</c>).
+        /// </summary>
+        public static readonly string StaffCreator =
+            DevelopmentOfflineIdentity.AdministratorId.ToString("D");
+
         public const long QueuePassVersion = 2;
         public const long QueuedResolutionVersion = 1;
         public const long MarketResearchVersion = 4;
@@ -916,7 +950,7 @@ public sealed partial class OperationsWebTests
                 FixedUtcNow.AddHours(-1),
                 QueuePassVersion,
                 createdByKind: ActorKind.Automation,
-                createdBy: "overnight-pass"),
+                createdBy: AutomationCreator),
             Job(
                 MarketResearchDraftJobId,
                 AiJobKind.MarketResearch,
@@ -1112,7 +1146,7 @@ public sealed partial class OperationsWebTests
             long version,
             DateTimeOffset? closedAtUtc = null,
             ActorKind createdByKind = ActorKind.Staff,
-            string createdBy = "a.mercer") => new(
+            string? createdBy = null) => new(
                 jobId,
                 kind,
                 subjectKind,
@@ -1123,7 +1157,7 @@ public sealed partial class OperationsWebTests
                 EngineerValueAtSend: null,
                 state,
                 createdByKind,
-                createdBy,
+                createdBy ?? StaffCreator,
                 createdAtUtc,
                 createdAtUtc.AddHours(24),
                 TakenBy: null,

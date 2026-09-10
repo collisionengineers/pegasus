@@ -49,8 +49,10 @@ eligible retained Case-vehicle image:
 `Reference` is the work provider's reference, not the Pegasus case reference.
 The archive contains the ordered JSON and `Images/` only; there is no manifest
 or provenance sidecar. Pegasus does not select or presentation-order images
-for EVA. A retained image's storage/custody status is used to locate verified
-bytes, not as a separate case-readiness decision.
+for EVA beyond one exclusion: an image wearing the Third party image tag
+([FRD-05](frd-05-documents-extraction-and-custody.md#image-tags)) is left out
+of the bundle. A retained image's storage/custody status is used to locate
+verified bytes, not as a separate case-readiness decision.
 
 Every successful export writes replay-safe Case action history containing the
 case version, mapping identity, exported values and provenance, archive hashes,

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Actors;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
@@ -16,11 +17,14 @@ public sealed class ActionLogsModel(
     TimeProvider timeProvider,
     IGetCaseHeader getCaseHeader,
     ISearchCases searchCases,
-    IStaffAccountQueries staffAccounts) : AdministrationPageModel
+    IStaffAccountQueries staffAccounts,
+    IAiJobStore aiJobs) : AdministrationPageModel
 {
     private const string SecurityArea = "Security";
+    private const string AiJobArea = "ai_job";
 
     private readonly Dictionary<Guid, string> _caseReferences = [];
+    private readonly Dictionary<Guid, AiJobReference> _aiJobReferences = [];
     private IReadOnlyDictionary<Guid, string> _staffNames = new Dictionary<Guid, string>();
     [BindProperty(SupportsGet = true)] public DateTimeOffset? From { get; set; }
     [BindProperty(SupportsGet = true)] public DateTimeOffset? To { get; set; }
@@ -95,6 +99,7 @@ public sealed class ActionLogsModel(
             Metrics = await getMetrics.ExecuteAsync(actor, timeProvider.GetUtcNow(), cancellationToken);
             await ResolveStaffNamesAsync(cancellationToken);
             await ResolveCaseReferencesAsync(actor, cancellationToken);
+            await ResolveAiJobReferencesAsync(cancellationToken);
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -210,6 +215,28 @@ public sealed class ActionLogsModel(
             ? _caseReferences.GetValueOrDefault(caseId)
             : Guid.TryParse(row.Reference, out _) ? null : row.Reference;
 
+    /// <summary>
+    /// The record an AI job row points at, or <see langword="null"/> when the
+    /// row is not an AI job, its job no longer resolves, or its subject is the
+    /// Unidentified queue rather than a record. An AI job's recorded aggregate
+    /// is the job, so the log alone shows a bare identifier; resolving it here
+    /// is what makes the Action Logs view the readable AI history the
+    /// Operations board's live rows link into.
+    /// </summary>
+    public AiJobReference? AiJobRecordLink(ActionLogRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return IsAiJobReference(row) && Guid.TryParse(row.Reference, out var jobId)
+            ? _aiJobReferences.TryGetValue(jobId, out var link) ? link : null
+            : null;
+    }
+
+    /// <summary>One AI job row's record: the page it opens and its reference.</summary>
+    public sealed record AiJobReference(string Page, Guid SubjectId, string Reference);
+
+    private static bool IsAiJobReference(ActionLogRow row) =>
+        string.Equals(row.Area, AiJobArea, StringComparison.Ordinal);
+
     private static bool IsCaseReference(ActionLogRow row) =>
         string.Equals(row.Area, "Case", StringComparison.OrdinalIgnoreCase)
         || string.Equals(row.Area, "automation_mcp", StringComparison.Ordinal)
@@ -252,6 +279,25 @@ public sealed class ActionLogsModel(
             if (header is not null)
             {
                 _caseReferences[caseId] = header.Summary.Reference;
+            }
+        }
+    }
+
+    // One read per distinct job on the page, not per transition row: a job
+    // writes a history row for every state it passes through.
+    private async Task ResolveAiJobReferencesAsync(CancellationToken cancellationToken)
+    {
+        foreach (var jobId in Result.Rows
+                     .Where(IsAiJobReference)
+                     .Select(row => Guid.TryParse(row.Reference, out var id) ? id : Guid.Empty)
+                     .Where(id => id != Guid.Empty)
+                     .Distinct())
+        {
+            var job = await aiJobs.GetAsync(jobId, cancellationToken);
+            if (job?.SubjectId is { } subjectId
+                && AiJobActions.RecordPage(job.SubjectKind) is { } page)
+            {
+                _aiJobReferences[jobId] = new(page, subjectId, job.SubjectReference);
             }
         }
     }

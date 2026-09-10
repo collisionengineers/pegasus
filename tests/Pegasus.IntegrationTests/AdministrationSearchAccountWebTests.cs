@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Actors;
+using Pegasus.Core.AiWork;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
@@ -252,6 +253,53 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.DoesNotContain("other_person_action", html, StringComparison.Ordinal);
         Assert.Contains("Recorded counts and processing times", html, StringComparison.Ordinal);
         Assert.Contains("Mailbox failures", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ActionLogsLinkAnAiJobRowToTheRecordTheJobNames()
+    {
+        var subjectId = Guid.NewGuid();
+        using var factory = new IntakeWebApplicationFactory();
+        // The job's history row is stamped by the app's own clock (a fixed
+        // test time, not the wall clock), so the query window has to be
+        // built from that same clock or the row falls outside it.
+        var now = factory.Services.GetRequiredService<TimeProvider>().GetUtcNow();
+        Guid jobId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+            var created = await store.CreateAsync(
+                new(
+                    AiJobKind.UnidentifiedResolution,
+                    AiJobSubjectKind.Unidentified,
+                    subjectId,
+                    "U777",
+                    "Propose a destination for this Unidentified item.",
+                    null,
+                    null,
+                    ActionActor.Staff(
+                        DevelopmentOfflineIdentity.AdministratorId,
+                        [StaffRole.Administrator]),
+                    "wp4b-ai-job-action-log-link",
+                    AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            jobId = created.JobId;
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
+        var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
+
+        var html = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Area=ai_job");
+
+        // An AI job's recorded aggregate is the job, so the Reference column
+        // alone would print a bare identifier. It resolves to the record the
+        // job names, which is what makes this view the readable AI history
+        // behind the Operations board (FRD-11 § AI Job List).
+        Assert.Contains($"/Unidentified/{subjectId:D}", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(">U777</a>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(jobId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

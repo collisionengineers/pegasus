@@ -34,10 +34,10 @@ public sealed record ReportImagePreparationView(
         var files = CaseFiles.Live(details.Documents);
         return new(
             section,
-            !string.IsNullOrWhiteSpace(page.RenderLeaseToken)
-                && details.Workflow.Archive is null
-                && page.CanEditEngineering
-                && details.Data is not null,
+            // U5a: preparation follows the Case edit lease, not the
+            // engineering window. Gating it on CanEditEngineering is why a
+            // Review-state Case offered no Crop anywhere.
+            page.CanEditCaseData && details.Data is not null,
             items,
             files.ToDictionary(file => file.Occurrence.Id, file => file.Version.FileName),
             files.ToDictionary(

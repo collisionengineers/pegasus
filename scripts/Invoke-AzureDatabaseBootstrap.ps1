@@ -449,6 +449,24 @@ function Get-MigrationPermissionMatrix {
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|CaseReportGenerations')
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|CaseReportGenerations')
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|GeneratedCaseArtifacts')
+    # 20260910120000_CaseImageTags: Web applies and removes image tags and
+    # creates vocabulary entries; the Worker only reads them for the EVA bundle.
+    # Tags are immutable once created (no UPDATE) and the vocabulary is never
+    # deleted; only the Web removes an occurrence's tag row.
+    foreach ($permission in @('SELECT', 'INSERT')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|ImageTags")
+    }
+    foreach ($permission in @('SELECT', 'INSERT', 'DELETE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|DocumentOccurrenceTags")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|UPDATE|ImageTags')
+    $expected.Add('pegasus_web_runtime_role|D|UPDATE|DocumentOccurrenceTags')
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|ImageTags')
+    foreach ($table in @('ImageTags', 'DocumentOccurrenceTags')) {
+        $expected.Add("pegasus_worker_runtime_role|G|SELECT|$table")
+        $expected.Add("pegasus_worker_runtime_role|D|UPDATE|$table")
+        $expected.Add("pegasus_worker_runtime_role|D|DELETE|$table")
+    }
     return @($expected | Sort-Object -Unique)
 }
 

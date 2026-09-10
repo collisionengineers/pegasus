@@ -876,8 +876,17 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("name=\"editLeaseToken\"", fragment, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// WP7 moved report composition off the Files section entirely — the
+    /// Report section is now the only place a report's image set is chosen —
+    /// and moved image preparation's gate from assessment access to
+    /// <c>CanEditCaseData</c> (lease held, state not PostReportComplete or
+    /// Query, not archived). So a visit with assessment access denied but the
+    /// Case lease held still sees the Images tab's tiles with their crop
+    /// controls: assessment access no longer has a say in this surface.
+    /// </summary>
     [Fact]
-    public async Task TheLazyFilesFragmentKeepsPreparedImagesReadOnlyWhenAssessmentAccessIsDenied()
+    public async Task TheLazyFilesFragmentOffersImagePreparationFromTheHeldLeaseNotAssessmentAccess()
     {
         var store = new PreparedImages().Store();
         using var workspace = await EnterEditModeAsync(store, services =>
@@ -895,9 +904,9 @@ public sealed partial class CaseDetailsWebTests
         response.EnsureSuccessStatusCode();
         var fragment = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains("report-images", fragment, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=SaveAssetPreparation", fragment, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=ResetAssetPreparation", fragment, StringComparison.Ordinal);
+        Assert.Contains("image-tile", fragment, StringComparison.Ordinal);
+        Assert.Contains("data-preparation-crop", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("report-images", fragment, StringComparison.Ordinal);
     }
 
     /// <summary>

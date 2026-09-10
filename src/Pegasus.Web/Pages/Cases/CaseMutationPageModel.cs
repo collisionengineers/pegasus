@@ -338,14 +338,16 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         string editLeaseToken,
         string commandName,
         Func<ActionActor, Task> execute,
-        string successMessage) =>
+        string successMessage,
+        Func<Guid, RedirectToPageResult>? redirect = null) =>
         ExecuteCommandAsync(
             id,
             editLeaseToken,
             commandName,
             execute,
             successMessage,
-            "The case action was not applied because the item is unavailable, changed, or not part of this case.");
+            "The case action was not applied because the item is unavailable, changed, or not part of this case.",
+            redirect);
 
     private async Task<IActionResult> ExecuteCommandAsync(
         Guid id,
@@ -353,8 +355,10 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         string commandName,
         Func<ActionActor, Task> execute,
         string successMessage,
-        string failureMessage)
+        string failureMessage,
+        Func<Guid, RedirectToPageResult>? redirect = null)
     {
+        redirect ??= RedirectToDetails;
         if (!TryGetActor(out var actor))
         {
             return Forbid();
@@ -380,11 +384,23 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             TempData[ErrorTempDataKey] = failureMessage;
         }
 
-        return RedirectToDetails(id);
+        return redirect(id);
     }
 
     protected RedirectToPageResult RedirectToDetails(Guid id) =>
         RedirectToPage("/Cases/Details", new { id });
+
+    /// <summary>
+    /// Redirects back into the Files section's Images tab: the tag, untag, and create-tag
+    /// actions live there, so the operator returns to the tile they just acted on instead of
+    /// landing back on Overview with the tab strip forgotten.
+    /// </summary>
+    protected RedirectToPageResult RedirectToDetailsFilesImages(Guid id) =>
+        RedirectToPage(
+            "/Cases/Details",
+            pageHandler: null,
+            routeValues: new { id, section = "files" },
+            fragment: "case-files-images");
 
     /// <summary>
     /// Tells the server the editor is still here, so an open page is never timed out mid-edit.

@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages;
 
@@ -26,11 +25,13 @@ public sealed partial class CaseDetailsWebTests
     private const string UnusedFileName = "plate.jpg";
 
     /// <summary>
-    /// Read-only view: every prepared value is stated, and nothing that could
-    /// change one is rendered while this browser holds no edit lease.
+    /// Read-only view: the Files section's Images tab names every image of the
+    /// case and offers nothing that could change one while this browser holds
+    /// no edit lease. Report composition is not here at all — it is stated
+    /// once, on the Report section (issue 6).
     /// </summary>
     [Fact]
-    public async Task TheFilesSectionStatesEachImagesPreparationAndOffersNoControlWithoutTheLease()
+    public async Task TheImagesTabNamesEveryImageAndOffersNoControlWithoutTheLease()
     {
         var fixture = new PreparedImages();
         var store = fixture.Store();
@@ -40,7 +41,6 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<ICaseAssetPreparationQueries>(services, store);
-                Substitute<ICaseEvidenceImageQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -49,38 +49,55 @@ public sealed partial class CaseDetailsWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
-        var panel = Section(html, "report-images-title");
-        var visible = WebUtility.HtmlDecode(VisibleText(panel));
+        var grid = ImageGrid(html);
 
-        // Preview cards must address the routed document endpoint, so the
-        // crop editor can load the same retained image as the Files viewer.
-        Assert.Contains(
-            $"/Cases/{store.CaseId:D}/Documents/{fixture.OverviewOccurrenceId:D}/Download?versionId=",
-            WebUtility.HtmlDecode(panel), StringComparison.Ordinal);
-        Assert.DoesNotContain("/Cases/Documents/Download?", panel, StringComparison.Ordinal);
-        Assert.Contains(ReportImageLabels.SectionTitle, visible, StringComparison.Ordinal);
         foreach (var fileName in new[]
         {
             CloseUpFileName, OverviewFileName, FirstSupportingFileName, SecondSupportingFileName, UnusedFileName
         })
         {
-            Assert.Contains(fileName, visible, StringComparison.Ordinal);
+            Assert.Contains(fileName, grid, StringComparison.Ordinal);
         }
-        foreach (var role in Enum.GetValues<CaseAssetReportRole>())
-        {
-            Assert.Contains(ReportImageLabels.RoleLabel(role), visible, StringComparison.Ordinal);
-        }
-        Assert.Contains(ReportImageLabels.RotationLabel(CaseAssetRotation.Clockwise90), visible, StringComparison.Ordinal);
-        Assert.Contains(ReportImageLabels.CropLabel(fixture.OverviewCrop), visible, StringComparison.Ordinal);
-        Assert.Contains(ReportImageLabels.CropLabel(CaseAssetCrop.Full), visible, StringComparison.Ordinal);
+        // The tile asks for the derived rendering, and the viewer link keeps
+        // the full image.
+        Assert.Contains("size=thumb", grid, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-evidence-item", grid, StringComparison.Ordinal);
+        Assert.DoesNotContain("<form", grid, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<button", grid, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-preparation-", grid, StringComparison.Ordinal);
+        Assert.DoesNotContain("report-images-title", html, StringComparison.Ordinal);
+    }
 
-        Assert.DoesNotContain("<form", panel, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<button", panel, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<select", panel, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<input", panel, StringComparison.OrdinalIgnoreCase);
-        // Preparation metadata only exists while it can be staged into the
-        // one workspace save.
-        Assert.DoesNotContain("data-preparation-version", panel, StringComparison.Ordinal);
+    /// <summary>
+    /// U5a: Crop follows the Case edit lease. A Review-state case — where
+    /// CanEditEngineering is false and Crop used to be nowhere — offers it on
+    /// every image tile. The reader without the lease is the test above, which
+    /// finds no preparation hook at all.
+    /// </summary>
+    [Fact]
+    public async Task CropIsOfferedOnTheImagesTabWheneverTheCaseEditLeaseIsHeld()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store(CaseLifecycleState.Review);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, store);
+        });
+
+        var leased = await workspace.GetWorkspaceAsync();
+        var grid = ImageGrid(await GetFilesFragmentAsync(workspace, leased));
+
+        Assert.Contains("data-preparation-crop", grid, StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-preparation-occurrence=\"{fixture.OverviewOccurrenceId:D}\"",
+            grid,
+            StringComparison.Ordinal);
+        // The viewer's own Crop button needs the occurrence on the item it is
+        // paging over.
+        Assert.Contains(
+            $"data-evidence-preparation-occurrence=\"{fixture.OverviewOccurrenceId:D}\"",
+            grid,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -95,7 +112,6 @@ public sealed partial class CaseDetailsWebTests
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
             Substitute<ICaseAssetPreparationQueries>(services, store);
-            Substitute<ICaseEvidenceImageQueries>(services, store);
             Substitute<ISaveCaseWorkspace>(services, store);
         });
         const string operationKey = "0a0b0c0d0e0f01020304050607080900";
@@ -155,7 +171,6 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<ICaseAssetPreparationQueries>(services, store);
-                Substitute<ICaseEvidenceImageQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -199,7 +214,6 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<ICaseAssetPreparationQueries>(services, store);
-                Substitute<ICaseEvidenceImageQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -234,7 +248,6 @@ public sealed partial class CaseDetailsWebTests
         using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
             Substitute<ICaseAssetPreparationQueries>(services, store);
-            Substitute<ICaseEvidenceImageQueries>(services, store);
         });
 
         var leased = await workspace.GetWorkspaceAsync();
@@ -243,11 +256,29 @@ public sealed partial class CaseDetailsWebTests
         // names the asset rather than the exact path the tag helper writes.
         Assert.Contains("js/case-workspace", leased, StringComparison.Ordinal);
 
-        foreach (var panel in new[]
+        // The Files section stages through the image tiles themselves: the
+        // same occurrence, version and crop the Report card carries, so a crop
+        // taken on either lands in the one Case form.
+        var tiles = ImageGrid(files);
+        foreach (var hook in new[]
         {
-            Section(files, "report-images-title"),
-            Section(leased, "section-report-title")
+            "data-preparation-card",
+            "data-preparation-occurrence=",
+            "data-preparation-version=",
+            "data-preparation-crop-left=",
+            "data-preparation-crop-top=",
+            "data-preparation-crop-width=",
+            "data-preparation-crop-height=",
+            "data-preparation-preview=",
+            "data-preparation-crop"
         })
+        {
+            Assert.Contains(hook, tiles, StringComparison.Ordinal);
+        }
+        Assert.DoesNotContain("handler=SaveAssetPreparation", tiles, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-preparation-role-select", tiles, StringComparison.Ordinal);
+
+        foreach (var panel in new[] { Section(leased, "section-report-title") })
         {
             Assert.Contains("data-report-images=", panel, StringComparison.Ordinal);
             foreach (var occurrenceId in new[]
@@ -338,6 +369,20 @@ public sealed partial class CaseDetailsWebTests
         }
     }
 
+    /// <summary>
+    /// The Files section's image grid and nothing around it, so an assertion
+    /// about the tiles is never answered by the document rows or the upload
+    /// requests beside them.
+    /// </summary>
+    private static string ImageGrid(string html)
+    {
+        var start = html.IndexOf("<ul class=\"gallery image-grid\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Images tab grid is not rendered.");
+        var end = html.IndexOf("</ul>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The Images tab grid is not closed.");
+        return html[start..end];
+    }
+
     /// <summary>One occurrence's card within a section.</summary>
     private static string Card(string panel, Guid occurrenceId)
     {
@@ -377,11 +422,11 @@ public sealed partial class CaseDetailsWebTests
                 CaseState = state,
                 CaseDocuments =
                 [
-                    Document(CloseUpOccurrenceId, VersionOf(CloseUpOccurrenceId), CloseUpFileName, "image/jpeg"),
-                    Document(OverviewOccurrenceId, VersionOf(OverviewOccurrenceId), OverviewFileName, "image/jpeg"),
-                    Document(FirstSupportingOccurrenceId, VersionOf(FirstSupportingOccurrenceId), FirstSupportingFileName, "image/jpeg"),
-                    Document(SecondSupportingOccurrenceId, VersionOf(SecondSupportingOccurrenceId), SecondSupportingFileName, "image/jpeg"),
-                    Document(UnusedOccurrenceId, VersionOf(UnusedOccurrenceId), UnusedFileName, "image/jpeg")
+                    Document(CloseUpOccurrenceId, VersionOf(CloseUpOccurrenceId), CloseUpFileName, "image/jpeg", DocumentSemanticRole.Image),
+                    Document(OverviewOccurrenceId, VersionOf(OverviewOccurrenceId), OverviewFileName, "image/jpeg", DocumentSemanticRole.Image),
+                    Document(FirstSupportingOccurrenceId, VersionOf(FirstSupportingOccurrenceId), FirstSupportingFileName, "image/jpeg", DocumentSemanticRole.Image),
+                    Document(SecondSupportingOccurrenceId, VersionOf(SecondSupportingOccurrenceId), SecondSupportingFileName, "image/jpeg", DocumentSemanticRole.Image),
+                    Document(UnusedOccurrenceId, VersionOf(UnusedOccurrenceId), UnusedFileName, "image/jpeg", DocumentSemanticRole.Image)
                 ]
             };
             store.Preparations =
@@ -391,14 +436,6 @@ public sealed partial class CaseDetailsWebTests
                 Preparation(store.CaseId, FirstSupportingOccurrenceId, CaseAssetReportRole.Supporting, 1, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
                 Preparation(store.CaseId, SecondSupportingOccurrenceId, CaseAssetReportRole.Supporting, 2, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
                 Preparation(store.CaseId, UnusedOccurrenceId, CaseAssetReportRole.NotUsed, null, CaseAssetRotation.None, CaseAssetCrop.Full, 0)
-            ];
-            store.CaseEvidenceImages =
-            [
-                EvidenceImage(CloseUpOccurrenceId, CloseUpFileName),
-                EvidenceImage(OverviewOccurrenceId, OverviewFileName),
-                EvidenceImage(FirstSupportingOccurrenceId, FirstSupportingFileName),
-                EvidenceImage(SecondSupportingOccurrenceId, SecondSupportingFileName),
-                EvidenceImage(UnusedOccurrenceId, UnusedFileName)
             ];
             return store;
         }
@@ -438,9 +475,6 @@ public sealed partial class CaseDetailsWebTests
                 preparationVersion,
                 preparationVersion == 0 ? null : "staff",
                 preparationVersion == 0 ? null : new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero));
-
-        private static CaseEvidenceImage EvidenceImage(Guid occurrenceId, string fileName) =>
-            new(Guid.NewGuid(), Guid.NewGuid(), fileName, "image/jpeg", 24_576, occurrenceId, VersionOf(occurrenceId));
     }
 
     /// <summary>
@@ -449,24 +483,15 @@ public sealed partial class CaseDetailsWebTests
     /// — so the page is exercised against the shape it really receives.
     /// </summary>
     private sealed partial class RecordingCaseDetailsStore :
-        ICaseAssetPreparationQueries,
-        ICaseEvidenceImageQueries
+        ICaseAssetPreparationQueries
     {
         /// <summary>The case's image preparations, when a test supplies them.</summary>
         public IReadOnlyList<CaseAssetPreparation> Preparations { get; set; } = [];
-
-        /// <summary>The instruction evidence photographs, when a test supplies them.</summary>
-        public IReadOnlyList<CaseEvidenceImage> CaseEvidenceImages { get; set; } = [];
 
         Task<IReadOnlyList<CaseAssetPreparation>> ICaseAssetPreparationQueries.ListForCaseAsync(
             Guid caseId,
             CancellationToken cancellationToken) =>
             Task.FromResult(Current());
-
-        Task<IReadOnlyList<CaseEvidenceImage>> ICaseEvidenceImageQueries.ListForCaseAsync(
-            Guid caseId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(CaseEvidenceImages);
 
         private IReadOnlyList<CaseAssetPreparation> Current() =>
         [

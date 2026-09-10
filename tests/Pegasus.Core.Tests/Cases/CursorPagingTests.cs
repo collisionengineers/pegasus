@@ -208,7 +208,7 @@ public sealed class CursorPagingTests
                         new DocumentOccurrence(
                             occurrenceId, caseId, Guid.NewGuid(), versionId,
                             DocumentSemanticRole.Image, DocumentSource.StaffUpload,
-                            $"cursor-page:{occurrenceId:N}", now.AddMinutes(-index), null, null),
+                            $"cursor-page:{occurrenceId:N}", now.AddMinutes(-index), []),
                         new DocumentVersion(
                             versionId, Guid.NewGuid(), 1, $"doc-{index}.pdf", "application/pdf",
                             1, new string('a', 64), DocumentCustodyStatus.Confirmed,

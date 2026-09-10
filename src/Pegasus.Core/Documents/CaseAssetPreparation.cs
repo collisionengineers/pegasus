@@ -8,7 +8,7 @@ namespace Pegasus.Core.Documents;
 /// How a case document occurrence is used on the generated report: at most
 /// one Close-up and one Overview, any number of ordered Supporting images, or
 /// excluded entirely. Distinct from <see cref="DocumentSemanticRole"/>, which
-/// intake, EVA eligibility and the third-party vehicle guard read — this is a
+/// intake and EVA eligibility read — this is a
 /// report-authoring choice layered on top of an occurrence, not a change to
 /// what the occurrence intrinsically is.
 /// </summary>

@@ -689,7 +689,7 @@ deleted in wave 5.
 | Class | Role |
 | --- | --- |
 | `page-header`, `page-title`, `eyebrow`, `page-actions` | Header row |
-| `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger` |
+| `btn`, `btn--primary`, `btn--dark`, `btn--danger`, `btn--ghost`, `btn--small`, `btn--icon` | The one button family; `--primary` is `--red`, `--dark` is `--nav-2`, `--danger` is `--danger`; `--icon` is a compact icon-only button (Back to Cases, Refresh) |
 | `metric-strip`, `metric-strip--3`, `metric-strip--5`, `metric` | Count buttons linking to `/Cases?tab=` |
 | `panel`, `panel-head`, `panel-body`, `panel-body--compact`, `panel-body--tight` | Bordered section |
 | `notice`, `notice--success`, `notice--warning`, `notice--danger` | Inline notice: label plus value only |
@@ -710,8 +710,9 @@ deleted in wave 5.
 | --- | --- |
 | `record`, `record-head`, `record-accent`, `record-bar`, `record-body` | Single-record container |
 | `record-ribbon`, `ribbon-item` | Identity ribbon (Case/PO, Registration, Claimant, Principal, State; Engineer and Sign-off Engineer beside it — D31) |
-| `edit-bar` | Sticky edit bar: lease text, Unsaved chip, Discard, Save |
-| `case-sticky` | The Case record's sticky block: identity ribbon, action bar and section jump-nav (D29) |
+| `case-identity`, `case-identity-tools` | The Case record's ribbon row: `case-identity` hosts the ribbon itself, `case-identity-tools` holds its Back to Cases and Refresh icon buttons at the ribbon's end |
+| `case-edit-badge` | The small "Editing" badge shown beside Cancel/Save in the action row while the operator holds the Case edit lease |
+| `case-sticky` | The Case record's sticky block: identity ribbon, one action row (Edit Case, or Cancel/Save with `case-edit-badge`, plus progression and More actions/Close case) and section jump-nav (D29) |
 | `section-nav`, `section-link` | Section jump-nav and its links; the link for the section in view carries `aria-current` (D29) |
 | `case-workspace`, `case-context` | Case record grid and its context column; the side nav they carried is superseded by `case-sticky` and `section-nav` (D29) |
 | `suggest-btn` | Per-field suggestion chip that fills its field when chosen (D34) |

@@ -74,8 +74,13 @@ public sealed class DocumentCustodyDurabilityTests
         }
     }
 
+    /// <summary>
+    /// Tagging an image is a Case mutation like any other: it carries the
+    /// lease, the expected version and an operation key, moves the version,
+    /// and replays exactly. The tag row keeps who applied it and when.
+    /// </summary>
     [Fact]
-    public async Task StaffConfirmationOfThirdPartyVehicleEvidenceIsDurableAndExactlyReplayable()
+    public async Task TaggingAnImageIsDurableExactlyReplayableAndReversible()
     {
         var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
         try
@@ -88,31 +93,144 @@ public sealed class DocumentCustodyDurabilityTests
             var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
             var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
                 .ClaimAsync(
-                    new(caseId, 0, actor, $"third-party-image-lease:{Guid.NewGuid():N}"),
+                    new(caseId, 0, actor, $"image-tag-lease:{Guid.NewGuid():N}"),
                     CancellationToken.None);
-            var command = new ConfirmThirdPartyVehicleEvidenceCommand(
+            var command = new TagCaseImageCommand(
                 caseId,
                 occurrenceId,
+                ImageTagVocabulary.ThirdPartyId,
                 actor,
-                "The retained image depicts the other vehicle.",
-                $"third-party-image-confirmation:{Guid.NewGuid():N}",
+                $"image-tag:{Guid.NewGuid():N}",
                 lease.Version,
                 lease.Token);
-            var confirmer = scope.ServiceProvider.GetRequiredService<IConfirmThirdPartyVehicleEvidence>();
+            var tagger = scope.ServiceProvider.GetRequiredService<ITagCaseImage>();
 
-            await confirmer.ExecuteAsync(command, CancellationToken.None);
-            await confirmer.ExecuteAsync(command, CancellationToken.None);
+            await tagger.ExecuteAsync(command, CancellationToken.None);
+            await tagger.ExecuteAsync(command, CancellationToken.None);
 
-            await using var verification = await database.CreateContextAsync();
-            var occurrence = await verification.Set<DocumentOccurrenceEntity>()
-                .SingleAsync(item => item.Id == occurrenceId);
-            Assert.NotNull(occurrence.ThirdPartyVehicleConfirmedAtUtc);
-            Assert.Equal(command.Reason, occurrence.ThirdPartyVehicleConfirmationReason);
-            Assert.Equal(command.OperationKey, occurrence.ThirdPartyVehicleConfirmationOperationKey);
-            var history = await verification.ActionHistory.SingleAsync(item =>
-                item.CorrelationId == command.OperationKey);
-            Assert.Equal("third_party_vehicle_evidence_confirmed", history.EventKind);
-            Assert.Equal(command.Reason, history.Reason);
+            long taggedVersion;
+            await using (var verification = await database.CreateContextAsync())
+            {
+                var assignment = await verification.Set<DocumentOccurrenceTagEntity>()
+                    .SingleAsync(item => item.OccurrenceId == occurrenceId);
+                Assert.Equal(ImageTagVocabulary.ThirdPartyId, assignment.TagId);
+                Assert.Equal(nameof(ActorKind.Staff), assignment.AppliedByKind);
+                Assert.Equal(actor.SubjectId, assignment.AppliedBySubjectId);
+                Assert.Equal(command.OperationKey, assignment.OperationKey);
+                var history = await verification.ActionHistory.SingleAsync(item =>
+                    item.CorrelationId == command.OperationKey);
+                Assert.Equal("case_image_tagged", history.EventKind);
+                Assert.Null(history.Reason);
+                taggedVersion = await verification.CaseWorkflows
+                    .Where(item => item.CaseId == caseId)
+                    .Select(item => item.Version)
+                    .SingleAsync();
+                Assert.Equal(lease.Version + 1, taggedVersion);
+            }
+
+            // A second tag under the first operation key is refused, and the
+            // tag comes off under its own key.
+            await Assert.ThrowsAsync<InvalidOperationException>(() => tagger.ExecuteAsync(
+                command with { OperationKey = $"image-tag:{Guid.NewGuid():N}", ExpectedCaseVersion = taggedVersion },
+                CancellationToken.None));
+            // The tag mutation consumed the lease it was given — every real
+            // mutation clears it on completion, the same as any other Case
+            // edit — so the untag needs a lease claimed fresh against the
+            // post-tag version.
+            var untagLease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                .ClaimAsync(
+                    new(caseId, taggedVersion, actor, $"image-untag-lease:{Guid.NewGuid():N}"),
+                    CancellationToken.None);
+            var untagCommand = new UntagCaseImageCommand(
+                caseId,
+                occurrenceId,
+                ImageTagVocabulary.ThirdPartyId,
+                actor,
+                $"image-untag:{Guid.NewGuid():N}",
+                taggedVersion,
+                untagLease.Token);
+            var untagger = scope.ServiceProvider.GetRequiredService<IUntagCaseImage>();
+            await untagger.ExecuteAsync(untagCommand, CancellationToken.None);
+            await untagger.ExecuteAsync(untagCommand, CancellationToken.None);
+
+            await using var afterRemoval = await database.CreateContextAsync();
+            Assert.Empty(await afterRemoval.Set<DocumentOccurrenceTagEntity>()
+                .Where(item => item.OccurrenceId == occurrenceId)
+                .ToArrayAsync());
+            Assert.Equal(
+                "case_image_untagged",
+                await afterRemoval.ActionHistory
+                    .Where(item => item.CorrelationId == untagCommand.OperationKey)
+                    .Select(item => item.EventKind)
+                    .SingleAsync());
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A tag belongs to the case that holds the image: another case's lease
+    /// and version reach nothing, and the vocabulary refuses a second entry
+    /// with a name it already has, whatever the casing.
+    /// </summary>
+    [Fact]
+    public async Task ImageTagsRefuseAnotherCaseAndDuplicateVocabularyNames()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            var occurrenceId = await SeedCurrentImageAsync(database, caseId);
+            await using var scope = database.CreateAsyncScope();
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                .ClaimAsync(
+                    new(caseId, 0, actor, $"image-tag-lease:{Guid.NewGuid():N}"),
+                    CancellationToken.None);
+
+            // The image is reached through the case that holds it: another
+            // case's identifier finds no occurrence, whatever it carries.
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                scope.ServiceProvider.GetRequiredService<ITagCaseImage>().ExecuteAsync(
+                    new(
+                        Guid.NewGuid(),
+                        occurrenceId,
+                        ImageTagVocabulary.ThirdPartyId,
+                        actor,
+                        $"image-tag-cross:{Guid.NewGuid():N}",
+                        lease.Version,
+                        lease.Token),
+                    CancellationToken.None));
+
+            var creator = scope.ServiceProvider.GetRequiredService<ICreateImageTag>();
+            var operationKey = $"image-tag-create:{Guid.NewGuid():N}";
+            var created = await creator.ExecuteAsync(
+                new("Underside", ImageTagColour.Grey, actor, operationKey), CancellationToken.None);
+            var replayed = await creator.ExecuteAsync(
+                new("Underside", ImageTagColour.Grey, actor, operationKey), CancellationToken.None);
+
+            Assert.False(created.IsReplay);
+            Assert.True(replayed.IsReplay);
+            Assert.Equal(created.Tag.Id, replayed.Tag.Id);
+            Assert.False(created.Tag.IsBuiltIn);
+            await Assert.ThrowsAsync<ImageTagNameInUseException>(() => creator.ExecuteAsync(
+                new("UNDERSIDE", ImageTagColour.Blue, actor, $"image-tag-create:{Guid.NewGuid():N}"),
+                CancellationToken.None));
+
+            var vocabulary = await scope.ServiceProvider
+                .GetRequiredService<IReadImageTagVocabulary>()
+                .ListAsync(CancellationToken.None);
+            Assert.Equal(
+                [.. ImageTagVocabulary.BuiltIn.Select(tag => tag.Name).OrderBy(name => name, StringComparer.Ordinal)],
+                vocabulary.Where(tag => tag.IsBuiltIn).Select(tag => tag.Name).OrderBy(name => name, StringComparer.Ordinal));
+            Assert.Contains(vocabulary, tag => tag.Id == created.Tag.Id);
         }
         finally
         {

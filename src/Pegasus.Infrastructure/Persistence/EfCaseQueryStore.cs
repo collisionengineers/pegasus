@@ -607,8 +607,10 @@ public sealed class EfCaseQueryStore(
                 .ToArrayAsync(cancellationToken))
             .ToDictionary(item => item.Id);
 
+        // The paged document list is the file table, not the Images tab: it
+        // draws no chips, so it does not pay for the tag read.
         return occurrences.Select(item => new CaseDocumentPageItem(
-                MapOccurrence(item),
+                MapOccurrence(item, []),
                 versionsById.TryGetValue(item.VersionId, out var version)
                     ? MapVersion(version)
                     : throw new InvalidOperationException(
@@ -648,15 +650,53 @@ public sealed class EfCaseQueryStore(
             .ThenBy(item => item.Id)
             .ToArrayAsync(cancellationToken);
 
+        // The image tags each occurrence wears, read with the occurrences
+        // rather than per tile: the Files section draws every image's chips in
+        // one pass.
+        var occurrenceIds = occurrences.Select(item => item.Id).ToArray();
+        var tagRows = await (
+                from assignment in context.Set<DocumentOccurrenceTagEntity>().AsNoTracking()
+                join tag in context.Set<ImageTagEntity>().AsNoTracking()
+                    on assignment.TagId equals tag.Id
+                where occurrenceIds.Contains(assignment.OccurrenceId)
+                orderby tag.IsBuiltIn descending, tag.Name
+                select new
+                {
+                    assignment.OccurrenceId,
+                    tag.Id,
+                    tag.Name,
+                    tag.Colour,
+                    tag.IsBuiltIn,
+                    assignment.AppliedAtUtc
+                })
+            .ToArrayAsync(cancellationToken);
+        var tagsByOccurrence = tagRows
+            .GroupBy(row => row.OccurrenceId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<ImageTagAssignment>)[.. group.Select(row =>
+                    new ImageTagAssignment(
+                        row.Id,
+                        row.Name,
+                        Enum.Parse<ImageTagColour>(row.Colour),
+                        row.IsBuiltIn,
+                        row.AppliedAtUtc))]);
+
         return documentEntities.Select(document => new CaseDocument(
                 document.Id,
                 caseId,
-                occurrences.Where(item => item.DocumentId == document.Id).Select(MapOccurrence).ToArray(),
+                occurrences.Where(item => item.DocumentId == document.Id)
+                    .Select(item => MapOccurrence(
+                        item,
+                        tagsByOccurrence.GetValueOrDefault(item.Id, [])))
+                    .ToArray(),
                 versions.Where(item => item.DocumentId == document.Id).Select(MapVersion).ToArray()))
             .ToArray();
     }
 
-    private static DocumentOccurrence MapOccurrence(DocumentOccurrenceEntity item) => new(
+    private static DocumentOccurrence MapOccurrence(
+        DocumentOccurrenceEntity item,
+        IReadOnlyList<ImageTagAssignment> tags) => new(
         item.Id,
         item.CaseId,
         item.DocumentId,
@@ -665,8 +705,7 @@ public sealed class EfCaseQueryStore(
         item.Source,
         item.SourceOccurrenceIdentity,
         item.RecordedAtUtc,
-        item.ThirdPartyVehicleConfirmedAtUtc,
-        item.ThirdPartyVehicleConfirmationReason);
+        tags);
 
     private static DocumentVersion MapVersion(DocumentVersionEntity item) => new(
         item.Id,

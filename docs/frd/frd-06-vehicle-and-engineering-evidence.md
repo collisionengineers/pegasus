@@ -132,7 +132,7 @@ Document Intelligence extraction from scanned PDFs, and broader image/damage AI
 or vision assistance are different capabilities.
 Generated or synthetic vehicle imagery is not acceptance evidence, and no recogniser, model, or adapter acts autonomously.
 
-Pegasus retains every source image. An automated VRM or colour result may only suggest that an image depicts another vehicle; it does not exclude the image from Case-vehicle, EVA-export, or future report-selection pools. An authorised staff member must confirm the different-vehicle finding before the retained source is categorised and excluded as third-party vehicle evidence. Without that confirmation it remains visible as unmatched-vehicle evidence. Neither outcome deletes source evidence or turns an automated assessment into accepted Case fact.
+Pegasus retains every source image. An automated VRM or colour result may only suggest that an image depicts another vehicle; it does not exclude the image from Case-vehicle, EVA-export, or future report-selection pools. An authorised staff member must confirm the different-vehicle finding by applying the Third party image tag ([FRD-05](frd-05-documents-extraction-and-custody.md#image-tags)) before the retained source is excluded as third-party vehicle evidence. Without that confirmation it remains visible as unmatched-vehicle evidence. Neither outcome deletes source evidence or turns an automated assessment into accepted Case fact.
 
 When activated, an AI-assisted image readiness assessment runs automatically whenever current Case images are added, replaced, or removed. It returns a source- and version-labelled advisory on whether the set contains a registration overview, at least one damage close-up, and a reflected image. An always-image-based Principal inspection-mode setting waives only the reflection advisory.
 
@@ -168,6 +168,23 @@ Looked-up values are suggestions: each appears as a chip beside its field and
 fills the field only when chosen, with the accepted value recorded as above.
 There is no checks panel and no suggestion table. Experian stays a disabled
 seam (D7, `ENG-001`).
+
+The combined DVLA/DVSA lookup also runs automatically at Case creation —
+both a manually created Case and an intake acceptance that allocates a
+Case — enqueuing and publishing the same external work item the manual
+action uses, in the creation transaction, gated on lookup availability being
+enabled. This automatic lookup is an additional trigger, not a substitute for
+the existing 10-second Worker sweep, which remains the recovery path when the
+creation-time attempt is unavailable or fails. The outcome is visible on the
+Case regardless of which trigger produced it (D34 amended, 2026-09-10):
+looked up and current, or a stated failure reason, separately from whether
+any suggestion was ever accepted. A provider's HTTP 404 response is
+classified before it is treated as "no such vehicle": only a 404 whose body
+is that provider's own vehicle-not-found error counts as `NotFound`; any
+other 404 (a gateway, route or withdrawn-subscription 404) is recorded as a
+failed lookup instead of a false not-found result. Accepted values remain
+suggestions only, per the acceptance rule above; the automatic trigger never
+fills or confirms a field itself.
 
 **Evidence boundary:** the DVLA/DVSA production adapter and its composition
 exist. Returned fields remain source-labelled suggestions; unavailable fields

@@ -68,7 +68,16 @@
                                     </td>
                                     <td>@Model.AreaLabel(row)</td>
                                     <td>@row.Operation</td>
-                                    <td>@(Model.ReferenceLabel(row) ?? "—")</td>
+                                    <td>
+                                        @if (Model.AiJobRecordLink(row) is { } aiJobRecord)
+                                        {
+                                            <a asp-page="@aiJobRecord.Page" asp-route-id="@aiJobRecord.SubjectId">@aiJobRecord.Reference</a>
+                                        }
+                                        else
+                                        {
+                                            @(Model.ReferenceLabel(row) ?? "—")
+                                        }
+                                    </td>
                                     <td>@row.Result</td>
                                 </tr>
                             }

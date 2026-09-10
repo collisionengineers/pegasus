@@ -10,6 +10,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Operations;
@@ -30,6 +31,7 @@ public sealed class IndexModel(
     ICancelAiJob cancelAiJob,
     IUnidentifiedStore unidentifiedStore,
     IEvaSubmissionQueries evaSubmissionQueries,
+    IStaffAccountQueries staffAccounts,
     TimeProvider timeProvider) : StaffPageModel
 {
     private const string PreservedReasonKey = "OperationsRequestReason";
@@ -72,8 +74,12 @@ public sealed class IndexModel(
         unidentifiedStore ?? throw new ArgumentNullException(nameof(unidentifiedStore));
     private readonly IEvaSubmissionQueries evaSubmissionQueries =
         evaSubmissionQueries ?? throw new ArgumentNullException(nameof(evaSubmissionQueries));
+    private readonly IStaffAccountQueries staffAccounts =
+        staffAccounts ?? throw new ArgumentNullException(nameof(staffAccounts));
     private readonly TimeProvider timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+
+    private IReadOnlyDictionary<Guid, string> jobCreatorNames = new Dictionary<Guid, string>();
 
     /// <summary>
     /// When this list was last read. Set only after the query returns, so a
@@ -118,6 +124,12 @@ public sealed class IndexModel(
             ServiceHealthPolicy.MaximumEvaFailures,
             cancellationToken);
         AiJobs = await ReadAiJobsAsync(nowUtc, cancellationToken);
+        // Started by is a name, never a stored subject id: the ledger keeps the
+        // raw actor, so the usernames are resolved once for the whole list.
+        jobCreatorNames = await ActorDisplayNames.ResolveStaffNamesAsync(
+            staffAccounts,
+            AiJobActions.StaffCreatorIds(AiJobs),
+            cancellationToken);
         LoadedAtUtc = nowUtc;
         return Page();
     }
@@ -373,20 +385,25 @@ public sealed class IndexModel(
         Presentation.OperatorLabels.RequestOperationState(state);
 
     /// <summary>
-    /// The record page a job's subject opens, or <see langword="null"/> when
-    /// the job names no record. A queue pass is the only such kind: its
-    /// subject is the Unidentified queue itself.
+    /// The record page a job's subject opens, through the one map this list
+    /// shares with the Action Logs reference column
+    /// (<see cref="AiJobActions.RecordPage"/>).
     /// </summary>
     public static string? RecordPage(AiJobRecord job)
     {
         ArgumentNullException.ThrowIfNull(job);
-        return job.SubjectKind switch
-        {
-            AiJobSubjectKind.Case => "/Cases/Details",
-            AiJobSubjectKind.Unidentified => "/Unidentified/Details",
-            _ => null
-        };
+        return AiJobActions.RecordPage(job.SubjectKind);
     }
+
+    /// <summary>
+    /// Who started one job: a staff username, the connector client name, or
+    /// Pegasus itself &#8212; never the stored subject identifier (FRD-11
+    /// &#167; AI Job List).
+    /// </summary>
+    public string StartedBy(AiJobRecord job) => AiJobActions.StartedBy(
+        job,
+        jobCreatorNames,
+        HttpContext.RequestServices.GetService<AutomationMcpOptions>()?.ClientId);
 
     /// <summary>
     /// The review action a Draft ready job offers, as (label, page), or

@@ -3,12 +3,13 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
 /// The Case workspace's document custody actions: custody retry, logical removal,
-/// third-party vehicle evidence, and request-scoped upload links. Every action redirects back
+/// image tags, and request-scoped upload links. Every action redirects back
 /// to the workspace.
 /// </summary>
 [Authorize(
@@ -17,7 +18,9 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed class CustodyModel(
     IRetryCaseCustody retryCaseCustody,
     ILogicallyRemoveDocument logicallyRemoveDocument,
-    IConfirmThirdPartyVehicleEvidence confirmThirdPartyVehicleEvidence,
+    ITagCaseImage tagCaseImage,
+    IUntagCaseImage untagCaseImage,
+    ICreateImageTag createImageTag,
     ICreateRequestUploadLink createRequestUploadLink,
     IRevokeRequestUploadLink revokeRequestUploadLink,
     ILogger<CustodyModel> logger) : CaseMutationPageModel(logger)
@@ -92,29 +95,108 @@ public sealed class CustodyModel(
                 cancellationToken),
             "The document occurrence was logically removed; custody content and history were retained.");
 
-    public Task<IActionResult> OnPostConfirmThirdPartyVehicleEvidenceAsync(
+    public Task<IActionResult> OnPostTagImageAsync(
         Guid id,
         Guid occurrenceId,
+        Guid tagId,
         long expectedVersion,
         string operationKey,
-        string reason,
         string editLeaseToken,
         CancellationToken cancellationToken) =>
         ExecuteTransportCommandAsync(
             id,
             editLeaseToken,
-            "confirm_third_party_vehicle_evidence",
-            actor => confirmThirdPartyVehicleEvidence.ExecuteAsync(
+            "tag_case_image",
+            actor => tagCaseImage.ExecuteAsync(
                 new(
                     id,
                     occurrenceId,
+                    tagId,
                     actor,
-                    reason,
                     operationKey,
                     expectedVersion,
                     editLeaseToken),
                 cancellationToken),
-            "The custody-confirmed image was recorded as third-party vehicle evidence and is excluded from EVA export.");
+            CaseWorkspaceLabels.ImageTags.WasApplied,
+            RedirectToDetailsFilesImages);
+
+    public Task<IActionResult> OnPostUntagImageAsync(
+        Guid id,
+        Guid occurrenceId,
+        Guid tagId,
+        long expectedVersion,
+        string operationKey,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteTransportCommandAsync(
+            id,
+            editLeaseToken,
+            "untag_case_image",
+            actor => untagCaseImage.ExecuteAsync(
+                new(
+                    id,
+                    occurrenceId,
+                    tagId,
+                    actor,
+                    operationKey,
+                    expectedVersion,
+                    editLeaseToken),
+                cancellationToken),
+            CaseWorkspaceLabels.ImageTags.WasRemoved,
+            RedirectToDetailsFilesImages);
+
+    /// <summary>
+    /// Adds a word to the shared tag vocabulary from the picker on a Case's
+    /// image. The vocabulary is not the Case, so this consumes neither the
+    /// Case version nor the edit lease: the editor keeps editing and the new
+    /// tag is there to apply.
+    /// </summary>
+    public async Task<IActionResult> OnPostCreateImageTagAsync(
+        Guid id,
+        string? name,
+        ImageTagColour colour,
+        string operationKey,
+        string editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            PreserveLeaseState(id, editLeaseToken);
+            TempData["CaseError"] = CaseWorkspaceLabels.ImageTags.NameRequired;
+            return RedirectToDetailsFilesImages(id);
+        }
+
+        try
+        {
+            await createImageTag.ExecuteAsync(
+                new(name, colour, actor, operationKey),
+                cancellationToken);
+            PreserveLeaseState(id, editLeaseToken);
+            TempData["CaseStatus"] = CaseWorkspaceLabels.ImageTags.WasCreated;
+        }
+        catch (StaffAuthorizationException)
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+        catch (ImageTagNameInUseException)
+        {
+            PreserveLeaseState(id, editLeaseToken);
+            TempData["CaseError"] = CaseWorkspaceLabels.ImageTags.NameInUse;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "create_image_tag", exception);
+            PreserveLeaseState(id, editLeaseToken);
+            TempData["CaseError"] = CaseWorkspaceLabels.ImageTags.NotCreated;
+        }
+
+        return RedirectToDetailsFilesImages(id);
+    }
 
     public async Task<IActionResult> OnPostCreateRequestUploadLinkAsync(
         Guid id,
