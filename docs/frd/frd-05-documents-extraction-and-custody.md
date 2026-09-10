@@ -105,3 +105,42 @@ Read through the logical occurrence/version interface so current authorization
 and exact version checks apply regardless of physical source. Do not erase
 staging before verified handoff or invent a new store for this separation
 (ADR-0045).
+
+An inline image preview is served through this same cached content path,
+never as an audited download: every read re-verifies the source content hash
+and serves only confirmed custody. A cache entry is content-hash addressed,
+so it is immutable and safely shared, and a smaller thumbnail variant is
+served to gallery and tile surfaces while the full image serves the viewer
+and crop. The instruction/receipt gallery does not omit an image whose
+custody is still in flight (not yet confirmed); it renders as a placeholder
+naming the file until custody resolves. The Case's own Images tab carries no
+such placeholder: it is built from `CaseFiles.Live`, which requires Confirmed
+custody, so an image still in flight is simply absent from it until custody
+resolves.
+
+## Image tags
+
+Image tags are a Case-document classification, distinct from Box/SQL file
+custody: a shared vocabulary (`Name`, `Colour`, `IsBuiltIn`) and a join
+recording which tag sits on which image occurrence (`AppliedBy`,
+`AppliedAtUtc`, its operation key). The seeded, non-deletable vocabulary is
+Overview, Close-up, Third party and Reflection; an authorised staff member
+may add a custom entry (up to 40 characters, case-insensitive unique against
+every existing name) with one of six fixed design tints. An occurrence may
+carry any number of tags.
+
+Applying or removing a tag on a Case image carries the same guards as every
+other Case mutation: the current Case edit lease, the expected Case version
+and an operation key for replay, and it bumps the Case version — the tag is
+on the record's timeline, not beside it. Adding to the shared vocabulary
+takes no lease or Case version (it is not a Case fact); it requires the
+casework right and an operation key, and a duplicate name (by the
+case-insensitive key) is refused rather than creating a second entry.
+
+Third party replaces the former one-way `ThirdPartyVehicleConfirmedAtUtc`
+flag and keeps its EVA-exclusion behaviour
+([FRD-07](frd-07-eva-and-external-engineering-handoff.md#eva-handoff-routes)).
+The migration that introduced tags converted every recorded confirmation
+into a Third party tag on the same occurrence, preserving its original
+moment, actor and operation key, then dropped the three flag columns and
+their index; there is no way back from a tag to the flag.

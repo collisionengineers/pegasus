@@ -1554,7 +1554,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             var occurrence = new DocumentOccurrence(
                 Guid.NewGuid(), command.CaseId, version.DocumentId, version.Id,
                 command.SemanticRole, command.Source, command.SourceOccurrenceIdentity,
-                DateTimeOffset.UtcNow, null, null);
+                DateTimeOffset.UtcNow, []);
             RetainedDocument = new(occurrence, version);
             retainedBytes = contentBytes;
             return Task.FromResult(new AddCaseDocumentResult(occurrence, version, false));

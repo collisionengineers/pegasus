@@ -1,137 +1,149 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Core.Cases
 @using Pegasus.Web.Pages.Cases
 @using Pegasus.Web.Presentation
-@using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages
+@using TagLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ImageTags
 @{
     var details = Model.Case!;
-    var summary = details.Summary;
+    var workflow = details.Workflow;
+    var leaseToken = Model.RenderLeaseToken;
+    var mayEdit = Model.CanEditCaseData;
+    var custodyConfirmed = details.CustodyState == CaseCustodyState.Confirmed
+        && !string.IsNullOrWhiteSpace(details.CustodyFolderRemoteId);
 }
 
-@* Case Files (EPIC-011 §1.8): the case's own documents, the photographs the
-   instruction carried, and the images each associated Image-initiated Case
-   registered. Every tile is a [data-evidence-item] inside a
-   [data-evidence-set], so the viewer Details.cshtml already renders once —
-   with its Rotate view and Save as controls — opens them. *@
+@* Case Files (EPIC-011 §1.8): one panel with two tabs. Documents is the
+   case's files as rows; Images is every image of the case as a tile it can be
+   tagged, previewed and cropped from. Both tab bodies are rendered, so with no
+   script the section is the two lists one after the other, each under its own
+   heading; script turns the strip on and shows one at a time. Where an image
+   sits in the report stays on the Report section, which is the only place
+   report composition is set. *@
 <div class="stack">
-    <partial name="Cases/Shared/_CaseDocuments" model="Model" />
+    <section class="panel" aria-labelledby="case-files-title" data-file-tabs-wrap>
+        <div class="panel-head">
+            <h2 id="case-files-title">@OperatorLabels.CaseWorkspace.FilesPanel</h2>
+            <span class="cluster">
+                <a class="btn" asp-page="/Upload">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                    <span>@OperatorLabels.CaseWorkspace.AddEvidence</span>
+                </a>
+                @if (custodyConfirmed)
+                {
+                    <a class="btn btn--dark" href="https://app.box.com/folder/@(details.CustodyFolderRemoteId)" target="_blank" rel="noopener">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                        <span>Open Box case folder</span>
+                    </a>
+                }
+                else
+                {
+                    @* The folder's own state as a value, not an explanation. *@
+                    <partial name="Shared/_StatusChip" model="@OperatorLabels.CustodyFolderState(details.CustodyState)" />
+                }
+                <a class="btn" asp-page="/Operations/Index">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                    <span>@OperatorLabels.CaseWorkspace.OpenOperations</span>
+                </a>
+            </span>
+        </div>
+        <div class="tabs" role="tablist" aria-label="@OperatorLabels.CaseWorkspace.FilesPanel" data-file-tabs hidden>
+            <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="case-files-documents" data-file-tab="documents">@TagLabels.DocumentsTab</button>
+            <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="case-files-images" data-file-tab="images">@TagLabels.ImagesTab</button>
+        </div>
+        <div id="case-files-documents" role="tabpanel" data-file-tab-panel="documents">
+            <h3 class="tab-panel-title">@TagLabels.DocumentsTab</h3>
+            <partial name="Cases/Shared/_CaseDocuments" model="Model" />
+        </div>
+        <div id="case-files-images" role="tabpanel" data-file-tab-panel="images">
+            <h3 class="tab-panel-title">@TagLabels.ImagesTab</h3>
+            <partial name="Cases/Shared/_CaseImages" model="Model" />
+        </div>
+    </section>
+
+    @if (details.RequestUploadLinks.Count > 0 || mayEdit)
+    {
+        <section class="panel" aria-labelledby="case-upload-requests-title">
+            <div class="panel-head">
+                <h2 id="case-upload-requests-title">@OperatorLabels.CaseWorkspace.UploadRequestsPanel</h2>
+                @if (mayEdit && Model.RequestUploadLimits is { } uploadLimits)
+                {
+                    <button type="button" class="btn btn--primary" data-dialog-open="create-upload-request">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                        <span>@CaseWorkspaceLabels.UploadRequest.Create</span>
+                    </button>
+                    <dialog id="create-upload-request" class="dialog">
+                        <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="CreateRequestUploadLink" class="stack">
+                            <div class="dialog-head"><h2>@CaseWorkspaceLabels.UploadRequest.Create</h2><button type="button" class="btn btn--icon" data-dialog-close aria-label="Close">×</button></div>
+                            <input type="hidden" name="id" value="@workflow.CaseId" />
+                            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                            <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                            <div class="field"><label class="req" for="upload-request-recipient">@CaseWorkspaceLabels.UploadRequest.Recipient</label><input id="upload-request-recipient" name="recipient" required maxlength="500" /></div>
+                            <div class="field"><label for="upload-request-reason">@CaseWorkspaceLabels.UploadRequest.Reason</label><textarea id="upload-request-reason" name="reason" rows="2" maxlength="1000"></textarea></div>
+                            <dl class="definition"><dt>@CaseWorkspaceLabels.UploadRequest.Lifetime</dt><dd>@CaseWorkspaceLabels.UploadRequest.Days(uploadLimits.Lifetime)</dd><dt>@CaseWorkspaceLabels.UploadRequest.Files</dt><dd>@uploadLimits.MaximumFileCount</dd><dt>@CaseWorkspaceLabels.UploadRequest.FileSize</dt><dd>@OperatorLabels.FileSize(uploadLimits.MaximumFileBytes)</dd></dl>
+                            <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Create</button></div>
+                        </form>
+                    </dialog>
+                }
+            </div>
+            @if (details.RequestUploadLinks.Count > 0)
+            {
+                <div class="panel-body">
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Recipient</th><th>Reason</th><th>State</th><th>Created</th><th>Expires</th><th>Accepted</th>@if (mayEdit){<th>Action</th>}</tr></thead>
+                            <tbody>
+                                @foreach (var request in details.RequestUploadLinks)
+                                {
+                                    <tr>
+                                        <td>@(request.Recipient ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
+                                        <td>@(request.Reason ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
+                                        <td><partial name="Shared/_StatusChip" model="@OperatorLabels.UploadRequestState(request.Status)" /></td>
+                                        <td>@OperatorLabels.OfficeTime(request.CreatedAtUtc)</td>
+                                        <td>@OperatorLabels.OfficeTime(request.ExpiresAtUtc)</td>
+                                        <td>@request.AcceptedFileCount · @OperatorLabels.FileSize(request.AcceptedByteCount)</td>
+                                        @if (mayEdit)
+                                        {
+                                            <td>
+                                                @if (request.RevokedAtUtc is null)
+                                                {
+                                                    <button type="button" class="btn btn--small btn--danger" data-dialog-open="revoke-upload-@request.Id">Withdraw link</button>
+                                                }
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                @if (mayEdit)
+                {
+                    @foreach (var request in details.RequestUploadLinks.Where(link => link.RevokedAtUtc is null))
+                    {
+                        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+                        {
+                            ["DialogId"] = $"revoke-upload-{request.Id}",
+                            ["DialogTitle"] = "Withdraw link",
+                            ["DialogActionUrl"] = Url.Page("/Cases/Custody", "RevokeRequestUploadLink", new { id = workflow.CaseId }),
+                            ["DialogHiddenFields"] = new Dictionary<string, string?>
+                            {
+                                ["id"] = workflow.CaseId.ToString(),
+                                ["requestId"] = request.Id.ToString(),
+                                ["expectedRequestVersion"] = request.Version.ToString(),
+                                ["expectedVersion"] = workflow.Version.ToString(),
+                                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
+                                ["editLeaseToken"] = leaseToken
+                            }
+                        })" />
+                    }
+                }
+            }
+        </section>
+    }
+
     @if (details.QueryEmails.Count > 0 || Model.StaffMailAvailable)
     {
         <partial name="Cases/Shared/_CaseCorrespondence" model="Model" />
-    }
-
-    @if (Model.EvidenceImages.Count > 0)
-    {
-        <section class="section-gap" aria-labelledby="instruction-photos-title">
-            <div class="blockhead">
-                <h2 id="instruction-photos-title">@OperatorLabels.CaseWorkspace.InstructionPhotographs</h2>
-            </div>
-            @{
-                // DOCS-007: an image registered as a case document is served
-                // from Box through the case-document route. The receipt-asset
-                // route remains only for a case accepted before those records
-                // existed. DOCS-011: the case-document route saves unless it is
-                // asked to display, so preview and download are two URLs.
-                var evidenceGallery = Model.EvidenceImages
-                    .Select(image =>
-                    {
-                        string preview;
-                        string download;
-                        string? thumbnail = null;
-                        if (image.IsCaseDocument)
-                        {
-                            download = Url.Page(
-                                "/Cases/Documents/Download",
-                                new
-                                {
-                                    caseId = summary.CaseId,
-                                    occurrenceId = image.OccurrenceId,
-                                    versionId = image.VersionId
-                                })!;
-                            preview = Url.Page(
-                                "/Cases/Documents/Download",
-                                new
-                                {
-                                    caseId = summary.CaseId,
-                                    occurrenceId = image.OccurrenceId,
-                                    versionId = image.VersionId,
-                                    inline = true
-                                })!;
-                            // DOCS-015: the tile asks for the derived
-                            // rendering; the viewer and Save as keep the full
-                            // image above.
-                            thumbnail = Url.Page(
-                                "/Cases/Documents/Download",
-                                new
-                                {
-                                    caseId = summary.CaseId,
-                                    occurrenceId = image.OccurrenceId,
-                                    versionId = image.VersionId,
-                                    inline = true,
-                                    size = Pegasus.Core.Documents.CaseDocumentThumbnails.ThumbSizeToken
-                                })!;
-                        }
-                        else
-                        {
-                            download = Url.Page(
-                                "/Intake/Asset",
-                                new { id = image.ReceiptId, assetId = image.AssetId })!;
-                            preview = download;
-                        }
-                        return new GalleryImage(
-                            preview,
-                            download,
-                            image.FileName,
-                            image.MediaType,
-                            thumbnail,
-                            image.IsStored);
-                    })
-                    .ToArray();
-            }
-            <partial name="Shared/_ImageGallery" model="evidenceGallery" />
-        </section>
-    }
-
-    @* B06: how each image occurrence is prepared for the report — role,
-       order, rotation and crop — below the gallery the images themselves are
-       shown in. The Report section renders the same cards from the same
-       partial and the same loaded set, so the two sections can never state
-       different preparation, or offer different controls, for one image. *@
-    @if (Model.AssetPreparations.Count > 0)
-    {
-        <section class="panel" aria-labelledby="report-images-title">
-            <div class="panel-head">
-                <h2 id="report-images-title">@ReportImageLabels.SectionTitle</h2>
-            </div>
-            <div class="panel-body">
-                <partial name="Cases/Shared/_CaseReportImagePreparation"
-                         model="ReportImagePreparationView.Files(Model)" />
-            </div>
-        </section>
-    }
-
-    @if (Model.ImageIntakes.Count > 0)
-    {
-        <section class="section-gap" aria-labelledby="case-images-title">
-            <div class="blockhead">
-                <h2 id="case-images-title">@OperatorLabels.CaseWorkspace.VehicleImages</h2>
-            </div>
-            @foreach (var image in Model.ImageIntakes)
-            {
-                <section class="section-gap">
-                    <h3><a asp-page="/ImageIntake/Details" asp-route-id="@image.Id">@image.ImageIntakeReference</a></h3>
-                    <p>@image.NormalizedVehicleRegistration · Registered <time datetime="@image.RegisteredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(image.RegisteredAtUtc)</time></p>
-                    @{
-                        var intakeGallery = Model.ImagesByIntake.GetValueOrDefault(image.Id, [])
-                            .Select(item =>
-                            {
-                                var href = Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
-                                return new GalleryImage(href, href, item.FileName, item.MediaType);
-                            })
-                            .ToArray();
-                    }
-                    <partial name="Shared/_ImageGallery" model="intakeGallery" />
-                </section>
-            }
-        </section>
     }
 </div>

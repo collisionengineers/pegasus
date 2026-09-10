@@ -465,6 +465,9 @@ public static class DependencyInjection
             provider.GetRequiredService<EfCaseAssetPreparationStore>());
         services.AddScoped<ICaseAssetPreparationQueries>(provider =>
             provider.GetRequiredService<EfCaseAssetPreparationStore>());
+        // The tag vocabulary is a read of the database alone, so the Case
+        // workspace has its picker wherever it has a Case.
+        services.AddScoped<IReadImageTagVocabulary, EfImageTagVocabularyReader>();
         services.AddScoped<EfValuationStore>();
         services.AddScoped<IValuationStore>(provider =>
             provider.GetRequiredService<EfValuationStore>());
@@ -634,7 +637,11 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ILogicallyRemoveDocument>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
-            services.AddScoped<IConfirmThirdPartyVehicleEvidence>(provider =>
+            services.AddScoped<ITagCaseImage>(provider =>
+                provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<IUntagCaseImage>(provider =>
+                provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<ICreateImageTag>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ICaseDocumentStateQueries>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());

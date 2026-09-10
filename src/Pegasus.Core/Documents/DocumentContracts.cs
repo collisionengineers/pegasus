@@ -75,8 +75,7 @@ public sealed record DocumentOccurrence(
     DocumentSource Source,
     string SourceOccurrenceIdentity,
     DateTimeOffset RecordedAtUtc,
-    DateTimeOffset? ThirdPartyVehicleConfirmedAtUtc,
-    string? ThirdPartyVehicleConfirmationReason,
+    IReadOnlyList<ImageTagAssignment> Tags,
     int Ordinal = 0);
 
 public sealed record CaseDocument(
@@ -234,15 +233,6 @@ public sealed record LogicallyRemoveDocumentCommand(
     long ExpectedCaseVersion,
     string EditLeaseToken);
 
-public sealed record ConfirmThirdPartyVehicleEvidenceCommand(
-    Guid CaseId,
-    Guid OccurrenceId,
-    ActionActor Actor,
-    string Reason,
-    string OperationKey,
-    long ExpectedCaseVersion,
-    string EditLeaseToken);
-
 public interface ICaseDocumentStateQueries
 {
     Task<CaseDocumentState?> GetAsync(
@@ -296,13 +286,6 @@ public interface ILogicallyRemoveDocument
 {
     Task ExecuteAsync(
         LogicallyRemoveDocumentCommand command,
-        CancellationToken cancellationToken = default);
-}
-
-public interface IConfirmThirdPartyVehicleEvidence
-{
-    Task ExecuteAsync(
-        ConfirmThirdPartyVehicleEvidenceCommand command,
         CancellationToken cancellationToken = default);
 }
 

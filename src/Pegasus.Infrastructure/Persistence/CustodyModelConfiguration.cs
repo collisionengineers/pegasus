@@ -52,8 +52,6 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.SourceOccurrenceIdentity).HasMaxLength(512).IsRequired();
             entity.Property(value => value.OperationKey).HasMaxLength(256).IsRequired();
             entity.Property(value => value.Ordinal).IsRequired();
-            entity.Property(value => value.ThirdPartyVehicleConfirmationReason).HasMaxLength(500);
-            entity.Property(value => value.ThirdPartyVehicleConfirmationOperationKey).HasMaxLength(100);
             entity.Property(value => value.PreparationRole).HasMaxLength(20);
             entity.Property(value => value.CropLeft).HasPrecision(8, 7);
             entity.Property(value => value.CropTop).HasPrecision(8, 7);
@@ -61,11 +59,36 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.CropHeight).HasPrecision(8, 7);
             entity.Property(value => value.PreparedBy).HasMaxLength(200);
             entity.HasIndex(value => new { value.CaseId, value.OperationKey }).IsUnique();
-            entity.HasIndex(value => new { value.CaseId, value.ThirdPartyVehicleConfirmedAtUtc });
             entity.HasIndex(value => new { value.CaseId, value.DocumentId });
             entity.HasOne<CaseEntity>().WithMany().HasForeignKey(value => value.CaseId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<CaseDocumentEntity>().WithMany().HasForeignKey(value => value.DocumentId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<DocumentVersionEntity>().WithMany().HasForeignKey(value => value.VersionId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ImageTagEntity>(entity =>
+        {
+            entity.ToTable("ImageTags");
+            entity.HasKey(value => value.Id);
+            entity.Property(value => value.Name).HasMaxLength(40).IsRequired();
+            entity.Property(value => value.NormalizedName).HasMaxLength(40).IsRequired();
+            entity.Property(value => value.Colour).HasMaxLength(20).IsRequired();
+            entity.Property(value => value.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(value => value.CreateOperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(value => value.Version).IsConcurrencyToken();
+            entity.HasIndex(value => value.NormalizedName).IsUnique();
+            entity.HasIndex(value => value.CreateOperationKey).IsUnique();
+        });
+
+        modelBuilder.Entity<DocumentOccurrenceTagEntity>(entity =>
+        {
+            entity.ToTable("DocumentOccurrenceTags");
+            entity.HasKey(value => new { value.OccurrenceId, value.TagId });
+            entity.Property(value => value.AppliedByKind).HasMaxLength(32).IsRequired();
+            entity.Property(value => value.AppliedBySubjectId).HasMaxLength(200).IsRequired();
+            entity.Property(value => value.OperationKey).HasMaxLength(100).IsRequired();
+            entity.HasIndex(value => value.TagId);
+            entity.HasOne<DocumentOccurrenceEntity>().WithMany().HasForeignKey(value => value.OccurrenceId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ImageTagEntity>().WithMany().HasForeignKey(value => value.TagId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<RequestUploadLinkEntity>(entity =>

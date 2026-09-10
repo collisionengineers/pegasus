@@ -187,7 +187,10 @@ public sealed class ProductionCompositionTests
         Assert.NotNull(services.GetRequiredService<IDownloadCaseDocument>());
         Assert.NotNull(services.GetRequiredService<IExportCaseDocuments>());
         Assert.NotNull(services.GetRequiredService<ILogicallyRemoveDocument>());
-        Assert.NotNull(services.GetRequiredService<IConfirmThirdPartyVehicleEvidence>());
+        Assert.NotNull(services.GetRequiredService<ITagCaseImage>());
+        Assert.NotNull(services.GetRequiredService<IUntagCaseImage>());
+        Assert.NotNull(services.GetRequiredService<ICreateImageTag>());
+        Assert.NotNull(services.GetRequiredService<IReadImageTagVocabulary>());
         Assert.NotNull(services.GetRequiredService<ICaseDocumentStateQueries>());
         Assert.NotNull(services.GetRequiredService<IExportCaseBundle>());
         Assert.NotNull(services.GetRequiredService<IProcessQueuedCustody>());

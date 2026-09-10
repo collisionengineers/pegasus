@@ -97,7 +97,7 @@ public sealed record EvaHandoffImageCandidate(
     bool CustodyConfirmed,
     bool IsCurrent,
     bool IsLogicallyRemoved,
-    bool IsThirdPartyVehicle,
+    IReadOnlyList<Guid> TagIds,
     int Ordinal);
 
 public static class EvaHandoffPolicy
@@ -150,7 +150,7 @@ public static class EvaHandoffPolicy
             && candidate.CustodyConfirmed
             && candidate.IsCurrent
             && !candidate.IsLogicallyRemoved
-            && !candidate.IsThirdPartyVehicle
+            && !candidate.TagIds.Contains(ImageTagVocabulary.ThirdPartyId)
             && candidate.MediaType is "image/jpeg" or "image/png")
         .OrderBy(candidate => candidate.Ordinal)
         .ToArray();

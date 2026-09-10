@@ -1639,7 +1639,6 @@ public static class OperatorLabels
         public const string AcceptSuggestion = "Accept";
         public const string CorrectSuggestion = "Correct";
         public const string InspectionAddressPanel = "Inspection address";
-        public const string ProviderDefaultInspectionAddress = "Provider default";
 
         /// <summary>
         /// The Principal's own inspection-address setting, named for the party
@@ -1665,13 +1664,10 @@ public static class OperatorLabels
         // End CASE-041.
         public const string FilesPanel = "Files";
         public const string UploadRequestsPanel = "Public upload requests";
-        public const string InstructionPhotographs = "Instruction photographs";
-        public const string VehicleImages = "Vehicle images";
         public const string AddEvidence = "Add evidence";
         public const string OpenOperations = "Open Operations";
         public const string Preview = "Preview";
         public const string SaveAs = "Save as";
-        public const string ThirdPartyVehicle = "Third-party vehicle";
 
         /// <summary>
         /// Why a refresh control is disabled: the lookup searches on the
@@ -1710,7 +1706,6 @@ public static class OperatorLabels
         public const string SectionNav = "Case sections";
 
         // The identity ribbon the frame itself renders (D29, D31).
-        public const string RibbonReference = "Case/PO";
         public const string RibbonRegistration = "Registration";
         public const string RibbonClaimant = "Claimant";
         public const string RibbonPrincipal = "Principal";

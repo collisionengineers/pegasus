@@ -43,9 +43,6 @@ internal sealed class DocumentOccurrenceEntity
     public string SourceOccurrenceIdentity { get; set; } = string.Empty;
     public DateTimeOffset RecordedAtUtc { get; set; }
     public string OperationKey { get; set; } = string.Empty;
-    public DateTimeOffset? ThirdPartyVehicleConfirmedAtUtc { get; set; }
-    public string? ThirdPartyVehicleConfirmationReason { get; set; }
-    public string? ThirdPartyVehicleConfirmationOperationKey { get; set; }
     public string? PreparationRole { get; set; }
     public int? SupportingOrder { get; set; }
     public short RotationDegrees { get; set; }
@@ -56,6 +53,35 @@ internal sealed class DocumentOccurrenceEntity
     public long PreparationVersion { get; set; }
     public string? PreparedBy { get; set; }
     public DateTimeOffset? PreparedAtUtc { get; set; }
+}
+
+/// <summary>
+/// One entry of the shared image-tag vocabulary (Overview, Close-up, Third
+/// party, Reflection and whatever staff add). Global, not case-scoped: the
+/// same word means the same thing on every case.
+/// </summary>
+internal sealed class ImageTagEntity
+{
+    public Guid Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string NormalizedName { get; set; } = string.Empty;
+    public string Colour { get; set; } = string.Empty;
+    public bool IsBuiltIn { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+    public string CreateOperationKey { get; set; } = string.Empty;
+    public long Version { get; set; }
+}
+
+/// <summary>One tag on one image occurrence, with who put it there and when.</summary>
+internal sealed class DocumentOccurrenceTagEntity
+{
+    public Guid OccurrenceId { get; set; }
+    public Guid TagId { get; set; }
+    public string AppliedByKind { get; set; } = string.Empty;
+    public string AppliedBySubjectId { get; set; } = string.Empty;
+    public DateTimeOffset AppliedAtUtc { get; set; }
+    public string OperationKey { get; set; } = string.Empty;
 }
 
 internal sealed class RequestUploadLinkEntity

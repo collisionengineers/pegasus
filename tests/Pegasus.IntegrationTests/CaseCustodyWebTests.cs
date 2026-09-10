@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Pegasus.Core.Cases;
@@ -9,25 +10,27 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The Custody page: custody retry, logical removal, third-party vehicle evidence,
-/// and the request-scoped upload links.
+/// The Custody page: custody retry, logical removal, image tags, and the
+/// request-scoped upload links.
 /// </summary>
 public sealed partial class CaseDetailsWebTests
 {
     [Fact]
-    public async Task CustodyPageBindsRetryRemovalThirdPartyEvidenceAndRequestLinks()
+    public async Task CustodyPageBindsRetryRemovalImageTagsAndRequestLinks()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
         {
             Substitute<IRetryCaseCustody>(services, store);
             Substitute<ILogicallyRemoveDocument>(services, store);
-            Substitute<IConfirmThirdPartyVehicleEvidence>(services, store);
+            Substitute<ITagCaseImage>(services, store);
+            Substitute<IUntagCaseImage>(services, store);
             Substitute<ICreateRequestUploadLink>(services, store);
             Substitute<IRevokeRequestUploadLink>(services, store);
         });
         var occurrenceId = Guid.NewGuid();
         var requestId = Guid.NewGuid();
+        var tagId = ImageTagVocabulary.ThirdPartyId;
 
         using var retried = await workspace.PostAsync(
             "Custody?handler=RetryCustody",
@@ -35,9 +38,20 @@ public sealed partial class CaseDetailsWebTests
         using var removed = await workspace.PostAsync(
             "Custody?handler=RemoveDocument",
             workspace.MutationForm("remove-document", "Duplicate scan", ("occurrenceId", occurrenceId.ToString("D"))));
-        using var confirmed = await workspace.PostAsync(
-            "Custody?handler=ConfirmThirdPartyVehicleEvidence",
-            workspace.MutationForm("confirm-third-party", "Other vehicle in frame", ("occurrenceId", occurrenceId.ToString("D"))));
+        using var tagged = await workspace.PostAsync(
+            "Custody?handler=TagImage",
+            workspace.MutationForm(
+                "tag-image",
+                reason: string.Empty,
+                ("occurrenceId", occurrenceId.ToString("D")),
+                ("tagId", tagId.ToString("D"))));
+        using var untagged = await workspace.PostAsync(
+            "Custody?handler=UntagImage",
+            workspace.MutationForm(
+                "untag-image",
+                reason: string.Empty,
+                ("occurrenceId", occurrenceId.ToString("D")),
+                ("tagId", tagId.ToString("D"))));
         using var linkCreated = await workspace.PostAsync(
             "Custody?handler=CreateRequestUploadLink",
             workspace.MutationForm("create-request-link", "Ask the claimant for images", ("recipient", "Claimant")));
@@ -49,10 +63,16 @@ public sealed partial class CaseDetailsWebTests
                 ("requestId", requestId.ToString("D")),
                 ("expectedRequestVersion", "2")));
 
-        foreach (var response in new[] { retried, removed, confirmed, linkCreated, linkRevoked })
+        foreach (var response in new[] { retried, removed, linkCreated, linkRevoked })
         {
             AssertPrg(response, store.CaseId);
         }
+
+        // The tag and untag posts return to the Files section's Images tab —
+        // not Overview — so the operator lands back on the tile they just
+        // acted on (issue: the tab and the hash were dropped on every POST).
+        AssertPrgToFilesImages(tagged, store.CaseId);
+        AssertPrgToFilesImages(untagged, store.CaseId);
 
         var retry = Assert.Single(store.CustodyRetries);
         AssertClaimant(workspace, retry.Actor);
@@ -70,13 +90,23 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal("remove-document", removal.OperationKey);
         Assert.Equal("Duplicate scan", removal.Reason);
 
-        var confirmation = Assert.Single(store.ThirdPartyConfirmations);
-        AssertClaimant(workspace, confirmation.Actor);
-        Assert.Equal(occurrenceId, confirmation.OccurrenceId);
-        Assert.Equal(store.CaseVersion, confirmation.ExpectedCaseVersion);
-        Assert.Equal(store.LeaseToken, confirmation.EditLeaseToken);
-        Assert.Equal("confirm-third-party", confirmation.OperationKey);
-        Assert.Equal("Other vehicle in frame", confirmation.Reason);
+        // A tag carries the same envelope the third-party confirmation it
+        // replaced carried, and no reason: the tag is the statement.
+        var applied = Assert.Single(store.ImageTagsApplied);
+        AssertClaimant(workspace, applied.Actor);
+        Assert.Equal(occurrenceId, applied.OccurrenceId);
+        Assert.Equal(tagId, applied.TagId);
+        Assert.Equal(store.CaseVersion, applied.ExpectedCaseVersion);
+        Assert.Equal(store.LeaseToken, applied.EditLeaseToken);
+        Assert.Equal("tag-image", applied.OperationKey);
+
+        var removedTag = Assert.Single(store.ImageTagsRemoved);
+        AssertClaimant(workspace, removedTag.Actor);
+        Assert.Equal(occurrenceId, removedTag.OccurrenceId);
+        Assert.Equal(tagId, removedTag.TagId);
+        Assert.Equal(store.CaseVersion, removedTag.ExpectedCaseVersion);
+        Assert.Equal(store.LeaseToken, removedTag.EditLeaseToken);
+        Assert.Equal("untag-image", removedTag.OperationKey);
 
         var linkCreation = Assert.Single(store.RequestLinkCreations);
         AssertClaimant(workspace, linkCreation.Actor);
@@ -154,6 +184,74 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
+    /// The Files section is one panel with two tabs (issue 6). Documents lists
+    /// every file as a row; Images lists the case's own image occurrences as
+    /// tiles built from the case documents themselves — not from the intake
+    /// receipts, which a manually created Case has none of, and which is why
+    /// its photographs were invisible. The three galleries the section used to
+    /// stack are gone, and so is the Third-party vehicle button the tags
+    /// replaced (issue 5).
+    /// </summary>
+    [Fact]
+    public async Task CaseFilesSectionDrawsOneDocumentsTabAndOneImagesTab()
+    {
+        var documentOccurrenceId = Guid.NewGuid();
+        var documentVersionId = Guid.NewGuid();
+        var imageOccurrenceId = Guid.NewGuid();
+        var imageVersionId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore
+        {
+            CaseDocuments =
+            [
+                Document(documentOccurrenceId, documentVersionId, "instruction.pdf", "application/pdf"),
+                Document(
+                    imageOccurrenceId,
+                    imageVersionId,
+                    "offside-front.jpg",
+                    "image/jpeg",
+                    DocumentSemanticRole.Image,
+                    [
+                        new(
+                            ImageTagVocabulary.ThirdPartyId,
+                            ImageTagVocabulary.ThirdPartyName,
+                            ImageTagColour.Amber,
+                            IsBuiltIn: true,
+                            new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero))
+                    ])
+            ]
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
+
+        Assert.Contains("data-file-tab=\"documents\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-file-tab=\"images\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-file-tab-panel=\"documents\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-file-tab-panel=\"images\"", html, StringComparison.Ordinal);
+        // The image is a tile asking for the derived rendering, and it wears
+        // its tag as a chip.
+        Assert.Contains(
+            $"/Cases/{store.CaseId:D}/Documents/{imageOccurrenceId:D}/Download?versionId={imageVersionId:D}&amp;inline=True&amp;size=thumb",
+            html,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(ImageTagVocabulary.ThirdPartyName, html, StringComparison.Ordinal);
+        // One grid, not three: no instruction-photograph gallery, no report
+        // cards and no per-intake gallery in this section.
+        Assert.Equal(1, Occurrences(html, "class=\"gallery image-grid\""));
+        Assert.DoesNotContain("Instruction photographs", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-images=\"files\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Third-party vehicle", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConfirmThirdPartyVehicleEvidence", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// docs/design/README.md "No explanatory copy and page economy": a
     /// read-only visit renders no empty-state panel and no prose about how the
     /// page works. Both sentences this section used to carry are gone, and a
@@ -182,12 +280,52 @@ public sealed partial class CaseDetailsWebTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The vocabulary picker's own create-tag post also returns to the Files section's Images
+    /// tab, both when it succeeds and when it is refused for a blank name — an operator adding a
+    /// word to the vocabulary never loses their place on the tile they were tagging.
+    /// </summary>
+    [Fact]
+    public async Task CreateImageTagRedirectsToFilesImagesOnSuccessAndOnRefusal()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<ICreateImageTag>(services, store);
+        });
+
+        using var blank = await workspace.PostAsync(
+            "Custody?handler=CreateImageTag",
+            workspace.MutationForm("create-image-tag", string.Empty, ("name", string.Empty), ("colour", "Blue")));
+        AssertPrgToFilesImages(blank, store.CaseId);
+
+        using var created = await workspace.PostAsync(
+            "Custody?handler=CreateImageTag",
+            workspace.MutationForm("create-image-tag-2", string.Empty, ("name", "Underside"), ("colour", "Grey")));
+        AssertPrgToFilesImages(created, store.CaseId);
+
+        var creation = Assert.Single(store.ImageTagsCreated);
+        Assert.Equal("Underside", creation.Name);
+        Assert.Equal(ImageTagColour.Grey, creation.Colour);
+    }
+
+    private static void AssertPrgToFilesImages(HttpResponseMessage response, Guid caseId)
+    {
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var location = response.Headers.Location?.OriginalString ?? string.Empty;
+        Assert.StartsWith($"/Cases/{caseId:D}", location, StringComparison.Ordinal);
+        Assert.Contains("section=files", location, StringComparison.Ordinal);
+        Assert.EndsWith("#case-files-images", location, StringComparison.Ordinal);
+    }
+
     /// <summary>One live case file: a current, unremoved, custody-confirmed version.</summary>
     private static CaseDocument Document(
         Guid occurrenceId,
         Guid versionId,
         string fileName,
-        string mediaType)
+        string mediaType,
+        DocumentSemanticRole role = DocumentSemanticRole.Instruction,
+        IReadOnlyList<ImageTagAssignment>? tags = null)
     {
         var documentId = Guid.NewGuid();
         var recordedAtUtc = new DateTimeOffset(2031, 5, 5, 9, 0, 0, TimeSpan.Zero);
@@ -200,12 +338,11 @@ public sealed partial class CaseDetailsWebTests
                     Guid.Empty,
                     documentId,
                     versionId,
-                    DocumentSemanticRole.Instruction,
+                    role,
                     DocumentSource.Intake,
                     "source-1",
                     recordedAtUtc,
-                    null,
-                    null)
+                    tags ?? [])
             ],
             [
                 new(
@@ -229,7 +366,9 @@ public sealed partial class CaseDetailsWebTests
         IRetryCaseCustody,
         IAddCaseDocument,
         ILogicallyRemoveDocument,
-        IConfirmThirdPartyVehicleEvidence,
+        ITagCaseImage,
+        IUntagCaseImage,
+        ICreateImageTag,
         ICreateRequestUploadLink,
         IRevokeRequestUploadLink
     {
@@ -242,7 +381,9 @@ public sealed partial class CaseDetailsWebTests
         public List<RetryCaseCustodyRequest> CustodyRetries { get; } = [];
         public List<AddCaseDocumentCommand> DocumentUploads { get; } = [];
         public List<LogicallyRemoveDocumentCommand> DocumentRemovals { get; } = [];
-        public List<ConfirmThirdPartyVehicleEvidenceCommand> ThirdPartyConfirmations { get; } = [];
+        public List<TagCaseImageCommand> ImageTagsApplied { get; } = [];
+        public List<UntagCaseImageCommand> ImageTagsRemoved { get; } = [];
+        public List<CreateImageTagCommand> ImageTagsCreated { get; } = [];
         public List<CreateRequestUploadLinkCommand> RequestLinkCreations { get; } = [];
         public List<RequestUploadSecret> RequestLinkSecrets { get; } = [];
         public List<RevokeRequestUploadLinkCommand> RequestLinkRevocations { get; } = [];
@@ -277,8 +418,7 @@ public sealed partial class CaseDetailsWebTests
                     command.Source,
                     command.SourceOccurrenceIdentity,
                     _now,
-                    null,
-                    null),
+                    []),
                 new(
                     versionId,
                     documentId,
@@ -305,13 +445,33 @@ public sealed partial class CaseDetailsWebTests
             return Task.CompletedTask;
         }
 
-        Task IConfirmThirdPartyVehicleEvidence.ExecuteAsync(
-            ConfirmThirdPartyVehicleEvidenceCommand command,
+        Task ITagCaseImage.ExecuteAsync(
+            TagCaseImageCommand command,
             CancellationToken cancellationToken)
         {
             ThrowNextFailure();
-            ThirdPartyConfirmations.Add(command);
+            ImageTagsApplied.Add(command);
             return Task.CompletedTask;
+        }
+
+        Task IUntagCaseImage.ExecuteAsync(
+            UntagCaseImageCommand command,
+            CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            ImageTagsRemoved.Add(command);
+            return Task.CompletedTask;
+        }
+
+        Task<CreateImageTagResult> ICreateImageTag.ExecuteAsync(
+            CreateImageTagCommand command,
+            CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            ImageTagsCreated.Add(command);
+            return Task.FromResult(new CreateImageTagResult(
+                new ImageTag(Guid.NewGuid(), command.Name, command.Colour, IsBuiltIn: false, Version: 1),
+                IsReplay: false));
         }
 
         Task<CreateRequestUploadLinkResult> ICreateRequestUploadLink.ExecuteAsync(

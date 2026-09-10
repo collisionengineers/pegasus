@@ -262,14 +262,15 @@ public static class CaseWorkspaceLabels
     }
 
     /// <summary>
-    /// The report-image preparation surface (B06): the Files section's
-    /// per-image controls and the Report section's prepared cards read every
-    /// name from here, so the two sections cannot label the same preparation
-    /// two different ways.
+    /// The report-image preparation surface (B06): where each image sits in
+    /// the generated report. Named "Report position" rather than "Report
+    /// images" because an image's own classification is now its tags; this
+    /// vocabulary is composition — one Close-up, one Overview, ordered
+    /// Supporting.
     /// </summary>
     public static class ReportImages
     {
-        public const string SectionTitle = "Report images";
+        public const string SectionTitle = "Report position";
         public const string Role = "Role";
         public const string Order = "Order";
         public const string Rotation = "Rotation";
@@ -439,6 +440,53 @@ public static class CaseWorkspaceLabels
             GlassRepairEstimateSessionState.Cancelled => "Cancelled",
             _ => state.ToString(),
         };
+    }
+
+    /// <summary>
+    /// Image tags: the shared vocabulary an operator puts on a Case image, in
+    /// the Files section's Images tab. Names and button text only.
+    /// </summary>
+    public static class ImageTags
+    {
+        public const string DocumentsTab = "Documents";
+        public const string ImagesTab = "Images";
+        public const string Tag = "Tag";
+        public const string Tags = "Tags";
+        public const string NewTag = "New tag";
+        public const string Name = "Name";
+        public const string Colour = "Colour";
+        public const string Create = "Create";
+        public const string Crop = "Crop";
+        public const string Done = "Done";
+        public const string WasApplied = "The tag was applied.";
+        public const string WasRemoved = "The tag was removed.";
+        public const string WasCreated = "The tag was created.";
+        public const string NameRequired = "Enter a tag name.";
+        public const string NameInUse = "That tag name is already in use.";
+        public const string NotCreated = "The tag was not created.";
+
+        /// <summary>How many chips a tile draws before it counts the rest.</summary>
+        public const int VisibleChips = 3;
+
+        /// <summary>The count of tags a tile has beyond the ones it drew.</summary>
+        public static string MoreChips(int count) =>
+            "+" + count.ToString(CultureInfo.InvariantCulture);
+
+        /// <summary>The palette entry as the picker names it.</summary>
+        public static string ColourLabel(ImageTagColour colour) => colour switch
+        {
+            ImageTagColour.Blue => "Blue",
+            ImageTagColour.Green => "Green",
+            ImageTagColour.Amber => "Amber",
+            ImageTagColour.Navy => "Navy",
+            ImageTagColour.Red => "Red",
+            ImageTagColour.Grey => "Grey",
+            _ => throw new ArgumentOutOfRangeException(nameof(colour))
+        };
+
+        /// <summary>The CSS token the chip and swatch are painted with.</summary>
+        public static string ColourToken(ImageTagColour colour) =>
+            colour.ToString().ToLowerInvariant();
     }
 
     /// <summary>

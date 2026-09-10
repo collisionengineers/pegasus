@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -19,9 +20,15 @@ internal sealed class EfDocumentCustodyStore(
     IReadCaseDocumentPreview,
     IExportCaseDocuments,
     ILogicallyRemoveDocument,
-    IConfirmThirdPartyVehicleEvidence,
+    ITagCaseImage,
+    IUntagCaseImage,
+    ICreateImageTag,
     ICaseDocumentStateQueries
 {
+    /// <summary>The two history words an image tag writes on the case.</summary>
+    internal const string ImageTaggedEventKind = "case_image_tagged";
+    internal const string ImageUntaggedEventKind = "case_image_untagged";
+
     public async Task<AddCaseDocumentResult> ExecuteAsync(
         AddCaseDocumentCommand command,
         CancellationToken cancellationToken = default)
@@ -521,68 +528,46 @@ internal sealed class EfDocumentCustodyStore(
             AfterVersion = workflow.Version
         });
 
-    async Task IConfirmThirdPartyVehicleEvidence.ExecuteAsync(
-        ConfirmThirdPartyVehicleEvidenceCommand command,
+    async Task ITagCaseImage.ExecuteAsync(
+        TagCaseImageCommand command,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(command);
         ValidateActor(command.Actor);
-        ArgumentException.ThrowIfNullOrWhiteSpace(command.Reason);
         var operationKey = ValidateOperationKey(command.OperationKey);
-        var reason = command.Reason.Trim();
-        if (reason.Length > 500)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(command),
-                "The third-party vehicle confirmation reason cannot exceed 500 characters.");
-        }
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        var occurrence = await context.Set<DocumentOccurrenceEntity>()
+        var occurrence = await RequireTaggableImageAsync(
+            context, command.CaseId, command.OccurrenceId, cancellationToken);
+        var tag = await context.Set<ImageTagEntity>()
+            .SingleOrDefaultAsync(value => value.Id == command.TagId, cancellationToken)
+            ?? throw new InvalidOperationException("The image tag is unavailable.");
+        var assignment = await context.Set<DocumentOccurrenceTagEntity>()
             .SingleOrDefaultAsync(
-                value => value.CaseId == command.CaseId && value.Id == command.OccurrenceId,
-                cancellationToken)
-            ?? throw new InvalidOperationException("The document occurrence is unavailable.");
+                value => value.OccurrenceId == occurrence.Id && value.TagId == tag.Id,
+                cancellationToken);
         var history = await FindDocumentHistoryAsync(context, operationKey, cancellationToken);
-        var afterJson = DocumentActionHistory.Serialize(new ThirdPartyVehicleEvidenceHistoryValue(
-            occurrence.Id,
-            occurrence.ThirdPartyVehicleConfirmedAtUtc,
-            occurrence.ThirdPartyVehicleConfirmationReason));
+        var afterJson = DocumentActionHistory.Serialize(
+            new ImageTagHistoryValue(occurrence.Id, tag.Id, tag.Name));
+        // A replay asserts the audited action, not the current state: a tag is
+        // reversible, so the same key can be resubmitted after the tag has
+        // legitimately come off again.
         if (history is not null)
         {
-            if (occurrence.ThirdPartyVehicleConfirmedAtUtc is null)
-            {
-                throw new InvalidDataException(
-                    "The audited third-party vehicle confirmation is missing from the document occurrence.");
-            }
-
             DocumentActionHistory.RequireExactReplay(
                 history,
                 "case_document",
                 command.CaseId.ToString("D"),
-                "third_party_vehicle_evidence_confirmed",
+                ImageTaggedEventKind,
                 command.Actor,
-                reason,
+                reason: null,
                 afterJson);
             return;
         }
-
-        var version = await context.Set<DocumentVersionEntity>()
-            .SingleAsync(value => value.Id == occurrence.VersionId, cancellationToken);
-        if (occurrence.SemanticRole != DocumentSemanticRole.Image
-            || version.CustodyStatus != DocumentCustodyStatus.Confirmed
-            || !version.IsCurrent
-            || version.IsLogicallyRemoved
-            || !IsSupportedImageMediaType(version.MediaType))
+        if (assignment is not null)
         {
-            throw new InvalidOperationException(
-                "Only a custody-confirmed current JPEG or PNG image may be confirmed as third-party vehicle evidence.");
-        }
-        if (occurrence.ThirdPartyVehicleConfirmedAtUtc is not null)
-        {
-            throw new InvalidOperationException(
-                "This image has already been confirmed as third-party vehicle evidence.");
+            throw new InvalidOperationException("This image already carries that tag.");
         }
 
         var workflow = await RequireWorkflowAsync(context, command.CaseId, cancellationToken);
@@ -593,25 +578,202 @@ internal sealed class EfDocumentCustodyStore(
             command.ExpectedCaseVersion,
             command.EditLeaseToken,
             now);
-        occurrence.ThirdPartyVehicleConfirmedAtUtc = now;
-        occurrence.ThirdPartyVehicleConfirmationReason = reason;
-        occurrence.ThirdPartyVehicleConfirmationOperationKey = operationKey;
-        afterJson = DocumentActionHistory.Serialize(new ThirdPartyVehicleEvidenceHistoryValue(
-            occurrence.Id,
-            occurrence.ThirdPartyVehicleConfirmedAtUtc,
-            occurrence.ThirdPartyVehicleConfirmationReason));
+        context.Set<DocumentOccurrenceTagEntity>().Add(new()
+        {
+            OccurrenceId = occurrence.Id,
+            TagId = tag.Id,
+            AppliedByKind = command.Actor.Kind.ToString(),
+            AppliedBySubjectId = command.Actor.SubjectId,
+            AppliedAtUtc = now,
+            OperationKey = operationKey
+        });
         context.ActionHistory.Add(DocumentActionHistory.Succeeded(
             "case_document",
             command.CaseId.ToString("D"),
-            "third_party_vehicle_evidence_confirmed",
+            ImageTaggedEventKind,
             command.Actor,
             now,
             operationKey,
-            reason,
             afterJson: afterJson));
         CaseMutationGuard.Complete(workflow);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    async Task IUntagCaseImage.ExecuteAsync(
+        UntagCaseImageCommand command,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ValidateActor(command.Actor);
+        var operationKey = ValidateOperationKey(command.OperationKey);
+
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var occurrence = await context.Set<DocumentOccurrenceEntity>()
+            .SingleOrDefaultAsync(
+                value => value.CaseId == command.CaseId && value.Id == command.OccurrenceId,
+                cancellationToken)
+            ?? throw new InvalidOperationException("The document occurrence is unavailable.");
+        var tag = await context.Set<ImageTagEntity>()
+            .SingleOrDefaultAsync(value => value.Id == command.TagId, cancellationToken)
+            ?? throw new InvalidOperationException("The image tag is unavailable.");
+        var assignment = await context.Set<DocumentOccurrenceTagEntity>()
+            .SingleOrDefaultAsync(
+                value => value.OccurrenceId == occurrence.Id && value.TagId == tag.Id,
+                cancellationToken);
+        var history = await FindDocumentHistoryAsync(context, operationKey, cancellationToken);
+        var afterJson = DocumentActionHistory.Serialize(
+            new ImageTagHistoryValue(occurrence.Id, tag.Id, tag.Name));
+        if (history is not null)
+        {
+            DocumentActionHistory.RequireExactReplay(
+                history,
+                "case_document",
+                command.CaseId.ToString("D"),
+                ImageUntaggedEventKind,
+                command.Actor,
+                reason: null,
+                afterJson);
+            return;
+        }
+        if (assignment is null)
+        {
+            throw new InvalidOperationException("This image does not carry that tag.");
+        }
+
+        var workflow = await RequireWorkflowAsync(context, command.CaseId, cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        CaseMutationGuard.Require(
+            workflow,
+            command.Actor,
+            command.ExpectedCaseVersion,
+            command.EditLeaseToken,
+            now);
+        context.Set<DocumentOccurrenceTagEntity>().Remove(assignment);
+        context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+            "case_document",
+            command.CaseId.ToString("D"),
+            ImageUntaggedEventKind,
+            command.Actor,
+            now,
+            operationKey,
+            afterJson: afterJson));
+        CaseMutationGuard.Complete(workflow);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Adds an operator's own word to the shared vocabulary. The vocabulary is
+    /// global, so this takes no case and no lease - only the casework right, a
+    /// name nothing else already uses, and an operation key that makes a
+    /// resubmitted form return the tag it already created.
+    /// </summary>
+    async Task<CreateImageTagResult> ICreateImageTag.ExecuteAsync(
+        CreateImageTagCommand command,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ValidateActor(command.Actor);
+        var operationKey = ValidateOperationKey(command.OperationKey);
+        var name = ImageTagVocabulary.Normalize(command.Name);
+        var normalizedName = ImageTagVocabulary.NormalizeKey(name);
+
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var replay = await context.Set<ImageTagEntity>()
+            .SingleOrDefaultAsync(
+                value => value.CreateOperationKey == operationKey, cancellationToken);
+        if (replay is not null)
+        {
+            if (!string.Equals(replay.NormalizedName, normalizedName, StringComparison.Ordinal)
+                || !string.Equals(replay.Colour, command.Colour.ToString(), StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "The image tag operation key was reused with a different name or colour.");
+            }
+
+            return new(EfImageTagVocabularyReader.ToImageTag(replay), IsReplay: true);
+        }
+        if (await context.Set<ImageTagEntity>()
+                .AnyAsync(value => value.NormalizedName == normalizedName, cancellationToken))
+        {
+            throw new ImageTagNameInUseException(name);
+        }
+
+        var created = new ImageTagEntity
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            NormalizedName = normalizedName,
+            Colour = command.Colour.ToString(),
+            IsBuiltIn = false,
+            CreatedAtUtc = timeProvider.GetUtcNow(),
+            CreatedBy = command.Actor.SubjectId,
+            CreateOperationKey = operationKey,
+            Version = 1
+        };
+        context.Set<ImageTagEntity>().Add(created);
+        context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+            "image_tag",
+            created.Id.ToString("D"),
+            "image_tag_created",
+            command.Actor,
+            created.CreatedAtUtc,
+            operationKey,
+            afterJson: DocumentActionHistory.Serialize(
+                new ImageTagCreatedHistoryValue(created.Id, created.Name, created.Colour))));
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsDuplicateKeyFailure(exception))
+        {
+            // The AnyAsync check above is not itself transactional: a concurrent create with the
+            // same normalized name can still land between it and this insert. IX_ImageTags_NormalizedName
+            // is the actual guard, so its violation is the same refusal the pre-check reports.
+            throw new ImageTagNameInUseException(name);
+        }
+        return new(EfImageTagVocabularyReader.ToImageTag(created), IsReplay: false);
+    }
+
+    private static bool IsDuplicateKeyFailure(Exception exception) => exception switch
+    {
+        SqlException { Number: 2601 or 2627 } => true,
+        DbUpdateException { InnerException: { } innerException } =>
+            IsDuplicateKeyFailure(innerException),
+        _ => false
+    };
+
+    /// <summary>
+    /// The occurrence a tag may be put on: a custody-confirmed, current,
+    /// unremoved JPEG or PNG image of this case - the same set the operator's
+    /// Images tab draws.
+    /// </summary>
+    private static async Task<DocumentOccurrenceEntity> RequireTaggableImageAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        Guid occurrenceId,
+        CancellationToken cancellationToken)
+    {
+        var occurrence = await context.Set<DocumentOccurrenceEntity>()
+            .SingleOrDefaultAsync(
+                value => value.CaseId == caseId && value.Id == occurrenceId,
+                cancellationToken)
+            ?? throw new InvalidOperationException("The document occurrence is unavailable.");
+        var version = await context.Set<DocumentVersionEntity>()
+            .SingleAsync(value => value.Id == occurrence.VersionId, cancellationToken);
+        if (occurrence.SemanticRole != DocumentSemanticRole.Image
+            || version.CustodyStatus != DocumentCustodyStatus.Confirmed
+            || !version.IsCurrent
+            || version.IsLogicallyRemoved
+            || !IsSupportedImageMediaType(version.MediaType))
+        {
+            throw new InvalidOperationException(
+                "Only a custody-confirmed current JPEG or PNG image may be tagged.");
+        }
+
+        return occurrence;
     }
 
     private async Task<DocumentExport> BuildExportAsync(
@@ -800,8 +962,7 @@ internal sealed class EfDocumentCustodyStore(
         value.Source,
         value.SourceOccurrenceIdentity,
         value.RecordedAtUtc,
-        value.ThirdPartyVehicleConfirmedAtUtc,
-        value.ThirdPartyVehicleConfirmationReason,
+        [],
         value.Ordinal);
 
     internal static ManagedDocumentContentAddress Address(
@@ -1050,10 +1211,15 @@ internal sealed class EfDocumentCustodyStore(
         Guid VersionId,
         string Sha256);
 
-    private sealed record ThirdPartyVehicleEvidenceHistoryValue(
+    private sealed record ImageTagHistoryValue(
         Guid OccurrenceId,
-        DateTimeOffset? ConfirmedAtUtc,
-        string? Reason);
+        Guid TagId,
+        string Name);
+
+    private sealed record ImageTagCreatedHistoryValue(
+        Guid TagId,
+        string Name,
+        string Colour);
 
     private sealed record ExportItem(
         DocumentOccurrenceEntity Occurrence,

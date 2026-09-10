@@ -56,6 +56,9 @@ Authorization is enforced in Core use cases and at every caller boundary. It fai
 **Contacts** lists every external organisation with type, name, contact
 person, email, phone, last Case and state filters/sorting. A contact has
 organisation name, contact person, email, phone, address and active state.
+Phone accepts digits, spaces and an optional leading `+` only (UK numbers are
+written with a leading `0` and internal spaces); letters and other characters
+are rejected on both the field and the server.
 **Add contact** first selects Principal, Claim
 Source, Repairer, Storage or Third Party Engineer, then creates that role on a
 new identity or adds it to an operator-selected existing identity. Matching

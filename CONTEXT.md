@@ -37,7 +37,7 @@ The actual supplier of case images, whether a Principal, Intermediary, Repairer,
 _Avoid_: Sender
 
 **Third-party vehicle evidence**:
-Source evidence of a vehicle other than the Case vehicle, identified from reliable image detail. It remains retained in the Case but is excluded from Case-vehicle and report-image selection.
+Source evidence of a vehicle other than the Case vehicle, identified from reliable image detail and recorded by staff as the Third party image tag. It remains retained in the Case but is excluded from Case-vehicle selection and the EVA image bundle.
 _Avoid_: Wrong image, unrelated evidence
 
 **Audit**:

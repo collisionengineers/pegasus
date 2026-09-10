@@ -27,7 +27,7 @@ public sealed class EvaHandoffPolicyTests
             eligible with { CustodyConfirmed = false },
             eligible with { IsCurrent = false },
             eligible with { IsLogicallyRemoved = true },
-            eligible with { IsThirdPartyVehicle = true },
+            eligible with { TagIds = [ImageTagVocabulary.ThirdPartyId] },
             eligible with { MediaType = "application/pdf" }
         })
         {
@@ -65,6 +65,6 @@ public sealed class EvaHandoffPolicyTests
         CustodyConfirmed: true,
         IsCurrent: true,
         IsLogicallyRemoved: false,
-        IsThirdPartyVehicle: false,
+        TagIds: [],
         Ordinal: ordinal);
 }

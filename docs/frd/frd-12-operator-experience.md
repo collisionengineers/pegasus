@@ -251,14 +251,21 @@ Staff-closed.
 
 ### Case workspace
 
-`/Cases/{id}` is one scrolling page (D29): a sticky identity ribbon
+`/Cases/{id}` is one scrolling page (D29) with no separate page header: three
+rows travel together as the record scrolls — a sticky identity ribbon
 (Case/PO, registration, claimant, principal, state, with Engineer and
-Sign-off Engineer beside it — D31), the presence strip, a sticky action bar
-and a sticky section jump-nav whose current entry follows the scroll
-position. `?section=` jumps to a section; sections below the fold render
-lazily. The refined Scroll/Tabs choice uses the same section hosts and one
-edit form. Tabs hide inactive sections without discarding loaded values;
-Scroll remains the no-script fallback. The sections, in order, are **Overview**,
+Sign-off Engineer beside it — D31, plus small Back to Cases and Refresh icon
+buttons at the ribbon's end), one sticky action row (Edit Case, or while
+editing Cancel and Save with a small Editing badge, then the progression
+action(s) permitted for the state, then More actions and Close case), and a
+sticky section jump-nav whose current entry follows the scroll position. A
+thin presence strip appears between the ribbon and the action row only while
+another account holds the Case edit lease; the holder's own edit is shown by
+the Editing badge, not a strip. `?section=` jumps to a section; sections
+below the fold render lazily. The refined Scroll/Tabs choice uses the same
+section hosts and one edit form. Tabs hide inactive sections without
+discarding loaded values; Scroll remains the no-script fallback. The
+sections, in order, are **Overview**,
 **Inspection**, **Vehicle**, **Damage**, **Valuation**, **Estimate**,
 **Settlement**, **Report**, **Files**, **Notes**. Every
 section is always viewable; the Engineer sections — Damage, Valuation,
@@ -267,6 +274,13 @@ in every other state (D30; the former D11 access rule is now this read-only
 rule).
 The whole record enters one edit mode over one lease
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)).
+While editing, each section renders its one edit form in place of its
+read-only view — never both — so the Overview and Inspection sections each
+show exactly one panel per mode; the edit-mode Overview form uses the label
+**Claim reference** for the provider's claim number everywhere it appears
+(Our ref is the separate, immutable Case reference), and the Registration,
+Make and Model inputs move to the Vehicle section's own edit state rather
+than appearing on Overview.
 
 The action bar offers only actions the Core use cases permit for the current
 state: Edit Case, one global Save/Cancel while editing, Renew editing when
@@ -310,14 +324,22 @@ non-destructive conflict.
 - Inspection: the recorded inspect-at value with its fast-update choice —
   Image Based Assessment, Claimant address, Repairer location, Storage
   location, previous addresses used for this principal, Manual entry; an
-  option without a value is disabled — and the Case's storage location (D33,
-  [FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
+  option without a value is disabled. The read view shows one row per fact
+  not already implied by the row above it: Inspect at (the recorded address
+  or `Image Based Assessment`, with its mode chip shown only when the mode
+  says something the value itself does not), Principal default shown only
+  when it differs from the recorded value, Storage location, and Repairer
+  (D33, [FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
 - Vehicle: registration, make, model, year, mileage and its source; one
   **Look up DVLA & MOT** action (`EXT-01`) whose looked-up values appear as
   per-field suggestion chips that fill the field when chosen — no checks
   panel and no suggestion table; Run Experian check stays the disabled seam
   (D34) — and the vehicle-history narrative
   ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
+  A **DVLA & MOT lookup** outcome line states what the lookup itself did
+  (looked up and current, or a failure reason), separately from whether any
+  suggestion was accepted; in read mode any unaccepted suggestion values are
+  shown together under a **DVLA suggests** label rather than as field chips.
 - Damage: the zone list with severity and note per zone; tyres and
   seat belts per corner, spare tyre and centre belt; unrelated damage with
   its deduction; paint or material transfer; impact location and severity
@@ -335,19 +357,43 @@ non-destructive conflict.
   report delay, storage per day, recovery, hire start and daily cost,
   diminution, salvage logistics; financial ratio lines are permitted (D41,
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md#settlement)).
-- Report: report-image preparation (D19, `ENG-031`), the readiness list of
-  named outstanding items, the agreed fee and description lines with the fee
-  note preview (D42), and Generate / Preview report draft
+- Report: **Report position** (D19, `ENG-031`) — one Close-up, one Overview,
+  the rest Supporting, with order, rotation and crop — is the only
+  report-composition control; renamed from "Report images" because an
+  image's own classification is now its tags (Files, Images tab), not this
+  section. Also the readiness list of named outstanding items, the agreed
+  fee and description lines with the fee note preview (D42), and Generate /
+  Preview report draft
   ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point));
   the report renders the sign-off Engineer tuple (D31) and the marked damage
   diagram (D39).
-- Files: documents with custody state, preview and save-as; the
-  retained vehicle-image gallery (`CASE-006`) whose lazy-loaded thumbnails
-  expand to the full image with the original filename as the accessible
-  name, served only by an authorised staff endpoint that returns the stored
-  image media type inline — non-image material stays on the forced-download
-  route; and linked correspondence with its actions
+- Files: one panel with two tabs, both rendered so a no-script visit shows
+  the two lists one after the other under their own headings. The panel
+  header's Add evidence, Open Box case folder (or the folder's own state
+  chip before custody is confirmed) and Open Operations actions, plus
+  Create upload link and its request table, sit above both tabs; linked
+  correspondence sits below them
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence)).
+  - Documents: every live file as a row — filename, role, size, origin,
+    recorded time and its custody-state chip, with Preview, Save as and,
+    while editing, delete.
+  - Images: one grid of every image occurrence — the Case's own image
+    documents plus, for each image-intake associated with the Case, its
+    photographs labelled by Image Intake Reference. Each tile shows a
+    lazy-loaded thumbnail that expands to the full image with the original
+    filename as the accessible name, served only by an authorised staff
+    endpoint that returns the stored image media type inline (non-image
+    material stays on the forced-download route); its applied tag chips
+    (image tags, [FRD-05](frd-05-documents-extraction-and-custody.md#image-tags));
+    a Tag picker naming every vocabulary entry plus New tag with a colour,
+    for a Case image only; and Preview plus, while the Case edit lease is
+    held, Crop. The lease gate is the same one the record's whole edit mode
+    uses ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)):
+    unavailable once the Case reaches Completed or Query, and never on an
+    archived Case, but no longer tied to With Engineer or report
+    preparation — a Review-state Case now shows Crop. An image-intake
+    photograph carries no tags and no Crop — it is a receipt, not yet a
+    Case document.
 - Notes: Case notes, business events, chase outcomes and AI events merged
   newest first, each with date, time and actor; Add Case note and Record
   chase while editing ([FRD-01](frd-01-case-identity-and-lifecycle.md#due-work-chasing-and-action-history)).
@@ -367,10 +413,10 @@ Close control.
 The Engineer workbench is the Damage, Valuation, Estimate, Settlement and
 Report sections of the Case record (D30); `/Cases/{id}/Assessment` is a
 permanent redirect to `/Cases/{id}?section=estimate`. The sections are
-always viewable and read-only in Completed. Report-image preparation lives
-on the Report section: distinct `Close-up` first and `Overview` second,
-optional supporting images in explicit order, and non-destructive crops that
-leave the retained source and its hash untouched (D19). The Estimate section
+always viewable and read-only in Completed. Report position lives on the
+Report section: distinct `Close-up` first and `Overview` second, optional
+supporting images in explicit order, and non-destructive crops that leave
+the retained source and its hash untouched (D19). The Estimate section
 carries the estimate set (`EXT-09`: named estimates with source, repair
 days, the selected labour-rate-card snapshot, VAT categories, lines and
 totals; one estimate is Current and drives the report). Each version's card
@@ -409,7 +455,9 @@ capability: it retains no source artifact, hash or parser provenance.
 
 `/Operations` shows, with a partial-data notice when any query is not
 current: the **AI Job List** (`AI-10`: kind, record, started by, created,
-state, next action, Send Unidentified to AI); **Attention required**
+state, next action, Send Unidentified to AI) — started by names the staff
+username or the Automation client name by the same resolution Action Logs
+uses, never a raw subject identifier; **Attention required**
 (retryable external work with attempts, failure and Retry); **Active upload
 links** (recipient, last activity, accepted, expiry, state, Withdraw); and
 **EVA handoffs** (route, Engineer, state, result). Service health is
@@ -435,12 +483,34 @@ The existing policy and non-reversible hashing apply and forced change is set
 for the next sign-in. The stored secret cannot subsequently be retrieved (D15,
 [FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)).
 
+**Action Logs** names who acted rather than a raw identifier: a staff subject
+resolves to their username, an unresolvable staff id (a deleted account)
+reads **Former staff**, the Automation client renders as an **AI** chip with
+its registered client name, and Worker-attributed work reads **Pegasus**. A
+legacy security row recorded before the acting principal was captured carries
+no actor kind and is labelled by its event type instead of a guessed user. An
+**Actor type** filter (Staff / AI / Pegasus) narrows the list by this same
+kind. An AI job row links through to the Case or Unidentified record it acted
+on. Time values and the From/To period pickers display and accept only
+whole minutes; recorded storage keeps its existing sub-second precision.
+
 **Reports** shares one London period filter across MI-01 Engineer activity,
 MI-02 Reports by Principal (per-Principal report counts by type) and MI-03
 Turnaround (current holding age and instruction-to-produced/ready/sent
 turnaround), each with its own totals and downloadable CSV. A section whose
 query fails or returns invalid data renders an unavailable state rather than
 a false zero.
+
+Contacts accepts a telephone value of digits, spaces and an optional leading
+`+` only (UK numbers are written with a leading `0` and internal spaces);
+letters and other characters are rejected on both the field and the server.
+The Contacts list filters live as the operator types, 300 milliseconds after
+the last keystroke, alongside the existing Apply control for no-script use;
+server-side filtering is unchanged. Where Automation is composed, each of its
+scopes (`automation.cases`, `automation.intake`, `automation.documents`,
+`automation.assessment`, `automation.mail`, `automation.jobs`) renders as a
+plain label — Cases, Intake, Documents, Assessment, Mail, AI jobs — with the
+underlying key kept only as a hover title.
 
 **Workflow configuration** holds the versioned instruction- and
 image-completeness rules as required/not-required items with exact blockers,
@@ -456,7 +526,13 @@ added.
 
 **Valuation presets** adds and edits inline: a compact add row and in-row
 editing, with no separate creation or edit dialog. Its existing five-minute
-record-scoped edit lease still applies to an in-progress edit.
+record-scoped edit lease still applies to an in-progress edit. **Remove** is
+a soft, reasoned removal: the preset drops out of the list and out of new
+selection, but a valuation already recorded against it keeps its own
+snapshot, and that recorded addition is immune to any later removal, version
+change or disabling of the preset it was recorded against — the calculation
+basis carries the Case's recorded additions forward rather than
+re-resolving them.
 
 Review-gated transitions calculate completeness from persisted facts inside
 the transaction. A submitted readiness claim or staff-confirmation checkbox is
@@ -594,6 +670,22 @@ scope without saving; Save checks the holder token and expected version inside
 the mutation transaction, applies the requested change and removes the scope
 in that same transaction. A stale, expired, revoked or other-holder request
 does not change the record. New unsaved records have no persistent scope.
+
+A holder is never blocked by their own record's scope. Leaving a page
+releases its scope through a `pagehide` beacon; when that release was lost, a
+re-entry from the same holder that finds their own scope has gone unbeaten for
+three missed heartbeats (three times the 60-second heartbeat interval) claims
+it again silently, without a conflict. While that scope is still being
+renewed elsewhere — a live second window — the page instead shows "You are
+editing this `<record>` in another window" and offers a **Take over** action:
+a POST that reclaims the scope and rotates its token, so the other window's
+next heartbeat finds its own token refused and disables its Save. A
+colleague's live scope still shows only who holds it, with no take-over
+control. The Case record's own edit lease uses its existing replay path
+instead of this same-holder staleness rule: a return to a Case the operator
+already holds simply resumes editing through the ordinary **Edit Case**
+control, which replays the retained lease token for the same claim
+operation; there is no separate "Recover editing" control.
 
 Disabling an account or revoking its sessions clears that account's non-Case
 edit scopes, so a token from the revoked session cannot later save an existing

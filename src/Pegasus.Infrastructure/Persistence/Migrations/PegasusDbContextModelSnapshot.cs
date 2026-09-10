@@ -3264,17 +3264,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<int?>("SupportingOrder")
                         .HasColumnType("int");
 
-                    b.Property<string>("ThirdPartyVehicleConfirmationOperationKey")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ThirdPartyVehicleConfirmationReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTimeOffset?>("ThirdPartyVehicleConfirmedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<Guid>("VersionId")
                         .HasColumnType("uniqueidentifier");
 
@@ -3289,14 +3278,45 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("CaseId", "OperationKey")
                         .IsUnique();
 
-                    b.HasIndex("CaseId", "ThirdPartyVehicleConfirmedAtUtc");
-
                     b.ToTable("DocumentOccurrences", null, t =>
                         {
                             t.HasCheckConstraint("CK_DocumentOccurrences_Crop", "([CropLeft] IS NULL AND [CropTop] IS NULL AND [CropWidth] IS NULL AND [CropHeight] IS NULL) OR ([CropLeft] BETWEEN 0 AND 1 AND [CropTop] BETWEEN 0 AND 1 AND [CropWidth] > 0 AND [CropWidth] <= 1 AND [CropHeight] > 0 AND [CropHeight] <= 1 AND [CropLeft] + [CropWidth] <= 1 AND [CropTop] + [CropHeight] <= 1)");
 
                             t.HasCheckConstraint("CK_DocumentOccurrences_Rotation", "[RotationDegrees] IN (0, 90, 180, 270)");
                         });
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.DocumentOccurrenceTagEntity", b =>
+                {
+                    b.Property<Guid>("OccurrenceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TagId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AppliedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("AppliedByKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("AppliedBySubjectId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("OccurrenceId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("DocumentOccurrenceTags", (string)null);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.DocumentVersionEntity", b =>
@@ -4112,6 +4132,58 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_ImageIntakeSequences_LastAllocatedSequence", "[LastAllocatedSequence] >= 0");
                         });
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ImageTagEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Colour")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CreateOperationKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsBuiltIn")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreateOperationKey")
+                        .IsUnique();
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("ImageTags", (string)null);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ImageVrmSuggestionEntity", b =>
@@ -8467,6 +8539,21 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasOne("Pegasus.Infrastructure.Persistence.DocumentVersionEntity", null)
                         .WithMany()
                         .HasForeignKey("VersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.DocumentOccurrenceTagEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.DocumentOccurrenceEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OccurrenceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.ImageTagEntity", null)
+                        .WithMany()
+                        .HasForeignKey("TagId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

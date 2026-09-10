@@ -101,7 +101,7 @@
                                     <span>@OperatorLabels.AiJobs.QueueRecord</span>
                                 }
                             </td>
-                            <td>@job.CreatedBy</td>
+                            <td>@Model.StartedBy(job)</td>
                             <td><time datetime="@job.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(job.CreatedAtUtc)</time></td>
                             <td>
                                 <partial name="Shared/_StatusChip"

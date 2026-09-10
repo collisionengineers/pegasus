@@ -14,7 +14,6 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
-using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
@@ -65,7 +64,7 @@ public sealed partial class DetailsModel(
     IInspectionAddressChoicesQueries inspectionAddressChoicesQueries,
     IContactDirectoryQueries contactDirectory,
     IImageIntakeQueries imageIntakeQueries,
-    ICaseEvidenceImageQueries caseEvidenceImageQueries,
+    IReadImageTagVocabulary readImageTagVocabulary,
     IListCaseValuations listCaseValuations,
     ISaveValuation saveValuation,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
@@ -106,10 +105,11 @@ public sealed partial class DetailsModel(
     public IReadOnlyList<ImageIntakeSummary> ImageIntakes { get; private set; } = [];
 
     /// <summary>
-    /// The instruction receipts' evidence photographs (attached image files
-    /// and embedded PDF photos), selected by the one Core rule.
+    /// The shared image-tag vocabulary, loaded only when the Files section
+    /// renders and the operator holds the edit lease: a read-only visit's
+    /// tiles draw their tags as chips alone, so they never ask for it.
     /// </summary>
-    public IReadOnlyList<CaseEvidenceImage> EvidenceImages { get; private set; } = [];
+    public IReadOnlyList<ImageTag> TagVocabulary { get; private set; } = [];
 
     /// <summary>
     /// The gallery entries for each associated Image-initiated Case, loaded
@@ -930,7 +930,12 @@ public sealed partial class DetailsModel(
     private async Task LoadFilesAsync(Guid caseId, CancellationToken cancellationToken)
     {
         ImageIntakes = await imageIntakeQueries.ListForCaseAsync(caseId, cancellationToken);
-        EvidenceImages = await caseEvidenceImageQueries.ListForCaseAsync(caseId, cancellationToken);
+        // The picker needs the whole vocabulary; a read-only visit draws chips
+        // only, so it does not ask for it.
+        if (CanEditCaseData)
+        {
+            TagVocabulary = await readImageTagVocabulary.ListAsync(cancellationToken);
+        }
     }
 
     private async Task LoadIntakeGalleriesAsync(CancellationToken cancellationToken)

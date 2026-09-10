@@ -432,8 +432,10 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                     permission.[state] COLLATE DATABASE_DEFAULT,
                     permission.permission_name COLLATE DATABASE_DEFAULT
                 """));
+        // The third-party vehicle flag is gone: image tags carry the
+        // classification, and the EVA exclusion reads the Third party tag.
         Assert.Equal(
-            3,
+            0,
             await database.ScalarAsync<int>(
                 """
                 SELECT COUNT(*)
@@ -444,6 +446,69 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                       N'ThirdPartyVehicleConfirmationReason',
                       N'ThirdPartyVehicleConfirmedAtUtc')
                 """));
+        Assert.Equal(
+            0,
+            await database.ScalarAsync<int>(
+                """
+                SELECT COUNT(*)
+                FROM sys.indexes
+                WHERE object_id = OBJECT_ID(N'[dbo].[DocumentOccurrences]')
+                  AND name = N'IX_DocumentOccurrences_CaseId_ThirdPartyVehicleConfirmedAtUtc'
+                """));
+    }
+
+    /// <summary>
+    /// The image-tag tables and the exact permissions each runtime caller
+    /// needs: Web reads the vocabulary, adds to it and moves tags on and off;
+    /// the Worker only reads, because the EVA export asks which images wear
+    /// Third party. Neither may update either table, and only Web may delete a
+    /// tag from an image.
+    /// </summary>
+    [Fact]
+    public async Task LatestMigrationSeedsImageTagsAndGivesThemTheirExactRuntimePermissions()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            ["Close-up", "Overview", "Reflection", "Third party"],
+            await ReadValuesAsync(
+                database,
+                """
+                SELECT Name COLLATE DATABASE_DEFAULT
+                FROM [dbo].[ImageTags]
+                WHERE IsBuiltIn = 1
+                """));
+        Assert.Equal(
+            [
+                "DocumentOccurrenceTags:DELETE",
+                "DocumentOccurrenceTags:INSERT",
+                "DocumentOccurrenceTags:SELECT",
+                "ImageTags:INSERT",
+                "ImageTags:SELECT"
+            ],
+            (await ReadGrantedPermissionsAsync(database, WebRole))
+                .Where(value => value.StartsWith("ImageTags:", StringComparison.Ordinal)
+                    || value.StartsWith("DocumentOccurrenceTags:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Equal(
+            ["DocumentOccurrenceTags:SELECT", "ImageTags:SELECT"],
+            (await ReadGrantedPermissionsAsync(database, WorkerRole))
+                .Where(value => value.StartsWith("ImageTags:", StringComparison.Ordinal)
+                    || value.StartsWith("DocumentOccurrenceTags:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Equal(
+            ["ImageTags"],
+            (await ReadDeniedDeleteTablesAsync(database, WebRole))
+                .Where(value => value is "ImageTags" or "DocumentOccurrenceTags")
+                .ToArray());
+        Assert.Equal(
+            ["DocumentOccurrenceTags", "ImageTags"],
+            (await ReadDeniedDeleteTablesAsync(database, WorkerRole))
+                .Where(value => value is "ImageTags" or "DocumentOccurrenceTags")
+                .ToArray());
     }
 
     [Fact]

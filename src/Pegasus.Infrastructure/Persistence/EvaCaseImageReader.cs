@@ -25,6 +25,19 @@ public sealed class EvaCaseImageReader(IDocumentContentStore contentStore)
         string caseReference,
         CancellationToken cancellationToken)
     {
+        // The Third party tag is the one tag the export reads: an image
+        // wearing it stays out of the bundle (the rule itself is Core's).
+        var tagIdsByOccurrence = (await context.Set<DocumentOccurrenceTagEntity>()
+                .AsNoTracking()
+                .Where(assignment => context.Set<DocumentOccurrenceEntity>()
+                    .Any(occurrence => occurrence.Id == assignment.OccurrenceId
+                        && occurrence.CaseId == caseId))
+                .Select(assignment => new { assignment.OccurrenceId, assignment.TagId })
+                .ToArrayAsync(cancellationToken))
+            .GroupBy(row => row.OccurrenceId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<Guid>)[.. group.Select(row => row.TagId)]);
         var candidateRows = await (
                 from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
                 join version in context.Set<DocumentVersionEntity>().AsNoTracking()
@@ -52,7 +65,6 @@ public sealed class EvaCaseImageReader(IDocumentContentStore contentStore)
                     version.CustodyStatus,
                     version.IsCurrent,
                     version.IsLogicallyRemoved,
-                    occurrence.ThirdPartyVehicleConfirmedAtUtc != null,
                     caseEntity.CustodyRootRemoteId))
             .ToArrayAsync(cancellationToken);
         var eligibleVersionIds = EvaHandoffPolicy.SelectEligibleImages(candidateRows.Select(
@@ -71,7 +83,7 @@ public sealed class EvaCaseImageReader(IDocumentContentStore contentStore)
                     selected.CustodyStatus == DocumentCustodyStatus.Confirmed,
                     selected.IsCurrent,
                     selected.IsLogicallyRemoved,
-                    selected.IsThirdPartyVehicle,
+                    tagIdsByOccurrence.GetValueOrDefault(selected.OccurrenceId, []),
                     selected.Ordinal)))
             .Select(candidate => candidate.VersionId)
             .ToHashSet();
@@ -143,6 +155,5 @@ public sealed class EvaCaseImageReader(IDocumentContentStore contentStore)
         DocumentCustodyStatus CustodyStatus,
         bool IsCurrent,
         bool IsLogicallyRemoved,
-        bool IsThirdPartyVehicle,
         string? CaseRootRemoteId);
 }
