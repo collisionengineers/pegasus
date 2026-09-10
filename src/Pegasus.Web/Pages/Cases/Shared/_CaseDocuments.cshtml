@@ -6,7 +6,10 @@
     var workflow = details.Workflow;
     var leaseToken = Model.RenderLeaseToken;
     var mayEdit = Model.CanEditCaseData;
-    var files = CaseFiles.Live(details.Documents);
+    // Every current file, whatever its custody has reached. The row already
+    // carries the custody chip, so a file that is still being stored or whose
+    // storage failed says so here instead of being left off the tab entirely.
+    var files = CaseFiles.Current(details.Documents);
     // U5a: an image is croppable whenever this browser holds the Case edit
     // lease, not only in report preparation. The Review-state case that showed
     // no Crop anywhere was this gate reading CanEditEngineering.
@@ -43,6 +46,10 @@
                         occurrenceId = occurrence.Id,
                         versionId = version.Id
                     })!;
+                // Neither read can be served before the bytes are durably
+                // held, so an unstored row shows its state and its removal
+                // rather than two links that answer 503.
+                var mayRead = version.CustodyStatus == DocumentCustodyStatus.Confirmed;
                 var mayCrop = mayPrepareImages
                     && occurrence.SemanticRole == DocumentSemanticRole.Image
                     && preparableOccurrences.Contains(occurrence.Id)
@@ -69,20 +76,23 @@
                            saves depending on the flag, so preview and save
                            are two URLs, not two capabilities. The preview
                            link is the viewer's trigger. *@
-                        <a class="btn btn--small"
-                           href="@previewHref"
-                           data-evidence-item
-                           data-download-href="@downloadHref"
-                           data-media-type="@version.MediaType"
-                           data-file-name="@version.FileName"
-                           data-evidence-preparation-occurrence="@(mayCrop ? occurrence.Id.ToString() : null)">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
-                            <span>@OperatorLabels.CaseWorkspace.Preview</span>
-                        </a>
-                        <a class="btn btn--small" href="@downloadHref" download>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                            <span>@OperatorLabels.CaseWorkspace.SaveAs</span>
-                        </a>
+                        @if (mayRead)
+                        {
+                            <a class="btn btn--small"
+                               href="@previewHref"
+                               data-evidence-item
+                               data-download-href="@downloadHref"
+                               data-media-type="@version.MediaType"
+                               data-file-name="@version.FileName"
+                               data-evidence-preparation-occurrence="@(mayCrop ? occurrence.Id.ToString() : null)">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                                <span>@OperatorLabels.CaseWorkspace.Preview</span>
+                            </a>
+                            <a class="btn btn--small" href="@downloadHref" download>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                                <span>@OperatorLabels.CaseWorkspace.SaveAs</span>
+                            </a>
+                        }
                         @if (mayEdit)
                         {
                             <button type="button" class="btn btn--small btn--danger" data-dialog-open="remove-doc-@occurrence.Id" aria-label="Remove @version.FileName">

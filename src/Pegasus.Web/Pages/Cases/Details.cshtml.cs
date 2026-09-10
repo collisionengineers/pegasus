@@ -1087,10 +1087,16 @@ public sealed partial class DetailsModel(
                 var damageFields = assessmentFields.Where(field => EditorLabels.Damage.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 var damageSubmitted = Posted(nameof(damageImpacts)) || damageFields.Count > 0;
+                // D4/FRD-12: an image preparation is not an engineering field.
+                // Cropping, rotating and ordering the Case's own photographs is
+                // offered wherever the Case edit lease is held, so it is gated
+                // on the record being editable at all rather than on assessment
+                // access — the gate that showed no Crop on a Review-state Case
+                // and refused the one taken from the Report section.
                 var engineeringSubmitted = assessmentFields.Count > 0
                     || Posted(nameof(storagePerDay)) || Posted(nameof(recoveryCharge))
                     || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate))
-                    || preparationSubmitted || damageSubmitted;
+                    || damageSubmitted;
                 var current = await getCase.ExecuteAsync(new(id, actor), cancellationToken)
                     ?? throw new KeyNotFoundException("The Case is unavailable.");
                 var data = current.Data
@@ -1101,6 +1107,13 @@ public sealed partial class DetailsModel(
                     && AssessmentAccessPolicy.IsReadOnly(new(current.Workflow.State)))
                 {
                     throw new InvalidOperationException("Engineering fields are read-only in this Case state.");
+                }
+                if (preparationSubmitted
+                    && (current.Workflow.State is CaseLifecycleState.PostReportComplete
+                            or CaseLifecycleState.Query
+                        || current.Workflow.Archive is not null))
+                {
+                    throw new InvalidOperationException("The case is read-only once Complete.");
                 }
                 var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
                 var assessment = workspace?.Assessment;

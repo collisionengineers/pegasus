@@ -105,8 +105,14 @@ public sealed class CaseDocumentDownloadWebTests
         Assert.Equal(0, ports.AuditedDownloads);
     }
 
+    /// <summary>
+    /// The fallback answers the request and nothing more. A rendering failure
+    /// can be transient, so the full image it sends instead is not cached and
+    /// carries no validator: the next visit asks for the rendering again rather
+    /// than a browser holding the full photograph on the tile's URL for a week.
+    /// </summary>
     [Fact]
-    public async Task AThumbnailThatCannotBeRenderedFallsBackToTheFullImage()
+    public async Task AThumbnailThatCannotBeRenderedFallsBackToTheFullImageWithoutCachingIt()
     {
         var ports = new DocumentPorts { Thumbnail = null };
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -118,8 +124,52 @@ public sealed class CaseDocumentDownloadWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(FullContent, body);
-        Assert.Equal($"\"{Sha256}\"", response.Headers.ETag!.Tag);
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.Null(response.Headers.CacheControl.MaxAge);
+        Assert.Null(response.Headers.ETag);
         Assert.Equal(1, ports.LogicalReads);
+    }
+
+    /// <summary>
+    /// Each URL keeps its own representation. The full image's validator, which
+    /// the viewer and the download hold, does not satisfy the tile's thumbnail
+    /// request — that is what let one fallback pin the full image on the tile.
+    /// </summary>
+    [Fact]
+    public async Task AThumbnailRequestIsNotSatisfiedByTheFullImageValidator()
+    {
+        var ports = new DocumentPorts();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, PreviewRoute(thumbnail: true));
+        request.Headers.TryAddWithoutValidation("If-None-Match", $"\"{Sha256}\"");
+        using var response = await client.SendAsync(request);
+        var body = await response.Content.ReadAsByteArrayAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(ThumbnailContent, body);
+        Assert.Equal($"\"{Sha256}-thumb\"", response.Headers.ETag!.Tag);
+        Assert.Equal(1, ports.ThumbnailReads);
+    }
+
+    [Fact]
+    public async Task AThumbnailTheBrowserAlreadyHoldsIsAnsweredWithNotModified()
+    {
+        var ports = new DocumentPorts();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, PreviewRoute(thumbnail: true));
+        request.Headers.TryAddWithoutValidation("If-None-Match", $"\"{Sha256}-thumb\"");
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.NotModified, response.StatusCode);
+        Assert.Equal($"\"{Sha256}-thumb\"", response.Headers.ETag!.Tag);
+        Assert.Equal(0, ports.ThumbnailReads);
+        Assert.Equal(0, ports.LogicalReads);
     }
 
     [Fact]

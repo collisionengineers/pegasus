@@ -69,6 +69,72 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
+    /// Custody does not decide whether the operator can see their own file. An
+    /// image whose bytes have not reached durable custody is on the Case, so
+    /// the tab shows it as the placeholder the other galleries draw — its name
+    /// and its custody state, with nothing that would read content that cannot
+    /// be read. The tab built from confirmed files only showed no sign of it.
+    /// </summary>
+    [Fact]
+    public async Task TheImagesTabShowsAnImageStillReachingCustodyAsAPlaceholder()
+    {
+        var storedOccurrenceId = Guid.NewGuid();
+        var storingOccurrenceId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore
+        {
+            CaseDocuments =
+            [
+                Document(
+                    storedOccurrenceId,
+                    Guid.NewGuid(),
+                    OverviewFileName,
+                    "image/jpeg",
+                    DocumentSemanticRole.Image),
+                Document(
+                    storingOccurrenceId,
+                    Guid.NewGuid(),
+                    UnusedFileName,
+                    "image/jpeg",
+                    DocumentSemanticRole.Image,
+                    custody: DocumentCustodyStatus.Pending)
+            ]
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<ICaseAssetPreparationQueries>(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var grid = ImageGrid(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files"));
+        var tiles = Tiles(grid);
+
+        Assert.Equal(2, tiles.Length);
+        var stored = Assert.Single(tiles, tile => tile.Contains(OverviewFileName, StringComparison.Ordinal));
+        var storing = Assert.Single(tiles, tile => tile.Contains(UnusedFileName, StringComparison.Ordinal));
+
+        Assert.Contains("size=thumb", stored, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-gallery-placeholder", stored, StringComparison.Ordinal);
+
+        // The placeholder names the file and states where its storage has
+        // reached, and offers no thumbnail, no viewer link and no download.
+        Assert.Contains("data-gallery-placeholder", storing, StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Presentation.OperatorLabels.CustodyState(DocumentCustodyStatus.Pending),
+            WebUtility.HtmlDecode(storing),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("<img", storing, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<a", storing, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-evidence-item", storing, StringComparison.Ordinal);
+    }
+
+    /// <summary>
     /// U5a: Crop follows the Case edit lease. A Review-state case — where
     /// CanEditEngineering is false and Crop used to be nowhere — offers it on
     /// every image tile. The reader without the lease is the test above, which
@@ -154,6 +220,85 @@ public sealed partial class CaseDetailsWebTests
                 new(0.05m, 0.1m, 0.5m, 0.6m)),
             edit);
     }
+
+    /// <summary>
+    /// D4/FRD-12: an image preparation is not an engineering field. Crop is
+    /// offered wherever the Case edit lease is held, so the Save that carries
+    /// one is accepted in Review — where the engineering fields are read-only
+    /// and this edit was refused along with them, which made the offered Crop
+    /// fail on Save.
+    /// </summary>
+    [Fact]
+    public async Task ACropIsSavedOnAReviewStateCaseWhoseEngineeringFieldsAreReadOnly()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store(CaseLifecycleState.Review);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, store);
+            Substitute<ISaveCaseWorkspace>(services, store);
+        });
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                "0a0b0c0d0e0f01020304050607080901",
+                "Cropped a report image.",
+                CropFields(fixture.OverviewOccurrenceId)));
+
+        AssertPrg(response, store.CaseId);
+        var preparation = Assert.Single(store.Saves).ImagePreparation;
+        Assert.NotNull(preparation);
+        Assert.NotNull(preparation.Edits);
+        var edit = Assert.Single(preparation.Edits);
+        Assert.Equal(fixture.OverviewOccurrenceId, edit.OccurrenceId);
+        Assert.Equal(new CaseAssetCrop(0.05m, 0.1m, 0.5m, 0.6m), edit.Crop);
+    }
+
+    /// <summary>
+    /// The read-only end of the Case is still read-only. Once the case is
+    /// Complete nothing about the record is edited, preparation included, and
+    /// the refusal is the page's — the store never sees the save.
+    /// </summary>
+    [Fact]
+    public async Task ACropIsRefusedOnceTheCaseIsComplete()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store();
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, store);
+            Substitute<ISaveCaseWorkspace>(services, store);
+        });
+        store.State = CaseLifecycleState.PostReportComplete;
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            workspace.MutationForm(
+                "0a0b0c0d0e0f01020304050607080902",
+                "Cropped a report image.",
+                CropFields(fixture.OverviewOccurrenceId)));
+
+        AssertPrg(response, store.CaseId);
+        Assert.Empty(store.Saves);
+        Assert.Contains(
+            "role=\"alert\"",
+            await workspace.GetWorkspaceAsync(),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>One staged crop, as the workspace script posts it.</summary>
+    private static (string Name, string Value)[] CropFields(Guid occurrenceId) =>
+    [
+        ("preparationEdits[0].occurrenceId", occurrenceId.ToString("D")),
+        ("preparationEdits[0].expectedPreparationVersion", "4"),
+        ("preparationEdits[0].role", nameof(CaseAssetReportRole.Overview)),
+        ("preparationEdits[0].rotation", "0"),
+        ("preparationEdits[0].cropLeft", "0.05"),
+        ("preparationEdits[0].cropTop", "0.1"),
+        ("preparationEdits[0].cropWidth", "0.5"),
+        ("preparationEdits[0].cropHeight", "0.6")
+    ];
 
     /// <summary>
     /// The Report section states the same prepared set in the report's own
@@ -382,6 +527,16 @@ public sealed partial class CaseDetailsWebTests
         Assert.True(end > start, "The Images tab grid is not closed.");
         return html[start..end];
     }
+
+    /// <summary>
+    /// The grid's tiles, one string each, so an assertion about one tile is
+    /// never answered by its neighbour. Tiles do not nest.
+    /// </summary>
+    private static string[] Tiles(string grid) =>
+    [
+        .. grid.Split("<li", StringSplitOptions.RemoveEmptyEntries)
+            .Skip(1)
+    ];
 
     /// <summary>One occurrence's card within a section.</summary>
     private static string Card(string panel, Guid occurrenceId)

@@ -86,8 +86,10 @@ public sealed record CaseDocument(
 
 /// <summary>
 /// A case file as the operator sees it: one occurrence and the single version it
-/// names, once that version is the current one, has not been logically removed,
-/// and its custody is confirmed.
+/// names, once that version is the current one and has not been logically
+/// removed. <see cref="CaseFiles.Live"/> narrows that to confirmed custody;
+/// <see cref="CaseFiles.Current"/> keeps a version whose custody is still in
+/// flight or has failed, so a surface can show the operator that it is there.
 /// </summary>
 public sealed record CaseFile(DocumentOccurrence Occurrence, DocumentVersion Version);
 
@@ -108,7 +110,16 @@ public sealed record CaseFile(DocumentOccurrence Occurrence, DocumentVersion Ver
 /// </remarks>
 public static class CaseFiles
 {
-    public static IReadOnlyList<CaseFile> Live(IEnumerable<CaseDocument> documents)
+    /// <summary>
+    /// Every file the Case currently has, whatever its custody has reached:
+    /// the occurrence joined to the current, not logically removed version it
+    /// names. This is what an operator surface lists, because a file that is
+    /// still being stored or whose storage failed is on the Case and the
+    /// operator must see it rather than have the tab silently omit it. Each
+    /// entry carries <see cref="DocumentVersion.CustodyStatus"/>, so the
+    /// surface says which state it is in.
+    /// </summary>
+    public static IReadOnlyList<CaseFile> Current(IEnumerable<CaseDocument> documents)
     {
         ArgumentNullException.ThrowIfNull(documents);
         return
@@ -120,13 +131,22 @@ public static class CaseFiles
                     Version = document.Versions.FirstOrDefault(version =>
                         version.Id == occurrence.VersionId
                         && version.IsCurrent
-                        && !version.IsLogicallyRemoved
-                        && version.CustodyStatus == DocumentCustodyStatus.Confirmed)
+                        && !version.IsLogicallyRemoved)
                 }))
                 .Where(entry => entry.Version is not null)
                 .Select(entry => new CaseFile(entry.Occurrence, entry.Version!))
         ];
     }
+
+    /// <summary>
+    /// The subset whose bytes are durably held: what may be read, sent, or
+    /// projected into a report. "If they show here, they should be on box."
+    /// </summary>
+    public static IReadOnlyList<CaseFile> Live(IEnumerable<CaseDocument> documents) =>
+    [
+        .. Current(documents)
+            .Where(file => file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed)
+    ];
 }
 public sealed record CaseDocumentState(Guid CaseId, long CaseVersion);
 

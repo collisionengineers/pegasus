@@ -86,7 +86,7 @@
                     <div class="field field-wide"><label class="req" asp-for="Name">Organisation name</label><input asp-for="Name" autocomplete="organization" /><span asp-validation-for="Name"></span></div>
                     <div class="field"><label asp-for="ContactPerson">Contact person</label><input asp-for="ContactPerson" autocomplete="name" /><span asp-validation-for="ContactPerson"></span></div>
                     <div class="field"><label asp-for="Email">Email</label><input asp-for="Email" type="email" autocomplete="email" /><span asp-validation-for="Email"></span></div>
-                    <div class="field"><label asp-for="Telephone">Telephone</label><input asp-for="Telephone" type="tel" inputmode="tel" pattern="^\+?[0-9 ]{6,20}$" autocomplete="tel" /><span asp-validation-for="Telephone"></span></div>
+                    <div class="field"><label asp-for="Telephone">Telephone</label><input asp-for="Telephone" type="tel" inputmode="tel" pattern="^\+?[0-9 ]+$" autocomplete="tel" /><span asp-validation-for="Telephone"></span></div>
                     <div class="field field-tall"><label asp-for="Address">Address</label><textarea asp-for="Address" rows="2" autocomplete="street-address"></textarea><span asp-validation-for="Address"></span></div>
                     <div class="field"><label asp-for="Postcode">Postcode</label><input asp-for="Postcode" autocomplete="postal-code" /><span asp-validation-for="Postcode"></span></div>
                     @if (role == ContactRole.Principal)

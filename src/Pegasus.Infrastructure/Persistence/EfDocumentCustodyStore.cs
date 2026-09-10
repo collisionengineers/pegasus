@@ -538,8 +538,11 @@ internal sealed class EfDocumentCustodyStore(
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        var occurrence = await RequireTaggableImageAsync(
-            context, command.CaseId, command.OccurrenceId, cancellationToken);
+        var occurrence = await context.Set<DocumentOccurrenceEntity>()
+            .SingleOrDefaultAsync(
+                value => value.CaseId == command.CaseId && value.Id == command.OccurrenceId,
+                cancellationToken)
+            ?? throw new InvalidOperationException("The document occurrence is unavailable.");
         var tag = await context.Set<ImageTagEntity>()
             .SingleOrDefaultAsync(value => value.Id == command.TagId, cancellationToken)
             ?? throw new InvalidOperationException("The image tag is unavailable.");
@@ -552,7 +555,10 @@ internal sealed class EfDocumentCustodyStore(
             new ImageTagHistoryValue(occurrence.Id, tag.Id, tag.Name));
         // A replay asserts the audited action, not the current state: a tag is
         // reversible, so the same key can be resubmitted after the tag has
-        // legitimately come off again.
+        // legitimately come off again. It is answered before the taggable-image
+        // rule for the same reason the untag path does: the image may since
+        // have been superseded or removed, which does not unmake the action
+        // this key already recorded.
         if (history is not null)
         {
             DocumentActionHistory.RequireExactReplay(
@@ -565,6 +571,10 @@ internal sealed class EfDocumentCustodyStore(
                 afterJson);
             return;
         }
+        // Only a first submission puts a tag on, so only it has to hold the
+        // rule about which images may carry one.
+        await RequireTaggableImageAsync(
+            context, command.CaseId, command.OccurrenceId, cancellationToken);
         if (assignment is not null)
         {
             throw new InvalidOperationException("This image already carries that tag.");

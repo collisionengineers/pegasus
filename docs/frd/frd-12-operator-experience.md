@@ -673,9 +673,12 @@ does not change the record. New unsaved records have no persistent scope.
 
 A holder is never blocked by their own record's scope. Leaving a page
 releases its scope through a `pagehide` beacon; when that release was lost, a
-re-entry from the same holder that finds their own scope has gone unbeaten for
-three missed heartbeats (three times the 60-second heartbeat interval) claims
-it again silently, without a conflict. While that scope is still being
+re-entry from the same holder that finds their own scope has gone unbeaten
+into its final heartbeat interval — four minutes of the five-minute scope,
+with the 60-second heartbeat interval left — claims it again silently, without
+a conflict. A hidden tab keeps beating and has its timers throttled, so a
+shorter window rotated the token of a window that was still open. While that
+scope is still being
 renewed elsewhere — a live second window — the page instead shows "You are
 editing this `<record>` in another window" and offers a **Take over** action:
 a POST that reclaims the scope and rotates its token, so the other window's

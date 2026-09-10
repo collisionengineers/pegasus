@@ -11,10 +11,13 @@
     var mayEdit = Model.CanEditCaseData;
     var mayPrepareImages = mayEdit && details.Data is not null;
     var preparations = Model.AssetPreparations.ToDictionary(item => item.OccurrenceId);
-    // The Case's own image files: one grid, from the same live-file rule the
+    // The Case's own image files: one grid, from the same current-file rule the
     // Documents tab reads. Not the intake receipt list, which is empty for a
-    // manually created Case and so hid its images entirely.
-    var images = CaseFiles.Live(details.Documents)
+    // manually created Case and so hid its images entirely. Custody does not
+    // filter this list: an image still being stored, or whose storage failed,
+    // is on the Case, and a tab that showed only confirmed ones left the
+    // operator with no sign of it at all.
+    var images = CaseFiles.Current(details.Documents)
         .Where(file => file.Occurrence.SemanticRole == DocumentSemanticRole.Image
             && (file.Version.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
                 || file.Version.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase)))
@@ -38,6 +41,26 @@
             {
                 var occurrence = file.Occurrence;
                 var version = file.Version;
+                if (version.CustodyStatus != DocumentCustodyStatus.Confirmed)
+                {
+                    // The image is on the Case but its bytes are not readable:
+                    // still arriving, or storage failed. The tile names the
+                    // file and says which state it is in — the placeholder the
+                    // other galleries already draw — and offers no thumbnail,
+                    // viewer link, tagging or crop, none of which can act on
+                    // content that cannot be read.
+                    <li class="image-tile">
+                        <span class="gallery-item" data-gallery-placeholder>
+                            <span class="gallery-image"></span>
+                            <span class="gallery-caption">
+                                <strong>@version.FileName</strong>
+                                <small>@OperatorLabels.CustodyState(version.CustodyStatus)</small>
+                            </span>
+                        </span>
+                    </li>
+                    continue;
+                }
+
                 var previewHref = Url.Page(
                     "/Cases/Documents/Download",
                     new
