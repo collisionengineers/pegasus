@@ -211,10 +211,10 @@ internal static class CaseDataSnapshotFactory
     /// upload is the ordinary case: the uniquely selected document profile only
     /// proposes a Principal and the operator decides, so the accepted value is
     /// theirs whether they took the proposal or overrode it to correct a
-    /// document that named the wrong party. It is therefore recorded as the
-    /// accepting actor's confirmation at acceptance, not as something a
-    /// document or a credential stated; a non-staff caller that allocates
-    /// without a route or binding is attributed the same way. Recording nothing left the case with no work provider at all:
+    /// document that named the wrong party. It is therefore recorded as their
+    /// confirmation at acceptance, not as something a document or a credential
+    /// stated. A confirmation is a person's decision, so a non-staff caller
+    /// without a route or binding records nothing here. Recording nothing left the case with no work provider at all:
     /// the EVA export sent an empty Work Provider and the case-match index
     /// projected no row, so images never associated automatically.
     /// </summary>
@@ -223,7 +223,8 @@ internal static class CaseDataSnapshotFactory
         CaseAcceptanceRequest request,
         DateTimeOffset acceptedAtUtc)
     {
-        if (string.IsNullOrWhiteSpace(request.PrincipalCode))
+        if (request.Actor.Kind != ActorKind.Staff
+            || string.IsNullOrWhiteSpace(request.PrincipalCode))
         {
             return;
         }
