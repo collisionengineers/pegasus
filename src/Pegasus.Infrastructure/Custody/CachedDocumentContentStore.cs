@@ -1079,13 +1079,13 @@ internal static class ImageThumbnailRendering
     /// The decoded-pixel bound, matching the recognition engine's: past it the
     /// decode is refused rather than attempted.
     /// </summary>
-    private const long MaximumDecodedPixels = 80_000_000;
+    private const long MaximumDecodedPixels = 40_000_000;
 
     /// <summary>
     /// The largest source a thumbnail is derived from. A larger file is served
     /// whole rather than buffered again for a tile.
     /// </summary>
-    private const long MaximumSourceBytes = 64L * 1024 * 1024;
+    private const long MaximumSourceBytes = 32L * 1024 * 1024;
 
     private static readonly SemaphoreSlim DecodeGate = new(2, 2);
 

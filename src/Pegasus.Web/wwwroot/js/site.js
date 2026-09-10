@@ -1540,8 +1540,8 @@
         (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindEvidenceItems);
 
         // DOCS-015: a gallery tile that fails to load. The route answers a
-        // throttled or in-flight read with 503 and Retry-After, so one delayed
-        // retry is usually the whole fix; a successful response is the only
+        // throttled or in-flight read with 503 and Retry-After: 5, so two retries
+        // paced to that advice are usually the whole fix; a successful response is the only
         // cacheable one. Re-setting the same src is not reliably a re-request —
         // some browsers skip the network entirely when the URL is unchanged —
         // so the attribute is removed first to force a fresh fetch, and no
@@ -1559,12 +1559,13 @@
                     if (!source) {
                         return;
                     }
-                    if (image.dataset.galleryRetried !== 'true') {
-                        image.dataset.galleryRetried = 'true';
+                    var retries = Number(image.dataset.galleryRetries || '0');
+                    if (retries < 2) {
+                        image.dataset.galleryRetries = String(retries + 1);
                         window.setTimeout(function () {
                             image.removeAttribute('src');
                             image.setAttribute('src', source);
-                        }, 3000);
+                        }, 5000 * (retries + 1));
                         return;
                     }
                     var tile = image.closest('.gallery-item');
