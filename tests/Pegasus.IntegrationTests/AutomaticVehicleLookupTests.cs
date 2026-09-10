@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
@@ -10,6 +13,10 @@ namespace Pegasus.IntegrationTests;
 /// active case whose current registration (confirmed, else fact) has never
 /// been looked up — leaseless, attributed to the Automation actor, and
 /// idempotent per case and registration.
+///
+/// WP8: Case creation now enqueues and publishes the same work item inside its
+/// own transaction, so the sweep is the recovery path rather than the first
+/// route. Both write the same request row, so neither doubles the other.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class AutomaticVehicleLookupTests
@@ -29,7 +36,7 @@ public sealed class AutomaticVehicleLookupTests
         Assert.Equal(1, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ExternalWorkItems WHERE CaseId = '{caseId:D}' AND Kind = 'vehicle_lookup' AND State = 'pending'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}' AND Registration = 'AB12CDE' AND OperationKey = 'vehicle-lookup:auto:AB12CDE' AND RequestedByKind = 'Automation'"));
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}' AND Registration = 'AB12CDE' AND OperationKey = 'vehicle-lookup:auto:{caseId:N}:AB12CDE' AND RequestedByKind = 'Automation'"));
 
         Assert.Equal(0, await SweepAsync(database));
         Assert.Equal(1, await database.ScalarAsync<int>(
@@ -119,10 +126,162 @@ public sealed class AutomaticVehicleLookupTests
             $"SELECT COUNT(*) FROM ExternalWorkItems WHERE CaseId = '{caseId:D}'"));
     }
 
-    private static Task<LocalDbTestDatabase> CreateDatabaseAsync() =>
+    /// <summary>
+    /// WP8: a new Case enqueues its own lookup inside the creation
+    /// transaction and publishes it on commit, so DVLA/MOT evidence starts
+    /// arriving with the Case instead of on the next ten-second sweep. The
+    /// sweep must then find nothing left to do — both paths write the same
+    /// (CaseId, Registration) request under the same operation key.
+    /// </summary>
+    [Fact]
+    public async Task ManualCreationEnqueuesAndPublishesOneLookupAndTheSweepAddsNone()
+    {
+        var publisher = new RecordingExternalWorkPublisher();
+        await using var database = await CreateDatabaseAsync(publisher);
+        var principalCode = await SeedPrincipalAsync(database);
+
+        var caseId = await CreateManualCaseAsync(database, principalCode, "ab 12 cde");
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}' AND Registration = 'AB12CDE' AND OperationKey = 'vehicle-lookup:auto:{caseId:N}:AB12CDE' AND RequestedByKind = 'Automation'"));
+        var workItemId = await database.ScalarAsync<Guid>(
+            $"SELECT Id FROM ExternalWorkItems WHERE CaseId = '{caseId:D}' AND Kind = 'vehicle_lookup' AND State = 'pending'");
+        Assert.Contains(workItemId, publisher.WorkItemIds);
+
+        Assert.Equal(0, await SweepAsync(database));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM ExternalWorkItems WHERE CaseId = '{caseId:D}' AND Kind = 'vehicle_lookup'"));
+    }
+
+    /// <summary>
+    /// The operation key is scoped by Case, not just registration:
+    /// <c>ExternalWorkItems.OperationKey</c> is globally unique, and the same
+    /// plate is routinely looked up for more than one Case. Two Cases created
+    /// with the same registration must each get their own lookup request
+    /// instead of the second creation throwing on a duplicate key.
+    /// </summary>
+    [Fact]
+    public async Task TwoCasesWithTheSameRegistrationEachGetTheirOwnLookup()
+    {
+        var publisher = new RecordingExternalWorkPublisher();
+        await using var database = await CreateDatabaseAsync(publisher);
+        var principalCode = await SeedPrincipalAsync(database);
+
+        var firstCaseId = await CreateManualCaseAsync(database, principalCode, "AB12CDE");
+        var secondCaseId = await CreateManualCaseAsync(database, principalCode, "AB12CDE");
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{firstCaseId:D}' AND Registration = 'AB12CDE' AND OperationKey = 'vehicle-lookup:auto:{firstCaseId:N}:AB12CDE' AND RequestedByKind = 'Automation'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{secondCaseId:D}' AND Registration = 'AB12CDE' AND OperationKey = 'vehicle-lookup:auto:{secondCaseId:N}:AB12CDE' AND RequestedByKind = 'Automation'"));
+
+        var firstWorkItemId = await database.ScalarAsync<Guid>(
+            $"SELECT Id FROM ExternalWorkItems WHERE CaseId = '{firstCaseId:D}' AND Kind = 'vehicle_lookup' AND State = 'pending'");
+        var secondWorkItemId = await database.ScalarAsync<Guid>(
+            $"SELECT Id FROM ExternalWorkItems WHERE CaseId = '{secondCaseId:D}' AND Kind = 'vehicle_lookup' AND State = 'pending'");
+        Assert.Contains(firstWorkItemId, publisher.WorkItemIds);
+        Assert.Contains(secondWorkItemId, publisher.WorkItemIds);
+
+        Assert.Equal(0, await SweepAsync(database));
+    }
+
+    /// <summary>
+    /// Where lookups are not composed the creation transaction enqueues
+    /// nothing and publishes nothing — the same silence the sweep keeps.
+    /// </summary>
+    [Fact]
+    public async Task ManualCreationEnqueuesNothingWhereLookupsAreNotComposed()
+    {
+        var publisher = new RecordingExternalWorkPublisher();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureServices: services =>
+                services.AddSingleton<ICommittedExternalWorkPublisher>(publisher));
+        var principalCode = await SeedPrincipalAsync(database);
+
+        var caseId = await CreateManualCaseAsync(database, principalCode, "AB12CDE");
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}'"));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM ExternalWorkItems WHERE CaseId = '{caseId:D}' AND Kind = 'vehicle_lookup'"));
+        Assert.Empty(publisher.WorkItemIds);
+    }
+
+    private static async Task<Guid> CreateManualCaseAsync(
+        LocalDbTestDatabase database,
+        string principalCode,
+        string registration)
+    {
+        await using var scope = database.CreateAsyncScope();
+        var identity = await scope.ServiceProvider
+            .GetRequiredService<ICreateManualCase>()
+            .ExecuteAsync(
+                new(
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                    $"manual-create:{Guid.NewGuid():N}",
+                    principalCode,
+                    CaseType.Inspection,
+                    new(
+                        ClaimantName: "Jane Doe",
+                        ClaimNumber: "C-1",
+                        VehicleRegistration: registration)),
+                CancellationToken.None);
+        return identity.CaseId;
+    }
+
+    private static async Task<string> SeedPrincipalAsync(LocalDbTestDatabase database)
+    {
+        var organizationId = Guid.NewGuid();
+        var lineageId = Guid.NewGuid();
+        var principalId = Guid.NewGuid();
+        var code = $"C{Math.Abs(principalId.GetHashCode() % 997):D3}";
+        await using var context = await database.CreateContextAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {$"Automatic lookup test {organizationId:N}"}, {0L})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {FixedUtcNow})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {code}, {lineageId}, {true}, {0L})");
+        return code;
+    }
+
+    private sealed class RecordingExternalWorkPublisher : ICommittedExternalWorkPublisher
+    {
+        private readonly List<Guid> published = [];
+
+        public IReadOnlyList<Guid> WorkItemIds
+        {
+            get
+            {
+                lock (published)
+                {
+                    return published.ToArray();
+                }
+            }
+        }
+
+        public Task PublishAsync(Guid workItemId, CancellationToken cancellationToken)
+        {
+            lock (published)
+            {
+                published.Add(workItemId);
+            }
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private static Task<LocalDbTestDatabase> CreateDatabaseAsync(
+        ICommittedExternalWorkPublisher? publisher = null) =>
         LocalDbTestDatabase.CreateAsync(
             configureServices: services =>
-                services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay));
+            {
+                services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
+                if (publisher is not null)
+                {
+                    services.AddSingleton(publisher);
+                }
+            });
 
     private static async Task<int> SweepAsync(LocalDbTestDatabase database)
     {

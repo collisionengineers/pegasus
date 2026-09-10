@@ -71,6 +71,24 @@ public sealed class EditModel(
     [BindProperty] public string ReplacementOperationKey { get; set; } = NewOperationKey();
     public bool IsEditing => !string.IsNullOrWhiteSpace(LeaseToken);
 
+    /// <summary>
+    /// Set when this operator is already editing this contact in another
+    /// window, so the page offers the take-over that ends the other window's
+    /// claim instead of an Edit that would be refused again.
+    /// </summary>
+    public bool CanTakeOverEdit { get; private set; }
+
+    /// <summary>The record as the operator reading an ownership sentence names it.</summary>
+    private const string RecordName = "contact";
+
+    /// <summary>
+    /// Another colleague's claim. This area never resolves the holder's name,
+    /// so the shared wording is used with an unnamed holder rather than a
+    /// second sentence of its own.
+    /// </summary>
+    private static readonly string HeldByAnother =
+        EditModeDisplay.HeldBy(RecordName, CaseEditAuthorityHolder.Unnamed, isSelf: false);
+
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
@@ -85,7 +103,10 @@ public sealed class EditModel(
         return Page();
     }
 
-    public async Task<IActionResult> OnPostEditAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostEditAsync(
+        Guid id,
+        bool takeOver,
+        CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
         if (!TargetsContact(id)) return BadRequest();
@@ -99,12 +120,21 @@ public sealed class EditModel(
         try
         {
             var lease = await editScopes.ClaimAsync(
-                new(EditScopeKind.Contact, ContactId, ExpectedVersion, actor, OperationKey), cancellationToken);
+                new(EditScopeKind.Contact, ContactId, ExpectedVersion, actor, OperationKey)
+                {
+                    TakeOver = takeOver
+                },
+                cancellationToken);
             LeaseToken = lease.Token;
+        }
+        catch (EditScopeHeldElsewhereException)
+        {
+            CanTakeOverEdit = true;
+            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
         }
         catch (EditScopeConflictException)
         {
-            ModelState.AddModelError(string.Empty, "Another user is editing this contact.");
+            ModelState.AddModelError(string.Empty, HeldByAnother);
         }
         catch (EditScopeVersionConflictException)
         {
@@ -137,10 +167,22 @@ public sealed class EditModel(
                 return RedirectToPage("Index");
             }
             catch (ContactDirectoryException exception) { ModelState.AddModelError(string.Empty, ContactErrorMessage(exception.Error)); }
-            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, "Another user is editing this contact."); }
+            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, HeldByAnother); }
             catch (EditScopeExpiredException) { ModelState.AddModelError(string.Empty, "Your edit session expired. Reload the contact."); }
             catch (EditScopeVersionConflictException) { ModelState.AddModelError(string.Empty, "This contact changed. Reload it before making further changes."); }
-            catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The contact details were not accepted."); }
+            catch (ArgumentException exception)
+            {
+                // A named field error is shown against its own control; every
+                // other refusal keeps the general notice.
+                if (exception.ParamName == nameof(Telephone))
+                {
+                    ModelState.AddModelError(nameof(Telephone), "Telephone must be digits.");
+                }
+                else
+                {
+                    ModelState.AddModelError(string.Empty, "The contact details were not accepted.");
+                }
+            }
         }
         await PopulateAsync(actor, cancellationToken, copyContactFields: false);
         return Page();
@@ -157,6 +199,33 @@ public sealed class EditModel(
             catch (Exception exception) when (exception is EditScopeExpiredException or EditScopeConflictException) { }
         }
         return RedirectToPage("Index");
+    }
+
+    /// <summary>
+    /// The release a leaving page beacons. It is not an operator action: it
+    /// answers 204 whether or not a scope was still there to release, so a
+    /// duplicate beacon and a beacon that lost a race with Cancel are both
+    /// ordinary outcomes. Antiforgery is validated as it is for every post.
+    /// </summary>
+    public async Task<IActionResult> OnPostReleaseScopeBeaconAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (!TargetsContact(id)) return BadRequest();
+        ContactId = id;
+        if (ContactId == Guid.Empty || string.IsNullOrWhiteSpace(LeaseToken)) return new NoContentResult();
+        try
+        {
+            await editScopes.ReleaseAsync(
+                new(EditScopeKind.Contact, ContactId, actor, NewOperationKey(), LeaseToken),
+                cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception is EditScopeExpiredException or EditScopeConflictException)
+        {
+            // The scope has already gone or has already been re-claimed by a
+            // newer window of this operator's own session.
+        }
+        return new NoContentResult();
     }
 
     public async Task<IActionResult> OnPostHeartbeatEditAsync(Guid id, CancellationToken cancellationToken)
@@ -213,7 +282,7 @@ public sealed class EditModel(
                 return RedirectToPage(new { id = ContactId });
             }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalErrorMessage(exception.Error)); }
-            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, "Another user is editing this contact."); }
+            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, HeldByAnother); }
             catch (EditScopeExpiredException) { ModelState.AddModelError(string.Empty, "Your edit session expired. Reload the contact."); }
             catch (EditScopeVersionConflictException) { ModelState.AddModelError(string.Empty, "This contact changed. Reload it before making further changes."); }
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The settings were not accepted."); }
@@ -252,7 +321,7 @@ public sealed class EditModel(
                 return RedirectToPage(new { id = ContactId });
             }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalErrorMessage(exception.Error)); }
-            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, "Another user is editing this contact."); }
+            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, HeldByAnother); }
             catch (EditScopeExpiredException) { ModelState.AddModelError(string.Empty, "Your edit session expired. Reload the contact."); }
             catch (EditScopeVersionConflictException) { ModelState.AddModelError(string.Empty, "This contact changed. Reload it before making further changes."); }
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The default location was not accepted."); }
@@ -295,7 +364,7 @@ public sealed class EditModel(
                 return RedirectToPage("Index");
             }
             catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalErrorMessage(exception.Error)); }
-            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, "Another user is editing this contact."); }
+            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, HeldByAnother); }
             catch (EditScopeExpiredException) { ModelState.AddModelError(string.Empty, "Your edit session expired. Reload the contact."); }
             catch (EditScopeVersionConflictException) { ModelState.AddModelError(string.Empty, "This contact changed. Reload it before making further changes."); }
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The replacement details were not accepted."); }
@@ -358,7 +427,7 @@ public sealed class EditModel(
                     _ => "The API key change was not accepted."
                 });
             }
-            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, "Another user is editing this contact."); }
+            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, HeldByAnother); }
             catch (EditScopeExpiredException) { ModelState.AddModelError(string.Empty, "Your edit session expired. Reload the contact."); }
             catch (EditScopeVersionConflictException) { ModelState.AddModelError(string.Empty, "This contact changed. Reload it before making further changes."); }
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The API key change was not accepted."); }

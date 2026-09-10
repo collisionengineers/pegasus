@@ -17,7 +17,8 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfCaseAcceptanceStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider? timeProvider = null,
-    IEnumerable<Pegasus.Core.Intake.IProviderCaseMatchPolicy>? caseMatchPolicies = null)
+    IEnumerable<Pegasus.Core.Intake.IProviderCaseMatchPolicy>? caseMatchPolicies = null,
+    Pegasus.Core.Vehicle.VehicleLookupAvailability? vehicleLookupAvailability = null)
     : ICaseAcceptanceStore
 {
     private const string CreationReason = "Case created from received item.";
@@ -320,6 +321,32 @@ public sealed class EfCaseAcceptanceStore(
             AcceptanceCommandMaterialJson = command.MaterialJson,
             AcceptanceCommandFingerprint = command.Fingerprint
         });
+
+        // The accepted instruction's registration is a Fact on the snapshot
+        // above, so the DVLA/MOT lookup is due now rather than on the Worker's
+        // next ten-second reconciliation sweep (FRD-06 D34). Enqueued in the
+        // acceptance transaction so it cannot outlive a rolled-back
+        // acceptance; published by AcceptIntake after the commit. Looked-up
+        // values remain suggestions.
+        Guid? vehicleLookupWorkId = null;
+        if (vehicleLookupAvailability?.RequestsEnabled == true)
+        {
+            var currentRegistration = EfVehicleWorkflowStore.CurrentRegistration(
+                dataSnapshot.Fields
+                    .Where(field => field.FieldName == CaseDataFieldNames.VehicleRegistration)
+                    .Select(field => (field.ValueKind, field.Value)));
+            if (currentRegistration is not null)
+            {
+                vehicleLookupWorkId = EfVehicleWorkflowStore.EnqueueForCase(
+                    context,
+                    caseId,
+                    caseEntity,
+                    currentRegistration,
+                    workflowEntity.Version,
+                    acceptedAtUtc);
+            }
+        }
+
         receipt.ManualAssociation = new()
         {
             IntakeReceiptId = receipt.Id,
@@ -402,7 +429,7 @@ public sealed class EfCaseAcceptanceStore(
             AfterCaseVersion = 0
         });
 
-        var outcome = Map(caseEntity, custodyWorkId, false);
+        var outcome = Map(caseEntity, custodyWorkId, false, vehicleLookupWorkId);
         if (request.AllocationAttemptId is { } allocationAttemptId)
         {
             await EfIntakeAllocationStore.CompleteSuccessInTransactionAsync(
@@ -530,7 +557,11 @@ public sealed class EfCaseAcceptanceStore(
         }
     }
 
-    private static CaseAcceptanceOutcome Map(CaseEntity entity, Guid custodyWorkId, bool isDuplicate) => new(
+    private static CaseAcceptanceOutcome Map(
+        CaseEntity entity,
+        Guid custodyWorkId,
+        bool isDuplicate,
+        Guid? vehicleLookupWorkId = null) => new(
         new(
             entity.Id,
             entity.Principal.Code,
@@ -541,7 +572,8 @@ public sealed class EfCaseAcceptanceStore(
         ParseInitialState(entity.InitialState),
         CaseCustodyState.Pending,
         custodyWorkId,
-        isDuplicate);
+        isDuplicate,
+        vehicleLookupWorkId);
 
 
     private static string ToCode(CaseType value) => value switch

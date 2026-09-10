@@ -428,6 +428,46 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal("12 Kingsway, Leeds LS1 1AA", saved.Inspection!.Address);
     }
 
+    /// <summary>
+    /// WP6 (issue 3): edit mode replaces the read panels rather than adding to
+    /// them. One Case overview and one Inspection panel render in either mode,
+    /// the editor keeps the read view's groups, and the claim number is named
+    /// Claim reference — Our ref is the Case's own immutable reference.
+    /// </summary>
+    [Fact]
+    public async Task EditModeReplacesTheReadPanelsRatherThanRenderingBothOfThem()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var editing = await workspace.GetWorkspaceAsync();
+
+        Assert.Equal(1, Occurrences(editing, "case-overview-panel"));
+        Assert.Equal(1, Occurrences(editing, ">Case overview</h2>"));
+        Assert.DoesNotContain("Edit Case data", editing, StringComparison.Ordinal);
+        Assert.Equal(1, Occurrences(editing, OperatorLabels.CaseWorkspace.InspectionAddressPanel + "</h2>"));
+        // The editor's groups are the read view's groups.
+        foreach (var group in new[] { ">Case</h3>", ">Principal</h3>", ">Claimant</h3>" })
+        {
+            Assert.Equal(1, Occurrences(editing, group));
+        }
+        Assert.Contains(
+            "<label for=\"edit-claim-reference\">Claim reference</label>",
+            editing,
+            StringComparison.Ordinal);
+        Assert.Contains("name=\"claimNumber\"", editing, StringComparison.Ordinal);
+        Assert.Contains("<dt>Our ref</dt><dd>QDOS3100042</dd>", editing, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Our ref</label>", editing, StringComparison.Ordinal);
+
+        var reading = await ReadCaseAsync(new RecordingCaseDetailsStore());
+
+        Assert.Equal(1, Occurrences(reading, "case-overview-panel"));
+        Assert.Equal(1, Occurrences(reading, ">Case overview</h2>"));
+        Assert.Equal(1, Occurrences(reading, OperatorLabels.CaseWorkspace.InspectionAddressPanel + "</h2>"));
+        Assert.DoesNotContain("name=\"vehicleRegistration\"", reading, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-edit-form\"", reading, StringComparison.Ordinal);
+    }
+
     private static string HandlerFormInputValue(string html, string handler, string name)
     {
         var form = Regex.Match(

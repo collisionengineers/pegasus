@@ -109,7 +109,7 @@ public sealed class ContactDirectoryException(ContactDirectoryError error)
     public ContactDirectoryError Error { get; } = error;
 }
 
-public static class ContactDirectoryPolicy
+public static partial class ContactDirectoryPolicy
 {
     public const int MaximumNameLength = 300;
     public const int MaximumContactPersonLength = 200;
@@ -169,7 +169,7 @@ public static class ContactDirectoryPolicy
             Name = Required(request.Name, MaximumNameLength, nameof(request.Name)),
             ContactPerson = Optional(request.ContactPerson, MaximumContactPersonLength, nameof(request.ContactPerson)),
             Email = Optional(request.Email, MaximumEmailLength, nameof(request.Email)),
-            Telephone = Optional(request.Telephone, MaximumTelephoneLength, nameof(request.Telephone)),
+            Telephone = OptionalTelephone(request.Telephone, MaximumTelephoneLength, nameof(request.Telephone)),
             Address = Optional(request.Address, MaximumAddressLength, nameof(request.Address)),
             Postcode = Optional(request.Postcode, MaximumPostcodeLength, nameof(request.Postcode)),
             GuidanceTemplate = Optional(request.GuidanceTemplate, MaximumGuidanceTemplateLength, nameof(request.GuidanceTemplate)),
@@ -189,4 +189,33 @@ public static class ContactDirectoryPolicy
 
     internal static string? Optional(string? value, int max, string name) =>
         string.IsNullOrWhiteSpace(value) ? null : Required(value, max, name);
+
+    /// <summary>
+    /// UK numbers start with 0 and are commonly written with spaces (D7): a
+    /// telephone is trimmed, its internal whitespace collapsed to single
+    /// spaces, and then accepted only as digits, spaces and one optional
+    /// leading <c>+</c>. Letters and other punctuation are refused as a field
+    /// error, never silently dropped.
+    /// </summary>
+    internal static string? OptionalTelephone(string? value, int max, string name)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var collapsed = TelephoneWhitespace().Replace(value.Trim(), " ");
+        if (!TelephoneShape().IsMatch(collapsed))
+        {
+            throw new ArgumentException("Telephone must be digits.", name);
+        }
+
+        return Required(collapsed, max, name);
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\s+")]
+    private static partial System.Text.RegularExpressions.Regex TelephoneWhitespace();
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^\+?[0-9 ]+$")]
+    private static partial System.Text.RegularExpressions.Regex TelephoneShape();
 }

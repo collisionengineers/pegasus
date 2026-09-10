@@ -170,7 +170,11 @@ public static class ProviderApiEndpoints
                         context.TraceIdentifier,
                         exception.Error == ProviderSubmissionError.CredentialPaused
                             ? "provider_credential_paused"
-                            : "provider_principal_mismatch"),
+                            : "provider_principal_mismatch")
+                        // The credential is authenticated here, so the acting
+                        // Principal is known even though the subject names the
+                        // key that was presented (FRD-09).
+                        .By(ActionActor.Provider(credential.PrincipalId)),
                     cancellationToken);
             }
 

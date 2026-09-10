@@ -28,6 +28,20 @@
         && choice.Address is not null
         && string.Equals(choice.Address, recorded.Value, StringComparison.OrdinalIgnoreCase))
         ?? choices.FirstOrDefault(choice => choice.Kind == InspectionAddressChoiceKind.ManualEntry);
+    // What the read view still has to say once the value itself is on the
+    // page: the Principal's default only where the Case does not already hold
+    // it, and the mode only where its words are not the value already shown.
+    var showProviderDefault = providerDefault is not null
+        && !string.Equals(providerDefault.Value, recorded?.Value, StringComparison.OrdinalIgnoreCase);
+    var modeLabel = mode is null ? null : OperatorLabels.InspectionMode(mode.Value);
+    var showModeChip = modeLabel is not null
+        && !string.Equals(modeLabel, recorded?.Value, StringComparison.OrdinalIgnoreCase);
+    var isPhysicalAddress = mode?.Value == CaseInspectionMode.PhysicalAddress;
+    var addressLines = recorded is null
+        ? Array.Empty<string>()
+        : recorded.Value
+            .Split([',', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
     string ChoiceLabel(InspectionAddressChoice choice) => choice.Kind switch
     {
         InspectionAddressChoiceKind.ImageBasedAssessment => OperatorLabels.CaseWorkspace.ImageBasedAssessment,
@@ -43,52 +57,75 @@
 }
 
 <div class="stack">
-    <section class="panel" aria-labelledby="case-inspection-address-title">
-        <div class="panel-head">
-            <h2 id="case-inspection-address-title">@OperatorLabels.CaseWorkspace.InspectionAddressPanel</h2>
-        </div>
-        <div class="panel-body">
-            <div class="definition-list">
-                <dl class="definition">
-                    <dt>@OperatorLabels.CaseWorkspace.InspectAt</dt>
-                    <dd>
-                        @(recorded is null ? OperatorLabels.CaseWorkspace.NotRecorded : recorded.Value)
-                        @if (recorded is not null)
-                        {
-                            <partial name="Shared/_Provenance" model="recorded.Source" />
-                        }
-                    </dd>
-                </dl>
-                <dl class="definition">
-                    <dt>@OperatorLabels.CaseWorkspace.Source</dt>
-                    <dd>@(selectedChoice is null ? OperatorLabels.CaseWorkspace.ManualEntry : ChoiceLabel(selectedChoice))</dd>
-                </dl>
-                @if (providerDefault is not null)
-                {
+    @if (!mayEdit)
+    {
+        @* One row per fact the operator cannot derive from the row above it:
+           the recorded address (with the mode beside it only when the mode
+           says something the address does not), the Principal's default only
+           where it differs from what the Case holds, the storage location and
+           the repairer. The chosen source and the mode restated the address
+           itself on an image-based Case, which read as four copies of one
+           value. *@
+        <section class="panel" aria-labelledby="case-inspection-address-title">
+            <div class="panel-head">
+                <h2 id="case-inspection-address-title">@OperatorLabels.CaseWorkspace.InspectionAddressPanel</h2>
+            </div>
+            <div class="panel-body">
+                <div class="definition-list">
                     <dl class="definition">
-                        <dt>@OperatorLabels.CaseWorkspace.ProviderDefaultInspectionAddress</dt>
-                        <dd>@providerDefault.Value</dd>
-                    </dl>
-                }
-                @if (mode is not null)
-                {
-                    <dl class="definition">
-                        <dt>Inspection</dt>
+                        <dt>@OperatorLabels.CaseWorkspace.InspectAt</dt>
                         <dd>
-                            @OperatorLabels.InspectionMode(mode.Value)
-                            <partial name="Shared/_Provenance" model="mode.Source" />
+                            @if (recorded is null)
+                            {
+                                @OperatorLabels.CaseWorkspace.NotRecorded
+                            }
+                            else if (isPhysicalAddress)
+                            {
+                                <div class="address-lines">
+                                    @foreach (var line in addressLines)
+                                    {
+                                        <div>@line</div>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                @recorded.Value
+                            }
+                            @if (recorded is not null)
+                            {
+                                <partial name="Shared/_Provenance" model="recorded.Source" />
+                            }
+                            @if (showModeChip)
+                            {
+                                <partial name="Shared/_StatusChip" model="@modeLabel" />
+                            }
                         </dd>
                     </dl>
-                }
-                <dl class="definition">
-                    <dt>@OperatorLabels.CaseWorkspace.StorageLocation</dt>
-                    <dd>@(storage?.Value ?? OperatorLabels.CaseWorkspace.NotRecorded)</dd>
-                </dl>
+                    @if (showProviderDefault)
+                    {
+                        <dl class="definition">
+                            <dt>@OperatorLabels.CaseWorkspace.PrincipalDefaultInspectionAddress</dt>
+                            <dd>@providerDefault!.Value</dd>
+                        </dl>
+                    }
+                    <dl class="definition">
+                        <dt>@OperatorLabels.CaseWorkspace.StorageLocation</dt>
+                        <dd>@(storage?.Value ?? OperatorLabels.CaseWorkspace.NotRecorded)</dd>
+                    </dl>
+                    <dl class="definition">
+                        <dt>@OperatorLabels.CaseWorkspace.Repairer</dt>
+                        <dd>@(repairerName?.Value ?? OperatorLabels.CaseWorkspace.NotRecorded)</dd>
+                    </dl>
+                    <dl class="definition">
+                        <dt>@OperatorLabels.CaseWorkspace.RepairerLocation</dt>
+                        <dd>@(repairerAddress?.Value ?? OperatorLabels.CaseWorkspace.NotRecorded)</dd>
+                    </dl>
+                </div>
             </div>
-        </div>
-    </section>
-
-    @if (mayEdit)
+        </section>
+    }
+    else
     {
         <section class="panel" aria-labelledby="case-inspection-address-edit-title">
             <div class="panel-head">
@@ -103,6 +140,7 @@
                    Overview form no longer carries a hidden `inspectionAddress`,
                    so this input is the only entry for that name and the address
                    shown here is the address that is saved. *@
+                <div class="form-grid form-grid--2 case-inspection-form">
                 <div class="field">
                     <label for="inspection-address-choice">@OperatorLabels.CaseWorkspace.InspectAt</label>
                     <select id="inspection-address-choice" data-inspection-address-choice form="case-edit-form">
@@ -115,13 +153,13 @@
                         }
                     </select>
                 </div>
-                <div class="field" data-inspection-address-field>
+                <div class="field field-wide" data-inspection-address-field>
                     <label for="inspection-address">@OperatorLabels.CaseWorkspace.InspectionAddressPanel</label>
                     <input id="inspection-address" name="inspectionAddress" form="case-edit-form"
                            maxlength="1000" value="@recorded?.Value" data-inspection-address-input />
                 </div>
-                <div class="field" data-inspection-provider-default hidden>
-                    <span class="label">@OperatorLabels.CaseWorkspace.ProviderDefaultInspectionAddress</span>
+                <div class="field field-wide" data-inspection-provider-default hidden>
+                    <span class="label">@OperatorLabels.CaseWorkspace.PrincipalDefaultInspectionAddress</span>
                     <span class="value">@providerDefault?.Value</span>
                 </div>
                 <div class="field">
@@ -151,10 +189,11 @@
                     <input id="repairer-name" name="repairerName" form="case-edit-form"
                            maxlength="300" value="@repairerName?.Value" />
                 </div>
-                <div class="field">
+                <div class="field field-wide">
                     <label for="repairer-address">@OperatorLabels.CaseWorkspace.RepairerLocation</label>
                     <input id="repairer-address" name="repairerAddress" form="case-edit-form"
                            maxlength="1000" value="@repairerAddress?.Value" />
+                </div>
                 </div>
             </div>
         </section>

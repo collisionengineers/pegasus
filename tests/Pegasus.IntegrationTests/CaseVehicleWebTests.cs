@@ -88,8 +88,16 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("Suggested make", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Suggested model", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Suggested circumstances", overview, StringComparison.Ordinal);
-        Assert.Contains("<dt>Make</dt><dd>Confirmed make</dd>", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>Model</dt><dd>Fact model</dd>", html, StringComparison.Ordinal);
+        // WP6: while the lease is held the vehicle's identity is edited where
+        // it is read, still through the record's one Save form.
+        Assert.Contains(
+            "id=\"edit-make\" name=\"vehicleMake\" form=\"case-edit-form\" maxlength=\"100\" value=\"Confirmed make\"",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "id=\"edit-model\" name=\"vehicleModel\" form=\"case-edit-form\" maxlength=\"100\" value=\"Fact model\"",
+            html,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -389,6 +397,91 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>The whole <c>.gated</c> element carrying the named condition.</summary>
+    /// <summary>
+    /// WP8: read mode says what the lookup did. A live Case recorded
+    /// <c>not_found</c> for its registration and the section drew nothing at
+    /// all — the suggestion chips are edit-mode only and no failed, not-found
+    /// or throttled outcome rendered anywhere — so the operator concluded no
+    /// lookup had ever run. The outcome line, and the values as plain text,
+    /// are what tell them otherwise; accepting one still needs edit mode.
+    /// </summary>
+    [Fact]
+    public async Task ReadModeStatesTheLookupOutcomeAndDrawsSuggestionsAsText()
+    {
+        var recordedAtUtc = new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero);
+        var store = new RecordingCaseDetailsStore
+        {
+            VehicleLookupEvidence = NotFoundEvidence(recordedAtUtc),
+            IncludeVehicleSuggestions = true
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var readOnlyFactory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var readOnlyClient = readOnlyFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(readOnlyClient, $"/Cases/{store.CaseId:D}?section=vehicle");
+
+        Assert.Contains(
+            System.Net.WebUtility.HtmlEncode(OperatorLabels.VehicleLookup.OutcomeTitle),
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            $"Not found for AB12CDE ({OperatorLabels.OfficeTime(recordedAtUtc)})",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            OperatorLabels.VehicleLookup.SuggestionTitle,
+            html,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            OperatorLabels.VehicleLookup.NotYetLookedUp,
+            html,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=AcceptVehicleSuggestion", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A case with no recorded lookup at all says exactly that, rather than
+    /// leaving the section silent.
+    /// </summary>
+    [Fact]
+    public async Task ACaseWithNoRecordedLookupSaysSo()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
+
+        Assert.Contains(
+            OperatorLabels.VehicleLookup.NotYetLookedUp,
+            html,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>One recorded lookup that answered "no such vehicle".</summary>
+    private static CaseVehicleEvidence NotFoundEvidence(DateTimeOffset recordedAtUtc)
+    {
+        var caseId = Guid.NewGuid();
+        VehicleLookupObservation notFound = new(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            caseId,
+            1,
+            VehicleLookupOutcome.NotFound,
+            "AB12CDE",
+            new("dvla-ves+dvsa-mot-history", "1", "response-1", recordedAtUtc, null, null),
+            null,
+            [],
+            null,
+            null,
+            recordedAtUtc);
+        return new(caseId, null, notFound, [notFound], []);
+    }
+
     private static string GatedSpan(string html, string condition)
     {
         var marker = html.IndexOf(

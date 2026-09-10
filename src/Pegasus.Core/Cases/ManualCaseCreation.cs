@@ -1,3 +1,4 @@
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -10,6 +11,17 @@ public sealed record CreateManualCaseRequest(
     CaseType CaseType,
     CaseEditableData Data);
 
+/// <summary>
+/// What the creation transaction committed: the new Case's identity and, when
+/// the Case was created with an unambiguous registration and lookups are
+/// composed, the automatic vehicle-lookup work item that same transaction
+/// enqueued. The work item is published after the commit so the Worker starts
+/// the lookup immediately instead of waiting for the reconciliation sweep.
+/// </summary>
+public sealed record ManualCaseCreationOutcome(
+    CaseIdentity Identity,
+    Guid? VehicleLookupWorkId);
+
 public interface ICreateManualCase
 {
     Task<CaseIdentity> ExecuteAsync(CreateManualCaseRequest request, CancellationToken cancellationToken);
@@ -17,12 +29,18 @@ public interface ICreateManualCase
 
 public interface IManualCaseCreationStore
 {
-    Task<CaseIdentity> CreateAsync(CreateManualCaseRequest request, CancellationToken cancellationToken);
+    Task<ManualCaseCreationOutcome> CreateAsync(
+        CreateManualCaseRequest request,
+        CancellationToken cancellationToken);
 }
 
-public sealed class CreateManualCase(IManualCaseCreationStore store) : ICreateManualCase
+public sealed class CreateManualCase(
+    IManualCaseCreationStore store,
+    ICommittedExternalWorkPublisher committedExternalWorkPublisher) : ICreateManualCase
 {
-    public Task<CaseIdentity> ExecuteAsync(CreateManualCaseRequest request, CancellationToken cancellationToken)
+    public async Task<CaseIdentity> ExecuteAsync(
+        CreateManualCaseRequest request,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Data);
@@ -57,11 +75,17 @@ public sealed class CreateManualCase(IManualCaseCreationStore store) : ICreateMa
                 "An Audit needs its retained original-report evidence and cannot be created manually.");
         }
 
-        return store.CreateAsync(request with
+        var outcome = await store.CreateAsync(request with
         {
             OperationKey = request.OperationKey.Trim(),
             PrincipalCode = CasePrincipalCode.Normalize(request.PrincipalCode),
             Data = data
         }, cancellationToken);
+        if (outcome.VehicleLookupWorkId is { } vehicleLookupWorkId)
+        {
+            await committedExternalWorkPublisher.PublishAsync(vehicleLookupWorkId, cancellationToken);
+        }
+
+        return outcome.Identity;
     }
 }

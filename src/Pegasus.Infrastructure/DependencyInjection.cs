@@ -475,6 +475,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfValuationPresetStore>());
         services.AddScoped<IListValuationPresets, ListValuationPresets>();
         services.AddScoped<ISaveValuationPreset, SaveValuationPreset>();
+        services.AddScoped<IRemoveValuationPreset, RemoveValuationPreset>();
         services.AddScoped<IPreviewValuationCalculation, PreviewValuationCalculation>();
         services.AddScoped<IApplyValuationCalculation, ApplyValuationCalculation>();
         services.AddScoped<IListAppliedValuations, ListAppliedValuations>();
@@ -620,6 +621,15 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IGetCaseDocumentMetadata>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<IReadCaseDocumentPreview>(provider =>
+                provider.GetRequiredService<EfDocumentCustodyStore>());
+            // DOCS-015: the gallery's derived rendering. The cache variant is
+            // composed only where the content cache is, so a local profile
+            // derives on each read rather than resolving a different port set.
+            services.AddScoped<IReadCaseDocumentThumbnail>(provider =>
+                new CaseDocumentThumbnailReader(
+                    provider.GetRequiredService<IReadLogicalDocumentVersion>(),
+                    provider.GetService<DocumentThumbnailCache>()));
             services.AddScoped<IExportCaseDocuments>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ILogicallyRemoveDocument>(provider =>
@@ -746,6 +756,12 @@ public static class DependencyInjection
             provider.GetRequiredService<CachedDocumentContentStore>());
         services.AddScoped<IDocumentContentCacheCleanup>(provider =>
             provider.GetRequiredService<CachedDocumentContentStore>());
+        // The derived-thumbnail variant of the same cache: the same container
+        // and the same cleanup, one entry kind along from the content itself.
+        services.AddScoped(provider => new DocumentThumbnailCache(
+            provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+            intakeContainerFactory(provider),
+            provider.GetRequiredService<TimeProvider>()));
         return services.AddProductionBoxCustody(boxOptions);
     }
 

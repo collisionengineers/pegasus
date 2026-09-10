@@ -51,7 +51,24 @@
                                     @if (account.MustChangePassword)
                                     { <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.PasswordChangeRequired" view-data="@(new ViewDataDictionary(ViewData) { ["StatusTone"] = "amber" })" /> }
                                 </td>
-                                <td class="right"><a class="btn btn--small" asp-page="Index" asp-route-editStaffId="@account.Id" asp-route-expectedVersion="@account.Version">Settings</a></td>
+                                <td class="right">
+                                    <span class="cluster">
+                                        <a class="btn btn--small" asp-page="Index" asp-route-editStaffId="@account.Id" asp-route-expectedVersion="@account.Version">Settings</a>
+                                        @* Offered only to the operator whose own other window still
+                                           holds this account; taking over rotates the token so that
+                                           window can no longer save. *@
+                                        @if (account.Id == Model.TakeOverStaffId)
+                                        {
+                                            <form method="post" asp-page-handler="Edit">
+                                                <input type="hidden" name="staffId" value="@account.Id" />
+                                                <input type="hidden" name="expectedVersion" value="@account.Version" />
+                                                <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                                <input type="hidden" name="takeOver" value="true" />
+                                                <button type="submit" class="btn btn--small btn--primary">Take over</button>
+                                            </form>
+                                        }
+                                    </span>
+                                </td>
                             </tr>
                         }
                         </tbody>
@@ -91,7 +108,9 @@
     <div class="dialog-backdrop" data-dialog="@settingsId" data-dialog-open-on-load="true">
         <section class="dialog dialog--wide account-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="@settingsId-title">
             <div class="dialog-head"><h2 id="@settingsId-title" tabindex="-1" data-dialog-initial-focus>@account.UserName</h2><form method="post" asp-page-handler="CancelSettings"><input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="editLeaseToken" value="@Model.SettingsLeaseToken" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" /><button type="submit" class="dialog-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></form></div>
-            <form method="post" asp-page-handler="Settings" enctype="multipart/form-data" data-account-settings data-account-staff-id="@staffId">
+            @* The renewal interval is the one Core value, rendered like the
+               workflow configuration editor's; the script keeps no copy. *@
+            <form method="post" asp-page-handler="Settings" enctype="multipart/form-data" data-account-settings data-account-staff-id="@staffId" data-heartbeat-ms="@Pegasus.Core.Workflow.EditScopeAuthority.HeartbeatInterval.TotalMilliseconds">
                 <input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="expectedVersion" value="@Model.SettingsPostVersion" /><input type="hidden" name="editLeaseToken" value="@Model.SettingsLeaseToken" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
                 <div class="dialog-body stack">
                     <partial name="Shared/_ErrorSummary" />
@@ -125,6 +144,13 @@
             }
         </section>
     </div>
+
+    @* Beaconed as the page unloads so an operator who navigates away is not
+       refused by their own lease when they come back. *@
+    <form method="post" asp-page-handler="ReleaseScopeBeacon" data-edit-scope-release hidden>
+        <input type="hidden" name="staffId" value="@staffId" />
+        <input type="hidden" name="editLeaseToken" value="@Model.SettingsLeaseToken" />
+    </form>
 
     @foreach (var action in account.IsEnabled ? new[] { "Disable", "ForceLogout", "ResetPassword", "Delete" } : new[] { "Enable", "Delete" })
     {

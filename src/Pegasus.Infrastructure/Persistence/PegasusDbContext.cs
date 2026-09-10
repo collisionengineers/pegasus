@@ -977,6 +977,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.SubjectId).HasMaxLength(200).IsRequired();
             entity.Property(item => item.CorrelationId).HasMaxLength(100).IsRequired();
             entity.Property(item => item.ReasonCode).HasMaxLength(100);
+            entity.Property(item => item.ActorKind).HasMaxLength(40);
+            entity.Property(item => item.ActorSubjectId).HasMaxLength(200);
             entity.HasIndex(item => new { item.SubjectId, item.OccurredAtUtc });
             entity.HasIndex(item => item.OccurredAtUtc);
         });
@@ -1474,6 +1476,15 @@ internal sealed class SecurityEventEntity
     public DateTimeOffset OccurredAtUtc { get; set; }
     public required string CorrelationId { get; set; }
     public string? ReasonCode { get; set; }
+
+    /// <summary>
+    /// The acting principal, distinct from <see cref="SubjectId"/> (what the
+    /// event is about). Null on rows written before the columns existed and on
+    /// events whose request carried no attributable principal.
+    /// </summary>
+    public string? ActorKind { get; set; }
+
+    public string? ActorSubjectId { get; set; }
 }
 
 

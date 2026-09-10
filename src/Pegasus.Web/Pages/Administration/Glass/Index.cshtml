@@ -59,7 +59,7 @@
                         <div>
                             <dt>@CaseWorkspaceLabels.GlassCredential.Updated</dt>
                             <dd>
-                                <time datetime="@updatedAtUtc.ToString("O")">@updatedAtUtc.ToString("u")</time>
+                                <time datetime="@updatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(updatedAtUtc)</time>
                             </dd>
                         </div>
                     }
@@ -98,12 +98,28 @@
                 }
                 else
                 {
-                    <form method="post" asp-page-handler="Edit">
-                        <input type="hidden" name="staffId" value="@account.Id" />
-                        <input type="hidden" name="expectedStaffAccountVersion" value="@account.Version" />
-                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                        <button type="submit" class="btn btn--primary">Edit credential</button>
-                    </form>
+                    @* Offered only to the operator whose own other window still
+                       holds this staff account's scope; taking over rotates the
+                       token so that window can no longer save. *@
+                    if (Model.CanTakeOverEdit)
+                    {
+                        <form method="post" asp-page-handler="Edit">
+                            <input type="hidden" name="staffId" value="@account.Id" />
+                            <input type="hidden" name="expectedStaffAccountVersion" value="@account.Version" />
+                            <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                            <input type="hidden" name="takeOver" value="true" />
+                            <button type="submit" class="btn btn--primary">Take over</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <form method="post" asp-page-handler="Edit">
+                            <input type="hidden" name="staffId" value="@account.Id" />
+                            <input type="hidden" name="expectedStaffAccountVersion" value="@account.Version" />
+                            <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                            <button type="submit" class="btn btn--primary">Edit credential</button>
+                        </form>
+                    }
                     <button type="submit" form="glass-close-form" class="btn">Back to account</button>
                 }
             </div>
@@ -114,6 +130,12 @@
                     <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseToken" />
                 </form>
                 <p id="glass-credential-edit-heartbeat-status" class="notice notice--error" role="alert" hidden></p>
+                @* Beaconed as the page unloads so an operator who navigates away
+                   is not refused by their own lease when they come back. *@
+                <form method="post" asp-page-handler="ReleaseScopeBeacon" data-edit-scope-release hidden>
+                    <input type="hidden" name="staffId" value="@account.Id" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseToken" />
+                </form>
             }
         </section>
     </div>

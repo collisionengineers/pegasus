@@ -24,7 +24,15 @@ internal sealed class EfActionLogQueries(IDbContextFactory<PegasusDbContext> con
         if (filter.Actor is { } actor)
         {
             actionQuery = actionQuery.Where(item => item.ActorSubjectId == actor);
-            securityQuery = securityQuery.Where(item => item.SubjectId == actor);
+            // A security event names both the acting principal and the account
+            // it landed on, and the operator asking about a person wants either.
+            securityQuery = securityQuery.Where(item =>
+                item.ActorSubjectId == actor || item.SubjectId == actor);
+        }
+        if (filter.ActorType is { } actorType)
+        {
+            actionQuery = actionQuery.Where(item => item.ActorKind == actorType);
+            securityQuery = securityQuery.Where(item => item.ActorKind == actorType);
         }
         if (filter.Result is { } result)
         {
@@ -55,7 +63,8 @@ internal sealed class EfActionLogQueries(IDbContextFactory<PegasusDbContext> con
             securityQuery = securityQuery.Where(item =>
                 item.Type.Contains(searchText) || item.SubjectId.Contains(searchText)
                 || item.Outcome.Contains(searchText) || item.CorrelationId.Contains(searchText)
-                || (item.ReasonCode != null && item.ReasonCode.Contains(searchText)));
+                || (item.ReasonCode != null && item.ReasonCode.Contains(searchText))
+                || (item.ActorSubjectId != null && item.ActorSubjectId.Contains(searchText)));
         }
 
         var actions = actionQuery
@@ -78,8 +87,12 @@ internal sealed class EfActionLogQueries(IDbContextFactory<PegasusDbContext> con
                 Area = "Security",
                 Operation = item.Type,
                 Reference = item.SubjectId,
-                Actor = item.SubjectId,
-                ActorKind = (string?)null,
+                // The acting principal when the writer recorded one; a row
+                // written before the columns existed falls back to its subject
+                // and carries no kind, which the reader labels by event type
+                // instead of guessing at a person.
+                Actor = item.ActorSubjectId ?? item.SubjectId,
+                ActorKind = item.ActorKind,
                 item.OccurredAtUtc,
                 Result = item.Outcome,
                 item.CorrelationId

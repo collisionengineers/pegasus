@@ -19,14 +19,25 @@
                 {
                     <form method="post" asp-page-handler="Edit">
                         <input type="hidden" name="recordId" value="@GetWorkflowConfiguration.RecordId" />
-                        <button class="btn" type="submit">Edit</button>
+                        @* Offered only to the operator whose own other window still holds this
+                           record; taking over rotates the token so that window can no longer
+                           save. *@
+                        @if (Model.TakeOverRecordId == GetWorkflowConfiguration.RecordId)
+                        {
+                            <input type="hidden" name="takeOver" value="true" />
+                            <button class="btn btn--primary" type="submit">Take over</button>
+                        }
+                        else
+                        {
+                            <button class="btn" type="submit">Edit</button>
+                        }
                     </form>
                 }
             </div>
             <div class="panel-body">
                 @if (!workflowEditing)
                 {
-                    <dl class="definition-list">
+                    <dl class="definition-list definition-list--compact">
                         <div class="definition"><dt>Instructions</dt><dd>@(Model.Configuration.RequireInstructions ? "Required" : "Not required")</dd></div>
                         <div class="definition"><dt>Images</dt><dd>@(Model.Configuration.RequireImages ? "Required" : "Not required")</dd></div>
                         <div class="definition"><dt>Chase interval</dt><dd>@Model.Configuration.ChaseIntervalDays days</dd></div>
@@ -36,10 +47,12 @@
                 {
                     <fieldset form="configuration-edit" class="stack">
                         <legend>Required before Review</legend>
-                        <label class="choice"><input form="configuration-edit" type="checkbox" name="RequireInstructions" value="true" checked="@Model.RequireInstructions" /> Instructions</label>
-                        <label class="choice"><input form="configuration-edit" type="checkbox" name="RequireImages" value="true" checked="@Model.RequireImages" /> Images</label>
-                        <div class="field"><label for="chase-days">Chase interval (days)</label>
-                            <input form="configuration-edit" id="chase-days" name="ChaseIntervalDays" type="number" min="1" max="365" value="@Model.ChaseIntervalDays" required style="max-width:10rem" />
+                        <div class="form-grid form-grid--2">
+                            <label class="choice"><input form="configuration-edit" type="checkbox" name="RequireInstructions" value="true" checked="@Model.RequireInstructions" /> Instructions</label>
+                            <label class="choice"><input form="configuration-edit" type="checkbox" name="RequireImages" value="true" checked="@Model.RequireImages" /> Images</label>
+                            <div class="field"><label for="chase-days">Chase interval (days)</label>
+                                <input form="configuration-edit" id="chase-days" name="ChaseIntervalDays" type="number" min="1" max="365" value="@Model.ChaseIntervalDays" required class="chase-interval-input" />
+                            </div>
                         </div>
                         <p class="muted">Applies to new schedules. Existing chase dates stay as scheduled.</p>
                     </fieldset>
@@ -61,7 +74,7 @@
                     <tr><td>@card.Name</td><td>@card.HourlyRate.ToString("N2")</td><td>@(card.Enabled ? "Yes" : "No")</td><td>
                     @if (!Model.IsEditing)
                     {
-                        <form method="post" asp-page-handler="Edit"><input type="hidden" name="recordId" value="@card.Id" /><button class="btn btn--small" type="submit">Edit</button></form>
+                        <form method="post" asp-page-handler="Edit"><input type="hidden" name="recordId" value="@card.Id" />@if (Model.TakeOverRecordId == card.Id) { <input type="hidden" name="takeOver" value="true" /><button class="btn btn--small btn--primary" type="submit">Take over</button> } else { <button class="btn btn--small" type="submit">Edit</button> }</form>
                     }
                     </td></tr>
                 }
@@ -94,6 +107,16 @@
                 </div>
                 <p data-config-lease-message class="muted" role="status"></p>
             </form>
+            @* Beaconed as the page unloads so an operator who navigates away is
+               not refused by their own lease when they come back. A new rate
+               card has no scope to release. *@
+            if (Model.ExpectedVersion > 0)
+            {
+                <form method="post" asp-page-handler="ReleaseScopeBeacon" data-edit-scope-release hidden>
+                    <input type="hidden" asp-for="EditingId" />
+                    <input type="hidden" asp-for="LeaseToken" />
+                </form>
+            }
         }
     </div>
 </div>

@@ -3156,6 +3156,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("ReadLeaseExpiresAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("Variant")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("VerifiedSha256")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -3171,11 +3176,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DocumentVersionId")
+                    b.HasIndex("DocumentVersionId", "Variant")
                         .IsUnique()
                         .HasFilter("[DocumentVersionId] IS NOT NULL");
 
-                    b.HasIndex("IntakeAssetId")
+                    b.HasIndex("IntakeAssetId", "Variant")
                         .IsUnique()
                         .HasFilter("[IntakeAssetId] IS NOT NULL");
 
@@ -6581,6 +6586,14 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ActorKind")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ActorSubjectId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("CorrelationId")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -7514,6 +7527,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset?>("RemovedAtUtc")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<decimal>("SuggestedAmount")
                         .HasPrecision(18, 2)

@@ -44,6 +44,16 @@ public sealed class DetailsModel(
 
     public bool IsEditing => EditLease is not null;
 
+    /// <summary>
+    /// Set when this operator is already editing this record in another window,
+    /// so the page offers the take-over that ends the other window's claim
+    /// instead of an Edit that would be refused again.
+    /// </summary>
+    public bool CanTakeOverEdit { get; private set; }
+
+    /// <summary>The record as the operator reading an ownership sentence names it.</summary>
+    private const string RecordName = "Image Intake record";
+
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
         var detail = await imageIntakeStore.GetAsync(id, cancellationToken);
@@ -207,6 +217,7 @@ public sealed class DetailsModel(
     public async Task<IActionResult> OnPostEditAsync(
         Guid id,
         long expectedVersion,
+        bool takeOver,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -222,10 +233,18 @@ public sealed class DetailsModel(
                     id,
                     expectedVersion,
                     actor,
-                    $"image-intake-edit:{Guid.NewGuid():N}"),
+                    $"image-intake-edit:{Guid.NewGuid():N}")
+                {
+                    TakeOver = takeOver
+                },
                 cancellationToken);
             await OnGetAsync(id, cancellationToken);
             return Page();
+        }
+        catch (EditScopeHeldElsewhereException)
+        {
+            CanTakeOverEdit = true;
+            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
         }
         catch (EditScopeConflictException)
         {
@@ -311,11 +330,54 @@ public sealed class DetailsModel(
             return "Another member of staff is editing this Image Intake. Reload to try again.";
         }
 
-        var holder = await describeEditAuthorityHolder.ExecuteAsync(
-            active.HolderKind,
-            active.Holder,
-            actor,
-            cancellationToken);
-        return $"Image Intake editing is unavailable because {EditModeDisplay.HolderName(holder)} is editing it.";
+        var isSelf = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, actor);
+        var holder = isSelf
+            ? CaseEditAuthorityHolder.Unnamed
+            : await describeEditAuthorityHolder.ExecuteAsync(
+                active.HolderKind,
+                active.Holder,
+                actor,
+                cancellationToken);
+        return EditModeDisplay.HeldBy(RecordName, holder, isSelf);
+    }
+
+    /// <summary>
+    /// The release a leaving page beacons. It is not an operator action: it
+    /// answers 204 whether or not a scope was still there to release, so a
+    /// duplicate beacon and a beacon that lost a race with Cancel are both
+    /// ordinary outcomes. Antiforgery is validated as it is for every post.
+    /// </summary>
+    public async Task<IActionResult> OnPostReleaseScopeBeaconAsync(
+        Guid id,
+        string? editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (id == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return new NoContentResult();
+        }
+
+        try
+        {
+            await editScopes.ReleaseAsync(
+                new(
+                    EditScopeKind.ImageIntake,
+                    id,
+                    actor,
+                    $"image-intake-edit-beacon:{Guid.NewGuid():N}",
+                    editLeaseToken),
+                cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception is EditScopeExpiredException or EditScopeConflictException)
+        {
+            // The scope has already gone or has already been re-claimed by a
+            // newer window of this operator's own session.
+        }
+        return new NoContentResult();
     }
 }

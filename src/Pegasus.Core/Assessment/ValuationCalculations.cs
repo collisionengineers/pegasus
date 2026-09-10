@@ -18,7 +18,16 @@ public sealed record ValuationPreset(
     bool Active,
     long Version,
     string UpdatedBy,
-    DateTimeOffset UpdatedAtUtc);
+    DateTimeOffset UpdatedAtUtc)
+{
+    /// <summary>
+    /// When the record was removed from the maintained list. A removed preset
+    /// is gone from the list and from any new selection, but it is never
+    /// deleted: a recorded valuation keeps its own snapshot of the label and
+    /// suggestion, and the history that names this preset stays readable.
+    /// </summary>
+    public DateTimeOffset? RemovedAtUtc { get; init; }
+}
 
 /// <summary>
 /// Creates or updates one preset. <see cref="ExpectedVersion"/> 0 creates the
@@ -39,13 +48,31 @@ public sealed record SaveValuationPresetRequest(
     public string EditLeaseToken { get; init; } = string.Empty;
 }
 
+/// <summary>
+/// Removes one preset from the maintained list. The removal is a soft one, so
+/// it takes the same expected version, edit lease and operation key an edit
+/// does, and it carries the reason it was removed for.
+/// </summary>
+public sealed record RemoveValuationPresetRequest(
+    Guid PresetId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
+
 public enum ValuationPresetError
 {
     NotFound,
     DuplicateLabel,
     VersionConflict,
     OperationConflict,
-    NotSelectable
+    NotSelectable,
+
+    /// <summary>The preset was removed, so it can be neither edited nor selected.</summary>
+    Removed
 }
 
 public sealed class ValuationPresetException(
@@ -60,10 +87,15 @@ public sealed class ValuationPresetException(
 
 public interface IValuationPresetStore
 {
+    /// <summary>The maintained list: every preset that has not been removed.</summary>
     Task<IReadOnlyList<ValuationPreset>> ListAsync(CancellationToken cancellationToken);
 
     Task<ValuationPreset> SaveAsync(
         SaveValuationPresetRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ValuationPreset> RemoveAsync(
+        RemoveValuationPresetRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -78,6 +110,13 @@ public interface ISaveValuationPreset
 {
     Task<ValuationPreset> ExecuteAsync(
         SaveValuationPresetRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IRemoveValuationPreset
+{
+    Task<ValuationPreset> ExecuteAsync(
+        RemoveValuationPresetRequest request,
         CancellationToken cancellationToken);
 }
 
@@ -128,7 +167,18 @@ public sealed record ValuationCalculationBasis(
     DateTimeOffset GuideValuationStampUtc,
     decimal GuideRetailValue,
     bool ClaimantVatRegistered,
-    IReadOnlyList<ValuationPreset> Presets);
+    IReadOnlyList<ValuationPreset> Presets)
+{
+    /// <summary>
+    /// The additions this Case has already recorded, taken from its own
+    /// applied snapshots. They are what makes a recorded valuation immune to
+    /// later maintenance: re-applying an addition the Case already carries
+    /// reads it back from the record instead of resolving the preset again,
+    /// so an amended, disabled or removed preset cannot refuse the Case's own
+    /// history.
+    /// </summary>
+    public IReadOnlyList<ValuationAddition> RecordedAdditions { get; init; } = [];
+}
 
 public sealed record ValuationCalculationInput(
     decimal GuideRetailValue,
@@ -261,6 +311,7 @@ public static class ValuationCalculationPolicy
     public const decimal CommercialVatRate = 0.20m;
     public const int MaximumAdditions = 20;
     public const int MaximumAdditionLabelLength = 200;
+    public const int MaximumReasonLength = 500;
 
     /// <summary>
     /// The two prior-total-loss reductions the business applies. There is no
@@ -344,11 +395,14 @@ public static class ValuationCalculationPolicy
     }
 
     /// <summary>
-    /// Turns what the Case posted into what is calculated and recorded. The
-    /// maintained label and suggested amount come from the preset record, not
-    /// from the form, so a stale or tampered copy cannot enter the snapshot;
-    /// a disabled preset stays readable in history but cannot be selected
-    /// again.
+    /// Turns what the Case posted into what is calculated and recorded. An
+    /// addition the Case has already recorded at exactly that preset identity
+    /// and version is read back from its own snapshot, so re-applying a
+    /// recorded valuation never re-resolves it. Anything else is a new
+    /// selection: its maintained label and suggested amount come from the
+    /// preset record rather than from the form, so a stale or tampered copy
+    /// cannot enter the snapshot, and a disabled or removed preset stays
+    /// readable in history but cannot be selected again.
     /// </summary>
     public static ValuationCalculationInput Resolve(
         ValuationCalculationSelection selection,
@@ -358,12 +412,13 @@ public static class ValuationCalculationPolicy
         ArgumentNullException.ThrowIfNull(basis);
         ArgumentNullException.ThrowIfNull(selection.Additions);
         ArgumentNullException.ThrowIfNull(basis.Presets);
+        ArgumentNullException.ThrowIfNull(basis.RecordedAdditions);
         return new(
             basis.GuideRetailValue,
             selection.CommercialVat,
             basis.ClaimantVatRegistered,
             selection.PriorTotalLossPercentage,
-            [.. selection.Additions.Select(item => Resolve(item, basis.Presets))],
+            [.. selection.Additions.Select(item => Resolve(item, basis))],
             selection.ConditionDeduction);
     }
 
@@ -453,7 +508,7 @@ public static class ValuationCalculationPolicy
 
     private static ValuationAddition Resolve(
         ValuationAdditionSelection selection,
-        IReadOnlyList<ValuationPreset> presets)
+        ValuationCalculationBasis basis)
     {
         if (selection.PresetId == Guid.Empty)
         {
@@ -465,8 +520,19 @@ public static class ValuationCalculationPolicy
                 selection.Amount);
         }
 
-        var preset = presets.SingleOrDefault(item => item.Id == selection.PresetId);
-        if (preset is null || !preset.Active)
+        // Already recorded on this Case at this very version: the snapshot is
+        // the authority for the label and the maintained suggestion, and the
+        // Engineer's own amount is the only thing the form still decides.
+        var recorded = basis.RecordedAdditions.FirstOrDefault(item =>
+            item.PresetId == selection.PresetId
+            && item.PresetVersion == selection.PresetVersion);
+        if (recorded is not null)
+        {
+            return recorded with { Amount = selection.Amount };
+        }
+
+        var preset = basis.Presets.SingleOrDefault(item => item.Id == selection.PresetId);
+        if (preset is null || !preset.Active || preset.RemovedAtUtc is not null)
         {
             throw new ValuationPresetException(ValuationPresetError.NotSelectable);
         }
@@ -547,6 +613,47 @@ public static class ValuationCalculationPolicy
         return percentage;
     }
 
+    internal static string RequireText(string? value, int maximumLength, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException("A value is required.", parameterName);
+        }
+
+        var normalized = value.Trim();
+        if (normalized.Length > maximumLength || normalized.Any(char.IsControl))
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                $"The value cannot exceed {maximumLength} characters "
+                + "or contain control characters.");
+        }
+
+        return normalized;
+    }
+
+    /// <summary>
+    /// A typed reason. Line breaks are the operator's own paragraphing, so
+    /// only emptiness and length are refused here.
+    /// </summary>
+    internal static string RequireReason(string? value, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException("A reason is required.", parameterName);
+        }
+
+        var normalized = value.Trim();
+        if (normalized.Length > MaximumReasonLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                $"A reason cannot exceed {MaximumReasonLength} characters.");
+        }
+
+        return normalized;
+    }
+
     internal static void RequireAmount(decimal value, string description, string parameterName)
     {
         if (value < 0m || decimal.Round(value, 2) != value)
@@ -597,28 +704,47 @@ public sealed class SaveValuationPreset(IValuationPresetStore store) : ISaveValu
                 Label = ValuationCalculationPolicy.NormalizeLabel(
                     request.Label,
                     nameof(request)),
-                OperationKey = RequireText(request.OperationKey, 100, nameof(request))
+                OperationKey = ValuationCalculationPolicy.RequireText(
+                    request.OperationKey,
+                    100,
+                    nameof(request))
             },
             cancellationToken);
     }
+}
 
-    private static string RequireText(string value, int maximumLength, string parameterName)
+/// <summary>
+/// Removes one preset from the maintained list. The removal is soft: the
+/// record stays for the history and the recorded valuations that name it, and
+/// only the maintained list and any new selection lose it.
+/// </summary>
+public sealed class RemoveValuationPreset(IValuationPresetStore store) : IRemoveValuationPreset
+{
+    public Task<ValuationPreset> ExecuteAsync(
+        RemoveValuationPresetRequest request,
+        CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(value))
+        ArgumentNullException.ThrowIfNull(request);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.ManageWorkflowConfiguration);
+        if (request.PresetId == Guid.Empty || request.ExpectedVersion <= 0)
         {
-            throw new ArgumentException("A value is required.", parameterName);
+            throw new ArgumentException(
+                "A valuation preset identity and the version it was read at are required.",
+                nameof(request));
         }
 
-        var normalized = value.Trim();
-        if (normalized.Length > maximumLength || normalized.Any(char.IsControl))
-        {
-            throw new ArgumentOutOfRangeException(
-                parameterName,
-                $"The value cannot exceed {maximumLength} characters "
-                + "or contain control characters.");
-        }
-
-        return normalized;
+        return store.RemoveAsync(
+            request with
+            {
+                OperationKey = ValuationCalculationPolicy.RequireText(
+                    request.OperationKey,
+                    100,
+                    nameof(request)),
+                Reason = ValuationCalculationPolicy.RequireReason(
+                    request.Reason,
+                    nameof(request))
+            },
+            cancellationToken);
     }
 }
 

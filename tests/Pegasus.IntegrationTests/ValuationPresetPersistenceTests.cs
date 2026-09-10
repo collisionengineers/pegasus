@@ -163,6 +163,80 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
+    /// Removing a preset is soft: the maintained list drops it while the row,
+    /// its history and its recorded valuations stay. A retried post replays
+    /// the same removal, and afterwards neither a second removal nor an edit
+    /// is accepted.
+    /// </summary>
+    [Fact]
+    public async Task RemovingAPresetHidesItFromTheListAndRefusesFurtherChanges()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var store = new EfValuationPresetStore(harness.Factory, harness.Clock);
+        var remove = new RemoveValuationPreset(store);
+        var save = new SaveValuationPreset(store);
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var request = new RemoveValuationPresetRequest(
+            DecalsPresetId,
+            ExpectedVersion: 1,
+            administrator,
+            "valuation-preset-remove",
+            "The addition is no longer offered.")
+        {
+            EditLeaseToken = await ClaimPresetEditAsync(
+                harness, DecalsPresetId, 1, administrator, "valuation-preset-remove-lease")
+        };
+
+        var removed = await remove.ExecuteAsync(request, CancellationToken.None);
+        Assert.Equal(2, removed.Version);
+        Assert.NotNull(removed.RemovedAtUtc);
+        Assert.Equal(administrator.SubjectId, removed.UpdatedBy);
+
+        var presets = await store.ListAsync(CancellationToken.None);
+        Assert.Equal(4, presets.Count);
+        Assert.DoesNotContain(DecalsPresetId, presets.Select(preset => preset.Id));
+
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var history = await context.ActionHistory.SingleAsync(item =>
+                item.AggregateType == "valuation_preset"
+                && item.CorrelationId == "valuation-preset-remove");
+            Assert.Equal("valuation_preset_removed", history.EventKind);
+            Assert.Equal(administrator.SubjectId, history.ActorSubjectId);
+            Assert.Equal("The addition is no longer offered.", history.Reason);
+            Assert.NotNull(history.BeforeJson);
+            Assert.NotNull(history.AfterJson);
+
+            // The row itself is kept, which is what lets history and any
+            // recorded valuation that names this preset stay readable.
+            Assert.NotNull(await context.Set<ValuationPresetEntity>()
+                .SingleOrDefaultAsync(item => item.Id == DecalsPresetId));
+        }
+
+        var replayed = await remove.ExecuteAsync(request, CancellationToken.None);
+        Assert.Equal(removed, replayed);
+
+        var again = await Assert.ThrowsAsync<ValuationPresetException>(() =>
+            remove.ExecuteAsync(
+                request with { OperationKey = "valuation-preset-remove-again" },
+                CancellationToken.None));
+        Assert.Equal(ValuationPresetError.Removed, again.Error);
+
+        var edited = await Assert.ThrowsAsync<ValuationPresetException>(() =>
+            save.ExecuteAsync(
+                new(
+                    DecalsPresetId,
+                    "Decals",
+                    600m,
+                    Active: true,
+                    ExpectedVersion: 2,
+                    administrator,
+                    "valuation-preset-edit-removed"),
+                CancellationToken.None));
+        Assert.Equal(ValuationPresetError.Removed, edited.Error);
+    }
+
+    /// <summary>
     /// A retried post replays its own recorded result; the same key carrying a
     /// different request is a conflict, not a second edit.
     /// </summary>
@@ -363,6 +437,18 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             Assert.IsType<AssessmentFieldValue>(
                 await ReadEngineersValueAsync(harness, caseId)).Value);
 
+        // The Case's own recorded additions travel with the basis, which is
+        // what makes a recorded valuation immune to later preset maintenance:
+        // re-applying reads them back instead of resolving the preset again.
+        var recordedBasis = await harness.Valuations.ReadBasisAsync(
+            caseId,
+            guide.ValuationId,
+            CancellationToken.None);
+        Assert.Equal(
+            [(TowBarPresetId, 2L, "Tow bar")],
+            recordedBasis.RecordedAdditions.Select(item =>
+                (item.PresetId, item.PresetVersion, item.Label)));
+
         var history = await new ListAppliedValuations(harness.Valuations)
             .ExecuteAsync(caseId, CancellationToken.None);
         Assert.Equal([corrected.Id, applied.Id], history.Select(item => item.Id));
@@ -382,6 +468,110 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             lease.Token,
             chosen,
             guideStamp);
+    }
+
+    /// <summary>
+    /// A holder is never blocked by their own record lease. Leaving a page
+    /// releases it, but that release is best effort, so a re-entry that finds an
+    /// unbeaten lease of its own replaces it silently. The replacement rotates
+    /// the token, because persistence keeps only its digest and cannot hand the
+    /// original back: the abandoned window's next save is refused.
+    /// </summary>
+    [Fact]
+    public async Task AHolderReclaimsTheirOwnUnbeatenPresetScopeAndTheOldTokenStops()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var scopes = new EfEditScopeStore(harness.Factory, harness.Clock);
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+        var abandoned = await scopes.ClaimAsync(
+            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, administrator, "preset-first-window"),
+            CancellationToken.None);
+        harness.Advance(EditScopeAuthority.StaleAfter + TimeSpan.FromSeconds(1));
+
+        var resumed = await scopes.ClaimAsync(
+            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, administrator, "preset-second-window"),
+            CancellationToken.None);
+
+        Assert.NotEqual(abandoned.Token, resumed.Token);
+        Assert.Equal(abandoned.Generation + 1, resumed.Generation);
+        Assert.Equal(administrator.SubjectId, resumed.Holder);
+        await Assert.ThrowsAsync<EditScopeConflictException>(() => scopes.HeartbeatAsync(
+            new(EditScopeKind.ValuationPreset, TowBarPresetId, administrator, abandoned.Token),
+            CancellationToken.None));
+        await scopes.HeartbeatAsync(
+            new(EditScopeKind.ValuationPreset, TowBarPresetId, administrator, resumed.Token),
+            CancellationToken.None);
+    }
+
+    /// <summary>
+    /// While the other window is still renewing, the holder is told so and
+    /// decides: a take-over rotates the token deliberately rather than two
+    /// windows both believing they may save.
+    /// </summary>
+    [Fact]
+    public async Task ALivePresetScopeRefusesItsOwnHolderUntilTheyTakeItOver()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var scopes = new EfEditScopeStore(harness.Factory, harness.Clock);
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+        var beating = await scopes.ClaimAsync(
+            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, administrator, "preset-live-window"),
+            CancellationToken.None);
+        harness.Advance(EditScopeAuthority.HeartbeatInterval);
+
+        await Assert.ThrowsAsync<EditScopeHeldElsewhereException>(() => scopes.ClaimAsync(
+            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, administrator, "preset-second-window"),
+            CancellationToken.None));
+
+        var takenOver = await scopes.ClaimAsync(
+            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, administrator, "preset-take-over")
+            {
+                TakeOver = true
+            },
+            CancellationToken.None);
+
+        Assert.NotEqual(beating.Token, takenOver.Token);
+        Assert.Equal(beating.Generation + 1, takenOver.Generation);
+        await Assert.ThrowsAsync<EditScopeConflictException>(() => scopes.HeartbeatAsync(
+            new(EditScopeKind.ValuationPreset, TowBarPresetId, administrator, beating.Token),
+            CancellationToken.None));
+    }
+
+    /// <summary>
+    /// The same-holder rule is exactly that. A colleague is still refused while
+    /// the lease is held, however long it has gone unbeaten, and take-over is
+    /// not a control they have.
+    /// </summary>
+    [Fact]
+    public async Task AnotherHolderIsStillRefusedAPresetScopeAndCannotTakeItOver()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var scopes = new EfEditScopeStore(harness.Factory, harness.Clock);
+        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+        await scopes.ClaimAsync(
+            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, holder, "preset-holder"),
+            CancellationToken.None);
+        harness.Advance(EditScopeAuthority.StaleAfter + TimeSpan.FromSeconds(1));
+
+        await Assert.ThrowsAsync<EditScopeConflictException>(() => scopes.ClaimAsync(
+            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, colleague, "preset-colleague"),
+            CancellationToken.None));
+        await Assert.ThrowsAsync<EditScopeConflictException>(() => scopes.ClaimAsync(
+            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, colleague, "preset-colleague-force")
+            {
+                TakeOver = true
+            },
+            CancellationToken.None));
+
+        harness.Advance(EditScopeAuthority.Duration);
+        var afterExpiry = await scopes.ClaimAsync(
+            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, colleague, "preset-colleague-after-expiry"),
+            CancellationToken.None);
+        Assert.Equal(colleague.SubjectId, afterExpiry.Holder);
     }
 
     private static async Task<string> ClaimPresetEditAsync(

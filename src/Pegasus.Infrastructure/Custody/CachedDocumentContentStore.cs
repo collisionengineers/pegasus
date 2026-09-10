@@ -7,6 +7,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Persistence;
+using SkiaSharp;
 
 namespace Pegasus.Infrastructure.Custody;
 
@@ -60,6 +61,14 @@ internal sealed class CachedDocumentContentStore(
     private const string CachePrefix = "cache/";
     private const string HashMetadata = "sha256";
 
+    /// <summary>
+    /// The variant an entry of the durable content itself carries: none.
+    /// A derived rendering is a different kind of entry for the same version
+    /// (see <see cref="DocumentThumbnailCache"/>), so every query for the
+    /// content entry says which kind it means (DOCS-015).
+    /// </summary>
+    internal const string OriginalVariant = "";
+
     public async Task<LogicalDocumentContent> OpenAsync(
         ReadLogicalDocumentVersionRequest request,
         CancellationToken cancellationToken)
@@ -87,14 +96,22 @@ internal sealed class CachedDocumentContentStore(
         }
         metrics?.RecordMiss();
 
-        await using var remote = await box.OpenOwnedVersionReadAsync(
-            source.BoxFileId,
-            source.BoxVersionId,
-            source.ExpectedParentId,
-            source.Length,
+        // DOCS-015: a cache miss is a Box read, so it takes the same gate and
+        // the same 429/5xx retry as every other managed read rather than
+        // failing the request the first time Box says "later".
+        var downloaded = await BoxDocumentContentStore.ReadGatedWithRetryAsync(
+            async token =>
+            {
+                await using var remote = await box.OpenOwnedVersionReadAsync(
+                    source.BoxFileId,
+                    source.BoxVersionId,
+                    source.ExpectedParentId,
+                    source.Length,
+                    token);
+                return await ReadVerifiedToTemporaryAsync(
+                    remote, source.Length, source.Sha256, token);
+            },
             cancellationToken);
-        var downloaded = await ReadVerifiedToTemporaryAsync(
-            remote, source.Length, source.Sha256, cancellationToken);
         try
         {
             await PublishAsync(source, downloaded, cancellationToken);
@@ -246,7 +263,23 @@ internal sealed class CachedDocumentContentStore(
         return new(candidates.Length, deleted, retained, failures);
     }
 
-    private async Task RequireCurrentActorAsync(
+    private Task RequireCurrentActorAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken) =>
+        RequireCurrentActorAsync(dbContextFactory, actor, cancellationToken);
+
+    /// <summary>
+    /// The staff account behind a logical read is still enabled and still
+    /// holds a casework role, read from the database rather than from the
+    /// cookie the request arrived with.
+    /// </summary>
+    /// <remarks>
+    /// DOCS-015: the derived-thumbnail read serves from its own cache entry
+    /// without opening the durable content, so it applies this same check
+    /// itself instead of inheriting it from a read it no longer makes.
+    /// </remarks>
+    internal static async Task RequireCurrentActorAsync(
+        IDbContextFactory<PegasusDbContext> dbContextFactory,
         ActionActor actor,
         CancellationToken cancellationToken)
     {
@@ -534,6 +567,7 @@ internal sealed class CachedDocumentContentStore(
                 Id = Guid.NewGuid(),
                 DocumentVersionId = source.DocumentVersionId,
                 IntakeAssetId = source.IntakeAssetId,
+                Variant = OriginalVariant,
                 BlobIdentity = identity,
                 ETag = properties.Value.ETag.ToString(),
                 VerifiedSha256 = source.Sha256,
@@ -627,9 +661,10 @@ internal sealed class CachedDocumentContentStore(
         PegasusDbContext db,
         ResolvedSource source) =>
         db.Set<DocumentContentCacheEntryEntity>().Where(value =>
-            source.DocumentVersionId != null
+            value.Variant == OriginalVariant
+            && (source.DocumentVersionId != null
                 ? value.DocumentVersionId == source.DocumentVersionId
-                : value.IntakeAssetId == source.IntakeAssetId);
+                : value.IntakeAssetId == source.IntakeAssetId));
 
     private static LogicalDocumentContent Result(
         ReadLogicalDocumentVersionRequest request,
@@ -776,6 +811,419 @@ internal sealed class CachedDocumentContentStore(
                 fileName,
                 mediaType,
                 expectedParentId);
+        }
+    }
+}
+
+/// <summary>
+/// The derived-thumbnail entry kind of the document content cache: one object
+/// and one row per document version, alongside — never in place of — that
+/// version's own content entry.
+/// </summary>
+/// <remarks>
+/// DOCS-015: the content cache is one entry per <c>DocumentVersionId</c>, so a
+/// derived rendering needs a variant of its own rather than a second row that
+/// the unique index would refuse and that
+/// <see cref="CachedDocumentContentStore"/> would then read as the content.
+/// <see cref="DocumentContentCacheEntryEntity.Variant"/> is what tells the two
+/// apart; the content entry keeps its own integrity check untouched.
+///
+/// A thumbnail is derived data. Its recorded hash is the hash of the rendering
+/// itself, which is what a read verifies the cached object against; the version
+/// it was derived from is immutable, so that version identity is the only key
+/// it needs. Where anything about the cached object fails to verify, the answer
+/// is simply "no cached thumbnail" and the caller derives it again.
+/// </remarks>
+internal sealed class DocumentThumbnailCache(
+    IDbContextFactory<PegasusDbContext> dbContextFactory,
+    BlobContainerClient container,
+    TimeProvider timeProvider)
+{
+    /// <summary>The variant key every derived-thumbnail entry carries.</summary>
+    internal static readonly string Variant =
+        $"thumb-{CaseDocumentThumbnails.LongestEdge}";
+
+    private static readonly TimeSpan IdleLifetime = TimeSpan.FromHours(24);
+    private const string CachePrefix = "cache/";
+    private const string HashMetadata = "sha256";
+
+    /// <summary>
+    /// The cached rendering, or <c>null</c> when there is none to serve.
+    /// </summary>
+    /// <remarks>
+    /// The staff authorization is applied here rather than inherited from the
+    /// durable read, because a cache hit makes no durable read.
+    /// </remarks>
+    public async Task<byte[]?> TryReadAsync(
+        ActionActor actor,
+        Guid versionId,
+        CancellationToken cancellationToken)
+    {
+        StaffAuthorization.Require(
+            actor,
+            actor.Kind == ActorKind.SystemWorker
+                ? StaffAccessRight.ExecuteSystemWork
+                : StaffAccessRight.PerformCasework);
+        await CachedDocumentContentStore.RequireCurrentActorAsync(
+            dbContextFactory, actor, cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var entry = await Query(db, versionId).AsNoTracking()
+            .SingleOrDefaultAsync(cancellationToken);
+        if (entry is null || entry.ExpiresAtUtc <= now)
+        {
+            return null;
+        }
+        byte[] content;
+        try
+        {
+            var response = await container.GetBlobClient(entry.BlobIdentity)
+                .DownloadStreamingAsync(
+                    new BlobDownloadOptions
+                    {
+                        Conditions = entry.ETag is { Length: > 0 }
+                            ? new BlobRequestConditions { IfMatch = new ETag(entry.ETag) }
+                            : null
+                    },
+                    cancellationToken);
+            await using var stream = response.Value.Content;
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer, cancellationToken);
+            content = buffer.ToArray();
+        }
+        catch (RequestFailedException exception) when (exception.Status is 404 or 412)
+        {
+            return null;
+        }
+        if (content.LongLength != entry.VerifiedSize
+            || !CachedDocumentContentStore.FixedHashEquals(
+                Sha256Hex(content), entry.VerifiedSha256))
+        {
+            return null;
+        }
+        await db.Set<DocumentContentCacheEntryEntity>()
+            .Where(value => value.Id == entry.Id && value.ETag == entry.ETag)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(value => value.ExpiresAtUtc, now.Add(IdleLifetime))
+                .SetProperty(value => value.LastCleanupOutcome, (string?)null),
+                cancellationToken);
+        return content;
+    }
+
+    /// <summary>
+    /// Records one rendering. Best effort: the caller already holds the bytes,
+    /// so a lost race writes nothing rather than failing the preview.
+    /// </summary>
+    public async Task WriteAsync(
+        Guid versionId,
+        byte[] content,
+        CancellationToken cancellationToken)
+    {
+        var now = timeProvider.GetUtcNow();
+        var identity = $"{CachePrefix}document-versions/{versionId:D}/{Variant}";
+        await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var entry = await Query(db, versionId).SingleOrDefaultAsync(cancellationToken);
+        if (entry is not null && entry.ReadLeaseExpiresAtUtc > now)
+        {
+            // A cleanup pass holds this entry and is about to remove the object
+            // its row names, so publishing now would leave an orphan behind it.
+            return;
+        }
+        var hash = Sha256Hex(content);
+        try
+        {
+            using var source = new MemoryStream(content, writable: false);
+            var uploaded = await container.GetBlobClient(identity).UploadAsync(
+                source,
+                new BlobUploadOptions
+                {
+                    Metadata = new Dictionary<string, string> { [HashMetadata] = hash }
+                },
+                cancellationToken);
+            var etag = uploaded.Value.ETag.ToString();
+            if (entry is null)
+            {
+                db.Add(new DocumentContentCacheEntryEntity
+                {
+                    Id = Guid.NewGuid(),
+                    DocumentVersionId = versionId,
+                    Variant = Variant,
+                    BlobIdentity = identity,
+                    ETag = etag,
+                    VerifiedSha256 = hash,
+                    VerifiedSize = content.LongLength,
+                    ExpiresAtUtc = now.Add(IdleLifetime),
+                    ConcurrencyToken = Guid.NewGuid()
+                });
+            }
+            else
+            {
+                entry.BlobIdentity = identity;
+                entry.ETag = etag;
+                entry.VerifiedSha256 = hash;
+                entry.VerifiedSize = content.LongLength;
+                entry.ExpiresAtUtc = now.Add(IdleLifetime);
+                entry.LastCleanupOutcome = null;
+                entry.ReadLeaseExpiresAtUtc = null;
+                entry.ConcurrencyToken = Guid.NewGuid();
+            }
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent derivation recorded the same variant first. It named
+            // the same object and the same bytes, so there is nothing to fix.
+            db.ChangeTracker.Clear();
+        }
+        catch (RequestFailedException)
+        {
+            // The rendering is served from memory either way, and the next read
+            // derives it again.
+        }
+    }
+
+    private static IQueryable<DocumentContentCacheEntryEntity> Query(
+        PegasusDbContext db,
+        Guid versionId) =>
+        db.Set<DocumentContentCacheEntryEntity>().Where(value =>
+            value.DocumentVersionId == versionId && value.Variant == Variant);
+
+    private static string Sha256Hex(byte[] content) =>
+        Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+}
+
+/// <summary>
+/// The gallery-sized rendering of one image version: the cached variant where
+/// there is one, otherwise derived from the verified full bytes and recorded.
+/// </summary>
+/// <remarks>
+/// DOCS-015. The derivation reads through
+/// <see cref="IReadLogicalDocumentVersion"/>, so it inherits that read's
+/// authorization, its custody-hash verification and its confirmed-versions-only
+/// rule rather than restating any of them. A profile with no content cache
+/// composed simply derives on every read.
+/// </remarks>
+internal sealed class CaseDocumentThumbnailReader(
+    IReadLogicalDocumentVersion source,
+    DocumentThumbnailCache? cache = null) : IReadCaseDocumentThumbnail
+{
+    public async Task<CaseDocumentThumbnail?> OpenAsync(
+        CaseDocumentThumbnailRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!CaseDocumentThumbnails.IsThumbnailable(request.MediaType))
+        {
+            return null;
+        }
+        if (cache is not null)
+        {
+            var cached = await cache.TryReadAsync(
+                request.Actor, request.VersionId, cancellationToken);
+            if (cached is not null)
+            {
+                return Rendering(cached, request.Sha256);
+            }
+        }
+        await using var full = await source.OpenAsync(
+            new(
+                Actor: request.Actor,
+                DocumentId: request.DocumentId,
+                VersionId: request.VersionId,
+                IntakeAssetId: null,
+                CaseId: request.CaseId,
+                IntakeReceiptId: null,
+                ExpectedSha256: request.Sha256,
+                ExpectedContentLength: request.ContentLength),
+            cancellationToken);
+        var rendered = await ImageThumbnailRendering.TryRenderAsync(
+            full.Content, request.ContentLength, cancellationToken);
+        if (rendered is null)
+        {
+            return null;
+        }
+        if (cache is not null)
+        {
+            await cache.WriteAsync(request.VersionId, rendered, cancellationToken);
+        }
+        return Rendering(rendered, request.Sha256);
+    }
+
+    private static CaseDocumentThumbnail Rendering(byte[] content, string sourceSha256) =>
+        new(
+            new MemoryStream(content, writable: false),
+            CaseDocumentThumbnails.MediaType,
+            content.LongLength,
+            sourceSha256);
+}
+
+/// <summary>
+/// Renders one image's gallery thumbnail with SkiaSharp: longest displayed edge
+/// <see cref="CaseDocumentThumbnails.LongestEdge"/>, JPEG, EXIF orientation
+/// applied.
+/// </summary>
+/// <remarks>
+/// DOCS-015. Nothing here throws at the caller: bytes that are not a decodable
+/// image, or an image past the decode bound, mean "no thumbnail", and the full
+/// image is served instead.
+///
+/// The decode gate is separate from the Box read gate, because decoding is the
+/// expensive half of a derivation: sixty first-visit tiles would otherwise hold
+/// sixty full-resolution bitmaps at once.
+/// </remarks>
+internal static class ImageThumbnailRendering
+{
+    private const int JpegQuality = 78;
+
+    /// <summary>
+    /// The decoded-pixel bound, matching the recognition engine's: past it the
+    /// decode is refused rather than attempted.
+    /// </summary>
+    private const long MaximumDecodedPixels = 80_000_000;
+
+    /// <summary>
+    /// The largest source a thumbnail is derived from. A larger file is served
+    /// whole rather than buffered again for a tile.
+    /// </summary>
+    private const long MaximumSourceBytes = 64L * 1024 * 1024;
+
+    private static readonly SemaphoreSlim DecodeGate = new(2, 2);
+
+    internal static async Task<byte[]?> TryRenderAsync(
+        Stream content,
+        long contentLength,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        if (contentLength <= 0 || contentLength > MaximumSourceBytes)
+        {
+            return null;
+        }
+        byte[] source;
+        using (var buffer = new MemoryStream(checked((int)contentLength)))
+        {
+            await content.CopyToAsync(buffer, cancellationToken);
+            source = buffer.ToArray();
+        }
+        await DecodeGate.WaitAsync(cancellationToken);
+        try
+        {
+            return Render(source);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return null;
+        }
+        finally
+        {
+            DecodeGate.Release();
+        }
+    }
+
+    private static byte[]? Render(byte[] source)
+    {
+        using var data = SKData.CreateCopy(source);
+        using var codec = SKCodec.Create(data);
+        if (codec is null
+            || (long)codec.Info.Width * codec.Info.Height is <= 0 or > MaximumDecodedPixels)
+        {
+            return null;
+        }
+        using var decoded = SKBitmap.Decode(codec);
+        if (decoded is null)
+        {
+            return null;
+        }
+        var origin = codec.EncodedOrigin;
+        var transposed = IsTransposed(origin);
+        // What the operator sees, which is what the longest edge bounds.
+        var displayedWidth = transposed ? decoded.Height : decoded.Width;
+        var displayedHeight = transposed ? decoded.Width : decoded.Height;
+        var scale = Math.Min(
+            1d,
+            (double)CaseDocumentThumbnails.LongestEdge / Math.Max(displayedWidth, displayedHeight));
+        var targetWidth = Math.Max(1, (int)Math.Round(displayedWidth * scale));
+        var targetHeight = Math.Max(1, (int)Math.Round(displayedHeight * scale));
+        using var scaled = decoded.Resize(
+            new SKImageInfo(
+                transposed ? targetHeight : targetWidth,
+                transposed ? targetWidth : targetHeight,
+                SKColorType.Rgba8888,
+                SKAlphaType.Premul),
+            new SKSamplingOptions(SKFilterMode.Linear));
+        if (scaled is null)
+        {
+            return null;
+        }
+        // One opaque surface: JPEG carries no alpha, so a transparent source is
+        // composed onto white rather than onto black.
+        using var target = new SKBitmap(
+            new SKImageInfo(targetWidth, targetHeight, SKColorType.Rgba8888, SKAlphaType.Opaque));
+        using (var canvas = new SKCanvas(target))
+        {
+            canvas.Clear(SKColors.White);
+            ApplyDisplayOrientation(canvas, origin, targetWidth, targetHeight);
+            canvas.DrawBitmap(scaled, 0, 0);
+        }
+        using var image = SKImage.FromBitmap(target);
+        using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, JpegQuality);
+        return encoded?.ToArray();
+    }
+
+    /// <summary>
+    /// Whether the EXIF origin exchanges the image's width and height.
+    /// </summary>
+    private static bool IsTransposed(SKEncodedOrigin origin) =>
+        origin is SKEncodedOrigin.LeftTop
+            or SKEncodedOrigin.RightTop
+            or SKEncodedOrigin.RightBottom
+            or SKEncodedOrigin.LeftBottom;
+
+    /// <summary>
+    /// Turns the stored pixels into the displayed image on a canvas whose own
+    /// size — <paramref name="width"/> by <paramref name="height"/> — is
+    /// already the displayed one.
+    /// </summary>
+    private static void ApplyDisplayOrientation(
+        SKCanvas canvas,
+        SKEncodedOrigin origin,
+        int width,
+        int height)
+    {
+        switch (origin)
+        {
+            case SKEncodedOrigin.TopRight:
+                canvas.Translate(width, 0);
+                canvas.Scale(-1, 1);
+                break;
+            case SKEncodedOrigin.BottomRight:
+                canvas.Translate(width, height);
+                canvas.Scale(-1, -1);
+                break;
+            case SKEncodedOrigin.BottomLeft:
+                canvas.Translate(0, height);
+                canvas.Scale(1, -1);
+                break;
+            case SKEncodedOrigin.LeftTop:
+                canvas.RotateDegrees(90);
+                canvas.Scale(1, -1);
+                break;
+            case SKEncodedOrigin.RightTop:
+                canvas.Translate(width, 0);
+                canvas.RotateDegrees(90);
+                break;
+            case SKEncodedOrigin.RightBottom:
+                canvas.Translate(width, height);
+                canvas.Scale(-1, -1);
+                canvas.RotateDegrees(90);
+                canvas.Scale(1, -1);
+                break;
+            case SKEncodedOrigin.LeftBottom:
+                canvas.Translate(0, height);
+                canvas.RotateDegrees(-90);
+                break;
+            default:
+                break;
         }
     }
 }

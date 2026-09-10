@@ -31,8 +31,18 @@ public sealed class ConfigurationModel(
     [BindProperty] public bool Enabled { get; set; } = true;
     [BindProperty] public string? Reason { get; set; } = string.Empty;
     public bool IsEditing => EditingId != Guid.Empty;
+
+    /// <summary>
+    /// The record this operator is already editing in another window, offered
+    /// with the take-over that ends the other window's claim.
+    /// </summary>
+    public Guid TakeOverRecordId { get; private set; }
+
     private EditScopeKind ScopeKind => EditingId == GetWorkflowConfiguration.RecordId
         ? EditScopeKind.NamedConfiguration : EditScopeKind.LabourRateCard;
+
+    /// <summary>The record as the operator reading an ownership sentence names it.</summary>
+    private const string RecordName = "record";
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -41,7 +51,10 @@ public sealed class ConfigurationModel(
         return Page();
     }
 
-    public async Task<IActionResult> OnPostEditAsync(Guid recordId, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostEditAsync(
+        Guid recordId,
+        bool takeOver,
+        CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
         await LoadAsync(actor, cancellationToken);
@@ -64,9 +77,19 @@ public sealed class ConfigurationModel(
         }
         try
         {
-            LeaseToken = (await editScopes.ClaimAsync(new(ScopeKind, recordId, ExpectedVersion, actor,
-                NewOperationKey()), cancellationToken)).Token;
+            LeaseToken = (await editScopes.ClaimAsync(
+                new(ScopeKind, recordId, ExpectedVersion, actor, NewOperationKey())
+                {
+                    TakeOver = takeOver
+                },
+                cancellationToken)).Token;
             OperationKey = NewOperationKey();
+        }
+        catch (EditScopeHeldElsewhereException)
+        {
+            EditingId = Guid.Empty;
+            TakeOverRecordId = recordId;
+            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
         }
         catch (EditScopeConflictException)
         {
@@ -79,7 +102,13 @@ public sealed class ConfigurationModel(
             EditingId = Guid.Empty;
             ModelState.AddModelError(string.Empty, active is null
                 ? "The record is being edited. Reload to try again."
-                : $"{ActorDisplayNames.Resolve(active.HolderKind ?? ActorKind.Staff, active.Holder, names)} is editing this record.");
+                : EditModeDisplay.HeldBy(
+                    RecordName,
+                    active.HolderKind == ActorKind.Automation
+                        ? CaseEditAuthorityHolder.Automation
+                        : new CaseEditAuthorityHolder(ActorDisplayNames.Resolve(
+                            active.HolderKind ?? ActorKind.Staff, active.Holder, names)),
+                    isSelf: false));
         }
         catch (EditScopeVersionConflictException)
         {
@@ -147,6 +176,30 @@ public sealed class ConfigurationModel(
             }
         }
         return RedirectToPage();
+    }
+
+    /// <summary>
+    /// The release a leaving page beacons. It is not an operator action: it
+    /// answers 204 whether or not a scope was still there to release, so a
+    /// duplicate beacon and a beacon that lost a race with Cancel are both
+    /// ordinary outcomes. Antiforgery is validated as it is for every post.
+    /// </summary>
+    public async Task<IActionResult> OnPostReleaseScopeBeaconAsync(CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (EditingId == Guid.Empty || string.IsNullOrEmpty(LeaseToken)) return new NoContentResult();
+        try
+        {
+            await editScopes.ReleaseAsync(
+                new(ScopeKind, EditingId, actor, NewOperationKey(), LeaseToken), cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception is EditScopeExpiredException or EditScopeConflictException)
+        {
+            // The scope has already gone or has already been re-claimed by a
+            // newer window of this operator's own session.
+        }
+        return new NoContentResult();
     }
 
     public async Task<IActionResult> OnPostHeartbeatAsync(CancellationToken cancellationToken)

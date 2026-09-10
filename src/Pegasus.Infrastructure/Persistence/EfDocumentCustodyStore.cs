@@ -16,6 +16,7 @@ internal sealed class EfDocumentCustodyStore(
     IAddCaseDocument,
     IDownloadCaseDocument,
     IGetCaseDocumentMetadata,
+    IReadCaseDocumentPreview,
     IExportCaseDocuments,
     ILogicallyRemoveDocument,
     IConfirmThirdPartyVehicleEvidence,
@@ -148,6 +149,46 @@ internal sealed class EfDocumentCustodyStore(
                 version.MediaType,
                 version.ContentLength,
                 version.Sha256))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// DOCS-015: the occurrence lookup a preview needs, and nothing else. It
+    /// takes no operation key, writes no <c>ActionHistory</c> row and opens no
+    /// content: the caller reads the bytes through
+    /// <see cref="IReadLogicalDocumentVersion"/>, which verifies the same
+    /// custody hash on every read. The Case-membership rule is the audited
+    /// download's rule, restated by the same query shape rather than relaxed.
+    /// A version whose custody is still <c>Pending</c> is returned with that
+    /// state, so the caller can answer "not yet" instead of "no such file".
+    /// </summary>
+    async Task<CaseDocumentPreview?> IReadCaseDocumentPreview.ExecuteAsync(
+        CaseDocumentPreviewQuery query,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        ValidateActor(query.Actor);
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        return await (
+            from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                on occurrence.DocumentId equals version.DocumentId
+            where occurrence.CaseId == query.CaseId
+                && occurrence.Id == query.OccurrenceId
+                && version.Id == query.VersionId
+                && occurrence.VersionId == version.Id
+                && version.DocumentId == occurrence.DocumentId
+                && !version.IsLogicallyRemoved
+            select new CaseDocumentPreview(
+                query.CaseId,
+                occurrence.Id,
+                occurrence.DocumentId,
+                version.Id,
+                version.FileName,
+                version.MediaType,
+                version.ContentLength,
+                version.Sha256,
+                version.CustodyStatus))
             .SingleOrDefaultAsync(cancellationToken);
     }
 

@@ -8,6 +8,9 @@
     var data = details.Data;
     var leaseToken = Model.LeaseToken;
     var mayEdit = Model.CanEditCaseData;
+    // The record's one Save form is rendered by the Overview section, and only
+    // when there is Case data to edit; these controls join that form.
+    var editFields = mayEdit && data is not null;
     string Value(string? text) => string.IsNullOrWhiteSpace(text)
         ? OperatorLabels.CaseWorkspace.AbsentValue : text;
     // Confirmed ?? Fact only — CaseField<T>.Current also falls through to an
@@ -56,6 +59,17 @@
     var lookupMileage = details.VehicleEvidence?.LatestObservation?.Mileage is { } reading
         ? $"{reading.Value:N0} {OperatorLabels.MileageUnit(reading.Unit)} · {reading.ObservedOn:d MMM yyyy}"
         : null;
+    // What the lookup itself did. The suggestion chips below are edit-mode
+    // only, so without this line a lookup that ran and found nothing was
+    // indistinguishable from one that never ran (WP8).
+    var observation = details.VehicleEvidence?.LatestObservation;
+    // The same values the chips offer, as text, for an operator who is not
+    // editing. Accepting one still requires edit mode (FRD-06).
+    var suggestions = new List<string>();
+    if (showMake) { suggestions.Add($"Make {makeSuggestion!.Value}"); }
+    if (showModel) { suggestions.Add($"Model {modelSuggestion!.Value}"); }
+    if (year is { } suggestedYear) { suggestions.Add($"Year {suggestedYear}"); }
+    if (showMileage) { suggestions.Add($"Mileage {mileageSuggestion!.Value:N0} {unitSuggestion!.Value}"); }
 }
 
 <section class="panel" aria-labelledby="case-vehicle-title">
@@ -89,14 +103,22 @@
     </div>
     <div class="panel-body">
         <div class="overview-facts">
-            <dl><dt>Registration</dt><dd>@Value(registration)</dd></dl>
+            @* WP6: the vehicle's own identity is edited where it is read. The
+               controls belong to the record's one Save form, as every other
+               section's do. *@
+            <dl><dt>@if (editFields){<label for="edit-registration">Registration</label>} else {<text>Registration</text>}</dt><dd>@if (editFields){<input id="edit-registration" name="vehicleRegistration" form="case-edit-form" maxlength="20" value="@acceptedRegistration" />} else {@Value(registration)}</dd></dl>
             <dl><dt>Source vehicle description</dt><dd>@Value(description?.Value)@if (description is not null){<partial name="Shared/_Provenance" model="description.Source" />}</dd></dl>
-            <dl><dt>Make</dt><dd>@Value(make)</dd>@if (mayEdit && showMake){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@makeSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Make" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion(makeSuggestion.Value)</button></form>}</dl>
-            <dl><dt>Model</dt><dd>@Value(model)</dd>@if (mayEdit && showModel){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@modelSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Model" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion(modelSuggestion.Value)</button></form>}</dl>
+            <dl><dt>@if (editFields){<label for="edit-make">Make</label>} else {<text>Make</text>}</dt><dd>@if (editFields){<input id="edit-make" name="vehicleMake" form="case-edit-form" maxlength="100" value="@make" />} else {@Value(make)}</dd>@if (mayEdit && showMake){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@makeSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Make" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion(makeSuggestion.Value)</button></form>}</dl>
+            <dl><dt>@if (editFields){<label for="edit-model">Model</label>} else {<text>Model</text>}</dt><dd>@if (editFields){<input id="edit-model" name="vehicleModel" form="case-edit-form" maxlength="100" value="@(model)" />} else {@Value(model)}</dd>@if (mayEdit && showModel){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@modelSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Model" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion(modelSuggestion.Value)</button></form>}</dl>
             <dl><dt>Year</dt><dd>@Value(year?.ToString())</dd></dl>
             <dl><dt>Mileage</dt><dd>@Value(mileageText)</dd>@if (mayEdit && showMileage){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@mileageSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Mileage" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion($"{mileageSuggestion.Value:N0} {unitSuggestion!.Value}")</button></form>}</dl>
             <dl><dt>Mileage source</dt><dd>@Value(mileageSource)</dd></dl>
             <dl><dt>@CaseWorkspaceLabels.Vehicle.LookupMileage</dt><dd>@Value(lookupMileage)</dd></dl>
+            <dl><dt>@OperatorLabels.VehicleLookup.OutcomeTitle</dt><dd>@OperatorLabels.VehicleLookup.Outcome(observation)</dd></dl>
+            @if (!mayEdit && suggestions.Count > 0)
+            {
+                <dl><dt>@OperatorLabels.VehicleLookup.SuggestionTitle</dt><dd>@(string.Join(" · ", suggestions))</dd></dl>
+            }
         </div>
         @if (Model.CanEditAssessmentField(AssessmentVocabulary.HistoryCheck))
         {

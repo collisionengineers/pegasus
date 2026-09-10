@@ -411,6 +411,55 @@ public sealed class BoxDocumentContentStoreTests
             [new(Address() with { BoxFileId = "missing", BoxVersionId = "missing-version" }, hash, content.Length)], CancellationToken.None));
     }
 
+    /// <summary>
+    /// DOCS-015: Box rate-limits per application, and a Case's gallery is the
+    /// burst that finds the limit. A 429 on a read is Box saying "later", so
+    /// the read waits and asks again instead of becoming a failed page element.
+    /// </summary>
+    [Fact]
+    public async Task AThrottledSingleReadIsRetriedRatherThanFailed()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("throttled content");
+        var hash = Sha256(content);
+        var written = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
+        box.ThrottleNextDownloads = 1;
+
+        await using var stream = await store.OpenReadVersionAsync(
+            Persisted(Address(), written), hash, content.Length, CancellationToken.None);
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer);
+
+        Assert.Equal(content, buffer.ToArray());
+        Assert.Equal(1, box.ThrottledDownloadCount);
+        Assert.Equal(0, box.ThrottleNextDownloads);
+    }
+
+    /// <summary>
+    /// The retry is bounded: a limit that does not lift is the caller's answer,
+    /// carrying the status the caller maps to "try again shortly".
+    /// </summary>
+    [Fact]
+    public async Task AReadThatStaysThrottledFailsWithItsStatusAfterItsAttempts()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("persistently throttled content");
+        var hash = Sha256(content);
+        var written = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
+        box.ThrottleNextDownloads = 10;
+
+        var failure = await Assert.ThrowsAsync<HttpRequestException>(() =>
+            store.OpenReadVersionAsync(
+                Persisted(Address(), written), hash, content.Length, CancellationToken.None));
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, failure.StatusCode);
+        Assert.Equal(3, box.ThrottledDownloadCount);
+    }
+
     private static BoxDocumentContentStore CreateStore(InMemoryBox box) => new(
         new BoxContentClient(
             BoxCustodyOptions.Create(
@@ -490,6 +539,15 @@ public sealed class BoxDocumentContentStoreTests
         /// </summary>
         public int RequestCount { get; private set; }
         public string? LoseNextUploadResponseForName { get; set; }
+
+        /// <summary>
+        /// How many of the next content downloads Box answers with its rate
+        /// limit (DOCS-015).
+        /// </summary>
+        public int ThrottleNextDownloads { get; set; }
+
+        /// <summary>How many downloads have been refused that way.</summary>
+        public int ThrottledDownloadCount { get; private set; }
 
         public string CreateFolderPath(string path)
         {
@@ -707,6 +765,15 @@ public sealed class BoxDocumentContentStoreTests
             if (request.Method == HttpMethod.Get && path.StartsWith("/2.0/files/", StringComparison.Ordinal)
                 && path.EndsWith("/content", StringComparison.Ordinal))
             {
+                if (ThrottleNextDownloads > 0)
+                {
+                    ThrottleNextDownloads--;
+                    ThrottledDownloadCount++;
+                    return new HttpResponseMessage(HttpStatusCode.TooManyRequests)
+                    {
+                        Content = new StringContent("""{"code":"rate_limit_exceeded"}""")
+                    };
+                }
                 var id = path["/2.0/files/".Length..^"/content".Length];
                 if (!currentVersions.TryGetValue(id, out var currentVersion))
                 {

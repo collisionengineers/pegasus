@@ -12,6 +12,14 @@ namespace Pegasus.Core.Actors;
 public static class ActorDisplayNames
 {
     public const string UnknownStaff = "Unknown user";
+
+    /// <summary>
+    /// A staff subject that is well formed but no longer resolves to an account.
+    /// Disabling and deleting a staff account both retain the row, so this is a
+    /// genuinely removed identity — saying so is more honest, and more useful to
+    /// an operator reading history, than calling a former colleague unknown.
+    /// </summary>
+    public const string FormerStaff = "Former staff";
     public const string SystemWorker = "System";
     public const string Automation = "Automation";
     public const string RequestLink = "Request link";
@@ -19,9 +27,10 @@ public static class ActorDisplayNames
 
     /// <summary>
     /// Resolves the distinct staff subject ids referenced by a set of actors into
-    /// their current username, in one query per distinct account. An id that no
-    /// longer resolves (a deleted account) is simply absent from the result; callers
-    /// fall back to <see cref="UnknownStaff"/> rather than inventing a name.
+    /// their current username, in one query per distinct account. Disabled and
+    /// deleted accounts still resolve; an id absent from the result no longer
+    /// exists at all, and callers fall back to <see cref="FormerStaff"/> rather
+    /// than inventing a name.
     /// </summary>
     public static async Task<IReadOnlyDictionary<Guid, string>> ResolveStaffNamesAsync(
         IStaffAccountQueries staffAccounts,
@@ -57,10 +66,11 @@ public static class ActorDisplayNames
         ArgumentNullException.ThrowIfNull(staffNames);
         return kind switch
         {
-            ActorKind.Staff => Guid.TryParse(subjectId, out var staffId)
-                && staffNames.TryGetValue(staffId, out var name)
+            ActorKind.Staff => !Guid.TryParse(subjectId, out var staffId)
+                ? UnknownStaff
+                : staffNames.TryGetValue(staffId, out var name)
                     ? name
-                    : UnknownStaff,
+                    : FormerStaff,
             ActorKind.SystemWorker => SystemWorker,
             ActorKind.Automation => Automation,
             ActorKind.RequestLink => RequestLink,

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
@@ -368,6 +369,280 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.True(
             oldest.IndexOf("case-reference", StringComparison.Ordinal)
             < oldest.IndexOf("security-subject", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A security event names the account it was about, so before the acting
+    /// principal was recorded every Security-area row read as an unknown user.
+    /// The acting operator is now stored beside the subject, and the recorded
+    /// kind is parsed case-insensitively because it is whatever a writer stored.
+    /// </summary>
+    [Fact]
+    public async Task ActionLogsNameTheOperatorWhoActedOnASecurityEvent()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var targetAccount = Guid.NewGuid();
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.SecurityEvents.Add(new SecurityEventEntity
+            {
+                Id = Guid.NewGuid(),
+                Type = "SecurityStampChanged",
+                SubjectId = targetAccount.ToString("D"),
+                OccurredAtUtc = now,
+                Outcome = "Succeeded",
+                CorrelationId = "acting-operator-recorded",
+                ReasonCode = "staff_account_disabled",
+                ActorKind = "staff",
+                ActorSubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D")
+            });
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
+        var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
+
+        var html = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Area=Security");
+        var row = ActionLogRow(html, "SecurityStampChanged");
+
+        Assert.Contains(DevelopmentOfflineIdentity.UserName, row, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unknown user", row, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
+            row,
+            StringComparison.OrdinalIgnoreCase);
+
+        // The person filter still finds the row by the account it was about,
+        // and now also by the operator who acted.
+        var byActor = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Actor={DevelopmentOfflineIdentity.AdministratorId:D}");
+        Assert.Contains("SecurityStampChanged", byActor, StringComparison.Ordinal);
+        var bySubject = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Actor={targetAccount:D}");
+        Assert.Contains("SecurityStampChanged", bySubject, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Rows written before the acting principal was recorded are not backfilled
+    /// with a guess: they are labelled by what the event is, which is honest and
+    /// is never "Unknown user".
+    /// </summary>
+    [Fact]
+    public async Task ALegacySecurityEventIsLabelledByWhatItIsRatherThanAnUnknownUser()
+    {
+        var now = DateTimeOffset.UtcNow;
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.SecurityEvents.Add(new SecurityEventEntity
+            {
+                Id = Guid.NewGuid(),
+                Type = "SignIn",
+                SubjectId = "unknown",
+                OccurredAtUtc = now,
+                Outcome = "Denied",
+                CorrelationId = "legacy-security-row",
+                ReasonCode = "invalid_security_stamp"
+            });
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
+        var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
+
+        var html = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&Area=Security");
+        // The reason code is not a column; the recorded event type is.
+        var row = ActionLogRow(html, "SignIn");
+
+        Assert.Contains("Sign-in", row, StringComparison.Ordinal);
+        Assert.DoesNotContain(ActorDisplayNames.UnknownStaff, row, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// AI work, the application's own work and a colleague's work are three
+    /// different answers to "who did this", and a removed colleague is a former
+    /// colleague rather than an unknown one.
+    /// </summary>
+    [Fact]
+    public async Task ActionLogsSeparateAiWorkSystemWorkAndFormerStaffFromColleagues()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var removedStaff = Guid.NewGuid();
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.ActionHistory.AddRange(
+                HistoryRow("ai_job", "ai-job-row", "ai_job_taken", "Automation", "pegasus-automation", now),
+                HistoryRow("Case", "system-row", "case_chased", "SystemWorker", "worker", now.AddSeconds(-1)),
+                HistoryRow("Case", "former-staff-row", "case_saved", "Staff", removedStaff.ToString("D"), now.AddSeconds(-2)));
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
+        var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
+
+        var html = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}");
+
+        var aiRow = ActionLogRow(html, "ai_job_taken");
+        Assert.Contains(">AI<", aiRow, StringComparison.Ordinal);
+        Assert.Contains("AI job", aiRow, StringComparison.Ordinal);
+
+        var systemRow = ActionLogRow(html, "case_chased");
+        Assert.Contains(OperatorLabels.SystemActorLabel, systemRow, StringComparison.Ordinal);
+        Assert.DoesNotContain(">AI<", systemRow, StringComparison.Ordinal);
+
+        var formerRow = ActionLogRow(html, "former-staff-row");
+        Assert.Contains(ActorDisplayNames.FormerStaff, formerRow, StringComparison.Ordinal);
+        Assert.DoesNotContain(ActorDisplayNames.UnknownStaff, formerRow, StringComparison.Ordinal);
+        Assert.DoesNotContain(removedStaff.ToString("D"), formerRow, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// "What did the AI do" is a question about a class of actor, not about one
+    /// subject id, so the log filters by actor kind as well as by person.
+    /// </summary>
+    [Fact]
+    public async Task TheActorTypeFilterSelectsOneClassOfActor()
+    {
+        var now = DateTimeOffset.UtcNow;
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.ActionHistory.AddRange(
+                HistoryRow("ai_job", "kind-filter-ai", "ai_job_created", "Automation", "pegasus-automation", now),
+                HistoryRow("Case", "kind-filter-staff", "case_saved", "Staff", DevelopmentOfflineIdentity.AdministratorId.ToString("D"), now.AddSeconds(-1)),
+                HistoryRow("Case", "kind-filter-system", "case_chased", "SystemWorker", "worker", now.AddSeconds(-2)));
+            context.SecurityEvents.Add(new SecurityEventEntity
+            {
+                Id = Guid.NewGuid(),
+                Type = "PasswordChanged",
+                SubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D"),
+                OccurredAtUtc = now.AddSeconds(-3),
+                Outcome = "Succeeded",
+                CorrelationId = "kind-filter-security",
+                ReasonCode = "password_changed",
+                ActorKind = "Staff",
+                ActorSubjectId = DevelopmentOfflineIdentity.AdministratorId.ToString("D")
+            });
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
+        var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
+
+        var ai = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&ActorType=Automation");
+        Assert.Contains("kind-filter-ai", ai, StringComparison.Ordinal);
+        Assert.DoesNotContain("kind-filter-staff", ai, StringComparison.Ordinal);
+        Assert.DoesNotContain("kind-filter-system", ai, StringComparison.Ordinal);
+        Assert.DoesNotContain("PasswordChanged", ai, StringComparison.Ordinal);
+
+        var staff = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&ActorType=Staff");
+        Assert.Contains("kind-filter-staff", staff, StringComparison.Ordinal);
+        Assert.Contains("PasswordChanged", staff, StringComparison.Ordinal);
+        Assert.DoesNotContain("kind-filter-ai", staff, StringComparison.Ordinal);
+
+        var system = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&ActorType=SystemWorker");
+        Assert.Contains("kind-filter-system", system, StringComparison.Ordinal);
+        Assert.DoesNotContain("kind-filter-ai", system, StringComparison.Ordinal);
+
+        // A value that is not an actor kind carries no meaning, so it is dropped
+        // rather than turned into a refused request.
+        var unrecognised = await client.GetStringAsync(
+            $"/Administration/ActionLogs?From={from}&To={to}&ActorType=not-a-kind");
+        Assert.Contains("kind-filter-ai", unrecognised, StringComparison.Ordinal);
+        Assert.Contains("kind-filter-staff", unrecognised, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Minutes are the smallest unit the log is filtered and read by: storage
+    /// keeps its sub-second precision, but neither the period pickers nor the
+    /// Time column show seconds, and a minute-only value still binds.
+    /// </summary>
+    [Fact]
+    public async Task TheActionLogPeriodPickersAndTimeColumnStopAtMinutes()
+    {
+        var occurredAt = new DateTimeOffset(2026, 9, 10, 11, 43, 27, 123, TimeSpan.Zero);
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.ActionHistory.Add(HistoryRow(
+                "Case", "minute-precision-row", "case_saved", "Staff",
+                DevelopmentOfflineIdentity.AdministratorId.ToString("D"), occurredAt));
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        // A whole day, because a minute-only value carries no offset and binds in
+        // the host's zone: the window has to hold the row on a UTC host and on a
+        // British-summer-time one alike.
+        var html = await client.GetStringAsync(
+            "/Administration/ActionLogs?From=2026-09-10T00%3A00&To=2026-09-11T00%3A00");
+
+        Assert.Contains("\"2026-09-10T00:00\"", html, StringComparison.Ordinal);
+        Assert.Contains("\"2026-09-11T00:00\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("2026-09-10T00:00:00", html, StringComparison.Ordinal);
+        Assert.Contains("step=\"60\"", html, StringComparison.Ordinal);
+
+        var row = ActionLogRow(html, "minute-precision-row");
+        Assert.Contains(OperatorLabels.OfficeTime(occurredAt), row, StringComparison.Ordinal);
+        // The machine-readable instant keeps full precision; the words do not.
+        // Razor's attribute encoder writes the offset's '+' as &#x2B;.
+        Assert.Contains(
+            System.Text.Encodings.Web.HtmlEncoder.Default.Encode(occurredAt.ToString("O")),
+            row,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(occurredAt.ToString("u"), row, StringComparison.Ordinal);
+    }
+
+    private static ActionHistoryEntity HistoryRow(
+        string area,
+        string reference,
+        string eventKind,
+        string actorKind,
+        string actorSubjectId,
+        DateTimeOffset occurredAtUtc) =>
+        new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = area,
+            AggregateId = reference,
+            EventKind = eventKind,
+            ActorKind = actorKind,
+            ActorSubjectId = actorSubjectId,
+            ActorRolesJson = "[]",
+            OccurredAtUtc = occurredAtUtc,
+            Outcome = "Succeeded",
+            CorrelationId = reference
+        };
+
+    private static string ActionLogRow(string html, string content)
+    {
+        var match = Regex.Match(
+            html,
+            $"<tr>(?:(?!</tr>).)*{Regex.Escape(content)}(?:(?!</tr>).)*</tr>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+        Assert.True(match.Success, $"The action-log row containing '{content}' must render.");
+        return match.Value;
     }
 
     [Fact]

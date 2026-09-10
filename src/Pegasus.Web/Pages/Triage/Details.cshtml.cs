@@ -48,6 +48,16 @@ public sealed class DetailsModel(
     public EditScopeLease? EditLease { get; private set; }
 
     public bool IsEditing => EditLease is not null;
+
+    /// <summary>
+    /// Set when this operator is already editing this Triage record in another
+    /// window, so the page offers the take-over that ends the other window's
+    /// claim instead of an Edit that would be refused again.
+    /// </summary>
+    public bool CanTakeOverEdit { get; private set; }
+
+    /// <summary>The record as the operator reading an ownership sentence names it.</summary>
+    private const string RecordName = "Triage record";
     private readonly IGetCase _getCase =
         getCase ?? throw new ArgumentNullException(nameof(getCase));
     private readonly IGetIntake _getIntake =
@@ -378,6 +388,7 @@ public sealed class DetailsModel(
     public async Task<IActionResult> OnPostEditAsync(
         Guid id,
         long expectedVersion,
+        bool takeOver,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -388,8 +399,16 @@ public sealed class DetailsModel(
         try
         {
             EditLease = await editScopes.ClaimAsync(
-                new(EditScopeKind.Triage, id, expectedVersion, actor, $"triage-edit:{Guid.NewGuid():N}"),
+                new(EditScopeKind.Triage, id, expectedVersion, actor, $"triage-edit:{Guid.NewGuid():N}")
+                {
+                    TakeOver = takeOver
+                },
                 cancellationToken);
+        }
+        catch (EditScopeHeldElsewhereException)
+        {
+            CanTakeOverEdit = true;
+            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
         }
         catch (EditScopeConflictException)
         {
@@ -783,9 +802,42 @@ public sealed class DetailsModel(
                 active.Holder,
                 actor,
                 cancellationToken);
-        return isSelf
-            ? "You are already editing this Triage record elsewhere."
-            : $"Triage editing is unavailable because {EditModeDisplay.HolderName(holder)} is editing it.";
+        return EditModeDisplay.HeldBy(RecordName, holder, isSelf);
+    }
+
+    /// <summary>
+    /// The release a leaving page beacons. It is not an operator action: it
+    /// answers 204 whether or not a scope was still there to release, so a
+    /// duplicate beacon and a beacon that lost a race with Cancel are both
+    /// ordinary outcomes. Antiforgery is validated as it is for every post.
+    /// </summary>
+    public async Task<IActionResult> OnPostReleaseScopeBeaconAsync(
+        Guid id,
+        string? editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (id == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return new NoContentResult();
+        }
+
+        try
+        {
+            await editScopes.ReleaseAsync(
+                new(EditScopeKind.Triage, id, actor, $"triage-edit-beacon:{Guid.NewGuid():N}", editLeaseToken),
+                cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception is EditScopeExpiredException or EditScopeConflictException)
+        {
+            // The scope has already gone or has already been re-claimed by a
+            // newer window of this operator's own session.
+        }
+        return new NoContentResult();
     }
 
     private async Task ReleaseRefusedEditAsync(

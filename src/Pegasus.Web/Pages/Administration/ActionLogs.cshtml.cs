@@ -18,6 +18,8 @@ public sealed class ActionLogsModel(
     ISearchCases searchCases,
     IStaffAccountQueries staffAccounts) : AdministrationPageModel
 {
+    private const string SecurityArea = "Security";
+
     private readonly Dictionary<Guid, string> _caseReferences = [];
     private IReadOnlyDictionary<Guid, string> _staffNames = new Dictionary<Guid, string>();
     [BindProperty(SupportsGet = true)] public DateTimeOffset? From { get; set; }
@@ -25,6 +27,7 @@ public sealed class ActionLogsModel(
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
     [BindProperty(SupportsGet = true)] public string? Area { get; set; }
     [BindProperty(SupportsGet = true)] public string? Actor { get; set; }
+    [BindProperty(SupportsGet = true)] public string? ActorType { get; set; }
     [BindProperty(SupportsGet = true, Name = "Result")] public string? ResultFilter { get; set; }
     [BindProperty(SupportsGet = true)] public string? Operation { get; set; }
     [BindProperty(SupportsGet = true)] public string? Record { get; set; }
@@ -53,6 +56,7 @@ public sealed class ActionLogsModel(
         + "&Search=" + Query(Search)
         + "&Area=" + Query(Area)
         + "&Actor=" + Query(Actor)
+        + "&ActorType=" + Query(ActorType)
         + "&Result=" + Query(ResultFilter)
         + "&Operation=" + Query(Operation)
         + "&Record=" + Query(Record)
@@ -87,7 +91,7 @@ public sealed class ActionLogsModel(
             Result = await listActionLogs.ExecuteAsync(actor,
                 new(from, to, Trim(Search), Trim(Area), Trim(Actor), Trim(ResultFilter),
                     Trim(Operation), record, Trim(CorrelationId), OldestFirst,
-                    CurrentPage), cancellationToken);
+                    CurrentPage, ActorType: SelectedActorKind()?.ToString()), cancellationToken);
             Metrics = await getMetrics.ExecuteAsync(actor, timeProvider.GetUtcNow(), cancellationToken);
             await ResolveStaffNamesAsync(cancellationToken);
             await ResolveCaseReferencesAsync(actor, cancellationToken);
@@ -134,19 +138,71 @@ public sealed class ActionLogsModel(
         return match?.CaseId.ToString("D") ?? entered;
     }
 
+    /// <summary>
+    /// The recognised actor kind of one row, parsed case-insensitively: the
+    /// column holds whatever a writer stored, and an unrecognised or absent
+    /// kind is a row that carries no attribution rather than a parse to retry.
+    /// </summary>
+    public ActorKind? ActorKindOf(ActionLogRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return Enum.TryParse<ActorKind>(row.ActorKind, ignoreCase: true, out var kind)
+            && Enum.IsDefined(kind)
+                ? kind
+                : null;
+    }
+
+    /// <summary>
+    /// True when the row's work was done by the Automation client, which the
+    /// view marks with its own chip so AI activity is never read as a
+    /// colleague's.
+    /// </summary>
+    public bool IsAiActor(ActionLogRow row) => ActorKindOf(row) == ActorKind.Automation;
+
+    /// <summary>
+    /// Who did it. A staff subject resolves to a username (a removed account to
+    /// "Former staff"), the Automation client to its registered name, the Worker
+    /// to the product's own name, and a legacy security row — written before the
+    /// acting principal was recorded — to what the event is, never to a raw
+    /// identifier or an invented user.
+    /// </summary>
     public string ActorLabel(ActionLogRow row)
     {
-        if (!Enum.TryParse<ActorKind>(row.ActorKind, ignoreCase: false, out var kind))
+        ArgumentNullException.ThrowIfNull(row);
+        if (ActorKindOf(row) is not { } kind)
         {
-            return Guid.TryParse(row.Actor, out _) ? ActorDisplayNames.UnknownStaff : row.Actor;
+            return string.Equals(row.Area, SecurityArea, StringComparison.OrdinalIgnoreCase)
+                ? OperatorLabels.SecurityEventActorLabel(row.Operation)
+                : Guid.TryParse(row.Actor, out _) ? ActorDisplayNames.UnknownStaff : row.Actor;
         }
 
-        return kind == ActorKind.Automation
-            ? OperatorLabels.AutomationActorLabel(
+        return kind switch
+        {
+            ActorKind.Automation => OperatorLabels.AutomationActorLabel(
                 row.Actor,
-                HttpContext.RequestServices.GetService<AutomationMcpOptions>()?.ClientId)
-            : ActorDisplayNames.Resolve(kind, row.Actor, _staffNames);
+                HttpContext.RequestServices.GetService<AutomationMcpOptions>()?.ClientId),
+            ActorKind.SystemWorker => OperatorLabels.SystemActorLabel,
+            _ => ActorDisplayNames.Resolve(kind, row.Actor, _staffNames)
+        };
     }
+
+    public string AreaLabel(ActionLogRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+        return OperatorLabels.ActionLogArea(row.Area);
+    }
+
+    /// <summary>
+    /// The posted actor-type filter as a recognised kind. An unrecognised value
+    /// is dropped here rather than passed on, so a hand-edited query string
+    /// cannot turn the bounded filter into a refused request.
+    /// </summary>
+    private ActorKind? SelectedActorKind() =>
+        Trim(ActorType) is { } value
+        && Enum.TryParse<ActorKind>(value, ignoreCase: true, out var kind)
+        && Enum.IsDefined(kind)
+            ? kind
+            : null;
 
     public string? ReferenceLabel(ActionLogRow row) =>
         IsCaseReference(row)
@@ -172,11 +228,13 @@ public sealed class ActionLogsModel(
             or "pegasus_assessment_get"
             or "pegasus_assessment_update";
 
+    // Disabled and deleted accounts are retained rows, so this resolves them
+    // too; only a genuinely absent identity falls through to "Former staff".
     private async Task ResolveStaffNamesAsync(CancellationToken cancellationToken) =>
         _staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
             staffAccounts,
             Result.Rows
-                .Where(row => string.Equals(row.ActorKind, nameof(ActorKind.Staff), StringComparison.Ordinal))
+                .Where(row => ActorKindOf(row) == ActorKind.Staff)
                 .Select(row => Guid.TryParse(row.Actor, out var staffId) ? staffId : Guid.Empty),
             cancellationToken);
 

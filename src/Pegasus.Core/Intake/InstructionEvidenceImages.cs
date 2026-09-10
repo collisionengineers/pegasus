@@ -96,6 +96,11 @@ public static class InstructionEvidenceImages
 /// only for a case accepted before those records existed, which still renders
 /// from its retained intake asset — the transition is additive, and a case
 /// stops rendering the day its staging blobs age out, not the day this shipped.
+///
+/// DOCS-015: <see cref="IsStored"/> is false while custody is still in flight.
+/// The gallery listed confirmed versions only, so a Case opened during custody
+/// work showed a partial set that grew on reload and looked like files that had
+/// been lost. A pending image is on its way, is named, and says so.
 /// </summary>
 public sealed record CaseEvidenceImage(
     Guid ReceiptId,
@@ -104,7 +109,8 @@ public sealed record CaseEvidenceImage(
     string MediaType,
     long ContentLength,
     Guid? OccurrenceId = null,
-    Guid? VersionId = null)
+    Guid? VersionId = null,
+    bool IsStored = true)
 {
     /// <summary>Whether this image is served from Box rather than from the staging blob.</summary>
     public bool IsCaseDocument => OccurrenceId is not null && VersionId is not null;

@@ -156,6 +156,110 @@ public sealed class AutomationAiJobIngressTests
             """));
     }
 
+    /// <summary>
+    /// Action logs fold the AI job ledger in, so every state a job can reach has
+    /// to leave one permanent, attributable row that names the record it was
+    /// about — otherwise a job that failed or was cancelled simply vanishes from
+    /// the log an operator reads.
+    /// </summary>
+    [Fact]
+    public async Task EveryJobTransitionWritesOneHistoryRowNamingTheSubjectRecord()
+    {
+        var clock = new CaseDataCompletenessPersistenceTests.MutableTimeProvider(SeedUtcNow);
+        using var factory = new IntakeWebApplicationFactory(clock);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IAiJobStore>();
+
+        async Task<Guid> QueueAsync(string operationKey)
+        {
+            var created = await store.CreateAsync(
+                new(
+                    AiJobKind.UnidentifiedQueuePass,
+                    AiJobSubjectKind.Queue,
+                    null,
+                    AiJobPolicy.QueueSubjectReference,
+                    "Pass the queue.",
+                    null,
+                    null,
+                    Staff,
+                    operationKey,
+                    AiJobPolicy.DefaultExpiry),
+                CancellationToken.None);
+            return created.JobId;
+        }
+
+        var completed = await QueueAsync("transitions-completed");
+        await store.TransitionAsync(
+            new(completed, 0, AiJobState.Taken, Client, "completed-take",
+                LeaseExpiresAtUtc: SeedUtcNow + AiJobPolicy.LeaseDuration),
+            CancellationToken.None);
+        await store.TransitionAsync(
+            new(completed, 1, AiJobState.DraftReady, Client, "completed-draft",
+                Result: new(AiJobResultKind.ProposedResolution, null, "A proposal.")),
+            CancellationToken.None);
+        await store.TransitionAsync(
+            new(completed, 2, AiJobState.Completed, Staff, "completed-accept"),
+            CancellationToken.None);
+
+        var released = await QueueAsync("transitions-released");
+        await store.TransitionAsync(
+            new(released, 0, AiJobState.Taken, Client, "released-take",
+                LeaseExpiresAtUtc: SeedUtcNow + AiJobPolicy.LeaseDuration),
+            CancellationToken.None);
+        await store.TransitionAsync(
+            new(released, 1, AiJobState.Taken, Client, "released-progress", ProgressNote: "Halfway.",
+                LeaseExpiresAtUtc: SeedUtcNow + AiJobPolicy.LeaseDuration),
+            CancellationToken.None);
+        await store.TransitionAsync(
+            new(released, 2, AiJobState.Queued, Client, "released-release"),
+            CancellationToken.None);
+
+        var failed = await QueueAsync("transitions-failed");
+        await store.TransitionAsync(
+            new(failed, 0, AiJobState.Taken, Client, "failed-take",
+                LeaseExpiresAtUtc: SeedUtcNow + AiJobPolicy.LeaseDuration),
+            CancellationToken.None);
+        await store.TransitionAsync(
+            new(failed, 1, AiJobState.Failed, Client, "failed-report", Reason: "The model refused."),
+            CancellationToken.None);
+
+        var cancelled = await QueueAsync("transitions-cancelled");
+        await store.TransitionAsync(
+            new(cancelled, 0, AiJobState.Cancelled, Staff, "cancelled-stop", Reason: "No longer needed."),
+            CancellationToken.None);
+
+        var expired = await QueueAsync("transitions-expired");
+        await store.TransitionAsync(
+            new(expired, 0, AiJobState.Expired, Staff, "expired-close"),
+            CancellationToken.None);
+
+        foreach (var eventKind in new[]
+                 {
+                     "ai_job_created", "ai_job_taken", "ai_job_progress", "ai_job_released",
+                     "ai_job_draft_ready", "ai_job_completed", "ai_job_failed",
+                     "ai_job_cancelled", "ai_job_expired"
+                 })
+        {
+            Assert.True(
+                await factory.Database.ScalarAsync<int>(
+                    $"""
+                    SELECT COUNT(*) FROM ActionHistory
+                    WHERE AggregateType = N'ai_job' AND EventKind = N'{eventKind}'
+                    """) > 0,
+                $"No permanent history row was written for {eventKind}.");
+        }
+
+        // The row has to lead back to the record, not just to the job id.
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            $"""
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE AggregateType = N'ai_job'
+              AND AggregateId = N'{completed:D}'
+              AND (AfterJson IS NULL
+                   OR AfterJson NOT LIKE N'%{AiJobPolicy.QueueSubjectReference}%')
+            """));
+    }
+
     [Fact]
     public async Task JobToolsEnforceTheJobsScopeAndAppearInTheInventory()
     {

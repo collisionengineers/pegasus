@@ -92,7 +92,12 @@ public sealed class EfStaffPasswordChange(
             SubjectId = subject,
             OccurredAtUtc = timeProvider.GetUtcNow(),
             CorrelationId = request.OperationKey,
-            ReasonCode = "password_changed"
+            ReasonCode = "password_changed",
+            // A password change is self-service: the acting staff member and the
+            // account are the same person, and both are recorded so the row
+            // needs no special case to read as an attributed action.
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

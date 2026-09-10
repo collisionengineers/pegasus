@@ -74,7 +74,18 @@
         {
             <form method="post" asp-page-handler="Edit" asp-route-id="@Model.Detail.Record.Id" class="record-bar-end">
                 <input type="hidden" name="expectedVersion" value="@Model.Detail.LifecycleVersion" />
-                <button type="submit" class="btn btn--primary">Edit record</button>
+                @* Offered only to the operator whose own other window still holds
+                   this record; taking over rotates the token so that window can
+                   no longer save. *@
+                @if (Model.CanTakeOverEdit)
+                {
+                    <input type="hidden" name="takeOver" value="true" />
+                    <button type="submit" class="btn btn--primary">Take over</button>
+                }
+                else
+                {
+                    <button type="submit" class="btn btn--primary">Edit record</button>
+                }
             </form>
         }
         else
@@ -85,6 +96,11 @@
                     <button type="submit" class="btn">Cancel</button>
                 </form>
                 <form method="post" asp-page-handler="HeartbeatEdit" asp-route-id="@Model.Detail.Record.Id" data-edit-heartbeat data-edit-heartbeat-status="image-intake-edit-heartbeat-status" hidden>
+                    <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" />
+                </form>
+                @* Beaconed as the page unloads so an operator who navigates away
+                   is not refused by their own lease when they come back. *@
+                <form method="post" asp-page-handler="ReleaseScopeBeacon" asp-route-id="@Model.Detail.Record.Id" data-edit-scope-release hidden>
                     <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" />
                 </form>
                 <p id="image-intake-edit-heartbeat-status" class="notice notice--error" role="alert" hidden></p>

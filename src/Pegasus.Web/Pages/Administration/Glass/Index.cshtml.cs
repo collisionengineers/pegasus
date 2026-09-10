@@ -58,6 +58,16 @@ public sealed class IndexModel(
 
     public bool IsEditing => !string.IsNullOrWhiteSpace(EditLeaseToken);
 
+    /// <summary>
+    /// Set when this operator's own other window still holds the staff-account
+    /// scope: the page offers Take over rather than the ordinary "another
+    /// user" wording, which would misname the operator's own second window.
+    /// </summary>
+    public bool CanTakeOverEdit { get; private set; }
+
+    /// <summary>The record as the operator reading an ownership sentence names it.</summary>
+    private const string RecordName = "staff account";
+
     /// <summary>The chip's word for the stored credential's state.</summary>
     public string StateName => Status is not { Configured: true }
         ? CaseWorkspaceLabels.GlassCredential.NotConfigured
@@ -126,6 +136,7 @@ public sealed class IndexModel(
         Guid staffId,
         long expectedStaffAccountVersion,
         string? operationKey,
+        bool takeOver,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
@@ -142,14 +153,28 @@ public sealed class IndexModel(
         try
         {
             var lease = await editScopes.ClaimAsync(
-                new(EditScopeKind.StaffAccount, staffId, result.Account.Version, actor, operationKey!),
+                new(EditScopeKind.StaffAccount, staffId, result.Account.Version, actor, operationKey!)
+                {
+                    TakeOver = takeOver
+                },
                 cancellationToken);
             EditLeaseToken = lease.Token;
             ExpectedStaffAccountVersion = result.Account.Version;
         }
+        // Checked before the base EditScopeConflictException, which this type
+        // derives from: the operator's own live other window is never told
+        // "another user" is editing, only offered the take-over that is
+        // theirs to make.
+        catch (EditScopeHeldElsewhereException)
+        {
+            CanTakeOverEdit = true;
+            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
+        }
         catch (EditScopeConflictException)
         {
-            ModelState.AddModelError(string.Empty, "Another user is editing this staff account.");
+            ModelState.AddModelError(
+                string.Empty,
+                EditModeDisplay.HeldBy(RecordName, CaseEditAuthorityHolder.Unnamed, isSelf: false));
         }
         catch (EditScopeVersionConflictException)
         {
@@ -157,6 +182,34 @@ public sealed class IndexModel(
         }
 
         return await LoadAsync(actor, staffId, cancellationToken) ? Page() : NotFound();
+    }
+
+    /// <summary>
+    /// The release a leaving page beacons. It is not an operator action: it
+    /// answers 204 whether or not a scope was still there to release, so a
+    /// duplicate beacon and a beacon that lost a race with Cancel are both
+    /// ordinary outcomes. Antiforgery is validated as it is for every post.
+    /// </summary>
+    public async Task<IActionResult> OnPostReleaseScopeBeaconAsync(
+        Guid staffId,
+        string? editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (staffId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken)) return new NoContentResult();
+        try
+        {
+            await editScopes.ReleaseAsync(
+                new(EditScopeKind.StaffAccount, staffId, actor, NewOperationKey(), editLeaseToken),
+                cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception is EditScopeExpiredException or EditScopeConflictException)
+        {
+            // The scope has already gone or has already been re-claimed by a
+            // newer window of this operator's own session.
+        }
+        return new NoContentResult();
     }
 
     public async Task<IActionResult> OnPostCancelEditAsync(

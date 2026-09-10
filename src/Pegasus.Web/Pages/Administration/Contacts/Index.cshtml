@@ -22,8 +22,8 @@
                 </div>
                 <button class="btn btn--primary" type="button" data-dialog-open="contact-type-dialog">Add contact</button>
             </div>
-            <form method="get" class="contact-toolbar">
-                <div class="field"><label asp-for="Search">Name or contact</label><input asp-for="Search" type="search" autocomplete="off" /></div>
+            <form method="get" class="contact-toolbar" data-auto-submit>
+                <div class="field"><label asp-for="Search">Name or contact</label><input asp-for="Search" type="search" autocomplete="off" autofocus="@(string.IsNullOrEmpty(Model.Search) ? null : "autofocus")" /></div>
                 <div class="field"><label asp-for="Type">Type</label><select asp-for="Type"><option value="">All types</option>@foreach (var role in Enum.GetValues<ContactRole>()) { <option value="@role">@IndexModel.RoleLabel(role)</option> }</select></div>
                 <div class="field"><label asp-for="Sort">Sort</label><select asp-for="Sort"><option value="@ContactSort.Name">Name</option><option value="@ContactSort.Type">Type</option><option value="@ContactSort.LastCase">Last case</option></select></div>
                 <button class="btn" type="submit">Apply</button>
@@ -66,6 +66,14 @@
             <input asp-for="ExpectedVersion" type="hidden" /><input asp-for="LeaseToken" type="hidden" /><input asp-for="OperationKey" type="hidden" />
             <div class="dialog-body stack">
                 <partial name="Shared/_ErrorSummary" />
+                @* Offered only to the operator whose own other window still holds
+                   this contact; taking over rotates the token so that window can
+                   no longer save. It submits the out-of-band form below, because
+                   a form cannot nest inside this one. *@
+                @if (Model.CanTakeOverEdit)
+                {
+                    <div class="button-row"><button class="btn btn--primary btn--small" type="submit" form="contact-take-over-form" formnovalidate>Take over</button></div>
+                }
                 @if (Model.EditingExisting)
                 {
                     <p class="panel-title-meta">Adding <strong>@IndexModel.RoleLabel(role)</strong> to @Model.ExistingContact!.Name. Existing types, linked principals and settings are retained.</p>
@@ -78,8 +86,8 @@
                     <div class="field field-wide"><label class="req" asp-for="Name">Organisation name</label><input asp-for="Name" autocomplete="organization" /><span asp-validation-for="Name"></span></div>
                     <div class="field"><label asp-for="ContactPerson">Contact person</label><input asp-for="ContactPerson" autocomplete="name" /><span asp-validation-for="ContactPerson"></span></div>
                     <div class="field"><label asp-for="Email">Email</label><input asp-for="Email" type="email" autocomplete="email" /><span asp-validation-for="Email"></span></div>
-                    <div class="field"><label asp-for="Telephone">Telephone</label><input asp-for="Telephone" type="tel" autocomplete="tel" /><span asp-validation-for="Telephone"></span></div>
-                    <div class="field"><label asp-for="Address">Address</label><textarea asp-for="Address" rows="2" autocomplete="street-address"></textarea><span asp-validation-for="Address"></span></div>
+                    <div class="field"><label asp-for="Telephone">Telephone</label><input asp-for="Telephone" type="tel" inputmode="tel" pattern="^\+?[0-9 ]{6,20}$" autocomplete="tel" /><span asp-validation-for="Telephone"></span></div>
+                    <div class="field field-tall"><label asp-for="Address">Address</label><textarea asp-for="Address" rows="2" autocomplete="street-address"></textarea><span asp-validation-for="Address"></span></div>
                     <div class="field"><label asp-for="Postcode">Postcode</label><input asp-for="Postcode" autocomplete="postal-code" /><span asp-validation-for="Postcode"></span></div>
                     @if (role == ContactRole.Principal)
                     {
@@ -108,6 +116,16 @@
             <form id="@formId" method="post" asp-page-handler="ChooseExisting"><input asp-for="Search" type="hidden" /><input asp-for="Type" type="hidden" /><input asp-for="Sort" type="hidden" /><input asp-for="CreateType" type="hidden" /><input name="ExistingContactId" type="hidden" value="@contact.OrganizationId" /><input name="OperationKey" type="hidden" value="@IndexModel.NewOperationKey()" /></form>
         }
         <form id="contact-cancel-form" method="post" asp-page-handler="Cancel"><input asp-for="Search" type="hidden" /><input asp-for="Type" type="hidden" /><input asp-for="Sort" type="hidden" /><input asp-for="ExistingContactId" type="hidden" /><input asp-for="LeaseToken" type="hidden" /></form>
+        @if (Model.CanTakeOverEdit)
+        {
+            <form id="contact-take-over-form" method="post" asp-page-handler="ChooseExisting"><input asp-for="Search" type="hidden" /><input asp-for="Type" type="hidden" /><input asp-for="Sort" type="hidden" /><input asp-for="CreateType" type="hidden" /><input asp-for="Name" type="hidden" /><input asp-for="ExistingContactId" type="hidden" /><input name="TakeOver" type="hidden" value="true" /><input name="OperationKey" type="hidden" value="@IndexModel.NewOperationKey()" /></form>
+        }
+        @if (Model.EditingExisting)
+        {
+            @* Beaconed as the page unloads so an operator who navigates away is
+               not refused by their own lease when they come back. *@
+            <form method="post" asp-page-handler="ReleaseScopeBeacon" data-edit-scope-release hidden><input asp-for="ExistingContactId" type="hidden" /><input asp-for="LeaseToken" type="hidden" /></form>
+        }
     </section>
     </div>
 }

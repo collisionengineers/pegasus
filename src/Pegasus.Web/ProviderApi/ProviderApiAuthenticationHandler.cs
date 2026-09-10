@@ -93,6 +93,12 @@ internal sealed class ProviderApiAuthenticationHandler(
             : null;
     }
 
+    /// <summary>
+    /// A refusal here happens before any credential authenticates, so no
+    /// Principal is established: the key id names what was presented, not who
+    /// acted, and the event is deliberately left unattributed rather than
+    /// recording a key as a principal. Readers label it by what it is.
+    /// </summary>
     private Task DenyAsync(string subjectId, string reasonCode) =>
         securityEvents.AppendAsync(
             new SecurityEvent(

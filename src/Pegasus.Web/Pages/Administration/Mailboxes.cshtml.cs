@@ -59,6 +59,15 @@ public sealed class MailboxesModel(
 
     public EditScopeLease? MailboxEditLease { get; private set; }
 
+    /// <summary>
+    /// The mailbox policy this operator is already editing in another window,
+    /// offered with the take-over that ends the other window's claim.
+    /// </summary>
+    public Guid TakeOverMailboxId { get; private set; }
+
+    /// <summary>The same for an Outlook category.</summary>
+    public Guid TakeOverCategoryId { get; private set; }
+
     [BindProperty]
     public MailboxFormInput? MailboxForm { get; set; }
 
@@ -84,6 +93,7 @@ public sealed class MailboxesModel(
     public async Task<IActionResult> OnPostEditMailboxAsync(
         Guid mailboxId,
         int expectedVersion,
+        bool takeOver,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -105,7 +115,10 @@ public sealed class MailboxesModel(
         {
             MailboxEditLease = await editScopes.ClaimAsync(
                 new(EditScopeKind.ApprovedMailbox, mailbox.Id, mailbox.Version, actor,
-                    $"approved-mailbox-edit:{Guid.NewGuid():N}"),
+                    $"approved-mailbox-edit:{Guid.NewGuid():N}")
+                {
+                    TakeOver = takeOver
+                },
                 cancellationToken);
             MailboxForm = new()
             {
@@ -119,10 +132,15 @@ public sealed class MailboxesModel(
                 EditLeaseToken = MailboxEditLease.Token
             };
         }
+        catch (EditScopeHeldElsewhereException)
+        {
+            TakeOverMailboxId = mailboxId;
+            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(MailboxRecordName));
+        }
         catch (EditScopeConflictException)
         {
             ModelState.AddModelError(string.Empty,
-                await EditConflictMessageAsync(EditScopeKind.ApprovedMailbox, mailboxId, actor, "mailbox policy", cancellationToken));
+                await EditConflictMessageAsync(EditScopeKind.ApprovedMailbox, mailboxId, actor, MailboxRecordName, cancellationToken));
         }
         catch (EditScopeVersionConflictException)
         {
@@ -169,7 +187,7 @@ public sealed class MailboxesModel(
             "mailbox policy",
             cancellationToken);
 
-    public async Task<IActionResult> OnPostEditDefaultAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostEditDefaultAsync(bool takeOver, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
@@ -191,15 +209,23 @@ public sealed class MailboxesModel(
         {
             var lease = await editScopes.ClaimAsync(
                 new(EditScopeKind.ApprovedMailbox, mailboxId, expectedVersion, actor,
-                    $"approved-mailbox-default-edit:{Guid.NewGuid():N}"),
+                    $"approved-mailbox-default-edit:{Guid.NewGuid():N}")
+                {
+                    TakeOver = takeOver
+                },
                 cancellationToken);
             input.EditLeaseToken = lease.Token;
             input.OperationKey = NewOperationKey();
         }
+        catch (EditScopeHeldElsewhereException)
+        {
+            TakeOverMailboxId = mailboxId;
+            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(MailboxRecordName));
+        }
         catch (EditScopeConflictException)
         {
             ModelState.AddModelError(string.Empty,
-                await EditConflictMessageAsync(EditScopeKind.ApprovedMailbox, mailboxId, actor, "mailbox policy", cancellationToken));
+                await EditConflictMessageAsync(EditScopeKind.ApprovedMailbox, mailboxId, actor, MailboxRecordName, cancellationToken));
         }
         catch (EditScopeVersionConflictException)
         {
@@ -502,6 +528,7 @@ public sealed class MailboxesModel(
     public async Task<IActionResult> OnPostEditCategoryAsync(
         Guid categoryId,
         int expectedVersion,
+        bool takeOver,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -523,7 +550,10 @@ public sealed class MailboxesModel(
         {
             var lease = await editScopes.ClaimAsync(
                 new(EditScopeKind.ApprovedOutlookCategory, category.Id, category.Version, actor,
-                    $"outlook-category-edit:{Guid.NewGuid():N}"),
+                    $"outlook-category-edit:{Guid.NewGuid():N}")
+                {
+                    TakeOver = takeOver
+                },
                 cancellationToken);
             CategoryForm = new()
             {
@@ -535,6 +565,11 @@ public sealed class MailboxesModel(
                 EditLeaseToken = lease.Token
             };
         }
+        catch (EditScopeHeldElsewhereException)
+        {
+            TakeOverCategoryId = categoryId;
+            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(CategoryRecordName));
+        }
         catch (EditScopeConflictException)
         {
             ModelState.AddModelError(string.Empty,
@@ -542,7 +577,7 @@ public sealed class MailboxesModel(
                     EditScopeKind.ApprovedOutlookCategory,
                     categoryId,
                     actor,
-                    "Outlook category",
+                    CategoryRecordName,
                     cancellationToken));
         }
         catch (EditScopeVersionConflictException)
@@ -928,12 +963,79 @@ public sealed class MailboxesModel(
             return $"Another member of staff is editing this {recordName}. Reload to try again.";
         }
 
-        var holder = await describeEditAuthorityHolder.ExecuteAsync(
-            active.HolderKind,
-            active.Holder,
-            actor,
+        var isSelf = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, actor);
+        var holder = isSelf
+            ? CaseEditAuthorityHolder.Unnamed
+            : await describeEditAuthorityHolder.ExecuteAsync(
+                active.HolderKind,
+                active.Holder,
+                actor,
+                cancellationToken);
+        return EditModeDisplay.HeldBy(recordName, holder, isSelf);
+    }
+
+    /// <summary>The records as an operator reading an ownership sentence names them.</summary>
+    private const string MailboxRecordName = "mailbox policy";
+
+    private const string CategoryRecordName = "Outlook category";
+
+    /// <summary>
+    /// The release a leaving page beacons. It is not an operator action: it
+    /// answers 204 whether or not a scope was still there to release, so a
+    /// duplicate beacon and a beacon that lost a race with Cancel are both
+    /// ordinary outcomes. Antiforgery is validated as it is for every post.
+    /// </summary>
+    public Task<IActionResult> OnPostReleaseMailboxScopeBeaconAsync(
+        Guid mailboxId,
+        string? editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ReleaseScopeBeaconAsync(
+            EditScopeKind.ApprovedMailbox,
+            mailboxId,
+            editLeaseToken,
+            "approved-mailbox-edit-beacon",
             cancellationToken);
-        return $"{recordName} editing is unavailable because {EditModeDisplay.HolderName(holder)} is editing it.";
+
+    public Task<IActionResult> OnPostReleaseCategoryScopeBeaconAsync(
+        Guid categoryId,
+        string? editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ReleaseScopeBeaconAsync(
+            EditScopeKind.ApprovedOutlookCategory,
+            categoryId,
+            editLeaseToken,
+            "outlook-category-edit-beacon",
+            cancellationToken);
+
+    private async Task<IActionResult> ReleaseScopeBeaconAsync(
+        EditScopeKind scopeKind,
+        Guid recordId,
+        string? editLeaseToken,
+        string operationName,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (recordId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return new NoContentResult();
+        }
+
+        try
+        {
+            await editScopes.ReleaseAsync(
+                new(scopeKind, recordId, actor, $"{operationName}:{Guid.NewGuid():N}", editLeaseToken),
+                cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception is EditScopeExpiredException or EditScopeConflictException)
+        {
+            // The scope has already gone or has already been re-claimed by a
+            // newer window of this operator's own session.
+        }
+        return new NoContentResult();
     }
 
     private async Task<IActionResult> HeartbeatEditAsync(

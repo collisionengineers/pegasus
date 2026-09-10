@@ -39,6 +39,7 @@ internal sealed class AutomationActorResolver(
                 httpContext,
                 SecurityEventType.Token,
                 "anonymous",
+                actor: null,
                 "automation_token_rejected",
                 cancellationToken);
             throw new McpException("The automation authorization is not valid.");
@@ -50,6 +51,7 @@ internal sealed class AutomationActorResolver(
                 httpContext,
                 SecurityEventType.Client,
                 clientId,
+                ActionActor.Automation(clientId),
                 "automation_client_disabled",
                 cancellationToken);
             throw new McpException("The Automation client registration is disabled.");
@@ -61,6 +63,7 @@ internal sealed class AutomationActorResolver(
                 httpContext,
                 SecurityEventType.Token,
                 clientId,
+                ActionActor.Automation(clientId),
                 "automation_scope_denied",
                 cancellationToken);
             throw new McpException(
@@ -79,22 +82,32 @@ internal sealed class AutomationActorResolver(
             httpContext.TraceIdentifier);
     }
 
+    /// <summary>
+    /// Records a refused automation request. <paramref name="actor"/> is the
+    /// client that presented an identity; a request that carried none is
+    /// anonymous, which no actor kind represents, so it is recorded
+    /// unattributed and read by what it is.
+    /// </summary>
     private Task DenyAsync(
         HttpContext httpContext,
         SecurityEventType type,
         string subjectId,
+        ActionActor? actor,
         string reasonCode,
-        CancellationToken cancellationToken) =>
-        securityEvents.AppendAsync(
-            new SecurityEvent(
-                Guid.NewGuid(),
-                type,
-                SecurityEventOutcome.Denied,
-                subjectId,
-                timeProvider.GetUtcNow(),
-                httpContext.TraceIdentifier,
-                reasonCode),
+        CancellationToken cancellationToken)
+    {
+        var securityEvent = new SecurityEvent(
+            Guid.NewGuid(),
+            type,
+            SecurityEventOutcome.Denied,
+            subjectId,
+            timeProvider.GetUtcNow(),
+            httpContext.TraceIdentifier,
+            reasonCode);
+        return securityEvents.AppendAsync(
+            actor is null ? securityEvent : securityEvent.By(actor),
             cancellationToken);
+    }
 }
 
 /// <summary>

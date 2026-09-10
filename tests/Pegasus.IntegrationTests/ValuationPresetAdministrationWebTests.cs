@@ -83,7 +83,10 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.DoesNotContain("<aside", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("empty-state", presetList, StringComparison.Ordinal);
         Assert.Contains("class=\"input-money\"", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"reason\"", body, StringComparison.Ordinal);
+
+        // Add and edit carry no routine reason. The one reason on this page
+        // belongs to the removal confirm, which is not part of the table.
+        Assert.DoesNotContain("name=\"reason\"", presetList, StringComparison.Ordinal);
 
         // The add row is a compact final row of the presets table (points 20,
         // 32, 33), not a separate dialog-based creation panel.
@@ -91,7 +94,10 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.Contains("id=\"create-amount\"", presetList, StringComparison.Ordinal);
         Assert.Contains(">Add<", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("data-dialog=\"preset-", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-dialog", presetList, StringComparison.Ordinal);
+
+        // No dialog is defined inside the table. The removal opener a row
+        // carries is not a dialog of its own.
+        Assert.DoesNotContain("data-dialog=\"", presetList, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -101,12 +107,13 @@ public sealed partial class ValuationPresetAdministrationWebTests
         using var client = CreateClient(factory);
         var page = await GetPageAsync(client);
 
+        var createForm = CreateForm(page);
         using (var created = await client.PostAsync(
             $"{Page}?handler=Create",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["presetId"] = LastValue(page, PresetIdRegex()),
-                ["operationKey"] = LastValue(page, OperationKeyRegex()),
+                ["presetId"] = FirstValue(createForm, PresetIdRegex()),
+                ["operationKey"] = FirstValue(createForm, OperationKeyRegex()),
                 ["label"] = "Roof rack",
                 ["amount"] = "125.00",
                 ["active"] = "true",
@@ -228,11 +235,129 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.Contains("value=\"Updated tow bar\"", body, StringComparison.Ordinal);
         Assert.Contains("name=\"amount\" type=\"number\" inputmode=\"decimal\"", body, StringComparison.Ordinal);
         Assert.Contains($"value=\"{amount}\"", body, StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"reason\"", body, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "name=\"reason\"",
+            PresetListSectionRegex().Match(body).Value,
+            StringComparison.Ordinal);
         var reloaded = await GetPageAsync(client);
         Assert.DoesNotContain("Updated tow bar", reloaded, StringComparison.Ordinal);
         Assert.Contains(">Tow bar<", reloaded, StringComparison.Ordinal);
         Assert.Contains(">£300.00<", WebUtility.HtmlDecode(reloaded), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The operator is never blocked by their own edit. A second window is
+    /// named as such and offers Take over; a window that leaves beacons its
+    /// release, after which the editor reopens with no take-over at all.
+    /// </summary>
+    [Fact]
+    public async Task AnOperatorIsNeverBlockedByTheirOwnPresetEdit()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+
+        var editing = await OpenPresetEditAsync(client, TowBarPresetId, 1);
+        var firstToken = FirstValue(editing, EditLeaseTokenRegex());
+
+        // A second window while the first is still live says whose edit it is
+        // and offers the one control the holder is entitled to.
+        var second = await OpenPresetEditAsync(client, TowBarPresetId, 1);
+        Assert.Contains(
+            "You are editing this preset in another window.",
+            second,
+            StringComparison.Ordinal);
+        Assert.Contains(">Take over<", second, StringComparison.Ordinal);
+        Assert.DoesNotContain("is editing it", second, StringComparison.Ordinal);
+
+        // Taking over rotates the token, so the abandoned window's own token no
+        // longer saves. It is a post, never a followed link: taking over ends
+        // another window's claim, which a GET must never do.
+        var takenOver = await PostTakeOverAsync(client, second);
+        var secondToken = FirstValue(takenOver, EditLeaseTokenRegex());
+        Assert.NotEqual(firstToken, secondToken);
+        Assert.DoesNotContain("another window", takenOver, StringComparison.Ordinal);
+
+        // The release a leaving page beacons is idempotent and answers 204
+        // whether or not a scope was still there.
+        using (var released = await PostBeaconAsync(client, takenOver, secondToken))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, released.StatusCode);
+        }
+        using (var again = await PostBeaconAsync(client, takenOver, secondToken))
+        {
+            Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
+        }
+
+        // Reopening immediately after the beacon is an ordinary claim.
+        var reopened = await OpenPresetEditAsync(client, TowBarPresetId, 1);
+        Assert.NotEqual(secondToken, FirstValue(reopened, EditLeaseTokenRegex()));
+        Assert.DoesNotContain("another window", reopened, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Take over<", reopened, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Posts the Take over form the page rendered for the operator's own
+    /// other window: the same fields the form carries as hidden inputs, plus
+    /// the page's antiforgery token.
+    /// </summary>
+    private static async Task<string> PostTakeOverAsync(HttpClient client, string page)
+    {
+        var form = TakeOverForm(page);
+        using var response = await client.PostAsync(
+            $"{Page}?handler=Edit",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["presetId"] = FirstValue(form, PresetIdRegex()),
+                ["expectedVersion"] = FirstValue(form, ExpectedVersionRegex()),
+                ["operationKey"] = FirstValue(form, OperationKeyRegex()),
+                ["takeOver"] = "true",
+                ["__RequestVerificationToken"] = Token(page)
+            }));
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync();
+    }
+
+    /// <summary>
+    /// The Take over form itself, found by the button text rather than by
+    /// position: it is the only form on the row offering that control.
+    /// </summary>
+    private static string TakeOverForm(string page)
+    {
+        var buttonIndex = page.IndexOf(">Take over<", StringComparison.Ordinal);
+        Assert.True(buttonIndex >= 0);
+        var formStart = page.LastIndexOf("<form", buttonIndex, StringComparison.Ordinal);
+        Assert.True(formStart >= 0);
+        var formEnd = page.IndexOf("</form>", buttonIndex, StringComparison.Ordinal);
+        Assert.True(formEnd >= 0);
+        return page[formStart..formEnd];
+    }
+
+    private static Task<HttpResponseMessage> PostBeaconAsync(
+        HttpClient client,
+        string page,
+        string editLeaseToken) =>
+        client.PostAsync(
+            $"{Page}?handler=ReleaseScopeBeacon",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["presetId"] = TowBarPresetId.ToString("D"),
+                ["editLeaseToken"] = editLeaseToken,
+                ["__RequestVerificationToken"] = Token(page)
+            }));
+
+    /// <summary>
+    /// The hidden add-row form's own fields, read from that form rather than
+    /// from the last matching input on the page: the removal dialogs each
+    /// carry their own <c>presetId</c> input after it, so a page-wide search
+    /// would find one of those instead of the create form's own.
+    /// </summary>
+    private static string CreateForm(string page)
+    {
+        var start = page.IndexOf("id=\"preset-create\"", StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        var end = page.IndexOf("</form>", start, StringComparison.Ordinal);
+        Assert.True(end >= 0);
+        return page[start..end];
     }
 
     /// <summary>
@@ -302,6 +427,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
                     provider.GetRequiredService<EfValuationPresetStore>());
                 services.AddScoped<IListValuationPresets, ListValuationPresets>();
                 services.AddScoped<ISaveValuationPreset, SaveValuationPreset>();
+                services.AddScoped<IRemoveValuationPreset, RemoveValuationPreset>();
             }))
             .CreateClient(new WebApplicationFactoryClientOptions
             {

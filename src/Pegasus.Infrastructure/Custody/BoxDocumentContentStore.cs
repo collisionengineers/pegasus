@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Net;
 using System.Security.Cryptography;
 using Pegasus.Core.Documents;
 
@@ -13,16 +14,30 @@ namespace Pegasus.Infrastructure.Custody;
 internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocumentContentStore
 {
     /// <summary>
-    /// How many of a batch's downloads are in flight at once.
+    /// How many Box downloads this store has in flight at once, whether they
+    /// come from a batch or from separate callers.
     ///
-    /// Every other Box primitive here serialises, and this is the one place
+    /// Every other Box primitive here serialises, and reads are the one place
     /// that fans out, so the number is deliberately small: a case may hold far
-    /// more photographs than the handful a typical one does, Box rate limits
-    /// per application, and nothing on this path retries a 429. Four overlaps
-    /// essentially all of a normal export's download time while keeping the
-    /// burst close to what the sequential version already asked of Box.
+    /// more photographs than the handful a typical one does, and Box rate
+    /// limits per application. Four overlaps essentially all of a normal
+    /// export's download time while keeping the burst close to what the
+    /// sequential version already asked of Box.
+    ///
+    /// DOCS-015: this was the batch's degree of parallelism only, so sixty
+    /// gallery tiles opened sixty single reads at once and nothing bounded
+    /// them. <see cref="ReadGate"/> is the bound itself, shared by both read
+    /// paths, and it is process-wide because Box's limit is.
     /// </summary>
     private const int MaximumConcurrentReads = 4;
+
+    /// <summary>
+    /// How many times one read is attempted before its failure is the answer.
+    /// </summary>
+    private const int MaximumReadAttempts = 3;
+
+    private static readonly SemaphoreSlim ReadGate =
+        new(MaximumConcurrentReads, MaximumConcurrentReads);
 
     private readonly ConcurrentDictionary<Guid, CreatedFile> createdFiles = [];
 
@@ -167,6 +182,17 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             createdVersionId);
     }
 
+    /// <summary>
+    /// One managed version's content, gated and retried.
+    /// </summary>
+    /// <remarks>
+    /// DOCS-015: this path is what a gallery tile, a preview and a report
+    /// input all reach, so a Box 429 arrived here as a failed page element
+    /// rather than as a wait. The read now enters <see cref="ReadGate"/> and a
+    /// throttled or unavailable response is retried within
+    /// <see cref="MaximumReadAttempts"/> attempts before it becomes the
+    /// caller's failure.
+    /// </remarks>
     public async Task<Stream> OpenReadVersionAsync(
         ManagedDocumentContentAddress address,
         string expectedSha256,
@@ -176,16 +202,75 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         Validate(address);
         RequirePersistedBoxIdentity(address);
         var normalizedHash = NormalizeSha256(expectedSha256);
-        await using var exact = await OpenOwnedExactVersionAsync(
-            address.BoxFileId!,
-            address.BoxVersionId!,
-            address.CaseRootRemoteId!,
-            expectedLength,
+        var content = await ReadGatedWithRetryAsync(
+            async token =>
+            {
+                await using var exact = await OpenOwnedExactVersionAsync(
+                    address.BoxFileId!,
+                    address.BoxVersionId!,
+                    address.CaseRootRemoteId!,
+                    expectedLength,
+                    token);
+                return await ReadExactlyAsync(exact, expectedLength, token);
+            },
             cancellationToken);
-        var content = await ReadExactlyAsync(exact, expectedLength, cancellationToken);
         Verify(content, normalizedHash, expectedLength);
         return new MemoryStream(content, writable: false);
     }
+
+    /// <summary>
+    /// Runs one Box read inside the process-wide read gate, retrying a
+    /// throttled (429) or unavailable (5xx) response with bounded backoff.
+    /// </summary>
+    /// <remarks>
+    /// The whole read is retried, metadata call included, because either half
+    /// of it can be the throttled one and the content stream is not reusable.
+    /// A read that fails verification is not retried: those bytes are wrong,
+    /// not late.
+    ///
+    /// Box's <c>Retry-After</c> is not honoured: <see cref="BoxContentClient"/>
+    /// reports a failed response as an <see cref="HttpRequestException"/>
+    /// carrying the status only, so the header is not available here. The
+    /// backoff below stands in for it and is deliberately longer than the
+    /// header's usual value.
+    /// </remarks>
+    internal static async Task<T> ReadGatedWithRetryAsync<T>(
+        Func<CancellationToken, Task<T>> read,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        await ReadGate.WaitAsync(cancellationToken);
+        try
+        {
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    return await read(cancellationToken);
+                }
+                catch (HttpRequestException exception)
+                    when (attempt < MaximumReadAttempts && IsTransientReadFailure(exception))
+                {
+                    await Task.Delay(BackoffBeforeAttempt(attempt + 1), cancellationToken);
+                }
+            }
+        }
+        finally
+        {
+            ReadGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Whether Box said "later" rather than "no": the rate limit, or one of
+    /// its own failures.
+    /// </summary>
+    private static bool IsTransientReadFailure(HttpRequestException exception) =>
+        exception.StatusCode == HttpStatusCode.TooManyRequests
+        || (int?)exception.StatusCode >= 500;
+
+    private static TimeSpan BackoffBeforeAttempt(int attempt) =>
+        TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt - 2));
 
     /// <summary>
     /// PLAT-041: every eligible photograph of one case, read with the case
@@ -239,13 +324,21 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             {
                 var read = reads[index];
                 RequirePersistedBoxIdentity(read.Address);
-                await using var exact = await OpenOwnedExactVersionAsync(
-                    read.Address.BoxFileId!,
-                    read.Address.BoxVersionId!,
-                    read.Address.CaseRootRemoteId!,
-                    read.ExpectedLength,
+                // The same gate and the same retry as a single read, so a
+                // batch running beside gallery traffic cannot double the burst
+                // Box sees (DOCS-015).
+                var content = await ReadGatedWithRetryAsync(
+                    async attemptToken =>
+                    {
+                        await using var exact = await OpenOwnedExactVersionAsync(
+                            read.Address.BoxFileId!,
+                            read.Address.BoxVersionId!,
+                            read.Address.CaseRootRemoteId!,
+                            read.ExpectedLength,
+                            attemptToken);
+                        return await ReadExactlyAsync(exact, read.ExpectedLength, attemptToken);
+                    },
                     token);
-                var content = await ReadExactlyAsync(exact, read.ExpectedLength, token);
                 Verify(content, hashes[index], read.ExpectedLength);
                 contents[index] = content;
             });
