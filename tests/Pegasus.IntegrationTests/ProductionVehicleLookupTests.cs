@@ -7,6 +7,29 @@ namespace Pegasus.IntegrationTests;
 
 public sealed class ProductionVehicleLookupTests
 {
+    /// <summary>
+    /// What DVLA VES answers for a registration it does not hold: its
+    /// documented errors array, carrying the status and code "404" and the
+    /// title "Vehicle Not Found".
+    /// </summary>
+    private const string DvlaVehicleNotFound =
+        """{"errors":[{"status":"404","code":"404","title":"Vehicle Not Found","detail":"Vehicle Not Found"}]}""";
+
+    /// <summary>
+    /// What the DVSA MOT History API answers for a registration it does not
+    /// hold: its own JSON error, naming the vehicle.
+    /// </summary>
+    private const string DvsaVehicleNotFound =
+        """{"errors":[{"status":"404","code":"MOTH-NOT-FOUND","title":"Vehicle not found","detail":"No vehicle found with that registration"}]}""";
+
+    /// <summary>
+    /// What an API gateway answers for a wrong path, a mis-set base URI or a
+    /// withdrawn subscription. It is a 404 about a route, and says nothing
+    /// about any vehicle.
+    /// </summary>
+    private const string GatewayNotFound =
+        """{"statusCode":404,"message":"Resource not found"}""";
+
     [Fact]
     public async Task SuccessfulDvlaAndDvsaResponsesProduceCurrentEvidenceWithProvenance()
     {
@@ -109,13 +132,17 @@ public sealed class ProductionVehicleLookupTests
         {
             if (request.RequestUri!.Host == "driver-vehicle-licensing.api.gov.uk")
             {
-                return Json(dvlaStatus, "{}");
+                return Json(
+                    dvlaStatus,
+                    dvlaStatus == HttpStatusCode.NotFound ? DvlaVehicleNotFound : "{}");
             }
             if (request.RequestUri.Host == "login.microsoftonline.com")
             {
                 return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
             }
-            return Json(dvsaStatus, "{}");
+            return Json(
+                dvsaStatus,
+                dvsaStatus == HttpStatusCode.NotFound ? DvsaVehicleNotFound : "{}");
         });
 
         var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
@@ -139,7 +166,7 @@ public sealed class ProductionVehicleLookupTests
             {
                 return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
             }
-            return Json(HttpStatusCode.NotFound, "{}");
+            return Json(HttpStatusCode.NotFound, DvsaVehicleNotFound);
         });
 
         var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
@@ -183,14 +210,14 @@ public sealed class ProductionVehicleLookupTests
         {
             if (request.RequestUri!.Host == "driver-vehicle-licensing.api.gov.uk")
             {
-                return Json(HttpStatusCode.NotFound, "{}");
+                return Json(HttpStatusCode.NotFound, DvlaVehicleNotFound);
             }
             if (request.RequestUri.Host == "login.microsoftonline.com")
             {
                 tokenCalls++;
                 return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
             }
-            return Json(HttpStatusCode.NotFound, "{}");
+            return Json(HttpStatusCode.NotFound, DvsaVehicleNotFound);
         });
 
         await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
@@ -207,14 +234,14 @@ public sealed class ProductionVehicleLookupTests
         {
             if (request.RequestUri!.Host == "driver-vehicle-licensing.api.gov.uk")
             {
-                return Json(HttpStatusCode.NotFound, "{}");
+                return Json(HttpStatusCode.NotFound, DvlaVehicleNotFound);
             }
             if (request.RequestUri.Host == "login.microsoftonline.com")
             {
                 tokenCalls++;
                 return Json(HttpStatusCode.OK, $"{{\"access_token\":\"token-{tokenCalls}\",\"expires_in\":30}}");
             }
-            return Json(HttpStatusCode.NotFound, "{}");
+            return Json(HttpStatusCode.NotFound, DvsaVehicleNotFound);
         });
 
         await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
@@ -236,7 +263,7 @@ public sealed class ProductionVehicleLookupTests
             {
                 return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
             }
-            return Json(HttpStatusCode.NotFound, "{}");
+            return Json(HttpStatusCode.NotFound, DvsaVehicleNotFound);
         });
 
         var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
@@ -245,6 +272,83 @@ public sealed class ProductionVehicleLookupTests
         Assert.Equal("dvla_malformed", result.Failure?.Code);
         Assert.Null(result.Vehicle);
         Assert.Empty(result.MotTests);
+    }
+
+    /// <summary>
+    /// WP8: a 404 whose body is not the provider's vehicle-not-found error is
+    /// this side failing to reach the provider — a wrong path, a mis-set base
+    /// URI, a withdrawn subscription — and must never be recorded as "this
+    /// vehicle does not exist". The Case then shows a failure the operator can
+    /// act on instead of a confident, false absence.
+    /// </summary>
+    [Fact]
+    public async Task AGatewayNotFoundIsAFailureRatherThanAnUnknownVehicle()
+    {
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            return Json(HttpStatusCode.NotFound, GatewayNotFound);
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Failed, result.Outcome);
+        Assert.Equal("dvla_failed_404", result.Failure?.Code);
+        Assert.False(result.Failure!.Retryable);
+        Assert.Null(result.Vehicle);
+        Assert.Empty(result.MotTests);
+    }
+
+    /// <summary>
+    /// A 404 body that is not JSON at all — an HTML error page from a proxy —
+    /// is likewise a failure, never an absent vehicle.
+    /// </summary>
+    [Fact]
+    public async Task ANonJsonNotFoundBodyIsAFailure()
+    {
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            return Json(HttpStatusCode.NotFound, "<html><body>404 Not Found</body></html>");
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Failed, result.Outcome);
+        Assert.Equal("dvla_failed_404", result.Failure?.Code);
+    }
+
+    /// <summary>
+    /// One provider's route 404 beside the other's real evidence is a partial
+    /// answer carrying that failure, not the "vehicle not found" partial.
+    /// </summary>
+    [Fact]
+    public async Task ADvsaGatewayNotFoundBesideDvlaEvidenceCarriesTheFailure()
+    {
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == "driver-vehicle-licensing.api.gov.uk")
+            {
+                return Json(HttpStatusCode.OK, """{"make":"FORD"}""");
+            }
+            if (request.RequestUri.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            return Json(HttpStatusCode.NotFound, GatewayNotFound);
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Partial, result.Outcome);
+        Assert.Equal("dvsa_failed_404", result.Failure?.Code);
+        Assert.Equal("FORD", result.Vehicle?.Make);
     }
 
     private static DvlaDvsaProductionAdapter Create(Func<HttpRequestMessage, HttpResponseMessage> handler)

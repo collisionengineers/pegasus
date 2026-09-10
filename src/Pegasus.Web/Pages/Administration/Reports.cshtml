@@ -8,8 +8,12 @@
     <div class="panel-body">
         <p class="muted">Queries received are credited to the Engineer assigned to the Case. Reports sent are credited to the staff member recorded as the sender.</p>
         <form method="get" class="filter-bar" aria-label="Engineer activity filters">
-            <div class="field"><label for="report-from">From London</label><input id="report-from" asp-for="From" name="from" type="datetime-local" /></div>
-            <div class="field"><label for="report-to">To London</label><input id="report-to" asp-for="To" name="to" type="datetime-local" /></div>
+            @* Minutes are the smallest unit this report is bounded by; the default
+               tag-helper format writes seconds and milliseconds into the value,
+               which the picker then shows. The CSV link below already formats to
+               minutes, so the two now agree. *@
+            <div class="field"><label for="report-from">From London</label><input id="report-from" asp-for="From" asp-format="{0:yyyy-MM-ddTHH:mm}" name="from" type="datetime-local" step="60" /></div>
+            <div class="field"><label for="report-to">To London</label><input id="report-to" asp-for="To" asp-format="{0:yyyy-MM-ddTHH:mm}" name="to" type="datetime-local" step="60" /></div>
             <div class="field"><label for="report-engineer">Person</label><select id="report-engineer" asp-for="EngineerId" name="engineerId"><option value="">All people</option>@foreach (var person in Model.People) { <option value="@person.Id">@person.UserName</option> }</select></div>
             <button class="btn btn--primary" type="submit">Apply</button>
             <a class="btn" asp-page="/Administration/Reports" asp-page-handler="Csv" asp-route-from="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" asp-route-to="@Model.To?.ToString("yyyy-MM-ddTHH:mm")" asp-route-engineerId="@Model.EngineerId">Download CSV</a>

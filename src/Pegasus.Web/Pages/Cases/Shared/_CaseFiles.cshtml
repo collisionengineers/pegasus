@@ -36,6 +36,7 @@
                     {
                         string preview;
                         string download;
+                        string? thumbnail = null;
                         if (image.IsCaseDocument)
                         {
                             download = Url.Page(
@@ -55,6 +56,19 @@
                                     versionId = image.VersionId,
                                     inline = true
                                 })!;
+                            // DOCS-015: the tile asks for the derived
+                            // rendering; the viewer and Save as keep the full
+                            // image above.
+                            thumbnail = Url.Page(
+                                "/Cases/Documents/Download",
+                                new
+                                {
+                                    caseId = summary.CaseId,
+                                    occurrenceId = image.OccurrenceId,
+                                    versionId = image.VersionId,
+                                    inline = true,
+                                    size = Pegasus.Core.Documents.CaseDocumentThumbnails.ThumbSizeToken
+                                })!;
                         }
                         else
                         {
@@ -63,7 +77,13 @@
                                 new { id = image.ReceiptId, assetId = image.AssetId })!;
                             preview = download;
                         }
-                        return new GalleryImage(preview, download, image.FileName, image.MediaType);
+                        return new GalleryImage(
+                            preview,
+                            download,
+                            image.FileName,
+                            image.MediaType,
+                            thumbnail,
+                            image.IsStored);
                     })
                     .ToArray();
             }

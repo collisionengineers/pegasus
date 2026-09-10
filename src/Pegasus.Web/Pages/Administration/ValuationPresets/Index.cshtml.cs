@@ -24,6 +24,7 @@ namespace Pegasus.Web.Pages.Administration.ValuationPresets;
 public sealed class IndexModel(
     IListValuationPresets listValuationPresets,
     ISaveValuationPreset saveValuationPreset,
+    IRemoveValuationPreset removeValuationPreset,
     IEditScopeLeases editScopes,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder) : AdministrationPageModel
 {
@@ -64,6 +65,12 @@ public sealed class IndexModel(
     public long EditingPresetVersion { get; private set; }
     public string EditingLeaseToken { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// The preset this operator is already editing in another window, offered
+    /// with the take-over that ends the other window's claim.
+    /// </summary>
+    public Guid TakeOverPresetId { get; private set; }
+
     public async Task<IActionResult> OnGetAsync(
         Guid? editPresetId,
         long? expectedVersion,
@@ -93,12 +100,80 @@ public sealed class IndexModel(
 
         try
         {
+            // A plain GET never takes over another window's claim; that is a
+            // mutating act and stays behind the posted Edit handler below.
             var lease = await editScopes.ClaimAsync(
-                new(EditScopeKind.ValuationPreset, preset.Id, preset.Version, actor, NewOperationKey()),
+                new(EditScopeKind.ValuationPreset, preset.Id, preset.Version, actor, NewOperationKey())
+                {
+                    TakeOver = false
+                },
                 cancellationToken);
             EditingPresetId = preset.Id;
             EditingPresetVersion = preset.Version;
             EditingLeaseToken = lease.Token;
+        }
+        catch (EditScopeHeldElsewhereException)
+        {
+            TakeOverPresetId = preset.Id;
+            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
+        }
+        catch (EditScopeConflictException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                await EditConflictMessageAsync(preset.Id, actor, cancellationToken));
+        }
+        catch (EditScopeVersionConflictException)
+        {
+            ModelState.AddModelError(string.Empty, ValuationPresetLabels.StaleVersion);
+        }
+
+        return Page();
+    }
+
+    /// <summary>
+    /// The take-over claim: the same edit-scope acquisition the Edit link
+    /// performs, but posted rather than followed as a plain link, because
+    /// taking over ends another window's claim and a GET must never do that.
+    /// </summary>
+    public async Task<IActionResult> OnPostEditAsync(
+        Guid presetId,
+        long expectedVersion,
+        string? operationKey,
+        bool takeOver,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor)) return Forbid();
+        if (presetId == Guid.Empty || !IsOperationKeyValid(operationKey)) return BadRequest();
+
+        await LoadAsync(actor, cancellationToken);
+        var preset = Presets.SingleOrDefault(item => item.Id == presetId);
+        if (preset is null)
+        {
+            return NotFound();
+        }
+        if (preset.Version != expectedVersion)
+        {
+            ModelState.AddModelError(string.Empty, ValuationPresetLabels.StaleVersion);
+            return Page();
+        }
+
+        try
+        {
+            var lease = await editScopes.ClaimAsync(
+                new(EditScopeKind.ValuationPreset, preset.Id, preset.Version, actor, operationKey!)
+                {
+                    TakeOver = takeOver
+                },
+                cancellationToken);
+            EditingPresetId = preset.Id;
+            EditingPresetVersion = preset.Version;
+            EditingLeaseToken = lease.Token;
+        }
+        catch (EditScopeHeldElsewhereException)
+        {
+            TakeOverPresetId = preset.Id;
+            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
         }
         catch (EditScopeConflictException)
         {
@@ -196,6 +271,49 @@ public sealed class IndexModel(
             cancellationToken);
     }
 
+    /// <summary>
+    /// Removes one preset from the maintained list. A removal is a change to
+    /// the record like a save, so it claims the same edit lease and the store
+    /// closes that scope with the removal: a Remove is therefore refused
+    /// while the preset is being edited elsewhere. Recorded valuations keep
+    /// their own snapshot of what was selected.
+    /// </summary>
+    public Task<IActionResult> OnPostRemoveAsync(
+        Guid presetId,
+        long expectedVersion,
+        string? reason,
+        string? operationKey,
+        CancellationToken cancellationToken)
+    {
+        RowPresetId = presetId;
+        return RunAsync(
+            async actor =>
+            {
+                if (!RequireOperationKey(operationKey) | !RequireReason(reason)
+                    | !RequirePreset(presetId))
+                {
+                    return null;
+                }
+
+                var lease = await editScopes.ClaimAsync(
+                    new(
+                        EditScopeKind.ValuationPreset,
+                        presetId,
+                        expectedVersion,
+                        actor,
+                        NewOperationKey()),
+                    cancellationToken);
+                await removeValuationPreset.ExecuteAsync(
+                    new(presetId, expectedVersion, actor, operationKey!, reason!)
+                    {
+                        EditLeaseToken = lease.Token
+                    },
+                    cancellationToken);
+                return ValuationPresetLabels.Removed;
+            },
+            cancellationToken);
+    }
+
     public async Task<IActionResult> OnPostCancelEditAsync(
         Guid presetId,
         string? editLeaseToken,
@@ -223,6 +341,41 @@ public sealed class IndexModel(
             // Closing an already-expired edit session has no remaining work.
         }
         return RedirectToPage();
+    }
+
+    /// <summary>
+    /// The release a leaving page beacons. It is not an operator action: it
+    /// answers 204 whether or not a scope was still there to release, so a
+    /// duplicate beacon and a beacon that lost a race with Cancel are both
+    /// ordinary outcomes. Antiforgery is validated as it is for every post.
+    /// </summary>
+    public async Task<IActionResult> OnPostReleaseScopeBeaconAsync(
+        Guid presetId,
+        string? editLeaseToken,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (presetId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
+        {
+            return new NoContentResult();
+        }
+
+        try
+        {
+            await editScopes.ReleaseAsync(
+                new(EditScopeKind.ValuationPreset, presetId, actor, NewOperationKey(), editLeaseToken),
+                cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception is EditScopeExpiredException or EditScopeConflictException)
+        {
+            // The scope has already gone or has already been re-claimed by a
+            // newer window of this operator's own session.
+        }
+        return new NoContentResult();
     }
 
     public async Task<IActionResult> OnPostHeartbeatEditAsync(
@@ -285,7 +438,7 @@ public sealed class IndexModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                await EditConflictMessageAsync(EditingPresetId, actor, cancellationToken));
+                await EditConflictMessageAsync(RowPresetId, actor, cancellationToken));
         }
         catch (EditScopeExpiredException)
         {
@@ -312,12 +465,7 @@ public sealed class IndexModel(
         string? label,
         decimal? amount)
     {
-        var valid = true;
-        if (string.IsNullOrWhiteSpace(operationKey) || !IsOperationKeyValid(operationKey))
-        {
-            ModelState.AddModelError(string.Empty, ValuationPresetLabels.Expired);
-            valid = false;
-        }
+        var valid = RequireOperationKey(operationKey);
         if (string.IsNullOrWhiteSpace(label))
         {
             ModelState.AddModelError(string.Empty, ValuationPresetLabels.LabelRequired);
@@ -330,6 +478,29 @@ public sealed class IndexModel(
         }
 
         return valid;
+    }
+
+    private bool RequireOperationKey(string? operationKey)
+    {
+        if (IsOperationKeyValid(operationKey))
+        {
+            return true;
+        }
+
+        ModelState.AddModelError(string.Empty, ValuationPresetLabels.Expired);
+        return false;
+    }
+
+    private bool RequireReason(string? reason)
+    {
+        if (!string.IsNullOrWhiteSpace(reason)
+            && reason.Trim().Length <= ValuationCalculationPolicy.MaximumReasonLength)
+        {
+            return true;
+        }
+
+        ModelState.AddModelError(string.Empty, ValuationPresetLabels.ReasonRequired);
+        return false;
     }
 
     private bool RequirePreset(Guid presetId)
@@ -346,6 +517,7 @@ public sealed class IndexModel(
     private static string MutationErrorMessage(ValuationPresetError error) => error switch
     {
         ValuationPresetError.NotFound => ValuationPresetLabels.NotFound,
+        ValuationPresetError.Removed => ValuationPresetLabels.AlreadyRemoved,
         ValuationPresetError.DuplicateLabel => ValuationPresetLabels.DuplicateLabel,
         ValuationPresetError.VersionConflict => ValuationPresetLabels.StaleVersion,
         ValuationPresetError.OperationConflict => ValuationPresetLabels.OperationConflict,
@@ -367,13 +539,19 @@ public sealed class IndexModel(
             return "Another member of staff is editing this preset. Reload to try again.";
         }
 
-        var holder = await describeEditAuthorityHolder.ExecuteAsync(
-            active.HolderKind,
-            active.Holder,
-            actor,
-            cancellationToken);
-        return $"Preset editing is unavailable because {EditModeDisplay.HolderName(holder)} is editing it.";
+        var isSelf = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, actor);
+        var holder = isSelf
+            ? CaseEditAuthorityHolder.Unnamed
+            : await describeEditAuthorityHolder.ExecuteAsync(
+                active.HolderKind,
+                active.Holder,
+                actor,
+                cancellationToken);
+        return EditModeDisplay.HeldBy(RecordName, holder, isSelf);
     }
+
+    /// <summary>The record as the operator reading an ownership sentence names it.</summary>
+    private const string RecordName = "preset";
 
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
@@ -403,9 +581,14 @@ internal static class ValuationPresetLabels
     public const string Change = "Change";
     public const string Enabled = "Enabled";
     public const string DisabledState = "Disabled";
+    public const string Remove = "Remove";
+    public const string RemoveTitle = "Remove preset";
     public const string Created = "The valuation preset was created.";
     public const string Saved = "The valuation preset was saved.";
     public const string Disabled = "The valuation preset was disabled.";
+    public const string Removed = "The valuation preset was removed.";
+    public const string AlreadyRemoved = "That valuation preset was removed.";
+    public const string ReasonRequired = "Enter a reason.";
     public const string Expired = "The form has expired. Retry the operation.";
     public const string LabelRequired = "Enter a label.";
     public const string AmountRequired = "Enter an amount of £0.00 or more.";

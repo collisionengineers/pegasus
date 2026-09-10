@@ -122,7 +122,7 @@ public sealed class GetTriageDisplayNameTests
             CancellationToken.None);
 
         var entry = Assert.Single(result!.History);
-        Assert.Equal(ActorDisplayNames.UnknownStaff, entry.ActorDisplayName);
+        Assert.Equal(ActorDisplayNames.FormerStaff, entry.ActorDisplayName);
     }
 
     private static ActionActor Caseworker() =>

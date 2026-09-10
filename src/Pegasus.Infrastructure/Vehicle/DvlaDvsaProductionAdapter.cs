@@ -118,6 +118,12 @@ internal sealed class DvlaDvsaProductionAdapter(
                 : failure.Code.Contains("invalid", StringComparison.Ordinal)
                     || failure.Code.Contains("denied", StringComparison.Ordinal)
                     || failure.Code.Contains("malformed", StringComparison.Ordinal)
+                    // A status the provider contract does not describe —
+                    // including a 404 whose body is not the provider's
+                    // vehicle-not-found error — is this side's failure to
+                    // reach the provider correctly, not a transient outage to
+                    // sit out.
+                    || failure.Code.Contains("_failed_", StringComparison.Ordinal)
                         ? VehicleLookupOutcome.Failed
                         : VehicleLookupOutcome.Unavailable;
             result = FailureResult(request.Registration, outcome, identity, retrievedAtUtc, failure);
@@ -139,7 +145,14 @@ internal sealed class DvlaDvsaProductionAdapter(
         var identity = Hash(body);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            return new(null, true, null, identity, response.Headers.Age ?? TimeSpan.Zero);
+            return IsVehicleNotFoundBody(body, registration)
+                ? new(null, true, null, identity, response.Headers.Age ?? TimeSpan.Zero)
+                : new(
+                    null,
+                    false,
+                    new("dvla_failed_404", Retryable: false),
+                    identity,
+                    response.Headers.Age ?? TimeSpan.Zero);
         }
         if (!response.IsSuccessStatusCode)
         {
@@ -185,7 +198,14 @@ internal sealed class DvlaDvsaProductionAdapter(
         var identity = Hash(body);
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
-            return new([], true, null, identity, response.Headers.Age ?? TimeSpan.Zero);
+            return IsVehicleNotFoundBody(body, registration)
+                ? new([], true, null, identity, response.Headers.Age ?? TimeSpan.Zero)
+                : new(
+                    [],
+                    false,
+                    new("dvsa_failed_404", Retryable: false),
+                    identity,
+                    response.Headers.Age ?? TimeSpan.Zero);
         }
         if (!response.IsSuccessStatusCode)
         {
@@ -347,6 +367,120 @@ internal sealed class DvlaDvsaProductionAdapter(
             null,
             [],
             failure);
+
+    /// <summary>
+    /// Whether a provider's 404 body is that provider's own vehicle-not-found
+    /// error, rather than a gateway or route 404.
+    /// </summary>
+    /// <remarks>
+    /// Both providers answer an unknown registration with 404 and a JSON error
+    /// body: DVLA VES writes an <c>errors</c> array whose element carries the
+    /// status and code "404" with the title "Vehicle Not Found", and the DVSA
+    /// MOT History API writes its own JSON error naming the vehicle. Both also
+    /// sit behind API gateways that answer a wrong path, a mis-set base URI or
+    /// a withdrawn subscription with a 404 of their own — "Resource not found",
+    /// or no JSON at all. Treating every 404 as "no such vehicle" is how a
+    /// live Case came to record <c>not_found</c> for a registration the
+    /// provider may never have been asked about (WP8): a broken route is a
+    /// failure, and it now says so. Nothing here trusts the body's shape —
+    /// unparseable or unrecognised means failure, never absence.
+    /// </remarks>
+    private static bool IsVehicleNotFoundBody(byte[] body, string registration)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(body);
+            return ErrorElements(document.RootElement).Any(element =>
+                (element.FromErrorCollection
+                    && (IsFourOhFour(Text(element.Value, "code"))
+                        || IsFourOhFour(Text(element.Value, "status"))))
+                || ErrorTextProperties
+                    .Select(property => Text(element.Value, property))
+                    .Any(text => SaysVehicleNotFound(text, registration)));
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
+
+    private static readonly string[] ErrorTextProperties =
+        ["title", "detail", "message", "errorMessage", "reason", "error_description"];
+
+    private static bool IsFourOhFour(string? value) =>
+        string.Equals(value?.Trim(), "404", StringComparison.Ordinal);
+
+    /// <summary>
+    /// The vehicle-not-found wording, as either provider may phrase it. The
+    /// gateway's own "Resource not found" names no vehicle and no registration
+    /// and is deliberately not matched.
+    /// </summary>
+    private static bool SaysVehicleNotFound(string? text, string registration)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var value = text.Replace('_', ' ');
+        if (value.Contains("vehicle not found", StringComparison.OrdinalIgnoreCase)
+            || value.Contains("no mot", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return value.Contains("not found", StringComparison.OrdinalIgnoreCase)
+            && (value.Contains("vehicle", StringComparison.OrdinalIgnoreCase)
+                || value.Contains("mot", StringComparison.OrdinalIgnoreCase)
+                || value.Contains(registration, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// The error objects in a provider body: the document itself, and the
+    /// elements of an <c>errors</c>/<c>error</c> collection or a bare array.
+    /// Only a collection element's bare "404" code counts as the VES
+    /// vehicle-not-found signal — a root-level status code is what a gateway
+    /// writes about its own route.
+    /// </summary>
+    private static IEnumerable<(JsonElement Value, bool FromErrorCollection)> ErrorElements(
+        JsonElement root)
+    {
+        if (root.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var item in root.EnumerateArray())
+            {
+                yield return (item, true);
+            }
+
+            yield break;
+        }
+
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            yield break;
+        }
+
+        yield return (root, false);
+        foreach (var name in new[] { "errors", "error" })
+        {
+            if (!root.TryGetProperty(name, out var value))
+            {
+                continue;
+            }
+
+            if (value.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in value.EnumerateArray())
+                {
+                    yield return (item, true);
+                }
+            }
+            else if (value.ValueKind == JsonValueKind.Object)
+            {
+                yield return (value, true);
+            }
+        }
+    }
 
     private static VehicleLookupFailure ProviderFailure(string provider, HttpResponseMessage response)
     {

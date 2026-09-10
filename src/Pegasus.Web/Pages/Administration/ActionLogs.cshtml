@@ -26,10 +26,24 @@
                             }
                         </select>
                     </div>
+                    <div class="field">
+                        <label for="actor-type">Actor type</label>
+                        <select id="actor-type" asp-for="ActorType">
+                            <option value="">All actors</option>
+                            @foreach (var actorType in OperatorLabels.ActionLogActorTypes)
+                            {
+                                <option value="@actorType.Value">@actorType.Label</option>
+                            }
+                        </select>
+                    </div>
                     <div class="field"><label for="record">Case/reference</label><input id="record" asp-for="Record" /></div>
                     <div class="field"><label for="result">Outcome</label><input id="result" name="Result" value="@Model.ResultFilter" /></div>
-                    <div class="field"><label for="from">From</label><input id="from" asp-for="From" type="datetime-local" /></div>
-                    <div class="field"><label for="to">To</label><input id="to" asp-for="To" type="datetime-local" /></div>
+                    @* Minutes are the smallest unit an operator filters by; without an
+                       explicit format the tag helper writes seconds and milliseconds
+                       into the value and the picker shows them. Storage precision is
+                       untouched. *@
+                    <div class="field"><label for="from">From</label><input id="from" asp-for="From" asp-format="{0:yyyy-MM-ddTHH:mm}" type="datetime-local" step="60" /></div>
+                    <div class="field"><label for="to">To</label><input id="to" asp-for="To" asp-format="{0:yyyy-MM-ddTHH:mm}" type="datetime-local" step="60" /></div>
                     <div class="button-row">
                         <button class="btn btn--primary" type="submit">Apply</button>
                         <a class="btn" asp-page="/Administration/ActionLogs">Clear</a>
@@ -43,7 +57,20 @@
                             <tbody>
                             @foreach (var row in Model.Result.Rows)
                             {
-                                <tr><td>@row.OccurredAtUtc.ToString("u")</td><td>@Model.ActorLabel(row)</td><td>@row.Area</td><td>@row.Operation</td><td>@(Model.ReferenceLabel(row) ?? "—")</td><td>@row.Result</td></tr>
+                                <tr>
+                                    <td><time datetime="@row.OccurredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.OccurredAtUtc)</time></td>
+                                    <td>
+                                        @if (Model.IsAiActor(row))
+                                        {
+                                            <span class="status-chip status-chip--neutral">AI</span>
+                                        }
+                                        @Model.ActorLabel(row)
+                                    </td>
+                                    <td>@Model.AreaLabel(row)</td>
+                                    <td>@row.Operation</td>
+                                    <td>@(Model.ReferenceLabel(row) ?? "—")</td>
+                                    <td>@row.Result</td>
+                                </tr>
                             }
                             </tbody>
                         </table>

@@ -66,6 +66,12 @@ internal sealed class ValuationPresetEntity : IApplicationManagedConcurrencyToke
     public required string Label { get; set; }
     public decimal SuggestedAmount { get; set; }
     public bool Active { get; set; }
+
+    /// <summary>
+    /// Set when the preset was removed from the maintained list. The row is
+    /// kept so history and recorded valuations that name it stay readable.
+    /// </summary>
+    public DateTimeOffset? RemovedAtUtc { get; set; }
     public required string UpdatedBy { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
     public long Version { get; set; }
@@ -223,6 +229,18 @@ internal sealed class DocumentContentCacheEntryEntity : IApplicationManagedConcu
     public Guid Id { get; set; }
     public Guid? DocumentVersionId { get; set; }
     public Guid? IntakeAssetId { get; set; }
+
+    /// <summary>
+    /// Which kind of cached object this row names: the empty string for the
+    /// durable content itself, or a derived rendering's key (DOCS-015).
+    /// </summary>
+    /// <remarks>
+    /// The cache was one entry per source identity, so a derived thumbnail had
+    /// nowhere to live: its row would have been refused by the same unique
+    /// index, and read back as the content by the store. The variant is part of
+    /// that index, so each kind keeps its own single entry.
+    /// </remarks>
+    public string Variant { get; set; } = string.Empty;
     public required string BlobIdentity { get; set; }
     public string? ETag { get; set; }
     public required string VerifiedSha256 { get; set; }

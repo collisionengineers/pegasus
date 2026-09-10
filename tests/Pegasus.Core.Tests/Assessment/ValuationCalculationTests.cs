@@ -207,6 +207,75 @@ public sealed class ValuationCalculationTests
         Assert.Equal(ValuationPresetError.NotSelectable, exception.Error);
     }
 
+    /// <summary>
+    /// A removed preset is refused exactly as a disabled one is: it has left
+    /// the maintained list, and the basis carries every row precisely so the
+    /// refusal is made here rather than by the query.
+    /// </summary>
+    [Fact]
+    public void ARemovedPresetCannotBeSelectedAgain()
+    {
+        var exception = Assert.Throws<ValuationPresetException>(() =>
+            ValuationCalculationPolicy.Resolve(
+                Selection(additions: [new(DecalsId, 1, null, 500m)]),
+                Basis(3100m, presets: [TowBar, Decals with { RemovedAtUtc = Now }])));
+
+        Assert.Equal(ValuationPresetError.NotSelectable, exception.Error);
+    }
+
+    /// <summary>
+    /// A recorded addition is the Case's own snapshot, so maintaining the
+    /// preset it came from can never reach back into it: amending the
+    /// suggestion, disabling the preset and removing it altogether all leave
+    /// the recorded selection resolvable at the label and suggestion it was
+    /// recorded with, while the Engineer's amount stays the form's to choose.
+    /// </summary>
+    [Fact]
+    public void ARecordedAdditionSurvivesAPresetAmendmentDisableAndRemoval()
+    {
+        var recorded = Addition(TowBar, 300m);
+        ValuationPreset[] maintained =
+        [
+            TowBar with { Version = 2, SuggestedAmount = 350m },
+            TowBar with { Active = false },
+            TowBar with { RemovedAtUtc = Now }
+        ];
+
+        foreach (var preset in maintained)
+        {
+            var input = ValuationCalculationPolicy.Resolve(
+                Selection(additions: [new(TowBarId, 1, null, 275m)]),
+                Basis(3100m, presets: [preset], recordedAdditions: [recorded]));
+
+            var addition = Assert.Single(input.Additions);
+            Assert.Equal(TowBarId, addition.PresetId);
+            Assert.Equal(1, addition.PresetVersion);
+            Assert.Equal("Tow bar", addition.Label);
+            Assert.Equal(300m, addition.SuggestedAmount);
+            Assert.Equal(275m, addition.Amount);
+        }
+    }
+
+    /// <summary>
+    /// The match is against what the Case recorded, not against the pair the
+    /// form posted: a version this Case never recorded is a new selection and
+    /// is resolved — and here refused — like any other.
+    /// </summary>
+    [Fact]
+    public void ARecordedAdditionAtAnotherVersionDoesNotCoverANewSelection()
+    {
+        var exception = Assert.Throws<ValuationPresetException>(() =>
+            ValuationCalculationPolicy.Resolve(
+                Selection(additions: [new(TowBarId, 1, null, 300m)]),
+                Basis(
+                    3100m,
+                    presets: [TowBar with { Version = 2, SuggestedAmount = 350m }],
+                    recordedAdditions: [Addition(TowBar with { Version = 3 }, 300m)])));
+
+        Assert.Equal(ValuationPresetError.VersionConflict, exception.Error);
+        Assert.Equal(2, exception.CurrentVersion);
+    }
+
     [Fact]
     public void AnUnknownPresetCannotBeSelected()
     {
@@ -415,6 +484,49 @@ public sealed class ValuationCalculationTests
             list.ExecuteAsync(ActionActor.RequestLink(Guid.NewGuid()), CancellationToken.None));
     }
 
+    /// <summary>
+    /// Removing a preset is Administrator configuration like maintaining one,
+    /// and it is a reasoned change to a known version rather than a silent
+    /// disappearance.
+    /// </summary>
+    [Fact]
+    public async Task RemovingAPresetIsReasonedAdministratorConfiguration()
+    {
+        var store = new RecordingPresetStore();
+        var remove = new RemoveValuationPreset(store);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            remove.ExecuteAsync(RemoveRequest(Engineer), CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            remove.ExecuteAsync(
+                RemoveRequest(Administrator) with { ExpectedVersion = 0 },
+                CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            remove.ExecuteAsync(
+                RemoveRequest(Administrator) with { PresetId = Guid.Empty },
+                CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            remove.ExecuteAsync(
+                RemoveRequest(Administrator) with { Reason = "  " },
+                CancellationToken.None));
+        Assert.Empty(store.Removals);
+
+        var removed = await remove.ExecuteAsync(
+            RemoveRequest(Administrator) with { Reason = "  No longer offered.  " },
+            CancellationToken.None);
+
+        Assert.NotNull(removed.RemovedAtUtc);
+        Assert.Equal(2, removed.Version);
+        Assert.Equal("No longer offered.", Assert.Single(store.Removals).Reason);
+    }
+
+    private static RemoveValuationPresetRequest RemoveRequest(ActionActor actor) => new(
+        TowBarId,
+        ExpectedVersion: 1,
+        actor,
+        "valuation-preset-remove",
+        "The addition is no longer offered.");
+
     private static SaveValuationPresetRequest PresetRequest(ActionActor actor) => new(
         TowBarId,
         "Tow bar",
@@ -451,12 +563,16 @@ public sealed class ValuationCalculationTests
     private static ValuationCalculationBasis Basis(
         decimal guideRetailValue,
         bool claimantVatRegistered = false,
-        IReadOnlyList<ValuationPreset>? presets = null) => new(
+        IReadOnlyList<ValuationPreset>? presets = null,
+        IReadOnlyList<ValuationAddition>? recordedAdditions = null) => new(
         GuideId,
         Now,
         guideRetailValue,
         claimantVatRegistered,
-        presets ?? [TowBar, Decals]);
+        presets ?? [TowBar, Decals])
+    {
+        RecordedAdditions = recordedAdditions ?? []
+    };
 
     private static ValuationCalculationInput Input(
         decimal guideRetailValue,
@@ -549,6 +665,8 @@ public sealed class ValuationCalculationTests
     {
         public List<SaveValuationPresetRequest> Saves { get; } = [];
 
+        public List<RemoveValuationPresetRequest> Removals { get; } = [];
+
         private readonly List<ValuationPreset> _presets = [];
 
         public Task<IReadOnlyList<ValuationPreset>> ListAsync(
@@ -570,6 +688,29 @@ public sealed class ValuationCalculationTests
                 Now);
             _presets.Add(preset);
             return Task.FromResult(preset);
+        }
+
+        public Task<ValuationPreset> RemoveAsync(
+            RemoveValuationPresetRequest request,
+            CancellationToken cancellationToken)
+        {
+            Removals.Add(request);
+            var preset = _presets.SingleOrDefault(item => item.Id == request.PresetId)
+                ?? new ValuationPreset(
+                    request.PresetId,
+                    "Tow bar",
+                    300m,
+                    Active: true,
+                    request.ExpectedVersion,
+                    request.Actor.SubjectId,
+                    Now);
+            _presets.Remove(preset);
+            return Task.FromResult(preset with
+            {
+                Version = request.ExpectedVersion + 1,
+                UpdatedBy = request.Actor.SubjectId,
+                RemovedAtUtc = Now
+            });
         }
     }
 }

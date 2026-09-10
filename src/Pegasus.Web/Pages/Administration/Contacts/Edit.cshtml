@@ -19,7 +19,7 @@
             <div class="form-grid form-grid--2">
                 <div class="field field-wide"><label class="req" asp-for="Name">Organisation name</label><input asp-for="Name" autocomplete="organization" /><span asp-validation-for="Name"></span></div>
                 <div class="field"><label asp-for="ContactPerson">Contact person</label><input asp-for="ContactPerson" autocomplete="name" /></div>
-                <div class="field"><label asp-for="Telephone">Phone</label><input asp-for="Telephone" autocomplete="tel" /></div>
+                <div class="field"><label asp-for="Telephone">Phone</label><input asp-for="Telephone" type="tel" inputmode="tel" pattern="^\+?[0-9 ]{6,20}$" autocomplete="tel" /><span asp-validation-for="Telephone"></span></div>
                 <div class="field field-wide"><label asp-for="Email">Email</label><input asp-for="Email" type="email" autocomplete="email" /></div>
                 <div class="field"><label asp-for="Address">Address</label><textarea asp-for="Address" rows="3" autocomplete="street-address"></textarea></div>
                 <div class="field"><label asp-for="Postcode">Postcode</label><input asp-for="Postcode" autocomplete="postal-code" /></div>
@@ -42,7 +42,7 @@
             </section>
             <label class="choice"><input asp-for="Active" /> <span>Active</span></label>
             </fieldset>
-            <div class="button-row">@if (Model.IsEditing) { <button type="submit" class="btn btn--primary">Save contact</button><button type="submit" asp-page-handler="Cancel" asp-route-id="@Model.ContactId" formnovalidate class="btn">Cancel</button> } else { <button type="submit" asp-page-handler="Edit" asp-route-id="@Model.ContactId" class="btn btn--primary">Edit contact</button> }</div>
+            <div class="button-row">@if (Model.IsEditing) { <button type="submit" class="btn btn--primary">Save contact</button><button type="submit" asp-page-handler="Cancel" asp-route-id="@Model.ContactId" formnovalidate class="btn">Cancel</button> } else if (Model.CanTakeOverEdit) { @* Offered only to the operator whose own other window still holds this contact; taking over rotates the token so that window can no longer save. *@ <button type="submit" asp-page-handler="Edit" asp-route-id="@Model.ContactId" asp-route-takeOver="true" class="btn btn--primary">Take over</button> } else { <button type="submit" asp-page-handler="Edit" asp-route-id="@Model.ContactId" class="btn btn--primary">Edit contact</button> }</div>
         </form>
         @if (Model.IsEditing)
         {
@@ -50,6 +50,11 @@
                 <input type="hidden" name="ContactId" value="@Model.ContactId" /><input type="hidden" name="LeaseToken" value="@Model.LeaseToken" />
             </form>
             <p id="contact-edit-heartbeat-status" class="notice notice--error" role="alert" hidden></p>
+            @* Beaconed as the page unloads so an operator who navigates away is
+               not refused by their own lease when they come back. *@
+            <form method="post" asp-page-handler="ReleaseScopeBeacon" asp-route-id="@Model.ContactId" data-edit-scope-release hidden>
+                <input type="hidden" name="ContactId" value="@Model.ContactId" /><input type="hidden" name="LeaseToken" value="@Model.LeaseToken" />
+            </form>
         }
     </section>
 

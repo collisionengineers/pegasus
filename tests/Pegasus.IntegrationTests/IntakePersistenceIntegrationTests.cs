@@ -2,6 +2,7 @@
 using System.Text.Json;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure;
@@ -145,7 +146,10 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260910101000_RemoveManualChaseReason",
                 "20260910102000_AllowInitialIntakeAssociationWithoutReason",
                 "20260910103000_RetainObservedStaffMailSentEvidence",
-                "20260910104000_RecordCaseReportViewAndDownloadEvents"
+                "20260910104000_RecordCaseReportViewAndDownloadEvents",
+                "20260910105000_SoftRemoveValuationPresets",
+                "20260910110000_SecurityEventActingPrincipal",
+                "20260910111500_DocumentContentCacheVariants"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -552,6 +556,140 @@ public sealed class IntakePersistenceIntegrationTests
             "uploaded original.eml, attachment 1: original-report.pdf",
             report!.AssetSourceLabel);
         Assert.Equal(AuditAssessment.Repairable, report.Assessment);
+    }
+
+    /// <summary>
+    /// DOCS-015: a Case's gallery lists the image that is still reaching Box as
+    /// well as the ones that arrived. Listing confirmed versions only meant a
+    /// Case opened while custody was in flight showed a partial set that grew
+    /// on reload, which reads to an operator as files that went missing. The
+    /// pending image is named and marked not stored, so the tile can say it is
+    /// arriving; ordering by occurrence is unchanged, and a failed version is
+    /// still left out because it is not arriving.
+    /// </summary>
+    [Fact]
+    public async Task CaseEvidenceImagesCarryPendingCustodyAsNotStored()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var receipt = await database.StoreAsync(CreateDraft(1, IntakeDecision.CaseCreated));
+        var caseId = Guid.NewGuid();
+        await SeedCaseWithImagesAsync(database, caseId, receipt.Id);
+
+        IReadOnlyList<CaseEvidenceImage> images;
+        await using (var scope = database.CreateAsyncScope())
+        {
+            images = await scope.ServiceProvider
+                .GetRequiredService<ICaseEvidenceImageQueries>()
+                .ListForCaseAsync(caseId, CancellationToken.None);
+        }
+
+        Assert.Equal(
+            ["confirmed.jpg", "pending.jpg"],
+            images.Select(image => image.FileName));
+        Assert.True(images[0].IsStored);
+        Assert.False(images[1].IsStored);
+        Assert.All(images, image => Assert.True(image.IsCaseDocument));
+    }
+
+    /// <summary>
+    /// One Case of two image occurrences: one whose custody is confirmed, one
+    /// still pending, and one failed that never belonged to the gallery.
+    /// </summary>
+    private static async Task SeedCaseWithImagesAsync(
+        LocalDbTestDatabase database,
+        Guid caseId,
+        Guid receiptId)
+    {
+        await using var context = await database.CreateContextAsync();
+        var organizationId = Guid.NewGuid();
+        var lineageId = Guid.NewGuid();
+        var principalId = Guid.NewGuid();
+        context.AddRange(
+            new OrganizationEntity { Id = organizationId, Name = "Evidence gallery test", Version = 0 },
+            new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = FixedTime },
+            new PrincipalEntity
+            {
+                Id = principalId,
+                OrganizationId = organizationId,
+                SequenceLineageId = lineageId,
+                Code = "EVID31001",
+                IsActive = true,
+                Version = 0
+            },
+            new CaseEntity
+            {
+                Id = caseId,
+                PrincipalId = principalId,
+                SequenceLineageId = lineageId,
+                Year = 2031,
+                Sequence = 1,
+                Reference = "EVID31001",
+                Type = "Inspection",
+                InitialState = "NotReady",
+                CustodyState = "confirmed",
+                OriginIntakeReceiptId = receiptId,
+                CreatedAtUtc = FixedTime,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            },
+            new CaseWorkflowEntity
+            {
+                CaseId = caseId,
+                State = "NotReady",
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            });
+        AddImage(context, caseId, 1, "confirmed.jpg", DocumentCustodyStatus.Confirmed);
+        AddImage(context, caseId, 2, "pending.jpg", DocumentCustodyStatus.Pending);
+        AddImage(context, caseId, 3, "failed.jpg", DocumentCustodyStatus.Failed);
+        await context.SaveChangesAsync();
+    }
+
+    private static void AddImage(
+        PegasusDbContext context,
+        Guid caseId,
+        int ordinal,
+        string fileName,
+        DocumentCustodyStatus custodyStatus)
+    {
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var occurrenceId = Guid.NewGuid();
+        context.AddRange(
+            new CaseDocumentEntity
+            {
+                Id = documentId,
+                CaseId = caseId,
+                Ordinal = ordinal,
+                SourceOccurrenceIdentity = $"test-image:{occurrenceId:N}"
+            },
+            new DocumentVersionEntity
+            {
+                Id = versionId,
+                DocumentId = documentId,
+                Version = 1,
+                FileName = fileName,
+                MediaType = "image/jpeg",
+                ContentLength = 1,
+                Sha256 = new string('a', 64),
+                CustodyStatus = custodyStatus,
+                CreatedAtUtc = FixedTime,
+                CreatedBy = "Staff:test",
+                IsCurrent = true
+            },
+            new DocumentOccurrenceEntity
+            {
+                Id = occurrenceId,
+                CaseId = caseId,
+                DocumentId = documentId,
+                VersionId = versionId,
+                Ordinal = ordinal,
+                SemanticRole = DocumentSemanticRole.Image,
+                Source = DocumentSource.Intake,
+                SourceOccurrenceIdentity = $"test-image:{occurrenceId:N}",
+                RecordedAtUtc = FixedTime,
+                OperationKey = $"seed-image:{occurrenceId:N}"
+            });
     }
 
     private static IntakeReceiptDraft CreateDraft(

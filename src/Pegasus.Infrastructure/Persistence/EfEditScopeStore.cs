@@ -68,7 +68,19 @@ public sealed class EfEditScopeStore(
         var scope = await FindAsync(context, request.ScopeKind, request.RecordId, cancellationToken);
         if (scope is not null && EditScopeAuthority.IsHeld(scope.ExpiresAtUtc, now))
         {
-            throw new EditScopeConflictException(request.ScopeKind, request.RecordId);
+            // A holder is never blocked by their own scope. Leaving a page
+            // releases it, but that release is best effort, so a re-entry that
+            // finds an unbeaten scope of its own replaces it; only a scope that
+            // is still being renewed elsewhere makes the holder choose.
+            if (!Enum.TryParse<ActorKind>(scope.HolderKind, out var holderKind)
+                || !EditScopeAuthority.IsHolder(holderKind, scope.Holder, request.Actor))
+            {
+                throw new EditScopeConflictException(request.ScopeKind, request.RecordId);
+            }
+            if (!request.TakeOver && !EditScopeAuthority.IsStale(scope.ExpiresAtUtc, now))
+            {
+                throw new EditScopeHeldElsewhereException(request.ScopeKind, request.RecordId);
+            }
         }
 
         var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();

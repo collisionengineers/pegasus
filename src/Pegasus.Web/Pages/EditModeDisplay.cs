@@ -5,8 +5,9 @@ namespace Pegasus.Web.Pages;
 /// <summary>
 /// Operator wording for the one server-owned edit authority a case carries. Other authorised staff
 /// stay read-only and are told who is editing; the holder is named by staff account only, never by
-/// identifier, and an unresolved holder is described without one. There is no takeover control
-/// anywhere this copy appears.
+/// identifier, and an unresolved holder is described without one. No colleague may take an edit
+/// from another; the only take-over control is the one <see cref="HeldElsewhere"/> offers a holder
+/// over their own second window.
 /// </summary>
 /// <remarks>
 /// None of this copy names a time. An open editor's page keeps its own lease alive, so the moment
@@ -35,6 +36,35 @@ public static class EditModeDisplay
         return isSelf
             ? "Case editing is unavailable here because you are editing the case elsewhere."
             : $"Case locked - {Editor(holder)} is editing the case.";
+    }
+
+    /// <summary>
+    /// The same disclosure for one of the non-Case records that carry an edit scope. The holder is
+    /// never named as the blocker of themselves: their own live scope belongs to another window of
+    /// their own session, and the sentence says so and offers the take-over that ends it.
+    /// </summary>
+    /// <param name="recordName">
+    /// The record as the operator reading the sentence names it, lower case unless it is a proper
+    /// term ("preset", "account", "Triage record").
+    /// </param>
+    public static string HeldBy(string recordName, CaseEditAuthorityHolder holder, bool isSelf)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(recordName);
+        ArgumentNullException.ThrowIfNull(holder);
+        return isSelf
+            ? HeldElsewhere(recordName)
+            : $"{HolderName(holder)} is editing this {recordName}.";
+    }
+
+    /// <summary>
+    /// The holder's own second window. This is the only edit-ownership sentence with a control
+    /// beside it, because the operator it addresses is the one person entitled to end the other
+    /// window's claim.
+    /// </summary>
+    public static string HeldElsewhere(string recordName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(recordName);
+        return $"You are editing this {recordName} in another window.";
     }
 
     /// <summary>

@@ -46,6 +46,40 @@ public sealed partial class ContactIndexWebTests
             "SELECT COUNT(*) FROM ContactRoles r JOIN Organizations o ON o.Id = r.OrganizationId WHERE o.Name = 'Wizard Claim Source' AND r.Role = 'claim_source';"));
     }
 
+    /// <summary>
+    /// D7: a telephone with a letter in it is refused as a field error against
+    /// the Telephone control, not a general notice, and no contact is created.
+    /// </summary>
+    [Fact]
+    public async Task ALetteredTelephoneIsRefusedWithAFieldError()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        using var get = await client.GetAsync("/Administration/Contacts?createType=ClaimSource");
+        var html = await get.Content.ReadAsStringAsync();
+        get.EnsureSuccessStatusCode();
+
+        var form = new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
+            ["CreateType"] = "ClaimSource",
+            ["ContactId"] = InputValue(html, "ContactId"),
+            ["ExpectedVersion"] = InputValue(html, "ExpectedVersion"),
+            ["OperationKey"] = InputValue(html, "OperationKey"),
+            ["Name"] = "Lettered Telephone Contact",
+            ["Telephone"] = "01234 56789O"
+        };
+        using var post = await client.PostAsync(
+            "/Administration/Contacts?handler=Create",
+            new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.OK, post.StatusCode);
+        var body = await post.Content.ReadAsStringAsync();
+        Assert.Contains("Telephone must be digits.", body, StringComparison.Ordinal);
+        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM Organizations WHERE Name = 'Lettered Telephone Contact';"));
+    }
+
     [Fact]
     public async Task ContactEditRequiresAnExistingContactRouteId()
     {

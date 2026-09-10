@@ -113,9 +113,10 @@ public sealed partial class StaffSignInSecurityTests
         Assert.Equal(HttpStatusCode.OK, authenticatedRequest.StatusCode);
         Assert.Equal(1, userLookupCounter.ExecutedUserLookupCommands);
 
+        var administratorId = Guid.NewGuid();
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+            var administrator = ActionActor.Staff(administratorId, [StaffRole.Administrator]);
             var user = await scope.ServiceProvider.GetRequiredService<PegasusDbContext>().Users
                 .AsNoTracking()
                 .SingleAsync(item => item.Id == subjectId);
@@ -133,6 +134,27 @@ public sealed partial class StaffSignInSecurityTests
                     lease.Token),
                 default);
         }
+
+        // Every security event names the principal that acted. A sign-in is taken
+        // by the staff member signing in; a forced logout is taken by the
+        // operator, not by the account it landed on — which is the whole reason
+        // the Action logs view could not attribute a Security-area row before.
+        Assert.Equal(
+            1L,
+            await CountAttributedSecurityEventsAsync(
+                testDatabase,
+                type: "SignIn",
+                subjectId: subjectId.ToString("D"),
+                actorKind: "Staff",
+                actorSubjectId: subjectId.ToString("D")));
+        Assert.Equal(
+            1L,
+            await CountAttributedSecurityEventsAsync(
+                testDatabase,
+                type: "SecurityStampChanged",
+                subjectId: subjectId.ToString("D"),
+                actorKind: "Staff",
+                actorSubjectId: administratorId.ToString("D")));
 
         userLookupCounter.Reset();
         using var rejectedOldCookie = await client.GetAsync("/Account/PasswordChange");
@@ -153,6 +175,29 @@ public sealed partial class StaffSignInSecurityTests
             ["Password"] = password,
             ["ReturnUrl"] = "/"
         });
+
+    private static async Task<long> CountAttributedSecurityEventsAsync(
+        LocalDbTestDatabase database,
+        string type,
+        string subjectId,
+        string actorKind,
+        string actorSubjectId)
+    {
+        await using var connection = database.CreateConnection();
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText =
+            "SELECT COUNT(*) FROM SecurityEvents " +
+            "WHERE Type = @type AND SubjectId = @subjectId " +
+            "AND ActorKind = @actorKind AND ActorSubjectId = @actorSubjectId;";
+        command.Parameters.AddWithValue("@type", type);
+        command.Parameters.AddWithValue("@subjectId", subjectId);
+        command.Parameters.AddWithValue("@actorKind", actorKind);
+        command.Parameters.AddWithValue("@actorSubjectId", actorSubjectId);
+        return Convert.ToInt64(
+            await command.ExecuteScalarAsync(),
+            System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     private static string ReadAntiforgeryToken(string html)
     {

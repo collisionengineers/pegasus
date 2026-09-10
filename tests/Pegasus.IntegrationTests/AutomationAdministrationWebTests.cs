@@ -11,6 +11,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Mcp;
+using Pegasus.Web.Presentation;
 using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
 namespace Pegasus.IntegrationTests;
@@ -46,9 +47,15 @@ public sealed partial class AutomationAdministrationWebTests
 
         Assert.Equal(AutomationMcp.ClientDisplayName, FactValue(html, "Registered clients"));
         Assert.Equal(ClientId, FactValue(html, "Client identifier"));
-        Assert.Equal(
-            string.Join(", ", AutomationMcp.Scopes.Order(StringComparer.Ordinal)),
-            FactValue(html, "Granted scopes"));
+        // The panel shows each scope's plain label, with the raw key kept on
+        // the chip as a title so no scope key is ever silently hidden.
+        foreach (var scope in AutomationMcp.Scopes)
+        {
+            Assert.Contains(
+                $"<span title=\"{scope}\">{OperatorLabels.AutomationAdmin.AutomationScope(scope)}</span>",
+                html,
+                StringComparison.Ordinal);
+        }
         Assert.Equal("2", FactValue(html, "Active jobs"));
         Assert.Equal("1", FactValue(html, "Failed jobs"));
         Assert.Contains("Stop automation", html, StringComparison.Ordinal);

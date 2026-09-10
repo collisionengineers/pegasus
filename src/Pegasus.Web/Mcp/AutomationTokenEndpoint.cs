@@ -56,7 +56,8 @@ internal static class AutomationTokenEndpoint
                     clientId,
                     timeProvider.GetUtcNow(),
                     httpContext.TraceIdentifier,
-                    "automation_client_disabled"),
+                    "automation_client_disabled")
+                    .By(ActionActor.Automation(clientId)),
                 cancellationToken);
             return Forbid(
                 Errors.UnauthorizedClient,

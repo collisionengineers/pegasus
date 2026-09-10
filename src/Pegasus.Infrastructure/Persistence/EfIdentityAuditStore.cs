@@ -25,6 +25,7 @@ public sealed class EfIdentityAuditStore(IDbContextFactory<PegasusDbContext> con
         ValidateUtc(securityEvent.OccurredAtUtc, nameof(securityEvent.OccurredAtUtc));
         ValidateRequired(securityEvent.CorrelationId, 100, nameof(securityEvent.CorrelationId));
         ValidateOptional(securityEvent.ReasonCode, 100, nameof(securityEvent.ReasonCode));
+        ValidateActor(securityEvent);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         context.SecurityEvents.Add(new SecurityEventEntity
@@ -35,7 +36,9 @@ public sealed class EfIdentityAuditStore(IDbContextFactory<PegasusDbContext> con
             SubjectId = securityEvent.SubjectId,
             OccurredAtUtc = securityEvent.OccurredAtUtc,
             CorrelationId = securityEvent.CorrelationId,
-            ReasonCode = securityEvent.ReasonCode
+            ReasonCode = securityEvent.ReasonCode,
+            ActorKind = securityEvent.ActorKind?.ToString(),
+            ActorSubjectId = securityEvent.ActorSubjectId
         });
         await context.SaveChangesAsync(cancellationToken);
     }
@@ -106,6 +109,27 @@ public sealed class EfIdentityAuditStore(IDbContextFactory<PegasusDbContext> con
             AfterJson = entry.AfterJson,
             PolicyVersion = entry.PolicyVersion
         };
+    }
+
+    /// <summary>
+    /// The acting principal is recorded as a pair or not at all: a kind without
+    /// a subject (or the reverse) would read as attribution while carrying none.
+    /// </summary>
+    private static void ValidateActor(SecurityEvent securityEvent)
+    {
+        if (securityEvent.ActorKind is null && securityEvent.ActorSubjectId is null)
+        {
+            return;
+        }
+        if (securityEvent.ActorKind is not { } kind || securityEvent.ActorSubjectId is not { } subjectId)
+        {
+            throw new ArgumentException(
+                "A security event actor requires both a kind and a subject identifier.",
+                nameof(securityEvent));
+        }
+
+        ValidateEnum(kind, nameof(securityEvent.ActorKind));
+        ValidateRequired(subjectId, 200, nameof(securityEvent.ActorSubjectId));
     }
 
     private static void ValidateId(Guid id, string parameterName)

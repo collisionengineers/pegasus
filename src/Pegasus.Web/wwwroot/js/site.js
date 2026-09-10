@@ -878,13 +878,34 @@
 })();
 
 // INTK-022: a filter form marked data-auto-submit submits itself when any of
-// its selects change; the noscript Apply button covers the rest.
+// its selects change; the noscript Apply button covers the rest. A search
+// input in the same form submits itself too, 300ms after the last keystroke,
+// skipping a submit when the reload's own value has not actually changed.
 (function () {
     document.querySelectorAll('form[data-auto-submit]').forEach(function (form) {
         form.addEventListener('change', function (event) {
             if (event.target instanceof HTMLSelectElement) {
                 form.submit();
             }
+        });
+
+        var search = form.querySelector('input[type="search"]');
+        if (!search) {
+            return;
+        }
+        var lastSubmittedValue = search.value;
+        var debounce = null;
+        search.addEventListener('input', function () {
+            if (debounce) {
+                window.clearTimeout(debounce);
+            }
+            debounce = window.setTimeout(function () {
+                debounce = null;
+                if (search.value !== lastSubmittedValue) {
+                    lastSubmittedValue = search.value;
+                    form.submit();
+                }
+            }, 300);
         });
     });
 })();
@@ -1082,12 +1103,23 @@
     // rendered anywhere in the page (a Case page's reason dialogs live inside
     // the shell), so inert is set on the siblings of each of its ancestors up
     // to body - never on an ancestor - and exactly those elements are
-    // released on close.
+    // released on close. Other [data-dialog]/[data-reason-dialog] elements
+    // are never inerted by this: a dialog that auto-opens on load (a
+    // settings dialog) is commonly a sibling of further action dialogs it
+    // triggers (Disable, Delete), and marking a closed sibling inert would
+    // leave it unusable the moment it opens on top; `hidden` already keeps a
+    // closed dialog out of the tab order and off screen. A
+    // module-level stack of currently-open dialogs tracks which one is
+    // topmost, so a stacked open (a confirm dialog nested inside settings,
+    // or an action dialog opened from a sibling settings dialog) leaves the
+    // dialog beneath it open but unresponsive to Escape/Tab until the one on
+    // top closes.
     function inertOutside(dialog) {
         var made = [];
         for (var node = dialog; node && node !== document.body; node = node.parentElement) {
             Array.prototype.forEach.call(node.parentElement.children, function (sibling) {
-                if (sibling !== node && !sibling.hasAttribute('inert') && sibling.tagName !== 'SCRIPT') {
+                if (sibling !== node && !sibling.hasAttribute('inert') && sibling.tagName !== 'SCRIPT'
+                    && !sibling.matches('[data-dialog], [data-reason-dialog]')) {
                     sibling.setAttribute('inert', '');
                     made.push(sibling);
                 }
@@ -1099,6 +1131,7 @@
     }
 
     var dialogOpeners = {};
+    var openDialogStack = [];
 
     function bindBackdropDialogs(root) {
         root.querySelectorAll('[data-dialog], [data-reason-dialog]').forEach(function (dialog) {
@@ -1110,6 +1143,7 @@
             var dialogId = dialog.getAttribute('data-dialog') || dialog.id;
             var release = null;
             var invoker = null;
+            var wasInertOnOpen = false;
 
             // A hidden input (the antiforgery token) matches the selector but
             // cannot take focus; focusing it leaves focus on the invoking control,
@@ -1124,8 +1158,19 @@
 
             function open(source) {
                 invoker = source;
+                // A dialog opened as a sibling of an already-open dialog (the
+                // Accounts settings dialog auto-opens, and Disable/Delete are
+                // its siblings) may still carry `inert` from before this
+                // fix, or from markup outside this module's control; clear
+                // it so the dialog being opened is always reachable, and
+                // remember whether to restore it on close.
+                wasInertOnOpen = dialog.hasAttribute('inert');
+                if (wasInertOnOpen) {
+                    dialog.removeAttribute('inert');
+                }
                 dialog.hidden = false;
                 release = inertOutside(dialog);
+                openDialogStack.push(dialog);
                 document.addEventListener('keydown', onKeydown, true);
                 var items = focusable();
                 var initial = dialog.querySelector('[data-dialog-initial-focus]')
@@ -1142,6 +1187,14 @@
                 if (release) {
                     release();
                     release = null;
+                }
+                if (wasInertOnOpen) {
+                    dialog.setAttribute('inert', '');
+                    wasInertOnOpen = false;
+                }
+                var stackIndex = openDialogStack.indexOf(dialog);
+                if (stackIndex !== -1) {
+                    openDialogStack.splice(stackIndex, 1);
                 }
                 document.removeEventListener('keydown', onKeydown, true);
                 if (invoker) {
@@ -1167,6 +1220,15 @@
             dialog.pegasusOpen = open;
 
             function onKeydown(event) {
+                // Every open dialog keeps its own document-level listener
+                // (registered in open(), above), so with two dialogs open at
+                // once both would otherwise react to the same keystroke.
+                // Only the topmost dialog in the stack may handle Escape or
+                // trap Tab; a dialog further down waits until it is on top
+                // again.
+                if (openDialogStack[openDialogStack.length - 1] !== dialog) {
+                    return;
+                }
                 if (event.key === 'Escape') {
                     event.preventDefault();
                     if (cancel()) {
@@ -1476,6 +1538,52 @@
         }
         bindEvidenceItems(document);
         (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindEvidenceItems);
+
+        // DOCS-015: a gallery tile that fails to load. The route answers a
+        // throttled or in-flight read with 503 and Retry-After, so one delayed
+        // retry is usually the whole fix; a successful response is the only
+        // cacheable one. Re-setting the same src is not reliably a re-request —
+        // some browsers skip the network entirely when the URL is unchanged —
+        // so the attribute is removed first to force a fresh fetch, and no
+        // cache-busting query is needed. When the retry fails too the tile
+        // becomes the same placeholder a not-yet-stored file draws, naming the
+        // file rather than showing the browser's broken-image mark.
+        function bindGalleryImages(root) {
+            root.querySelectorAll('img[data-gallery-image]').forEach(function (image) {
+                if (image.dataset.galleryImageBound === 'true') {
+                    return;
+                }
+                image.dataset.galleryImageBound = 'true';
+                image.addEventListener('error', function () {
+                    var source = image.getAttribute('src');
+                    if (!source) {
+                        return;
+                    }
+                    if (image.dataset.galleryRetried !== 'true') {
+                        image.dataset.galleryRetried = 'true';
+                        window.setTimeout(function () {
+                            image.removeAttribute('src');
+                            image.setAttribute('src', source);
+                        }, 3000);
+                        return;
+                    }
+                    var tile = image.closest('.gallery-item');
+                    if (!tile) {
+                        return;
+                    }
+                    image.remove();
+                    tile.setAttribute('data-gallery-placeholder', '');
+                    var caption = tile.querySelector('.gallery-caption');
+                    if (caption && !caption.querySelector('small')) {
+                        var note = document.createElement('small');
+                        note.textContent = 'Storing…';
+                        caption.appendChild(note);
+                    }
+                });
+            });
+        }
+        bindGalleryImages(document);
+        window.pegasusMountBinders.push(bindGalleryImages);
     })();
 
     // The Other classification name and reasoning fields exist only while an

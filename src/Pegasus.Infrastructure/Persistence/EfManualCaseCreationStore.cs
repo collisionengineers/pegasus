@@ -9,6 +9,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Tasks;
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -20,10 +21,11 @@ namespace Pegasus.Infrastructure.Persistence;
 public sealed class EfManualCaseCreationStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider? timeProvider = null,
-    IEnumerable<IProviderCaseMatchPolicy>? caseMatchPolicies = null)
+    IEnumerable<IProviderCaseMatchPolicy>? caseMatchPolicies = null,
+    VehicleLookupAvailability? vehicleLookupAvailability = null)
     : IManualCaseCreationStore
 {
-    public async Task<CaseIdentity> CreateAsync(
+    public async Task<ManualCaseCreationOutcome> CreateAsync(
         CreateManualCaseRequest request,
         CancellationToken cancellationToken)
     {
@@ -39,7 +41,7 @@ public sealed class EfManualCaseCreationStore(
                 var replay = await FindReplayAsync(request.OperationKey, fingerprint, cancellationToken);
                 if (replay is not null)
                 {
-                    return replay;
+                    return new(replay, null);
                 }
 
                 await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
@@ -49,7 +51,7 @@ public sealed class EfManualCaseCreationStore(
         return await CreateOnceAsync(request, fingerprint, cancellationToken);
     }
 
-    private async Task<CaseIdentity> CreateOnceAsync(
+    private async Task<ManualCaseCreationOutcome> CreateOnceAsync(
         CreateManualCaseRequest request,
         string fingerprint,
         CancellationToken cancellationToken)
@@ -74,7 +76,9 @@ public sealed class EfManualCaseCreationStore(
                 throw new InvalidOperationException(
                     "This manual case request was already used with different details.");
             }
-            return replay;
+            // A replay publishes nothing: the first pass already published the
+            // lookup it enqueued, and the sweep covers a lost publication.
+            return new(replay, null);
         }
 
         var principal = await context.Principals
@@ -172,6 +176,31 @@ public sealed class EfManualCaseCreationStore(
             DueAtUtc = now,
             CaseRootCreationToken = CustodyCreationOwner.Create()
         });
+
+        // The staff-keyed registration is confirmed above, so the DVLA/MOT
+        // lookup is due now rather than on the Worker's next ten-second
+        // reconciliation sweep (FRD-06 D34). Enqueued in this transaction so
+        // it cannot outlive a rolled-back creation; published by the use case
+        // after the commit. Looked-up values remain suggestions.
+        Guid? vehicleLookupWorkId = null;
+        if (vehicleLookupAvailability?.RequestsEnabled == true)
+        {
+            var registration = EfVehicleWorkflowStore.CurrentRegistration(
+                snapshot.Fields
+                    .Where(field => field.FieldName == CaseDataFieldNames.VehicleRegistration)
+                    .Select(field => (field.ValueKind, field.Value)));
+            if (registration is not null)
+            {
+                vehicleLookupWorkId = EfVehicleWorkflowStore.EnqueueForCase(
+                    context,
+                    caseId,
+                    caseEntity,
+                    registration,
+                    workflow.Version,
+                    now);
+            }
+        }
+
         CaseMutationHistory.Add(
             context,
             workflow,
@@ -194,7 +223,7 @@ public sealed class EfManualCaseCreationStore(
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return Identity(caseEntity);
+        return new(Identity(caseEntity), vehicleLookupWorkId);
     }
 
     private async Task<CaseIdentity?> FindReplayAsync(

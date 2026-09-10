@@ -75,7 +75,18 @@
                                     <form method="post" asp-page-handler="EditMailbox">
                                         <input type="hidden" name="mailboxId" value="@mailbox.Id" />
                                         <input type="hidden" name="expectedVersion" value="@mailbox.Version" />
-                                        <button type="submit" class="btn btn--small">Settings</button>
+                                        @* Offered only to the operator whose own other window still
+                                           holds this mailbox policy; taking over rotates the token so
+                                           that window can no longer save. *@
+                                        @if (Model.TakeOverMailboxId == mailbox.Id)
+                                        {
+                                            <input type="hidden" name="takeOver" value="true" />
+                                            <button type="submit" class="btn btn--small btn--primary">Take over</button>
+                                        }
+                                        else
+                                        {
+                                            <button type="submit" class="btn btn--small">Settings</button>
+                                        }
                                     </form>
                                 </td>
                             </tr>
@@ -129,12 +140,15 @@
                                         </form>
                                         @if (!Model.IsEditingCategory(category))
                                         {
-                                            <form method="post" asp-page-handler="EditCategory"><input type="hidden" name="categoryId" value="@category.Id" /><input type="hidden" name="expectedVersion" value="@category.Version" /><button type="submit" class="btn btn--small">Edit category</button></form>
+                                            @* A take-over is offered only to the operator whose own other window still holds this category; it rotates the token so that window can no longer save. *@
+                                            <form method="post" asp-page-handler="EditCategory"><input type="hidden" name="categoryId" value="@category.Id" /><input type="hidden" name="expectedVersion" value="@category.Version" />@if (Model.TakeOverCategoryId == category.Id) { <input type="hidden" name="takeOver" value="true" /><button type="submit" class="btn btn--small btn--primary">Take over</button> } else { <button type="submit" class="btn btn--small">Edit category</button> }</form>
                                         }
                                         else
                                         {
                                             <form method="post" asp-page-handler="CancelCategoryEdit"><input type="hidden" name="categoryId" value="@category.Id" /><input type="hidden" name="editLeaseToken" value="@Model.CategoryEditLeaseTokenFor(category)" /><button type="submit" class="btn btn--small">Cancel</button></form>
                                             <form method="post" asp-page-handler="HeartbeatCategoryEdit" data-edit-heartbeat data-edit-heartbeat-status="category-edit-heartbeat-@category.Id" hidden><input type="hidden" name="categoryId" value="@category.Id" /><input type="hidden" name="editLeaseToken" value="@Model.CategoryEditLeaseTokenFor(category)" /></form>
+                                            @* Beaconed as the page unloads so an operator who navigates away is not refused by their own lease when they come back. *@
+                                            <form method="post" asp-page-handler="ReleaseCategoryScopeBeacon" data-edit-scope-release hidden><input type="hidden" name="categoryId" value="@category.Id" /><input type="hidden" name="editLeaseToken" value="@Model.CategoryEditLeaseTokenFor(category)" /></form>
                                             <p id="category-edit-heartbeat-@category.Id" class="notice notice--error" role="alert" hidden></p>
                                         }
                                     </details>
@@ -194,7 +208,17 @@
                 }
                 else
                 {
-                    <button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary" formaction="@Url.Page(null, "EditDefault")" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)">Continue</button>
+                    @* A take-over is offered only to the operator whose own other window still holds this mailbox policy; it rotates the token so that window can no longer save. *@
+                    <button type="button" class="btn" data-dialog-close>Cancel</button>
+                    if (Model.TakeOverMailboxId != Guid.Empty)
+                    {
+                        <input type="hidden" name="takeOver" value="true" />
+                        <button type="submit" class="btn btn--primary" formaction="@Url.Page(null, "EditDefault")" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)">Take over</button>
+                    }
+                    else
+                    {
+                        <button type="submit" class="btn btn--primary" formaction="@Url.Page(null, "EditDefault")" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)">Continue</button>
+                    }
                 }
             </div>
         </form>
@@ -204,6 +228,12 @@
 @if (Model.IsEditingDefaultMailbox)
 {
     <form method="post" asp-page-handler="HeartbeatMailboxEdit" data-edit-heartbeat data-edit-heartbeat-status="default-mailbox-edit-heartbeat-status" hidden>
+        <input type="hidden" name="mailboxId" value="@Model.DefaultEditingMailboxId" />
+        <input type="hidden" name="editLeaseToken" value="@Model.DefaultMailboxForm?.EditLeaseToken" />
+    </form>
+    @* Beaconed as the page unloads so an operator who navigates away is not
+       refused by their own lease when they come back. *@
+    <form method="post" asp-page-handler="ReleaseMailboxScopeBeacon" data-edit-scope-release hidden>
         <input type="hidden" name="mailboxId" value="@Model.DefaultEditingMailboxId" />
         <input type="hidden" name="editLeaseToken" value="@Model.DefaultMailboxForm?.EditLeaseToken" />
     </form>
@@ -251,6 +281,12 @@
                 <div class="dialog-foot"><button type="submit" class="btn">Cancel</button>@if (mailbox.IdentityIsBound) { <button type="submit" class="btn" formaction="@Url.Page(null, "ResolveFolders")">@OperatorLabels.MailSettings.Refresh</button> }<button type="submit" class="btn btn--primary" formaction="@Url.Page(null, "Update")">@OperatorLabels.MailSettings.SaveMailbox</button></div>
             </form>
             <p id="mailbox-edit-heartbeat-@mailbox.Id" class="notice notice--error" role="alert" hidden></p>
+            @* Beaconed as the page unloads so an operator who navigates away is
+               not refused by their own lease when they come back. *@
+            <form method="post" asp-page-handler="ReleaseMailboxScopeBeacon" data-edit-scope-release hidden>
+                <input type="hidden" name="mailboxId" value="@mailbox.Id" />
+                <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseTokenFor(mailbox)" />
+            </form>
         </section>
     </div>
 }

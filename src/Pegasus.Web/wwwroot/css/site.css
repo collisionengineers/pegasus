@@ -393,16 +393,13 @@ tbody tr:hover{background:#f3f6f7}
 .ribbon-value{font-size:14px;font-weight:650;margin-top:4px;line-height:1.3;white-space:normal;overflow-wrap:anywhere;word-break:break-word;min-width:0}
 .ribbon-value .status{align-self:flex-start;margin-top:0}
 .assessment-identity-ribbon{grid-template-columns:repeat(7,minmax(0,1fr))}
-.edit-bar{position:sticky;top:51px;z-index:18;padding:9px 11px;border:1px solid #d6a29f;background:#fff6f4;display:flex;align-items:center;gap:10px;box-shadow:0 4px 12px rgba(75,40,35,.08);margin-bottom:9px}
-.edit-bar strong{font-size:12px}
-.edit-bar .muted{margin-right:auto}
 
 /* ---------------------------------------------------------------------------
    Case workspace (§1.8)
    --------------------------------------------------------------------------- */
 
-/* The Case record is one scrolling page (D29): the identity ribbon, action
-   bar, edit bar and jump-nav ride together in `.case-sticky`, whose measured
+/* The Case record is one scrolling page (D29): the identity ribbon, the one
+   action row and the jump-nav ride together in `.case-sticky`, whose measured
    height (`--case-sticky-h`, set by site.js) is what the section anchors and
    the context column are offset by. */
 .case-more-actions{position:relative;flex:0 0 auto}
@@ -411,11 +408,23 @@ tbody tr:hover{background:#f3f6f7}
 .case-more-actions-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:25;display:grid;gap:4px;min-width:190px;padding:6px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow)}
 .case-more-actions-menu form,.case-more-actions-menu .btn{width:100%}
 .case-more-actions-menu .btn{justify-content:flex-start}
-.edit-bar-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
 .case-sticky{position:sticky;top:calc(var(--utility-h) + var(--tabs-h));z-index:20;background:#fff;border-bottom:1px solid var(--line)}
 .case-sticky .record-ribbon{margin-bottom:0;border:0;border-radius:0;box-shadow:none}
 .case-sticky .record-bar{border-bottom:0}
-.case-sticky .edit-bar{position:static;margin-bottom:0;border-left:0;border-right:0;border-top:0}
+/* WP6: three rows carry the whole frame — identity (with the record's own two
+   controls at its end), one action row, the section nav. ~52 + ~44 + 40px, so
+   the record itself starts within the first screen at 1440px. */
+.case-identity{display:flex;align-items:stretch;min-width:0;border-bottom:1px solid var(--line)}
+.case-identity .record-ribbon{flex:1 1 auto;min-width:0}
+.case-identity-tools{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:0 10px}
+.case-sticky .ribbon-item{min-height:0;padding:7px 11px;justify-content:center}
+.case-sticky .ribbon-label{font-size:9.5px}
+.case-sticky .ribbon-value{font-size:13px;margin-top:2px;line-height:1.25}
+.case-sticky .ribbon-ref .ribbon-value{font-size:15px;font-weight:700}
+.case-sticky .record-bar{min-height:0;padding:4px 10px;gap:6px}
+.case-sticky .presence-strip{margin:0;padding:4px 11px;border-width:0 0 1px;border-left-width:4px}
+.case-edit-badge{display:inline-flex;align-items:center;margin-right:2px}
+.case-inspection-form{max-width:64rem}
 .section-nav{display:flex;gap:2px;padding:0 10px;border-top:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
 .section-nav::-webkit-scrollbar{display:none}
 .section-link{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;min-height:40px;padding:0 9px;border-bottom:2px solid transparent;color:var(--muted);text-decoration:none;font-size:13px;font-weight:550;white-space:nowrap}
@@ -603,6 +612,23 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 @media(max-width:1100px){.contact-toolbar{grid-template-columns:minmax(0,1fr) 170px}.contact-toolbar .btn{justify-self:start}}
 @media(max-width:760px){.contact-toolbar{grid-template-columns:minmax(0,1fr) 150px}}
 @media(max-width:540px){.contact-kind-grid,.contact-toolbar,.form-grid.form-grid--2{grid-template-columns:minmax(0,1fr)}.form-grid.form-grid--2 .field-wide{grid-column:auto}}
+/* Alignment for the New Principal/contact dialog grid (WP5): the required
+   marker stays on the label's own line instead of wrapping onto a second
+   implicit grid row, fields align to the top of their row instead of
+   stretching, and the Address textarea spans two rows so Postcode and the
+   Principal fields below it line up. */
+.form-grid.form-grid--2{align-items:start}
+.form-grid.form-grid--2 label:not(.choice){display:inline-flex;align-items:baseline;gap:2px}
+.form-grid.form-grid--2 .field-tall{grid-row:span 2}
+/* A handful of small facts (Configuration's read view) no longer stretch
+   across the full admin column: intrinsic column widths, capped overall. */
+.definition-list--compact{display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,max-content));border:1px solid var(--line);background:#fff;max-width:48rem}
+.definition-list--compact .definition{border-right:1px solid var(--line);border-bottom:0}
+.definition-list--compact .definition:last-child{border-right:0}
+/* The Chase interval number input (Configuration's edit view) keeps a
+   sensible width instead of the full row every other `.form-grid` control
+   uses. */
+.chase-interval-input{width:8rem}
 .glass-credential-dialog .dialog-head .status{margin-left:auto}
 .glass-credential-dialog .credentials-summary{margin:0;padding:12px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
 .dialog-foot .left{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-right:auto}
@@ -944,9 +970,9 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .record-head{grid-template-columns:1fr;gap:7px}.record-head-end{justify-self:start}
   .record-bar-end{margin-left:0;width:100%;padding-top:4px;border-top:1px solid var(--line)}
   .record-ribbon{grid-template-columns:1fr}.record-ribbon .ribbon-item{border-right:0;border-bottom:1px solid var(--line)}.record-ribbon .ribbon-item:last-child{grid-column:auto;border-bottom:0}
+  .case-identity{flex-wrap:wrap}.case-identity-tools{width:100%;padding:4px 10px;justify-content:flex-end}
   .assessment-identity-ribbon{grid-template-columns:1fr}
   .assessment-v3{display:block}.assessment-v3>.pane+.pane{border-left:0;border-top:1px solid var(--line)}.assessment-v3 .pane-scroll{height:auto;min-height:0;max-height:none}
-  .edit-bar{position:static;flex-wrap:wrap}.edit-bar .muted{width:100%;margin-right:0}
   .document-row{grid-template-columns:28px 1fr auto}.document-row>*:last-child{grid-column:2/-1}
   .file-row{grid-template-columns:25px 1fr auto}.file-row>*:last-child{grid-column:2/-1}
   .dialog-backdrop{padding:10px}.dialog-body{padding:13px}

@@ -377,9 +377,10 @@ public sealed class EfValuationStore(
     /// <summary>
     /// The facts a calculation is measured against, each read from its own
     /// owner rather than from the form: the selected guide card and the
-    /// moment it was last written, the claimant's own VAT position, and the
-    /// maintained presets. The preview and the adoption read exactly this, so
-    /// the figures on screen and the figures recorded come from one place.
+    /// moment it was last written, the claimant's own VAT position, the
+    /// maintained presets, and the additions this Case has already recorded.
+    /// The preview and the adoption read exactly this, so the figures on
+    /// screen and the figures recorded come from one place.
     /// </summary>
     public async Task<ValuationCalculationBasis> ReadBasisAsync(
         Guid caseId,
@@ -412,15 +413,30 @@ public sealed class EfValuationStore(
                 item => item.CaseId == caseId
                     && item.FieldPath == AssessmentVocabulary.SettlementClaimantVatRegistered,
                 cancellationToken);
+        // Every preset row, disabled and removed included: the selection
+        // rules that refuse them live in Core, so the read stays a read.
         var presets = await context.Set<ValuationPresetEntity>()
             .AsNoTracking()
+            .ToArrayAsync(cancellationToken);
+        var snapshots = await context.Set<AppliedValuationSnapshotEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId)
             .ToArrayAsync(cancellationToken);
         return new(
             guide.ValuationId,
             StampOf(guide),
             guide.Details.RetailValue,
             string.Equals(claimantVatField?.Value, "true", StringComparison.Ordinal),
-            [.. presets.Select(EfValuationPresetStore.Map)]);
+            [.. presets.Select(EfValuationPresetStore.Map)])
+        {
+            RecordedAdditions =
+            [
+                .. snapshots
+                    .SelectMany(item => Map(item, null).Calculation.Additions)
+                    .Where(addition => addition.PresetId != Guid.Empty)
+                    .DistinctBy(addition => (addition.PresetId, addition.PresetVersion))
+            ]
+        };
     }
 
     private static async Task<CaseValuationEntity> RequiredGuideAsync(
@@ -804,6 +820,7 @@ public sealed class EfValuationPresetStore(
 {
     private const string AggregateType = "valuation_preset";
     private const string EventKind = "valuation_preset_saved";
+    private const string RemovedEventKind = "valuation_preset_removed";
 
     private static readonly JsonSerializerOptions SerializerOptions =
         new(JsonSerializerDefaults.Web);
@@ -814,10 +831,13 @@ public sealed class EfValuationPresetStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entities = await context.Set<ValuationPresetEntity>()
             .AsNoTracking()
+            .Where(item => item.RemovedAtUtc == null)
             .ToArrayAsync(cancellationToken);
 
         // Disabled presets are listed too: history keeps naming them, and
-        // the selection rule that refuses them lives in Core, not in the read.
+        // the selection rule that refuses them lives in Core, not in the
+        // read. A removed preset is the one thing the list drops, because it
+        // is no longer maintained at all.
         return [.. entities
             .OrderBy(item => item.Label, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.Id)
@@ -847,6 +867,14 @@ public sealed class EfValuationPresetStore(
 
         var entities = await context.Set<ValuationPresetEntity>().ToArrayAsync(cancellationToken);
         var entity = entities.SingleOrDefault(item => item.Id == request.PresetId);
+        if (entity?.RemovedAtUtc is not null)
+        {
+            throw new ValuationPresetException(ValuationPresetError.Removed);
+        }
+
+        // A removed preset keeps its label. The label is unique across the
+        // whole table, so it stays reserved rather than becoming available to
+        // a second record that history would then be unable to tell apart.
         if (entities.Any(item => item.Id != request.PresetId
             && string.Equals(item.Label, request.Label, StringComparison.OrdinalIgnoreCase)))
         {
@@ -941,6 +969,94 @@ public sealed class EfValuationPresetStore(
         return after;
     }
 
+    /// <summary>
+    /// Removes one preset from the maintained list under the same guards a
+    /// save takes — the expected version, the Administrator's edit lease, the
+    /// operation key's replay and the permanent history row — and keeps the
+    /// row itself: only <c>RemovedAtUtc</c> is written, so every recorded
+    /// valuation and every history entry that names this preset stays
+    /// readable.
+    /// </summary>
+    public async Task<ValuationPreset> RemoveAsync(
+        RemoveValuationPresetRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+
+        var replay = await context.ActionHistory.AsNoTracking().SingleOrDefaultAsync(
+            item => item.AggregateType == AggregateType
+                && item.CorrelationId == request.OperationKey,
+            cancellationToken);
+        if (replay is not null)
+        {
+            var replayed = Replay(request, replay);
+            await transaction.CommitAsync(cancellationToken);
+            return replayed;
+        }
+
+        var entity = await context.Set<ValuationPresetEntity>().SingleOrDefaultAsync(
+                item => item.Id == request.PresetId,
+                cancellationToken)
+            ?? throw new ValuationPresetException(ValuationPresetError.NotFound);
+        if (entity.RemovedAtUtc is not null)
+        {
+            throw new ValuationPresetException(ValuationPresetError.Removed);
+        }
+        if (entity.Version != request.ExpectedVersion)
+        {
+            throw new ValuationPresetException(
+                ValuationPresetError.VersionConflict,
+                entity.Version);
+        }
+
+        var now = timeProvider.GetUtcNow();
+        await EfEditScopeStore.RequireAsync(
+            context,
+            EditScopeKind.ValuationPreset,
+            entity.Id,
+            entity.Version,
+            request.ExpectedVersion,
+            request.Actor,
+            request.EditLeaseToken,
+            now,
+            cancellationToken);
+
+        var before = Map(entity);
+        entity.RemovedAtUtc = now;
+        entity.UpdatedBy = request.Actor.SubjectId;
+        entity.UpdatedAtUtc = now;
+        entity.Version = checked(entity.Version + 1);
+        entity.ConcurrencyToken = Guid.NewGuid();
+        var after = Map(entity);
+        context.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = AggregateType,
+            AggregateId = entity.Id.ToString("D"),
+            EventKind = RemovedEventKind,
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(
+                request.Actor.Roles.OrderBy(role => role),
+                SerializerOptions),
+            OccurredAtUtc = now,
+            Outcome = "Succeeded",
+            CorrelationId = request.OperationKey,
+            Reason = request.Reason,
+            BeforeJson = JsonSerializer.Serialize(before, SerializerOptions),
+            AfterJson = JsonSerializer.Serialize(after, SerializerOptions),
+            PolicyVersion = ValuationCalculationPolicy.PolicyStamp,
+        });
+        EfEditScopeStore.Complete(context, EditScopeKind.ValuationPreset, entity.Id);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return after;
+    }
+
     private static ValuationPreset Replay(
         SaveValuationPresetRequest request,
         ActionHistoryEntity history)
@@ -968,6 +1084,31 @@ public sealed class EfValuationPresetStore(
         return replayed;
     }
 
+    private static ValuationPreset Replay(
+        RemoveValuationPresetRequest request,
+        ActionHistoryEntity history)
+    {
+        if (history.EventKind != RemovedEventKind
+            || history.AggregateId != request.PresetId.ToString("D")
+            || history.ActorSubjectId != request.Actor.SubjectId
+            || history.AfterJson is null)
+        {
+            throw new ValuationPresetException(ValuationPresetError.OperationConflict);
+        }
+
+        var replayed = JsonSerializer.Deserialize<ValuationPreset>(
+                history.AfterJson,
+                SerializerOptions)
+            ?? throw new ValuationPresetException(ValuationPresetError.OperationConflict);
+        if (replayed.Version != checked(request.ExpectedVersion + 1)
+            || replayed.RemovedAtUtc is null)
+        {
+            throw new ValuationPresetException(ValuationPresetError.OperationConflict);
+        }
+
+        return replayed;
+    }
+
     internal static ValuationPreset Map(ValuationPresetEntity entity) => new(
         entity.Id,
         entity.Label,
@@ -975,5 +1116,8 @@ public sealed class EfValuationPresetStore(
         entity.Active,
         entity.Version,
         entity.UpdatedBy,
-        entity.UpdatedAtUtc);
+        entity.UpdatedAtUtc)
+    {
+        RemovedAtUtc = entity.RemovedAtUtc,
+    };
 }

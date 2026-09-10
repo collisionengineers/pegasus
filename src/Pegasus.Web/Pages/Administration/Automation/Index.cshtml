@@ -55,9 +55,20 @@
                         </dl>
                         <dl class="fact">
                             <dt>@OperatorLabels.AutomationAdmin.GrantedScopes</dt>
-                            <dd>@(registration.GrantedScopes.Count == 0
-                                    ? "—"
-                                    : string.Join(", ", registration.GrantedScopes))</dd>
+                            <dd>
+                                @if (registration.GrantedScopes.Count == 0)
+                                {
+                                    @:—
+                                }
+                                else
+                                {
+                                    for (var scopeIndex = 0; scopeIndex < registration.GrantedScopes.Count; scopeIndex++)
+                                    {
+                                        var scope = registration.GrantedScopes[scopeIndex];
+                                        <span title="@scope">@OperatorLabels.AutomationAdmin.AutomationScope(scope)</span>@(scopeIndex < registration.GrantedScopes.Count - 1 ? ", " : "")
+                                    }
+                                }
+                            </dd>
                         </dl>
                         <dl class="fact">
                             <dt>@OperatorLabels.AutomationAdmin.ActiveJobs</dt>

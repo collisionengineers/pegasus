@@ -42,6 +42,50 @@ public sealed class ImmediateExternalPublicationTests
         Assert.Equal([workItemId], publisher.WorkItemIds);
     }
 
+    /// <summary>
+    /// Acceptance also publishes the automatic vehicle lookup its transaction
+    /// enqueued, so DVLA/MOT evidence arrives with the new Case rather than on
+    /// the Worker's next reconciliation sweep (FRD-06 D34).
+    /// </summary>
+    [Fact]
+    public async Task AcceptancePublishesTheVehicleLookupItsTransactionEnqueued()
+    {
+        var custodyWorkId = Guid.NewGuid();
+        var vehicleLookupWorkId = Guid.NewGuid();
+        var publisher = new RecordingPublisher();
+        var acceptance = new AcceptIntake(
+            new AcceptanceStore(custodyWorkId, vehicleLookupWorkId),
+            new ConfigurationStore(),
+            new InspectionModeStore(),
+            publisher,
+            new RecordingTriagePairing());
+
+        await acceptance.ExecuteAsync(AcceptanceRequest(), CancellationToken.None);
+
+        Assert.Equal([custodyWorkId, vehicleLookupWorkId], publisher.WorkItemIds);
+    }
+
+    /// <summary>
+    /// An acceptance that enqueued no lookup — no unambiguous registration, or
+    /// lookups not composed — publishes only its custody work.
+    /// </summary>
+    [Fact]
+    public async Task AcceptanceWithNoEnqueuedLookupPublishesOnlyCustody()
+    {
+        var custodyWorkId = Guid.NewGuid();
+        var publisher = new RecordingPublisher();
+        var acceptance = new AcceptIntake(
+            new AcceptanceStore(custodyWorkId),
+            new ConfigurationStore(),
+            new InspectionModeStore(),
+            publisher,
+            new RecordingTriagePairing());
+
+        await acceptance.ExecuteAsync(AcceptanceRequest(), CancellationToken.None);
+
+        Assert.Equal([custodyWorkId], publisher.WorkItemIds);
+    }
+
     [Fact]
     public async Task DuplicateAcceptanceRetriesPairingWithoutRepublishingAcceptanceCustody()
     {
@@ -110,9 +154,10 @@ public sealed class ImmediateExternalPublicationTests
         }
     }
 
-    private sealed class AcceptanceStore(Guid workItemId) : ICaseAcceptanceStore
+    private sealed class AcceptanceStore(Guid workItemId, Guid? vehicleLookupWorkId = null)
+        : ICaseAcceptanceStore
     {
-        private readonly CaseAcceptanceOutcome outcome = Outcome(workItemId);
+        private readonly CaseAcceptanceOutcome outcome = Outcome(workItemId, vehicleLookupWorkId);
         private bool accepted;
 
         public Task<CaseAcceptanceOutcome> AcceptAsync(
@@ -165,11 +210,14 @@ public sealed class ImmediateExternalPublicationTests
             Task.FromResult<CaseInspectionMode?>(null);
     }
 
-    private static CaseAcceptanceOutcome Outcome(Guid workItemId) =>
+    private static CaseAcceptanceOutcome Outcome(
+        Guid workItemId,
+        Guid? vehicleLookupWorkId = null) =>
         new(
             new CaseIdentity(Guid.NewGuid(), "QDOS", 2031, 1, "QDS31001"),
             CaseInitialState.Review,
             CaseCustodyState.Pending,
             workItemId,
-            false);
+            false,
+            vehicleLookupWorkId);
 }

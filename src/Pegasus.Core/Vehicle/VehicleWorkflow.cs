@@ -450,6 +450,15 @@ public interface IAutomaticVehicleLookupStore
 /// a new pair and gets one new lookup. Does nothing where lookups are not
 /// composed.
 /// </summary>
+/// <remarks>
+/// Case creation (manual entry and intake acceptance) now enqueues and
+/// publishes the same work item inside its own transaction, so a new Case does
+/// not wait for this sweep. The sweep remains the recovery path — a lost
+/// publication, a registration corrected later, a Case created before the
+/// creation-time enqueue existed — and stays idempotent with it because both
+/// paths write the same (CaseId, Registration) request row under the same
+/// operation key and fingerprint.
+/// </remarks>
 public sealed class ReconcileAutomaticVehicleLookups(
     IAutomaticVehicleLookupStore store,
     VehicleLookupAvailability availability)

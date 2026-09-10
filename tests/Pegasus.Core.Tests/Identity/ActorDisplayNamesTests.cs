@@ -22,14 +22,15 @@ public sealed class ActorDisplayNamesTests
     }
 
     [Fact]
-    public void ResolveFallsBackHonestlyForAStaffSubjectThatNoLongerResolves()
+    public void ResolveNamesARemovedStaffSubjectAsAFormerColleagueRatherThanUnknown()
     {
         var staffId = Guid.NewGuid();
         var staffNames = new Dictionary<Guid, string>();
 
         var label = ActorDisplayNames.Resolve(ActorKind.Staff, staffId.ToString("D"), staffNames);
 
-        Assert.Equal(ActorDisplayNames.UnknownStaff, label);
+        Assert.Equal(ActorDisplayNames.FormerStaff, label);
+        Assert.NotEqual(ActorDisplayNames.UnknownStaff, label);
         Assert.DoesNotContain(staffId.ToString("D"), label, StringComparison.OrdinalIgnoreCase);
     }
 

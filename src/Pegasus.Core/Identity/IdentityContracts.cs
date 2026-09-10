@@ -145,6 +145,17 @@ public enum SecurityEventOutcome
     Failed
 }
 
+/// <summary>
+/// One security event. <see cref="SubjectId"/> is what the event is <em>about</em>
+/// — the account disabled, the client refused, the credential presented — and is
+/// never assumed to be who caused it. <see cref="ActorKind"/> and
+/// <see cref="ActorSubjectId"/> name the acting principal, so an administration
+/// action reads as the operator who took it rather than as the account it landed
+/// on. Both are absent together when the request carried no attributable
+/// principal at all (an anonymous rate-limited call, a failed sign-in that never
+/// identified anyone); readers label such a row by what it is instead of
+/// inventing an actor.
+/// </summary>
 public sealed record SecurityEvent(
     Guid Id,
     SecurityEventType Type,
@@ -152,7 +163,31 @@ public sealed record SecurityEvent(
     string SubjectId,
     DateTimeOffset OccurredAtUtc,
     string CorrelationId,
-    string? ReasonCode = null);
+    string? ReasonCode = null,
+    ActorKind? ActorKind = null,
+    string? ActorSubjectId = null)
+{
+    /// <summary>
+    /// The same event attributed to the principal that caused it, taken from the
+    /// authorization actor the use case already carries.
+    /// </summary>
+    public SecurityEvent By(ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return this with { ActorKind = actor.Kind, ActorSubjectId = actor.SubjectId };
+    }
+
+    /// <summary>
+    /// The same event attributed to a principal whose kind and subject are known
+    /// without a full authorization actor — a staff sign-in decision, where the
+    /// subject is established but the current role set is not what is being
+    /// recorded.
+    /// </summary>
+    public SecurityEvent By(ActorKind kind, string subjectId) =>
+        string.IsNullOrWhiteSpace(subjectId)
+            ? this
+            : this with { ActorKind = kind, ActorSubjectId = subjectId.Trim() };
+}
 
 public sealed record ActionHistoryEntry(
     Guid Id,

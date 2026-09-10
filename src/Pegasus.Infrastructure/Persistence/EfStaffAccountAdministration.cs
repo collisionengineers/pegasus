@@ -166,6 +166,7 @@ public sealed class EfStaffAccountAdministration(
         AddSecurityEvent(
             SecurityEventType.SecurityStampChanged,
             user.Id.ToString("D"),
+            request.Actor,
             request.OperationKey,
             "staff_account_disabled",
             now);
@@ -299,6 +300,7 @@ public sealed class EfStaffAccountAdministration(
             AddSecurityEvent(
                 SecurityEventType.SecurityStampChanged,
                 user.Id.ToString("D"),
+                request.Actor,
                 request.OperationKey,
                 "staff_account_settings_updated",
                 now);
@@ -427,6 +429,7 @@ public sealed class EfStaffAccountAdministration(
         AddSecurityEvent(
             SecurityEventType.SecurityStampChanged,
             user.Id.ToString("D"),
+            request.Actor,
             request.OperationKey,
             "staff_logout_forced",
             now);
@@ -487,6 +490,7 @@ public sealed class EfStaffAccountAdministration(
         AddSecurityEvent(
             SecurityEventType.PasswordChanged,
             user.Id.ToString("D"),
+            request.Actor,
             request.OperationKey,
             "staff_password_reset",
             now);
@@ -570,6 +574,7 @@ public sealed class EfStaffAccountAdministration(
         AddSecurityEvent(
             SecurityEventType.SecurityStampChanged,
             user.Id.ToString("D"),
+            request.Actor,
             request.OperationKey,
             "staff_account_deleted",
             now);
@@ -832,9 +837,16 @@ public sealed class EfStaffAccountAdministration(
         });
     }
 
+    /// <summary>
+    /// Records a security event about a staff account. <paramref name="subjectId"/>
+    /// is the account the change landed on; <paramref name="actor"/> is the
+    /// operator who made it, so the Action logs view names a person rather than
+    /// reading the target back as the actor.
+    /// </summary>
     private void AddSecurityEvent(
         SecurityEventType type,
         string subjectId,
+        ActionActor actor,
         string correlationId,
         string reasonCode,
         DateTimeOffset occurredAtUtc)
@@ -847,7 +859,9 @@ public sealed class EfStaffAccountAdministration(
             SubjectId = subjectId,
             OccurredAtUtc = occurredAtUtc,
             CorrelationId = correlationId,
-            ReasonCode = reasonCode
+            ReasonCode = reasonCode,
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId
         });
     }
 

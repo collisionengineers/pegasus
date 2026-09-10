@@ -439,6 +439,66 @@ public sealed partial class GlassCredentialAdministrationWebTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    /// <summary>
+    /// The operator is never told "another user" is editing when the live
+    /// scope is their own other window: that window is named as such and
+    /// offered the one control it is entitled to, Take over, which rotates
+    /// the token so the abandoned window can no longer save.
+    /// </summary>
+    [Fact]
+    public async Task AnOperatorIsNeverBlockedByTheirOwnGlassCredentialEdit()
+    {
+        var store = new RecordingCredentialAdministration();
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory, store);
+
+        var html = await GetHtmlAsync(client, PageFor(StaffId));
+        var editing = await BeginEditingAsync(client, html);
+        var firstToken = InputValue(editing, "EditLeaseToken");
+
+        // A second window (an ordinary reload, since the lease token is never
+        // carried on a GET) while the first is still live.
+        var second = await GetHtmlAsync(client, PageFor(StaffId));
+        var secondEdit = FormOf(second, "Edit");
+        using (var response = await client.PostAsync(
+            $"{PageFor(StaffId)}?handler=Edit",
+            Form(
+                second,
+                ("staffId", StaffId.ToString("D")),
+                ("expectedStaffAccountVersion", InputValue(secondEdit, "expectedStaffAccountVersion")),
+                ("operationKey", InputValue(secondEdit, "operationKey")))))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.Contains(
+                "You are editing this staff account in another window.",
+                body,
+                StringComparison.Ordinal);
+            Assert.Contains(">Take over<", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Another user is editing", body, StringComparison.Ordinal);
+        }
+
+        // Taking over rotates the token, so the abandoned window's own token
+        // no longer saves.
+        var reopened = await GetHtmlAsync(client, PageFor(StaffId));
+        var takeOverEdit = FormOf(reopened, "Edit");
+        using (var takenOver = await client.PostAsync(
+            $"{PageFor(StaffId)}?handler=Edit",
+            Form(
+                reopened,
+                ("staffId", StaffId.ToString("D")),
+                ("expectedStaffAccountVersion", InputValue(takeOverEdit, "expectedStaffAccountVersion")),
+                ("operationKey", InputValue(takeOverEdit, "operationKey")),
+                ("takeOver", "true"))))
+        {
+            Assert.Equal(HttpStatusCode.OK, takenOver.StatusCode);
+            var body = await takenOver.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("another window", body, StringComparison.Ordinal);
+            var secondToken = InputValue(FormOf(body, "Save"), "EditLeaseToken");
+            Assert.NotEqual(firstToken, secondToken);
+        }
+    }
+
     private static PerUserExternalCredentialStatus Configured(long version, long generation) =>
         new(
             StaffId,

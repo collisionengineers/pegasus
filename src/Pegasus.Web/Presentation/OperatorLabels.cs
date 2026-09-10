@@ -972,6 +972,63 @@ public static class OperatorLabels
                 : subjectId;
 
     /// <summary>
+    /// The Action logs Area column. The recorded aggregate type is a storage
+    /// key, so the handful an operator actually meets read as plain words and
+    /// anything else falls back to the shared humanising rule rather than
+    /// being hidden.
+    /// </summary>
+    public static string ActionLogArea(string area) => area switch
+    {
+        "ai_job" => "AI job",
+        "automation_mcp" => "Automation",
+        "staff_account" => "Staff account",
+        "Security" => "Security",
+        "Case" => "Case",
+        _ => Humanise(area)
+    };
+
+    /// <summary>
+    /// What a security event written before the acting principal was recorded
+    /// can honestly be called in the Actor column. The row names the account it
+    /// was about, never who acted, so it is labelled by what the event is —
+    /// which is what the operator can act on — instead of asserting an unknown
+    /// user. New rows carry their actor and never reach this.
+    /// </summary>
+    public static string SecurityEventActorLabel(string securityEventType) => securityEventType switch
+    {
+        nameof(SecurityEventType.SignIn) => "Sign-in",
+        nameof(SecurityEventType.PasswordChanged) => "Password change",
+        nameof(SecurityEventType.Token) => "Token request",
+        nameof(SecurityEventType.Client) => "Automation client",
+        nameof(SecurityEventType.RateLimited) => "Rate limit",
+        nameof(SecurityEventType.SecurityStampChanged) => "Account security",
+        nameof(SecurityEventType.SecurityConfigurationChanged) => "Security settings",
+        _ => "Security"
+    };
+
+    /// <summary>
+    /// What the application itself is called when it is the actor. The Worker's
+    /// own actions are Pegasus acting, and naming the product is what an
+    /// operator recognises where the persisted kind says "SystemWorker".
+    /// </summary>
+    public const string SystemActorLabel = "Pegasus";
+
+    /// <summary>
+    /// The Action logs Actor type filter. One option per actor class an
+    /// operator distinguishes, each carrying the recorded
+    /// <see cref="ActorKind"/> name as its value so the filter needs no second
+    /// vocabulary. Request-link and Provider actors are deliberately absent:
+    /// they are attributions on an external caller, not a class of work an
+    /// operator reviews here.
+    /// </summary>
+    public static IReadOnlyList<(string Value, string Label)> ActionLogActorTypes { get; } =
+    [
+        (nameof(ActorKind.Staff), "Staff"),
+        (nameof(ActorKind.Automation), "AI (automation)"),
+        (nameof(ActorKind.SystemWorker), "Pegasus (system)")
+    ];
+
+    /// <summary>
     /// Where a value came from, as the one word the provenance icon announces
     /// and the approved Lucide glyph that carries it.
     /// </summary>
@@ -1511,6 +1568,23 @@ public static class OperatorLabels
 
         public const string ClientIdentifier = "Client identifier";
         public const string GrantedScopes = "Granted scopes";
+
+        /// <summary>
+        /// The plain word for one granted Automation scope key
+        /// (<c>AutomationMcp</c>'s <c>automation.*</c> constants). An
+        /// unrecognised key is shown as itself, so a scope added without an
+        /// update here is never silently hidden from the panel.
+        /// </summary>
+        public static string AutomationScope(string key) => key switch
+        {
+            "automation.cases" => "Cases",
+            "automation.intake" => "Intake",
+            "automation.documents" => "Documents",
+            "automation.assessment" => "Assessment",
+            "automation.mail" => "Mail",
+            "automation.jobs" => "AI jobs",
+            _ => key
+        };
     }
 
     /// <summary>The retained post-report query's AI job words (AUTO-014).</summary>
@@ -1566,6 +1640,13 @@ public static class OperatorLabels
         public const string CorrectSuggestion = "Correct";
         public const string InspectionAddressPanel = "Inspection address";
         public const string ProviderDefaultInspectionAddress = "Provider default";
+
+        /// <summary>
+        /// The Principal's own inspection-address setting, named for the party
+        /// the operator knows it by. Shown only where the Case holds something
+        /// else, so the row is never a second printing of the same address.
+        /// </summary>
+        public const string PrincipalDefaultInspectionAddress = "Principal default";
         // CASE-041: Inspect-at choices and storage-location labels.
         public const string InspectAt = "Inspect at";
         public const string Source = "Source";
@@ -1926,5 +2007,76 @@ public static class OperatorLabels
         public const string RetainedCompletionMessage = "Your document was received and retained securely.";
         public const string StoringCompletionMessage =
             "Your document was received and is being stored. You do not need to send it again.";
+    }
+
+    /// <summary>
+    /// What the DVLA/MOT lookup did, for the Vehicle panel's own line.
+    /// </summary>
+    /// <remarks>
+    /// Until WP8 the panel showed nothing at all: the suggestion chips render
+    /// only in edit mode and a not-found, failed or throttled outcome rendered
+    /// nowhere, so a lookup that ran and answered "no such vehicle" looked
+    /// exactly like one that never ran. The line states which it was.
+    /// </remarks>
+    public static class VehicleLookup
+    {
+        /// <summary>The row title, in read and edit mode alike.</summary>
+        public const string OutcomeTitle = "DVLA & MOT lookup";
+
+        /// <summary>No lookup has recorded an answer for this case yet.</summary>
+        public const string NotYetLookedUp = "Not yet looked up";
+
+        /// <summary>
+        /// What the values on offer are, said once. Accepting one still
+        /// requires edit mode: a looked-up value fills a field only when a
+        /// person chooses it (FRD-06).
+        /// </summary>
+        public const string SuggestionTitle = "DVLA suggests";
+
+        /// <summary>
+        /// The one line under the vehicle facts: when the latest lookup ran
+        /// and what it returned, or that none has.
+        /// </summary>
+        public static string Outcome(VehicleLookupObservation? observation)
+        {
+            if (observation is null)
+            {
+                return NotYetLookedUp;
+            }
+
+            var at = OfficeTime(observation.Provenance.RetrievedAtUtc);
+            return observation.Outcome switch
+            {
+                VehicleLookupOutcome.Current
+                    or VehicleLookupOutcome.Stale
+                    or VehicleLookupOutcome.Partial =>
+                    $"Looked up {at} · {Evidence(observation.Outcome)}",
+                VehicleLookupOutcome.NotFound =>
+                    $"Not found for {observation.Registration} ({at})",
+                _ => $"Failed: {FailureReason(observation.Failure?.Code)} ({at})"
+            };
+        }
+
+        /// <summary>
+        /// How current the evidence is, in the freshness words the rest of the
+        /// product uses.
+        /// </summary>
+        private static string Evidence(VehicleLookupOutcome outcome) => outcome switch
+        {
+            VehicleLookupOutcome.Stale => Freshness.Label("stale"),
+            VehicleLookupOutcome.Partial => Freshness.Label("partial"),
+            _ => Freshness.Current
+        };
+
+        /// <summary>
+        /// A provider failure code as words, with both provider names spelled
+        /// the way the operator knows them.
+        /// </summary>
+        public static string FailureReason(string? failureCode) =>
+            Humanise(failureCode)
+                .Replace("Dvla", "DVLA", StringComparison.Ordinal)
+                .Replace("dvla", "DVLA", StringComparison.Ordinal)
+                .Replace("Dvsa", "DVSA", StringComparison.Ordinal)
+                .Replace("dvsa", "DVSA", StringComparison.Ordinal);
     }
 }

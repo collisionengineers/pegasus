@@ -597,15 +597,23 @@ static Task AppendSignInSecurityEventAsync(
 {
     var writer = context.RequestServices.GetRequiredService<ISecurityEventWriter>();
     var occurredAtUtc = context.RequestServices.GetRequiredService<TimeProvider>().GetUtcNow();
+    var securityEvent = new SecurityEvent(
+        Guid.NewGuid(),
+        SecurityEventType.SignIn,
+        outcome,
+        subjectId,
+        occurredAtUtc,
+        context.TraceIdentifier,
+        reasonCode);
+    // A sign-in decision is taken by the staff member signing in, so the acting
+    // principal and the subject are the same account. A subject that is not a
+    // staff identifier at all (the literal "unknown" a claim-less principal
+    // leaves behind) is not attributable and stays unattributed rather than
+    // being recorded as a staff actor.
     return writer.AppendAsync(
-        new SecurityEvent(
-            Guid.NewGuid(),
-            SecurityEventType.SignIn,
-            outcome,
-            subjectId,
-            occurredAtUtc,
-            context.TraceIdentifier,
-            reasonCode),
+        Guid.TryParse(subjectId, out var staffId) && staffId != Guid.Empty
+            ? securityEvent.By(ActorKind.Staff, subjectId)
+            : securityEvent,
         context.RequestAborted);
 }
 
@@ -615,17 +623,23 @@ static Task AppendAutomationDeniedSecurityEventAsync(
 {
     var writer = context.RequestServices.GetRequiredService<ISecurityEventWriter>();
     var occurredAtUtc = context.RequestServices.GetRequiredService<TimeProvider>().GetUtcNow();
-    var subjectId = context.User.FindFirst(
-        System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "anonymous";
+    var claimedSubject = context.User.FindFirst(
+        System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    var securityEvent = new SecurityEvent(
+        Guid.NewGuid(),
+        SecurityEventType.Token,
+        SecurityEventOutcome.Denied,
+        claimedSubject ?? "anonymous",
+        occurredAtUtc,
+        context.TraceIdentifier,
+        tokenEndpoint ? "automation_token_rejected" : "automation_access_denied");
+    // The refused caller is the Automation client when it presented an identity
+    // at all; a request that carried none is anonymous, which no actor kind
+    // represents, so it stays unattributed.
     return writer.AppendAsync(
-        new SecurityEvent(
-            Guid.NewGuid(),
-            SecurityEventType.Token,
-            SecurityEventOutcome.Denied,
-            subjectId,
-            occurredAtUtc,
-            context.TraceIdentifier,
-            tokenEndpoint ? "automation_token_rejected" : "automation_access_denied"),
+        claimedSubject is { Length: > 0 }
+            ? securityEvent.By(ActorKind.Automation, claimedSubject)
+            : securityEvent,
         CancellationToken.None);
 }
 
@@ -636,6 +650,8 @@ static Task AppendRateLimitedSecurityEventAsync(
 {
     var writer = context.RequestServices.GetRequiredService<ISecurityEventWriter>();
     var occurredAtUtc = context.RequestServices.GetRequiredService<TimeProvider>().GetUtcNow();
+    // A rate-limited request is refused before any principal is established:
+    // there is no acting actor to record and none is invented.
     return writer.AppendAsync(
         new SecurityEvent(
             Guid.NewGuid(),

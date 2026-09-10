@@ -75,28 +75,8 @@
     ViewData["WorkspaceRecord"] = (Href: $"/Cases/{summary.CaseId:D}", Label: workflow.Identity.Reference);
 }
 
-<header class="page-header">
-    <div class="page-title">
-        <p class="eyebrow">Case workspace · @registration</p>
-        <h1>@workflow.Identity.Reference</h1>
-    </div>
-    <div class="page-actions">
-        <a class="btn" asp-page="/Cases/Index">
-            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-            <span>Back to Cases</span>
-        </a>
-        @* Refresh reruns this query on the section the operator is looking
-           at, not the Overview. *@
-        <form method="get" data-refresh-form>
-            <input type="hidden" name="section" value="@Model.Section" />
-            <button type="submit" class="btn btn--small" title="Refresh">
-                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                <span>Refresh</span>
-            </button>
-        </form>
-    </div>
-</header>
-
+@* The record carries its own identity in the sticky ribbon below, so the page
+   renders no separate header that would scroll away from it. *@
 @if (TempData["CaseStatus"] is string caseStatus
     && !(editing && caseStatus == "Edit mode is active."))
 {
@@ -122,13 +102,18 @@
 }
 
 <article class="record">
-    @* The identity ribbon, presence strip, action bar, edit bar and section
-       jump-nav travel together as the record scrolls (D29). *@
+    @* Three rows travel together as the record scrolls (D29): the identity
+       ribbon with the record's own two controls, the one action row (which
+       carries the edit state and its Cancel/Save), and the section jump-nav.
+       A colleague's edit adds the thin presence line between the first two. *@
     <div class="case-sticky" data-case-sticky>
+    <div class="case-identity">
     <div class="record-ribbon" aria-label="Case identity">
+        @* The record's own heading now that the page carries no separate
+           header: the reference stays the page's one h1. *@
         <div class="ribbon-item ribbon-ref">
-            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonReference</div>
-            <div class="ribbon-value">@workflow.Identity.Reference</div>
+            <div class="ribbon-label">Case workspace · @registration</div>
+            <h1 class="ribbon-value">@workflow.Identity.Reference</h1>
         </div>
         <div class="ribbon-item">
             <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonRegistration</div>
@@ -157,18 +142,29 @@
             <div class="ribbon-value"><partial name="Shared/_StatusChip" model="@stage" /></div>
         </div>
     </div>
+    @* The two record-frame controls, at the ribbon's end so they cost no row
+       of their own. Refresh reruns this query on the section the operator is
+       looking at, not the Overview. *@
+    <div class="case-identity-tools">
+        <a class="btn btn--icon" asp-page="/Cases/Index" title="Back to Cases" aria-label="Back to Cases">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span class="sr-only">Back to Cases</span>
+        </a>
+        <form method="get" data-refresh-form>
+            <input type="hidden" name="section" value="@Model.Section" />
+            <button type="submit" class="btn btn--icon" title="Refresh" aria-label="Refresh">
+                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                <span class="sr-only">Refresh</span>
+            </button>
+        </form>
+    </div>
+    </div>
 
-    @* Presence: who is editing the case. No time is printed — an open editor
-       keeps their own edit active, so any moment named here would be stale as
-       soon as it was read. *@
-    @if (Model.ViewerHoldsEditAuthority && !editingCaseData)
-    {
-        <div class="presence-strip" role="status">
-            <span class="presence-dot" aria-hidden="true"></span>
-            <span>You are editing this case.</span>
-        </div>
-    }
-    else if (!Model.ViewerHoldsEditAuthority && details.ActiveEditLease is not null && Model.EditAuthorityHolder is { } holder)
+    @* Presence: who else is editing the case. No time is printed — an open
+       editor keeps their own edit active, so any moment named here would be
+       stale as soon as it was read. This operator's own edit is the badge in
+       the action row, not a strip. *@
+    @if (!Model.ViewerHoldsEditAuthority && details.ActiveEditLease is not null && Model.EditAuthorityHolder is { } holder)
     {
         <div class="presence-strip" role="status">
             <span class="presence-dot" aria-hidden="true"></span>
@@ -200,18 +196,31 @@
                 </button>
             </form>
             <partial name="Shared/_EditHeartbeat" view-data='new ViewDataDictionary(ViewData) { ["HeartbeatCaseId"] = summary.CaseId, ["HeartbeatLeaseToken"] = Model.LeaseToken }' />
+            @if (editingCaseData)
+            {
+                @* Cancel and Save are the two ways out of an edit: Cancel ends
+                   the edit (asking first when values are unsaved), Save opens
+                   the reason dialog for the single Case form. The badge marks
+                   the state the row is in, so no second row is needed. *@
+                <span class="case-edit-badge"><partial name="Shared/_StatusChip" model='@("Editing")' /></span>
+                <button type="submit" form="case-finish-editing-form" class="btn">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <span>Cancel</span>
+                </button>
+                <button type="button" class="btn btn--primary" data-dialog-open="case-save-reason-dialog" data-case-save-reason>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                    <span>Save</span>
+                </button>
+            }
         }
-        else if (Model.CanRecoverLease)
+        else if (Model.CanRecoverLease || details.ActiveEditLease is null)
         {
-            <form method="post" asp-page-handler="ClaimLease">
-                <input type="hidden" name="id" value="@summary.CaseId" />
-                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
-                <button type="submit" class="btn">Recover editing</button>
-            </form>
-        }
-        else if (details.ActiveEditLease is null)
-        {
+            @* One control, whether or not this operator's own earlier lease is
+               still live: the claim replays it (EfCaseWorkflowStore.ClaimAsync
+               returns the retained token for the same operation key), so a
+               holder who came back to the Case is never asked to recover
+               something they never lost. A colleague's live lease still renders
+               no control at all. *@
             <form method="post" asp-page-handler="ClaimLease">
                 <input type="hidden" name="id" value="@summary.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
@@ -332,27 +341,6 @@
         }
     </div>
 
-    @if (editingCaseData)
-    {
-        @* Cancel and Save are the two ways out of an edit: Cancel ends the
-           edit (asking first when values are unsaved), Save
-           opens the reason dialog for the single Case form. The finish-edit
-           confirmation protects staged changes in every section. *@
-        <div class="edit-bar" role="status">
-            <strong>Editing @workflow.Identity.Reference</strong>
-            <div class="edit-bar-actions">
-                <button type="submit" form="case-finish-editing-form" class="btn">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                    <span>Cancel</span>
-                </button>
-                <button type="button" class="btn btn--primary" data-dialog-open="case-save-reason-dialog" data-case-save-reason>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                    <span>Save</span>
-                </button>
-            </div>
-        </div>
-    }
-
     <partial name="Cases/Shared/_CaseWorkspaceNav" model="Model" />
     </div>
 
@@ -377,8 +365,14 @@
                 <section class="case-section" id="section-@entry.Key" data-section="@entry.Key">
                     @if (entry.Key == "overview")
                     {
+                        @* One panel of Case facts per mode: the editor mirrors
+                           the read view group for group, so the two correspond
+                           and neither is shown twice. *@
                         <partial name="Cases/Shared/_CaseWorkflow" model="Model" />
-                        <partial name="Cases/Shared/_CaseSummary" model="Model" />
+                        @if (!(Model.CanEditCaseData && details.Data is not null))
+                        {
+                            <partial name="Cases/Shared/_CaseSummary" model="Model" />
+                        }
                     }
                     else if (entry.Key == "inspection")
                     {

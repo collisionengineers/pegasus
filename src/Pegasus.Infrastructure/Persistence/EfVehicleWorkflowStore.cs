@@ -814,7 +814,6 @@ internal sealed class EfVehicleWorkflowStore(
             .Select(request => (request.CaseId, request.Registration))
             .ToHashSet();
 
-        var actor = ActionActor.Automation("vehicle-lookup-reconciliation");
         var enqueued = 0;
         foreach (var group in candidates.GroupBy(candidate => candidate.CaseId))
         {
@@ -823,47 +822,20 @@ internal sealed class EfVehicleWorkflowStore(
                 break;
             }
 
-            var tier = group.Any(candidate => candidate.ValueKind == CaseDataCodes.Confirmed)
-                ? CaseDataCodes.Confirmed
-                : CaseDataCodes.Fact;
-            var values = group
-                .Where(candidate => candidate.ValueKind == tier)
-                .Select(candidate => new string(
-                    candidate.Value.ToUpperInvariant()
-                        .Where(char.IsAsciiLetterOrDigit)
-                        .ToArray()))
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-            if (values.Length != 1)
+            var registration = CurrentRegistration(
+                group.Select(candidate => (candidate.ValueKind, candidate.Value)));
+            if (registration is null || requested.Contains((group.Key, registration)))
             {
                 continue;
             }
 
-            VehicleLookupRequest request;
             try
             {
-                request = new VehicleLookupRequest(values[0]);
-            }
-            catch (ArgumentException)
-            {
-                continue;
-            }
-
-            if (requested.Contains((group.Key, request.Registration)))
-            {
-                continue;
-            }
-
-            var command = new RequestVehicleLookupCommand(
-                group.Key,
-                group.First().Version,
-                request.Registration,
-                actor,
-                $"vehicle-lookup:auto:{request.Registration}",
-                EditLeaseToken: "automation");
-            try
-            {
-                await EnqueueAutomaticAsync(command, cancellationToken);
+                await EnqueueAutomaticAsync(
+                    group.Key,
+                    registration,
+                    group.First().Version,
+                    cancellationToken);
                 enqueued++;
             }
             catch (DbUpdateException exception) when (IsDuplicateKeyFailure(exception))
@@ -880,36 +852,143 @@ internal sealed class EfVehicleWorkflowStore(
     }
 
     private async Task EnqueueAutomaticAsync(
-        RequestVehicleLookupCommand command,
+        Guid caseId,
+        string registration,
+        long caseVersion,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var nowUtc = UtcNow();
-        var workItemId = Guid.NewGuid();
-        context.ExternalWorkItems.Add(new()
+        EnqueueForCase(context, caseId, caseEntity: null, registration, caseVersion, UtcNow());
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// The automation client the leaseless automatic lookup acts as. Case
+    /// creation and the reconciliation sweep both act as it, so the two paths
+    /// compute the same operation key and the same request fingerprint for a
+    /// (Case, registration) pair and cannot enqueue the same lookup twice.
+    /// </summary>
+    internal const string AutomationClient = "vehicle-lookup-reconciliation";
+
+    /// <summary>
+    /// The operation key both automatic paths write. Scoped by case, not just
+    /// registration: <see cref="PegasusDbContext"/> enforces
+    /// <c>ExternalWorkItems.OperationKey</c> as globally unique, and the same
+    /// registration is routinely looked up by more than one Case.
+    /// </summary>
+    internal static string AutomaticOperationKey(Guid caseId, string registration) =>
+        $"vehicle-lookup:auto:{caseId:N}:{registration}";
+
+    /// <summary>
+    /// The case's current registration as the automatic lookup reads it:
+    /// confirmed values outrank extracted facts, and only one unambiguous
+    /// normalized value is looked up. <c>null</c> means there is nothing to
+    /// look up — no registration, several different ones, or text that is not a
+    /// registration at all — which every caller skips silently.
+    /// </summary>
+    internal static string? CurrentRegistration(
+        IEnumerable<(string ValueKind, string Value)> registrationFields)
+    {
+        var fields = registrationFields
+            .Where(field => field.ValueKind is CaseDataCodes.Confirmed or CaseDataCodes.Fact)
+            .ToArray();
+        if (fields.Length == 0)
         {
-            Id = workItemId,
-            CaseId = command.CaseId,
+            return null;
+        }
+
+        var tier = fields.Any(field => field.ValueKind == CaseDataCodes.Confirmed)
+            ? CaseDataCodes.Confirmed
+            : CaseDataCodes.Fact;
+        var values = fields
+            .Where(field => field.ValueKind == tier)
+            .Select(field => new string(
+                field.Value.ToUpperInvariant()
+                    .Where(char.IsAsciiLetterOrDigit)
+                    .ToArray()))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (values.Length != 1)
+        {
+            return null;
+        }
+
+        try
+        {
+            return new VehicleLookupRequest(values[0]).Registration;
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Adds one leaseless automatic lookup request for a case to
+    /// <paramref name="context"/> and returns the external work item to publish
+    /// once the caller's transaction commits. Nothing is saved here: case
+    /// creation needs these rows in the very transaction that writes the
+    /// registration, so that a request can never exist without its case and a
+    /// rolled-back creation leaves no orphan work.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not an <see cref="IAutomaticVehicleLookupStore"/> port
+    /// method. The port's caller is the sweep, which owns no transaction; a
+    /// second store resolved beside the creation store would open its own
+    /// DbContext and commit separately, which is the one thing this must not
+    /// do. The sweep below and both creation stores share this writer instead,
+    /// so all three produce byte-identical request rows.
+    /// </remarks>
+    internal static Guid EnqueueForCase(
+        PegasusDbContext context,
+        Guid caseId,
+        CaseEntity? caseEntity,
+        string registration,
+        long caseVersion,
+        DateTimeOffset nowUtc)
+    {
+        var command = new RequestVehicleLookupCommand(
+            caseId,
+            caseVersion,
+            registration,
+            ActionActor.Automation(AutomationClient),
+            AutomaticOperationKey(caseId, registration),
+            EditLeaseToken: "automation");
+        var workItem = new ExternalWorkItemEntity
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
             Kind = Pegasus.Core.Custody.ExternalWorkKinds.VehicleLookup,
             OperationKey = command.OperationKey,
             State = "pending",
             AttemptCount = 0,
             DueAtUtc = nowUtc
-        });
-        context.Set<VehicleLookupRequestEntity>().Add(new()
+        };
+        var request = new VehicleLookupRequestEntity
         {
-            WorkItemId = workItemId,
-            CaseId = command.CaseId,
-            Registration = command.Registration,
+            WorkItemId = workItem.Id,
+            WorkItem = workItem,
+            CaseId = caseId,
+            Registration = registration,
             OperationKey = command.OperationKey,
             RequestFingerprint = RequestFingerprint(command),
             RequestedByKind = command.Actor.Kind.ToString(),
             RequestedBySubjectId = command.Actor.SubjectId,
             RequestedByRolesJson = RolesJson(command.Actor),
             RequestedAtUtc = nowUtc,
-            ResultingCaseVersion = command.ExpectedCaseVersion
-        });
-        await context.SaveChangesAsync(cancellationToken);
+            ResultingCaseVersion = caseVersion
+        };
+        if (caseEntity is not null)
+        {
+            // The case row is new in this same transaction, so the navigation
+            // is what orders the inserts behind it.
+            workItem.Case = caseEntity;
+            request.Case = caseEntity;
+        }
+
+        context.ExternalWorkItems.Add(workItem);
+        context.Set<VehicleLookupRequestEntity>().Add(request);
+        return workItem.Id;
     }
 
     private static string RequestFingerprint(RequestVehicleLookupCommand command) => Hash(

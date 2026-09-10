@@ -24,7 +24,7 @@ public sealed class EngineerActivityReportTests
         Assert.Collection(
             report.Rows,
             row => Assert.Equal(new EngineerActivityRow(knownId, "engineer.one", 2, 7), row),
-            row => Assert.Equal(new EngineerActivityRow(goneId, ActorDisplayNames.UnknownStaff, 4, 1), row));
+            row => Assert.Equal(new EngineerActivityRow(goneId, ActorDisplayNames.FormerStaff, 4, 1), row));
     }
 
     [Fact]

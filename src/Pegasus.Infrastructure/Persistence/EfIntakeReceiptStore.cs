@@ -1521,6 +1521,12 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         // custody, and it ages out. A case accepted before those records
         // existed still renders from its retained asset rather than going
         // blank, which is the additive transition the ticket required.
+        // DOCS-015: a version whose custody is still Pending is part of the
+        // set. Listing confirmed versions only meant a Case opened while
+        // custody was in flight showed a partial gallery that grew on reload,
+        // which reads as files that went missing. A pending image is carried
+        // with IsStored false, so the tile names it and says it is arriving.
+        // A Failed version stays out: it is not arriving.
         var documentImages = await (
                 from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
                 join version in context.Set<DocumentVersionEntity>().AsNoTracking()
@@ -1529,7 +1535,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                     && occurrence.SemanticRole == DocumentSemanticRole.Image
                     && version.IsCurrent
                     && !version.IsLogicallyRemoved
-                    && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                    && (version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                        || version.CustodyStatus == DocumentCustodyStatus.Pending)
                 orderby occurrence.Ordinal
                 // DOCS-010: named, not positional. Built positionally, the two
                 // adjacent Guid slots were filled in the wrong order — the
@@ -1543,7 +1550,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                     MediaType: version.MediaType,
                     ContentLength: version.ContentLength,
                     OccurrenceId: occurrence.Id,
-                    VersionId: version.Id))
+                    VersionId: version.Id,
+                    IsStored: version.CustodyStatus == DocumentCustodyStatus.Confirmed))
             .ToArrayAsync(cancellationToken);
         if (documentImages.Length > 0)
         {

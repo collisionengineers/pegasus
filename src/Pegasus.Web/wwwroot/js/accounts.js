@@ -85,7 +85,13 @@
         function startHeartbeat() {
             stopHeartbeat();
             if (!active || released || !leaseToken) { return; }
-            heartbeat = window.setInterval(function () { post('HeartbeatSettings'); }, 120000);
+            // The interval is the server's own renewal interval, rendered on
+            // the form. A local copy at twice that value would let a live
+            // editing session lapse between renewals; an unrendered value
+            // stops the renewal rather than being replaced by a guess.
+            var interval = Number(form.dataset.heartbeatMs);
+            if (!(interval > 0)) { return; }
+            heartbeat = window.setInterval(function () { post('HeartbeatSettings'); }, interval);
         }
 
         if (role) { role.addEventListener('change', syncSignOffEligibility); }

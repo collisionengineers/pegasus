@@ -197,12 +197,21 @@ public sealed record CaseAcceptanceRequest(
     Guid? AllocationAttemptId = null,
     DateTimeOffset? AllocationCompletedAtUtc = null);
 
+/// <summary>
+/// What the acceptance transaction committed. <paramref name="VehicleLookupWorkId"/>
+/// is the automatic vehicle-lookup work item that same transaction enqueued,
+/// present only where the accepted instruction carried one unambiguous
+/// registration and lookups are composed; the caller publishes it after the
+/// commit so the Worker starts the lookup immediately rather than on the next
+/// reconciliation sweep.
+/// </summary>
 public sealed record CaseAcceptanceOutcome(
     CaseIdentity Identity,
     CaseInitialState InitialState,
     CaseCustodyState CustodyState,
     Guid CustodyWorkId,
-    bool IsDuplicate);
+    bool IsDuplicate,
+    Guid? VehicleLookupWorkId = null);
 
 public sealed class CaseIdentitySequenceExhaustedException(string principalCode, int year)
     : Exception($"The principal '{principalCode}' has exhausted its {year} case identity sequence.")

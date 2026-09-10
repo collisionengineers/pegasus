@@ -102,6 +102,64 @@ public sealed class StaffAccountsAndRolesWebTests
         Assert.Equal(reason, recorded!.Reason);
     }
 
+    // WP2: the settings dialog auto-opens (data-dialog-open-on-load) and the
+    // Disable/Delete/Force logout/Reset password dialogs render as its
+    // siblings, not descendants. site.js's inertOutside() used to mark every
+    // sibling of every ancestor inert, including those sibling dialogs, so
+    // they opened already unusable. This is an HTTP-only harness (no
+    // browser), so the fix is verified at the markup precondition the fixed
+    // site.js relies on: the action dialogs exist, their openers are present,
+    // and the server never bakes `inert` into their markup (only client-side
+    // dialog-stack bookkeeping in site.js may add or remove it at runtime).
+    [Fact]
+    public async Task SettingsAutoOpenRendersSiblingActionDialogsWithoutServerInert()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IStaffAccountQueries>();
+        var accounts = await queries.ListAsync(0, ListStaffAccounts.MaximumPageSize, default);
+        var administrator = accounts.Accounts.Single(item =>
+            item.UserName == DevelopmentOfflineIdentity.UserName);
+
+        var createStaffAccount = scope.ServiceProvider.GetRequiredService<ICreateStaffAccount>();
+        var created = await createStaffAccount.ExecuteAsync(
+            new CreateStaffAccountRequest(
+                ActionActor.Staff(administrator.Id, [administrator.Role]),
+                "dialog-stack-check",
+                "Tempor4ryPassword!",
+                Guid.NewGuid().ToString("D")),
+            default);
+        var staffId = created.Account.Id.ToString("D");
+        var settingsId = "settings-" + staffId;
+
+        using var response = await client.GetAsync(
+            AreaRoute + "?editStaffId=" + created.Account.Id + "&expectedVersion=" + created.Account.Version);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(
+            "data-dialog=\"" + settingsId + "\" data-dialog-open-on-load=\"true\"",
+            html,
+            StringComparison.Ordinal);
+
+        foreach (var actionId in new[] { "disable", "delete", "logout", "password" })
+        {
+            var dialogTag = Regex.Match(
+                html,
+                "<div class=\"dialog-backdrop\" data-dialog=\"" +
+                    Regex.Escape(settingsId + "-" + actionId) + "\"[^>]*>");
+            Assert.True(dialogTag.Success, "Missing action dialog " + actionId);
+            Assert.DoesNotContain("inert", dialogTag.Value, StringComparison.Ordinal);
+
+            Assert.Contains(
+                "data-dialog-open=\"" + settingsId + "-" + actionId + "\"",
+                html,
+                StringComparison.Ordinal);
+        }
+    }
+
     private static string Field(string html, string name)
     {
         var tag = Regex.Match(html, "<input[^>]*name=\"" + Regex.Escape(name) + "\"[^>]*>");

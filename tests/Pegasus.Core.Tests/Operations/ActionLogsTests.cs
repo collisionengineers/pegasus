@@ -48,6 +48,37 @@ public sealed class ActionLogsTests
         Assert.Null(query.Filter);
     }
 
+    [Fact]
+    public async Task ABoundedActorTypeReachesTheQueryAsTheRecordedKind()
+    {
+        var query = new Query();
+        var from = new DateTimeOffset(2031, 5, 1, 0, 0, 0, TimeSpan.Zero);
+
+        await new ListActionLogs(query).ExecuteAsync(
+            Administrator(),
+            new(from, from.AddDays(1), null, null, null, null, null, null, null,
+                ActorType: nameof(ActorKind.Automation)),
+            CancellationToken.None);
+
+        Assert.Equal(nameof(ActorKind.Automation), query.Filter?.ActorType);
+    }
+
+    [Fact]
+    public async Task AnActorTypeThatIsNotAnActorKindIsRefusedBeforeTheQuery()
+    {
+        var query = new Query();
+        var from = new DateTimeOffset(2031, 5, 1, 0, 0, 0, TimeSpan.Zero);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            new ListActionLogs(query).ExecuteAsync(
+                Administrator(),
+                new(from, from.AddDays(1), null, null, null, null, null, null, null,
+                    ActorType: "not-a-kind"),
+                CancellationToken.None));
+
+        Assert.Null(query.Filter);
+    }
+
     private static ActionActor Administrator() =>
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 
