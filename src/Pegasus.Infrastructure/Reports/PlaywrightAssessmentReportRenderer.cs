@@ -31,36 +31,83 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         AssessmentReportRenderPolicy.RequireBoundedImages(snapshot.Photos);
+        // Composition is pure and needs no browser, so it happens before the
+        // process-wide render gate is taken.
+        var html = await ComposeHtmlAsync(snapshot, kind).ConfigureAwait(false);
+        var feeNote = kind == CaseReportArtifactKind.FeeNote;
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var activeBrowser = await GetBrowserAsync().ConfigureAwait(false);
-            return kind switch
-            {
-                CaseReportArtifactKind.AssessmentReport => Artifact(
-                    $"{Slug(snapshot.OurReference)}_assessment.pdf",
-                    await RenderPdfAsync(
-                        activeBrowser,
-                        "assessment_report.scriban",
-                        AssessmentContext(snapshot),
-                        Footer(snapshot, false),
-                        cancellationToken).ConfigureAwait(false)),
-                CaseReportArtifactKind.FeeNote => Artifact(
-                    $"{Slug(snapshot.OurReference)}_fee_note.pdf",
-                    await RenderPdfAsync(
-                        activeBrowser,
-                        "assessment_fee_note.scriban",
-                        FeeNoteContext(snapshot),
-                        Footer(snapshot, true),
-                        cancellationToken).ConfigureAwait(false)),
-                _ => throw new ReportRenderRejectedException(
-                    $"Unsupported report artifact kind '{kind}'."),
-            };
+            return Artifact(
+                $"{Slug(snapshot.OurReference)}_{(feeNote ? "fee_note" : "assessment")}.pdf",
+                await RenderPdfAsync(
+                    activeBrowser, html, Footer(snapshot, feeNote), cancellationToken)
+                    .ConfigureAwait(false));
         }
         finally
         {
             gate.Release();
         }
+    }
+
+    /// <summary>
+    /// The exact printed HTML of one artifact kind. An assessment report
+    /// frozen with <see cref="AssessmentReportSnapshot.IncludeFeeNote"/> ends
+    /// with the fee note's own pages: the same template, the same fee facts
+    /// and the same accepted terms the separate document prints, after a page
+    /// break, in one document under the report's file name.
+    /// </summary>
+    internal static async Task<string> ComposeHtmlAsync(
+        AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        switch (kind)
+        {
+            case CaseReportArtifactKind.FeeNote:
+                return await ComposeAsync("assessment_fee_note.scriban", FeeNoteContext(snapshot))
+                    .ConfigureAwait(false);
+            case CaseReportArtifactKind.AssessmentReport:
+                var report = await ComposeAsync("assessment_report.scriban", AssessmentContext(snapshot))
+                    .ConfigureAwait(false);
+                return snapshot.IncludeFeeNote
+                    ? WithFeeNotePages(
+                        report,
+                        await ComposeAsync("assessment_fee_note.scriban", FeeNoteContext(snapshot))
+                            .ConfigureAwait(false))
+                    : report;
+            default:
+                throw new ReportRenderRejectedException(
+                    $"Unsupported report artifact kind '{kind}'.");
+        }
+    }
+
+    private static string WithFeeNotePages(string report, string feeNote)
+    {
+        var end = report.LastIndexOf("</body>", StringComparison.Ordinal);
+        if (end < 0)
+        {
+            throw new ReportRenderRejectedException(
+                "The composed report has no document body to carry the fee note.");
+        }
+        return string.Concat(
+            report.AsSpan(0, end),
+            "<div class=\"page-break\"></div>".AsSpan(),
+            BodyOf(feeNote).AsSpan(),
+            report.AsSpan(end));
+    }
+
+    private static string BodyOf(string document)
+    {
+        const string opening = "<body>";
+        var start = document.IndexOf(opening, StringComparison.Ordinal);
+        var end = document.LastIndexOf("</body>", StringComparison.Ordinal);
+        if (start < 0 || end < start)
+        {
+            throw new ReportRenderRejectedException(
+                "The composed fee note has no document body to append to the report.");
+        }
+        return document[(start + opening.Length)..end];
     }
 
     private static ScriptObject AssessmentContext(AssessmentReportSnapshot snapshot)
@@ -138,14 +185,8 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
         return browser;
     }
 
-    private static async Task<byte[]> RenderPdfAsync(
-        IBrowser activeBrowser,
-        string templateName,
-        ScriptObject values,
-        string footer,
-        CancellationToken cancellationToken)
+    private static async Task<string> ComposeAsync(string templateName, ScriptObject values)
     {
-        cancellationToken.ThrowIfCancellationRequested();
         var template = Templates.GetOrAdd(templateName, static name =>
             Template.Parse(ResourceText($"templates.{name}")));
         if (template.HasErrors)
@@ -159,6 +200,16 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
         {
             throw new ReportRenderRejectedException("The composed report contains an unresolved placeholder.");
         }
+        return html;
+    }
+
+    private static async Task<byte[]> RenderPdfAsync(
+        IBrowser activeBrowser,
+        string html,
+        string footer,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         // Every browser step carries an explicit budget and the caller's
         // cancellation: a hung page never blocks the process-wide gate.
         var budget = (float)AssessmentReportRenderPolicy.RenderTimeout.TotalMilliseconds;

@@ -305,6 +305,46 @@ public sealed class CaseReportGenerationTests
         Assert.Empty(store.Outcomes);
     }
 
+    /// <summary>
+    /// R34B: the operator's packaging choice reaches the freeze, so it is
+    /// frozen with the snapshot rather than decided again at render time.
+    /// A separate fee-note document never carries it.
+    /// </summary>
+    [Fact]
+    public async Task TheFeeNotePackagingChoiceIsCarriedIntoTheFreeze()
+    {
+        var store = new FakeStore();
+
+        await Use(store, new RecordingRenderer(), new RecordingCustody())
+            .ExecuteAsync(Request() with { IncludeFeeNote = true }, default);
+        await Use(store, new RecordingRenderer(), new RecordingCustody())
+            .ExecuteAsync(Request(CaseReportArtifactKind.FeeNote), default);
+
+        Assert.Equal([true, false], store.Freezes.Select(freeze => freeze.IncludeFeeNote));
+        Assert.False(Request().IncludeFeeNote);
+    }
+
+    /// <summary>
+    /// The fee facts the fee note prints are already a report readiness
+    /// requirement, so a Case without an agreed fee is refused for the
+    /// combined report with exactly the reason the fee note is refused with.
+    /// Nothing about the packaging choice adds a second fee policy.
+    /// </summary>
+    [Fact]
+    public void AMissingAgreedFeeBlocksGenerationHoweverTheFeeNoteIsPackaged()
+    {
+        var input = ReadyInput();
+        var withoutFee = input.Assessment.Fields
+            .Where(field => field.Path != AssessmentVocabulary.AgreedFee)
+            .ToArray();
+
+        var result = CaseReportReadiness.Evaluate(
+            input with { Assessment = input.Assessment with { Fields = withoutFee } });
+
+        var reason = AssertBlocked(result, "Agreed fee");
+        Assert.Equal("Assessment record", reason.Source);
+    }
+
     [Fact]
     public async Task RenderingAndRetentionHappenAfterTheFreezeTransactionCommits()
     {
@@ -579,10 +619,13 @@ public sealed class CaseReportGenerationTests
 
         public List<RecordCaseReportArtifactOutcomeRequest> Outcomes { get; } = [];
 
+        public List<FreezeCaseReportGenerationRequest> Freezes { get; } = [];
+
         public Task<CaseReportFreezeResult> FreezeAsync(
             FreezeCaseReportGenerationRequest request, CancellationToken cancellationToken)
         {
             Sequence.Add("freeze");
+            Freezes.Add(request);
             if (Freeze is not null)
             {
                 return Task.FromResult(Freeze);

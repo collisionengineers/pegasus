@@ -129,8 +129,15 @@ public sealed class EfCaseReportGenerationStore(
             readiness.RecordedReportDate,
             readiness.ReportDateOverridden,
             LondonCalendar.DateAt(now));
+        // The packaging choice belongs to the report itself: a separate fee
+        // note never embeds one, whatever the caller asked for.
         var projected = AssessmentReportProjection.Project(
-            inputs.Projection with { ReportDate = reportDate });
+            inputs.Projection with
+            {
+                ReportDate = reportDate,
+                IncludeFeeNote = request.IncludeFeeNote
+                    && request.Kind == CaseReportArtifactKind.AssessmentReport,
+            });
         if (projected.Snapshot is null)
         {
             return new(CaseReportFreezeOutcome.NotReady, null, null, projected.Reasons);

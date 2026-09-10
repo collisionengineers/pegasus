@@ -1234,7 +1234,8 @@ public sealed partial class DetailsModel(
         try
         {
             result = await generateReportDraft.ExecuteAsync(
-                id, actor, CaseReportArtifactKind.AssessmentReport, cancellationToken);
+                id, actor, CaseReportArtifactKind.AssessmentReport,
+                includeFeeNote: false, cancellationToken);
         }
         catch (Exception exception) when (exception is ReportRenderRejectedException
             or InvalidOperationException
@@ -1261,8 +1262,26 @@ public sealed partial class DetailsModel(
         }
     }
 
-    public async Task<IActionResult> OnGetPreviewReportDraftAsync(
+    /// <summary>
+    /// The working preview is reachable both as a plain link (report only)
+    /// and from the generate form, where the operator's "Include fee note"
+    /// choice must be previewed exactly as it would be generated (R34B).
+    /// </summary>
+    public Task<IActionResult> OnGetPreviewReportDraftAsync(
         Guid id,
+        bool includeFeeNote,
+        CancellationToken cancellationToken) =>
+        PreviewReportDraftAsync(id, includeFeeNote, cancellationToken);
+
+    public Task<IActionResult> OnPostPreviewReportDraftAsync(
+        Guid id,
+        bool includeFeeNote,
+        CancellationToken cancellationToken) =>
+        PreviewReportDraftAsync(id, includeFeeNote, cancellationToken);
+
+    private async Task<IActionResult> PreviewReportDraftAsync(
+        Guid id,
+        bool includeFeeNote,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -1271,7 +1290,7 @@ public sealed partial class DetailsModel(
         }
 
         var result = await generateReportDraft.ExecuteAsync(
-            id, actor, CaseReportArtifactKind.AssessmentReport, cancellationToken);
+            id, actor, CaseReportArtifactKind.AssessmentReport, includeFeeNote, cancellationToken);
         switch (result.Outcome)
         {
             case GenerateCaseAssessmentReportDraftOutcome.NotFound:
@@ -1295,14 +1314,19 @@ public sealed partial class DetailsModel(
     /// store's short transaction and renders through the registered
     /// renderer, one artifact per request. The draft handlers above stay for
     /// the labelled ungenerated working preview; this is the real report.
+    /// R34B: the operator chooses whether the fee note is part of this
+    /// report or the separate document <see cref="OnPostGenerateFeeNoteAsync"/>
+    /// still produces, and that choice is frozen with the snapshot.
     /// </summary>
     public Task<IActionResult> OnPostGenerateReportAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
+        bool includeFeeNote,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
-            id, operationKey, editLeaseToken, CaseReportArtifactKind.AssessmentReport, cancellationToken);
+            id, operationKey, editLeaseToken, CaseReportArtifactKind.AssessmentReport,
+            includeFeeNote, cancellationToken);
 
     public Task<IActionResult> OnPostGenerateFeeNoteAsync(
         Guid id,
@@ -1310,13 +1334,15 @@ public sealed partial class DetailsModel(
         string? editLeaseToken,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
-            id, operationKey, editLeaseToken, CaseReportArtifactKind.FeeNote, cancellationToken);
+            id, operationKey, editLeaseToken, CaseReportArtifactKind.FeeNote,
+            includeFeeNote: false, cancellationToken);
 
     private async Task<IActionResult> GenerateArtifactAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
         CaseReportArtifactKind kind,
+        bool includeFeeNote,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -1342,7 +1368,8 @@ public sealed partial class DetailsModel(
                     kind,
                     kind == CaseReportArtifactKind.AssessmentReport
                         ? "Generate the immutable case report"
-                        : "Generate the immutable fee note"),
+                        : "Generate the immutable fee note",
+                    includeFeeNote),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)

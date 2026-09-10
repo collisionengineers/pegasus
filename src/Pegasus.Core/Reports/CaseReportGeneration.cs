@@ -17,7 +17,8 @@ public sealed record CaseReportGeneration(
     DateTimeOffset GeneratedAtUtc, IReadOnlyList<CaseReportArtifact> Artifacts);
 public sealed record GenerateCaseReportRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
-    string OperationKey, CaseReportArtifactKind Kind, string Reason);
+    string OperationKey, CaseReportArtifactKind Kind, string Reason,
+    bool IncludeFeeNote = false);
 public interface IGenerateCaseReport
 {
     Task<CaseReportGenerationResult> ExecuteAsync(
@@ -32,6 +33,9 @@ public interface ICaseReportGenerationQueries
 /// <summary>
 /// The two separately addressable artifacts one accepted snapshot produces.
 /// Each is generated on its own request; neither is rendered speculatively.
+/// A report frozen with <see cref="AssessmentReportSnapshot.IncludeFeeNote"/>
+/// carries the fee note inside <see cref="AssessmentReport"/> itself, so the
+/// separate <see cref="FeeNote"/> document is not asked for as well.
 /// </summary>
 public enum CaseReportArtifactKind
 {
@@ -277,6 +281,13 @@ public sealed record CaseReportFreezeResult(
     Guid? ArtifactId,
     IReadOnlyList<AssessmentReadinessItem> Reasons);
 
+/// <summary>
+/// One freeze. <see cref="IncludeFeeNote"/> is the operator's packaging
+/// choice for an <see cref="CaseReportArtifactKind.AssessmentReport"/>
+/// request: it is frozen into the snapshot, so it is part of the material
+/// facts the snapshot hash covers and an issued report renders the same way
+/// again. It has no meaning for a separate fee-note document.
+/// </summary>
 public sealed record FreezeCaseReportGenerationRequest(
     ActionActor Actor,
     Guid CaseId,
@@ -286,7 +297,8 @@ public sealed record FreezeCaseReportGenerationRequest(
     CaseReportArtifactKind Kind,
     string Reason,
     string TemplateVersion,
-    string RendererVersion);
+    string RendererVersion,
+    bool IncludeFeeNote = false);
 
 public sealed record ConfirmCaseReportArtifactRequest(
     ActionActor Actor,
@@ -661,7 +673,8 @@ public sealed class GenerateCaseReport(
                 request.Kind,
                 request.Reason,
                 AssessmentReportContract.TemplateVersion,
-                renderer.EngineVersion),
+                renderer.EngineVersion,
+                request.IncludeFeeNote),
             cancellationToken).ConfigureAwait(false);
 
         switch (frozen.Outcome)

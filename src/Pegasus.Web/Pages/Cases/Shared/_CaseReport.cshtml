@@ -29,15 +29,24 @@
                             <span>@EngineerLabels.GenerateReportDraft</span>
                         </button>
                     </form>
-                    <a class="btn" asp-page="/Cases/Details" asp-page-handler="PreviewReportDraft"
-                       asp-route-id="@caseId" target="_blank" rel="noopener">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
-                        <span>@EngineerLabels.PreviewReportDraft</span>
-                    </a>
+                    @* R34B: one choice, one form. The fee note is either the
+                       report's own final pages or the separate document the
+                       action below still generates, and the preview shows
+                       whichever the operator has chosen. *@
                     <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateReport"
                           asp-route-id="@caseId" asp-route-section="report">
                         <input type="hidden" name="operationKey" value="@Model.GenerateReportOperationKey" />
                         <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        <label class="choice" for="report-include-fee-note">
+                            <input type="checkbox" id="report-include-fee-note" name="includeFeeNote" value="true" />
+                            <span>@ReportLabels.IncludeFeeNote</span>
+                        </label>
+                        <button type="submit" class="btn" formtarget="_blank"
+                                asp-page="/Cases/Details" asp-page-handler="PreviewReportDraft"
+                                asp-route-id="@caseId">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                            <span>@EngineerLabels.PreviewReportDraft</span>
+                        </button>
                         <button type="submit" class="btn">
                             <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
                             <span>@ReportLabels.GenerateReport</span>
@@ -96,7 +105,11 @@
                            asp-route-id="@caseId" asp-route-generationId="@generation.Id"
                            asp-route-artifactId="@artifact.Id" target="_blank" rel="noopener">
                             <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                            <span>@(artifact.Kind == CaseReportArtifactKind.FeeNote ? ReportLabels.DownloadFeeNote : ReportLabels.DownloadReport)</span>
+                            <span>@(artifact.Kind == CaseReportArtifactKind.FeeNote
+                                    ? ReportLabels.DownloadFeeNote
+                                    : generation.Snapshot.Report.IncludeFeeNote
+                                        ? ReportLabels.DownloadReportWithFeeNote
+                                        : ReportLabels.DownloadReport)</span>
                         </a>
                     }
                 }

@@ -1,5 +1,7 @@
 using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Reports;
@@ -46,6 +48,98 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(expectedKind, request.Kind);
         Assert.Equal(ActorKind.Staff, request.Actor.Kind);
         Assert.Contains(StaffRole.Engineer, request.Actor.Roles);
+    }
+
+    /// <summary>
+    /// R34B: one checkbox on the generate form decides whether the fee note
+    /// is part of the report. An unticked box posts nothing, so the request
+    /// defaults to the separate document the fee-note action still produces.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GenerateReportCarriesTheOperatorsFeeNotePackagingChoice(bool includeFeeNote)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var recorder = new RecordingGenerateReport();
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            generateReport: recorder);
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+
+        Assert.Contains("name=\"includeFeeNote\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.IncludeFeeNote,
+            html,
+            StringComparison.Ordinal);
+
+        List<(string Name, string Value)> fields =
+        [
+            ("id", caseId.ToString("D")),
+            ("operationKey", Guid.NewGuid().ToString("N")),
+            ("editLeaseToken", "held-report-lease"),
+        ];
+        if (includeFeeNote)
+        {
+            fields.Add(("includeFeeNote", "true"));
+        }
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=GenerateReport&section=report",
+            Form(AntiforgeryValue(html), [.. fields]));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var request = Assert.Single(recorder.Requests);
+        Assert.Equal(CaseReportArtifactKind.AssessmentReport, request.Kind);
+        Assert.Equal(includeFeeNote, request.IncludeFeeNote);
+    }
+
+    /// <summary>
+    /// The generated card names what the operator actually issued, so a
+    /// combined document is never offered as if a separate fee note existed.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TheGeneratedReportCardNamesTheCombinedDocument(bool includeFeeNote)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]))
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(
+                    new FakeCurrentGeneration(caseId, includeFeeNote));
+            }));
+        using var client = Client(factory);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+
+        var combined = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.DownloadReportWithFeeNote;
+        if (includeFeeNote)
+        {
+            Assert.Contains(combined, html, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain(combined, html, StringComparison.Ordinal);
+            Assert.Contains(
+                $"<span>{Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.DownloadReport}</span>",
+                html,
+                StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -151,6 +245,72 @@ public sealed partial class AssessmentReportDraftWebTests
         });
         client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
         return client;
+    }
+
+    /// <summary>
+    /// One confirmed current generation, so the card the page renders can be
+    /// read. Only the reads the Case page makes are answered.
+    /// </summary>
+    private sealed class FakeCurrentGeneration(Guid caseId, bool includeFeeNote)
+        : ICaseReportGenerationStore
+    {
+        private readonly CaseReportGenerationRecord record = Record(caseId, includeFeeNote);
+
+        public Task<CaseReportGenerationRecord?> GetCurrentAsync(
+            ActionActor actor, Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseReportGenerationRecord?>(record);
+
+        public Task<CaseReportGenerationRecord?> GetAsync(
+            ActionActor actor, Guid id, Guid generationId, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseReportGenerationRecord?>(record);
+
+        public Task<IReadOnlyList<CaseReportGenerationRecord>> ListAsync(
+            ActionActor actor, Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CaseReportGenerationRecord>>([record]);
+
+        public Task<CaseReportFreezeResult> FreezeAsync(
+            FreezeCaseReportGenerationRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseReportGenerationRecord> ConfirmArtifactAsync(
+            ConfirmCaseReportArtifactRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseReportGenerationRecord> RecordArtifactOutcomeAsync(
+            RecordCaseReportArtifactOutcomeRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<int> MarkStaleAsync(Guid id, string reasonCode, CancellationToken cancellationToken) =>
+            Task.FromResult(0);
+
+        public Task RecordDraftPreviewedAsync(
+            RecordCaseReportDraftPreviewedRequest request, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        private static CaseReportGenerationRecord Record(Guid caseId, bool includeFeeNote)
+        {
+            var projected = AssessmentReportProjection.Project(ReadyInput(caseId)).Snapshot!;
+            var report = projected with { IncludeFeeNote = includeFeeNote };
+            var generationId = Guid.NewGuid();
+            var snapshot = new CaseReportGenerationSnapshot(
+                caseId, 0, "CE-100", "operation-1", CaseReportActor.None, ReportFixtureAtUtc,
+                Guid.NewGuid(), new string('a', 64), "image/png", Guid.NewGuid(), 2,
+                report.Costs, report.EngineerValue, Guid.NewGuid(),
+                report.Content, report.Guides, report.ReportDate, false,
+                report.AgreedFee, report.FeeDescriptionLines, [], [],
+                AssessmentReportContract.TemplateVersion, "fake", report);
+            return new(
+                generationId, caseId, 0, 1, new string('b', 64), snapshot,
+                AssessmentReportContract.TemplateVersion, "fake",
+                CaseReportGenerationState.Confirmed, ReportFixtureAtUtc, null,
+                [
+                    new CaseReportArtifactRecord(
+                        Guid.NewGuid(), generationId, CaseReportArtifactKind.AssessmentReport,
+                        CaseReportArtifactStatus.Confirmed, "operation-1", Guid.NewGuid(),
+                        Guid.NewGuid(), new string('c', 64), 3, "CE_100_assessment.pdf",
+                        "application/pdf", null, null, null, null),
+                ]);
+        }
     }
 
     private sealed class RecordingGenerateReport : IGenerateCaseReport
