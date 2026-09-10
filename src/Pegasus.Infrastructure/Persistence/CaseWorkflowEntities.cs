@@ -47,7 +47,7 @@ internal sealed class CaseWorkflowEventEntity
     public required string ActorKind { get; set; }
     public required string ActorSubjectId { get; set; }
     public required string ActorRolesJson { get; set; }
-    public required string Reason { get; set; }
+    public string? Reason { get; set; }
     public DateTimeOffset OccurredAtUtc { get; set; }
     public long BeforeVersion { get; set; }
     public long AfterVersion { get; set; }
@@ -145,7 +145,6 @@ internal sealed class CaseManualChaseEntity
     public required string ActorKind { get; set; }
     public required string ActorSubjectId { get; set; }
     public required string ActorRolesJson { get; set; }
-    public required string Reason { get; set; }
     public required string Channel { get; set; }
     public required string TargetPartyOrAddress { get; set; }
     public DateTimeOffset AttemptedAtUtc { get; set; }

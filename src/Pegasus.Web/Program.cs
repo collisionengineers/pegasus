@@ -772,6 +772,9 @@ builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadOutcomeQueries,
 builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadCaseDecision,
     Pegasus.Web.Presentation.UploadCaseDecision>();
 builder.Services.AddScoped<ReceiveIntake>();
+builder.Services.AddScoped<DiscardIntakeSubmissionGroup>();
+builder.Services.AddScoped<IDiscardIntakeSubmissionGroup>(serviceProvider =>
+    serviceProvider.GetRequiredService<DiscardIntakeSubmissionGroup>());
 builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
     serviceProvider.GetRequiredService<ReceiveIntake>());
 builder.Services.AddScoped<SubmitGroupedIntake>();

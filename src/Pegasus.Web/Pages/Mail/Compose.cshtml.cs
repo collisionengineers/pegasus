@@ -107,6 +107,28 @@ public sealed class ComposeModel(
         return Page();
     }
 
+    /// <summary>
+    /// Renders the existing composer as an Inbox overlay fragment. Its fields
+    /// and handlers remain this page's normal Razor form contract; JavaScript
+    /// only changes where the already-rendered form is mounted.
+    /// </summary>
+    public async Task<IActionResult> OnGetFormAsync(CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        if (StaffMailAvailable)
+        {
+            await LoadDefaultMailboxAsync(cancellationToken);
+            await LoadCaseContextAsync(actor, cancellationToken);
+            await LoadOperationAsync(actor, cancellationToken);
+        }
+
+        return Partial("Shared/_ComposeForm", this);
+    }
+
     public async Task<IActionResult> OnPostSendAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))

@@ -42,6 +42,6 @@ public sealed record ReportImagePreparationView(
             files.ToDictionary(file => file.Occurrence.Id, file => file.Version.FileName),
             files.ToDictionary(
                 file => file.Occurrence.Id,
-                file => $"/Cases/Documents/Download?caseId={details.Workflow.CaseId:D}&occurrenceId={file.Occurrence.Id:D}&versionId={file.Version.Id:D}&inline=true"));
+                file => $"/Cases/{details.Workflow.CaseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}&inline=true"));
     }
 }

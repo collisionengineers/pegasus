@@ -475,6 +475,48 @@ public sealed class ReopenCase(ICaseWorkflowStore store) : IReopenCase
     }
 }
 
+public sealed class ReturnCaseToEngineer(
+    ICaseWorkflowStore store,
+    ICaseEngineerEligibility eligibility) : IReturnCaseToEngineer
+{
+    private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly ICaseEngineerEligibility _eligibility = eligibility
+        ?? throw new ArgumentNullException(nameof(eligibility));
+
+    public async Task<CaseWorkflowRecord> ExecuteAsync(
+        ReturnCaseToEngineerRequest request,
+        CancellationToken cancellationToken)
+    {
+        CaseLifecycleRules.ValidateMutation(request);
+        var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
+        var isReplay = await _store.HasOperationAsync(
+            request.CaseId,
+            request.OperationKey,
+            cancellationToken);
+        if (current.State is not (CaseLifecycleState.PostReportComplete or CaseLifecycleState.Query)
+            && !isReplay)
+        {
+            throw new InvalidOperationException(
+                "A case can return to Engineer only from Completed or Query.");
+        }
+
+        if (!isReplay)
+        {
+            if (current.AssignedEngineerId is null)
+            {
+                throw new InvalidOperationException("Report preparation requires an assigned Engineer.");
+            }
+
+            await CaseEngineerEligibilityPolicy.RequireEligibleAsync(
+                _eligibility,
+                current.AssignedEngineerId.Value,
+                cancellationToken);
+        }
+
+        return await _store.ReturnToEngineerAsync(request, cancellationToken);
+    }
+}
+
 public static class CaseLifecycleRules
 {
     public static async Task<CaseWorkflowRecord> GetRequiredAsync(
@@ -492,7 +534,6 @@ public static class CaseLifecycleRules
     }
 
     public static bool IsTerminal(CaseLifecycleState state) => state is
-        CaseLifecycleState.PostReportComplete or
         CaseLifecycleState.ProviderCancelled or
         CaseLifecycleState.CollisionEngineersRejected or
         CaseLifecycleState.CreatedInError or

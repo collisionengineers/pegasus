@@ -43,7 +43,6 @@ public sealed class AdministrationPolicyPersistenceTests
         var request = new UpdateWorkflowConfigurationRequest(
             initial.PolicyVersion,
             actor,
-            "Review the Engineer-assignment gates",
             "workflow-policy-update-1")
         {
             EditLeaseToken = (await editScopes.ClaimAsync(
@@ -69,11 +68,11 @@ public sealed class AdministrationPolicyPersistenceTests
                 default));
 
         await using var context = await database.CreateContextAsync();
-        Assert.Equal(
-            1,
-            await context.Database.SqlQuery<int>(
-                    $"SELECT COUNT(*) AS [Value] FROM [ActionHistory] WHERE [AggregateType] = 'workflow_configuration'")
-                .SingleAsync());
+        var history = await context.ActionHistory.SingleAsync(
+            item => item.AggregateType == "workflow_configuration");
+        Assert.Null(history.Reason);
+        Assert.NotNull(history.BeforeJson);
+        Assert.NotNull(history.AfterJson);
     }
 
     [Fact]
@@ -97,7 +96,6 @@ public sealed class AdministrationPolicyPersistenceTests
             ApprovedMailboxState.Approved,
             initial.Version,
             actor,
-            "Approve exact Sent evidence alongside inbound Intake",
             "approved-mailbox-update-1",
             // Approving a row now requires the exact tenant identities its routes read.
             "instructions-mailbox",
@@ -155,7 +153,6 @@ public sealed class AdministrationPolicyPersistenceTests
                     new(MailLogicalFolderType.Billing, "folder-billing"),
                     new(MailLogicalFolderType.Other, "folder-other")
                 ],
-                Reason = "Refresh exact logical folder identities",
                 OperationKey = "approved-mailbox-refresh-1",
                 EditLeaseToken = await ClaimMailboxEditAsync(
                     updated.Id, updated.Version, "approved-mailbox-refresh-1-edit")
@@ -176,7 +173,6 @@ public sealed class AdministrationPolicyPersistenceTests
                 State = ApprovedMailboxState.Disabled,
                 ExpectedVersion = refreshed.Version,
                 FolderBindings = null,
-                Reason = "Disable both approved read routes",
                 OperationKey = "approved-mailbox-disable-1",
                 EditLeaseToken = await ClaimMailboxEditAsync(
                     refreshed.Id, refreshed.Version, "approved-mailbox-disable-1-edit")
@@ -202,7 +198,6 @@ public sealed class AdministrationPolicyPersistenceTests
                 {
                     ExpectedVersion = disabled.Version,
                     MailboxIdentity = "a-different-mailbox",
-                    Reason = "Attempt to rebind the mailbox identity",
                     OperationKey = "approved-mailbox-rebind-1",
                     EditLeaseToken = await ClaimMailboxEditAsync(
                         disabled.Id, disabled.Version, "approved-mailbox-rebind-1-edit")
@@ -247,7 +242,6 @@ public sealed class AdministrationPolicyPersistenceTests
             null,
             null,
             administrator,
-            "Set the first verified mailbox as Compose sender",
             "approved-mailbox-default-first")
         {
             EditLeaseToken = await ClaimMailboxEditAsync(
@@ -270,7 +264,7 @@ public sealed class AdministrationPolicyPersistenceTests
         Assert.True(firstReplay.IsDefaultStaffSend);
         var replayConflict = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
             () => defaultCommand.ExecuteAsync(
-                firstSelection with { Reason = "Try to reuse the default selection operation" },
+                firstSelection with { ExpectedVersion = firstSelection.ExpectedVersion + 1 },
                 default));
         Assert.Equal(ApprovedMailboxUpdateError.OperationConflict, replayConflict.Error);
 
@@ -280,7 +274,6 @@ public sealed class AdministrationPolicyPersistenceTests
             firstDefault.Id,
             firstDefault.Version,
             administrator,
-            "Move the Compose sender to the second verified mailbox",
             "approved-mailbox-default-second")
         {
             EditLeaseToken = await ClaimMailboxEditAsync(
@@ -307,7 +300,6 @@ public sealed class AdministrationPolicyPersistenceTests
                     ApprovedMailboxState.Approved,
                     secondDefault.Version,
                     administrator,
-                    "Attempt to remove staff send from the default sender",
                     "approved-mailbox-default-remove-staff-send",
                     secondDefault.MailboxIdentity,
                     secondDefault.InboxFolderIdentity,
@@ -344,7 +336,6 @@ public sealed class AdministrationPolicyPersistenceTests
                     ApprovedMailboxState.Disabled,
                     secondDefault.Version,
                     administrator,
-                    "Attempt to disable the default sender without selecting a replacement",
                     "approved-mailbox-default-disable",
                     secondDefault.MailboxIdentity,
                     secondDefault.InboxFolderIdentity,
@@ -373,7 +364,7 @@ public sealed class AdministrationPolicyPersistenceTests
         });
         var transferHistory = Assert.Single(defaultSelectionHistory, item =>
             item.CorrelationId == transfer.OperationKey);
-        Assert.Equal(transfer.Reason, transferHistory.Reason);
+        Assert.Null(transferHistory.Reason);
         Assert.Contains(firstDefault.Id.ToString("D"), transferHistory.BeforeJson, StringComparison.Ordinal);
         Assert.Contains("\"IsDefaultStaffSend\":true", transferHistory.AfterJson, StringComparison.Ordinal);
     }
@@ -403,7 +394,7 @@ public sealed class AdministrationPolicyPersistenceTests
         var withoutSentEvidence = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
             () => defaultCommand.ExecuteAsync(
                 new(staged.Id, staged.Version, null, null, administrator,
-                    "Attempt to select an unpolled sender", "default-without-sent-evidence")
+                    "default-without-sent-evidence")
                 {
                     EditLeaseToken = withoutSentEvidenceToken
                 },
@@ -425,7 +416,7 @@ public sealed class AdministrationPolicyPersistenceTests
         var withoutSentFolder = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
             () => defaultCommand.ExecuteAsync(
                 new(staged.Id, staged.Version + 1, null, null, administrator,
-                    "Attempt to select a sender without its Sent folder", "default-without-sent-folder")
+                    "default-without-sent-folder")
                 {
                     EditLeaseToken = withoutSentFolderToken
                 },
@@ -446,7 +437,7 @@ public sealed class AdministrationPolicyPersistenceTests
             staged.Version + 2, "default-with-sent-evidence-edit");
         var selected = await defaultCommand.ExecuteAsync(
             new(staged.Id, staged.Version + 2, null, null, administrator,
-                "Select the configured Sent-evidence sender", "default-with-sent-evidence")
+                "default-with-sent-evidence")
             {
                 EditLeaseToken = selectedToken
             },
@@ -471,7 +462,6 @@ public sealed class AdministrationPolicyPersistenceTests
                 ApprovedMailboxState.Approved,
                 0,
                 actor,
-                $"Add {identity} staff-send mailbox",
                 $"approved-mailbox-{identity}",
                 $"{identity}-mailbox",
                 $"{identity}-inbox",

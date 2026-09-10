@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Pegasus.Core.Identity;
@@ -94,6 +94,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<IntakeSubmissionGroupEntity> IntakeSubmissionGroups => Set<IntakeSubmissionGroupEntity>();
     internal DbSet<IntakeSubmissionGroupMemberEntity> IntakeSubmissionGroupMembers =>
         Set<IntakeSubmissionGroupMemberEntity>();
+    internal DbSet<IntakeSubmissionGroupHistoryEntity> IntakeSubmissionGroupHistory =>
+        Set<IntakeSubmissionGroupHistoryEntity>();
 
     internal DbSet<IntakeWorkItemEntity> IntakeWorkItems => Set<IntakeWorkItemEntity>();
     internal DbSet<IntakeEvaluationEntity> IntakeEvaluations => Set<IntakeEvaluationEntity>();
@@ -339,6 +341,11 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.SourceChannel).HasMaxLength(40).IsRequired();
             entity.Property(item => item.SubmissionToken).HasMaxLength(200).IsRequired();
             entity.Property(item => item.Actor).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.Property(item => item.DiscardedByActorKind).HasMaxLength(40);
+            entity.Property(item => item.DiscardedByActorSubjectId).HasMaxLength(200);
+            entity.Property(item => item.DiscardOperationKey).HasMaxLength(100);
+            entity.Property(item => item.DiscardRequestFingerprint).HasMaxLength(64).IsFixedLength();
             entity.HasIndex(item => new { item.SourceChannel, item.SubmissionToken }).IsUnique();
             entity.HasIndex(item => item.ParentReceiptId)
                 .IsUnique()
@@ -346,6 +353,24 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasOne<IntakeReceiptEntity>()
                 .WithMany()
                 .HasForeignKey(item => item.ParentReceiptId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<IntakeSubmissionGroupHistoryEntity>(entity =>
+        {
+            entity.ToTable("IntakeSubmissionGroupHistory");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.EventType).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ActorRolesJson).IsRequired();
+            entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.RequestFingerprint).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.HasIndex(item => item.OperationKey).IsUnique();
+            entity.HasIndex(item => new { item.GroupId, item.OccurredAtUtc });
+            entity.HasOne(item => item.Group)
+                .WithMany(item => item.History)
+                .HasForeignKey(item => item.GroupId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -611,7 +636,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
             entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
             entity.Property(item => item.ActorRolesJson).IsRequired();
-            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(500);
             entity.Property(item => item.LastOperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.MatchPolicyKey).HasMaxLength(100);
             entity.HasIndex(item => item.CaseId);
@@ -634,7 +659,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
             entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
             entity.Property(item => item.ActorRolesJson).IsRequired();
-            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(500);
             entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.RequestFingerprint).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.HasIndex(item => item.OperationKey).IsUnique();
@@ -1236,7 +1261,7 @@ internal sealed class IntakeManualAssociationEntity
     public required string ActorKind { get; set; }
     public required string ActorSubjectId { get; set; }
     public required string ActorRolesJson { get; set; }
-    public required string Reason { get; set; }
+    public string? Reason { get; set; }
     public required string LastOperationKey { get; set; }
     public string? MatchPolicyKey { get; set; }
     public int? MatchPolicyVersion { get; set; }
@@ -1253,7 +1278,7 @@ internal sealed class IntakeMutationHistoryEntity
     public required string ActorKind { get; set; }
     public required string ActorSubjectId { get; set; }
     public required string ActorRolesJson { get; set; }
-    public required string Reason { get; set; }
+    public string? Reason { get; set; }
     public required string OperationKey { get; set; }
     public required string RequestFingerprint { get; set; }
     public DateTimeOffset OccurredAtUtc { get; set; }
@@ -1583,7 +1608,30 @@ internal sealed class IntakeSubmissionGroupEntity
     public required string Actor { get; set; }
     public DateTimeOffset ReceivedAtUtc { get; set; }
     public Guid? ParentReceiptId { get; set; }
+    public long Version { get; set; }
+    public DateTimeOffset? DiscardedAtUtc { get; set; }
+    public string? DiscardedByActorKind { get; set; }
+    public string? DiscardedByActorSubjectId { get; set; }
+    public string? DiscardOperationKey { get; set; }
+    public string? DiscardRequestFingerprint { get; set; }
     public List<IntakeSubmissionGroupMemberEntity> Members { get; set; } = [];
+    public List<IntakeSubmissionGroupHistoryEntity> History { get; set; } = [];
+}
+
+internal sealed class IntakeSubmissionGroupHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid GroupId { get; set; }
+    public IntakeSubmissionGroupEntity Group { get; set; } = null!;
+    public required string EventType { get; set; }
+    public required string ActorKind { get; set; }
+    public required string ActorSubjectId { get; set; }
+    public required string ActorRolesJson { get; set; }
+    public required string OperationKey { get; set; }
+    public required string RequestFingerprint { get; set; }
+    public DateTimeOffset OccurredAtUtc { get; set; }
+    public long BeforeVersion { get; set; }
+    public long AfterVersion { get; set; }
 }
 
 internal sealed class IntakeSubmissionGroupMemberEntity

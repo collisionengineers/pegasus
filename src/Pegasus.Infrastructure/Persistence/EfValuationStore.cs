@@ -633,8 +633,14 @@ public sealed class EfValuationStore(
         DateTimeOffset now)
     {
         CaseMutationGuard.RequireVersion(workflow, expectedVersion);
-        CaseMutationGuard.RequireLease(workflow, actor, lease, now);
         ArchivedCaseGuard.RequireMutable(workflow);
+        if (!Enum.TryParse<CaseLifecycleState>(workflow.State, out var state)
+            || !AssessmentPolicy.IsWritableState(state))
+        {
+            throw new InvalidOperationException(
+                "The assessment is read-only in the current case state.");
+        }
+        CaseMutationGuard.RequireLease(workflow, actor, lease, now);
         workflow.Version++;
         CaseMutationGuard.ClearLease(workflow);
     }
@@ -920,7 +926,6 @@ public sealed class EfValuationPresetStore(
             OccurredAtUtc = now,
             Outcome = "Succeeded",
             CorrelationId = request.OperationKey,
-            Reason = request.Reason,
             BeforeJson = before is null
                 ? null
                 : JsonSerializer.Serialize(before, SerializerOptions),
@@ -943,7 +948,6 @@ public sealed class EfValuationPresetStore(
         if (history.EventKind != EventKind
             || history.AggregateId != request.PresetId.ToString("D")
             || history.ActorSubjectId != request.Actor.SubjectId
-            || history.Reason != request.Reason
             || history.AfterJson is null)
         {
             throw new ValuationPresetException(ValuationPresetError.OperationConflict);

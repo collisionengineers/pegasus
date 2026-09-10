@@ -711,11 +711,11 @@ public sealed class EfImageIntakeStore(
                     "Every registered image receipt must still be linked to the merge destination.");
             }
             // The recorded association owns the decision, not the actor running
-            // this retry. A reasoned staff override remains valid; automatic
+            // this retry. A staff override remains valid even when its initial
+            // association did not require an optional rationale; automatic
             // links must still agree with the complete current identity set.
             var originAssociation = associations.Single(item => item.IntakeReceiptId == entity.OriginReceiptId);
-            var staffDecision = originAssociation.ActorKind == nameof(ActorKind.Staff)
-                && !string.IsNullOrWhiteSpace(originAssociation.Reason);
+            var staffDecision = originAssociation.ActorKind == nameof(ActorKind.Staff);
             if (staffDecision
                 ? expectedStaffOriginAssociationVersion != originAssociation.Version
                 : expectedStaffOriginAssociationVersion is not null)
@@ -857,8 +857,7 @@ public sealed class EfImageIntakeStore(
             if (intake.AssociatedCaseId is { } linkedCaseId)
             {
                 staffDecision = associations.TryGetValue(intake.OriginReceiptId, out var association)
-                    && association.ActorKind == nameof(ActorKind.Staff)
-                    && !string.IsNullOrWhiteSpace(association.Reason);
+                    && association.ActorKind == nameof(ActorKind.Staff);
                 target = staffDecision
                     ? eligible.SingleOrDefault(candidate => candidate.CaseId == linkedCaseId)
                     : target?.CaseId == linkedCaseId ? target : null;

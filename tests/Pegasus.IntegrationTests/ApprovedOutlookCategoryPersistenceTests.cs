@@ -21,7 +21,7 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
         var id = Guid.NewGuid();
         var request = new UpdateApprovedOutlookCategoryRequest(
             id, "Awaiting engineer", ApprovedOutlookCategoryState.Active, 0,
-            actor, "Approve the Outlook display name", Guid.NewGuid().ToString("N"));
+            actor, Guid.NewGuid().ToString("N"));
 
         var created = await update.ExecuteAsync(request, default);
         Assert.Equal(created, await update.ExecuteAsync(request, default));
@@ -43,7 +43,7 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
         var disabled = await update.ExecuteAsync(request with
         {
             State = ApprovedOutlookCategoryState.Disabled, ExpectedVersion = created.Version,
-            Reason = "Retire the approved display name", OperationKey = Guid.NewGuid().ToString("N"),
+            OperationKey = Guid.NewGuid().ToString("N"),
             EditLeaseToken = await ClaimEditAsync(scope.ServiceProvider, id, created.Version, actor)
         }, default);
         Assert.Equal(ApprovedOutlookCategoryState.Disabled, disabled.State);
@@ -73,7 +73,7 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
         Assert.Contains("\"State\":0", history[1].BeforeJson, StringComparison.Ordinal);
         Assert.Contains("\"Version\":2", history[1].AfterJson, StringComparison.Ordinal);
         Assert.Contains("\"State\":1", history[1].AfterJson, StringComparison.Ordinal);
-        Assert.Equal("Retire the approved display name", history[1].Reason);
+        Assert.All(history, item => Assert.Null(item.Reason));
         Assert.Equal(1, await context.Database.SqlQuery<int>(
             $"SELECT COUNT(*) AS [Value] FROM [ApprovedOutlookCategories]").SingleAsync());
     }
@@ -86,7 +86,7 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
         var id = Guid.NewGuid();
         var create = new UpdateApprovedOutlookCategoryRequest(
             id, "Awaiting engineer", ApprovedOutlookCategoryState.Active, 0,
-            actor, "Approve the exact display name", Guid.NewGuid().ToString("N"));
+            actor, Guid.NewGuid().ToString("N"));
 
         var replays = await Task.WhenAll(
             ExecuteAsync(database, create),
@@ -96,13 +96,13 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
         var first = create with
         {
             DisplayName = "Awaiting allocation", ExpectedVersion = 1,
-            Reason = "Choose the first competing update", OperationKey = Guid.NewGuid().ToString("N"),
+            OperationKey = Guid.NewGuid().ToString("N"),
             EditLeaseToken = await ClaimEditAsync(database, id, 1, actor)
         };
         var second = create with
         {
             DisplayName = "Awaiting review", ExpectedVersion = 1,
-            Reason = "Choose the second competing update", OperationKey = Guid.NewGuid().ToString("N")
+            OperationKey = Guid.NewGuid().ToString("N")
         };
         _ = await ExecuteAsync(database, first);
         var conflict = await Assert.ThrowsAsync<ApprovedOutlookCategoryUpdateException>(

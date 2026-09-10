@@ -143,6 +143,14 @@ public sealed class ImageIntakeAutomation(
         var group = await groupStore!.FindForMemberSourceAsync(
             receipt.SourceIdentity,
             cancellationToken);
+        if (group?.Discard is not null)
+        {
+            // The durable manual discard terminalizes the submission without
+            // deleting custody. It also shuts this route before a completed
+            // queue replay can register or associate its retained images.
+            activity?.SetTag("image_intake.group_outcome", "discarded");
+            return new(receipt);
+        }
         if (group is null || !group.HasSiblingMembers)
         {
             // Every manual upload is a submission group (INTK-005), but this

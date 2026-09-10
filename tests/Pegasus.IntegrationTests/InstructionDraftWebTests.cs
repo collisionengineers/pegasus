@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -225,6 +226,74 @@ public sealed class InstructionDraftWebTests
     }
 
     [Fact]
+    public async Task ManualUploadUsesItsSelectedProfileWithoutTreatingAnEmbeddedSenderAsARoute()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "untrusted-sender-qdos-instruction.eml",
+            MediaType,
+            CreateEmail(CompleteBody(), "untrusted@example.invalid"),
+            "dddddddddddddddddddddddddddddddd");
+        var receipt = await GetReceiptAsync(factory, IntakeWebDriver.ReceiptId(upload));
+
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        Assert.Null(receipt.MailRouteDecision);
+        Assert.Equal(
+            "QDOS",
+            Assert.IsType<InstructionDraft>(receipt.InstructionDraft).SuggestedPrincipalCode);
+        Assert.Null(receipt.CurrentCaseId);
+        Assert.Null(receipt.AcceptedCaseId);
+        Assert.Null(receipt.AllocationState);
+        Assert.Equal(0, await CountRowsAsync(factory, "Cases"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseSequences"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseIntakeLinks"));
+    }
+
+    [Fact]
+    public async Task ManualTriageShapedUploadRetainsItsDraftWithoutOpeningATriage()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "manual-triage-request.eml",
+            MediaType,
+            CreateEmail(
+                CompleteBody(),
+                "untrusted@example.invalid",
+                "Engineer Triage - Our Claim Reference : 46246/1 - Vehicle Registration : AB12 CDE",
+                // A Triage request carries no work-type notification title. The
+                // default fixture title is the engineer-notification tell, and
+                // an attachment carrying it alongside the Triage subject is two
+                // classification candidates, which is the recorded Ambiguous
+                // outcome rather than the Triage shape this test is about.
+                notificationTitle: "TRIAGE REQUEST — NO WORK TYPE NOTIFICATION"),
+            "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
+        var receipt = await GetReceiptAsync(factory, IntakeWebDriver.ReceiptId(upload));
+
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Null(receipt.MailRouteDecision);
+        Assert.True(receipt.MailClassificationDecision is { IsTriageRequest: true });
+        Assert.Equal("QDOS", Assert.IsType<InstructionDraft>(receipt.InstructionDraft).SuggestedPrincipalCode);
+        Assert.DoesNotContain(
+            receipt.Evidence,
+            evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
+        Assert.Null(receipt.CurrentCaseId);
+        Assert.Null(receipt.AcceptedCaseId);
+        Assert.Null(receipt.AllocationState);
+        Assert.Equal(0, await CountRowsAsync(factory, "Cases"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseSequences"));
+        Assert.Equal(0, await CountRowsAsync(factory, "CaseIntakeLinks"));
+        await using var scope = factory.Services.CreateAsyncScope();
+        Assert.Empty(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
+            .ListAsync(null, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task InvalidAndConflictingValuesRemainReviewableWithNullTypedValues()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -291,18 +360,24 @@ public sealed class InstructionDraftWebTests
         Inspection Address: Image Based Assessment
         """;
 
-    private static byte[] CreateEmail(string body)
+    private static byte[] CreateEmail(
+        string body,
+        string senderAddress = "instructions@qdosassist.co.uk",
+        string subject = "Controlled QDOS protocol fixture",
+        string notificationTitle = "ENGINEER NOTIFICATION")
     {
         var message = new MimeMessage
         {
-            Subject = "Controlled QDOS protocol fixture",
+            Subject = subject,
             Date = new DateTimeOffset(2031, 3, 5, 10, 30, 0, TimeSpan.Zero),
             Body = new TextPart("plain") { Text = "Please see the attached instruction." }
         };
-        message.From.Add(new MailboxAddress("QDOS protocol sender", "instructions@qdosassist.co.uk"));
+        message.From.Add(new MailboxAddress("QDOS protocol sender", senderAddress));
         message.To.Add(new MailboxAddress("Intake", "intake@example.invalid"));
         var document = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
-            additionalLines: [body], addSignatureLines: false);
+            notificationTitle: notificationTitle,
+            additionalLines: [body],
+            addSignatureLines: false);
         message.Body = new Multipart("mixed")
         {
             (MimeEntity)message.Body,

@@ -422,7 +422,6 @@ public sealed class ValuationCalculationTests
         Active: true,
         ExpectedVersion: 1,
         actor,
-        "Corrected the maintained amount.",
         "valuation-preset-save");
 
     private static ApplyValuationRequest ApplyRequest(

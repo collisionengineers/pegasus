@@ -14,9 +14,34 @@
         var antiForgery = form.querySelector('input[name="__RequestVerificationToken"]');
         var leaseToken = form.querySelector('input[name="editLeaseToken"]');
         var operationKey = form.querySelector('input[name="operationKey"]');
+        var glassLogin = form.querySelector('[data-account-glass-login]');
+        var glassLoginError = form.querySelector('[data-account-glass-login-error]');
         var active = dialog && !dialog.hidden;
         var released = false;
         var heartbeat = null;
+        var initialFormState;
+
+        function formState() {
+            return Array.prototype.map.call(
+                form.querySelectorAll('input:not([type="hidden"]), select, textarea'),
+                function (input) {
+                    if (input.type === 'checkbox' || input.type === 'radio') {
+                        return input.name + ':' + input.value + ':' + input.checked;
+                    }
+                    if (input.type === 'file') {
+                        return input.name + ':' + Array.prototype.map.call(input.files, function (file) {
+                            return file.name + ':' + file.size;
+                        }).join(',');
+                    }
+                    return input.name + ':' + input.value;
+                }).join('|');
+        }
+
+        function showGlassLoginError(message) {
+            if (!glassLoginError) { return; }
+            glassLoginError.textContent = message;
+            glassLoginError.hidden = false;
+        }
 
         function syncSignOffEligibility() {
             if (!role || !signOff || !defaultSignOff) { return; }
@@ -31,13 +56,13 @@
         }
 
         function post(handler) {
-            if (!antiForgery || !leaseToken || !operationKey) { return; }
+            if (!antiForgery || !leaseToken || !operationKey) { return Promise.resolve(); }
             var body = new URLSearchParams();
             body.set('__RequestVerificationToken', antiForgery.value);
             body.set('staffId', form.dataset.accountStaffId || '');
             body.set('editLeaseToken', leaseToken.value);
             body.set('operationKey', operationKey.value);
-            fetch('?handler=' + handler, {
+            return fetch('?handler=' + handler, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: body.toString(),
@@ -64,7 +89,33 @@
         }
 
         if (role) { role.addEventListener('change', syncSignOffEligibility); }
+        if (glassLogin) {
+            glassLogin.addEventListener('click', function (event) {
+                if (!active || released) { return; }
+                event.preventDefault();
+                if (formState() !== initialFormState
+                    && !window.confirm('Discard unsaved account settings and manage the Glass login?')) {
+                    return;
+                }
+                released = true;
+                active = false;
+                stopHeartbeat();
+                if (glassLoginError) { glassLoginError.hidden = true; }
+                post('CancelSettings').then(function (response) {
+                    if (!response || !response.ok) {
+                        throw new Error('The account edit could not be released.');
+                    }
+                    window.location.assign(glassLogin.href);
+                }).catch(function () {
+                    released = false;
+                    active = true;
+                    startHeartbeat();
+                    showGlassLoginError('The account edit could not be released. Keep editing or try again.');
+                });
+            });
+        }
         syncSignOffEligibility();
+        initialFormState = formState();
         startHeartbeat();
 
         if (!dialog) { return; }

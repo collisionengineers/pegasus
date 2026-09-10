@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
@@ -94,6 +95,7 @@ internal sealed class EfVehicleWorkflowStore(
         var workflow = await context.CaseWorkflows
             .SingleAsync(item => item.CaseId == command.CaseId, cancellationToken);
         RequireVersion(workflow, command.ExpectedCaseVersion);
+        RequireVehicleDataWritable(workflow);
         RequireLease(workflow, command.Actor, command.EditLeaseToken, UtcNow());
 
         var confirmedRegistrations = await context.CaseDataFields
@@ -259,6 +261,7 @@ internal sealed class EfVehicleWorkflowStore(
         var workflow = await context.CaseWorkflows
             .SingleAsync(item => item.CaseId == command.CaseId, cancellationToken);
         RequireVersion(workflow, command.ExpectedCaseVersion);
+        RequireVehicleDataWritable(workflow);
         var nowUtc = UtcNow();
         RequireLease(workflow, command.Actor, command.EditLeaseToken, nowUtc);
 
@@ -946,6 +949,16 @@ internal sealed class EfVehicleWorkflowStore(
                 Convert.FromHexString(supplied)))
         {
             throw new VehicleOperationConflictException(caseId, operationKey);
+        }
+    }
+
+    private static void RequireVehicleDataWritable(CaseWorkflowEntity workflow)
+    {
+        if (!Enum.TryParse<CaseLifecycleState>(workflow.State, ignoreCase: false, out var state)
+            || !AssessmentPolicy.IsWritableState(state))
+        {
+            throw new InvalidOperationException(
+                "Vehicle evidence is read-only in the current case state.");
         }
     }
 

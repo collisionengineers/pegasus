@@ -259,7 +259,7 @@ public sealed class IndexModel(
         CaseLifecycleState.NotReady => 0,
         CaseLifecycleState.Review => 1,
         CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => 2,
-        CaseLifecycleState.PostReportComplete => 3,
+        CaseLifecycleState.PostReportComplete or CaseLifecycleState.Query => 3,
         _ => -1
     };
 
@@ -438,7 +438,7 @@ public sealed class IndexModel(
         {
             "review" => [CaseLifecycleState.Review],
             "with_engineer" => [CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport],
-            "complete" => [CaseLifecycleState.PostReportComplete],
+            "complete" => [CaseLifecycleState.PostReportComplete, CaseLifecycleState.Query],
             _ => [CaseLifecycleState.Held]
         };
         var results = await Task.WhenAll(states.Select(state => _searchCases.ExecuteAsync(
@@ -631,7 +631,7 @@ public sealed class IndexModel(
         };
         if (item.Custody is { } custodyDetail)
         {
-            facts.Add(("Custody", OperatorLabels.ImageCustodyState(custodyDetail)));
+            facts.Add(("Box", OperatorLabels.ImageCustodyState(custodyDetail)));
         }
         facts.Add(("Received", OperatorLabels.OfficeDate(item.RegisteredAtUtc)));
         facts.Add(("Source", OperatorLabels.SourceChannel(item.Source)));

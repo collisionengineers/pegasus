@@ -121,12 +121,9 @@ public sealed partial class CaseDetailsWebTests
                      .Append(AssessmentVocabulary.HistoryCheck))
         {
             var name = CaseWorkspaceLabels.Editors.FormName(path);
-            // The default authenticated fixture is an Administrator, not an
-            // Engineer: finding controls are read-only, ordinary editors live.
-            if (AssessmentVocabulary.Definitions[path].IsFinding)
-                Assert.DoesNotContain($"name=\"{name}\"", html, StringComparison.Ordinal);
-            else
-                Assert.Matches($"<(input|textarea|select)[^>]*name=\"{Regex.Escape(name)}\"[^>]*form=\"case-edit-form\"", html);
+            // Administrator includes engineering authority; every editor uses
+            // the same Case Save form, including engineering findings.
+            Assert.Matches($"<(input|textarea|select)[^>]*name=\"{Regex.Escape(name)}\"[^>]*form=\"case-edit-form\"", html);
         }
         Assert.Single(Regex.Matches(html, "id=\"case-edit-form\""));
         Assert.DoesNotContain("Saving returns the case to Not ready", html, StringComparison.Ordinal);

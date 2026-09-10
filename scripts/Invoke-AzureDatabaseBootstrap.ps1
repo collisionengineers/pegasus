@@ -249,14 +249,17 @@ function Get-MigrationPermissionMatrix {
     # account for by name. The three baseline-derived tables leave the matrix
     # through $removedTables above.
     # 20260819101344_GroupedIntakeSubmission: the Upload page's grouped
-    # submission tables. EfIntakeSubmissionGroupStore only reads and appends
-    # (no UPDATE, no Remove); the Web role gets SELECT and INSERT (it creates
-    # and appends group/member rows from the Upload page).
+    # submission tables. Group creation reads and appends; the Web role gets
+    # SELECT and INSERT for group/member rows from the Upload page.
     foreach ($table in @('IntakeSubmissionGroups', 'IntakeSubmissionGroupMembers')) {
         foreach ($permission in @('SELECT', 'INSERT')) {
             $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
         }
     }
+    # 20260910100000_ManualUploadGroupDiscard: staff discard updates the group
+    # and appends its retained decision history without deleting either.
+    $expected.Add('pegasus_web_runtime_role|G|UPDATE|IntakeSubmissionGroups')
+    $expected.Add('pegasus_web_runtime_role|G|INSERT|IntakeSubmissionGroupHistory')
     # 20260819234014_GrantWorkerIntakeSubmissionGroupRead (INTK-011): the
     # original GroupedIntakeSubmission comment above claimed "the Worker never
     # references either table" -- that was wrong. ImageIntakeAutomation

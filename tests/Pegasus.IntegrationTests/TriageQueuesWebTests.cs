@@ -544,7 +544,7 @@ public sealed class TriageQueuesWebTests
     }
 
     [Fact]
-    public async Task AwaitingAttachFailureIsVisibleAndLeavesTheRowInPlace()
+    public async Task AwaitingIncompleteConfirmationIsVisibleAndLeavesTheRowInPlace()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
@@ -553,11 +553,11 @@ public sealed class TriageQueuesWebTests
         var imageIntake = await RegisterImageIntakeAsync(
             factory, client, scope.ServiceProvider, "WX34YZA");
 
-        using var response = await PostAttachWithBlankReasonAsync(
+        using var response = await PostIncompleteAttachAsync(
             client, imageIntake.Id, imageIntake.Origin.ReceiptId, "UNKNOWN");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("A reason is required to add this to a case.", html, StringComparison.Ordinal);
+        Assert.Contains("This confirmation is incomplete. Refresh and try again.", html, StringComparison.Ordinal);
         Assert.Contains(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
     }
 
@@ -1022,7 +1022,7 @@ public sealed class TriageQueuesWebTests
             }));
     }
 
-    private static async Task<HttpResponseMessage> PostAttachWithBlankReasonAsync(
+    private static async Task<HttpResponseMessage> PostIncompleteAttachAsync(
         HttpClient client,
         Guid id,
         Guid receiptId,
@@ -1036,8 +1036,7 @@ public sealed class TriageQueuesWebTests
                 ["__RequestVerificationToken"] = token,
                 ["id"] = id.ToString("D"),
                 ["receiptId"] = receiptId.ToString("D"),
-                ["reference"] = reference,
-                ["reason"] = string.Empty
+                ["reference"] = reference
             }));
     }
 

@@ -303,6 +303,11 @@ public sealed class AssessmentPolicyTests
     public void EveryDetailedZoneMapsToExactlyOneHeadlineParent()
     {
         Assert.Equal(23, AssessmentVocabulary.DetailedDamageZones.Count);
+        var diagramCodes = DamageDiagramGeometry.Zones.Select(zone => zone.Code)
+            .Concat(DamageDiagramGeometry.Wheels.Select(wheel => wheel.Code)).ToArray();
+        Assert.Equal(diagramCodes.Length, diagramCodes.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(AssessmentVocabulary.DetailedDamageZones.Order(StringComparer.Ordinal),
+            diagramCodes.Order(StringComparer.Ordinal));
         Assert.Equal(8, AssessmentVocabulary.BroadDamageZones.Count);
         foreach (var zone in AssessmentVocabulary.DetailedDamageZones)
         {

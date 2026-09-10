@@ -289,10 +289,6 @@
                                            value="@(isConfirmation ? confirmation!.Reference : draft?.Reference)"
                                            readonly="@(isConfirmation ? "readonly" : null)" />
                                 </div>
-                                <div class="field">
-                                    <label for="attach-reason">Reason</label>
-                                    <textarea id="attach-reason" name="reason" required maxlength="500">@(isConfirmation ? confirmation!.Reason : draft?.Reason)</textarea>
-                                </div>
                                 <div class="button-row section-gap">
                                     <button type="submit" class="btn btn--dark">@(isConfirmation ? "Confirm and add to this case" : "Add to an existing case")</button>
                                 </div>

@@ -22,7 +22,9 @@ party-role snapshot on an existing Case.
 
 ### Staff role access matrix
 
-Staff accounts use Pegasus-managed usernames and passwords with non-reversible password hashes until a separately accepted identity change supersedes that route.
+Staff accounts use Pegasus-managed usernames and passwords with
+non-reversible password hashes until a separately accepted identity change
+supersedes that route. Each account has exactly one current staff role.
 
 Administrator has every application-role permission, including every Engineer
 capability. One Administrator role is sufficient for engineering work, Case
@@ -42,9 +44,10 @@ Authorization is enforced in Core use cases and at every caller boundary. It fai
 
 ### Contacts administration
 
-**Contacts** lists every external organisation with type, name, last Case and
-state filters/sorting. A contact has organisation name, contact person, email,
-phone, address and active state. **Add contact** first selects Principal, Claim
+**Contacts** lists every external organisation with type, name, contact
+person, email, phone, last Case and state filters/sorting. A contact has
+organisation name, contact person, email, phone, address and active state.
+**Add contact** first selects Principal, Claim
 Source, Repairer, Storage or Third Party Engineer, then creates that role on a
 new identity or adds it to an operator-selected existing identity. Matching
 names are suggestions only; Pegasus never merges records automatically.
@@ -80,17 +83,23 @@ The Principal section of a Contact carries:
   active; a revoked credential may be reissued, which starts a new secret and
   clears the revocation.
 
-Every change is a permanent action-history event with actor, time, reason, and
-before/after values.
+Every change is a permanent action-history event with actor, time, operation
+identity, and before/after values. Routine settings changes do not require a
+generic reason; retain one only where the action's policy requires it.
 
 ### Staff accounts
 
-The staff accounts table lists Name, Username, Roles, and State in compact
-rows. Each row opens a Settings dialog for role assignment and account actions;
+The staff accounts table lists Name, Username, Role, and State in compact
+rows. Each row opens a Settings dialog for its one role and account actions;
 Create opens its own dialog (9 September 2026 operator-selected UI correction).
-A role change requires a reason and preserves entered values and visible
-validation inside Settings when refused. Account actions are Create, Enable, Disable, Delete access, Force
-logout and Reset password. Periodic reviews, review dates and review actions
+A settings change preserves entered values and visible validation inside
+Settings when refused. Saving Settings opens a compact confirmation dialog
+collecting a required reason, recorded on the `staff_account_settings_updated`
+history event; `UpdateStaffAccountSettingsRequest.Reason` is optional in Core
+and the Web page enforces it as required. Account actions are Create, Enable,
+Disable, Delete access, Force logout and Reset password; Disable/Enable and
+Delete are visually separated as adverse actions from Force logout and Reset
+password. Periodic reviews, review dates and review actions
 are removed by the 6 September 2026 operator decision. An account cannot
 disable or delete itself, and concurrent actions cannot remove the last
 enabled Administrator.

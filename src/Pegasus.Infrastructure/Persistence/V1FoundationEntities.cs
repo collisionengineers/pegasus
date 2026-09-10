@@ -45,6 +45,8 @@ internal sealed class StaffMailSendOperationEntity : IApplicationManagedConcurre
     public DateTimeOffset RequestedAtUtc { get; set; }
     public DateTimeOffset? LastAttemptAtUtc { get; set; }
     public DateTimeOffset? SubmittedAtUtc { get; set; }
+    public string? ObservedSentImmutableMessageId { get; set; }
+    public DateTimeOffset? ProviderSentAtUtc { get; set; }
     public DateTimeOffset? ObservedSentAtUtc { get; set; }
     public string? LastError { get; set; }
     public string? ReconciliationContinuation { get; set; }

@@ -52,6 +52,13 @@
             <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
             <span>View received item</span>
         </a>
+        @if (Model.Triage is { } triage)
+        {
+            <a class="btn" asp-page="/Triage/Details" asp-route-id="@triage.Id">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                <span>Open Triage</span>
+            </a>
+        }
         @if (Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction)
         {
             @* The received-item Case-link journey owns searching, selection,

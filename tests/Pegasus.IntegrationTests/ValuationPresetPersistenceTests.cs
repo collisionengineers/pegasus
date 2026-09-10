@@ -76,7 +76,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 Active: true,
                 ExpectedVersion: 1,
                 administrator,
-                "The maintained tow bar allowance rose.",
                 "valuation-preset-edit")
             {
                 EditLeaseToken = await ClaimPresetEditAsync(
@@ -95,7 +94,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 Active: false,
                 ExpectedVersion: 1,
                 administrator,
-                "Decals are no longer offered.",
                 "valuation-preset-disable")
             {
                 EditLeaseToken = await ClaimPresetEditAsync(
@@ -104,6 +102,20 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
         Assert.False(disabled.Active);
         Assert.Equal(2, disabled.Version);
+
+        await using (var historyContext = await harness.Factory.CreateDbContextAsync())
+        {
+            var history = await historyContext.ActionHistory.SingleAsync(item =>
+                item.AggregateType == "valuation_preset"
+                && item.CorrelationId == "valuation-preset-edit");
+            Assert.Equal(administrator.SubjectId, history.ActorSubjectId);
+            Assert.Equal("Staff", history.ActorKind);
+            Assert.Equal("valuation-preset-edit", history.CorrelationId);
+            Assert.Null(history.Reason);
+            Assert.NotEqual(default, history.OccurredAtUtc);
+            Assert.NotNull(history.BeforeJson);
+            Assert.NotNull(history.AfterJson);
+        }
 
         var presets = await store.ListAsync(CancellationToken.None);
         Assert.Equal(5, presets.Count);
@@ -118,7 +130,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     Active: true,
                     ExpectedVersion: 0,
                     administrator,
-                    "Attempt a duplicate label.",
                     "valuation-preset-duplicate"),
                 CancellationToken.None));
         Assert.Equal(ValuationPresetError.DuplicateLabel, duplicate.Error);
@@ -132,7 +143,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     Active: true,
                     ExpectedVersion: 1,
                     administrator,
-                    "Attempt a stale update.",
                     "valuation-preset-stale"),
                 CancellationToken.None));
         Assert.Equal(ValuationPresetError.VersionConflict, stale.Error);
@@ -147,7 +157,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     Active: true,
                     ExpectedVersion: 3,
                     administrator,
-                    "Attempt to edit a preset that does not exist.",
                     "valuation-preset-missing"),
                 CancellationToken.None));
         Assert.Equal(ValuationPresetError.NotFound, missing.Error);
@@ -171,7 +180,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             Active: true,
             ExpectedVersion: 0,
             administrator,
-            "Added the roof rack allowance.",
             "valuation-preset-create");
 
         var created = await save.ExecuteAsync(request, CancellationToken.None);
@@ -267,7 +275,6 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 Active: true,
                 ExpectedVersion: 1,
                 presetAdministrator,
-                "The maintained tow bar allowance rose.",
                 "valuation-apply-preset-edit")
             {
                 EditLeaseToken = await ClaimPresetEditAsync(

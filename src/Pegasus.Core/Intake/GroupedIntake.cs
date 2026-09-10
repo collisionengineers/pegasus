@@ -8,7 +8,9 @@ public sealed record IntakeSubmissionGroup(
     string Actor,
     DateTimeOffset ReceivedAtUtc,
     IReadOnlyList<IntakeSubmissionGroupMember> Members,
-    Guid? ParentReceiptId = null)
+    Guid? ParentReceiptId = null,
+    long Version = 0,
+    IntakeSubmissionGroupDiscard? Discard = null)
 {
     /// <summary>
     /// Whether this submission declared more than one member. Every manual
@@ -20,6 +22,14 @@ public sealed record IntakeSubmissionGroup(
     /// </summary>
     public bool HasSiblingMembers => ExpectedMemberCount > 1;
 }
+
+/// <summary>The terminal staff decision recorded for a discarded submission.</summary>
+public sealed record IntakeSubmissionGroupDiscard(
+    string ActorKind,
+    string ActorSubjectId,
+    DateTimeOffset DiscardedAtUtc,
+    string OperationKey,
+    string RequestFingerprint);
 
 public sealed record IntakeSubmissionGroupMember(
     Guid GroupId,
@@ -109,6 +119,20 @@ public interface IIntakeSubmissionGroupStore
     Task<IReadOnlyList<IntakeSubmissionGroupMember>> ListMembersAsync(
         Guid groupId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Commits a manual-upload discard only when the current group, member
+    /// roster and member receipts still match the reviewed request. The
+    /// persistence owner performs every eligibility check in one serializable
+    /// transaction, so a queue replay or an association cannot slip between a
+    /// page read and this terminal decision.
+    /// </summary>
+    Task<DiscardIntakeSubmissionGroupResult> DiscardAsync(
+        DiscardIntakeSubmissionGroupRequest request,
+        DateTimeOffset discardedAtUtc,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(DiscardIntakeSubmissionGroupResult.Conflict(
+            "Discarding this submission is unavailable."));
 }
 
 public interface IGroupedIntakeSubmission

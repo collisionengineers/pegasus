@@ -6,7 +6,7 @@
 @{
     var workflow = Model.Case!.Workflow;
     var leaseToken = Model.LeaseToken;
-    var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
+    var mayEdit = Model.CanEditCaseData;
     var manualSources = Enum.GetValues<ValuationSource>()
         .Where(ValuationPolicy.IsManuallyRecordable)
         .ToArray();

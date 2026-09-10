@@ -341,6 +341,87 @@ public sealed class CaseAssetPreparationPersistenceTests
         Assert.Equal(caseVersionAfterSave + 1, await harness.CurrentCaseVersionAsync());
     }
 
+    [Theory]
+    [InlineData(CaseLifecycleState.PostReportComplete)]
+    [InlineData(CaseLifecycleState.Query)]
+    public async Task CompletedAndQueryStatesRefuseAssetPreparationSaveAndReset(
+        CaseLifecycleState state)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var asset = await harness.SeedImageAsync(new string('z', 64));
+        var preparedCrop = new CaseAssetCrop(0.1m, 0.1m, 0.5m, 0.5m);
+        var preparationLease = await harness.AcquireLeaseAsync();
+        await harness.Store.SaveAsync(
+            new(
+                harness.CaseId,
+                harness.CaseVersion,
+                harness.StaffActor,
+                "prepare-before-readonly",
+                "Prepared the overview before state becomes read-only",
+                preparationLease.Token,
+                [new(
+                    asset.OccurrenceId,
+                    0,
+                    CaseAssetReportRole.Overview,
+                    null,
+                    CaseAssetRotation.Half,
+                    preparedCrop)]),
+            CancellationToken.None);
+        var caseVersionAfterPreparation = await harness.CurrentCaseVersionAsync();
+        var initiallyPrepared = Assert.Single(
+            await harness.Store.ListForCaseAsync(harness.CaseId, CancellationToken.None));
+        Assert.Equal(CaseAssetReportRole.Overview, initiallyPrepared.Role);
+        Assert.Equal(CaseAssetRotation.Half, initiallyPrepared.Rotation);
+        Assert.Equal(preparedCrop, initiallyPrepared.Crop);
+
+        await harness.SetWorkflowStateAsync(state);
+        // Query and completed Cases remain leaseable until archived. This is a
+        // valid lease for the exact current version, so the asserted error can
+        // only be the asset-preparation state guard.
+        var lease = await harness.AcquireLeaseAsync(caseVersionAfterPreparation);
+        Assert.Equal(harness.CaseId, lease.CaseId);
+        Assert.Equal(harness.StaffActor.SubjectId, lease.Holder);
+        Assert.Equal(caseVersionAfterPreparation, lease.Version);
+
+        var save = await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Store.SaveAsync(
+            new(
+                harness.CaseId,
+                caseVersionAfterPreparation,
+                harness.StaffActor,
+                $"save-readonly-{state}",
+                "Attempted report image preparation after completion",
+                lease.Token,
+                [new(
+                    asset.OccurrenceId,
+                    initiallyPrepared.PreparationVersion,
+                    CaseAssetReportRole.CloseUp,
+                    null,
+                    CaseAssetRotation.Clockwise90,
+                    CaseAssetCrop.Full)]),
+            CancellationToken.None));
+        Assert.Equal("Case asset preparation cannot be saved in its current state.", save.Message);
+
+        var reset = await Assert.ThrowsAsync<InvalidOperationException>(() => harness.Store.ResetAsync(
+            new(
+                harness.CaseId,
+                caseVersionAfterPreparation,
+                harness.StaffActor,
+                $"reset-readonly-{state}",
+                "Attempted report image reset after completion",
+                lease.Token,
+                [asset.OccurrenceId]),
+            CancellationToken.None));
+        Assert.Equal("Case asset preparation cannot be reset in its current state.", reset.Message);
+
+        Assert.Equal(caseVersionAfterPreparation, await harness.CurrentCaseVersionAsync());
+        var stillPrepared = Assert.Single(
+            await harness.Store.ListForCaseAsync(harness.CaseId, CancellationToken.None));
+        Assert.Equal(CaseAssetReportRole.Overview, stillPrepared.Role);
+        Assert.Equal(CaseAssetRotation.Half, stillPrepared.Rotation);
+        Assert.Equal(preparedCrop, stillPrepared.Crop);
+        Assert.Equal(initiallyPrepared.PreparationVersion, stillPrepared.PreparationVersion);
+    }
+
     [Fact]
     public async Task ResettingASupportingImageRenormalizesTheRemainingSequence()
     {
@@ -484,6 +565,15 @@ public sealed class CaseAssetPreparationPersistenceTests
             AcquireLease.ExecuteAsync(
                 new(CaseId, version ?? CaseVersion, StaffActor, $"lease-{Guid.NewGuid():N}"),
                 CancellationToken.None);
+
+        public async Task SetWorkflowStateAsync(CaseLifecycleState state)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == CaseId);
+            workflow.State = state.ToString();
+            workflow.ClosureOutcome = null;
+            await context.SaveChangesAsync();
+        }
 
         public async Task<ImageSeed> SeedImageAsync(string sha256, Guid? caseId = null)
         {

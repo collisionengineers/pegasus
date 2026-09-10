@@ -16,7 +16,7 @@
     <div class="panel-head"><h2 id="case-overview-title">Case overview</h2></div>
     <div class="panel-body">
         <div class="case-overview-grid">
-            <section aria-labelledby="case-overview-case">
+            <section class="case-overview-group case-overview-group--case" aria-labelledby="case-overview-case">
                 <h3 id="case-overview-case">Case</h3>
                 <div class="overview-facts">
                     <dl><dt>Case type</dt><dd>@OperatorLabels.CaseTypeName(summary.CaseType)</dd></dl>
@@ -36,7 +36,7 @@
                     }
                 </div>
             </section>
-            <section aria-labelledby="case-overview-principal">
+            <section class="case-overview-group case-overview-group--principal" aria-labelledby="case-overview-principal">
                 <h3 id="case-overview-principal">Principal</h3>
                 <div class="overview-facts">
                     <dl><dt>Principal</dt><dd>@workflow.Identity.PrincipalCode</dd></dl>
@@ -44,7 +44,7 @@
                     <dl><dt>Claim source contact</dt><dd>@Value(data?.Workspace?.ClaimSource?.ContactName)</dd></dl>
                 </div>
             </section>
-            <section aria-labelledby="case-overview-claimant">
+            <section class="case-overview-group case-overview-group--claimant" aria-labelledby="case-overview-claimant">
                 <h3 id="case-overview-claimant">Claimant</h3>
                 <div class="overview-facts">
                     <dl><dt>Claimant</dt><dd>@Value(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.Name)?.Value ?? (data is null ? summary.Claimant : null))</dd></dl>
@@ -52,7 +52,7 @@
                 </div>
             </section>
         </div>
-        <section class="accident-card" aria-labelledby="case-accident-title">
+        <section class="accident-card case-overview-accident" aria-labelledby="case-accident-title">
             <div class="accident-card-title">
                 <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                 <h3 id="case-accident-title">Accident circumstances</h3>

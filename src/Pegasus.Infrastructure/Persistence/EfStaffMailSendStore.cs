@@ -3,7 +3,9 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -44,7 +46,7 @@ internal sealed class EfStaffMailSendStore(
         // Serializable missing-key reads can lock the same index gap even for
         // unrelated messages. Order these short preparation transactions before
         // any reads; the lock is released before attachment or provider work.
-        await AcquirePrepareLockAsync(db, transaction, cancellationToken);
+        await AcquireTransactionLockAsync(db, transaction, "staff-mail-prepare", cancellationToken);
         if (command.OriginalMessage is { } original)
         {
             var retained = await db.Set<RetainedMailboxMessageEntity>().AsNoTracking()
@@ -129,9 +131,10 @@ internal sealed class EfStaffMailSendStore(
         return Map(entity);
     }
 
-    private static async Task AcquirePrepareLockAsync(
+    private static async Task AcquireTransactionLockAsync(
         PegasusDbContext db,
         IDbContextTransaction transaction,
+        string resource,
         CancellationToken cancellationToken)
     {
         var connection = db.Database.GetDbConnection();
@@ -147,7 +150,7 @@ internal sealed class EfStaffMailSendStore(
                 @LockTimeout = @lockTimeout;
             SELECT @result;
             """;
-        AddParameter(command, "@resource", "staff-mail-prepare");
+        AddParameter(command, "@resource", resource);
         AddParameter(command, "@lockTimeout", checked(command.CommandTimeout * 1000));
         var result = Convert.ToInt32(
             await command.ExecuteScalarAsync(cancellationToken),
@@ -341,6 +344,11 @@ internal sealed class EfStaffMailSendStore(
             throw new ArgumentException("The retained Sent observation is invalid.");
         }
         await using var db = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        await AcquireTransactionLockAsync(
+            db, transaction, $"staff-mail-observed:{operationId:N}", cancellationToken);
         var entity = await db.Set<StaffMailSendOperationEntity>().SingleOrDefaultAsync(
             value => value.Id == operationId, cancellationToken)
             ?? throw new KeyNotFoundException("The staff mail operation was not found.");
@@ -351,6 +359,8 @@ internal sealed class EfStaffMailSendStore(
         StaffMailStatePolicy.RequireTransition(entity.State, StaffMailState.Sent);
         entity.State = StaffMailState.Sent;
         entity.AttemptStage = StaffMailAttemptStage.ObserveSent;
+        entity.ObservedSentImmutableMessageId = immutableMessageId;
+        entity.ProviderSentAtUtc = providerSentAtUtc;
         entity.ObservedSentAtUtc = observedAtUtc;
         entity.LastAttemptAtUtc = observedAtUtc;
         entity.LastError = null;
@@ -359,8 +369,134 @@ internal sealed class EfStaffMailSendStore(
         db.ActionHistory.Add(History(entity, systemActor.Kind, systemActor.SubjectId,
             systemActor.Roles.Select(value => value.ToString()), "staff-mail-sent-observed",
             observedAtUtc, entity.OperationKey, null, null, Map(entity)));
+        await CompletePostReportQueryAsync(db, entity, systemActor, observedAtUtc, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// A post-report query is resolved only by durable Sent evidence for a reply to the
+    /// retained query that is still associated with this case. A prepared, submitted,
+    /// unknown, or unrelated correspondence operation cannot advance the case.
+    /// </summary>
+    private static async Task CompletePostReportQueryAsync(
+        PegasusDbContext db,
+        StaffMailSendOperationEntity mail,
+        ActionActor actor,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        if (mail.Purpose != StaffMailPurpose.GeneralCorrespondence
+            || mail.ComposeMode is not (StaffMailComposeMode.Reply or StaffMailComposeMode.ReplyAll)
+            || mail.OriginalRetainedMessageId is not { } retainedMessageId)
+        {
+            return;
+        }
+
+        var retained = await db.Set<RetainedMailboxMessageEntity>().AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == retainedMessageId
+                && item.MailboxId == mail.MailboxId, cancellationToken);
+        if (retained is null)
+        {
+            return;
+        }
+
+        var queryReceiptIds = await db.IntakeReceipts.AsNoTracking()
+            .Where(item => item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)
+                && item.ExternalReceiptToken == retained.ExternalReceiptToken
+                && item.MailClassificationDecision != null
+                && item.MailClassificationDecision.Outcome == "classified"
+                && item.MailClassificationDecision.Direction == "received"
+                && item.MailClassificationDecision.Family == "post-report-emails")
+            .Select(item => item.Id)
+            .ToArrayAsync(cancellationToken);
+        if (queryReceiptIds.Length != 1)
+        {
+            return;
+        }
+
+        await AcquireTransactionLockAsync(
+            db,
+            db.Database.CurrentTransaction
+                ?? throw new InvalidOperationException("The Sent observation transaction is unavailable."),
+            $"case-query:{mail.ContextId:N}:{queryReceiptIds[0]:N}",
+            cancellationToken);
+
+        var associations = await CurrentIntakeAssociations.ReadAsync(
+            db, queryReceiptIds, cancellationToken);
+        if (!associations.Current.TryGetValue(queryReceiptIds[0], out var association)
+            || association.CaseId != mail.ContextId)
+        {
+            return;
+        }
+
+        var workflow = await db.CaseWorkflows.SingleOrDefaultAsync(
+            item => item.CaseId == mail.ContextId, cancellationToken);
+        if (workflow?.State != nameof(CaseLifecycleState.Query))
+        {
+            return;
+        }
+
+        var beforeVersion = workflow.Version;
+        var beforeJson = JsonSerializer.Serialize(new QueryReplyWorkflowValue(
+            workflow.State, workflow.ClosureOutcome, workflow.Version,
+            mail.ObservedSentImmutableMessageId, mail.ProviderSentAtUtc, mail.ObservedSentAtUtc));
+        workflow.State = nameof(CaseLifecycleState.PostReportComplete);
+        workflow.ClosureOutcome = CaseClosureOutcome.PostReportComplete.ToString();
+        workflow.Version = checked(workflow.Version + 1);
+        workflow.ConcurrencyToken = Guid.NewGuid();
+        var afterJson = JsonSerializer.Serialize(new QueryReplyWorkflowValue(
+            workflow.State, workflow.ClosureOutcome, workflow.Version,
+            mail.ObservedSentImmutableMessageId, mail.ProviderSentAtUtc, mail.ObservedSentAtUtc));
+        var operationKey = $"query-reply:{mail.Id:N}";
+        const string reason = "Confirmed reply to retained post-report query.";
+        db.CaseWorkflowEvents.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = workflow.CaseId,
+            Workflow = workflow,
+            EventType = "case_query_replied",
+            OperationKey = operationKey,
+            RequestHash = mail.PayloadHash,
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(actor.Roles
+                .OrderBy(value => value)
+                .Select(value => value.ToString())),
+            Reason = reason,
+            OccurredAtUtc = occurredAtUtc,
+            BeforeVersion = beforeVersion,
+            AfterVersion = workflow.Version,
+            ResultJson = afterJson
+        });
+        db.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = "case",
+            AggregateId = workflow.CaseId.ToString("D"),
+            EventKind = "case_query_replied",
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(actor.Roles
+                .OrderBy(value => value)
+                .Select(value => value.ToString())),
+            OccurredAtUtc = occurredAtUtc,
+            Outcome = "Succeeded",
+            CorrelationId = operationKey,
+            Reason = reason,
+            BeforeJson = beforeJson,
+            AfterJson = afterJson,
+            PolicyVersion = "case-lifecycle-v1"
+        });
+    }
+
+    private sealed record QueryReplyWorkflowValue(
+        string State,
+        string? ClosureOutcome,
+        long Version,
+        string? SentImmutableMessageId,
+        DateTimeOffset? ProviderSentAtUtc,
+        DateTimeOffset? ObservedAtUtc);
 
     private static ActionHistoryEntity History(
         StaffMailSendOperationEntity entity, ActorKind actorKind, string actorSubjectId,

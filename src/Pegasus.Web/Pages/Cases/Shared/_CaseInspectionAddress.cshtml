@@ -7,7 +7,7 @@
     var workflow = details.Workflow;
     var data = details.Data;
     var leaseToken = Model.LeaseToken;
-    var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null && data is not null;
+    var mayEdit = Model.CanEditCaseData && data is not null;
 
     var address = data?.Inspection.Address;
     var recorded = address?.Current;

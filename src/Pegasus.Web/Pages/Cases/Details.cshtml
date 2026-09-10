@@ -43,9 +43,10 @@
     var isHeld = state == CaseLifecycleState.Held;
     var isReview = state == CaseLifecycleState.Review;
     var isComplete = state == CaseLifecycleState.PostReportComplete;
-    var isWithEngineer = state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
+    var isQuery = state == CaseLifecycleState.Query;
     var editing = !string.IsNullOrWhiteSpace(Model.LeaseToken) && workflow.Archive is null;
-    var canHandToEngineer = editing && isReview
+    var editingCaseData = editing && !Model.IsPostReportReadOnly;
+    var canHandToEngineer = editingCaseData && isReview
         && Model.EvaHandoff is { EngineerOptions.Count: > 0 };
     var registration = string.IsNullOrWhiteSpace(summary.Registration)
         ? "No registration"
@@ -59,6 +60,18 @@
     var canConfirmReportSent = editing
         && state == CaseLifecycleState.ReportPreparation
         && details.AvailableReportSentEvidence.Count > 0;
+    // Review point 12: the adverse dispositions Core will accept for this
+    // state, decided in the page model from Core's own closure rules. The
+    // record only asks whether any exist; a closed Case has none and reads
+    // its recorded outcome instead.
+    var closureOutcomes = Model.AvailableClosureOutcomes;
+    var offersAdverseClosure = editing && closureOutcomes.Count > 0;
+    var offersMoreActions = editingCaseData && !isClosed;
+    // The adverse group ends the bar. It carries the end alignment itself only
+    // when the More actions menu, which normally carries it, is not drawn.
+    var adverseGroupClass = offersMoreActions
+        ? "record-bar-adverse"
+        : "record-bar-adverse record-bar-end";
     ViewData["WorkspaceRecord"] = (Href: $"/Cases/{summary.CaseId:D}", Label: workflow.Identity.Reference);
 }
 
@@ -84,7 +97,8 @@
     </div>
 </header>
 
-@if (TempData["CaseStatus"] is string caseStatus)
+@if (TempData["CaseStatus"] is string caseStatus
+    && !(editing && caseStatus == "Edit mode is active."))
 {
     <div class="notice notice--success mb-2" role="status" data-confirmation>
         <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
@@ -147,14 +161,14 @@
     @* Presence: who is editing the case. No time is printed — an open editor
        keeps their own edit active, so any moment named here would be stale as
        soon as it was read. *@
-    @if (Model.ViewerHoldsEditAuthority)
+    @if (Model.ViewerHoldsEditAuthority && !editingCaseData)
     {
         <div class="presence-strip" role="status">
             <span class="presence-dot" aria-hidden="true"></span>
             <span>You are editing this case.</span>
         </div>
     }
-    else if (details.ActiveEditLease is not null && Model.EditAuthorityHolder is { } holder)
+    else if (!Model.ViewerHoldsEditAuthority && details.ActiveEditLease is not null && Model.EditAuthorityHolder is { } holder)
     {
         <div class="presence-strip" role="status">
             <span class="presence-dot" aria-hidden="true"></span>
@@ -168,14 +182,10 @@
     <div class="record-bar">
         @if (editing)
         {
-            <form method="post" asp-page-handler="ReleaseLease" id="case-finish-editing-form" data-edit-toggle-off>
+            <form method="post" asp-page-handler="ReleaseLease" id="case-finish-editing-form" data-edit-toggle-off hidden>
                 <input type="hidden" name="id" value="@summary.CaseId" />
                 <input type="hidden" name="operationKey" value="@Model.ReleaseLeaseOperationKey" />
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                <button type="submit" class="btn btn--dark">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-                    <span>Finish editing</span>
-                </button>
             </form>
             @* Script hides this and beats instead; without script it is how
                editing is kept. *@
@@ -190,50 +200,6 @@
                 </button>
             </form>
             <partial name="Shared/_EditHeartbeat" view-data='new ViewDataDictionary(ViewData) { ["HeartbeatCaseId"] = summary.CaseId, ["HeartbeatLeaseToken"] = Model.LeaseToken }' />
-            @if (!isClosed)
-            {
-                @if (isHeld)
-                {
-                    <button type="button" class="btn" data-dialog-open="case-release-hold-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
-                        <span>Release Hold</span>
-                    </button>
-                }
-                else
-                {
-                    <button type="button" class="btn" data-dialog-open="case-hold-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
-                        <span>Place on Hold</span>
-                    </button>
-                }
-                <form method="post" asp-page="/Cases/Custody" asp-route-id="@summary.CaseId"
-                      asp-page-handler="CreateRequestUploadLink">
-                    <input type="hidden" name="id" value="@summary.CaseId" />
-                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                    <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                    <button type="submit" class="btn">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
-                        <span>Create upload link</span>
-                    </button>
-                </form>
-                @if (!isComplete)
-                {
-                    <button type="button" class="btn btn--danger" data-dialog-open="case-close-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
-                        <span>Close Case</span>
-                    </button>
-                }
-            }
-            else if (!isComplete && state != CaseLifecycleState.CreatedInError)
-            {
-                @* Created in error is never reopenable (Core rule); the
-                   replacement case is the way forward, linked from the bar. *@
-                <button type="button" class="btn" data-dialog-open="case-reopen-dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
-                    <span>Reopen Case</span>
-                </button>
-            }
         }
         else if (Model.CanRecoverLease)
         {
@@ -250,9 +216,9 @@
                 <input type="hidden" name="id" value="@summary.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
-                <button type="submit" class="btn">
+                <button type="submit" class="btn btn--dark">
                     <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
-                    <span>Edit Case</span>
+                    <span>@(Model.IsPostReportReadOnly ? "Enable return" : "Edit Case")</span>
                 </button>
             </form>
         }
@@ -285,33 +251,101 @@
                 <span>Mark report sent</span>
             </button>
         }
-        @if (isComplete && editing)
+        @if (editing && state == CaseLifecycleState.PostReport)
+        {
+            <button type="button" class="btn btn--primary" data-dialog-open="case-complete-dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                <span>Mark completed</span>
+            </button>
+        }
+        @if ((isComplete || isQuery) && editing)
         {
             <button type="button" class="btn" data-dialog-open="case-return-engineer-dialog">
                 <svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg>
                 <span>Return to Engineer</span>
             </button>
         }
+        @if (offersMoreActions)
+        {
+            @* Less frequent lifecycle and custody work stays close to the
+               record without competing with the edit and current workflow
+               action. The existing posts and dialog targets remain intact. *@
+            <details class="case-more-actions record-bar-end">
+                <summary class="btn case-more-actions-toggle">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
+                    <span>More actions</span>
+                </summary>
+                <div class="case-more-actions-menu">
+                    @if (!isClosed)
+                    {
+                        @if (isHeld)
+                        {
+                            <button type="button" class="btn" data-dialog-open="case-release-hold-dialog">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
+                                <span>Release Hold</span>
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn" data-dialog-open="case-hold-dialog">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
+                                <span>Place on Hold</span>
+                            </button>
+                        }
+                        <form method="post" asp-page="/Cases/Custody" asp-route-id="@summary.CaseId"
+                              asp-page-handler="CreateRequestUploadLink">
+                            <input type="hidden" name="id" value="@summary.CaseId" />
+                            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                            <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                            <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                            <button type="submit" class="btn">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                                <span>Create upload link</span>
+                            </button>
+                        </form>
+                        <button type="button" class="btn btn--danger" data-dialog-open="case-correct-principal-dialog">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>Correct principal</span>
+                        </button>
+                    }
+                </div>
+            </details>
+        }
+        @if (offersAdverseClosure)
+        {
+            @* Review point 12: an adverse disposition is not a step in the
+               workflow, so it stands alone at the end of the bar in the solid
+               danger style rather than among the progression actions. It
+               closes the Case; it never deletes one, and the reference and
+               history stay. *@
+            <div class="@adverseGroupClass" role="group"
+                 aria-label="@OperatorLabels.CaseWorkspace.AdverseActions">
+                <button type="button" class="btn btn--danger btn--danger-solid" data-dialog-open="case-close-dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    <span>@OperatorLabels.CaseWorkspace.CloseCase</span>
+                </button>
+            </div>
+        }
     </div>
 
-    @if (editing)
+    @if (editingCaseData)
     {
-        @* Discard and Save are the two ways out of an edit: Discard ends the
+        @* Cancel and Save are the two ways out of an edit: Cancel ends the
            edit (asking first when values are unsaved), Save
-           submits the edit form on the Overview. The unsaved marker needs a
-           script behaviour site.js does not carry yet; the finish-edit
-           confirmation already guards the same loss. *@
-        <div class="edit-bar">
+           opens the reason dialog for the single Case form. The finish-edit
+           confirmation protects staged changes in every section. *@
+        <div class="edit-bar" role="status">
             <strong>Editing @workflow.Identity.Reference</strong>
-            <span class="muted">Save or discard your changes when you finish.</span>
-            <button type="submit" form="case-finish-editing-form" class="btn">
-                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                <span>Discard</span>
-            </button>
-            <button type="submit" form="case-edit-form" class="btn btn--primary">
-                <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                <span>Save</span>
-            </button>
+            <div class="edit-bar-actions">
+                <button type="submit" form="case-finish-editing-form" class="btn">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <span>Cancel</span>
+                </button>
+                <button type="button" class="btn btn--primary" data-dialog-open="case-save-reason-dialog" data-case-save-reason>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                    <span>Save</span>
+                </button>
+            </div>
         </div>
     }
 
@@ -320,7 +354,7 @@
 
     <div class="case-workspace">
         <div class="case-main" id="case-main">
-            @* The eleven sections in their fixed order (D30), each under the
+            @* The ten sections in their fixed order (D30), each under the
                stable host `section-<key>` the jump-nav addresses. A body a
                later lane owns is a heading here; a body below the fold is
                fetched as the reader approaches it. Files is safe to defer
@@ -439,7 +473,31 @@
 <partial name="Cases/Shared/_CaseCropDialog" />
 <partial name="Shared/_EditFinishConfirm" />
 
-@if (editing && !isClosed)
+@if (editingCaseData)
+{
+    <div class="dialog-backdrop" data-dialog="case-save-reason-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-save-reason-dialog-title">
+            <div class="dialog-head">
+                <h2 id="case-save-reason-dialog-title" tabindex="-1">Save Case changes</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <div class="dialog-body stack">
+                <div class="field">
+                    <label class="req" for="case-save-reason">Reason for changes</label>
+                    <textarea id="case-save-reason" name="reason" form="case-edit-form" rows="3" required maxlength="500"></textarea>
+                </div>
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close>Keep editing</button>
+                <button type="submit" form="case-edit-form" class="btn btn--primary">Save changes</button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (editingCaseData && !isClosed)
 {
     @if (isHeld)
     {
@@ -473,45 +531,33 @@
             }
         })" />
     }
-    @if (!isComplete)
+    @if (state == CaseLifecycleState.PostReport)
     {
-        @* Two ways to close: a named terminal outcome, and — for the wrong
-           principal — the atomic Created-in-error closure, which Core permits
-           only together with the linked replacement (FRD-01; ValidateClose
-           refuses a bare CreatedInError outcome). The consequence sentence is
-           from the design authority's closed necessary-copy list. *@
-        <div class="dialog-backdrop" data-dialog="case-close-dialog" hidden>
-            <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-close-dialog-title">
+        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "case-complete-dialog",
+            ["DialogTitle"] = "Mark completed",
+            ["DialogActionUrl"] = Url.Page("/Cases/Closure", "Complete", new { id = workflow.CaseId }),
+            ["DialogHiddenFields"] = new Dictionary<string, string?>
+            {
+                ["id"] = workflow.CaseId.ToString(),
+                ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
+                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
+                ["editLeaseToken"] = Model.LeaseToken
+            }
+        })" />
+    }
+}
+@if (editingCaseData && !isClosed)
+{
+    <div class="dialog-backdrop" data-dialog="case-correct-principal-dialog" hidden>
+            <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-correct-principal-dialog-title">
                 <div class="dialog-head">
-                    <h2 id="case-close-dialog-title" tabindex="-1">Close Case</h2>
+                    <h2 id="case-correct-principal-dialog-title" tabindex="-1">Correct principal</h2>
                     <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
                         <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                     </button>
                 </div>
-                <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="Close">
-                    <input type="hidden" name="id" value="@workflow.CaseId" />
-                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                    <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                    <div class="dialog-body stack">
-                        <div class="field">
-                            <label class="req" for="case-close-outcome">Outcome</label>
-                            <select id="case-close-outcome" name="outcome" required data-dialog-initial-focus>
-                                <option value="PostReportComplete">Post-report complete</option>
-                                <option value="ProviderCancelled">Provider cancelled</option>
-                                <option value="CollisionEngineersRejected">Collision Engineers rejected</option>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label class="req" for="case-close-reason">Reason for action</label>
-                            <textarea id="case-close-reason" name="reason" rows="3" required maxlength="500"></textarea>
-                        </div>
-                    </div>
-                    <div class="dialog-foot">
-                        <button type="button" class="btn" data-dialog-close>Cancel</button>
-                        <button type="submit" class="btn btn--danger">Close Case</button>
-                    </div>
-                </form>
                 <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId"
                       asp-page-handler="CreateLinkedReplacement">
                     <input type="hidden" name="id" value="@workflow.CaseId" />
@@ -521,7 +567,7 @@
                     <div class="dialog-body stack">
                         <div class="notice notice--warning">
                             <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                            <span>Created in error cannot be reopened. Create and link the replacement case.</span>
+                            <span>Record Created in error and create the linked replacement case.</span>
                         </div>
                         <div class="field">
                             <label class="req" for="case-replacement-principal">Replacement principal code</label>
@@ -537,71 +583,70 @@
                     </div>
                 </form>
             </section>
-        </div>
-    }
+    </div>
 }
 
-@if (editing && isClosed && !isComplete)
+@if (offersAdverseClosure)
 {
-    <div class="dialog-backdrop" data-dialog="case-reopen-dialog" hidden>
-        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-reopen-dialog-title">
+    @* Review point 12: the adverse disposition is collected in one compact
+       dialog — which outcome, and why — and posts to the Closure handler that
+       already owns the named terminal outcomes. The chooser lists only the
+       outcomes the page model derived from Core's closure rules for this
+       state, so nothing offered here is refused for being the wrong outcome.
+       Created in error and E-mail unlinked are not among them: each is reached
+       through its own action, which Core requires. *@
+    <div class="dialog-backdrop" data-dialog="case-close-dialog" hidden>
+        <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-close-dialog-title">
             <div class="dialog-head">
-                <h2 id="case-reopen-dialog-title" tabindex="-1">Reopen Case</h2>
+                <h2 id="case-close-dialog-title" tabindex="-1">@OperatorLabels.CaseWorkspace.CloseCase</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
                     <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                 </button>
             </div>
-            @* The Review gate reads the case's current completeness values,
-               posted unchanged; Core decides whether the destination opens. *@
-            <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="Reopen">
+            <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId"
+                  asp-page-handler="Close">
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                <partial name="Cases/Shared/_ReadinessHiddenFields" model="Model" />
                 <div class="dialog-body stack">
                     <div class="field">
-                        <label class="req" for="case-reopen-destination">Destination</label>
-                        <select id="case-reopen-destination" name="destination" required data-dialog-initial-focus>
-                            <option value="NotReady">Not ready</option>
-                            <option value="Review">Review</option>
-                            <option value="ReportPreparation">Report preparation</option>
-                            <option value="PostReport">Post report</option>
+                        <label class="req" for="case-close-outcome">@OperatorLabels.CaseWorkspace.ClosureOutcome</label>
+                        <select id="case-close-outcome" name="outcome" required data-dialog-initial-focus>
+                            <option value=""></option>
+                            @foreach (var outcome in closureOutcomes)
+                            {
+                                <option value="@outcome">@OperatorLabels.CaseClosure(outcome)</option>
+                            }
                         </select>
                     </div>
                     <div class="field">
-                        <label class="req" for="case-reopen-reason">Reason for action</label>
-                        <textarea id="case-reopen-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                        <label class="req" for="case-close-reason">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
+                        <textarea id="case-close-reason" name="reason" rows="3" required maxlength="500"></textarea>
                     </div>
                 </div>
                 <div class="dialog-foot">
-                    <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--primary">Reopen Case</button>
+                    <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                    <button type="submit" class="btn btn--danger btn--danger-solid">@OperatorLabels.CaseWorkspace.CloseCase</button>
                 </div>
             </form>
         </section>
     </div>
 }
 
-@if (editing && isComplete)
+@if (editing && (isComplete || isQuery))
 {
-    @* The reasoned reopen from Complete back to the Engineer (FRD-01):
-       destination Report preparation through the normal gates. *@
     <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
     {
         ["DialogId"] = "case-return-engineer-dialog",
         ["DialogTitle"] = "Return to Engineer",
-        ["DialogActionUrl"] = Url.Page("/Cases/Closure", "Reopen", new { id = workflow.CaseId }),
+        ["DialogActionUrl"] = Url.Page("/Cases/Closure", "ReturnToEngineer", new { id = workflow.CaseId }),
         ["DialogHiddenFields"] = new Dictionary<string, string?>
         {
             ["id"] = workflow.CaseId.ToString(),
             ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
             ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
-            ["editLeaseToken"] = Model.LeaseToken,
-            ["destination"] = nameof(CaseReopenDestination.ReportPreparation),
-            ["instructionsComplete"] = details.Data?.Completeness.Values.InstructionComplete.ToString() ?? false.ToString(),
-            ["imagesComplete"] = details.Data?.Completeness.Values.ImagesComplete.ToString() ?? false.ToString(),
-            ["evidenceReference"] = "case-completeness-projection"
+            ["editLeaseToken"] = Model.LeaseToken
         }
     })" />
 }

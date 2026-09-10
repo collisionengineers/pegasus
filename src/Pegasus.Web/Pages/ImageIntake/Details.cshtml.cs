@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.ImageIntake;
@@ -14,6 +15,7 @@ public sealed class DetailsModel(
     IVrmSuggestionStore vrmSuggestionStore,
     IImageIntakeCaseCandidates imageIntakeCaseCandidates,
     IImageIntakeStore imageIntakeStore,
+    ITriageQueries triageQueries,
     IEditScopeLeases editScopes,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder) : StaffPageModel
 {
@@ -28,6 +30,15 @@ public sealed class DetailsModel(
     public IReadOnlyList<ImageIntakeCaseCandidate> AssociationCandidates { get; private set; } = [];
 
     public IReadOnlyList<Principal> PrincipalOptions { get; private set; } = [];
+
+    /// <summary>
+    /// The Triage opened from this record's origin receipt, if any — the same
+    /// receipt-keyed lookup <c>Pegasus.Web.Pages.Intake.DetailsModel</c> uses
+    /// (<see cref="ITriageQueries.GetByOriginReceiptAsync"/>), so this page can
+    /// link straight to the disposition/assignment controls that already live
+    /// on the Triage page.
+    /// </summary>
+    public TriageSummary? Triage { get; private set; }
 
     public EditScopeLease? EditLease { get; private set; }
 
@@ -53,6 +64,9 @@ public sealed class DetailsModel(
                 cancellationToken)
             : [];
         PrincipalOptions = await imageIntakeStore.ListActivePrincipalsAsync(cancellationToken);
+        Triage = await triageQueries.GetByOriginReceiptAsync(
+            detail.Record.Origin.ReceiptId,
+            cancellationToken);
         return Page();
     }
 

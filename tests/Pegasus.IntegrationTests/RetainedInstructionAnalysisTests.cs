@@ -56,8 +56,11 @@ public sealed class RetainedInstructionAnalysisTests
             .GetAsync(receiptId, CancellationToken.None);
 
         // Precondition: no route identified it, so it is retained material.
+        // The selected document profile proposes the principal without
+        // allocating anything; staff analysis still owns the decision.
         Assert.Equal(IntakeDecision.NeedsSorting, receipt!.Decision);
-        Assert.Null(receipt.InstructionDraft?.SuggestedPrincipalCode);
+        Assert.Equal("QDOS", receipt.InstructionDraft?.SuggestedPrincipalCode);
+        Assert.Null(receipt.CurrentCaseId);
 
         var result = await services.GetRequiredService<AnalyzeRetainedInstruction>().ExecuteAsync(
             new(StaffActor(), receiptId, receipt.Version, $"analysis:{receiptId:N}:1"));
@@ -117,7 +120,7 @@ public sealed class RetainedInstructionAnalysisTests
         Assert.Equal(receipt.Version, after!.Version);
         Assert.Equal(IntakeDecision.NeedsSorting, after.Decision);
         Assert.Equal(receipt.DecisionReason, after.DecisionReason);
-        Assert.Null(after.InstructionDraft);
+        Assert.Equal(receipt.InstructionDraft, after.InstructionDraft);
         Assert.Null(after.AcceptedCaseId);
         Assert.Null(after.ManualLinkedCaseId);
         Assert.Null(after.AllocationState);
@@ -519,34 +522,25 @@ public sealed class RetainedInstructionAnalysisTests
     }
 
     /// <summary>
-    /// One genuine original per non-QDOS profile through the NORMAL intake
-    /// path — the same upload and Worker drain production runs — proving the
-    /// rule the plan states: nothing is allocated automatically without an
-    /// independently accepted route or staff-confirmed principal evidence. The
-    /// document alone, however confidently a profile identifies it, is not
-    /// enough.
+    /// One genuine original per non-QDOS profile through the staff-upload and
+    /// Worker path. A unique supported document profile produces the editable
+    /// proposal the confirmation surface needs; it never establishes a mail
+    /// route or allocates a Case/PO without the later staff decision.
     ///
     /// Fourteen samples, not fifteen. QDOS's automatic allocation belongs to the
     /// accepted mail route and is proved there by <c>QdosIntakeWebTests
-    /// .StaffForwardedEmailStrongContentBeatsSenderAndRendersPersistedDraft</c>;
-    /// through manual upload no profile allocates, QDOS included.
+    /// .StaffForwardedEmailStrongContentBeatsSenderAndRendersPersistedDraft</c>.
+    /// This fixture set deliberately retains the non-QDOS representatives.
     ///
-    /// State the limit of the negative honestly: a manual upload presents no
-    /// transport sender, so <c>EvaluateMailRoute</c> returns null, no principal
-    /// context is established, and the assessment terminates at NeedsSorting
-    /// before any extraction policy is consulted. This therefore proves that a
-    /// confidently identified document does not by itself create work — it does
-    /// NOT distinguish that from "this channel never allocates". The sharper
-    /// negative the plan describes, a document one profile identifies arriving
-    /// through an accepted route for a DIFFERENT principal, belongs to C03/C04.
-    ///
-    /// "Retained for staff" is asserted as the product records it, not as a
-    /// page renders it: an Open item in the Unidentified queue keyed on the
-    /// receipt. That is what a member of staff actually finds the material by.
+    /// A manual source has no trusted transport route. The selected profile is
+    /// therefore a proposal only: the receipt retains no route, no Case
+    /// association, no allocation, and no generated sequence. A successfully
+    /// extracted proposal is not Unidentified; that queue remains for a source
+    /// which cannot reach an eligible proposal or another real destination.
     /// </summary>
     [ReferencePackFact]
     [Trait("Category", "Corpus")]
-    public async Task NoGenuineNonQdosOriginalIsAllocatedAutomaticallyThroughNormalIntake()
+    public async Task GenuineNonQdosOriginalsProduceManualProposalsWithoutAutomaticAllocation()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -600,14 +594,28 @@ public sealed class RetainedInstructionAnalysisTests
                 continue;
             }
 
-            if (receipt.Decision == IntakeDecision.CaseCreated)
+            if (receipt.Decision != IntakeDecision.CaseCreated)
             {
                 failures.Add(
-                    $"{name} ({expectation.Profile}): the normal intake path decided case_created "
-                    + $"with no accepted route and no confirmed principal - {receipt.DecisionReason}");
+                    $"{name} ({expectation.Profile}): the manual upload did not produce "
+                    + $"an eligible proposal - {receipt.Decision} ({receipt.DecisionReason}).");
             }
 
-            if (receipt.AcceptedCaseId is not null
+            if (receipt.MailRouteDecision is not null)
+            {
+                failures.Add(
+                    $"{name} ({expectation.Profile}): a manual upload recorded a mail route.");
+            }
+
+            if (receipt.InstructionDraft?.SuggestedPrincipalCode != expectation.Profile)
+            {
+                failures.Add(
+                    $"{name} ({expectation.Profile}): the extracted proposal did not retain "
+                    + $"the selected profile principal.");
+            }
+
+            if (receipt.CurrentCaseId is not null
+                || receipt.AcceptedCaseId is not null
                 || receipt.ManualLinkedCaseId is not null
                 || receipt.AllocationState is not null)
             {
@@ -625,12 +633,11 @@ public sealed class RetainedInstructionAnalysisTests
 
             var held = await services.GetRequiredService<IUnidentifiedStore>()
                 .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None);
-            if (held is null || held.State != UnidentifiedState.Open)
+            if (held is not null)
             {
                 failures.Add(
-                    $"{name} ({expectation.Profile}): the material is not held for staff "
-                    + $"({(held is null ? "no Unidentified item" : held.State.ToString())}) "
-                    + $"after deciding {receipt.Decision}.");
+                    $"{name} ({expectation.Profile}): the eligible manual proposal was also "
+                    + $"held as Unidentified ({held.State}).");
             }
         }
 
@@ -640,6 +647,7 @@ public sealed class RetainedInstructionAnalysisTests
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
                 .CreateDbContextAsync();
             Assert.Equal(0, await context.Cases.CountAsync());
+            Assert.Equal(0, await context.CaseSequences.CountAsync());
             Assert.Equal(0, await context.CaseIntakeLinks.CountAsync());
         }
 

@@ -33,7 +33,6 @@ public sealed record SaveValuationPresetRequest(
     bool Active,
     long ExpectedVersion,
     ActionActor Actor,
-    string Reason,
     string OperationKey)
 {
     /// <summary>Required for an update; a newly minted preset has no existing scope.</summary>
@@ -598,7 +597,6 @@ public sealed class SaveValuationPreset(IValuationPresetStore store) : ISaveValu
                 Label = ValuationCalculationPolicy.NormalizeLabel(
                     request.Label,
                     nameof(request)),
-                Reason = RequireText(request.Reason, 1000, nameof(request)),
                 OperationKey = RequireText(request.OperationKey, 100, nameof(request))
             },
             cancellationToken);

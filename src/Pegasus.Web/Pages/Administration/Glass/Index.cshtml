@@ -14,17 +14,24 @@
    not-found surface is owned by the error page. *@
 @if (Model.Account is { } account && Model.Status is { } status)
 {
-    <div class="admin-layout">
-        <partial name="Shared/_AdminNav" />
-        <div class="stack">
-            <partial name="Shared/_ErrorSummary" />
-
-            <section class="panel" aria-labelledby="glass-credential-title">
-                <div class="panel-head">
-                    <h2 id="glass-credential-title">@CaseWorkspaceLabels.GlassCredential.Title</h2>
-                    <partial name="Shared/_StatusChip" model="@Model.StateName" />
-                </div>
-                <dl class="detail-list panel-body--compact">
+    <div class="dialog-backdrop" data-dialog="glass-credential-dialog" data-dialog-open-on-load="true" data-dialog-cancel-form="glass-close-form">
+        <section class="dialog dialog--compact glass-credential-dialog" role="dialog" aria-modal="true" aria-labelledby="glass-credential-title">
+            <div class="dialog-head">
+                <h2 id="glass-credential-title">Glass's login</h2>
+                <partial name="Shared/_StatusChip" model="@Model.StateName" />
+                @if (Model.IsEditing)
+                {
+                    <form id="glass-close-form" method="post" asp-page-handler="CancelEdit"><input type="hidden" name="staffId" value="@account.Id" /><input type="hidden" name="editLeaseToken" value="@Model.EditLeaseToken" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" /></form>
+                }
+                else
+                {
+                    <form id="glass-close-form" method="get" asp-page="/Administration/Accounts/Index"><input type="hidden" name="editStaffId" value="@account.Id" /><input type="hidden" name="expectedVersion" value="@account.Version" /></form>
+                }
+                <button type="submit" form="glass-close-form" class="dialog-close" aria-label="Back to account"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+            </div>
+            <div class="dialog-body stack">
+                <partial name="Shared/_ErrorSummary" />
+                <dl class="detail-list credentials-summary">
                     <div>
                         <dt>@CaseWorkspaceLabels.GlassCredential.Account</dt>
                         <dd>@account.UserName</dd>
@@ -57,13 +64,7 @@
                         </div>
                     }
                 </dl>
-            </section>
-
-            <section class="panel" aria-labelledby="glass-credential-save-title">
-                <div class="panel-head">
-                    <h2 id="glass-credential-save-title">@CaseWorkspaceLabels.GlassCredential.Save</h2>
-                </div>
-                <form method="post" asp-page-handler="Save" class="panel-body compact-credential-form">
+                <form id="glass-save-form" method="post" asp-page-handler="Save" class="stack">
                     @* Plain, not asp-for: a redisplay must carry the version the
                        store holds now, never the stale one the refused post sent. *@
                     <input type="hidden" name="ExpectedVersion" value="@status.Version" />
@@ -82,43 +83,18 @@
                         <input id="glass-password" name="password" type="password" required
                                maxlength="256" autocomplete="new-password" />
                     </div>
-                    <div class="button-row">
-                        <button type="submit" class="btn btn--primary">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                            <span>@CaseWorkspaceLabels.GlassCredential.Save</span>
-                        </button>
-                    </div>
                     </fieldset>
                 </form>
-            </section>
-
-            @if (status.Configured)
-            {
-                <section class="panel" aria-labelledby="glass-credential-clear-title">
-                    <div class="panel-head">
-                        <h2 id="glass-credential-clear-title">@CaseWorkspaceLabels.GlassCredential.Clear</h2>
-                    </div>
-                    <form method="post" asp-page-handler="Clear" class="panel-body panel-body--compact">
-                        <input type="hidden" name="ExpectedVersion" value="@status.Version" />
-                        <input type="hidden" name="ExpectedStaffAccountVersion" value="@account.Version" />
-                        <input type="hidden" name="EditLeaseToken" value="@Model.EditLeaseToken" />
-                        <fieldset class="stack" disabled="@(!Model.IsEditing)">
-                        <button type="submit" class="btn btn--danger">
-                            <span>@CaseWorkspaceLabels.GlassCredential.Clear</span>
-                        </button>
-                        </fieldset>
-                    </form>
-                </section>
-            }
-            <div class="button-row">
+            </div>
+            <div class="dialog-foot">
+                @if (status.Configured)
+                {
+                    <div class="left"><button type="button" class="btn btn--danger" data-dialog-open="glass-clear-confirm" disabled="@(!Model.IsEditing)">@CaseWorkspaceLabels.GlassCredential.Clear</button></div>
+                }
                 @if (Model.IsEditing)
                 {
-                    <form method="post" asp-page-handler="CancelEdit">
-                        <input type="hidden" name="staffId" value="@account.Id" />
-                        <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseToken" />
-                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                        <button type="submit" class="btn">Cancel</button>
-                    </form>
+                    <button type="submit" form="glass-close-form" class="btn">Cancel</button>
+                    <button type="submit" form="glass-save-form" class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg><span>@CaseWorkspaceLabels.GlassCredential.Save</span></button>
                 }
                 else
                 {
@@ -128,6 +104,7 @@
                         <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
                         <button type="submit" class="btn btn--primary">Edit credential</button>
                     </form>
+                    <button type="submit" form="glass-close-form" class="btn">Back to account</button>
                 }
             </div>
             @if (Model.IsEditing)
@@ -138,6 +115,15 @@
                 </form>
                 <p id="glass-credential-edit-heartbeat-status" class="notice notice--error" role="alert" hidden></p>
             }
-        </div>
+        </section>
     </div>
+    @if (status.Configured)
+    {
+        <div class="dialog-backdrop" data-dialog="glass-clear-confirm" hidden>
+            <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="glass-clear-confirm-title">
+                <div class="dialog-head"><h2 id="glass-clear-confirm-title">Clear Glass's login?</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+                <form method="post" asp-page-handler="Clear"><input type="hidden" name="ExpectedVersion" value="@status.Version" /><input type="hidden" name="ExpectedStaffAccountVersion" value="@account.Version" /><input type="hidden" name="EditLeaseToken" value="@Model.EditLeaseToken" /><div class="dialog-body"><dl class="detail-list"><div><dt>@CaseWorkspaceLabels.GlassCredential.Account</dt><dd>@account.UserName</dd></div></dl></div><div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger">@CaseWorkspaceLabels.GlassCredential.Clear</button></div></form>
+            </section>
+        </div>
+    }
 }

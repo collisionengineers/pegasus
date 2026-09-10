@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -14,6 +14,8 @@ public sealed class UploadGroupStatusModel(
     IQueuedIntakeStatusQueries statuses,
     IUploadOutcomeQueries outcomeQueries,
     IUploadCaseDecision caseDecision,
+    IGetIntake intake,
+    IDiscardIntakeSubmissionGroup discardSubmission,
     IRegisterImageIntake registerImageIntake,
     IImageIntakeOriginResolver imageIntakeOriginResolver,
     TimeProvider timeProvider) : UploadConfirmationPageModel(caseDecision)
@@ -89,6 +91,17 @@ public sealed class UploadGroupStatusModel(
     /// <summary>Rendered receipt versions for the current one-submission decision.</summary>
     public IReadOnlyDictionary<Guid, long> OpenMemberReceiptVersions { get; private set; } =
         new Dictionary<Guid, long>();
+
+    /// <summary>The current roster versions used by the terminal discard command.</summary>
+    public IReadOnlyDictionary<Guid, long> GroupMemberReceiptVersions { get; private set; } =
+        new Dictionary<Guid, long>();
+
+    /// <summary>
+    /// The page only offers discard after every member has completed. The
+    /// serializable store is still authoritative for associations,
+    /// allocations, registrations, and a changed durable roster.
+    /// </summary>
+    public bool CanDiscard { get; private set; }
 
     public IReadOnlyList<UploadCaseSuggestion> GroupSuggestedDestinations { get; private set; } = [];
 
@@ -204,7 +217,6 @@ public sealed class UploadGroupStatusModel(
         Guid id,
         Guid? caseId,
         string? reference,
-        string? reason,
         Guid operationId,
         Dictionary<Guid, long>? receiptVersions,
         long? caseVersion,
@@ -218,13 +230,6 @@ public sealed class UploadGroupStatusModel(
         {
             return notFound;
         }
-        if (string.IsNullOrWhiteSpace(reason) || reason.Length > 500)
-        {
-            TempData["UploadConfirmationError"] = "A reason is required to add this to a case.";
-            PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference, reason);
-            return await RenderSurfaceAsync(id, cancellationToken);
-        }
-
         try
         {
             if (operationId == Guid.Empty
@@ -233,7 +238,7 @@ public sealed class UploadGroupStatusModel(
                 || !TryGetPostedRoster(receiptVersions, out var roster))
             {
                 TempData["UploadConfirmationError"] = "This submission is incomplete or a file is not ready. No further files were added. Refresh and review every file before trying again.";
-                PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference, reason);
+                PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference);
                 return await RenderSurfaceAsync(id, cancellationToken);
             }
 
@@ -241,7 +246,7 @@ public sealed class UploadGroupStatusModel(
             {
                 var firstReceiptId = roster[0];
                 var confirmation = await _caseDecision.PrepareAsync(
-                    firstReceiptId, reference, reason, operationId, receiptVersions[firstReceiptId], actor, cancellationToken);
+                    firstReceiptId, reference, operationId, receiptVersions[firstReceiptId], actor, cancellationToken);
                 if (confirmation is null
                     || !(await _caseDecision.SearchForUploadsAsync(
                         roster, confirmation.Reference, actor, cancellationToken))
@@ -249,7 +254,7 @@ public sealed class UploadGroupStatusModel(
                         && candidate.Version == confirmation.Input.ExpectedCaseVersion))
                 {
                     TempData["UploadConfirmationError"] = "No single viable case matched every file in this submission. Search and choose a case from the suggestions.";
-                    PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference, reason);
+                    PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference);
                     return await RenderSurfaceAsync(id, cancellationToken);
                 }
 
@@ -261,12 +266,12 @@ public sealed class UploadGroupStatusModel(
             if (caseVersion is not { } reviewedCaseVersion || reviewedCaseVersion < 0)
             {
                 TempData["UploadConfirmationError"] = "This confirmation is incomplete. Choose the case again.";
-                PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference, reason);
+                PreserveGroupForm(receiptVersions, caseVersion, operationId, caseId, reference);
                 return await RenderSurfaceAsync(id, cancellationToken);
             }
 
             var result = await _caseDecision.AttachGroupAsync(
-                id, roster, caseId, reference, reason, operationId,
+                id, roster, caseId, reference, operationId,
                 receiptVersions, reviewedCaseVersion, actor, cancellationToken);
             if (!result.Succeeded)
             {
@@ -276,7 +281,6 @@ public sealed class UploadGroupStatusModel(
                     roster[0],
                     caseId.Value,
                     reference?.Trim() ?? "Selected case",
-                    reason,
                     new(operationId, receiptVersions[roster[0]], reviewedCaseVersion));
                 TempData["UploadConfirmationError"] = result.Message;
                 return await RenderSurfaceAsync(id, cancellationToken);
@@ -287,6 +291,59 @@ public sealed class UploadGroupStatusModel(
         {
             return Forbid();
         }
+
+        return RedirectToSurface(id);
+    }
+
+    public async Task<IActionResult> OnPostDiscardGroupAsync(
+        Guid id,
+        long? groupVersion,
+        Dictionary<Guid, long>? receiptVersions,
+        Guid operationId,
+        bool consequencesConfirmed,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (await LoadAsync(id, cancellationToken) is { } notFound)
+        {
+            return notFound;
+        }
+        if (!consequencesConfirmed)
+        {
+            TempData["UploadConfirmationError"] =
+                "Confirm that the retained source and processing record will remain before discarding this submission.";
+            return RedirectToSurface(id);
+        }
+        if (!CanDiscard || groupVersion is null || receiptVersions is null
+            || !HasCurrentDiscardRoster(groupVersion.Value, receiptVersions))
+        {
+            TempData["UploadConfirmationError"] =
+                "This submission changed or is still being processed. Refresh and try again.";
+            return RedirectToSurface(id);
+        }
+
+        try
+        {
+            var result = await discardSubmission.ExecuteAsync(
+                new(id, groupVersion.Value, receiptVersions, actor!, operationId),
+                cancellationToken);
+            if (result.Succeeded)
+            {
+                TempData["Confirmation"] = result.Message;
+            }
+            else
+            {
+                TempData["UploadConfirmationError"] = result.Message;
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+
 
         return RedirectToSurface(id);
     }
@@ -360,6 +417,27 @@ public sealed class UploadGroupStatusModel(
         OpenMemberReceiptVersions = open.ToDictionary(
             result => result.status!.ProcessedReceiptId ?? result.status.StagedReceiptId,
             result => result.outcome!.Attach!.ReceiptVersion);
+        GroupMemberReceiptVersions = new Dictionary<Guid, long>();
+        CanDiscard = false;
+        if (haveActor && group.Discard is null && group.Channel == IntakeSourceChannel.ManualUpload
+            && group.Members.Count == group.ExpectedMemberCount
+            && memberResults.All(result => result.status is { Status: QueuedIntakeStatusKind.Complete,
+                ProcessedReceiptId: not null }))
+        {
+            var receipts = await Task.WhenAll(memberResults.Select(async result =>
+            {
+                var receiptId = result.status!.ProcessedReceiptId!.Value;
+                return await intake.ExecuteAsync(new(receiptId, actor!), cancellationToken);
+            }));
+            if (receipts.All(receipt => receipt is not null)
+                && receipts.Select(receipt => receipt!.Id).Distinct().Count() == group.Members.Count)
+            {
+                GroupMemberReceiptVersions = receipts.ToDictionary(
+                    receipt => receipt!.Id,
+                    receipt => receipt!.Version);
+                CanDiscard = GroupMemberReceiptVersions.Count == group.Members.Count;
+            }
+        }
         if (haveActor && OpenGroupDecision)
         {
             GroupSuggestedDestinations = await _caseDecision.GetSuggestionsForUploadsAsync(
@@ -419,8 +497,7 @@ public sealed class UploadGroupStatusModel(
         long? caseVersion,
         Guid operationId,
         Guid? caseId,
-        string? reference,
-        string? reason)
+        string? reference)
     {
         GroupConfirmationReceiptVersions = receiptVersions;
         GroupConfirmationCaseVersion = caseVersion;
@@ -431,8 +508,16 @@ public sealed class UploadGroupStatusModel(
             {
                 UploadCaseDraft = new(
                     first, operationId, receiptVersions[first], caseId, caseVersion,
-                    reference, reason ?? string.Empty);
+                    reference);
             }
         }
     }
+
+    private bool HasCurrentDiscardRoster(
+        long groupVersion,
+        Dictionary<Guid, long> receiptVersions) =>
+        groupVersion == Group.Version
+        && receiptVersions.Count == GroupMemberReceiptVersions.Count
+        && receiptVersions.All(item => GroupMemberReceiptVersions.TryGetValue(item.Key, out var current)
+            && current == item.Value);
 }

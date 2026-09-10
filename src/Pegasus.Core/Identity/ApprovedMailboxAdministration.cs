@@ -43,7 +43,6 @@ public sealed record UpdateApprovedMailboxRequest(
     ApprovedMailboxState State,
     int ExpectedVersion,
     ActionActor Actor,
-    string Reason,
     string OperationKey,
     string? MailboxIdentity = null,
     string? InboxFolderIdentity = null,
@@ -61,7 +60,6 @@ public sealed record SetDefaultApprovedMailboxRequest(
     Guid? ExpectedPreviousDefaultMailboxId,
     int? ExpectedPreviousDefaultMailboxVersion,
     ActionActor Actor,
-    string Reason,
     string OperationKey)
 {
     /// <summary>Ownership of the selected mailbox, required for this change.</summary>
@@ -267,10 +265,6 @@ public sealed class UpdateApprovedMailbox(IApprovedMailboxStore store)
                 InboxFolderIdentity = inboxFolderIdentity,
                 SentFolderIdentity = sentFolderIdentity,
                 FolderBindings = folderBindings,
-                Reason = RequireText(
-                    request.Reason,
-                    1000,
-                    "A mailbox-policy reason is required."),
                 OperationKey = RequireText(
                     request.OperationKey,
                     100,
@@ -383,7 +377,6 @@ public sealed class SetDefaultApprovedMailbox(IApprovedMailboxStore store)
         return _store.SetDefaultAsync(
             request with
             {
-                Reason = RequireText(request.Reason, 1000, "A mailbox-policy reason is required."),
                 OperationKey = RequireText(request.OperationKey, 100, "An operation key is required.")
             },
             cancellationToken);

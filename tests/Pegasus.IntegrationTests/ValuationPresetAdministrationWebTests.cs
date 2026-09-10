@@ -54,11 +54,12 @@ public sealed partial class ValuationPresetAdministrationWebTests
     }
 
     /// <summary>
-    /// Labels and values stay compact; the edit form appears only when the
-    /// Administrator opens its preset row.
+    /// The table is a compact read surface with one inline add row; add and
+    /// edit both stay within the row's own columns and carry no
+    /// routine-reason field.
     /// </summary>
     [Fact]
-    public async Task ThePresetListShowsLabelsAmountsStatesAndVersionsWithoutExplanatoryCopy()
+    public async Task ThePresetListIsReadFirstAndItsEditorHasNoRoutineReason()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
@@ -69,18 +70,28 @@ public sealed partial class ValuationPresetAdministrationWebTests
         var presetList = match.Value;
 
         Assert.Contains("Tow bar", presetList, StringComparison.Ordinal);
-        Assert.Contains("<span>300.00</span>", presetList, StringComparison.Ordinal);
-        Assert.Contains("<span>1500.00</span>", presetList, StringComparison.Ordinal);
-        Assert.Contains("<span>0.00</span>", presetList, StringComparison.Ordinal);
+        Assert.Contains("£300.00", WebUtility.HtmlDecode(presetList), StringComparison.Ordinal);
+        Assert.Contains("£1,500.00", WebUtility.HtmlDecode(presetList), StringComparison.Ordinal);
+        Assert.Contains("£0.00", WebUtility.HtmlDecode(presetList), StringComparison.Ordinal);
         Assert.Contains(">Enabled<", presetList, StringComparison.Ordinal);
-        Assert.Contains(">Add preset<", body, StringComparison.Ordinal);
         Assert.DoesNotContain("<details", presetList, StringComparison.Ordinal);
         Assert.Contains(">Edit<", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("<th scope=\"col\">Change</th>", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("<th scope=\"col\">Save</th>", presetList, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reason", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("<p>", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("<aside", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("empty-state", presetList, StringComparison.Ordinal);
+        Assert.Contains("class=\"input-money\"", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"reason\"", body, StringComparison.Ordinal);
+
+        // The add row is a compact final row of the presets table (points 20,
+        // 32, 33), not a separate dialog-based creation panel.
+        Assert.Contains("id=\"create-label\"", presetList, StringComparison.Ordinal);
+        Assert.Contains("id=\"create-amount\"", presetList, StringComparison.Ordinal);
+        Assert.Contains(">Add<", presetList, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"preset-", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog", presetList, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -98,7 +109,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
                 ["operationKey"] = LastValue(page, OperationKeyRegex()),
                 ["label"] = "Roof rack",
                 ["amount"] = "125.00",
-                ["reason"] = "Added the roof rack allowance.",
+                ["active"] = "true",
                 ["__RequestVerificationToken"] = Token(page)
             })))
         {
@@ -107,18 +118,18 @@ public sealed partial class ValuationPresetAdministrationWebTests
 
         page = await GetPageAsync(client);
         Assert.Contains("Roof rack", page, StringComparison.Ordinal);
-        Assert.Contains(">125.00<", page, StringComparison.Ordinal);
+        Assert.Contains(">£125.00<", WebUtility.HtmlDecode(page), StringComparison.Ordinal);
 
         var editPage = await OpenPresetEditAsync(client, TowBarPresetId, 1);
-        var edit = RowForm(editPage, TowBarPresetId, "Tow bar", "350.00", "true", "The allowance rose.");
+        var edit = RowForm(editPage, TowBarPresetId, "Tow bar", "350.00", "true");
         using (var edited = await PostSaveAsync(client, edit))
         {
             Assert.Equal(HttpStatusCode.Found, edited.StatusCode);
         }
 
         page = await GetPageAsync(client);
-        Assert.Contains(">350.00<", page, StringComparison.Ordinal);
-        Assert.DoesNotContain(">300.00<", page, StringComparison.Ordinal);
+        Assert.Contains(">£350.00<", WebUtility.HtmlDecode(page), StringComparison.Ordinal);
+        Assert.DoesNotContain(">£300.00<", WebUtility.HtmlDecode(page), StringComparison.Ordinal);
 
         // The version the first post consumed is stale on a second, freshly
         // keyed post, and the page says so rather than writing a second edit.
@@ -134,7 +145,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
                 "The preset changed after this page was loaded.",
                 refusedPage,
                 StringComparison.Ordinal);
-            Assert.Contains("value=\"The allowance rose.\"", refusedPage, StringComparison.Ordinal);
+            Assert.Contains("value=\"350.00\"", refusedPage, StringComparison.Ordinal);
         }
 
         var disablePage = await OpenPresetEditAsync(client, TowBarPresetId, 2);
@@ -145,8 +156,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
                 TowBarPresetId,
                 "Tow bar",
                 "350.00",
-                "false",
-                "The allowance is withdrawn.")))
+                "false")))
         {
             Assert.Equal(HttpStatusCode.Found, disabled.StatusCode);
         }
@@ -155,7 +165,10 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.Contains(">Disabled<", page, StringComparison.Ordinal);
         Assert.Contains("Tow bar", page, StringComparison.Ordinal);
         var enablePage = await OpenPresetEditAsync(client, TowBarPresetId, 3);
-        Assert.Contains(">Enable<", enablePage, StringComparison.Ordinal);
+        Assert.Contains(">Enabled<", enablePage, StringComparison.Ordinal);
+        using var enabled = await PostSaveAsync(
+            client, RowForm(enablePage, TowBarPresetId, "Tow bar", "350.00", "true"));
+        Assert.Equal(HttpStatusCode.Found, enabled.StatusCode);
     }
 
     /// <summary>
@@ -177,14 +190,14 @@ public sealed partial class ValuationPresetAdministrationWebTests
                 ["presetId"] = LastValue(page, PresetIdRegex()),
                 ["operationKey"] = operationKey,
                 ["label"] = "Roof rack",
-                ["amount"] = "125.00",
-                ["reason"] = "   ",
+                ["amount"] = "300.123",
+                ["active"] = "true",
                 ["__RequestVerificationToken"] = Token(page)
             }));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("Enter a reason.", body, StringComparison.Ordinal);
+        Assert.Contains("Enter an amount of", body, StringComparison.Ordinal);
         Assert.Contains("value=\"Roof rack\"", body, StringComparison.Ordinal);
         Assert.NotEqual(operationKey, LastValue(body, OperationKeyRegex()));
         Assert.DoesNotContain("Roof rack</td>", body, StringComparison.Ordinal);
@@ -207,8 +220,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
                 TowBarPresetId,
                 "Updated tow bar",
                 amount,
-                "true",
-                "The attempted amount needs correction."));
+                "true"));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
@@ -216,14 +228,11 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.Contains("value=\"Updated tow bar\"", body, StringComparison.Ordinal);
         Assert.Contains("name=\"amount\" type=\"number\" inputmode=\"decimal\"", body, StringComparison.Ordinal);
         Assert.Contains($"value=\"{amount}\"", body, StringComparison.Ordinal);
-        Assert.Contains(
-            "value=\"The attempted amount needs correction.\"",
-            body,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"reason\"", body, StringComparison.Ordinal);
         var reloaded = await GetPageAsync(client);
         Assert.DoesNotContain("Updated tow bar", reloaded, StringComparison.Ordinal);
         Assert.Contains(">Tow bar<", reloaded, StringComparison.Ordinal);
-        Assert.Contains(">300.00<", reloaded, StringComparison.Ordinal);
+        Assert.Contains(">£300.00<", WebUtility.HtmlDecode(reloaded), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -236,8 +245,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Guid presetId,
         string label,
         string amount,
-        string active,
-        string reason)
+        string active)
     {
         var start = page.IndexOf(
             $"id=\"preset-{presetId:D}\"",
@@ -253,7 +261,6 @@ public sealed partial class ValuationPresetAdministrationWebTests
             ["label"] = label,
             ["amount"] = amount,
             ["active"] = active,
-            ["reason"] = reason,
             ["__RequestVerificationToken"] = Token(page)
         };
     }

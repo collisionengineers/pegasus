@@ -26,7 +26,6 @@ public sealed class IndexModel(
     public bool HasMoreAccounts { get; private set; }
     public bool AutomationComposed { get; private set; }
     public string NewUserName { get; private set; } = string.Empty;
-    public string NewReason { get; private set; } = string.Empty;
     public string CreateOperationKey { get; private set; } = NewOperationKey();
     public bool CreatePostSubmitted { get; private set; }
     public Guid SettingsPostStaffId { get; private set; }
@@ -34,8 +33,8 @@ public sealed class IndexModel(
     public bool SettingsPostIsSignOffEngineer { get; private set; }
     public string SettingsPostPrintedName { get; private set; } = string.Empty;
     public string SettingsPostQualifications { get; private set; } = string.Empty;
-    public string SettingsPostReason { get; private set; } = string.Empty;
     public bool SettingsPostIsDefault { get; private set; }
+    public string SettingsPostReason { get; private set; } = string.Empty;
     public long SettingsPostVersion { get; private set; }
     public string SettingsLeaseToken { get; private set; } = string.Empty;
     public string? ResetTemporaryPassword { get; private set; }
@@ -86,20 +85,18 @@ public sealed class IndexModel(
     public Task<IActionResult> OnPostCreateAsync(
         string? userName,
         string? temporaryPassword,
-        string? reason,
         string? operationKey,
         CancellationToken cancellationToken)
     {
         CreatePostSubmitted = true;
         NewUserName = userName?.Trim() ?? string.Empty;
-        NewReason = reason ?? string.Empty;
         return RunAsync(async actor =>
         {
-            if (!ValidateReasoned(operationKey, reason)
+            if (!ValidateOperationKey(operationKey)
                 | !Require(NewUserName, "Enter a username.")
                 | !Require(temporaryPassword, "Enter a temporary password.")) return null;
             await createStaffAccount.ExecuteAsync(
-                new(actor, NewUserName, temporaryPassword!, reason!, operationKey!), cancellationToken);
+                new(actor, NewUserName, temporaryPassword!, operationKey!), cancellationToken);
             return "The staff account was created and must change its password at first sign-in.";
         }, cancellationToken);
     }
@@ -112,9 +109,9 @@ public sealed class IndexModel(
         string? qualifications,
         bool isDefaultSignOffEngineer,
         IFormFile? signature,
-        string? reason,
         long expectedVersion,
         string? editLeaseToken,
+        string? reason,
         string? operationKey,
         CancellationToken cancellationToken)
     {
@@ -122,8 +119,8 @@ public sealed class IndexModel(
         SettingsPostIsSignOffEngineer = isSignOffEngineer;
         SettingsPostPrintedName = printedName ?? string.Empty;
         SettingsPostQualifications = qualifications ?? string.Empty;
-        SettingsPostReason = reason ?? string.Empty;
         SettingsPostIsDefault = isDefaultSignOffEngineer;
+        SettingsPostReason = reason ?? string.Empty;
         SettingsPostVersion = expectedVersion;
         SettingsLeaseToken = editLeaseToken ?? string.Empty;
         return RunAsync(async actor =>
@@ -154,8 +151,8 @@ public sealed class IndexModel(
             await updateStaffAccountSettings.ExecuteAsync(
                 new(
                     actor, staffId, selectedRole, isSignOffEngineer, printedName, qualifications,
-                    signatureBytes, isDefaultSignOffEngineer, reason!,
-                    operationKey!, expectedVersion, editLeaseToken ?? string.Empty),
+                    signatureBytes, isDefaultSignOffEngineer, operationKey!, expectedVersion,
+                    editLeaseToken ?? string.Empty, reason),
                 cancellationToken);
             return "Account settings saved.";
         }, cancellationToken);
@@ -312,12 +309,7 @@ public sealed class IndexModel(
 
     private bool ValidateReasoned(string? operationKey, string? reason)
     {
-        var valid = true;
-        if (!IsOperationKeyValid(operationKey))
-        {
-            ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-            valid = false;
-        }
+        var valid = ValidateOperationKey(operationKey);
         if (!Require(reason, "Enter a reason.")) valid = false;
         else if (reason!.Trim().Length > StaffAccountAdministrationPolicy.MaximumReasonLength)
         {
@@ -325,6 +317,13 @@ public sealed class IndexModel(
             valid = false;
         }
         return valid;
+    }
+
+    private bool ValidateOperationKey(string? operationKey)
+    {
+        if (IsOperationKeyValid(operationKey)) return true;
+        ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        return false;
     }
 
     private bool RequireStaffId(Guid staffId)

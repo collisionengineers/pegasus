@@ -9,7 +9,7 @@
     var workflow = details.Workflow;
     var data = details.Data;
     var leaseToken = Model.LeaseToken;
-    var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
+    var mayEdit = Model.CanEditCaseData;
     var state = workflow.State;
     var requirements = Model.OutstandingRequirements;
 
@@ -20,7 +20,7 @@
     {
         CaseLifecycleState.Review => 1,
         CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => 2,
-        CaseLifecycleState.PostReportComplete => 3,
+        CaseLifecycleState.PostReportComplete or CaseLifecycleState.Query => 3,
         _ => 0
     };
     (string Label, string Icon)[] steps =
@@ -164,21 +164,15 @@
                     <input type="hidden" name="inspectionMode" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Inspection.Mode)?.Value)" />
                     <div class="grid grid-2">
                         <div class="field"><label for="edit-claimant">Claimant</label><input id="edit-claimant" name="claimantName" maxlength="300" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Claimant.Name)?.Value)" /></div>
-                        <div class="field"><label for="edit-provider-reference">Provider reference</label><input id="edit-provider-reference" name="claimNumber" maxlength="200" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Claim.Number)?.Value)" /></div>
+                        <div class="field"><label for="edit-provider-reference">Our ref</label><input id="edit-provider-reference" name="claimNumber" maxlength="200" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Claim.Number)?.Value)" /></div>
                         <div class="field"><label for="edit-registration">Registration</label><input id="edit-registration" name="vehicleRegistration" maxlength="20" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Vehicle.Registration)?.Value)" /></div>
                         <div class="field"><label for="edit-make">Make</label><input id="edit-make" name="vehicleMake" maxlength="100" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Vehicle.Make)?.Value)" /></div>
                         <div class="field"><label for="edit-model">Model</label><input id="edit-model" name="vehicleModel" maxlength="100" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Vehicle.Model)?.Value)" /></div>
-                        <div class="field"><label class="req" for="edit-reason">Reason</label><input id="edit-reason" name="reason" required maxlength="500" /></div>
+
                     </div>
                     <div class="field">
                         <label for="edit-circumstances">Accident circumstances</label>
                         <textarea id="edit-circumstances" name="accidentCircumstances" maxlength="2000" rows="4">@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Accident.Circumstances)?.Value)</textarea>
-                    </div>
-                    <div class="button-row">
-                        <button type="submit" class="btn btn--primary">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                            <span>Save case data</span>
-                        </button>
                     </div>
                 </form>
             </div>

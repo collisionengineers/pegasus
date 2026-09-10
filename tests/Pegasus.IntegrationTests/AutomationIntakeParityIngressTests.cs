@@ -109,17 +109,11 @@ public sealed class AutomationIntakeParityIngressTests
     {
         using var factory = new IntakeWebApplicationFactory("Development", true);
         using var mcpFactory = WithAutomationMcp(factory);
-        using var intakeClient = mcpFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost:7139")
-        });
         using var client = mcpFactory.CreateClient();
         var email = IntakeTestEvidence.CreateEmail(
             "triage-request.eml",
             "Triage Only Request\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-MCP\r\nVehicle Registration: AB12 CDE");
-        _ = await IntakeWebDriver.UploadAndProcessAsync(
-            mcpFactory, intakeClient, email.FileName, email.MediaType, email.Content);
+        _ = await MailboxIntakeTestData.SubmitAndProcessAsync(mcpFactory.Services, email);
 
         var token = await RequestTokenAsync(client, "automation.intake");
         using (var toolsResponse = await PostMcpAsync(client, token, ToolsListPayload(9)))

@@ -696,7 +696,8 @@ public sealed class ProcessQueuedIntake(
     IRegisterUnidentified? registerUnidentified = null,
     ReconcileUnidentifiedDestinations? unidentifiedDestinations = null,
     AssociateRetainedMailWithCase? automaticMailCaseAssociation = null,
-    SubmitMailboxImageIntake? mailboxImageIntake = null) : IProcessQueuedIntake
+    SubmitMailboxImageIntake? mailboxImageIntake = null,
+    IIntakeSubmissionGroupStore? submissionGroups = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
 
@@ -748,6 +749,14 @@ public sealed class ProcessQueuedIntake(
                 cancellationToken)
                 ?? throw new InvalidDataException(
                     "The completed intake evaluation does not identify a persisted receipt.");
+            if (await IsDiscardedSubmissionMemberAsync(completedReceipt, cancellationToken))
+            {
+                // A manual group discard is a durable terminal submission
+                // decision. A completed queue redelivery must retain its
+                // source and receipt, but must not replay allocation,
+                // association, image automation, or Unidentified work.
+                return QueuedIntakeProcessingOutcome.NoOp;
+            }
             var replayAssociated = await AssociateCaseIfUnambiguousAsync(
                 completedReceipt,
                 completedEvaluation,
@@ -1079,6 +1088,21 @@ public sealed class ProcessQueuedIntake(
         }
 
         return await imageIntakeAutomation.ApplyAsync(receipt, cancellationToken);
+    }
+
+    private async Task<bool> IsDiscardedSubmissionMemberAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (submissionGroups is null || receipt.SourceIdentity.Channel != IntakeSourceChannel.ManualUpload)
+        {
+            return false;
+        }
+
+        var group = await submissionGroups.FindForMemberSourceAsync(
+            receipt.SourceIdentity,
+            cancellationToken);
+        return group?.Discard is not null;
     }
 
     /// <summary>
@@ -1496,7 +1520,7 @@ public sealed class LinkIntake(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        IntakeCommandValidation.RequireStaffMutation(
+        IntakeCommandValidation.RequireStaffLinkMutation(
             request.ReceiptId,
             request.ExpectedIntakeVersion,
             request.Actor,
@@ -1567,6 +1591,40 @@ internal static class IntakeCommandValidation
                 nameof(operationKey));
         }
         if (reason.Trim().Length > 500)
+        {
+            throw new ArgumentException(
+                "The reason must be 500 characters or fewer.",
+                nameof(reason));
+        }
+    }
+
+    /// <summary>
+    /// An initial staff association is an explicit destination decision, but
+    /// its reason is optional. The persistence owner distinguishes a first
+    /// association from a relink and retains the established relink reason
+    /// requirement where an association already exists.
+    /// </summary>
+    public static void RequireStaffLinkMutation(
+        Guid receiptId,
+        long expectedVersion,
+        ActionActor actor,
+        string operationKey,
+        string? reason)
+    {
+        if (receiptId == Guid.Empty)
+        {
+            throw new ArgumentException("An intake receipt identifier is required.", nameof(receiptId));
+        }
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedVersion);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        if (operationKey.Length > 100)
+        {
+            throw new ArgumentException(
+                "The operation key must be 100 characters or fewer.",
+                nameof(operationKey));
+        }
+        if (reason?.Trim().Length > 500)
         {
             throw new ArgumentException(
                 "The reason must be 500 characters or fewer.",

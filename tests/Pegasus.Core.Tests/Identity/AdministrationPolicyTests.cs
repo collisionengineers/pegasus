@@ -14,7 +14,7 @@ public sealed class AdministrationPolicyTests
         var store = new WorkflowStore();
         var command = new UpdateWorkflowConfiguration(store);
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => command.ExecuteAsync(
-            new(1, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]), "Change schedule", "schedule")
+            new(1, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]), "schedule")
             { ChaseIntervalDays = interval }, default));
         Assert.Null(store.UpdateRequest);
     }
@@ -41,7 +41,6 @@ public sealed class AdministrationPolicyTests
             new(
                 1,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
-                "Attempted gate change",
                 "workflow-denied"),
             default));
 
@@ -49,21 +48,20 @@ public sealed class AdministrationPolicyTests
     }
 
     [Fact]
-    public async Task WorkflowConfigurationUpdateCarriesExpectedVersionReasonAndActor()
+    public async Task WorkflowConfigurationUpdateCarriesExpectedVersionAndActor()
     {
         var store = new WorkflowStore();
         var command = new UpdateWorkflowConfiguration(store);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 
         var updated = await command.ExecuteAsync(
-            new(1, actor, "  Reviewed policy  ", "  workflow-op  "),
+            new(1, actor, "  workflow-op  "),
             default);
 
         Assert.Equal(2, updated.PolicyVersion);
         var request = Assert.IsType<UpdateWorkflowConfigurationRequest>(store.UpdateRequest);
         Assert.Same(actor, request.Actor);
         Assert.Equal(1, request.ExpectedVersion);
-        Assert.Equal("Reviewed policy", request.Reason);
         Assert.Equal("workflow-op", request.OperationKey);
     }
 
@@ -114,7 +112,6 @@ public sealed class AdministrationPolicyTests
                 null,
                 null,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
-                "Attempted default sender selection",
                 "mailbox-default-denied"),
             default));
 
@@ -137,7 +134,6 @@ public sealed class AdministrationPolicyTests
                 ApprovedMailboxState.Approved,
                 0,
                 actor,
-                "  Approve the fixed routes  ",
                 "  mailbox-op  ",
                 "  mailbox-identity  ",
                 "  inbox-folder  ",
@@ -157,7 +153,6 @@ public sealed class AdministrationPolicyTests
                 ApprovedMailboxRouteScope.SentEvidence
             },
             request.RouteScopes);
-        Assert.Equal("Approve the fixed routes", request.Reason);
         Assert.Equal("mailbox-op", request.OperationKey);
         Assert.Equal("mailbox-identity", request.MailboxIdentity);
         Assert.Equal("inbox-folder", request.InboxFolderIdentity);
@@ -189,7 +184,6 @@ public sealed class AdministrationPolicyTests
             ApprovedMailboxState.Approved,
             0,
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-            "Enable staff send",
             "mailbox-send",
             "mailbox-id");
 
@@ -215,7 +209,6 @@ public sealed class AdministrationPolicyTests
             ApprovedMailboxState.Approved,
             0,
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-            "Approve inbound intake",
             "mailbox-op",
             "mailbox-identity",
             "inbox-folder",
@@ -260,7 +253,6 @@ public sealed class AdministrationPolicyTests
                     ApprovedMailboxState.Approved,
                     0,
                     ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-                    "Approve both routes",
                     "mailbox-op",
                     mailboxIdentity,
                     inboxFolderIdentity,
@@ -285,7 +277,6 @@ public sealed class AdministrationPolicyTests
                 ApprovedMailboxState.Disabled,
                 0,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-                "Awaiting the tenant application access policy",
                 "mailbox-op"),
             default);
 
@@ -311,7 +302,6 @@ public sealed class AdministrationPolicyTests
                     ApprovedMailboxState.Approved,
                     0,
                     ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-                    "Approve inbound intake",
                     "mailbox-op",
                     mailboxIdentity,
                     "inbox-folder"),
@@ -336,7 +326,6 @@ public sealed class AdministrationPolicyTests
                     ApprovedMailboxState.Approved,
                     0,
                     ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-                    "Approve inbound intake",
                     "mailbox-op",
                     new string('m', 101),
                     "inbox-folder"),
@@ -360,7 +349,6 @@ public sealed class AdministrationPolicyTests
                 ApprovedMailboxState.Approved,
                 0,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
-                "Approve inbound intake",
                 "mailbox-op"),
             default));
 

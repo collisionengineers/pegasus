@@ -84,14 +84,16 @@ freshness line and the signed-in account (name, role, account dialog with
 session start, idle lock, sign out).
 
 The utility bar carries the page freshness text, the global search input
-(Enter or Ctrl K opens the command palette), the **Add** action (Upload
-files, Create Case, Create upload request, Review Inbox) and notifications.
+(Enter or Ctrl K opens the command palette), **New case** opening the direct
+staff creation form, and notifications. Upload and Inbox retain their named
+navigation; Case upload links remain contextual actions.
 A notification-query failure must not block the page unless it represents
 cancellation or failed authorization. The dialog shows `Notifications
 unavailable.` without placeholder or stale rows, and the failure is logged.
-**Create Case** takes the required identity and the attached or recorded
-instruction, records an attributable intake receipt, and then runs the normal
-principal and Case/PO allocation policy — never a second allocation path (D26,
+**Create Case** opens direct staff creation with the identity-critical Case
+facts and no fictional intake receipt or source provenance. When opened from a
+received item, the same form uses that existing receipt and the normal intake
+allocation path rather than creating a second allocation route (D26,
 [FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)).
 A skip link precedes the rail; toasts announce in a live region; every
 dialog traps focus and inerts the page behind it.
@@ -162,7 +164,10 @@ interface wording for the `Blocked intake` boundary and remains pre-case.
 Awaiting instruction lists the Image-initiated Cases still awaiting an
 instruction; it is Pre-Case work beside Triage, never a workflow queue, and
 its rows show reference, registration, image count, custody, received, source
-and chase facts (D38). `?tab=` selects the queue.
+and chase facts (D38). `?tab=` selects the queue. Image Intake detail shows
+**Open Triage** when a Triage record shares the same origin receipt; there is
+no "Open in Box" action, because no Box destination is exposed for Image
+Intake material in this UI — a known limitation, not a designed omission.
 Filters are Principal (every queue) and, on Not ready only, Missing — `All`,
 `Instructions`, `Images`, `Both missing` — plus Clear. Each queue keeps its
 own row shape rather than being forced into one column set: a Case row
@@ -190,23 +195,41 @@ and Created in error are recorded dispositions, not terminally Closed Cases.
 
 Unidentified detail shows the kind/received/reason facts, the retained file
 or message by its operator-meaningful handle, one link to the underlying
-retained material, chronological history, and the resolution form
-(Destination: add to an existing Case, create a Case from an accepted
-instruction, register an Image-initiated Case, or close with a reason).
-Exact U-reference search returns both open and resolved items as a distinct
-result type and never treats U<n> as a Case, Audit, or Image Intake
-reference. Resolution is staff-authorised, antiforgery protected,
-version-checked, idempotent by operation key, and requires a supported
-destination and reason. A stale version is a non-destructive conflict; a
-replay shows the original result. The permanent U-reference and origin
-remain visible after resolution.
+retained material — **View email** or **View file**, chosen by media kind —
+and chronological history. **Link to Case** is the primary action, opening a
+compact dialog; **Create Case**, **Register images** and **Close** remain as
+named alternatives inside that same dialog (Destination: add to an existing
+Case, create a Case from an accepted instruction, register an
+Image-initiated Case, or close with a reason). There is no "Resolution" or
+"Resolve material" framing in the UI; the dialog is titled with the item's
+own U-reference. Exact U-reference search returns both open and resolved
+items as a distinct result type and never treats U<n> as a Case, Audit, or
+Image Intake reference. The underlying operation is staff-authorised,
+antiforgery protected, version-checked, idempotent by operation key, and
+requires a supported destination and reason. A stale version is a
+non-destructive conflict; a replay shows the original result. The permanent
+U-reference and origin remain visible after resolution.
+
+A Received item (intake receipt) shows one effective state after
+association: once linked, its Decision panel and list rows read **Linked to
+Case** regardless of the decision that first proposed a Case; there is no
+separate "Ready for case allocation" state once association exists. Before
+association, the panel heading is **Decision** and shows the current decision
+label and, where the receipt names an existing draft, the **Link to Case**
+control.
 
 Triage detail carries the determinations (roadworthiness, repair outcome),
 the source facts, a `History` view that merges durable events with append-only
 attributable notes in chronological order, and a `Files` view of the retained
 sources, their attachments and the linked vehicle images with view and download
 (D25). A correction is a new note; there is no note edit, no note delete and no
-upload action on Triage. Completion records the decided outcome. Optional
+upload action on Triage. Its single retained source link reads **View email**
+or **View file**, chosen by media kind, replacing a former generic "View
+retained source". **Assign to Engineer** is a button opening a compact dialog
+(engineer select, Assign/Cancel); assignment records no reason, while the
+determination reason and other meaningful Triage decisions keep their
+required reasons ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
+Completion records the decided outcome. Optional
 **Reply with outcome** opens the email feature with an editable preset template;
 the sent correspondence attaches to the Triage and is never a completion gate.
 The existing server-side transitions remain
@@ -217,9 +240,9 @@ reachable where a handler exists ([FRD-03](frd-03-triage.md)).
 `/Search` carries the `UI-07` filter set — Case/PO or image reference,
 Registration, Claimant, Claim/provider reference, Principal, State,
 Engineer, Received from/to, Origin — with Search and Clear. Results are one
-table (Case/PO and provider reference, vehicle, claimant, principal, type,
+table (Case/PO and Our ref, vehicle, claimant, principal, type,
 state, due); pointer or keyboard intent on a row shows a selected-Case
-preview (type, state, accident circumstances, provider reference, Engineer,
+preview (type, state, accident circumstances, Our ref, Engineer,
 due, next action, outstanding requirements, Open Case, copy Case/PO) beside
 the table, stacking after it at constrained width. Image-initiated Cases are
 searchable by VRM reference or registration and use the named states
@@ -233,7 +256,9 @@ Staff-closed.
 Sign-off Engineer beside it — D31), the presence strip, a sticky action bar
 and a sticky section jump-nav whose current entry follows the scroll
 position. `?section=` jumps to a section; sections below the fold render
-lazily; there is no layout switch. The sections, in order, are **Overview**,
+lazily. The refined Scroll/Tabs choice uses the same section hosts and one
+edit form. Tabs hide inactive sections without discarding loaded values;
+Scroll remains the no-script fallback. The sections, in order, are **Overview**,
 **Inspection**, **Vehicle**, **Damage**, **Valuation**, **Estimate**,
 **Settlement**, **Report**, **Files**, **Notes**. Every
 section is always viewable; the Engineer sections — Damage, Valuation,
@@ -244,24 +269,33 @@ The whole record enters one edit mode over one lease
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)).
 
 The action bar offers only actions the Core use cases permit for the current
-state: Edit Case / Finish editing / Renew editing, or the holder
+state: Edit Case, one global Save/Cancel while editing, Renew editing when
+needed without script, or the holder
 when another account holds the lease ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery));
 Place on Hold / Release Hold; Create upload link; **Hand to Engineer** in
 Review while editing — its dialog selects an eligible Engineer and the one
 handoff assigns them and enters With Engineer. Handoff is review; there is
 no reviewed checkbox or separate Start report preparation action.
-**Send to EVA** remains optional in Review and With Engineer as a re-send
-(D36, D44); its dialog shows the Engineer and holds
-Sign-off Engineer and Download ZIP / Send via API, with Send via API disabled
-unless the Principal enables it ([FRD-07](frd-07-eva-and-external-engineering-handoff.md));
-there is no separate Download EVA package action and EVA never gates native
-engineering;
+The Principal's report-generation policy determines EVA work: **EVA ZIP**
+offers the export, **manual EVA API** offers Send via API, and **automatic EVA
+API on Review** permits a staff retry only after its automatic delivery failed.
+Pegasus generation has no EVA action. EVA never gates native engineering
+([FRD-07](frd-07-eva-and-external-engineering-handoff.md));
 **Report sent** in With Engineer, which confirms detected or linked Sent
 evidence and enters post-report work — it never completes the Case and
 never records a manual assertion ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md));
 **Return to Engineer** in Completed or Query when engineering changes are needed.
 Query receipt or attachment moves Completed to Query; replying returns it to
-Completed without a separate reopen. There is no terminal Close Case action.
+Completed without a separate reopen. **Close case** is the one
+adverse-disposition action, visually separated from ordinary progression. Its
+compact dialog offers only the outcomes Core currently permits for the
+Case — `Provider cancelled` or `Collision Engineers rejected` — with a
+required outcome and reason, and posts to the existing Closure handler; a
+missing or unrecognised outcome is refused rather than defaulting. `Created in
+error` (**Correct principal**) and `E-mail unlinked` keep their own dedicated
+actions and are never offered by this dialog; `PostReportComplete` remains the
+ordinary **Mark completed** progression, not part of Close case. Closing never
+deletes a Case ([FRD-01](frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence)).
 Holds, releases, corrections and a return to engineering record a reason. Editing shows a sticky bar
 with the lease text, an unsaved marker, Discard and Save; saving in Review
 warns first; a stale version shows the current and proposed values as a
@@ -271,7 +305,7 @@ non-destructive conflict.
   Completed ⇄ Query, with Held as an exception badge), outstanding requirements — the
   named unmet items of the versioned instruction- and image-completeness sets,
   each with title, source, reason and resolve action, and never a percentage
-  (D23) — the edit form (claimant, provider reference, registration, make,
+  (D23) — the edit form (claimant, Our ref, registration, make,
   model, accident circumstances) and the work, party and accident facts.
 - Inspection: the recorded inspect-at value with its fast-update choice —
   Image Based Assessment, Claimant address, Repairer location, Storage
@@ -411,6 +445,10 @@ every estimate version selects from, with disabling blocking future selection
 without changing history (D17). It stays inside that area; no ninth area is
 added.
 
+**Valuation presets** adds and edits inline: a compact add row and in-row
+editing, with no separate creation or edit dialog. Its existing five-minute
+record-scoped edit lease still applies to an in-progress edit.
+
 Review-gated transitions calculate completeness from persisted facts inside
 the transaction. A submitted readiness claim or staff-confirmation checkbox is
 not authority; those checkboxes are retired (CASE-046, PLAT-072).
@@ -487,15 +525,15 @@ an editable new-Case proposal, whose acceptance is the only point at which a
 formal Case/PO may be allocated. The proposal states that it creates nothing
 until accepted; reject/cancel changes nothing and leaves the material retained.
 **Add to an existing case** is keyboard-operable (the active suggestion is
-marked by more than colour) and requires a reason. Search failures are visibly
+marked by more than colour). Search failures are visibly
 different from no matches, and a response for an earlier query cannot replace a
 newer input. A grouped upload has one server-bound submission decision and
 reports partial completion honestly. The exact decision table and attach
 contract are owned by
 [FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface).
 A grouped upload shows one server-bound submission decision with the per-file
-processing and outcome details beneath it (D20). Its target and reason are
-shared, while each member keeps its own reviewed receipt version and durable
+processing and outcome details beneath it (D20). Its target is shared, while
+each member keeps its own reviewed receipt version and durable
 result; a partial outcome is reported rather than represented as success.
 
 ### Dashboard freshness and reconciliation

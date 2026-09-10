@@ -9,7 +9,7 @@
 .valuation-card .figures { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); margin: 0 0 var(--sp-3); }
 
 /* B06: the report-image preparation cards the Files and Report sections share. */
-.report-images { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--sp-4); }
+.report-images { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: var(--sp-4); }
 .report-image { padding: var(--sp-4); border: var(--border); border-radius: var(--radius); background: var(--paper); }
 .report-image h3 { margin: 0 0 var(--sp-3); }
 /* B08: the drag reorder's two states. Nothing here is required for the move —
@@ -22,15 +22,36 @@
 /* U5: local Case damage and image-preparation controls. */
 .report-image-preview { aspect-ratio: 4 / 3; overflow: hidden; margin-bottom: var(--sp-3); border-radius: var(--radius); background: var(--panel); }
 .report-image-preview img { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; transition: transform .15s ease; }
-.damage-workbench { display: grid; grid-template-columns: minmax(220px, .85fr) minmax(260px, 1fr); gap: var(--sp-5); align-items: start; }
+.damage-workbench { display: grid; grid-template-columns: minmax(220px, 310px) minmax(260px, 1fr); gap: var(--sp-5); align-items: start; }
 .damage-diagram-wrap { display: grid; justify-items: center; gap: var(--sp-3); }
 .damage-diagram { inline-size: min(100%, 310px); block-size: auto; }
-.vehicle-outline { fill: var(--paper); stroke: var(--ink); stroke-width: 4; }
-.damage-zones [data-damage-zone] { fill: color-mix(in srgb, var(--ce-red) 8%, var(--paper)); stroke: var(--muted); stroke-width: 1.5; cursor: pointer; transition: fill .15s ease, stroke .15s ease; }
-.damage-zones [data-damage-zone]:hover, .damage-zones [data-damage-zone].is-selected { fill: color-mix(in srgb, var(--ce-red) 30%, var(--paper)); stroke: var(--ce-red); stroke-width: 3; }
-.damage-zones [data-damage-zone].is-damaged, .damage-extra-zones .is-damaged { fill: var(--ce-red); color: var(--paper); stroke: var(--ce-red); }
+.damage-diagram-label { fill: var(--quiet); font: 650 8px / 1 var(--font); letter-spacing: .08em; }
+.damage-vehicle-body { fill: var(--surface); stroke: var(--line-strong); stroke-width: 1.5; }
+.damage-glass { fill: var(--surface-3); stroke: var(--line-strong); stroke-width: 1; }
+.damage-wheel { fill: var(--nav-2); }
+.damage-structural-path { fill: none; stroke: var(--line); stroke-width: 1; pointer-events: none; }
+.damage-structural-path--strong { stroke: var(--line-strong); }
+.damage-marker { pointer-events: none; }
+.damage-marker.is-hidden { display: none; }
+.damage-marker circle { fill: var(--red); }
+.damage-marker path { fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.damage-zones [data-damage-zone] { fill: transparent; stroke: transparent; cursor: pointer; transition: fill .15s ease, stroke .15s ease; }
+.damage-zones rect[data-damage-zone] { stroke: transparent; }
+.damage-diagram [role=button] { cursor: pointer; }
+.damage-diagram [role=button]:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; }
+.damage-zones [data-damage-zone]:hover { fill: color-mix(in srgb, var(--navy) 12%, transparent); }
+.damage-zones [data-damage-zone].is-damaged { fill: color-mix(in srgb, var(--red) 18%, var(--surface)); stroke: var(--red); stroke-width: 1.5; }
+.damage-zones [data-damage-zone].is-selected { fill: color-mix(in srgb, var(--navy) 14%, var(--surface)); stroke: var(--navy); stroke-width: 2; }
+.damage-zones [data-damage-zone].is-damaged.is-selected { fill: color-mix(in srgb, var(--red) 24%, var(--surface)); stroke: var(--navy); stroke-width: 2.5; }
+.damage-diagram--readonly .damage-zones [data-damage-zone] { cursor: default; }
+.damage-diagram--readonly .damage-zones [data-damage-zone]:hover { fill: transparent; }
+.damage-diagram--readonly .damage-zones [data-damage-zone].is-damaged:hover { fill: color-mix(in srgb, var(--red) 18%, var(--surface)); }
+.damage-diagram--readonly .damage-zones [data-damage-zone][role=button] { cursor: pointer; }
+.damage-extra-zones .is-damaged { border-color: var(--red); background: var(--red); color: var(--surface); }
+.damage-extra-zones .is-selected { border-color: var(--navy); background: var(--navy); color: var(--surface); }
+.damage-extra-zones .is-damaged.is-selected { border-color: var(--navy); background: var(--red); color: var(--surface); }
 .damage-extra-zones { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-2); }
-.damage-editor-panel { min-block-size: 240px; padding: var(--sp-4); border: var(--border); border-radius: var(--radius); background: var(--paper); }
+.damage-editor-panel { padding: var(--sp-3) 0; min-inline-size: 0; }
 .damage-impact-list { display: grid; gap: var(--sp-2); margin: var(--sp-4) 0 0; padding: 0; list-style: none; }
 .link-button { padding: 0; border: 0; background: none; color: var(--ce-red); font: inherit; text-align: left; cursor: pointer; }
 .case-crop-dialog .dialog { max-inline-size: 980px; }
@@ -42,3 +63,11 @@
 .crop-handle--nw { inset: -7px auto auto -7px; cursor: nwse-resize; }.crop-handle--ne { inset: -7px -7px auto auto; cursor: nesw-resize; }.crop-handle--sw { inset: auto auto -7px -7px; cursor: nesw-resize; }.crop-handle--se { inset: auto -7px -7px auto; cursor: nwse-resize; }
 .crop-preview { aspect-ratio: 1; overflow: hidden; background: var(--panel); }.crop-preview canvas { display: block; inline-size: 100%; block-size: 100%; }
 @media (max-width: 760px) { .damage-workbench, .crop-dialog-body { grid-template-columns: 1fr; }.crop-stage { min-block-size: 260px; } }
+
+/* Review point 12: the adverse disposition. It sits at the end of the record
+   bar behind its own divider so it is never read as the next step, and it is
+   filled rather than outlined so it is the one action nobody misses. */
+.record-bar-adverse { display: flex; align-items: center; gap: var(--sp-2); margin-left: var(--sp-3); padding-left: var(--sp-3); border-left: 1px solid var(--line); }
+.btn--danger-solid { color: var(--paper); background: var(--danger); border-color: var(--danger); }
+.btn--danger-solid:hover { color: var(--paper); background: #7d1f23; border-color: #7d1f23; }
+@media (max-width: 760px) { .record-bar-adverse { width: 100%; margin-left: 0; padding: var(--sp-1) 0 0; border-left: 0; border-top: 1px solid var(--line); } }

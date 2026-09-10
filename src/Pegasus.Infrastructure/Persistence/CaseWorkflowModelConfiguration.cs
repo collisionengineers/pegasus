@@ -61,7 +61,7 @@ internal static class CaseWorkflowModelConfiguration
             entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
             entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
             entity.Property(item => item.ActorRolesJson).HasMaxLength(500).IsRequired();
-            entity.Property(item => item.Reason).HasMaxLength(AddCaseNote.MaximumLength).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(AddCaseNote.MaximumLength);
             entity.HasIndex(item => new { item.CaseId, item.OperationKey }).IsUnique();
             entity.HasIndex(item => new { item.CaseId, item.AfterVersion }).IsUnique()
                 .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied'");
@@ -158,7 +158,6 @@ internal static class CaseWorkflowModelConfiguration
             entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
             entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
             entity.Property(item => item.ActorRolesJson).HasMaxLength(500).IsRequired();
-            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.Property(item => item.Channel).HasMaxLength(100).IsRequired();
             entity.Property(item => item.TargetPartyOrAddress).HasMaxLength(500).IsRequired();
             entity.Property(item => item.Outcome).HasMaxLength(500).IsRequired();

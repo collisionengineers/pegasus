@@ -86,7 +86,6 @@ public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecisi
         Guid receiptId,
         Guid? caseId,
         string? reference,
-        string? reason,
         Guid operationId,
         long? receiptVersion,
         long? caseVersion,
@@ -97,16 +96,8 @@ public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecisi
             return Forbid();
         }
 
-        if (receiptId == Guid.Empty || string.IsNullOrWhiteSpace(reason) || reason.Length > 500)
+        if (receiptId == Guid.Empty)
         {
-            TempData["UploadConfirmationError"] = "A reason is required to add this to a case.";
-            if (receiptId != Guid.Empty)
-            {
-                UploadCaseDraft = new(
-                    receiptId, operationId, receiptVersion, caseId, caseVersion,
-                    reference, reason ?? string.Empty);
-                return await RenderSurfaceAsync(id, cancellationToken);
-            }
             return RedirectToSurface(id);
         }
         if (!await SurfaceContainsReceiptAsync(id, receiptId, cancellationToken))
@@ -119,7 +110,7 @@ public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecisi
         {
             UploadCaseDraft = new(
                 receiptId, operationId, receiptVersion, caseId, caseVersion,
-                reference, reason);
+                reference);
             if (receiptVersion is not { } reviewedReceiptVersion || reviewedReceiptVersion < 0
                 || operationId == Guid.Empty)
             {
@@ -134,7 +125,7 @@ public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecisi
             if (caseId is null)
             {
                 UploadCaseConfirmation = await caseDecision.PrepareAsync(
-                    receiptId, reference, reason, operationId, reviewedReceiptVersion, actor, cancellationToken);
+                    receiptId, reference, operationId, reviewedReceiptVersion, actor, cancellationToken);
                 if (UploadCaseConfirmation is null)
                 {
                     TempData["UploadConfirmationError"] = "No single viable case matched that reference. Search and choose a case from the suggestions.";
@@ -150,7 +141,7 @@ public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecisi
             }
 
             var result = await caseDecision.AttachAsync(
-                receiptId, caseId, reference, reason,
+                receiptId, caseId, reference,
                 new(operationId, reviewedReceiptVersion, reviewedCaseVersion), actor, cancellationToken);
             if (!result.Succeeded)
             {
@@ -161,7 +152,6 @@ public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecisi
                     receiptId,
                     caseId.Value,
                     reference?.Trim() ?? "Selected case",
-                    reason,
                     new(operationId, reviewedReceiptVersion, reviewedCaseVersion));
                 TempData["UploadConfirmationError"] = result.Message;
                 return await RenderSurfaceAsync(id, cancellationToken);

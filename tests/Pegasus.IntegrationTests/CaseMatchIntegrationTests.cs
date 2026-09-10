@@ -36,6 +36,32 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(1, row.MatchPolicyVersion);
     }
 
+    /// <summary>
+    /// A manual upload has no accepted mail route and no credential binding, so
+    /// the Principal is the one the accepting staff member allocated. The case
+    /// must still carry it as its work provider, or the EVA export sends an
+    /// empty Work Provider and no index row exists for images to match against.
+    /// </summary>
+    [Fact]
+    public async Task ManualUploadAcceptanceCarriesTheStaffAllocatedProviderIntoTheIndex()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var receiptId = await harness.SeedManualUploadReceiptAsync("case-match-manual-upload-1");
+
+        var outcome = await harness.AcceptAsync("case-match-accept-manual-1", receiptId);
+
+        var data = await harness.GetRequiredDataAsync(outcome.Identity.CaseId);
+        var provider = data.Provider.WorkProviderCode.Current;
+        Assert.NotNull(provider);
+        Assert.Equal("QDOS", provider.Value);
+        Assert.Equal(CaseDataValueKind.Confirmed, provider.Kind);
+        Assert.Equal(CaseDataSourceKind.CaseAcceptance, provider.Source.Kind);
+        var row = await harness.SingleIndexRowAsync(outcome.Identity.CaseId);
+        Assert.Equal("QDOS", row.WorkProviderCode);
+        Assert.Equal("12345/1", row.DurableClaimToken);
+        Assert.Equal("AB12CDE", row.NormalizedVrm);
+    }
+
     [Fact]
     public async Task CandidateQueryFindsTheCaseByEachKeyAndCarriesLifecycleState()
     {
@@ -137,9 +163,49 @@ public sealed class CaseMatchIntegrationTests
                 && item.EventType == "intake_case_linked_automatic"));
     }
 
+    [Fact]
+    public async Task AutomaticReceivedPostReportQueryAssociationMovesCompletedCaseToQuery()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("case-match-accept-automatic-query");
+        var receiptId = await harness.SeedAdditionalReceiptAsync("automatic-post-report-query");
+        await harness.SetReceivedPostReportClassificationAsync(receiptId);
+        await using (var seed = await harness.Factory.CreateDbContextAsync())
+        {
+            var seededWorkflow = await seed.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
+            seededWorkflow.State = nameof(CaseLifecycleState.PostReportComplete);
+            seededWorkflow.ClosureOutcome = nameof(CaseClosureOutcome.PostReportComplete);
+            await seed.SaveChangesAsync();
+        }
+
+        var result = await new EfIntakeMutationStore(harness.Factory).AssociateFromMatchAsync(
+            new(
+                receiptId,
+                outcome.Identity.CaseId,
+                "principal_case_match",
+                1,
+                "system-worker:intake-processing",
+                "case-match-association:automatic-query",
+                "Automatically linked retained post-report query."),
+            StartUtc,
+            CancellationToken.None);
+
+        Assert.Equal(AutomaticCaseAssociationOutcome.Associated, result);
+        await using var verify = await harness.Factory.CreateDbContextAsync();
+        var workflow = await verify.CaseWorkflows.SingleAsync(item => item.CaseId == outcome.Identity.CaseId);
+        Assert.Equal(nameof(CaseLifecycleState.Query), workflow.State);
+        Assert.Null(workflow.ClosureOutcome);
+        Assert.Equal(1, workflow.Version);
+        var history = Assert.Single(await verify.IntakeMutationHistory
+            .Where(item => item.IntakeReceiptId == receiptId
+                && item.EventType == "intake_case_linked_automatic")
+            .ToListAsync());
+        Assert.Equal(0, history.BeforeCaseVersion);
+        Assert.Equal(1, history.AfterCaseVersion);
+    }
     /// <summary>
-    /// CASE-024: automatic association does not wait for an editor to finish. It writes receipt
-    /// rows only — no case row, no case version — so there is nothing for a staff edit to lose,
+    /// CASE-024: ordinary automatic association does not wait for an editor to finish. It writes
+    /// receipt rows only — no case row, no case version — so there is nothing for a staff edit to lose.
     /// and the yield it used to perform was one-shot, silently costing the association for the
     /// length of any editing session now that a lease is held for as long as the editor is open.
     /// </summary>
@@ -430,10 +496,12 @@ public sealed class CaseMatchIntegrationTests
             }
         }
 
-        public Task<CaseAcceptanceOutcome> AcceptAsync(string operationKey) =>
+        public Task<CaseAcceptanceOutcome> AcceptAsync(
+            string operationKey,
+            Guid? receiptId = null) =>
             acceptIntake.ExecuteAsync(
                 new(
-                    ReceiptId,
+                    receiptId ?? ReceiptId,
                     0,
                     StaffActor,
                     operationKey,
@@ -473,6 +541,51 @@ public sealed class CaseMatchIntegrationTests
             return id;
         }
 
+        /// <summary>
+        /// The manual-upload shape: the same instruction evidence, but no mail
+        /// route decision at all, so the accepted Principal can only be the one
+        /// the staff member allocated.
+        /// </summary>
+        public async Task<Guid> SeedManualUploadReceiptAsync(string externalToken)
+        {
+            var id = Guid.NewGuid();
+            var sourceHash = new string('e', 64);
+            var emptyEnvelope = """{"version":1,"data":[]}""";
+            await using var context = await Factory.CreateDbContextAsync();
+            var fieldsJson = await context.IntakeReceipts
+                .Where(item => item.Id == ReceiptId)
+                .Select(item => item.FieldsJson)
+                .SingleAsync();
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, ExtractionPolicyKey, ExtractionPolicyVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({id}, {"qdos-instruction.pdf"}, {"application/pdf"}, {100L}, {sourceHash}, {"manual_upload"}, {externalToken}, {StartUtc}, {StartUtc}, {"fixture-reader"}, {"1"}, {"qdos_instruction"}, {1}, {0L}, {"case_created"}, {"Uploaded instruction fixture"}, {emptyEnvelope}, {fieldsJson}, {emptyEnvelope})");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO InstructionDrafts (IntakeReceiptId, SuggestedPrincipalCode, ClaimantName, ClaimNumber, VehicleRegistration, DateOfIncident, InspectionAddress, InspectionDate) VALUES ({id}, {"QDOS"}, {"Mrs Jane Example"}, {"ABC/DEF/12345/1"}, {"AB12CDE"}, {new DateOnly(2031, 4, 1)}, {"1 Test Street, London"}, {FixtureInspectionDate})");
+            return id;
+        }
+
+        public async Task SetReceivedPostReportClassificationAsync(Guid receiptId)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var receipt = await context.IntakeReceipts.SingleAsync(item => item.Id == receiptId);
+            receipt.MailClassificationDecision = new()
+            {
+                IntakeReceiptId = receiptId,
+                Outcome = "classified",
+                Direction = "received",
+                Family = "post-report-emails",
+                IsReplyContext = false,
+                AmbiguousCandidatesJson = "{\"version\":1,\"data\":[]}",
+                PredicatesJson = "{\"version\":1,\"data\":[]}",
+                Reason = "Test post-report query classification.",
+                PolicyKey = "test-post-report-query",
+                PolicyVersion = 1,
+                DecidedByActor = "test",
+                DecidedAtUtc = StartUtc,
+                Version = 1,
+                ConcurrencyToken = Guid.NewGuid()
+            };
+            await context.SaveChangesAsync();
+        }
         public async Task<Guid> SeedRetainedMailReceiptAsync(
             string externalToken,
             string? registration,

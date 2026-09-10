@@ -19,7 +19,6 @@ public sealed class VehicleWorkflowTerminalTests
         ActionActor.Staff(Guid.Parse("11111111-1111-1111-1111-111111111111"), [StaffRole.User]);
 
     [Theory]
-    [InlineData(CaseLifecycleState.PostReportComplete)]
     [InlineData(CaseLifecycleState.ProviderCancelled)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
     [InlineData(CaseLifecycleState.CreatedInError)]
@@ -48,6 +47,40 @@ public sealed class VehicleWorkflowTerminalTests
                     Staff,
                     "terminal-vehicle-accept",
                     "Terminal cases must remain immutable.",
+                    "lease-token"),
+                CancellationToken.None));
+        Assert.Contains("read-only", acceptanceException.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(CaseLifecycleState.PostReportComplete)]
+    [InlineData(CaseLifecycleState.Query)]
+    public async Task CompletedOrQueryRejectsVehicleRequestAndAcceptanceBeforeLeaseCheck(
+        CaseLifecycleState readOnlyState)
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureServices: services =>
+                services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay));
+        var caseId = await SeedCaseAsync(database, readOnlyState);
+        await using var scope = database.CreateAsyncScope();
+
+        var requestException = await Assert.ThrowsAnyAsync<InvalidOperationException>(() =>
+            scope.ServiceProvider.GetRequiredService<IRequestVehicleLookup>().ExecuteAsync(
+                new(caseId, 0, "AB12CDE", Staff, "read-only-vehicle-request", "lease-token"),
+                CancellationToken.None));
+        Assert.Contains("read-only", requestException.Message, StringComparison.Ordinal);
+
+        var acceptanceException = await Assert.ThrowsAnyAsync<InvalidOperationException>(() =>
+            scope.ServiceProvider.GetRequiredService<IAcceptVehicleSuggestion>().ExecuteAsync(
+                new(
+                    caseId,
+                    0,
+                    Guid.NewGuid(),
+                    VehicleSuggestionDecision.Accept,
+                    null,
+                    Staff,
+                    "read-only-vehicle-accept",
+                    "Completed and Query cases cannot accept vehicle suggestions.",
                     "lease-token"),
                 CancellationToken.None));
         Assert.Contains("read-only", acceptanceException.Message, StringComparison.Ordinal);

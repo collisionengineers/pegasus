@@ -1,4 +1,7 @@
 using System.Data;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Intake;
@@ -22,7 +25,8 @@ public sealed class EfIntakeSubmissionGroupStore(
                        join member in context.IntakeSubmissionGroupMembers on submissionGroup.Id equals member.GroupId
                        join work in context.IntakeWorkItems on member.StagedReceiptId equals work.StagedReceiptId
                        join receipt in context.IntakeReceipts on work.ProcessedReceiptId equals (Guid?)receipt.Id
-                       where submissionGroup.ExpectedMemberCount > 1 && work.State == "completed"
+                       where submissionGroup.DiscardedAtUtc == null
+                           && submissionGroup.ExpectedMemberCount > 1 && work.State == "completed"
                            && receipt.Decision == "needs_sorting"
                            && receipt.InstructionDraft == null && receipt.FieldsJson == emptyFields
                            && receipt.Assets.Any()
@@ -246,6 +250,17 @@ public sealed class EfIntakeSubmissionGroupStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var group = await context.IntakeSubmissionGroups.SingleOrDefaultAsync(
+            item => item.Id == groupId,
+            cancellationToken)
+            ?? throw new InvalidDataException("The submission group was not found.");
+        if (group.DiscardedAtUtc is not null)
+        {
+            throw new InvalidOperationException("The discarded submission cannot accept another file.");
+        }
         var staged = await context.IntakeStagedReceipts
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == received.StagedReceiptId, cancellationToken)
@@ -262,6 +277,7 @@ public sealed class EfIntakeSubmissionGroupStore(
                 throw new InvalidDataException("The group ordinal is already bound to another receipt.");
             }
 
+            await transaction.CommitAsync(cancellationToken);
             return await MapMemberAsync(context, existing, received.IsDuplicate, cancellationToken);
         }
 
@@ -276,8 +292,129 @@ public sealed class EfIntakeSubmissionGroupStore(
             AddedAtUtc = DateTimeOffset.UtcNow
         };
         context.IntakeSubmissionGroupMembers.Add(entity);
+        group.Version++;
         await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return new(groupId, ordinal, staged.Id, staged.SourceFileName, staged.SourceHash, received.IsDuplicate);
+    }
+
+    public async Task<DiscardIntakeSubmissionGroupResult> DiscardAsync(
+        DiscardIntakeSubmissionGroupRequest request,
+        DateTimeOffset discardedAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var operationKey = $"upload-discard:{request.OperationId:N}";
+        var fingerprint = DiscardFingerprint(request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+
+        var group = await context.IntakeSubmissionGroups
+            .Include(item => item.Members)
+            .SingleOrDefaultAsync(item => item.Id == request.GroupId, cancellationToken);
+        if (group is null)
+        {
+            return DiscardIntakeSubmissionGroupResult.Conflict("This submission is no longer available.");
+        }
+        if (group.DiscardedAtUtc is not null)
+        {
+            var replay = string.Equals(group.DiscardOperationKey, operationKey, StringComparison.Ordinal)
+                && group.DiscardRequestFingerprint is not null
+                && CryptographicOperations.FixedTimeEquals(
+                    Encoding.UTF8.GetBytes(group.DiscardRequestFingerprint),
+                    Encoding.UTF8.GetBytes(fingerprint));
+            return replay
+                ? new(true, true, "This submission was already discarded.")
+                : DiscardIntakeSubmissionGroupResult.Conflict(
+                    "This submission already has a different terminal decision.");
+        }
+        if (group.SourceChannel != ToCode(IntakeSourceChannel.ManualUpload))
+        {
+            return DiscardIntakeSubmissionGroupResult.Conflict("Only manual uploads can be discarded here.");
+        }
+        if (group.Version != request.ExpectedGroupVersion)
+        {
+            return DiscardIntakeSubmissionGroupResult.Conflict(
+                "This submission changed after it was reviewed. Refresh and try again.");
+        }
+
+        var members = group.Members.OrderBy(item => item.Ordinal).ToArray();
+        if (members.Length != group.ExpectedMemberCount
+            || members.Select((member, ordinal) => member.Ordinal != ordinal).Any(value => value))
+        {
+            return DiscardIntakeSubmissionGroupResult.Conflict(
+                "This submission is incomplete. Wait for every file to finish.");
+        }
+
+        var stagedReceiptIds = members.Select(item => item.StagedReceiptId).ToArray();
+        var workItems = await context.IntakeWorkItems
+            .Where(item => stagedReceiptIds.Contains(item.StagedReceiptId))
+            .ToArrayAsync(cancellationToken);
+        if (workItems.Length != stagedReceiptIds.Length
+            || workItems.Any(item => item.State != "completed" || item.ProcessedReceiptId is null))
+        {
+            return DiscardIntakeSubmissionGroupResult.Conflict(
+                "This submission is still being processed. Wait for every file to finish.");
+        }
+
+        var receiptIds = workItems.Select(item => item.ProcessedReceiptId!.Value).Order().ToArray();
+        if (receiptIds.Distinct().Count() != receiptIds.Length
+            || request.ExpectedReceiptVersions.Count != receiptIds.Length)
+        {
+            return DiscardIntakeSubmissionGroupResult.Conflict(
+                "This submission changed after it was reviewed. Refresh and try again.");
+        }
+        var receipts = await context.IntakeReceipts
+            .Where(item => receiptIds.Contains(item.Id))
+            .ToArrayAsync(cancellationToken);
+        if (receipts.Length != receiptIds.Length
+            || receipts.Any(item => !request.ExpectedReceiptVersions.TryGetValue(item.Id, out var version)
+                || item.Version != version))
+        {
+            return DiscardIntakeSubmissionGroupResult.Conflict(
+                "A file in this submission changed after it was reviewed. Refresh and try again.");
+        }
+        if (await context.IntakeManualAssociations.AnyAsync(
+                item => receiptIds.Contains(item.IntakeReceiptId) && item.IsActive,
+                cancellationToken)
+            || await context.CaseIntakeLinks.AnyAsync(
+                item => receiptIds.Contains(item.IntakeReceiptId), cancellationToken)
+            || await context.IntakeAllocationAttempts.AnyAsync(
+                item => receiptIds.Contains(item.IntakeReceiptId) && item.Status == "succeeded",
+                cancellationToken)
+            || await context.ImageIntakes.AnyAsync(
+                item => item.SubmissionGroupId == group.Id || receiptIds.Contains(item.OriginReceiptId),
+                cancellationToken))
+        {
+            return DiscardIntakeSubmissionGroupResult.Conflict(
+                "This submission is already associated, allocated, or registered and cannot be discarded.");
+        }
+
+        var beforeVersion = group.Version;
+        group.Version++;
+        group.DiscardedAtUtc = discardedAtUtc;
+        group.DiscardedByActorKind = request.Actor.Kind.ToString();
+        group.DiscardedByActorSubjectId = request.Actor.SubjectId;
+        group.DiscardOperationKey = operationKey;
+        group.DiscardRequestFingerprint = fingerprint;
+        context.IntakeSubmissionGroupHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            Group = group,
+            EventType = "submission_discarded",
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(request.Actor.Roles.OrderBy(role => role)),
+            OperationKey = operationKey,
+            RequestFingerprint = fingerprint,
+            OccurredAtUtc = discardedAtUtc,
+            BeforeVersion = beforeVersion,
+            AfterVersion = group.Version
+        });
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(true, false, "This submission was discarded. Its retained source and processing record remain available.");
     }
 
     private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
@@ -331,7 +468,14 @@ public sealed class EfIntakeSubmissionGroupStore(
             entity.Actor,
             entity.ReceivedAtUtc,
             mapped,
-            entity.ParentReceiptId);
+            entity.ParentReceiptId,
+            entity.Version,
+            entity.DiscardedAtUtc is null ? null : new(
+                entity.DiscardedByActorKind!,
+                entity.DiscardedByActorSubjectId!,
+                entity.DiscardedAtUtc.Value,
+                entity.DiscardOperationKey!,
+                entity.DiscardRequestFingerprint!));
     }
 
     private static async Task<IntakeSubmissionGroupMember> MapMemberAsync(
@@ -369,4 +513,19 @@ public sealed class EfIntakeSubmissionGroupStore(
         "provider_api" => IntakeSourceChannel.ProviderApi,
         _ => throw new InvalidDataException($"Unknown intake source channel '{channel}'.")
     };
+
+    private static string DiscardFingerprint(DiscardIntakeSubmissionGroupRequest request)
+    {
+        var material = string.Join('|',
+            request.GroupId.ToString("N"),
+            request.ExpectedGroupVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            request.OperationId.ToString("N"),
+            request.Actor.Kind.ToString(),
+            request.Actor.SubjectId,
+            string.Join(',', request.ExpectedReceiptVersions
+                .OrderBy(item => item.Key)
+                .Select(item => $"{item.Key:N}:{item.Value}")));
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material))).ToLowerInvariant();
+    }
+
 }

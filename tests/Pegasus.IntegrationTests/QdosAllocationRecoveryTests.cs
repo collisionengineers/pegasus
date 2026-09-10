@@ -1865,9 +1865,14 @@ internal static class AllocationTestData
         IntakeSource source,
         string operationKey)
     {
-        var received = await services.GetRequiredService<IIntakeSubmission>()
+        // Callers pass either the root provider or a scope; the submission and
+        // drain services are scoped, so resolve both inside one scope here.
+        await using var scope = services.CreateAsyncScope();
+        var received = await scope.ServiceProvider.GetRequiredService<IIntakeSubmission>()
             .ExecuteAsync(source, operationKey);
-        var evaluation = await IntakeWebDriver.DrainStagedAsync(services, received.StagedReceiptId);
+        var evaluation = await IntakeWebDriver.DrainStagedAsync(
+            scope.ServiceProvider,
+            received.StagedReceiptId);
         return evaluation.ProcessedReceiptId;
     }
 

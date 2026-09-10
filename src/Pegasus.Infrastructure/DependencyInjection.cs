@@ -540,6 +540,7 @@ public static class DependencyInjection
         services.AddScoped<IUnlinkReportEvidence, UnlinkReportEvidence>();
         services.AddScoped<ICloseCase, CloseCase>();
         services.AddScoped<IReopenCase, ReopenCase>();
+        services.AddScoped<IReturnCaseToEngineer, ReturnCaseToEngineer>();
         services.AddScoped<IArchiveCase, ArchiveCase>();
         services.AddScoped<IRecordManualCaseChase, RecordManualCaseChase>();
 

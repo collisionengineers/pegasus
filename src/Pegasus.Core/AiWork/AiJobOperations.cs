@@ -221,7 +221,9 @@ public static class AiJobPolicy
         state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
 
     public static bool IsEligibleQueryResponseCaseState(CaseLifecycleState state) =>
-        state is CaseLifecycleState.PostReport or CaseLifecycleState.PostReportComplete;
+        state is CaseLifecycleState.PostReport
+            or CaseLifecycleState.PostReportComplete
+            or CaseLifecycleState.Query;
 
     private static void RequireCreator(ActionActor actor, AiJobKind kind)
     {

@@ -912,6 +912,64 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(version, (await harness.AcquireLeaseAsync(caseId, version, engineer, "estimate-lease-final")).Version);
     }
 
+    [Theory]
+    [InlineData(CaseLifecycleState.PostReportComplete)]
+    [InlineData(CaseLifecycleState.Query)]
+    public async Task CompletedAndQueryCasesRejectGuideValuationsAndOrdinaryEstimates(
+        CaseLifecycleState state)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("assessment-read-only-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        await using (var setup = await harness.Factory.CreateDbContextAsync())
+        {
+            var workflow = await setup.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+            workflow.State = state.ToString();
+            await setup.SaveChangesAsync();
+        }
+
+        var lease = await harness.AcquireLeaseAsync(
+            caseId, 0, engineer, "assessment-read-only-return-lease");
+        var valuationRefusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.Valuations.SaveAsync(
+                new(
+                    caseId,
+                    lease.Version,
+                    engineer,
+                    "assessment-read-only-guide-valuation",
+                    "Attempted guide valuation after report completion.",
+                    lease.Token,
+                    new(
+                        ValuationSource.Glasses,
+                        new DateOnly(2031, 5, 6),
+                        new TimeOnly(9, 30),
+                        42_000,
+                        12_500m,
+                        10_250m,
+                        new DateOnly(2031, 5, 1))),
+                CancellationToken.None));
+        Assert.Contains("read-only", valuationRefusal.Message, StringComparison.Ordinal);
+
+        var estimateRefusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.RepairSpecifications.SaveEstimateAsync(
+                new(
+                    caseId,
+                    lease.Version,
+                    engineer,
+                    "assessment-read-only-ordinary-estimate",
+                    "Attempted ordinary estimate after report completion.",
+                    lease.Token,
+                    null,
+                    new("Read-only estimate", 2, 40m, null, null, 20m, null),
+                    [new("repair", null, "Repair door", 2m, null, false, null, null, "confirmed", "judgement", null)],
+                    new(RepairSpecificationSourceRoute.Manual, null, null, null)),
+                CancellationToken.None));
+        Assert.Contains("read-only", estimateRefusal.Message, StringComparison.Ordinal);
+
+        Assert.Empty(await harness.Valuations.ListForCaseAsync(caseId, CancellationToken.None));
+        Assert.Empty(await harness.RepairSpecifications.ListEstimatesAsync(caseId, CancellationToken.None));
+    }
+
     [Fact]
     public async Task ImportedDocumentStorePreservesAuthorityOnReplayAndRequiresEngineerAcceptance()
     {

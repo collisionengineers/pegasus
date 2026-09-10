@@ -27,17 +27,13 @@ public sealed partial class QdosTriageIntegrationTests
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-request.eml");
         const string replayToken = "77777777777777777777777777777777";
 
-        var first = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
-        email.MediaType,
-        email.Content,
-        replayToken);
-        var replay = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
-        email.MediaType,
-        email.Content,
-        replayToken);
-        var receiptId = IntakeWebDriver.ReceiptId(first);
+        var first = await MailboxIntakeTestData.SubmitAndProcessAsync(
+            factory.Services, email, replayToken);
+        var replay = await MailboxIntakeTestData.SubmitAndProcessAsync(
+            factory.Services, email, replayToken);
+        var receiptId = first;
 
-        Assert.Equal(receiptId, IntakeWebDriver.ReceiptId(replay));
+        Assert.Equal(receiptId, replay);
         await using var scope = factory.Services.CreateAsyncScope();
         Assert.IsType<CreateTriageFromIntake>(
             scope.ServiceProvider.GetRequiredService<ICreateTriageFromIntake>());
@@ -78,10 +74,7 @@ public sealed partial class QdosTriageIntegrationTests
                         claimantName: "Ordinary Claimant", claimNumber: "ORDINARY-001", registration: "AB12 CDE"))
             ]);
 
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
-        email.MediaType,
-        email.Content);
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
@@ -121,18 +114,12 @@ public sealed partial class QdosTriageIntegrationTests
                         claimantName: "No Registration", claimNumber: "TRIAGE-002", registration: ""))
             ]);
 
-        var sortingUpload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, "needs-sorting.eml",
-        "message/rfc822",
-        needsSorting);
-        var missingRegistrationUpload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, missingRegistration.FileName,
-        missingRegistration.MediaType,
-        missingRegistration.Content);
-        var blockedUpload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, "unsupported.txt",
-        "text/plain",
-        Encoding.UTF8.GetBytes("Unsupported intake source."));
-        var sortingReceiptId = IntakeWebDriver.ReceiptId(sortingUpload);
-        var missingRegistrationReceiptId = IntakeWebDriver.ReceiptId(missingRegistrationUpload);
-        var blockedReceiptId = IntakeWebDriver.ReceiptId(blockedUpload);
+        var sortingReceiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(
+            factory.Services, "needs-sorting.eml", "message/rfc822", needsSorting);
+        var missingRegistrationReceiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(
+            factory.Services, missingRegistration);
+        var blockedReceiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(
+            factory.Services, "unsupported.txt", "text/plain", Encoding.UTF8.GetBytes("Unsupported intake source."));
 
         await using var scope = factory.Services.CreateAsyncScope();
         var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
@@ -161,10 +148,7 @@ public sealed partial class QdosTriageIntegrationTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-lifecycle.eml");
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
-        email.MediaType,
-        email.Content);
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
         var triage = await GetOnlyTriageAsync(factory.Services);
         var triageId = triage.Record.Id;
         var actor = DevelopmentOfflineIdentity.AdministratorId.ToString("D");
@@ -191,6 +175,26 @@ public sealed partial class QdosTriageIntegrationTests
         // disappearing until it happens to work.
         Assert.Contains(
             "Available once a finding is recorded",
+            detailHtml,
+            StringComparison.Ordinal);
+
+        // Assignment is a button and a small dialog carrying the roster, not
+        // an inline picker stretching the record bar (operator review 28).
+        Assert.Contains(
+            "data-dialog-open=\"triage-assign-dialog\"",
+            detailHtml,
+            StringComparison.Ordinal);
+        Assert.Contains("Assign to Engineer", detailHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            "data-dialog=\"triage-assign-dialog\"",
+            detailHtml,
+            StringComparison.Ordinal);
+        Assert.Contains("id=\"triage-assignee\"", detailHtml, StringComparison.Ordinal);
+
+        // The origin link is named for the material behind it.
+        Assert.Contains("View email", detailHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "View retained source",
             detailHtml,
             StringComparison.Ordinal);
         var antiforgeryToken = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);

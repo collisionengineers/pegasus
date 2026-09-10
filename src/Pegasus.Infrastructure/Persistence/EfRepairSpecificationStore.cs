@@ -805,8 +805,14 @@ public sealed class EfRepairSpecificationStore(
         CaseWorkflowEntity workflow, long expectedVersion, ActionActor actor, string lease, DateTimeOffset now)
     {
         CaseMutationGuard.RequireVersion(workflow, expectedVersion);
-        CaseMutationGuard.RequireLease(workflow, actor, lease, now);
         ArchivedCaseGuard.RequireMutable(workflow);
+        if (!Enum.TryParse<CaseLifecycleState>(workflow.State, out var state)
+            || !AssessmentPolicy.IsWritableState(state))
+        {
+            throw new InvalidOperationException(
+                "The assessment is read-only in the current case state.");
+        }
+        CaseMutationGuard.RequireLease(workflow, actor, lease, now);
         workflow.Version++;
         CaseMutationGuard.ClearLease(workflow);
     }

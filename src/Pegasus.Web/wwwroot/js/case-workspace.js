@@ -71,6 +71,7 @@
                 });
                 index += 1;
             });
+            form.dispatchEvent(new Event('input', { bubbles: true }));
         }
         cards.forEach(function (card) {
             if (card.dataset.preparationBound) { updateCard(card); return; }
@@ -95,6 +96,8 @@
         var previewCanvas = dialog.querySelector('[data-case-crop-preview]');
         var selection = dialog.querySelector('[data-case-crop-selection]');
         var aspect = dialog.querySelector('[data-case-crop-aspect]');
+        var cropStatus = dialog.querySelector('[data-case-crop-status]');
+        var cropSave = dialog.querySelector('[data-case-crop-save]');
         var source = new Image();
         var rotatedSource = document.createElement('canvas');
         var current, entry, drag, imageBox;
@@ -184,17 +187,33 @@
         }
         function openCrop(card) {
             current = cardState(card); entry = Object.assign({}, current);
-            source.onload = render;
+            imageBox = null; drag = null;
+            selection.hidden = true;
+            cropSave.disabled = true;
+            cropStatus.hidden = false;
+            cropStatus.textContent = 'Loading image…';
+            stageCanvas.getContext('2d').clearRect(0, 0, stageCanvas.width, stageCanvas.height);
+            previewCanvas.getContext('2d').clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            source.onload = function () {
+                cropStatus.hidden = true;
+                selection.hidden = false;
+                cropSave.disabled = false;
+                render();
+            };
+            source.onerror = function () {
+                cropStatus.hidden = false;
+                cropStatus.textContent = 'The image could not be loaded. Close the crop editor and try again.';
+            };
             source.src = card.getAttribute('data-preparation-preview');
             dialog.hidden = false;
-            if (source.complete) { render(); }
+            if (source.complete && source.naturalWidth) { source.onload(); }
         }
         window.pegasusOpenCaseCrop = function (occurrenceId) {
             var card = document.querySelector('[data-preparation-card][data-preparation-occurrence="' + occurrenceId + '"]');
             if (card) { openCrop(card); }
         };
         dialog.querySelectorAll('[data-case-crop-cancel]').forEach(function (button) { button.addEventListener('click', function () { close(false); }); });
-        dialog.querySelector('[data-case-crop-save]').addEventListener('click', function () { close(true); });
+        cropSave.addEventListener('click', function () { if (!cropSave.disabled) { close(true); } });
         dialog.querySelector('[data-case-crop-full]').addEventListener('click', function () { if (current) { current.left = 0; current.top = 0; current.width = 1; current.height = 1; render(); } });
         dialog.querySelector('[data-case-crop-reset]').addEventListener('click', function () { if (current) { Object.assign(current, entry); render(); } });
         dialog.querySelectorAll('[data-case-crop-rotate]').forEach(function (button) { button.addEventListener('click', function () { if (current) { current.rotation = rotation(current.rotation + number(button.getAttribute('data-case-crop-rotate'), 0)); lockAspect(current, 'width'); render(); } }); });
@@ -238,12 +257,30 @@
                 underside: 'Underside', interior: 'Interior', mechanical: 'Mechanical'
             };
             function impact(zone) { return impacts.filter(function (item) { return item.zone === zone; })[0]; }
-            function persist() { if (input) { input.value = JSON.stringify(impacts); } }
-            function render() { editor.querySelectorAll('[data-damage-zone]').forEach(function (element) { element.classList.toggle('is-damaged', !!impact(element.getAttribute('data-damage-zone'))); element.classList.toggle('is-selected', element.getAttribute('data-damage-zone') === selected); }); list.innerHTML = ''; impacts.forEach(function (item) { var li = document.createElement('li'); var button = document.createElement('button'); button.type = 'button'; button.className = 'link-button'; button.textContent = (labels[item.zone] || item.zone.replace(/_/g, ' ')) + ' · ' + item.severity; button.addEventListener('click', function () { select(item.zone); }); li.appendChild(button); list.appendChild(li); }); if (!selected) { fields.hidden = true; empty.hidden = false; return; } var current = impact(selected); empty.hidden = true; fields.hidden = false; editor.querySelector('[data-damage-zone-label]').textContent = labels[selected] || selected.replace(/_/g, ' '); if (editable) { editor.querySelector('[data-damage-severity]').value = current ? current.severity : 'light'; editor.querySelector('[data-damage-note]').value = current ? current.note : ''; } else { editor.querySelector('[data-damage-read-severity]').textContent = current ? current.severity : 'Not recorded'; editor.querySelector('[data-damage-read-note]').textContent = current ? current.note : ''; } }
+            function renderMarkers() { editor.querySelectorAll('[data-damage-marker]').forEach(function (marker) { marker.classList.toggle('is-hidden', !impact(marker.getAttribute('data-damage-marker'))); }); }
+            function persist() { if (input) { input.value = JSON.stringify(impacts); input.dispatchEvent(new Event('input', { bubbles: true })); } renderMarkers(); }
+            function render() { editor.querySelectorAll('[data-damage-zone]').forEach(function (element) { var zone = element.getAttribute('data-damage-zone'); var recorded = impact(zone); var isSvgZone = element.namespaceURI === 'http://www.w3.org/2000/svg'; element.classList.toggle('is-damaged', !!recorded); element.classList.toggle('is-selected', zone === selected); if (isSvgZone && (editable || recorded)) { element.setAttribute('aria-pressed', zone === selected ? 'true' : 'false'); } if (!isSvgZone) { element.hidden = !editable && !recorded; element.disabled = !editable && !recorded; } }); list.innerHTML = ''; impacts.forEach(function (item) { var li = document.createElement('li'); var button = document.createElement('button'); button.type = 'button'; button.className = 'link-button'; button.textContent = (labels[item.zone] || item.zone.replace(/_/g, ' ')) + ' · ' + item.severity; button.addEventListener('click', function () { select(item.zone); }); li.appendChild(button); list.appendChild(li); }); if (!selected) { fields.hidden = true; empty.hidden = false; empty.textContent = editable ? 'Select a vehicle region.' : impacts.length ? 'Select a recorded vehicle region to view its damage.' : 'No damage recorded.'; return; } var current = impact(selected); empty.hidden = true; fields.hidden = false; editor.querySelector('[data-damage-zone-label]').textContent = labels[selected] || selected.replace(/_/g, ' '); if (editable) { editor.querySelector('[data-damage-severity]').value = current ? current.severity : 'light'; editor.querySelector('[data-damage-note]').value = current ? current.note : ''; } else { editor.querySelector('[data-damage-read-severity]').textContent = current ? current.severity : 'Not recorded'; editor.querySelector('[data-damage-read-note]').textContent = current ? current.note : ''; } }
             function select(zone) { selected = zone; if (editable && !impact(zone)) { impacts.push({ zone: zone, severity: 'light', note: '' }); persist(); } render(); }
-            editor.querySelectorAll('[data-damage-zone]').forEach(function (element) { element.addEventListener('click', function () { if (editable || impact(element.getAttribute('data-damage-zone'))) { select(element.getAttribute('data-damage-zone')); } }); });
+            editor.querySelectorAll('[data-damage-zone]').forEach(function (element) {
+                var zone = element.getAttribute('data-damage-zone');
+                var selectable = editable || impact(zone);
+                var isSvgZone = element.namespaceURI === 'http://www.w3.org/2000/svg';
+                function activate() { if (selectable) { select(zone); } }
+                if (isSvgZone && selectable) {
+                    element.setAttribute('role', 'button');
+                    element.setAttribute('tabindex', '0');
+                    element.setAttribute('aria-label', (editable ? 'Select ' : 'View recorded ') + (labels[zone] || zone.replace(/_/g, ' ')) + ' damage');
+                    element.addEventListener('keydown', function (event) {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            activate();
+                        }
+                    });
+                }
+                element.addEventListener('click', activate);
+            });
             if (editable) { editor.querySelector('[data-damage-severity]').addEventListener('change', function (event) { var current = impact(selected); if (current) { current.severity = event.target.value; persist(); render(); } }); editor.querySelector('[data-damage-note]').addEventListener('input', function (event) { var current = impact(selected); if (current) { current.note = event.target.value; persist(); } }); editor.querySelector('[data-damage-remove]').addEventListener('click', function () { impacts = impacts.filter(function (item) { return item.zone !== selected; }); selected = null; persist(); render(); }); }
-            render();
+            renderMarkers(); render();
         });
     }
 

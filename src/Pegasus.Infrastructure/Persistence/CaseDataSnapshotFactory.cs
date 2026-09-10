@@ -70,7 +70,7 @@ internal static class CaseDataSnapshotFactory
             AcceptedAtUtc = acceptedAtUtc
         };
 
-        AddProviderFact(snapshot, receipt, request);
+        AddProviderFact(snapshot, receipt, request, acceptedAtUtc);
         AddInstructionSuggestions(snapshot, receipt);
         AddResolvedInspection(
             snapshot,
@@ -135,7 +135,8 @@ internal static class CaseDataSnapshotFactory
     private static void AddProviderFact(
         CaseDataSnapshotEntity snapshot,
         IntakeReceiptEntity receipt,
-        CaseAcceptanceRequest request)
+        CaseAcceptanceRequest request,
+        DateTimeOffset acceptedAtUtc)
     {
         var route = receipt.MailRouteDecision;
         string value;
@@ -169,8 +170,8 @@ internal static class CaseDataSnapshotFactory
             // binding" would export a provenance to the EVA archive that no
             // credential ever supplied — the same falsehood AddExtractedValue
             // avoids forty lines below by mapping a person-keyed value to
-            // StaffCorrection. A staff-created case keeps today's behaviour and
-            // records no work provider fact here.
+            // StaffCorrection. A staff-created case records the Principal the
+            // operator themselves allocated, as their own confirmation, below.
             && request.Actor.Kind == ActorKind.SystemWorker
             && !string.IsNullOrWhiteSpace(request.PrincipalCode))
         {
@@ -184,6 +185,7 @@ internal static class CaseDataSnapshotFactory
         }
         else
         {
+            AddStaffAllocatedProvider(snapshot, request, acceptedAtUtc);
             return;
         }
 
@@ -201,6 +203,46 @@ internal static class CaseDataSnapshotFactory
             PolicyKey = policyKey,
             PolicyVersion = policyVersion
         });
+    }
+
+    /// <summary>
+    /// The Principal a staff member allocated the case to, where neither an
+    /// accepted mail route nor a credential binding supplied one. A manual
+    /// upload is the ordinary case: the uniquely selected document profile only
+    /// proposes a Principal and the operator decides, so the accepted value is
+    /// theirs whether they took the proposal or overrode it to correct a
+    /// document that named the wrong party. It is therefore recorded as the
+    /// accepting actor's confirmation at acceptance, not as something a
+    /// document or a credential stated; a non-staff caller that allocates
+    /// without a route or binding is attributed the same way. Recording nothing left the case with no work provider at all:
+    /// the EVA export sent an empty Work Provider and the case-match index
+    /// projected no row, so images never associated automatically.
+    /// </summary>
+    private static void AddStaffAllocatedProvider(
+        CaseDataSnapshotEntity snapshot,
+        CaseAcceptanceRequest request,
+        DateTimeOffset acceptedAtUtc)
+    {
+        if (string.IsNullOrWhiteSpace(request.PrincipalCode))
+        {
+            return;
+        }
+
+        RequirePolicy(
+            request.CompletenessEvaluation.PolicyKey,
+            request.CompletenessEvaluation.PolicyVersion,
+            "case acceptance");
+        UpsertConfirmed(
+            snapshot,
+            CaseDataFieldNames.WorkProviderCode,
+            CaseDataCodes.Text,
+            request.PrincipalCode.Trim(),
+            request.Actor.SubjectId,
+            acceptedAtUtc,
+            request.CompletenessEvaluation.PolicyKey,
+            request.CompletenessEvaluation.PolicyVersion,
+            CaseDataCodes.CaseAcceptance,
+            "staff-accepted principal allocation");
     }
 
     private static void AddInstructionSuggestions(

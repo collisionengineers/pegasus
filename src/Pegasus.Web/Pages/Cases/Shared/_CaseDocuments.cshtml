@@ -6,7 +6,7 @@
     var details = Model.Case!;
     var workflow = details.Workflow;
     var leaseToken = Model.RenderLeaseToken;
-    var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
+    var mayEdit = Model.CanEditCaseData;
     var files = CaseFiles.Live(details.Documents);
     var mayPrepareImages = Model.CanEditEngineering
         && details.Data is not null

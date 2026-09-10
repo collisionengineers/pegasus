@@ -1,6 +1,19 @@
+---
+id: ADR-0048
+status: accepted
+date: 2026-09-10
+supersedes: [ADR-0038]
+superseded_by: []
+related_capabilities: [EXT-04]
+related_frd: [frd-04, frd-07]
+tags: [eva, report-generation, principals]
+---
+
 # ADR-0048: Principal report generation policies
 
-Status: Accepted
+## Status
+
+Accepted. This record supersedes ADR-0038's manual-only EVA API policy.
 
 ## Context
 
@@ -41,7 +54,15 @@ does not send outward report email.
 
 ## Consequences
 
-ADR-0038 is superseded. The UI exposes the four choices and recipient settings
-in the Principal Contact, while report preparation freezes the resolved
-recipients in its immutable delivery preparation and still requires a staff
-send action.
+ADR-0038 is superseded. The UI presents the choice as two sequential
+decisions in the Principal Contact — Pegasus or EVA, then, only for EVA, ZIP
+export, manual API submission, or automatic API submission at Review — which
+together persist one of the four policy values, alongside the recipient
+settings. Report preparation freezes the resolved recipients in its immutable
+delivery preparation and still requires a staff send action.
+
+## Links
+
+- [ADR-0038 — Manual-only EVA API submission](0038-manual-only-eva-api-submission.md)
+- [FRD-04 — Parties, accounts, and access](../frd/frd-04-parties-accounts-and-access.md#contacts-administration)
+- [FRD-07 — EVA and external engineering handoff](../frd/frd-07-eva-and-external-engineering-handoff.md#eva-handoff-routes)

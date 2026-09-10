@@ -26,8 +26,7 @@ public sealed partial class QdosTriageIntegrationTests
                 ("Client vehicle damage 2.png", "image/png", TinyPngBytes2)
             ]);
 
-        await IntakeWebDriver.UploadAndProcessAsync(
-            factory, client, email.FileName, email.MediaType, email.Content);
+        await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
 
         Guid triageId;
         Guid receiptId;
@@ -65,8 +64,7 @@ public sealed partial class QdosTriageIntegrationTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-without-images.eml");
 
-        await IntakeWebDriver.UploadAndProcessAsync(
-            factory, client, email.FileName, email.MediaType, email.Content);
+        await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
 
         Guid triageId;
         await using (var scope = factory.Services.CreateAsyncScope())

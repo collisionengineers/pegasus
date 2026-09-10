@@ -160,12 +160,12 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// D29/D30: the record is one scrolling page of eleven sections in a fixed
+    /// D29/D30: the record is one scrolling page of ten sections in a fixed
     /// order. Every section has its stable host and its jump link, in that
     /// order, on every response.
     /// </summary>
     [Fact]
-    public async Task TheRecordRendersElevenOrderedSectionHostsAndJumpLinks()
+    public async Task TheRecordRendersTenOrderedSectionHostsAndJumpLinks()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore();
@@ -987,6 +987,8 @@ public sealed partial class CaseDetailsWebTests
         Assert.Contains("name=\"content\"", leasedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"attemptedAtUtc\"", leasedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"targetPartyOrAddress\"", leasedHtml, StringComparison.Ordinal);
+        var chaseForm = ManualChaseMarkup(leasedHtml);
+        Assert.DoesNotContain("name=\"reason\"", chaseForm, StringComparison.Ordinal);
         var operationKey = "manual-chase-replay";
         using var firstResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}/Tasks?handler=RecordManualChase",
@@ -1018,7 +1020,6 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal("Provider claims team", command.TargetPartyOrAddress);
         Assert.Equal("Awaiting requested photographs", command.Outcome);
         Assert.Equal("Asked provider for missing images", command.Note);
-        Assert.Equal("Missing evidence follow-up", command.Reason);
     }
 
     [Fact]
@@ -1168,15 +1169,23 @@ public sealed partial class CaseDetailsWebTests
             ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
             ("operationKey", operationKey),
             ("editLeaseToken", store.LeaseToken),
-            ("reason", "Missing evidence follow-up"),
             ("channel", "Telephone"),
             ("recipient", "Provider claims team"),
             ("outcome", "Awaiting requested photographs"),
             ("content", "Asked provider for missing images"));
 
+    private static string ManualChaseMarkup(string html)
+    {
+        var start = html.IndexOf("handler=RecordManualChase", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The manual chase form is not rendered.");
+        var end = html.IndexOf("</form>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The manual chase form is not closed.");
+        return html[start..end];
+    }
+
     /// <summary>
-    /// What every case mutation posts from the leased workspace — the case id, its version, the
-    /// operation key, the lease token, and the reason — plus the fields the action adds.
+    /// What each reasoned lifecycle mutation posts from the leased workspace — the case id, its
+    /// version, operation key, lease token, reason, and action-specific fields.
     /// </summary>
     private static FormUrlEncodedContent LifecycleForm(
         string antiforgeryToken,
@@ -1790,8 +1799,15 @@ public sealed partial class CaseDetailsWebTests
         }
 
         var holderHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("Finish editing", RecordBar(holderHtml), StringComparison.Ordinal);
-        AssertNoBannedVocabulary(RecordBar(holderHtml));
+        var holderRecord = RecordBar(holderHtml);
+        Assert.Contains("id=\"case-finish-editing-form\"", holderRecord, StringComparison.Ordinal);
+        Assert.Contains("form=\"case-finish-editing-form\"", holderRecord, StringComparison.Ordinal);
+        Assert.Contains("form=\"case-edit-form\"", holderRecord, StringComparison.Ordinal);
+        Assert.Equal(1, Occurrences(holderRecord, ">Cancel</span>"));
+        Assert.Equal(1, Occurrences(holderRecord, ">Save</span>"));
+        Assert.DoesNotContain("Finish editing", holderRecord, StringComparison.Ordinal);
+        Assert.DoesNotContain("Save case data", holderRecord, StringComparison.Ordinal);
+        AssertNoBannedVocabulary(holderRecord);
 
         // Recover: the same holder without the protected browser state.
         using (var recoveryClient = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -1858,7 +1874,7 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// The eleven Case sections in the order D30 fixes, from the frame's one
+    /// The ten Case sections in the order D30 fixes, from the frame's one
     /// section list.
     /// </summary>
     private static readonly string[] CaseSectionKeys =
@@ -1890,8 +1906,10 @@ public sealed partial class CaseDetailsWebTests
 
     private static string JumpNav(string html)
     {
-        var start = html.IndexOf("class=\"section-nav\"", StringComparison.Ordinal);
-        Assert.True(start >= 0, "The section jump-nav is not rendered.");
+        var marker = html.IndexOf("data-section-nav", StringComparison.Ordinal);
+        Assert.True(marker >= 0, "The section jump-nav is not rendered.");
+        var start = html.LastIndexOf("<nav", marker, StringComparison.Ordinal);
+        Assert.True(start >= 0, "The section jump-nav is not a nav element.");
         var end = html.IndexOf("</nav>", start, StringComparison.Ordinal);
         Assert.True(end > start, "The jump-nav is not closed.");
         return html[start..end];
@@ -2009,6 +2027,257 @@ public sealed partial class CaseDetailsWebTests
         Assert.Contains("Case locked - AI is editing", EditAuthorityNote(afterRefusal), StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ClaimLease", afterRefusal, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", afterRefusal, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Review point 12: the adverse disposition is not a step in the workflow.
+    /// It stands alone at the end of the record bar, away from the progression
+    /// actions, and offers only the outcomes Core will actually accept from
+    /// the Case's current state. Created in error and E-mail unlinked each
+    /// have their own action, so neither is ever in the chooser, and post-report
+    /// completion is progression rather than an adverse disposition.
+    /// </summary>
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady, true)]
+    [InlineData(CaseLifecycleState.Review, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, true)]
+    [InlineData(CaseLifecycleState.PostReport, true)]
+    [InlineData(CaseLifecycleState.PostReportComplete, true)]
+    [InlineData(CaseLifecycleState.Query, true)]
+    [InlineData(CaseLifecycleState.ProviderCancelled, false)]
+    [InlineData(CaseLifecycleState.CollisionEngineersRejected, false)]
+    [InlineData(CaseLifecycleState.CreatedInError, false)]
+    [InlineData(CaseLifecycleState.SourceEmailUnlinked, false)]
+    public async Task TheAdverseCloseActionStandsApartAndOffersOnlyThePermittedOutcomes(
+        CaseLifecycleState state,
+        bool offersClosure)
+    {
+        var store = new RecordingCaseDetailsStore { State = state };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ICloseCase>(services, new CoreCheckedCloseCase(store)));
+
+        var html = await workspace.GetWorkspaceAsync();
+        var bar = RecordBar(html);
+
+        Assert.Equal(offersClosure, bar.Contains("record-bar-adverse", StringComparison.Ordinal));
+        Assert.Equal(
+            offersClosure,
+            html.Contains("data-dialog=\"case-close-dialog\"", StringComparison.Ordinal));
+        if (!offersClosure)
+        {
+            // A closed Case is read: it keeps its reference and reads its
+            // recorded outcome, and offers no way to close it a second time.
+            Assert.DoesNotContain("data-dialog-open=\"case-close-dialog\"", html, StringComparison.Ordinal);
+            Assert.Contains("QDOS3100042", html, StringComparison.Ordinal);
+            Assert.Contains(EncodedStage(state), html, StringComparison.Ordinal);
+            return;
+        }
+
+        // Separation: the adverse group holds the one Close control and none
+        // of the progression actions.
+        var adverse = AdverseGroup(html);
+        Assert.Contains("data-dialog-open=\"case-close-dialog\"", adverse, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.CaseWorkspace.CloseCase, adverse, StringComparison.Ordinal);
+        foreach (var progression in new[] { "Hand to Engineer", "Mark completed", "Return to Engineer", "More actions" })
+        {
+            Assert.DoesNotContain(progression, adverse, StringComparison.Ordinal);
+        }
+
+        var dialog = CloseDialog(html);
+        Assert.Contains(
+            $"/Cases/{store.CaseId:D}/Closure?handler=Close",
+            dialog,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("value=\"ProviderCancelled\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("value=\"CollisionEngineersRejected\"", dialog, StringComparison.Ordinal);
+        foreach (var unavailable in new[] { "CreatedInError", "SourceEmailUnlinked", "PostReportComplete" })
+        {
+            Assert.DoesNotContain($"value=\"{unavailable}\"", dialog, StringComparison.Ordinal);
+        }
+
+        Assert.Matches("<select[^>]*name=\"outcome\"[^>]*required", dialog);
+        Assert.Matches("<textarea[^>]*name=\"reason\"[^>]*rows=\"3\"", dialog);
+        Assert.Contains("name=\"reason\"", dialog, StringComparison.Ordinal);
+        Assert.Contains("required", dialog, StringComparison.Ordinal);
+        Assert.Contains($"value=\"{store.LeaseToken}\"", dialog, StringComparison.Ordinal);
+        Assert.Contains(
+            $"value=\"{store.CaseVersion.ToString(CultureInfo.InvariantCulture)}\"",
+            dialog,
+            StringComparison.Ordinal);
+        // Closing is never deletion: the workspace offers no such action.
+        Assert.DoesNotContain("Delete case", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("handler=DeleteCase", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The progression actions stay where they were: the adverse group is an
+    /// addition beside them, not a replacement for them.
+    /// </summary>
+    [Fact]
+    public async Task TheCloseActionDoesNotDisplaceTheProgressionActions()
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.PostReport };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ICloseCase>(services, new CoreCheckedCloseCase(store)));
+
+        var bar = RecordBar(await workspace.GetWorkspaceAsync());
+        var adverseStart = bar.IndexOf("record-bar-adverse", StringComparison.Ordinal);
+
+        Assert.Contains("Mark completed", bar, StringComparison.Ordinal);
+        Assert.Contains("More actions", bar, StringComparison.Ordinal);
+        Assert.True(adverseStart > 0, "The adverse group is not rendered.");
+        // Both progression controls are drawn before the adverse group.
+        Assert.InRange(bar.IndexOf("Mark completed", StringComparison.Ordinal), 0, adverseStart);
+        Assert.InRange(bar.IndexOf("More actions", StringComparison.Ordinal), 0, adverseStart);
+    }
+
+    /// <summary>
+    /// A complete disposition reaches Core with the workspace's own reasoned
+    /// envelope — actor, version, lease, operation key and reason — carrying
+    /// the chosen outcome, and the Case is still there afterwards, reading the
+    /// outcome it was closed with. Closing never deletes a Case.
+    /// </summary>
+    [Fact]
+    public async Task ClosingRecordsTheChosenAdverseOutcomeAndKeepsTheCase()
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
+        var closeCase = new CoreCheckedCloseCase(store);
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ICloseCase>(services, closeCase));
+
+        using var closed = await workspace.PostAsync(
+            "Closure?handler=Close",
+            workspace.MutationForm(
+                "close-provider-cancelled",
+                "Provider withdrew the instruction",
+                ("outcome", "ProviderCancelled")));
+
+        AssertPrg(closed, store.CaseId);
+        var closure = Assert.Single(closeCase.Closures);
+        AssertLeasedMutation(workspace, closure, "close-provider-cancelled", "Provider withdrew the instruction");
+        Assert.Equal(CaseClosureOutcome.ProviderCancelled, closure.Outcome);
+
+        // The recorded transition, as the projection then reports it.
+        store.State = CaseLifecycleState.ProviderCancelled;
+        var html = await workspace.GetWorkspaceAsync();
+        Assert.Contains("The selected terminal outcome was recorded.", html, StringComparison.Ordinal);
+        Assert.Contains("QDOS3100042", html, StringComparison.Ordinal);
+        Assert.Contains(
+            EncodedStage(CaseLifecycleState.ProviderCancelled),
+            html,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open=\"case-close-dialog\"", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The chooser and the reason are both required, and an outcome the Case's
+    /// current state does not permit is not a closure. Every refusal stops
+    /// before Core's store, keeps this browser in edit mode, and hands the
+    /// operator back what they submitted.
+    /// </summary>
+    [Theory]
+    // The chooser was not answered, or was answered with something that is not
+    // one of the named outcomes: neither may fall through to the enum default.
+    [InlineData(CaseLifecycleState.Review, null, "Provider withdrew the instruction")]
+    [InlineData(CaseLifecycleState.Review, "", "Provider withdrew the instruction")]
+    [InlineData(CaseLifecycleState.Review, "99", "Provider withdrew the instruction")]
+    // Each of these is reached through its own action, never through Close.
+    [InlineData(CaseLifecycleState.Review, "CreatedInError", "The principal was wrong")]
+    [InlineData(CaseLifecycleState.Review, "SourceEmailUnlinked", "The e-mail was unlinked")]
+    // Progression, and not from this state.
+    [InlineData(CaseLifecycleState.Review, "PostReportComplete", "Post-report work is done")]
+    // A closed Case cannot be closed again.
+    [InlineData(CaseLifecycleState.ProviderCancelled, "CollisionEngineersRejected", "Rejected after all")]
+    // The reason is required.
+    [InlineData(CaseLifecycleState.Review, "ProviderCancelled", "")]
+    [InlineData(CaseLifecycleState.Review, "ProviderCancelled", "   ")]
+    public async Task AnIncompleteOrUnavailableClosureNeverReachesTheCommand(
+        CaseLifecycleState state,
+        string? outcome,
+        string reason)
+    {
+        var store = new RecordingCaseDetailsStore { State = state };
+        var closeCase = new CoreCheckedCloseCase(store);
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ICloseCase>(services, closeCase));
+        var fields = new List<(string Name, string Value)>
+        {
+            ("id", store.CaseId.ToString("D")),
+            ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+            ("operationKey", "close-refused"),
+            ("editLeaseToken", store.LeaseToken),
+            ("reason", reason)
+        };
+        if (outcome is not null)
+        {
+            fields.Add(("outcome", outcome));
+        }
+
+        using var refused = await workspace.PostAsync(
+            "Closure?handler=Close",
+            Form(workspace.AntiforgeryToken, [.. fields]));
+
+        AssertPrg(refused, store.CaseId);
+        Assert.Empty(closeCase.Closures);
+        var html = await workspace.GetWorkspaceAsync();
+        Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
+        // Edit mode survives, and what was submitted comes back with it.
+        Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
+        Assert.Contains("Your change was not applied", html, StringComparison.Ordinal);
+        // The Case itself is untouched and still readable.
+        Assert.Contains("QDOS3100042", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A stage name as the response actually carries it: the framework's HTML
+    /// encoder writes the chip's separator as a numeric reference.
+    /// </summary>
+    private static string EncodedStage(CaseLifecycleState state) =>
+        System.Text.Encodings.Web.HtmlEncoder.Default.Encode(OperatorLabels.CaseStage(state));
+
+    private static string AdverseGroup(string html)
+    {
+        var start = html.IndexOf("class=\"record-bar-adverse", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The adverse action group is not rendered.");
+        var end = html.IndexOf("</div>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The adverse action group is not closed.");
+        return html[start..end];
+    }
+
+    private static string CloseDialog(string html)
+    {
+        var start = html.IndexOf("data-dialog=\"case-close-dialog\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The close dialog is not rendered.");
+        var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The close dialog is not closed.");
+        return html[start..end];
+    }
+
+    /// <summary>
+    /// Stands in for Core's <c>CloseCase</c> over the recording projection: it
+    /// applies exactly the rules that use case applies, in its order, and
+    /// replaces only the persistence. A closure the real command would refuse
+    /// is refused here too, so the page's own refusal path is exercised
+    /// against the real policy rather than against a permissive double.
+    /// </summary>
+    private sealed class CoreCheckedCloseCase(RecordingCaseDetailsStore store) : ICloseCase
+    {
+        public List<CloseCaseRequest> Closures { get; } = [];
+
+        public async Task<CaseWorkflowRecord> ExecuteAsync(
+            CloseCaseRequest request,
+            CancellationToken cancellationToken)
+        {
+            CaseLifecycleRules.ValidateClose(request);
+            var current = await CaseLifecycleRules.GetRequiredAsync(store, request.CaseId, cancellationToken);
+            CaseLifecycleRules.RequireClosureIsAllowed(current, request);
+            Closures.Add(request);
+            return current with
+            {
+                State = Enum.Parse<CaseLifecycleState>(request.Outcome.ToString()),
+                ClosureOutcome = request.Outcome
+            };
+        }
     }
 
     private sealed class StubEditAuthorityHolders(string? displayName, bool isAutomation = false)

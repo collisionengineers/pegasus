@@ -288,8 +288,7 @@ public sealed class EfOrganizationAdministration(
             request.Postcode,
             request.SourceKind,
             request.SourceRecordId,
-            request.SourceVersion,
-            request.Reason
+            request.SourceVersion
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
@@ -368,7 +367,7 @@ public sealed class EfOrganizationAdministration(
             request.Actor,
             request.OperationKey,
             now,
-            request.Reason,
+            null,
             before,
             result);
         CompletePrincipalContactScope(context, contact);

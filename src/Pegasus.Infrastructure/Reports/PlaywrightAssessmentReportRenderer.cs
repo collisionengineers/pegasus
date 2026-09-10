@@ -3,6 +3,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Collections.Concurrent;
 using Microsoft.Playwright;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Reports;
 using PdfSharp.Pdf.IO;
 using Scriban;
@@ -246,27 +247,12 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
             return string.Empty;
         }
 
-        var zones = new[]
-        {
-            ("BONNET", "112,83 188,83 200,127 100,127"), ("WINDSCREEN", "105,132 195,132 204,165 96,165"),
-            ("ROOF", "100,170 200,170 200,323 100,323"), ("REAR_SCREEN", "105,328 195,328 204,362 96,362"),
-            ("TAILGATE", "112,367 188,367 200,413 100,413"), ("FRONT_LEFT_CORNER", "76,94 109,83 112,127 77,145"),
-            ("FRONT_CENTRE", "112,46 188,46 188,78 112,78"), ("FRONT_RIGHT_CORNER", "224,94 191,83 188,127 223,145"),
-            ("LEFT_FRONT_WING", "70,151 100,134 100,187 71,207"), ("LEFT_FRONT_DOOR", "65,211 100,191 100,253 64,273"),
-            ("LEFT_REAR_DOOR", "64,278 100,258 100,319 65,338"), ("LEFT_QUARTER", "69,343 100,325 100,379 70,398"),
-            ("RIGHT_FRONT_WING", "230,151 200,134 200,187 229,207"), ("RIGHT_FRONT_DOOR", "235,211 200,191 200,253 236,273"),
-            ("RIGHT_REAR_DOOR", "236,278 200,258 200,319 235,338"), ("RIGHT_QUARTER", "231,343 200,325 200,379 230,398"),
-            ("REAR_LEFT_CORNER", "76,405 111,422 109,467 76,454"), ("REAR_CENTRE", "112,418 188,418 188,453 112,453"),
-            ("REAR_RIGHT_CORNER", "224,405 189,422 191,467 224,454")
-        };
-        var paths = string.Join(string.Empty, zones.Select(zone =>
-            $"<polygon points=\"{zone.Item2}\" class=\"{(marked.Contains(zone.Item1) ? "marked" : string.Empty)}\"/>"));
-        var wheels = string.Join(string.Empty, new[]
-        {
-            ("WHEEL_LEFT_FRONT", 77, 185), ("WHEEL_RIGHT_FRONT", 223, 185),
-            ("WHEEL_LEFT_REAR", 77, 335), ("WHEEL_RIGHT_REAR", 223, 335)
-        }.Select(wheel => $"<ellipse cx=\"{wheel.Item2}\" cy=\"{wheel.Item3}\" rx=\"13\" ry=\"29\" class=\"{(marked.Contains(wheel.Item1) ? "marked" : string.Empty)}\"/>"));
-        return $"<figure class=\"impact-diagram\"><svg viewBox=\"0 0 300 520\" role=\"img\" aria-label=\"Marked vehicle damage diagram\"><path d=\"M95 22h110l27 63 21 69v213l-21 69-27 62H95l-27-62-21-69V154l21-69z\"/>{paths}{wheels}</svg></figure>";
+        var zones = string.Join(string.Empty, DamageDiagramGeometry.Zones.Select(zone =>
+            $"<path d=\"{zone.Path}\" class=\"{(marked.Contains(Slug(zone.Code)) ? "marked" : string.Empty)}\"/>"));
+        var wheels = string.Join(string.Empty, DamageDiagramGeometry.Wheels.Select(wheel =>
+            $"<rect class=\"impact-diagram-wheel\" x=\"{wheel.CentreX - 10}\" y=\"{wheel.CentreY - 22}\" width=\"20\" height=\"44\" rx=\"6\"/><rect x=\"{wheel.CentreX - 14}\" y=\"{wheel.CentreY - 26}\" width=\"28\" height=\"52\" rx=\"8\" class=\"{(marked.Contains(Slug(wheel.Code)) ? "marked" : string.Empty)}\"/>"));
+        var markers = string.Join(string.Empty, DamageDiagramGeometry.Markers.Where(marker => marked.Contains(Slug(marker.Code))).Select(marker => $"<g class=\"impact-diagram-marker\" transform=\"translate({marker.CentreX - 9} {marker.CentreY - 9})\"><circle cx=\"9\" cy=\"9\" r=\"9\"/><path transform=\"translate(3 3) scale(.5)\" d=\"M14.5 0 3 14h8l-1.5 10L21 9h-8z\"/></g>"));
+        return $"<figure class=\"impact-diagram\"><svg viewBox=\"{DamageDiagramGeometry.ViewBox}\" role=\"img\" aria-label=\"Marked vehicle damage diagram\"><text class=\"impact-diagram-label\" x=\"120\" y=\"14\" text-anchor=\"middle\">FRONT</text>{wheels}<path class=\"impact-diagram-body\" d=\"{DamageDiagramGeometry.BodyPath}\"/><path class=\"impact-diagram-glass\" d=\"{DamageDiagramGeometry.FrontGlassPath}\"/><path class=\"impact-diagram-glass\" d=\"{DamageDiagramGeometry.RearGlassPath}\"/><path class=\"impact-diagram-structural impact-diagram-structural--strong\" d=\"{DamageDiagramGeometry.StrongStructuralLinesPath}\"/><path class=\"impact-diagram-structural\" d=\"{DamageDiagramGeometry.StructuralLinesPath}\"/>{zones}{markers}<text class=\"impact-diagram-label\" x=\"120\" y=\"386\" text-anchor=\"middle\">REAR</text></svg></figure>";
     }
 
     /// <summary>

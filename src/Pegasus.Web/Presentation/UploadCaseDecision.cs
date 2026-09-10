@@ -40,7 +40,6 @@ public sealed record UploadCaseAttachmentConfirmation(
     Guid ReceiptId,
     Guid CaseId,
     string Reference,
-    string Reason,
     UploadCaseAttachmentInput Input);
 
 /// <summary>
@@ -55,8 +54,7 @@ public sealed record UploadCaseAttachmentDraft(
     long? ExpectedReceiptVersion,
     Guid? CaseId,
     long? ExpectedCaseVersion,
-    string? Reference,
-    string Reason);
+    string? Reference);
 
 /// <summary>
 /// The one implementation behind both upload status pages' confirmation
@@ -103,7 +101,6 @@ public interface IUploadCaseDecision
         Guid receiptId,
         Guid? caseId,
         string? reference,
-        string reason,
         UploadCaseAttachmentInput input,
         ActionActor actor,
         CancellationToken cancellationToken = default);
@@ -111,7 +108,6 @@ public interface IUploadCaseDecision
     Task<UploadCaseAttachmentConfirmation?> PrepareAsync(
         Guid receiptId,
         string? reference,
-        string reason,
         Guid operationId,
         long expectedReceiptVersion,
         ActionActor actor,
@@ -119,7 +115,7 @@ public interface IUploadCaseDecision
 
     /// <summary>
     /// The submission-level decision: add every still-open member of an
-    /// upload group to one found case, under one reason. Members already on
+    /// upload group to one found case. Members already on
     /// the chosen case are counted as done (replay safety); a member on a
     /// different case is left untouched and reported.
     /// </summary>
@@ -128,7 +124,6 @@ public interface IUploadCaseDecision
         IReadOnlyList<Guid> memberReceiptIds,
         Guid? caseId,
         string? reference,
-        string reason,
         Guid operationId,
         IReadOnlyDictionary<Guid, long> expectedReceiptVersions,
         long expectedCaseVersion,
@@ -245,7 +240,6 @@ public sealed class UploadCaseDecision(
     public async Task<UploadCaseAttachmentConfirmation?> PrepareAsync(
         Guid receiptId,
         string? reference,
-        string reason,
         Guid operationId,
         long expectedReceiptVersion,
         ActionActor actor,
@@ -275,7 +269,6 @@ public sealed class UploadCaseDecision(
                 receiptId,
                 destination.CaseId,
                 destination.Reference,
-                reason,
                 new(operationId, receipt.Version, destination.Version));
     }
 
@@ -283,7 +276,6 @@ public sealed class UploadCaseDecision(
         Guid receiptId,
         Guid? caseId,
         string? reference,
-        string reason,
         UploadCaseAttachmentInput input,
         ActionActor actor,
         CancellationToken cancellationToken = default)
@@ -313,10 +305,10 @@ public sealed class UploadCaseDecision(
 
         var operationKey = DecisionOperationKey(
             "upload-attach", input.OperationId, receiptId, targetCaseId,
-            input.ExpectedReceiptVersion, input.ExpectedCaseVersion, actor, reason);
+            input.ExpectedReceiptVersion, input.ExpectedCaseVersion, actor);
 
         // A matching Case alone is not proof of a replay: another staff
-        // member, another reason, or a prior action must remain visible as a
+        // member or prior action must remain visible as a
         // conflict. The persisted operation identity is the exact staff
         // decision that is safe to acknowledge again.
         if (receipt.CurrentCaseId == targetCaseId)
@@ -372,7 +364,7 @@ public sealed class UploadCaseDecision(
                     lease.Token,
                     actor,
                     operationKey,
-                    reason),
+                    Reason: null),
                 cancellationToken);
         }
         catch (Exception exception) when (
@@ -395,7 +387,6 @@ public sealed class UploadCaseDecision(
         IReadOnlyList<Guid> memberReceiptIds,
         Guid? caseId,
         string? reference,
-        string reason,
         Guid operationId,
         IReadOnlyDictionary<Guid, long> expectedReceiptVersions,
         long expectedCaseVersion,
@@ -463,7 +454,7 @@ public sealed class UploadCaseDecision(
                 {
                     var operationKey = DecisionOperationKey(
                         $"upload-attach-group:{groupId:N}", operationId, receiptId, targetCaseId,
-                        expectedReceiptVersions[receiptId], expectedCaseVersion + index, actor, reason);
+                        expectedReceiptVersions[receiptId], expectedCaseVersion + index, actor);
                     if (pendingFound || receipt.CurrentCaseId != targetCaseId
                         || !string.Equals(receipt.ManualAssociationOperationKey, operationKey, StringComparison.Ordinal))
                     {
@@ -493,7 +484,7 @@ public sealed class UploadCaseDecision(
                 }
                 var operationKey = DecisionOperationKey(
                     $"upload-attach-group:{groupId:N}", operationId, receiptId, targetCaseId,
-                    expectedReceiptVersions[receiptId], nextCaseVersion, actor, reason);
+                    expectedReceiptVersions[receiptId], nextCaseVersion, actor);
                 if (receipt.CurrentCaseId == targetCaseId)
                 {
                     if (string.Equals(receipt.ManualAssociationOperationKey, operationKey, StringComparison.Ordinal))
@@ -540,7 +531,7 @@ public sealed class UploadCaseDecision(
                         lease.Token,
                         actor,
                         operationKey,
-                        reason),
+                        Reason: null),
                     cancellationToken);
                 added++;
                 nextCaseVersion++;
@@ -618,10 +609,9 @@ public sealed class UploadCaseDecision(
         Guid caseId,
         long receiptVersion,
         long caseVersion,
-        ActionActor actor,
-        string reason)
+        ActionActor actor)
     {
-        var material = $"{scope}|{operationId:N}|{receiptId:N}|{caseId:N}|{receiptVersion}|{caseVersion}|{actor.Kind}|{actor.SubjectId}|{reason.Trim()}";
+        var material = $"{scope}|{operationId:N}|{receiptId:N}|{caseId:N}|{receiptVersion}|{caseVersion}|{actor.Kind}|{actor.SubjectId}";
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)))[..32].ToLowerInvariant();
         return $"upload-confirm:{hash}";
     }

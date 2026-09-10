@@ -97,7 +97,7 @@ public sealed class EfApprovedOutlookCategoryStore(
             EventKind = EventKind, ActorKind = request.Actor.Kind.ToString(), ActorSubjectId = request.Actor.SubjectId,
             ActorRolesJson = JsonSerializer.Serialize(request.Actor.Roles.OrderBy(role => role).Select(role => role.ToString())),
             OccurredAtUtc = timeProvider.GetUtcNow(), Outcome = "succeeded", CorrelationId = request.OperationKey,
-            Reason = request.Reason, BeforeJson = before is null ? null : JsonSerializer.Serialize(before),
+            BeforeJson = before is null ? null : JsonSerializer.Serialize(before),
             AfterJson = JsonSerializer.Serialize(after), PolicyVersion = $"approved-outlook-category/v{entity.Version}"
         });
         if (request.ExpectedVersion > 0)
@@ -127,7 +127,7 @@ public sealed class EfApprovedOutlookCategoryStore(
         var snapshot = history.AfterJson is null ? null : JsonSerializer.Deserialize<Snapshot>(history.AfterJson);
         if (snapshot is null || history.AggregateId != request.CategoryId.ToString("D")
             || history.EventKind != EventKind || history.ActorKind != request.Actor.Kind.ToString()
-            || history.ActorSubjectId != request.Actor.SubjectId || history.Reason != request.Reason
+            || history.ActorSubjectId != request.Actor.SubjectId
             || snapshot.DisplayName != request.DisplayName || snapshot.State != request.State
             || snapshot.Version != checked(request.ExpectedVersion + 1))
             throw new ApprovedOutlookCategoryUpdateException(ApprovedOutlookCategoryUpdateError.OperationConflict);

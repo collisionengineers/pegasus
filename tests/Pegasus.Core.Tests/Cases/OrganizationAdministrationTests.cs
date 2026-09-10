@@ -116,12 +116,6 @@ public sealed class OrganizationAdministrationTests
         Assert.Empty(store.PrincipalReplacements);
     }
 
-    // C06 review R-4: item 6 (the principal's default inspection location)
-    // had a recording store but nothing exercised
-    // OrganizationAdministrationPolicy.Normalize(UpdatePrincipalDefaultInspectionLocationRequest)
-    // or captured the values UpdatePrincipalDefaultInspectionLocation sends
-    // to the store.
-
     [Fact]
     public void NormalizeDefaultInspectionLocationClearsAddressFieldsForImageBasedAssessment()
     {
@@ -130,7 +124,6 @@ public sealed class OrganizationAdministrationTests
             Guid.NewGuid(),
             3,
             "  op-key  ",
-            "  because reasons  ",
             InspectionAddressEvidenceKind.ImageBasedAssessment,
             Label: "Should be cleared",
             Address: "Should be cleared",
@@ -144,7 +137,6 @@ public sealed class OrganizationAdministrationTests
         var normalized = OrganizationAdministrationPolicy.Normalize(request);
 
         Assert.Equal("op-key", normalized.OperationKey);
-        Assert.Equal("because reasons", normalized.Reason);
         Assert.Null(normalized.Label);
         Assert.Null(normalized.Address);
         Assert.Null(normalized.Postcode);
@@ -161,7 +153,6 @@ public sealed class OrganizationAdministrationTests
             Guid.NewGuid(),
             0,
             "op-key",
-            "reason",
             InspectionAddressEvidenceKind.PhysicalAddress,
             Label: "Yard",
             Address: "  1 Test Street  ",
@@ -186,7 +177,6 @@ public sealed class OrganizationAdministrationTests
             Guid.NewGuid(),
             0,
             "op-key",
-            "reason",
             InspectionAddressEvidenceKind.PhysicalAddress,
             Label: null,
             Address: "   ",
@@ -201,22 +191,6 @@ public sealed class OrganizationAdministrationTests
     }
 
     [Fact]
-    public void NormalizeDefaultInspectionLocationRequiresAReason()
-    {
-        var request = new UpdatePrincipalDefaultInspectionLocationRequest(
-            Administrator,
-            Guid.NewGuid(),
-            0,
-            "op-key",
-            "   ",
-            InspectionAddressEvidenceKind.ImageBasedAssessment,
-            null, null, null, null, null, null,
-            0, "edit-token");
-
-        Assert.Throws<ArgumentException>(() => OrganizationAdministrationPolicy.Normalize(request));
-    }
-
-    [Fact]
     public void NormalizeDefaultInspectionLocationRejectsAnUndefinedKind()
     {
         var request = new UpdatePrincipalDefaultInspectionLocationRequest(
@@ -224,7 +198,6 @@ public sealed class OrganizationAdministrationTests
             Guid.NewGuid(),
             0,
             "op-key",
-            "reason",
             (InspectionAddressEvidenceKind)99,
             null, null, null, null, null, null,
             0, "edit-token");
@@ -246,7 +219,6 @@ public sealed class OrganizationAdministrationTests
                     Guid.NewGuid(),
                     0,
                     "op-key",
-                    "reason",
                     InspectionAddressEvidenceKind.ImageBasedAssessment,
                     null, null, null, null, null, null,
                     0, "edit-token"),
@@ -268,7 +240,6 @@ public sealed class OrganizationAdministrationTests
                 principalId,
                 2,
                 "  op-key  ",
-                "  physical override reason  ",
                 InspectionAddressEvidenceKind.PhysicalAddress,
                 "Yard",
                 "  1 Test Street  ",
@@ -283,7 +254,6 @@ public sealed class OrganizationAdministrationTests
         var request = Assert.Single(store.DefaultInspectionLocationUpdates);
         Assert.Equal(principalId, request.PrincipalId);
         Assert.Equal("op-key", request.OperationKey);
-        Assert.Equal("physical override reason", request.Reason);
         Assert.Equal("1 Test Street", request.Address);
         Assert.Equal("TE1 1ST", request.Postcode);
     }

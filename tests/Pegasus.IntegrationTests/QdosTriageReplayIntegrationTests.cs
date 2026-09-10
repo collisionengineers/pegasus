@@ -13,11 +13,8 @@ public sealed partial class QdosTriageIntegrationTests
     public async Task NamedMutationRetriesReturnHistoricalResultsAndRetainConflictAndStateGates()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-replay.eml");
-        _ = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
-        email.MediaType,
-        email.Content);
+        _ = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
 
         var initial = await GetOnlyTriageAsync(factory.Services);
         var triageId = initial.Record.Id;

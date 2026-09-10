@@ -43,7 +43,6 @@ public sealed class RecordManualCaseChase(
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         RequireText(request.EditLeaseToken, "An active edit lease token is required.", 128, nameof(request));
         RequireText(request.OperationKey, "An operation key is required.", 100, nameof(request));
-        RequireText(request.Reason, "A reason is required.", 500, nameof(request));
         RequireText(request.Channel, "A chase channel is required.", 100, nameof(request));
         RequireText(request.TargetPartyOrAddress, "A chase target is required.", 500, nameof(request));
         RequireText(request.Outcome, "A chase outcome is required.", 500, nameof(request));

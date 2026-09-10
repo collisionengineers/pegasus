@@ -321,7 +321,7 @@ public sealed class CasesIndexWebTests
         Assert.Contains("Inspection", html, StringComparison.Ordinal);
         Assert.Contains("QDOS3100043 &#xB7; AB12CDE", html, StringComparison.Ordinal);
         Assert.Contains("Rear-end impact at a roundabout", html, StringComparison.Ordinal);
-        Assert.Contains("Provider reference", html, StringComparison.Ordinal);
+        Assert.Contains("Our ref", html, StringComparison.Ordinal);
         Assert.Contains("CLM43", html, StringComparison.Ordinal);
         Assert.Contains("Unassigned", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Cases/{search.ClosedCaseId:D}\"", html, StringComparison.Ordinal);

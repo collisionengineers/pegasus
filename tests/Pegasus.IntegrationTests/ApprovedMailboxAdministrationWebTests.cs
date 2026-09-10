@@ -48,7 +48,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
     }
 
     [Fact]
-    public async Task AdministratorSeesTheAdminLayoutBothTablesAndEveryHandler()
+    public async Task AdministratorSeesTheAdminLayoutBothTablesAndApplicableHandlers()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -56,23 +56,32 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         var page = await GetPageAsync(client);
 
         Assert.Contains("class=\"admin-layout\"", page, StringComparison.Ordinal);
-        Assert.Contains("<h2 id=\"mail-settings-title\">Mail settings</h2>", page, StringComparison.Ordinal);
+        Assert.Contains("<h1>Mail settings</h1>", page, StringComparison.Ordinal);
         Assert.Contains("aria-current=\"page\"", page, StringComparison.Ordinal);
         Assert.Contains("<caption class=\"sr-only\">Approved mailboxes</caption>", page, StringComparison.Ordinal);
         Assert.Contains("<th scope=\"col\">Mailbox</th>", page, StringComparison.Ordinal);
-        Assert.Contains("<th scope=\"col\">Scope</th>", page, StringComparison.Ordinal);
-        Assert.Contains("<th scope=\"col\">Last update</th>", page, StringComparison.Ordinal);
-        Assert.Contains("<th scope=\"col\">Activated</th>", page, StringComparison.Ordinal);
-        Assert.Contains("<th scope=\"col\">Subscription</th>", page, StringComparison.Ordinal);
-        Assert.Contains("<th scope=\"col\">Review folders / Refresh</th>", page, StringComparison.Ordinal);
+        Assert.Contains("<th scope=\"col\">Used for</th>", page, StringComparison.Ordinal);
+        Assert.Contains("<th scope=\"col\">Last checked</th>", page, StringComparison.Ordinal);
+        Assert.Contains("<th scope=\"col\">State</th>", page, StringComparison.Ordinal);
         Assert.Contains("<caption class=\"sr-only\">Mail categories</caption>", page, StringComparison.Ordinal);
-        Assert.Contains("?handler=Update", page, StringComparison.Ordinal);
+        Assert.Contains("?handler=EditMailbox", page, StringComparison.Ordinal);
         Assert.Contains("?handler=SaveCategory", page, StringComparison.Ordinal);
-        Assert.Contains("<summary>Mailbox setup</summary>", page, StringComparison.Ordinal);
-        Assert.Contains("Pegasus does not create Microsoft 365 mailboxes or grant Exchange access.", page, StringComparison.Ordinal);
+        Assert.Contains("data-dialog=\"new-mailbox-dialog\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-dialog=\"default-sender-dialog\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("https://github.com/", page, StringComparison.Ordinal);
         Assert.Contains("value=\"StaffSend\"", page, StringComparison.Ordinal);
         Assert.Contains("Verified encoded-message size limit (bytes)", page, StringComparison.Ordinal);
+
+        var mailboxId = TestMailboxId.From("instructions").ToString("D");
+        var editing = await OpenMailboxEditAsync(client, mailboxId, MailboxVersion(page, mailboxId), page);
+        Assert.Contains("Mailbox settings", editing, StringComparison.Ordinal);
+        Assert.Contains("?handler=CancelMailboxEdit", editing, StringComparison.Ordinal);
+        Assert.Contains("?handler=HeartbeatMailboxEdit", editing, StringComparison.Ordinal);
+        // The seeded mailbox has no verified external identity. The dialog
+        // therefore cannot offer a refresh that is only valid for a bound
+        // mailbox; the bound-mailbox refresh path is covered below.
+        Assert.DoesNotContain("?handler=ResolveFolders", editing, StringComparison.Ordinal);
+        Assert.Contains("?handler=Update", editing, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -97,7 +106,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.Address"] = NewAddress,
             ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
             ["MailboxForm.SelectedState"] = "Approved",
-            ["MailboxForm.Reason"] = "Add the second approved mailbox",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
 
@@ -128,7 +136,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.Address"] = NewAddress,
             ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
             ["MailboxForm.SelectedState"] = "Approved",
-            ["MailboxForm.Reason"] = "Add an address the tenant does not recognise",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
 
@@ -158,7 +165,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.Address"] = NewAddress,
             ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
             ["MailboxForm.SelectedState"] = "Approved",
-            ["MailboxForm.Reason"] = "Verify the mailbox before enabling it",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
 
@@ -185,13 +191,44 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.Address"] = NewAddress,
             ["MailboxForm.SelectedRouteScopes"] = "StaffSend",
             ["MailboxForm.SelectedState"] = "Approved",
-            ["MailboxForm.Reason"] = "Enable staff send",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(1, resolver.AccessChecks);
         Assert.Contains("verified encoded-message size limit", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task InvalidNewCategoryReopensOnlyTheCategoryDialog()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var page = await GetPageAsync(client);
+
+        var response = await client.PostAsync(
+            "/Administration/Mailboxes?handler=SaveCategory",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["CategoryForm.CategoryId"] = NewCategoryId(page),
+                ["CategoryForm.ExpectedVersion"] = "0",
+                ["CategoryForm.OperationKey"] = NewCategoryOperationKey(page),
+                ["CategoryForm.DisplayName"] = string.Empty,
+                ["CategoryForm.SelectedState"] = "Active",
+                ["__RequestVerificationToken"] = AntiforgeryToken(page)
+            }));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("The DisplayName field is required.", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "data-dialog=\"add-mail-category-dialog\" data-dialog-open-on-load=\"true\"",
+            html,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "data-dialog=\"new-mailbox-dialog\" data-dialog-open-on-load=\"true\"",
+            html,
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -216,7 +253,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.Address"] = NewAddress,
             ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
             ["MailboxForm.SelectedState"] = "Disabled",
-            ["MailboxForm.Reason"] = "Record an inactive mailbox before activation",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
         Assert.Equal(HttpStatusCode.Found, created.StatusCode);
@@ -231,7 +267,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.Address"] = replacementAddress,
             ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
             ["MailboxForm.SelectedState"] = "Disabled",
-            ["MailboxForm.Reason"] = "Correct the inactive mailbox coordinates",
             ["MailboxForm.EditLeaseToken"] = MailboxEditToken(disabledEdit, mailboxId),
             ["__RequestVerificationToken"] = AntiforgeryToken(disabledEdit)
         });
@@ -247,7 +282,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.Address"] = replacementAddress,
             ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
             ["MailboxForm.SelectedState"] = "Approved",
-            ["MailboxForm.Reason"] = "Enable the verified replacement mailbox",
             ["MailboxForm.EditLeaseToken"] = MailboxEditToken(replacementEdit, mailboxId),
             ["__RequestVerificationToken"] = AntiforgeryToken(replacementEdit)
         });
@@ -287,7 +321,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.Address"] = NewAddress,
             ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
             ["MailboxForm.SelectedState"] = "Approved",
-            ["MailboxForm.Reason"] = "Add the second approved mailbox",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
         Assert.Equal(HttpStatusCode.Found, created.StatusCode);
@@ -302,7 +335,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.Address"] = "a-different-address@collisionengineers.co.uk",
             ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
             ["MailboxForm.SelectedState"] = "Approved",
-            ["MailboxForm.Reason"] = "Attempt to point this row at another mailbox",
             ["MailboxForm.EditLeaseToken"] = MailboxEditToken(editing, mailboxId),
             ["__RequestVerificationToken"] = AntiforgeryToken(editing)
         });
@@ -341,13 +373,17 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.DoesNotContain("Version</th>", page, StringComparison.Ordinal);
         // The per-mailbox polling column is present for the seeded mailbox.
         Assert.Contains("Not yet polled.", page, StringComparison.Ordinal);
-        // The seeded mailbox has not been activated and has no Graph subscription yet.
-        Assert.Contains("<td>Not activated</td>", page, StringComparison.Ordinal);
-        Assert.Contains("<td>None.</td>", page, StringComparison.Ordinal);
+        // Per-mailbox access state is intentionally disclosed only after Settings
+        // claims its edit lease.
+        var mailboxId = TestMailboxId.From("instructions").ToString("D");
+        var editing = await OpenMailboxEditAsync(client, mailboxId, MailboxVersion(page, mailboxId), page);
+        var normalizedEditing = BetweenTagsWhitespaceRegex().Replace(editing, "><");
+        Assert.Contains("<dt>Activation</dt><dd>Not activated</dd>", normalizedEditing, StringComparison.Ordinal);
+        Assert.Contains("<dt>Subscription</dt><dd>None.</dd>", normalizedEditing, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task StaleDefaultSelectionRequiresExplicitReselectionAndRetainsTheChoiceAndReason()
+    public async Task StaleDefaultSelectionRequiresExplicitReselectionAndRetainsTheChoice()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -387,7 +423,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
                 ["DefaultMailboxForm.ExpectedPreviousDefaultMailboxId"] = mailboxId.ToString("D"),
                 ["DefaultMailboxForm.ExpectedPreviousDefaultMailboxVersion"] = staleVersion,
                 ["DefaultMailboxForm.OperationKey"] = Value(DefaultMailboxOperationKeyTagRegex().Match(page).Value),
-                ["DefaultMailboxForm.Reason"] = "Keep this Compose sender for the current correspondence",
                 ["__RequestVerificationToken"] = AntiforgeryToken(page)
             }));
 
@@ -396,10 +431,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Contains("<option value=\"\" selected=\"selected\">Select an eligible staff-send mailbox</option>", html, StringComparison.Ordinal);
         Assert.DoesNotContain($"value=\"{staleSelection}\" selected", html, StringComparison.Ordinal);
         Assert.Contains("Your previous selection of instructions@collisionengineers.co.uk changed.", html, StringComparison.Ordinal);
-        Assert.Contains(
-            "value=\"Keep this Compose sender for the current correspondence\"",
-            html,
-            StringComparison.Ordinal);
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -469,18 +500,24 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
         var page = await GetPageAsync(client);
 
+        // The compact row retains the current polling summary; full access and
+        // subscription details require the mailbox Settings dialog.
+        Assert.Contains("Last completed 06 May 2031 11:20.", page, StringComparison.Ordinal);
+        var mailboxIdValue = mailboxId.ToString("D");
+        var editing = await OpenMailboxEditAsync(client, mailboxIdValue, MailboxVersion(page, mailboxIdValue), page);
+        var normalizedEditing = BetweenTagsWhitespaceRegex().Replace(editing, "><");
+
         // Office time (Europe/London) for both instants: BST is UTC+1.
-        Assert.Contains("<td>27 Aug 2026 11:20</td>", page, StringComparison.Ordinal);
+        Assert.Contains("<dt>Activation</dt><dd>27 Aug 2026 11:20</dd>", normalizedEditing, StringComparison.Ordinal);
         Assert.Contains(
-            "<td>Missed. Expires 02 Sep 2026 10:05. Last failure: Graph subscription renew failed.</td>",
-            page,
+            "<dt>Subscription</dt><dd>Missed. Expires 02 Sep 2026 10:05. Last failure: Graph subscription renew failed.</dd>",
+            normalizedEditing,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("subscription-id", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("mailFolders", page, StringComparison.Ordinal);
-        Assert.Contains("<dt>Start boundary</dt><dd>27 Aug 2026 11:20</dd>", page, StringComparison.Ordinal);
-        Assert.Contains("<dt>Generation</dt><dd>1</dd>", page, StringComparison.Ordinal);
-        Assert.Contains("<dt>Last success</dt><dd>06 May 2031 11:20</dd>", page, StringComparison.Ordinal);
-        Assert.Contains("<dt>Last error</dt><dd>graph_unavailable</dd>", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("subscription-id", editing, StringComparison.Ordinal);
+        Assert.DoesNotContain("mailFolders", editing, StringComparison.Ordinal);
+        Assert.Contains("<dt>Last success</dt><dd>06 May 2031 11:20</dd>", normalizedEditing, StringComparison.Ordinal);
+        Assert.Contains("<dt>Freshness</dt><dd>Fresh</dd>", normalizedEditing, StringComparison.Ordinal);
+        Assert.Contains("<dt>Last error</dt><dd>graph_unavailable</dd>", normalizedEditing, StringComparison.Ordinal);
         var health = await client.GetStringAsync("/Administration/Health");
         Assert.Contains("instructions@collisionengineers.co.uk", health, StringComparison.Ordinal);
         Assert.Contains("Needs attention", health, StringComparison.Ordinal);
@@ -489,12 +526,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.DoesNotContain("<th>Latest evidence</th>", health, StringComparison.Ordinal);
         Assert.DoesNotContain("Recorded counts and processing times", health, StringComparison.Ordinal);
         Assert.DoesNotContain("Mailbox freshness", health, StringComparison.Ordinal);
-        Assert.Contains("<dt>Freshness</dt><dd>Fresh</dd>", page, StringComparison.Ordinal);
-        Assert.Contains("<dt>Subscription expiry</dt><dd>02 Sep 2026 10:05</dd>", page, StringComparison.Ordinal);
-        Assert.Contains(
-            "<dt>Capabilities</dt><dd>New instructions and Triage mail (Inbox)</dd>",
-            page,
-            StringComparison.Ordinal);
+        Assert.Contains("New instructions and Triage mail (Inbox)", page, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -520,44 +552,43 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
             ["MailboxForm.SelectedState"] = "Approved",
             ["MailboxForm.VerifiedEncodedMessageSizeLimit"] = "10485760",
-            ["MailboxForm.Reason"] = "Add the second approved mailbox",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
         Assert.Equal(HttpStatusCode.Found, created.StatusCode);
 
         var configured = await GetPageAsync(client);
-        Assert.Contains("?handler=ResolveFolders", configured, StringComparison.Ordinal);
-        Assert.Contains(">Review folders (1 of 13)</summary>", configured, StringComparison.Ordinal);
-        AssertFolderBinding(configured, "Instructions", "Configured");
-        AssertFolderBinding(configured, "Billing", "Not configured");
         Assert.DoesNotContain("instructions-id", configured, StringComparison.Ordinal);
-        var operationKeys = OperationKeyTagRegex().Matches(configured);
         var editing = await OpenMailboxEditAsync(client, mailboxId, 1, configured);
+        Assert.Contains("?handler=ResolveFolders", editing, StringComparison.Ordinal);
+        AssertFolderBinding(editing, "Instructions", "Configured");
+        AssertFolderBinding(editing, "Billing", "Not configured");
         var refreshed = await client.PostAsync(
             "/Administration/Mailboxes?handler=ResolveFolders",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["MailboxForm.MailboxId"] = mailboxId,
                 ["MailboxForm.ExpectedVersion"] = "1",
-                ["MailboxForm.OperationKey"] = Value(operationKeys[^2].Value),
+                ["MailboxForm.OperationKey"] = MailboxOperationKey(editing, mailboxId),
                 ["MailboxForm.Address"] = NewAddress,
+                ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
                 ["MailboxForm.SelectedState"] = "Approved",
-                ["MailboxForm.Reason"] = "Refresh approved logical folder bindings",
+                ["MailboxForm.VerifiedEncodedMessageSizeLimit"] = "10485760",
                 ["MailboxForm.EditLeaseToken"] = MailboxEditToken(editing, mailboxId),
                 ["__RequestVerificationToken"] = AntiforgeryToken(editing)
             }));
 
         Assert.Equal(HttpStatusCode.Found, refreshed.StatusCode);
         var reloaded = await GetPageAsync(client);
-        AssertFolderBinding(reloaded, "Instructions", "Not configured");
-        AssertFolderBinding(reloaded, "Billing", "Configured");
         Assert.DoesNotContain("billing-id", reloaded, StringComparison.Ordinal);
-        Assert.Contains("value=\"10485760\"", reloaded, StringComparison.Ordinal);
+        var refreshedEditing = await OpenMailboxEditAsync(client, mailboxId, 2, reloaded);
+        AssertFolderBinding(refreshedEditing, "Instructions", "Not configured");
+        AssertFolderBinding(refreshedEditing, "Billing", "Configured");
+        Assert.Contains("value=\"10485760\"", refreshedEditing, StringComparison.Ordinal);
     }
 
     /// <summary>
     /// Asserts that one logical folder is paired with one binding state in the
-    /// per-mailbox disclosure. The page renders every folder in
+    /// per-mailbox settings dialog. The page renders every folder in
     /// <c>MailLogicalFolders.All</c> unconditionally, so two independent
     /// substring checks on a &lt;dt&gt; and a &lt;dd&gt; cannot tell a bound
     /// folder from an unbound one; only the contiguous pair can.
@@ -602,16 +633,36 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
     private static string MailboxEditToken(string html, string mailboxId)
     {
-        var updateForm = MailboxUpdateFormRegex().Matches(html)
-            .Select(match => match.Groups["form"].Value)
-            .Single(form => NewMailboxIdTagRegex().Matches(form)
-                .Select(match => Value(match.Value))
-                .Any(value => string.Equals(value, mailboxId, StringComparison.OrdinalIgnoreCase)));
-
-        return MailboxEditTokenTagRegex().Matches(updateForm)
+        return MailboxEditTokenTagRegex().Matches(MailboxSettingsForm(html, mailboxId))
             .Select(match => Value(match.Value))
             .Single(value => !string.IsNullOrWhiteSpace(value));
     }
+
+    private static string MailboxOperationKey(string html, string mailboxId) =>
+        OperationKeyTagRegex().Matches(MailboxSettingsForm(html, mailboxId))
+            .Select(match => Value(match.Value))
+            .Single(value => !string.IsNullOrWhiteSpace(value));
+
+    private static int MailboxVersion(string html, string mailboxId) =>
+        int.Parse(
+            Value(MailboxExpectedVersionTagRegex().Match(MailboxEditRequestForm(html, mailboxId)).Value),
+            System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string MailboxSettingsForm(string html, string mailboxId) =>
+        FormRegex().Matches(html)
+            .Select(match => match.Groups["form"].Value)
+            .Single(form => form.Contains("mailbox-settings-form-", StringComparison.Ordinal)
+                && NewMailboxIdTagRegex().Matches(form)
+                    .Select(match => Value(match.Value))
+                    .Any(value => string.Equals(value, mailboxId, StringComparison.OrdinalIgnoreCase)));
+
+    private static string MailboxEditRequestForm(string html, string mailboxId) =>
+        FormRegex().Matches(html)
+            .Select(match => match.Groups["form"].Value)
+            .Single(form => form.Contains("?handler=EditMailbox", StringComparison.Ordinal)
+                && MailboxIdTagRegex().Matches(form)
+                    .Select(match => Value(match.Value))
+                    .Any(value => string.Equals(value, mailboxId, StringComparison.OrdinalIgnoreCase)));
 
     private static string AntiforgeryToken(string html) =>
         Value(AntiforgeryTagRegex().Match(html).Value);
@@ -623,6 +674,12 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
 
     private static string OperationKey(string html) =>
         Value(OperationKeyTagRegex().Matches(html)[^1].Value);
+
+    private static string NewCategoryId(string html) =>
+        Value(CategoryIdTagRegex().Matches(html)[^1].Value);
+
+    private static string NewCategoryOperationKey(string html) =>
+        Value(CategoryOperationKeyTagRegex().Matches(html)[^1].Value);
 
     private static string Value(string tag)
     {
@@ -694,11 +751,23 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
     [GeneratedRegex("<input[^>]*name=\"MailboxForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex OperationKeyTagRegex();
 
+    [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.CategoryId\"[^>]*>", RegexOptions.IgnoreCase)]
+    private static partial Regex CategoryIdTagRegex();
+
+    [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)]
+    private static partial Regex CategoryOperationKeyTagRegex();
+
     [GeneratedRegex("<input[^>]*name=\"MailboxForm\\.EditLeaseToken\"[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex MailboxEditTokenTagRegex();
 
-    [GeneratedRegex("<form[^>]*action=\"[^\"]*\\?handler=Update[^\"]*\"[^>]*>(?<form>.*?)</form>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
-    private static partial Regex MailboxUpdateFormRegex();
+    [GeneratedRegex("<input[^>]*name=\"mailboxId\"[^>]*>", RegexOptions.IgnoreCase)]
+    private static partial Regex MailboxIdTagRegex();
+
+    [GeneratedRegex("<input[^>]*name=\"expectedVersion\"[^>]*>", RegexOptions.IgnoreCase)]
+    private static partial Regex MailboxExpectedVersionTagRegex();
+
+    [GeneratedRegex("(?<form><form\\b[^>]*>.*?</form>)", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex FormRegex();
 
     [GeneratedRegex("<input[^>]*name=\"DefaultMailboxForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex DefaultMailboxOperationKeyTagRegex();

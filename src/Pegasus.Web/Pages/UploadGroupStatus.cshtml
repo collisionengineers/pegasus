@@ -30,6 +30,43 @@
 }
 
 <div class="stack">
+    @if (Model.Group.Discard is { } discard)
+    {
+        <section class="panel" aria-labelledby="group-discarded-title">
+            <div class="panel-head">
+                <h2 id="group-discarded-title">Submission discarded</h2>
+            </div>
+            <div class="panel-body">
+                <p>This submission was discarded. Its retained source and processing record remain available.</p>
+            </div>
+        </section>
+    }
+    else if (Model.CanDiscard)
+    {
+        <section class="panel" aria-labelledby="group-discard-title" data-refresh-hold>
+            <div class="panel-head">
+                <h2 id="group-discard-title">Discard this submission</h2>
+            </div>
+            <div class="panel-body stack">
+                <p>Discard every file in this upload. The retained source and processing record are kept.</p>
+                <form method="post" asp-page-handler="DiscardGroup" class="stack">
+                    <input type="hidden" name="groupVersion" value="@Model.Group.Version" />
+                    <input type="hidden" name="operationId" value="@Guid.NewGuid()" />
+                    @foreach (var member in Model.GroupMemberReceiptVersions)
+                    {
+                        <input type="hidden" name="receiptVersions[@member.Key]" value="@member.Value" />
+                    }
+                    <div class="field">
+                        <input id="group-discard-confirmation" name="consequencesConfirmed" type="checkbox" value="true" required />
+                        <label for="group-discard-confirmation">I understand that this discards every file in the submission while retaining its source and processing record.</label>
+                    </div>
+                    <div class="button-row">
+                        <button type="submit" class="btn btn--ghost">Discard submission</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    }
     @if (Model.OpenGroupDecision)
     {
         @* One decision for the whole submission — never per file. *@
@@ -113,10 +150,6 @@
                                        data-case-search-input />
                                 <ul id="group-attach-list" class="case-search-list" hidden data-case-search-list></ul>
                             }
-                        </div>
-                        <div class="field">
-                            <label for="group-attach-reason">Reason</label>
-                            <textarea id="group-attach-reason" name="reason" maxlength="500" rows="2" required>@(groupConfirmation?.Reason ?? Model.UploadCaseDraft?.Reason)</textarea>
                         </div>
                         <div class="button-row">
                             <button type="submit" class="btn">@(groupConfirmation is null ? "Add the submission to this case" : "Confirm and add the submission")</button>

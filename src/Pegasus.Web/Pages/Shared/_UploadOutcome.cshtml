@@ -104,10 +104,6 @@
                         <ul id="@(attachDomId)-list" class="case-search-list" hidden data-case-search-list></ul>
                     }
                 </div>
-                <div class="field">
-                    <label for="@(attachDomId)-reason">Reason for adding to this case</label>
-                    <textarea id="@(attachDomId)-reason" name="reason" maxlength="500" rows="2" required>@(isConfirmation ? confirmation!.Reason : retainedDraft?.Reason)</textarea>
-                </div>
                 <div class="button-row">
                     <button type="submit" class="btn btn--primary btn--small">@(isConfirmation ? "Confirm and add to this case" : "Add to this case")</button>
                 </div>

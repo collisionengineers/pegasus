@@ -346,7 +346,7 @@ public static class CaseWorkspaceLabels
         public const string ReportGenerated = "The report was generated.";
         public const string FeeNoteGenerated = "The fee note was generated.";
         public const string GenerationPending =
-            "The artifact is awaiting custody confirmation.";
+            "The report is still being filed to Box.";
         public const string GenerationNotReady = "Report not ready";
         public const string CurrentGeneration = "Generated";
         public const string GenerationState = "State";

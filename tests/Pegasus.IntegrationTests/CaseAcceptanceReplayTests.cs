@@ -66,7 +66,7 @@ public sealed partial class CaseAcceptanceReplayTests
         Assert.Contains(nameof(StaffRole.Administrator), persisted.CommandMaterialJson, StringComparison.Ordinal);
         Assert.Equal(nameof(ActorKind.Staff), persisted.ActorKind);
         Assert.Equal(AcceptingActor.SubjectId, persisted.ActorSubjectId);
-        Assert.Equal("[\"Administrator\",\"Engineer\"]", persisted.ActorRolesJson);
+        Assert.Equal("[\"Administrator\"]", persisted.ActorRolesJson);
         Assert.Equal("Case created from received item.", persisted.Reason);
 
         AcceptIntakeRequest[] changedRequests =
@@ -83,7 +83,7 @@ public sealed partial class CaseAcceptanceReplayTests
                 [StaffRole.Administrator]) },
             request with { Actor = ActionActor.Staff(
                 Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                [StaffRole.Administrator]) },
+                [StaffRole.User]) },
             request with { ExpectedVersion = reviewedVersion + 1 }
         ];
 

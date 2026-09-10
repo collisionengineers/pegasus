@@ -4,7 +4,7 @@
     var details = Model.Case!;
     var workflow = details.Workflow;
     var leaseToken = Model.LeaseToken;
-    var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
+    var mayEdit = Model.CanEditCaseData;
     var entries = details.History.OrderByDescending(entry => entry.OccurredAtUtc).ToArray();
 }
 
@@ -28,6 +28,8 @@
             <div class="notes-list">
                 @foreach (var entry in entries)
                 {
+                    @if (entry.EventType != "case_guidance_applied")
+                    {
                     <article class="note-entry">
                         <div class="note-meta">
                             <span>@OperatorLabels.OfficeDate(entry.OccurredAtUtc)</span>
@@ -42,6 +44,7 @@
                             }
                         </div>
                     </article>
+                    }
                     @foreach (var guidance in entry.Guidance)
                     {
                         <article class="note-entry">
@@ -53,19 +56,22 @@
             </div>
         }
 
-        <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId"
-              asp-page-handler="AddNote" class="stack">
-            <input type="hidden" name="id" value="@workflow.CaseId" />
-            <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-            <div class="field">
-                <label class="req" for="case-note">Case note</label>
-                <textarea id="case-note" name="note" rows="3" required
-                          maxlength="@Pegasus.Core.Cases.AddCaseNote.MaximumLength"></textarea>
-            </div>
-            <div class="button-row">
-                <button type="submit" class="btn btn--primary">Add Case note</button>
-            </div>
-        </form>
+        @if (!Model.IsPostReportReadOnly)
+        {
+            <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId"
+                  asp-page-handler="AddNote" class="stack">
+                <input type="hidden" name="id" value="@workflow.CaseId" />
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                <div class="field">
+                    <label class="req" for="case-note">Case note</label>
+                    <textarea id="case-note" name="note" rows="3" required
+                              maxlength="@Pegasus.Core.Cases.AddCaseNote.MaximumLength"></textarea>
+                </div>
+                <div class="button-row">
+                    <button type="submit" class="btn btn--primary">Add Case note</button>
+                </div>
+            </form>
+        }
 
         @if (mayEdit && workflow.DueWork is { State: Pegasus.Core.Tasks.CaseDueWorkState.Scheduled })
         {
@@ -82,7 +88,6 @@
                     <div class="field"><label class="req" for="chase-channel">Channel</label><input id="chase-channel" name="channel" required maxlength="100" /></div>
                     <div class="field"><label for="chase-content">@CaseWorkspaceLabels.Chase.Content</label><input id="chase-content" name="content" maxlength="1000" /></div>
                     <div class="field"><label class="req" for="chase-outcome">Outcome</label><input id="chase-outcome" name="outcome" required maxlength="500" /></div>
-                    <div class="field"><label class="req" for="chase-reason">Reason</label><input id="chase-reason" name="reason" required maxlength="500" /></div>
                 </div>
                 <div class="button-row">
                     <button type="submit" class="btn">

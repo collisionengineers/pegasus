@@ -10,17 +10,13 @@ namespace Pegasus.IntegrationTests;
 
 public sealed class VehicleDescriptionSnapshotTests
 {
-    [ReferencePackFact]
+    [IncidentVehicleSourceFact]
     [Trait("Category", "Corpus")]
     public async Task GenuineQdosVehicleDescriptionRemainsSourceOnlyThroughTheSnapshot()
     {
-        const string relativePath = "incident/qdos-vehicle-description.eml";
-        const string sha256 = "F09402BB68E1F986B9E22F94C660C478349B6BBE12FB8958ED8E903AEDD942AA";
-        var path = Path.Combine(
-            Top15InstructionCorpusTests.PackRoot(),
-            relativePath.Replace('/', Path.DirectorySeparatorChar));
+        var path = IncidentVehicleSourceFixture.Path;
         var bytes = await File.ReadAllBytesAsync(path);
-        Assert.Equal(sha256, Convert.ToHexString(SHA256.HashData(bytes)));
+        Assert.Equal(IncidentVehicleSourceFixture.Sha256, Convert.ToHexString(SHA256.HashData(bytes)));
 
         var read = await new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System)
             .ReadAsync(
@@ -162,5 +158,40 @@ public sealed class VehicleDescriptionSnapshotTests
                 new(false, "vehicle-description-probe", 1),
                 CaseInspectionMode.PhysicalAddress),
             DateTimeOffset.UtcNow);
+    }
+}
+
+internal static class IncidentVehicleSourceFixture
+{
+    private const string FileName = "32D6AB434A266A9BCE33434755397C0AAA7680A3AD710470E20859698DC986E1.eml";
+    internal const string Sha256 = "F09402BB68E1F986B9E22F94C660C478349B6BBE12FB8958ED8E903AEDD942AA";
+
+    internal static string Path => TryGetPath()
+        ?? throw new InvalidOperationException("This test should have been skipped because the incident source fixture is absent.");
+
+    internal static string? TryGetPath()
+    {
+        var overridden = Environment.GetEnvironmentVariable("PEGASUS_INCIDENT_SOURCE_PATH");
+        var candidate = string.IsNullOrWhiteSpace(overridden)
+            ? System.IO.Path.Combine(
+                CorpusLocator.RepositoryRoot,
+                "artifacts",
+                "pre-v1-rectification",
+                "incident-source",
+                FileName)
+            : overridden;
+
+        return File.Exists(candidate) ? candidate : null;
+    }
+}
+
+internal sealed class IncidentVehicleSourceFactAttribute : FactAttribute
+{
+    public IncidentVehicleSourceFactAttribute()
+    {
+        if (IncidentVehicleSourceFixture.TryGetPath() is null)
+        {
+            Skip = "The private incident source fixture is absent; set PEGASUS_INCIDENT_SOURCE_PATH to its approved local copy.";
+        }
     }
 }

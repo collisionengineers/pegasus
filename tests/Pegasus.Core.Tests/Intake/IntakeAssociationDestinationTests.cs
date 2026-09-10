@@ -62,7 +62,9 @@ public sealed class IntakeAssociationDestinationTests
     [Theory]
     [InlineData(CaseLifecycleState.Review, false, false, true)]
     [InlineData(CaseLifecycleState.Review, true, false, false)]
-    [InlineData(CaseLifecycleState.PostReportComplete, false, false, false)]
+    [InlineData(CaseLifecycleState.PostReportComplete, false, false, true)]
+    [InlineData(CaseLifecycleState.Query, false, false, true)]
+    [InlineData(CaseLifecycleState.PostReportComplete, true, false, false)]
     public void StandardMaterialRequiresAnUnarchivedNonterminalDestination(
         CaseLifecycleState state,
         bool archived,

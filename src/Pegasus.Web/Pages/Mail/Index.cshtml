@@ -6,6 +6,10 @@
     ViewData["Title"] = "Inbox";
     ViewData["RefreshStatus"] = Pegasus.Web.Pages.Mail.IndexModel.FreshnessStatus(Model.Freshness.State);
     ViewData["RefreshFields"] = Model.RefreshFields;
+    // Compose sits in this same action group, so Refresh renders first here
+    // to stay grouped with it; the status text moves to the far side rather
+    // than sitting between the two buttons.
+    ViewData["FreshnessActionsFirst"] = true;
     var selectedDetail = Model.SelectedDetail;
     var selectedSummary = selectedDetail?.Summary;
     var totalPages = Model.DeletedResults?.TotalPages ?? Model.Results.TotalPages;
@@ -15,14 +19,18 @@
 @* No lede. The filter bar, the rows and the freshness element are the explanation. *@
 <header class="page-header">
     <div class="page-title">
-        <p class="eyebrow">Retained mail</p>
+        <p class="eyebrow">Emails</p>
         <h1>Inbox</h1>
     </div>
     <div class="page-actions">
         <div class="page-action-group">
             @if (Model.StaffMailAvailable)
             {
-                <a class="btn" asp-page="/Mail/Compose">
+                <a class="btn" asp-page="/Mail/Compose"
+                   data-mail-compose-open
+                   data-mail-compose-url="@Url.Page("/Mail/Compose", "Form")"
+                   aria-controls="mail-compose-host"
+                   aria-expanded="false">
                     <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                     <span>Compose</span>
                 </a>
@@ -31,6 +39,8 @@
         </div>
     </div>
 </header>
+
+<div id="mail-compose-host" class="mail-compose-backdrop" data-mail-compose-host hidden></div>
 
 <form method="get" class="filter-bar" data-auto-submit aria-label="Mail view">
     <div class="field">
@@ -75,7 +85,7 @@
         </select>
     </div>
     <div class="searchbox">
-        <label class="sr-only" for="mail-search">Search retained mail</label>
+        <label class="sr-only" for="mail-search">Search emails</label>
         <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
         <input id="mail-search" type="search" name="search" value="@Model.SearchTerm" maxlength="200" />
     </div>
@@ -86,7 +96,7 @@
 </form>
 
 <section class="pane-layout @(selectedDetail is null ? "pane-layout--2" : "pane-layout--3")"
-         data-mail-preview-workspace aria-label="Retained mail">
+         data-mail-preview-workspace aria-label="Emails">
     <aside class="pane">
         <div class="pane-head"><h2>Scope</h2></div>
         <div class="pane-body pane-scroll">
@@ -197,7 +207,7 @@
                 <div class="empty">
                     @if (Model.SearchTerm is not null)
                     {
-                        <p>No retained mail in this mailbox matched “@Model.SearchTerm”.</p>
+                        <p>No emails in this mailbox matched “@Model.SearchTerm”.</p>
                     }
                     else if (Model.Folder != MailFolderScope.Inbox)
                     {
@@ -450,3 +460,7 @@
         </div>
     }
 </section>
+
+@section Scripts {
+    <script src="~/js/mail-compose.js" asp-append-version="true"></script>
+}
