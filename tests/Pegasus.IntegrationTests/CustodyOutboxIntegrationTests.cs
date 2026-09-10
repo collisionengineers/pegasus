@@ -2761,7 +2761,9 @@ public sealed class CustodyOutboxIntegrationTests
                 new(
                     receiptId,
                     expectedVersion,
-                    ActionActor.SystemWorker("custody-outbox-integration"),
+                    // A manual-upload source has no accepted route or credential
+                    // binding, so the Principal is the accepting person's decision.
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
                     $"case-accept:{Guid.NewGuid():N}",
                     caseType,
                     principalCode,
