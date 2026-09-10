@@ -1,8 +1,10 @@
 # Source architecture
 
-Source structure updated for the 9 September 2026 pre-v1 rectification. This
-is not a claim that these changes are deployed or externally accepted. Refresh it
-when the source structure changes. [Operations](operations.md) owns dated
+Source structure updated for the 10 September 2026 operator-findings
+rectification (Release 44): image tags replace the Third-party vehicle flag,
+Case document previews and thumbnails read through the content cache, record
+edit scopes re-claim and release themselves, and vehicle lookup runs at Case
+creation. Refresh it when the source structure changes. [Operations](operations.md) owns dated
 deployed observations and exact runtime identities.
 
 The corrective change updates intake OCR, estimate import, Contacts, edit
@@ -92,6 +94,11 @@ flowchart LR
 | Dependency-direction evidence | `tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs` |
 | Core assessment-report draft contract and caller | `src/Pegasus.Core/Reports/AssessmentReportRendering.cs` |
 | Integrated Scriban/Playwright/PDFsharp report adapter and governed resources | `src/Pegasus.Infrastructure/Reports/`, composed by `src/Pegasus.Infrastructure/DependencyInjection.cs` in the existing Web boundary |
+| Case image tags (vocabulary, per-occurrence assignments, EVA exclusion by the Third party tag) | `src/Pegasus.Core/Documents/ImageTags.cs` owns the vocabulary and the `TagCaseImage`/`UntagCaseImage`/`CreateImageTag` commands; `src/Pegasus.Infrastructure/Persistence/EfDocumentCustodyStore.cs` persists `ImageTags` and `DocumentOccurrenceTags`; `src/Pegasus.Core/Eva/EvaBundleSchema.cs` excludes tagged images. Web callers: `src/Pegasus.Web/Pages/Cases/Custody.cshtml.cs`, `Pages/Cases/Shared/_CaseImages.cshtml`. |
+| Case document preview and thumbnail reads (no audit row; cached; `size=thumb` variant) | `src/Pegasus.Core/Documents/CaseDocumentPreview.cs` (`IReadCaseDocumentPreview`, `IReadCaseDocumentThumbnail`); `src/Pegasus.Infrastructure/Custody/CachedDocumentContentStore.cs` (content cache variants, SkiaSharp thumbnail rendering); caller `src/Pegasus.Web/Pages/Cases/Documents/Download.cshtml.cs`. |
+| Record edit scopes for non-Case records (stale same-holder re-claim, explicit Take over, beacon release) | `src/Pegasus.Core/Workflow/RecordEditScope.cs`, `src/Pegasus.Infrastructure/Persistence/EfEditScopeStore.cs`; `src/Pegasus.Web/wwwroot/js/edit-scope-release.js`. |
+| Automatic vehicle lookup at Case creation and the reconciliation sweep | `src/Pegasus.Infrastructure/Persistence/EfVehicleWorkflowStore.cs` (`EnqueueForCase`), called from `EfManualCaseCreationStore.cs` and `EfCaseAcceptanceStore.cs`; provider adapter `src/Pegasus.Infrastructure/Vehicle/DvlaDvsaProductionAdapter.cs`. |
+| Action Logs with acting-principal security events and AI-job record links | `src/Pegasus.Infrastructure/Persistence/EfActionLogQueries.cs`, `src/Pegasus.Web/Pages/Administration/ActionLogs.cshtml.cs`, `src/Pegasus.Web/Presentation/AiJobActions.cs`. |
 
 ## Technical decisions
 
