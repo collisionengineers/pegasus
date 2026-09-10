@@ -406,7 +406,8 @@ public sealed class EfCaseDataStore(
             TextField(snapshot, CaseDataFieldNames.InspectionAddress),
             InspectionModeField(snapshot, CaseDataFieldNames.InspectionMode),
             TextField(snapshot, CaseDataFieldNames.StorageLocation),
-            TextField(snapshot, CaseDataFieldNames.RepairerAddress)),
+            TextField(snapshot, CaseDataFieldNames.RepairerAddress),
+            TextField(snapshot, CaseDataFieldNames.RepairerName)),
         Workspace(snapshot));
 
     /// <summary>
@@ -448,7 +449,8 @@ public sealed class EfCaseDataStore(
             data.VehicleMileageDisplayUnit is { } displayUnit
                 && CaseOdometer.TryParseUnit(displayUnit, out var unit)
                     ? unit
-                    : null);
+                    : null,
+            new(data.RepairerId, data.RepairerVersion, data.RepairerName));
     }
 
     private static CaseField<string> TextField(
@@ -631,6 +633,9 @@ internal static class CaseDataFieldWriter
             now);
         Text(CaseDataFieldNames.StorageLocation, data.StorageLocation);
         Text(CaseDataFieldNames.RepairerAddress, data.RepairerAddress);
+        Text(CaseDataFieldNames.RepairerName, data.RepairerName);
+        Text(CaseDataFieldNames.RepairerId, Identifier(data.RepairerId));
+        Whole(CaseDataFieldNames.RepairerVersion, data.RepairerVersion);
         Text(CaseDataFieldNames.ClaimSourceId, Identifier(data.ClaimSourceId));
         Whole(CaseDataFieldNames.ClaimSourceVersion, data.ClaimSourceVersion);
         Text(CaseDataFieldNames.ClaimSourceName, data.ClaimSourceName);
@@ -707,7 +712,10 @@ internal static class CaseDataFieldWriter
         ConfirmedText(snapshot, CaseDataFieldNames.InspectionContactName),
         ConfirmedText(snapshot, CaseDataFieldNames.InspectionContactTelephone),
         ConfirmedText(snapshot, CaseDataFieldNames.InspectionContactEmailAddress),
-        ConfirmedText(snapshot, CaseDataFieldNames.InspectionNotes));
+        ConfirmedText(snapshot, CaseDataFieldNames.InspectionNotes),
+        ConfirmedText(snapshot, CaseDataFieldNames.RepairerName),
+        ConfirmedGuid(snapshot, CaseDataFieldNames.RepairerId),
+        ConfirmedLong(snapshot, CaseDataFieldNames.RepairerVersion));
 
     private static void SetConfirmed(
         PegasusDbContext context,

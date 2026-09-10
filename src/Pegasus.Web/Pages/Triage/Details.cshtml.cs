@@ -35,6 +35,8 @@ public sealed class DetailsModel(
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     ICaseEngineerChoices engineerChoices,
     IAddTriageNote addNote,
+    ISetTriagePrincipal setPrincipal,
+    ITriageQueries triageQueries,
     GetRetainedMail? getRetainedMail = null,
     IStaffMailSend? staffMailSend = null,
     IApprovedMailboxStore? approvedMailboxes = null,
@@ -120,6 +122,11 @@ public sealed class DetailsModel(
     /// </summary>
     public IReadOnlyList<CaseEngineerChoice> EngineerChoices { get; private set; } = [];
 
+    /// <summary>
+    /// The active principals a staff member may record against this Triage —
+    /// the same option list <c>ImageIntake.Details</c> offers.
+    /// </summary>
+    public IReadOnlyList<Principal> PrincipalOptions { get; private set; } = [];
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -166,6 +173,7 @@ public sealed class DetailsModel(
         Guid? caseId,
         Guid? assigneeId,
         string? note,
+        Guid? principalId,
         string? editLeaseToken,
         CancellationToken cancellationToken)
     {
@@ -220,6 +228,16 @@ public sealed class DetailsModel(
                 case "note":
                     await addNote.ExecuteAsync(
                         new(id, expectedVersion, actionActor, operationKey, note ?? string.Empty)
+                        {
+                            EditLeaseToken = editLeaseToken ?? string.Empty
+                        },
+                        cancellationToken);
+                    break;
+                case "set_principal":
+                    // No reason: recording who the work is for is casework,
+                    // not a lifecycle transition (mirrors Image Intake).
+                    await setPrincipal.ExecuteAsync(
+                        new(id, principalId, actionActor, expectedVersion)
                         {
                             EditLeaseToken = editLeaseToken ?? string.Empty
                         },
@@ -456,6 +474,7 @@ public sealed class DetailsModel(
         "triage_created" => "Triage created",
         "triage_assigned" => "Assigned",
         "triage_unassigned" => "Unassigned",
+        "triage_principal_set" => "Principal recorded",
         "triage_state_awaiting_information" => "Awaiting information",
         "triage_finding_recorded" => "Finding recorded",
         "triage_finding_superseded" => "Finding superseded",
@@ -488,6 +507,7 @@ public sealed class DetailsModel(
         }
 
         Triage = triage;
+        PrincipalOptions = await triageQueries.ListActivePrincipalsAsync(cancellationToken);
         // The request's photographs are the whole subject of the assessment,
         // and until now they were viewable nowhere: the "View e-mail" link
         // lands on a page that lists attachments by name without rendering

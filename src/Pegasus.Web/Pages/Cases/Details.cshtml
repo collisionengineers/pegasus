@@ -239,10 +239,14 @@
         }
         @if (canSendToEva)
         {
-            <button type="button" class="btn" data-dialog-open="eva-handoff-dialog">
+            @* Progressive enhancement, matching _CaseEstimate's delete-estimate
+               trigger: a real link to the fallback page the dialog's own form
+               posts to (/Cases/Eva/Send), so the handoff is reachable with
+               script disabled and enhanced into a dialog when it is not. *@
+            <a class="btn" asp-page="/Cases/Eva/Send" asp-route-caseId="@workflow.CaseId" data-dialog-open="eva-handoff-dialog">
                 <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
                 <span>@OperatorLabels.CaseWorkspace.SendToEva</span>
-            </button>
+            </a>
         }
         @if (canConfirmReportSent)
         {

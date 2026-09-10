@@ -20,6 +20,15 @@ may relate to multiple Principals, and a Principal may relate to multiple
 Repairers; these reusable relationships do not rewrite the accepted address or
 party-role snapshot on an existing Case.
 
+A Case records its own repairer: the repairer name and address the instruction
+stated, held as ordinary Case facts with their extraction provenance. Staff
+either confirm that text or link the Case to an active Repairer-role Contacts
+organisation, which copies that record's identity, version, name and address
+onto the Case, so a later directory edit never rewrites the Case. The confirmed
+repairer address is one of the Inspect-at options beside the claimant address,
+the storage location and the Principal's own default, and the option names the
+repairer it came from.
+
 ### Staff role access matrix
 
 Staff accounts use Pegasus-managed usernames and passwords with

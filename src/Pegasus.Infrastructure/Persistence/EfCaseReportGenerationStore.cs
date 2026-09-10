@@ -2,6 +2,7 @@ using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core;
 using Pegasus.Core.Assessment;
@@ -451,6 +452,39 @@ public sealed class EfCaseReportGenerationStore(
         return generations.Select(item => Map(item, artifacts)).ToArray();
     }
 
+    /// <summary>
+    /// Records a preview viewing as a Case-history event distinct from a
+    /// generation event: a preview mutates nothing, so before and after
+    /// version stay equal, exactly as an operator note does. The Case's
+    /// <c>(CaseId, OperationKey)</c> index is the same race-safe idempotency
+    /// boundary every other Case mutation replay uses; the key already
+    /// encodes "this Case, this artifact kind, this staff member, this
+    /// London day", so a second call within the boundary is a silent no-op.
+    /// </summary>
+    public async Task RecordDraftPreviewedAsync(
+        RecordCaseReportDraftPreviewedRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await RecordPresentationEventAsync(
+            context,
+            request.CaseId,
+            CaseReportPresentationEvents.DraftPreviewed,
+            OperationKeyOf(
+                "case-report-draft-previewed",
+                request.CaseId.ToString("D"),
+                request.Kind.ToString(),
+                request.Actor,
+                request.OccurredAtUtc),
+            request.Actor,
+            request.Kind == CaseReportArtifactKind.FeeNote
+                ? "Fee note draft previewed"
+                : "Report draft previewed",
+            request.OccurredAtUtc,
+            cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<int> MarkStaleAsync(
         Guid caseId, string reasonCode, CancellationToken cancellationToken)
     {
@@ -620,7 +654,7 @@ public sealed class EfCaseReportGenerationStore(
                 "Only a confirmed generated artifact can be reopened; nothing is regenerated on read.");
         }
 
-        return await documentReader.OpenAsync(
+        var content = await documentReader.OpenAsync(
             new ReadLogicalDocumentVersionRequest(
                 actor,
                 artifact.DocumentId,
@@ -631,6 +665,109 @@ public sealed class EfCaseReportGenerationStore(
                 artifact.Sha256!,
                 artifact.ContentLength ?? 0),
             cancellationToken).ConfigureAwait(false);
+
+        // Recorded only once the confirmed artifact's bytes are actually
+        // reopened (DOCS-014) — a completed download, never a regeneration
+        // attempt or a failed read.
+        var occurredAtUtc = timeProvider.GetUtcNow();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await RecordPresentationEventAsync(
+            context,
+            caseId,
+            CaseReportPresentationEvents.ArtifactDownloaded,
+            OperationKeyOf(
+                "case-report-artifact-downloaded",
+                artifactId.ToString("D"),
+                artifact.Kind.ToString(),
+                actor,
+                occurredAtUtc),
+            actor,
+            artifact.Kind == CaseReportArtifactKind.FeeNote ? "Fee note downloaded" : "Report downloaded",
+            occurredAtUtc,
+            cancellationToken).ConfigureAwait(false);
+
+        return content;
+    }
+
+    /// <summary>
+    /// The deterministic, race-safe operation key one view/download event
+    /// dedupes on: this Case-scoped subject (a Case for a preview, one
+    /// artifact for a download), this artifact kind, this staff member, this
+    /// London calendar day. The key is hashed rather than concatenated
+    /// verbatim because <c>CaseWorkflowEvents.OperationKey</c> is bounded to
+    /// 100 characters and an automation subject id has no fixed length.
+    /// </summary>
+    private static string OperationKeyOf(
+        string prefix, string subjectId, string kind, ActionActor actor, DateTimeOffset occurredAtUtc) =>
+        prefix + ":" + CaseOperationReplay.Hash(string.Join(
+            '|',
+            subjectId,
+            kind,
+            actor.Kind.ToString(),
+            actor.SubjectId,
+            LondonCalendar.DateAt(occurredAtUtc).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)));
+
+    /// <summary>
+    /// The shared write behind both presentation events (DOCS-014): a
+    /// Case-history row that never mutates the Case, so before and after
+    /// version stay equal — the same shape <c>operator_note</c> already
+    /// uses, and exempted from the per-version uniqueness index the same
+    /// way. A concurrent duplicate raced the operation-key index and loses
+    /// silently; nothing here needs a hash-equality replay check because the
+    /// operation key already determines the recorded fact completely.
+    /// </summary>
+    private static async Task RecordPresentationEventAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        string eventType,
+        string operationKey,
+        ActionActor actor,
+        string reason,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var requestHash = CaseOperationReplay.Hash(operationKey);
+        if (await CaseOperationReplay.FindAsync(context, caseId, operationKey, requestHash, cancellationToken)
+            .ConfigureAwait(false))
+        {
+            return;
+        }
+
+        var workflow = await context.CaseWorkflows
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            .ConfigureAwait(false);
+        if (workflow is null)
+        {
+            return;
+        }
+
+        context.CaseWorkflowEvents.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = caseId,
+            Workflow = workflow,
+            EventType = eventType,
+            OperationKey = operationKey,
+            RequestHash = requestHash,
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role)),
+            Reason = reason,
+            OccurredAtUtc = occurredAtUtc,
+            BeforeVersion = workflow.Version,
+            AfterVersion = workflow.Version,
+        });
+
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (DbUpdateException exception) when (exception.GetBaseException() is SqlException { Number: 2601 or 2627 })
+        {
+            // A concurrent identical view/download raced the operation-key
+            // index; the winner already recorded today's event.
+        }
     }
 
     private static CaseReportGenerationSnapshot BuildSnapshot(

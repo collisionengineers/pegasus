@@ -355,6 +355,15 @@ public interface ICaseReportGenerationStore
     /// never rewritten. Returns the number of generations marked.
     /// </summary>
     Task<int> MarkStaleAsync(Guid caseId, string reasonCode, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Records that a staff member viewed the working draft preview inline
+    /// (DOCS-014). Idempotent per Case, artifact kind, staff member and
+    /// London calendar day: a repeat preview the same day is a silent no-op,
+    /// never a second Case-history row.
+    /// </summary>
+    Task RecordDraftPreviewedAsync(
+        RecordCaseReportDraftPreviewedRequest request, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -418,6 +427,28 @@ public static class CaseReportStaleReasons
     public const string ReportContentChanged = "report_content_changed";
     public const string SourceDocumentsChanged = "source_documents_changed";
 }
+
+/// <summary>
+/// The Case-history event types a report artifact's <em>presentation</em>
+/// records — distinct from generation itself (DOCS-014). A preview only ever
+/// renders the unretained working draft; a download only ever reopens a
+/// confirmed, immutable generation artifact. Neither is a Case mutation: both
+/// are recorded at most once per Case (or artifact), staff member and London
+/// calendar day, so an operator re-opening the same report repeatedly in one
+/// day never grows the Case's history — there is no per-frame browsing log.
+/// </summary>
+public static class CaseReportPresentationEvents
+{
+    public const string DraftPreviewed = "case_report_draft_previewed";
+    public const string ArtifactDownloaded = "case_report_artifact_downloaded";
+}
+
+/// <summary>
+/// Records a staff member viewing the unretained working draft preview
+/// (inline display) of the requested artifact kind.
+/// </summary>
+public sealed record RecordCaseReportDraftPreviewedRequest(
+    ActionActor Actor, Guid CaseId, CaseReportArtifactKind Kind, DateTimeOffset OccurredAtUtc);
 
 /// <summary>
 /// The inputs post-review report readiness is decided from, all reloaded from

@@ -632,6 +632,16 @@ public sealed class CaseReportGenerationTests
             return Task.FromResult(1);
         }
 
+        public List<RecordCaseReportDraftPreviewedRequest> Previews { get; } = [];
+
+        public Task RecordDraftPreviewedAsync(
+            RecordCaseReportDraftPreviewedRequest request, CancellationToken cancellationToken)
+        {
+            Sequence.Add("preview");
+            Previews.Add(request);
+            return Task.CompletedTask;
+        }
+
         private CaseReportGenerationRecord Record(CaseReportArtifactKind kind) => new(
             GenerationId, CaseId, 7, 1, new string('c', 64), Snapshot(),
             AssessmentReportContract.TemplateVersion, "fake", CaseReportGenerationState.Pending,

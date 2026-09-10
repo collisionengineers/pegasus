@@ -378,8 +378,10 @@ prices both panel and paint hours. Its own VAT percentage defaults to 20 and
 applies to selected discounted Labour, Parts, Materials and Specialist
 categories. Unknown repairer VAT blocks Use as Current until staff record an
 explicit status or categories (D9, D17); no comparison or savings figure is
-shown. It also carries Send to Claude
-(`AI-09`, disabled without an Engineer's Value); the report-draft
+shown. It also carries Send to Claude, which creates an `AI-10`
+[AI Job List](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)
+`Estimate` job (disabled without an Engineer's Value) rather than the
+distinct, DevelopmentOffline-only `AI-09` transport; the report-draft
 generation and preview sit on the Report section
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 
@@ -432,6 +434,13 @@ to the user; staff accounts are not email-bound and no automatic email is sent.
 The existing policy and non-reversible hashing apply and forced change is set
 for the next sign-in. The stored secret cannot subsequently be retrieved (D15,
 [FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)).
+
+**Reports** shares one London period filter across MI-01 Engineer activity,
+MI-02 Reports by Principal (per-Principal report counts by type) and MI-03
+Turnaround (current holding age and instruction-to-produced/ready/sent
+turnaround), each with its own totals and downloadable CSV. A section whose
+query fails or returns invalid data renders an unavailable state rather than
+a false zero.
 
 **Workflow configuration** holds the versioned instruction- and
 image-completeness rules as required/not-required items with exact blockers,
@@ -623,7 +632,7 @@ remain separate evidence tiers
 
 - Capabilities: `UI-01`–`UI-09`, `UI-11`, `UI-13`, `UI-16`–`UI-19`, `UI-07`
   (Search), `AI-10`, `AI-11`, `CASE-32`–`CASE-34`, `ENG-03`, `ENG-04`,
-  `EXT-09`, `EXT-10`, `RPT-06`, `MI-01` in
+  `EXT-09`, `EXT-10`, `RPT-06`, `MI-01`, `MI-02`, `MI-03` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-02](frd-02-intake-and-source-identity.md),

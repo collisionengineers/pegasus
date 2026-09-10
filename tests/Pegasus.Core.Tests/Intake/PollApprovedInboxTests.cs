@@ -140,6 +140,44 @@ public sealed class PollApprovedInboxTests
         Assert.Empty(harness.PollStore.Releases);
     }
 
+    /// <summary>
+    /// A change-notification wake that fetches a message <c>PrepareMessage</c>
+    /// rejects (here: missing internet-message identity, the same malformed
+    /// metadata <see cref="MissingInternetMessageIdentityIsRefusedAsMalformedMetadata"/>
+    /// exercises on the sweep) must reach the sweep's own outcome — quarantined
+    /// once, not released for a retry that can only fail the same way again and
+    /// eventually dead-letter. Unlike the sweep, the wake must never move the
+    /// mailbox's own recovery cursor: only timer/lifecycle recovery does that.
+    /// </summary>
+    [Fact]
+    public async Task RejectedNotifiedMessageIsQuarantinedOnceAndTheNotificationCompletesWithoutRethrowing()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.PollStore.Cursors[FirstMailbox.GraphMailboxId] = "existing-recovery-cursor";
+        harness.Source.Notified = DisplayableMessage(
+            "notified-malformed",
+            "not-a-scan-cursor",
+            Metadata(internetMessageIdentity: null));
+
+        var handled = await harness.Poll().ExecuteNotificationAsync(
+            FirstMailbox.ApprovedMailboxId,
+            FirstMailbox.Generation,
+            "notified-malformed",
+            WorkerActor(),
+            CancellationToken.None);
+
+        Assert.Equal(1, handled);
+        Assert.Empty(harness.Retained.Retained);
+        var quarantine = Assert.Single(harness.PollStore.Quarantines);
+        Assert.Equal("mailbox-a", quarantine.MailboxId);
+        Assert.Equal("notified-malformed", quarantine.ImmutableMessageId);
+        Assert.Equal(
+            "existing-recovery-cursor",
+            harness.PollStore.Cursors[FirstMailbox.GraphMailboxId]);
+        Assert.Equal([FirstMailbox.ApprovedMailboxId], harness.PollStore.CompletedNotifications);
+        Assert.Empty(harness.PollStore.Releases);
+    }
+
     [Fact]
     public async Task EachMailboxReadsUnderItsOwnInboxFolderIdentity()
     {
@@ -627,6 +665,8 @@ public sealed class PollApprovedInboxTests
 
         internal List<Guid> CompletedNotifications { get; } = [];
 
+        internal List<(string MailboxId, string ImmutableMessageId, string FailureCode)> Quarantines { get; } = [];
+
         internal void WithholdLease(string mailboxId) => withheld.Add(mailboxId);
 
         internal void FailClaim(string mailboxId, Exception exception) =>
@@ -682,6 +722,7 @@ public sealed class PollApprovedInboxTests
             DateTimeOffset quarantinedAtUtc,
             CancellationToken cancellationToken)
         {
+            Quarantines.Add((graphIds[approvedMailboxId], message.ImmutableMessageId, message.FailureCode));
             Cursors[graphIds[approvedMailboxId]] = nextCursor;
             return Task.CompletedTask;
         }

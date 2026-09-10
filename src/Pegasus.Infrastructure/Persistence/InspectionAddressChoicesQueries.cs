@@ -72,7 +72,8 @@ public sealed class InspectionAddressChoicesQueries(
             projection.Claimant.Address.Current?.Value,
             projection.Inspection.RepairerAddress?.Current?.Value,
             projection.Inspection.StorageLocation?.Current?.Value,
-            previousAddresses);
+            previousAddresses,
+            projection.Inspection.RepairerName?.Current?.Value);
     }
 
     public async Task<IReadOnlyList<InspectionLocationChoice>> SearchAsync(

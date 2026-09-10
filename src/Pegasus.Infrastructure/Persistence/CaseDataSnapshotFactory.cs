@@ -334,6 +334,14 @@ internal static class CaseDataSnapshotFactory
                     : "physical_address");
         }
 
+        // INTK-058: the repairer the instruction named. No typed draft member
+        // carries it, so the review field itself is the source — the same
+        // route the vehicle description takes above. Unambiguous extracted
+        // text becomes the Case's working repairer facts; linking it to a
+        // Contacts directory organisation stays a staff decision.
+        AddExtractedRepairerFact(snapshot, receipt, fields, CaseDataFieldNames.RepairerName);
+        AddExtractedRepairerFact(snapshot, receipt, fields, CaseDataFieldNames.RepairerAddress);
+
         var mileageField = fields.SingleOrDefault(
             field => field.ToCaseDataFieldName() == CaseDataFieldNames.VehicleMileage);
         if (draft.VehicleMileageUnit is null
@@ -348,6 +356,16 @@ internal static class CaseDataSnapshotFactory
                 CaseDataCodes.Text,
                 "miles");
         }
+    }
+
+    private static void AddExtractedRepairerFact(
+        CaseDataSnapshotEntity snapshot,
+        IntakeReceiptEntity receipt,
+        IReadOnlyList<InstructionReviewField> fields,
+        string fieldName)
+    {
+        var field = fields.SingleOrDefault(item => item.ToCaseDataFieldName() == fieldName);
+        AddExtractedValue(snapshot, receipt, field, fieldName, CaseDataCodes.Text, field?.SuggestedValue);
     }
 
     private static void AddResolvedInspection(

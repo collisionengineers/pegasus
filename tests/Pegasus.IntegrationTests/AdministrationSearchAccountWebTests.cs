@@ -5,10 +5,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Pages.Administration;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -542,6 +545,346 @@ public sealed class AdministrationSearchAccountWebTests
         using var response = await client.GetAsync("/Account/ChangePassword");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReportsRendersReportsByPrincipalCountsAndTheMatchingCsvForThePeriod()
+    {
+        var from = new DateTimeOffset(2032, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var to = from.AddDays(31);
+        var generatedAt = from.AddDays(2);
+        var sentAt = from.AddDays(3);
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var principal = await SeededPrincipals.QdosAsync(scope.ServiceProvider);
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            var receiptId = Guid.NewGuid();
+            var caseId = Guid.NewGuid();
+            var generationId = Guid.NewGuid();
+            var documentId = Guid.NewGuid();
+            var versionId = Guid.NewGuid();
+            var sha256 = new string('a', 64);
+            context.AddRange(
+                new IntakeReceiptEntity
+                {
+                    Id = receiptId,
+                    SourceFileName = "origin.pdf",
+                    MediaType = "application/pdf",
+                    SourceLength = 1,
+                    SourceHash = new string('1', 64),
+                    SourceChannel = "manual_upload",
+                    ExternalReceiptToken = $"origin:{receiptId:N}",
+                    ReceivedAtUtc = from,
+                    ProcessedAtUtc = from,
+                    SourceReaderKey = "test",
+                    SourceReaderVersion = "1",
+                    Version = 0,
+                    Decision = "case_created",
+                    DecisionReason = "test",
+                    EvidenceJson = "[]",
+                    FieldsJson = "[]",
+                    OcrCandidatesJson = "[]"
+                },
+                new CaseEntity
+                {
+                    Id = caseId,
+                    PrincipalId = principal.Id,
+                    SequenceLineageId = principal.SequenceLineageId,
+                    Year = 2032,
+                    Sequence = 1,
+                    Reference = "QDOS32001",
+                    Type = "Inspection",
+                    InitialState = "Review",
+                    CustodyState = "Confirmed",
+                    OriginIntakeReceiptId = receiptId,
+                    CreatedAtUtc = from,
+                    Version = 1,
+                    ConcurrencyToken = Guid.NewGuid()
+                },
+                new CaseReportGenerationEntity
+                {
+                    Id = generationId,
+                    CaseId = caseId,
+                    CaseVersion = 1,
+                    SnapshotHash = new string('b', 64),
+                    SnapshotJson = "{}",
+                    TemplateVersion = "test",
+                    RendererVersion = "test",
+                    State = "ready",
+                    GeneratedAtUtc = generatedAt,
+                    Version = 1
+                },
+                new CaseDocumentEntity
+                {
+                    Id = documentId,
+                    CaseId = caseId,
+                    Ordinal = 1,
+                    SourceOccurrenceIdentity = "report-output"
+                },
+                new DocumentVersionEntity
+                {
+                    Id = versionId,
+                    DocumentId = documentId,
+                    Version = 1,
+                    FileName = "report.pdf",
+                    MediaType = "application/pdf",
+                    ContentLength = 1,
+                    Sha256 = sha256,
+                    CustodyStatus = DocumentCustodyStatus.Confirmed,
+                    CreatedAtUtc = generatedAt,
+                    CreatedBy = "test",
+                    IsCurrent = true
+                },
+                new GeneratedCaseArtifactEntity
+                {
+                    Id = Guid.NewGuid(),
+                    GenerationId = generationId,
+                    VersionId = versionId,
+                    Kind = "AssessmentReport",
+                    Sha256 = sha256,
+                    State = "Confirmed",
+                    OperationKey = $"artifact:{Guid.NewGuid():N}"
+                },
+                new StaffMailSendOperationEntity
+                {
+                    Id = Guid.NewGuid(),
+                    ActorSubjectId = Guid.NewGuid().ToString("D"),
+                    MailboxId = Guid.NewGuid(),
+                    MailboxGeneration = 1,
+                    OperationKey = $"send:{Guid.NewGuid():N}",
+                    PayloadHash = new string('2', 64),
+                    Purpose = StaffMailPurpose.CaseReport,
+                    ContextId = generationId,
+                    ContextVersion = 1,
+                    ComposeMode = StaffMailComposeMode.New,
+                    RecipientsJson = "[]",
+                    Subject = "report",
+                    Body = "report",
+                    AttachmentsJson = "[]",
+                    State = StaffMailState.Sent,
+                    CorrelationMarker = "test",
+                    CreatedAtUtc = sentAt,
+                    RequestedAtUtc = sentAt,
+                    ObservedSentAtUtc = sentAt,
+                    Version = 1,
+                    ConcurrencyToken = Guid.NewGuid()
+                });
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var fromParam = Uri.EscapeDataString(from.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
+        var toParam = Uri.EscapeDataString(to.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
+
+        var html = await client.GetStringAsync($"/Administration/Reports?from={fromParam}&to={toParam}");
+
+        Assert.Contains("Reports by Principal", html, StringComparison.Ordinal);
+        Assert.Contains("QDOS", html, StringComparison.Ordinal);
+        Assert.Contains("Report 1", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("generated artifact", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("pending or failed", html, StringComparison.OrdinalIgnoreCase);
+
+        using var csvResponse = await client.GetAsync(
+            $"/Administration/Reports?handler=PrincipalCsv&from={fromParam}&to={toParam}");
+        csvResponse.EnsureSuccessStatusCode();
+        Assert.StartsWith("text/csv", csvResponse.Content.Headers.ContentType?.MediaType, StringComparison.Ordinal);
+        var csv = await csvResponse.Content.ReadAsStringAsync();
+        Assert.Contains("Principal,Reports produced,Reports sent,Report types", csv, StringComparison.Ordinal);
+        Assert.Contains("QDOS,1,1,Report 1", csv, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReportsRendersTurnaroundHoldingAgeAndTheMatchingCsvForThePeriod()
+    {
+        var from = new DateTimeOffset(2032, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        var to = from.AddDays(31);
+        var generatedAt = from.AddDays(2);
+        var readyAt = from.AddDays(3);
+        var sentAt = from.AddDays(4);
+        var heldAt = from.AddDays(5);
+        using var factory = new IntakeWebApplicationFactory();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var principal = await SeededPrincipals.QdosAsync(scope.ServiceProvider);
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            var receiptId = Guid.NewGuid();
+            var caseId = Guid.NewGuid();
+            var generationId = Guid.NewGuid();
+            var documentId = Guid.NewGuid();
+            var versionId = Guid.NewGuid();
+            var sha256 = new string('a', 64);
+            context.AddRange(
+                new IntakeReceiptEntity
+                {
+                    Id = receiptId,
+                    SourceFileName = "origin.pdf",
+                    MediaType = "application/pdf",
+                    SourceLength = 1,
+                    SourceHash = new string('1', 64),
+                    SourceChannel = "manual_upload",
+                    ExternalReceiptToken = $"origin:{receiptId:N}",
+                    ReceivedAtUtc = from,
+                    ProcessedAtUtc = from,
+                    SourceReaderKey = "test",
+                    SourceReaderVersion = "1",
+                    Version = 0,
+                    Decision = "case_created",
+                    DecisionReason = "test",
+                    EvidenceJson = "[]",
+                    FieldsJson = "[]",
+                    OcrCandidatesJson = "[]"
+                },
+                new CaseEntity
+                {
+                    Id = caseId,
+                    PrincipalId = principal.Id,
+                    SequenceLineageId = principal.SequenceLineageId,
+                    Year = 2032,
+                    Sequence = 2,
+                    Reference = "QDOS32002",
+                    Type = "Inspection",
+                    InitialState = "Review",
+                    CustodyState = "Confirmed",
+                    OriginIntakeReceiptId = receiptId,
+                    CreatedAtUtc = from,
+                    Version = 1,
+                    ConcurrencyToken = Guid.NewGuid()
+                },
+                new CaseWorkflowEntity
+                {
+                    CaseId = caseId,
+                    State = "Held",
+                    PreHoldState = "Review",
+                    Version = 1,
+                    ConcurrencyToken = Guid.NewGuid()
+                },
+                new CaseWorkflowEventEntity
+                {
+                    Id = Guid.NewGuid(),
+                    CaseId = caseId,
+                    EventType = "case_held",
+                    OperationKey = "hold:mi03-test",
+                    RequestHash = new string('c', 64),
+                    ActorKind = "Staff",
+                    ActorSubjectId = Guid.NewGuid().ToString("D"),
+                    ActorRolesJson = "[]",
+                    Reason = "Waiting for evidence",
+                    OccurredAtUtc = heldAt,
+                    BeforeVersion = 0,
+                    AfterVersion = 1
+                },
+                new CaseReportGenerationEntity
+                {
+                    Id = generationId,
+                    CaseId = caseId,
+                    CaseVersion = 1,
+                    SnapshotHash = new string('b', 64),
+                    SnapshotJson = "{}",
+                    TemplateVersion = "test",
+                    RendererVersion = "test",
+                    State = "ready",
+                    GeneratedAtUtc = generatedAt,
+                    Version = 2
+                },
+                new CaseDocumentEntity
+                {
+                    Id = documentId,
+                    CaseId = caseId,
+                    Ordinal = 1,
+                    SourceOccurrenceIdentity = "report-output"
+                },
+                new DocumentVersionEntity
+                {
+                    Id = versionId,
+                    DocumentId = documentId,
+                    Version = 1,
+                    FileName = "report.pdf",
+                    MediaType = "application/pdf",
+                    ContentLength = 1,
+                    Sha256 = sha256,
+                    CustodyStatus = DocumentCustodyStatus.Confirmed,
+                    CreatedAtUtc = generatedAt,
+                    CreatedBy = "test",
+                    IsCurrent = true
+                },
+                new GeneratedCaseArtifactEntity
+                {
+                    Id = Guid.NewGuid(),
+                    GenerationId = generationId,
+                    VersionId = versionId,
+                    Kind = "AssessmentReport",
+                    Sha256 = sha256,
+                    State = "Confirmed",
+                    OperationKey = $"artifact:{Guid.NewGuid():N}"
+                },
+                new ActionHistoryEntity
+                {
+                    Id = Guid.NewGuid(),
+                    AggregateType = "case",
+                    AggregateId = caseId.ToString("D"),
+                    EventKind = "case_report_generation_ready",
+                    ActorKind = "Staff",
+                    ActorSubjectId = Guid.NewGuid().ToString("D"),
+                    ActorRolesJson = "[]",
+                    OccurredAtUtc = readyAt,
+                    Outcome = "Succeeded",
+                    CorrelationId = "report-ready:mi03-test",
+                    AfterJson = $"{{\"generationId\":\"{generationId:D}\"}}"
+                },
+                new StaffMailSendOperationEntity
+                {
+                    Id = Guid.NewGuid(),
+                    ActorSubjectId = Guid.NewGuid().ToString("D"),
+                    MailboxId = Guid.NewGuid(),
+                    MailboxGeneration = 1,
+                    OperationKey = $"send:{Guid.NewGuid():N}",
+                    PayloadHash = new string('2', 64),
+                    Purpose = StaffMailPurpose.CaseReport,
+                    ContextId = generationId,
+                    ContextVersion = 1,
+                    ComposeMode = StaffMailComposeMode.New,
+                    RecipientsJson = "[]",
+                    Subject = "report",
+                    Body = "report",
+                    AttachmentsJson = "[]",
+                    State = StaffMailState.Sent,
+                    CorrelationMarker = "test",
+                    CreatedAtUtc = sentAt,
+                    RequestedAtUtc = sentAt,
+                    ObservedSentAtUtc = sentAt,
+                    Version = 1,
+                    ConcurrencyToken = Guid.NewGuid()
+                });
+            await context.SaveChangesAsync();
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var fromParam = Uri.EscapeDataString(from.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
+        var toParam = Uri.EscapeDataString(to.ToString("yyyy-MM-ddTHH:mm", System.Globalization.CultureInfo.InvariantCulture));
+
+        var html = await client.GetStringAsync($"/Administration/Reports?from={fromParam}&to={toParam}");
+
+        Assert.Contains("Turnaround", html, StringComparison.Ordinal);
+        Assert.Contains("QDOS", html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.OfficeTime(heldAt), html, StringComparison.Ordinal);
+        Assert.Contains("2 days", html, StringComparison.Ordinal);
+        Assert.Contains("3 days", html, StringComparison.Ordinal);
+        Assert.Contains("4 days", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("missing origin", html, StringComparison.OrdinalIgnoreCase);
+
+        using var csvResponse = await client.GetAsync(
+            $"/Administration/Reports?handler=TurnaroundCsv&from={fromParam}&to={toParam}");
+        csvResponse.EnsureSuccessStatusCode();
+        Assert.StartsWith("text/csv", csvResponse.Content.Headers.ContentType?.MediaType, StringComparison.Ordinal);
+        var csv = await csvResponse.Content.ReadAsStringAsync();
+        Assert.Contains(
+            "Principal,Currently held,Oldest held since,Time to produce,Time to ready,Time to send",
+            csv,
+            StringComparison.Ordinal);
+        Assert.Contains($"QDOS,1,{OperatorLabels.OfficeTime(heldAt)},2 days,3 days,4 days", csv, StringComparison.Ordinal);
     }
 
     private static string FormValue(string html, string name)

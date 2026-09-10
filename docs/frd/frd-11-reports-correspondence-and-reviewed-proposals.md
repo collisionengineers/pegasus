@@ -105,7 +105,11 @@ and prepared-image role, order, rotation and crop. Report and fee note are
 separately addressable generated artifacts through custody. Relevant accepted
 fact changes mark a generation stale; notes and recipient edits do not. A
 ready generation records ActionHistory `case_report_generation_ready`.
-Preview creates neither an artifact nor Sent evidence.
+Preview creates neither an artifact nor Sent evidence. Viewing a preview
+records a `case_report_draft_previewed` Case-history event, distinct from a
+generation event and from a download. Reopening a confirmed generated
+artifact's bytes records a `case_report_artifact_downloaded` Case-history
+event, at most once per Case or artifact, staff member and London day.
 
 Snapshot assembly captures the Case version before reading its components and
 refuses a changed version before freezing; the resolved signatory tuple is

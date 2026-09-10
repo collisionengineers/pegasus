@@ -470,6 +470,75 @@ public sealed partial class QdosTriageIntegrationTests
 
     }
 
+    /// <summary>
+    /// INTK-059: Triage gets the same optional-Principal correction Image
+    /// Intake already has (<c>ImageIntakeStore.SetPrincipalAsync</c>) — a
+    /// compact dialog, no reason, set/replace/clear through
+    /// <c>ISetTriagePrincipal</c> — with one deliberate difference: Triage's
+    /// write appends a <c>triage_principal_set</c> history entry, because
+    /// unlike Image Intake, the Triage timeline is the one place staff read
+    /// who acted and when.
+    /// </summary>
+    [Fact]
+    [Trait("Category", "QdosAlphaAcceptance")]
+    public async Task StaffCanSetAndClearTheTriagePrincipalThroughTheDetailsDialog()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var alpha = await ImageIntakeTestData.SeedPrincipalAsync(factory.Services, "ALPHA");
+
+        var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-principal.eml");
+        await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+        var triage = await GetOnlyTriageAsync(factory.Services);
+        var triageId = triage.Record.Id;
+        // The mailbox route already names the instructing Principal, so the
+        // dialog starts from that value rather than from `Not known`.
+
+        using var detailResponse = await client.GetAsync($"/Triage/{triageId:D}");
+        var detailHtml = await detailResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
+        Assert.Contains(
+            "data-dialog-open=\"triage-principal-dialog\"",
+            detailHtml,
+            StringComparison.Ordinal);
+        Assert.Contains("id=\"triage-principal\"", detailHtml, StringComparison.Ordinal);
+
+        var antiforgeryToken = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        _ = await PostActionAsync(
+            client,
+            triageId,
+            antiforgeryToken,
+            0,
+            "set_principal",
+            reason: string.Empty,
+            KeyValuePair.Create("principalId", alpha.ToString("D")));
+
+        triage = await GetTriageAsync(factory.Services, triageId);
+        Assert.Equal(alpha, triage.Record.PrincipalId);
+        Assert.Equal(1, triage.Record.Version);
+        Assert.Equal("ALPHA", triage.PrincipalCode);
+        Assert.Equal(
+            "triage_principal_set",
+            Assert.Single(
+                triage.History,
+                item => item.EventType == "triage_principal_set").EventType);
+
+        // Clearing goes through the same dialog and handler: the empty option
+        // is a real, selectable `Not known` state, not a disabled placeholder.
+        _ = await PostActionAsync(
+            client,
+            triageId,
+            antiforgeryToken,
+            1,
+            "set_principal",
+            reason: string.Empty);
+
+        triage = await GetTriageAsync(factory.Services, triageId);
+        Assert.Null(triage.Record.PrincipalId);
+        Assert.Equal(2, triage.Record.Version);
+        Assert.Equal(2, triage.History.Count(item => item.EventType == "triage_principal_set"));
+    }
+
     private static async Task<TriageDetail> GetOnlyTriageAsync(IServiceProvider services)
     {
         await using var scope = services.CreateAsyncScope();

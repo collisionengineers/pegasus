@@ -301,7 +301,10 @@ individual-function, and per-mailbox controls are separate, and Sent-evidence
 polling stays off unless separately approved. Approving a mailbox in Pegasus
 never grants Exchange access; the Microsoft 365 tenant must separately admit the
 application to that mailbox, and until it does, polling that mailbox alone fails
-and says so.
+and says so. An approved intake mailbox becomes pollable only once an address
+check has stored its mailbox identity and an activation time; before that the
+administration list reports it as not activated rather than as awaiting a first
+poll, because no poll is pending for it.
 
 An explicitly authorised intake-data wipe records one UTC receive-time cutoff
 in the existing Inbox poll state, atomically with clearing the SQL data. It
@@ -337,7 +340,13 @@ The Worker remains the sole owner of the mailbox lease, cursor/delta read,
 retention, shared intake call, and retry outcome. A creation notification with
 an immutable message ID fetches and processes only that exact message, subject
 to the same receive-time cutoff. It does not also scan the Inbox or advance its
-recovery cursor. Duplicate notifications are safe. Lifecycle `missed`,
+recovery cursor. Duplicate notifications are safe. A notification may name a
+message the mail source cannot yet show, because the tenant accepted it before
+replicating it to the folder the delta reads; that read returns nothing and is
+not a failure. The wake leaves the recovery cursor where it stood, so the
+message is still ahead of the next delta sweep, and the mailbox-scoped source
+identity both routes derive keeps exactly one occurrence however many of them
+reach it. Lifecycle `missed`,
 `subscriptionRemoved`, and reauthorization events
 schedule the same delta resynchronisation rather than introducing another mail
 processing route.

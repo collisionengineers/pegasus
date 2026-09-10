@@ -106,6 +106,47 @@ public sealed class CaseDataCompletenessPersistenceTests
         ]));
     }
 
+    [Fact]
+    public void ExtractedRepairerNameAndAddressBecomeCaseFactsWithTheirOwnProvenance()
+    {
+        // INTK-058: the instruction's repairer reaches the Case as ordinary
+        // source facts. A directory link is a separate staff decision and is
+        // not inferred from the text here.
+        var snapshot = PhoneSnapshot([
+            new("Claimant mobile telephone", "selected",
+                [new("selected", IntakeEvidenceSource.PdfContent, "selected-source")], false, false),
+            new("Repairer name", "Kingsway Accident Repair",
+                [new("Kingsway Accident Repair", IntakeEvidenceSource.PdfContent, "repairer-block")], false, false),
+            new("Repairer address", "12 Kingsway, Leeds LS1 1AA",
+                [new("12 Kingsway, Leeds LS1 1AA", IntakeEvidenceSource.PdfContent, "repairer-block")], false, false)
+        ]);
+
+        var name = Assert.Single(snapshot.Fields, field => field.FieldName == CaseDataFieldNames.RepairerName);
+        Assert.Equal(CaseDataCodes.Fact, name.ValueKind);
+        Assert.Equal("Kingsway Accident Repair", name.Value);
+        Assert.Equal(CaseDataCodes.IntakeEvidence, name.SourceKind);
+        Assert.Equal("PdfContent:repairer-block", name.SourceLabel);
+        var address = Assert.Single(snapshot.Fields, field => field.FieldName == CaseDataFieldNames.RepairerAddress);
+        Assert.Equal(CaseDataCodes.Fact, address.ValueKind);
+        Assert.Equal("12 Kingsway, Leeds LS1 1AA", address.Value);
+        Assert.DoesNotContain(snapshot.Fields, field => field.FieldName is
+            CaseDataFieldNames.RepairerId or CaseDataFieldNames.RepairerVersion);
+    }
+
+    [Fact]
+    public void ConflictedRepairerTextIsLeftOutRatherThanRecorded()
+    {
+        var snapshot = PhoneSnapshot([
+            new("Claimant mobile telephone", "selected",
+                [new("selected", IntakeEvidenceSource.PdfContent, "selected-source")], false, false),
+            new("Repairer name", null,
+                [new("Kingsway Accident Repair", IntakeEvidenceSource.PdfContent, "repairer-block"),
+                 new("Kingsway Bodyshop", IntakeEvidenceSource.PdfContent, "footer")], false, true)
+        ]);
+
+        Assert.DoesNotContain(snapshot.Fields, field => field.FieldName == CaseDataFieldNames.RepairerName);
+    }
+
     private static CaseDataSnapshotEntity PhoneSnapshot(IReadOnlyList<InstructionReviewField> fields)
     {
         var receiptId = Guid.NewGuid();

@@ -3077,7 +3077,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CaseId", "AfterVersion")
                         .IsUnique()
-                        .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied'");
+                        .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied' AND [EventType] <> 'case_report_draft_previewed' AND [EventType] <> 'case_report_artifact_downloaded'");
 
                     b.HasIndex("CaseId", "OperationKey")
                         .IsUnique();

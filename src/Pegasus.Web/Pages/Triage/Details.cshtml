@@ -322,6 +322,14 @@
                             <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                             <span>@Model.ViewSourceLabel</span>
                         </a>
+                        @* INTK-059: recording the known principal is casework, not a
+                           lifecycle transition (mirrors Image Intake), so this is
+                           never gated on `mutable` — a completed or cancelled
+                           Triage's principal remains correctable. *@
+                        <button type="button" class="btn" data-dialog-open="triage-principal-dialog">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+                            <span>@OperatorLabels.SetPrincipal</span>
+                        </button>
                     </div>
                 </div>
             </section>
@@ -703,3 +711,46 @@ else
         ["DialogHiddenFields"] = new Dictionary<string, string?>(hiddenBase) { ["actionName"] = "reopen" }
     })" />
 }
+
+@* INTK-059: recording the known principal is casework, not a lifecycle
+   transition, so its dialog is drawn unconditionally rather than inside the
+   `mutable`-gated block above — a completed or cancelled Triage's principal
+   remains correctable, exactly as Image Intake's own principal editor is
+   never gated on its record's lifecycle state. No reason field: mirrors the
+   engineer-assignment dialog above, which also asks nobody to justify itself. *@
+<div class="dialog-backdrop" data-dialog="triage-principal-dialog" hidden>
+    <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="triage-principal-dialog-title">
+        <div class="dialog-head">
+            <h2 id="triage-principal-dialog-title" tabindex="-1">@OperatorLabels.SetPrincipal</h2>
+            <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            </button>
+        </div>
+        <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
+            <input type="hidden" name="actionName" value="set_principal" />
+            <input type="hidden" name="expectedVersion" value="@record.Version" />
+            <input type="hidden" name="operationKey" value="@Model.OperationKey" />
+            @if (Model.IsEditing) { <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" /> }
+            <div class="dialog-body">
+                <div class="field">
+                    <label for="triage-principal">@OperatorLabels.Principal</label>
+                    @* The empty option is a real, selectable state (`Not known`),
+                       not a disabled placeholder: clearing a recorded principal
+                       is a legitimate staff decision — mirrors Image Intake's
+                       own principal editor. *@
+                    <select id="triage-principal" name="principalId" data-dialog-initial-focus>
+                        <option value="" selected="@(record.PrincipalId is null ? "selected" : null)">@OperatorLabels.PrincipalNotKnown</option>
+                        @foreach (var principal in Model.PrincipalOptions)
+                        {
+                            <option value="@principal.Id" selected="@(record.PrincipalId == principal.Id ? "selected" : null)">@principal.Code</option>
+                        }
+                    </select>
+                </div>
+            </div>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close>Cancel</button>
+                <button type="submit" class="btn btn--primary">Save</button>
+            </div>
+        </form>
+    </section>
+</div>

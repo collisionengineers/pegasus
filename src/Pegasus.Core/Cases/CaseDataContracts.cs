@@ -123,7 +123,8 @@ public sealed record CaseInspectionData(
     CaseField<string> Address,
     CaseField<CaseInspectionMode> Mode,
     CaseField<string>? StorageLocation = null,
-    CaseField<string>? RepairerAddress = null);
+    CaseField<string>? RepairerAddress = null,
+    CaseField<string>? RepairerName = null);
 
 public sealed record CaseCompletenessEvaluation(
     bool SatisfiesPolicy,
@@ -192,7 +193,8 @@ public sealed record CaseWorkspaceData(
     string? InspectionContactTelephone,
     string? InspectionContactEmailAddress,
     string? InspectionNotes,
-    CaseOdometerUnit? VehicleMileageDisplayUnit);
+    CaseOdometerUnit? VehicleMileageDisplayUnit,
+    CaseWorkspaceRepairer? Repairer = null);
 
 public sealed record CaseEditableData(
     string? ClaimantName = null,
@@ -248,7 +250,12 @@ public sealed record CaseEditableData(
     string? InspectionContactName = null,
     string? InspectionContactTelephone = null,
     string? InspectionContactEmailAddress = null,
-    string? InspectionNotes = null);
+    string? InspectionNotes = null,
+    // Appended for the Case repairer (INTK-058): the repairer's name beside
+    // the address already above, and the linked Contacts directory row.
+    string? RepairerName = null,
+    Guid? RepairerId = null,
+    long? RepairerVersion = null);
 
 public sealed record ConfirmCompletenessRequest(
     Guid CaseId,

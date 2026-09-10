@@ -29,6 +29,15 @@ public static class CaseDataFieldNames
     // The v1 Case workspace facts (CASE-047). They are ordinary case-data
     // rows, so the record gains names here rather than columns anywhere.
     public const string RepairerAddress = "repairer_address";
+
+    // The Case's repairer (INTK-058): the extracted or staff-entered name
+    // beside the address already above, and the identity and version of the
+    // Contacts directory organisation a member of staff linked. The copied
+    // name and address are what the Case keeps, so a later directory edit
+    // never rewrites this Case's history.
+    public const string RepairerName = "repairer_name";
+    public const string RepairerId = "repairer_id";
+    public const string RepairerVersion = "repairer_version";
     public const string ClaimSourceId = "claim_source_id";
     public const string ClaimSourceVersion = "claim_source_version";
     public const string ClaimSourceName = "claim_source_name";
@@ -81,6 +90,9 @@ public static class CaseDataFieldNames
         InspectionMode,
         StorageLocation,
         RepairerAddress,
+        RepairerName,
+        RepairerId,
+        RepairerVersion,
         ClaimSourceId,
         ClaimSourceVersion,
         ClaimSourceName,

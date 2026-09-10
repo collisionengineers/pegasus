@@ -355,17 +355,45 @@ public sealed class PollApprovedInbox(
             var notificationHandled = false;
             if (message is not null && message.ReceivedAtUtc >= EffectiveStartBoundary(lease))
             {
-                var prepared = PrepareMessage(lease, actorCode, message, maximumContentLength);
-                await receiveIntake.ExecuteAsync(
-                    prepared.Source,
-                    CreateOperationKey(prepared.ExternalReceiptToken),
-                    cancellationToken);
-                if (prepared.RetainedMessage is { } retained)
+                try
                 {
-                    await retainedMessageStore.RetainAsync(
-                        retained with { RetainedAtUtc = timeProvider.GetUtcNow() },
+                    var prepared = PrepareMessage(lease, actorCode, message, maximumContentLength);
+                    await receiveIntake.ExecuteAsync(
+                        prepared.Source,
+                        CreateOperationKey(prepared.ExternalReceiptToken),
+                        cancellationToken);
+                    if (prepared.RetainedMessage is { } retained)
+                    {
+                        await retainedMessageStore.RetainAsync(
+                            retained with { RetainedAtUtc = timeProvider.GetUtcNow() },
+                            cancellationToken);
+                    }
+                }
+                catch (MalformedApprovedInboxMessageException exception)
+                {
+                    // The scheduled sweep quarantines the same rejection (oversize or
+                    // malformed) through this exact store call rather than dead-lettering
+                    // the queue message; a notification wake must reach the same outcome,
+                    // not release-and-rethrow into a retry that can only fail the same way
+                    // again. Its occurrence key is seeded from the message's own immutable
+                    // identity rather than a scan cursor: a wake has no page position of
+                    // its own, and the mailbox's cursor can sit still across several wakes,
+                    // where the sweep's cursor-based key relies on strictly advancing
+                    // per message. And unlike the sweep, a wake never advances the
+                    // mailbox's own delta cursor — only timer/lifecycle recovery does
+                    // that — so the quarantine record's cursor is the lease's own current
+                    // one, unchanged; a mailbox with no cursor yet (never swept) has
+                    // nothing behind it to lose, so it seeds the same starting point the
+                    // first real sweep would compute for itself.
+                    await QuarantineMalformedMessageAsync(
+                        lease,
+                        message,
+                        exception.FailureCode,
+                        message.ImmutableMessageId,
+                        lease.Cursor ?? message.NextCursor,
                         cancellationToken);
                 }
+
                 notificationHandled = true;
             }
 
@@ -515,10 +543,15 @@ public sealed class PollApprovedInbox(
             }
             catch (MalformedApprovedInboxMessageException exception)
             {
+                // Position-based on both counts: within one deterministic
+                // page scan, a lease-loss replay meets the same message at
+                // the same cursor.
                 await QuarantineMalformedMessageAsync(
                     lease,
                     message,
                     exception.FailureCode,
+                    message.NextCursor,
+                    message.NextCursor,
                     cancellationToken);
                 handledMessages++;
                 continue;
@@ -573,10 +606,30 @@ public sealed class PollApprovedInbox(
         return handledMessages;
     }
 
+    /// <param name="occurrenceKeySeed">
+    /// What makes this occurrence's identity unique within the mailbox. The
+    /// sweep passes <paramref name="message"/>'s own page-scan cursor: within
+    /// one deterministic scan, a rescan from the same starting point meets the
+    /// same message at the same position, so a lease-loss replay recomputes
+    /// the identical key and <see cref="IApprovedInboxPollStore.QuarantineAsync"/>
+    /// recognises it. A notification wake is not a scan position — its own
+    /// message has no cursor of its own and, while the mailbox's cursor sits
+    /// still between real sweeps, two different rejected notifications could
+    /// otherwise collide on the one still cursor — so it seeds the key from
+    /// the message's own immutable identity instead.
+    /// </param>
+    /// <param name="nextCursor">
+    /// What the poison row's <c>CursorAfterMessage</c> records and, deliberately,
+    /// the only thing that ever advances the mailbox's own delta cursor: the
+    /// sweep's page position, or — for a notification wake, which must never
+    /// move that cursor — the lease's own current cursor unchanged.
+    /// </param>
     private async Task QuarantineMalformedMessageAsync(
         ApprovedInboxPollLease lease,
         ApprovedInboxMessage message,
         string failureCode,
+        string occurrenceKeySeed,
+        string nextCursor,
         CancellationToken cancellationToken)
     {
         long? sourceLength;
@@ -628,7 +681,7 @@ public sealed class PollApprovedInbox(
             lease.ApprovedMailboxId,
             lease.LeaseToken,
             new(
-                CreateOccurrenceKey(message.NextCursor),
+                CreateOccurrenceKey(occurrenceKeySeed),
                 message.ImmutableMessageId ?? string.Empty,
                 message.FileName ?? string.Empty,
                 sourceLength,
@@ -638,7 +691,7 @@ public sealed class PollApprovedInbox(
                 storageKey,
                 message.ReceivedAtUtc,
                 failureCode),
-            message.NextCursor,
+            nextCursor,
             timeProvider.GetUtcNow(),
             cancellationToken);
     }
