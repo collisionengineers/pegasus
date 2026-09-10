@@ -24,7 +24,7 @@ public sealed class WorkflowConfigurationPersistenceTests
         var before = await store.GetCurrentAsync(default);
         var lease = await scopes.ClaimAsync(new(EditScopeKind.NamedConfiguration, GetWorkflowConfiguration.RecordId,
             before.PolicyVersion, actor, "edit-config"), default);
-        var request = new UpdateWorkflowConfigurationRequest(before.PolicyVersion, actor, "Images optional", "save-config")
+        var request = new UpdateWorkflowConfigurationRequest(before.PolicyVersion, actor, "save-config")
         { RequireImages = false, ChaseIntervalDays = 12, EditLeaseToken = lease.Token };
         var saved = await store.UpdateAsync(request, default);
         Assert.True(CaseCompletenessPolicy.Evaluate(new(true, false), saved).SatisfiesPolicy);

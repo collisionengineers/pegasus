@@ -1,9 +1,9 @@
 ---
 id: ADR-0038
-status: accepted
+status: superseded
 date: 2026-09-07
 supersedes: [ADR-0034]
-superseded_by: []
+superseded_by: [ADR-0048]
 related_capabilities: [EXT-04]
 related_frd: [frd-07]
 tags: [eva, configuration, principals]
@@ -13,7 +13,10 @@ tags: [eva, configuration, principals]
 
 ## Status
 
-Accepted, 2026-09-07.
+Superseded by [ADR-0048](0048-principal-report-generation-policies.md).
+Its manual-only EVA API policy no longer applies. The historical rationale and
+the four manual-route safeguards below remain recoverable; ADR-0048 owns the
+current Principal report-generation choices.
 
 ## Context
 

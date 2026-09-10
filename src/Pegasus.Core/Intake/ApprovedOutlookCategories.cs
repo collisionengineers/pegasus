@@ -17,7 +17,6 @@ public sealed record UpdateApprovedOutlookCategoryRequest(
     ApprovedOutlookCategoryState State,
     int ExpectedVersion,
     ActionActor Actor,
-    string Reason,
     string OperationKey)
 {
     /// <summary>Required when changing an existing category; creation has no scope.</summary>
@@ -60,7 +59,6 @@ public sealed class UpdateApprovedOutlookCategory(IApprovedOutlookCategoryStore 
         return store.UpdateAsync(request with
         {
             DisplayName = RequireText(request.DisplayName, 255, "A display name is required."),
-            Reason = RequireText(request.Reason, 1000, "A reason is required."),
             OperationKey = RequireText(request.OperationKey, 100, "An operation key is required.")
         }, cancellationToken);
     }

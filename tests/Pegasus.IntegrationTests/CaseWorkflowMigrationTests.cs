@@ -143,7 +143,11 @@ public sealed class CaseWorkflowMigrationTests
                 "20260909145000_GuidanceAndRemoveEngineerNotes",
                 "20260909146000_ManualCaseCreation",
                 "20260909147000_RemoveClaimSourceCaseNote",
-                "20260909148000_CanonicalContactLocations"
+                "20260909148000_CanonicalContactLocations",
+                "20260910100000_ManualUploadGroupDiscard",
+                "20260910101000_RemoveManualChaseReason",
+                "20260910102000_AllowInitialIntakeAssociationWithoutReason",
+                "20260910103000_RetainObservedStaffMailSentEvidence"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

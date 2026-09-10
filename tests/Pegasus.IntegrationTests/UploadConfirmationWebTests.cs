@@ -122,7 +122,6 @@ public sealed class UploadConfirmationWebTests
             $"/Upload/Status/{stagedReceiptId:D}?handler=Attach",
             receiptId,
             caseId: caseId,
-            reason: "Staff matched the instruction to the existing case.",
             operationId: operationId,
             receiptVersion: receiptVersion,
             caseVersion: caseVersion);
@@ -147,7 +146,6 @@ public sealed class UploadConfirmationWebTests
             $"/Upload/Status/{stagedReceiptId:D}?handler=Attach",
             receiptId,
             caseId: caseId,
-            reason: "Staff matched the instruction to the existing case.",
             operationId: operationId,
             receiptVersion: receiptVersion,
             caseVersion: caseVersion);
@@ -205,18 +203,25 @@ public sealed class UploadConfirmationWebTests
         // The group card owns the confirmation and carries every actual
         // member receipt, not the registered image record's origin repeated
         // for each file.
-        Assert.Equal(2, SplitOccurrences(groupPage, "receiptVersions[").Count());
+        Assert.Equal(2, SplitOccurrences(GroupAttachForm(groupPage), "receiptVersions[").Count());
 
         // Typed input takes a server-rendered confirmation step before the
         // write, binding every member's reviewed receipt version and the
         // target Case version.
         var confirmation = await ConfirmGroupAttachAsync(
-            factory, client, groupId, caseId, caseReference,
-            "Staff matched the vehicle images to the instructed case.");
+            factory, client, groupId, caseId, caseReference);
         Assert.Equal(HttpStatusCode.Redirect, confirmation.StatusCode);
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {
+            await using var db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var association = await db.IntakeManualAssociations
+                .SingleAsync(item => item.IntakeReceiptId == originReceiptId);
+            Assert.Equal(nameof(ActorKind.Staff), association.ActorKind);
+            Assert.Null(association.Reason);
+
             var detail = await scope.ServiceProvider
                 .GetRequiredService<IImageIntakeQueries>()
                 .GetByOriginReceiptAsync(memberReceiptId, CancellationToken.None);
@@ -284,7 +289,6 @@ public sealed class UploadConfirmationWebTests
                 ["__RequestVerificationToken"] = token,
                 ["receiptId"] = receiptId.ToString("D"),
                 ["reference"] = "NO-SUCH-CASE",
-                ["reason"] = "Staff tried a reference that matches nothing.",
                 ["operationId"] = operationId.ToString("D"),
                 ["receiptVersion"] = receiptVersion.ToString(CultureInfo.InvariantCulture)
             }));
@@ -292,7 +296,7 @@ public sealed class UploadConfirmationWebTests
         var failedPage = await response.Content.ReadAsStringAsync();
         Assert.Contains("No single viable case matched", failedPage, StringComparison.Ordinal);
         Assert.Contains("NO-SUCH-CASE", failedPage, StringComparison.Ordinal);
-        Assert.Contains("Staff tried a reference that matches nothing.", failedPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reason for adding to this case", failedPage, StringComparison.Ordinal);
         Assert.Contains(operationId.ToString("D"), failedPage, StringComparison.Ordinal);
 
         // The failed typed first step is a recoverable form error, not a
@@ -486,14 +490,13 @@ public sealed class UploadConfirmationWebTests
         using var attachmentClient = attachmentFactory.CreateClient(
             new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         var confirmation = await ConfirmGroupAttachAsync(
-            factory, attachmentClient, groupId, caseId, caseReference,
-            "Staff matched the whole submission to the instructed case.");
+            factory, attachmentClient, groupId, caseId, caseReference);
         Assert.Equal(interruptAfterFirstMember ? HttpStatusCode.OK : HttpStatusCode.Redirect, confirmation.StatusCode);
         if (interruptAfterFirstMember)
         {
             Assert.Contains("1 file was completed before this stopped", confirmation.Body, StringComparison.Ordinal);
             Assert.Contains("Confirm and add the submission", confirmation.Body, StringComparison.Ordinal);
-            Assert.Equal(2, SplitOccurrences(confirmation.Body, "name=\"receiptVersions[").Count());
+            Assert.Equal(2, SplitOccurrences(GroupAttachForm(confirmation.Body), "name=\"receiptVersions[").Count());
             var refreshedPage = await IntakeWebDriver.GetHtmlAsync(
                 attachmentClient, $"/Upload/Group/{groupId:D}");
             Assert.DoesNotContain("Confirm and add the submission", refreshedPage, StringComparison.Ordinal);
@@ -505,7 +508,7 @@ public sealed class UploadConfirmationWebTests
         Assert.DoesNotContain("No single case matched", confirmationPage, StringComparison.Ordinal);
         Assert.DoesNotContain("Nothing from this submission", confirmationPage, StringComparison.Ordinal);
         Assert.DoesNotContain("nothing left in this submission", confirmationPage, StringComparison.Ordinal);
-        Assert.DoesNotContain("A reason is required", confirmationPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"reason\"", confirmationPage, StringComparison.Ordinal);
 
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -537,7 +540,6 @@ public sealed class UploadConfirmationWebTests
         {
             ["caseId"] = caseId.ToString("D"),
             ["reference"] = caseReference,
-            ["reason"] = "Staff matched the whole submission to the instructed case.",
             ["operationId"] = confirmation.OperationId.ToString("D"),
             ["caseVersion"] = confirmation.CaseVersion.ToString(CultureInfo.InvariantCulture)
         };
@@ -719,7 +721,6 @@ public sealed class UploadConfirmationWebTests
         {
             ["caseId"] = caseId.ToString("D"),
             ["reference"] = await CaseReferenceAsync(factory, caseId),
-            ["reason"] = "Staff reviewed the complete submission.",
             ["operationId"] = Guid.NewGuid().ToString("D"),
             ["caseVersion"] = caseVersion.ToString(CultureInfo.InvariantCulture),
             [$"receiptVersions[{before[0].Id:D}]"] = reviewedVersions[before[0].Id].ToString(CultureInfo.InvariantCulture)
@@ -742,6 +743,16 @@ public sealed class UploadConfirmationWebTests
         Assert.Equal(caseVersion, await CaseVersionAsync(factory, caseId));
         Assert.Equal(historyBefore, await db.Database.SqlQueryRaw<int>(
             "SELECT COUNT(*) AS Value FROM IntakeMutationHistory").SingleAsync());
+    }
+
+    private static string GroupAttachForm(string page)
+    {
+        var action = page.IndexOf("handler=AttachGroup", StringComparison.Ordinal);
+        Assert.True(action >= 0, "The group attachment confirmation form is missing.");
+        var start = page.LastIndexOf("<form", action, StringComparison.Ordinal);
+        var end = page.IndexOf("</form>", action, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, "The group attachment form is incomplete.");
+        return page[start..end];
     }
 
     private static IEnumerable<int> SplitOccurrences(string haystack, string needle)
@@ -776,7 +787,6 @@ public sealed class UploadConfirmationWebTests
         Guid receiptId,
         Guid? caseId = null,
         string? reference = null,
-        string? reason = null,
         Guid? operationId = null,
         long? receiptVersion = null,
         long? caseVersion = null)
@@ -786,7 +796,6 @@ public sealed class UploadConfirmationWebTests
         {
             ["__RequestVerificationToken"] = token,
             ["receiptId"] = receiptId.ToString("D"),
-            ["reason"] = reason ?? string.Empty,
             ["operationId"] = (operationId ?? Guid.NewGuid()).ToString("D")
         };
         if (receiptVersion is { } reviewedReceiptVersion)
@@ -837,15 +846,13 @@ public sealed class UploadConfirmationWebTests
         HttpClient client,
         Guid groupId,
         Guid caseId,
-        string reference,
-        string reason)
+        string reference)
     {
         var operationId = Guid.NewGuid();
         var receiptVersions = new Dictionary<Guid, long>();
         var fields = new Dictionary<string, string>
         {
             ["reference"] = reference,
-            ["reason"] = reason,
             ["operationId"] = operationId.ToString("D")
         };
 

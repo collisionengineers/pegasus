@@ -97,6 +97,7 @@ public sealed class EfLinkedCaseReplacementStore(
             cancellationToken);
 
         var replacementPrincipal = await context.Principals
+            .Include(item => item.Organization)
             .SingleOrDefaultAsync(
                 item => item.Code == request.ReplacementPrincipalCode && item.IsActive,
                 cancellationToken)
@@ -165,6 +166,7 @@ public sealed class EfLinkedCaseReplacementStore(
         context.Cases.Add(replacementCase);
         var replacementCaseData = CloneCaseDataSnapshot(originalCaseData, replacementCase);
         context.CaseDataSnapshots.Add(replacementCaseData);
+        ConfirmReplacementWorkProvider(replacementCaseData, request, now);
         // The replacement case must be matchable in its own right: the Created in error
         // original's index row stays (redirects resolve through it), and the replacement
         // gets its own row in this same transaction.
@@ -188,6 +190,8 @@ public sealed class EfLinkedCaseReplacementStore(
             Version = 0
         };
         context.CaseWorkflows.Add(replacementWorkflow);
+        await CaseGuidance.ApplyCreationAsync(
+            context, replacementWorkflow, null, now, requestHash, cancellationToken);
         if (initialState == CaseInitialState.NotReady)
         {
             context.CaseDueWork.Add(new CaseDueWorkEntity
@@ -305,6 +309,54 @@ public sealed class EfLinkedCaseReplacementStore(
             ConfirmedAtUtc = field.ConfirmedAtUtc
         }));
         return replacement;
+    }
+
+    /// <summary>
+    /// The replacement Case's reference and sequence are allocated under
+    /// <see cref="CreateLinkedReplacementRequest.ReplacementPrincipalCode"/>,
+    /// but <see cref="CloneCaseDataSnapshot"/> above copies every field
+    /// verbatim, so without this the clone's work_provider_code — and the
+    /// CaseMatchIndex row <see cref="CaseMatchIndexProjector.Project"/> derives
+    /// from it — still named the old Principal, breaking image/mail matching
+    /// and the EVA "Work Provider" export after a Wrong-Principal correction.
+    /// Mirrors the upsert approach in
+    /// <see cref="CaseDataSnapshotFactory.AddStaffAllocatedProvider"/>: the
+    /// staff actor who requested the correction is recorded as confirming the
+    /// corrected Principal, using the same <c>staff_correction</c> provenance
+    /// the acceptance path uses for a person's own corrected value. Any
+    /// existing Fact (e.g. from a mail route on the original) is left in
+    /// place as history — Confirmed only supersedes it for
+    /// <see cref="CaseField{T}.Current"/>.
+    /// </summary>
+    private static void ConfirmReplacementWorkProvider(
+        CaseDataSnapshotEntity replacementCaseData,
+        CreateLinkedReplacementRequest request,
+        DateTimeOffset now)
+    {
+        var value = request.ReplacementPrincipalCode.Trim();
+        var underlying = replacementCaseData.Fields.SingleOrDefault(
+            item => item.FieldName == CaseDataFieldNames.WorkProviderCode
+                && item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Suggestion
+                && string.Equals(item.Value, value, StringComparison.OrdinalIgnoreCase));
+        replacementCaseData.Fields.RemoveAll(
+            item => item.FieldName == CaseDataFieldNames.WorkProviderCode
+                && item.ValueKind == CaseDataCodes.Confirmed);
+        replacementCaseData.Fields.Add(new()
+        {
+            CaseId = replacementCaseData.CaseId,
+            Snapshot = replacementCaseData,
+            FieldName = CaseDataFieldNames.WorkProviderCode,
+            ValueKind = CaseDataCodes.Confirmed,
+            ValueType = CaseDataCodes.Text,
+            Value = value,
+            SourceKind = underlying?.SourceKind ?? CaseDataCodes.StaffCorrection,
+            SourceIdentity = underlying?.SourceIdentity ?? request.CaseId.ToString("D"),
+            SourceLabel = underlying?.SourceLabel ?? "staff-corrected wrong-principal work provider",
+            PolicyKey = underlying?.PolicyKey ?? replacementCaseData.CompletenessPolicyKey,
+            PolicyVersion = underlying?.PolicyVersion ?? replacementCaseData.CompletenessPolicyVersion,
+            ConfirmedByActor = request.Actor.SubjectId,
+            ConfirmedAtUtc = now
+        });
     }
 
     private async Task<CaseAcceptanceOutcome?> FindReplayAsync(

@@ -22,8 +22,8 @@
                 </div>
                 <button class="btn btn--primary" type="button" data-dialog-open="contact-type-dialog">Add contact</button>
             </div>
-            <form method="get" class="panel-body filters">
-                <div class="field"><label asp-for="Search">Name</label><input asp-for="Search" autocomplete="off" /></div>
+            <form method="get" class="contact-toolbar">
+                <div class="field"><label asp-for="Search">Name or contact</label><input asp-for="Search" type="search" autocomplete="off" /></div>
                 <div class="field"><label asp-for="Type">Type</label><select asp-for="Type"><option value="">All types</option>@foreach (var role in Enum.GetValues<ContactRole>()) { <option value="@role">@IndexModel.RoleLabel(role)</option> }</select></div>
                 <div class="field"><label asp-for="Sort">Sort</label><select asp-for="Sort"><option value="@ContactSort.Name">Name</option><option value="@ContactSort.Type">Type</option><option value="@ContactSort.LastCase">Last case</option></select></div>
                 <button class="btn" type="submit">Apply</button>
@@ -34,10 +34,10 @@
             }
             else
             {
-                <div class="table-wrap no-border"><table><caption class="sr-only">Contact directory</caption><thead><tr><th>Name</th><th>Type</th><th>Contact person</th><th>Last case</th><th>Status</th><th><span class="sr-only">Open</span></th></tr></thead><tbody>
+                <div class="table-wrap no-border"><table><caption class="sr-only">Contact directory</caption><thead><tr><th>Name</th><th>Type</th><th>Contact person</th><th>Email</th><th>Phone</th><th>Last case</th><th>Status</th><th><span class="sr-only">Open</span></th></tr></thead><tbody>
                 @foreach (var contact in Model.Contacts)
                 {
-                    <tr><td>@contact.Name</td><td>@string.Join(", ", contact.Roles.Select(IndexModel.RoleLabel))</td><td>@(contact.ContactPerson ?? "—")</td><td>@(contact.LastCaseReference ?? "—")</td><td><partial name="Shared/_StatusChip" model="@(contact.Active ? "Active" : "Disabled")" /></td><td class="right"><a class="btn btn--small" asp-page="Edit" asp-route-id="@contact.OrganizationId">Open</a></td></tr>
+                    <tr><td>@contact.Name</td><td>@string.Join(", ", contact.Roles.Select(IndexModel.RoleLabel))</td><td>@(contact.ContactPerson ?? "—")</td><td class="mono">@(contact.Email ?? "—")</td><td class="mono">@(contact.Telephone ?? "—")</td><td>@(contact.LastCaseReference ?? "—")</td><td><partial name="Shared/_StatusChip" model="@(contact.Active ? "Active" : "Disabled")" /></td><td class="right"><a class="btn btn--small" asp-page="Edit" asp-route-id="@contact.OrganizationId">Open</a></td></tr>
                 }
                 </tbody></table></div>
             }
@@ -46,9 +46,9 @@
 </div>
 
 <div class="dialog-backdrop" data-dialog="contact-type-dialog" hidden>
-    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="contact-type-title">
+    <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="contact-type-title">
         <div class="dialog-head"><h2 id="contact-type-title" tabindex="-1" data-dialog-initial-focus>Add contact</h2><button class="dialog-close" type="button" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
-        <div class="dialog-body stack"><p>Choose the contact type to create.</p><div class="grid grid-2">@foreach (var role in Enum.GetValues<ContactRole>()) { <a class="admin-card" asp-route-createType="@role" asp-route-search="@Model.Search" asp-route-type="@Model.Type" asp-route-sort="@Model.Sort"><strong>@IndexModel.RoleLabel(role)</strong></a> }</div></div>
+        <div class="dialog-body"><div class="contact-kind-grid">@foreach (var role in Enum.GetValues<ContactRole>()) { <a class="contact-kind" asp-route-createType="@role" asp-route-search="@Model.Search" asp-route-type="@Model.Type" asp-route-sort="@Model.Sort"><strong>@IndexModel.RoleLabel(role)</strong></a> }</div></div>
         <div class="dialog-foot"><button class="btn" type="button" data-dialog-close>Cancel</button></div>
     </section>
 </div>
@@ -58,7 +58,7 @@
     var role = Model.CreateType!.Value;
     var title = Model.EditingExisting ? $"Add {IndexModel.RoleLabel(role)}" : $"New {IndexModel.RoleLabel(role)}";
     <div class="dialog-backdrop" data-dialog="contact-create-dialog" data-dialog-open-on-load="true" data-dialog-cancel-form="@(Model.EditingExisting ? "contact-cancel-form" : null)" hidden>
-    <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="contact-create-title">
+    <section class="dialog dialog--wide dialog--contact" role="dialog" aria-modal="true" aria-labelledby="contact-create-title">
         <div class="dialog-head"><h2 id="contact-create-title" tabindex="-1" data-dialog-initial-focus>@title</h2>@if (Model.EditingExisting) { <button class="dialog-close" type="submit" form="contact-cancel-form" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button> } else { <button class="dialog-close" type="button" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button> }</div>
         <form id="contact-create-form" method="post" asp-page-handler="Create">
             <input asp-for="Search" type="hidden" /><input asp-for="Type" type="hidden" /><input asp-for="Sort" type="hidden" />
@@ -74,12 +74,12 @@
                 {
                     <p class="panel-title-meta">Enter the details for this @IndexModel.RoleLabel(role). You can add more types later.</p>
                 }
-                <div class="form-grid">
-                    <div class="field"><label class="req" asp-for="Name">Name</label><input asp-for="Name" autocomplete="organization" /><span asp-validation-for="Name"></span></div>
+                <div class="form-grid form-grid--2">
+                    <div class="field field-wide"><label class="req" asp-for="Name">Organisation name</label><input asp-for="Name" autocomplete="organization" /><span asp-validation-for="Name"></span></div>
                     <div class="field"><label asp-for="ContactPerson">Contact person</label><input asp-for="ContactPerson" autocomplete="name" /><span asp-validation-for="ContactPerson"></span></div>
                     <div class="field"><label asp-for="Email">Email</label><input asp-for="Email" type="email" autocomplete="email" /><span asp-validation-for="Email"></span></div>
                     <div class="field"><label asp-for="Telephone">Telephone</label><input asp-for="Telephone" type="tel" autocomplete="tel" /><span asp-validation-for="Telephone"></span></div>
-                    <div class="field"><label asp-for="Address">Address</label><input asp-for="Address" autocomplete="street-address" /><span asp-validation-for="Address"></span></div>
+                    <div class="field"><label asp-for="Address">Address</label><textarea asp-for="Address" rows="2" autocomplete="street-address"></textarea><span asp-validation-for="Address"></span></div>
                     <div class="field"><label asp-for="Postcode">Postcode</label><input asp-for="Postcode" autocomplete="postal-code" /><span asp-validation-for="Postcode"></span></div>
                     @if (role == ContactRole.Principal)
                     {

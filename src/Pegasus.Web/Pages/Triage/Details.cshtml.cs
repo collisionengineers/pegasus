@@ -4,6 +4,7 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
@@ -94,6 +95,15 @@ public sealed class DetailsModel(
     /// a second time (INTK-034).
     /// </summary>
     public IReadOnlyList<IntakeAssetRecord> EvidenceImages { get; private set; } = [];
+
+    /// <summary>
+    /// What the link to the origin receipt opens, named for the material
+    /// itself: an e-mail for mailbox material, a file otherwise. Classified by
+    /// the same Core rule the Unidentified page uses
+    /// (<see cref="UnidentifiedMediaKindPolicy"/>) so one retained source is
+    /// not called two different things on two screens.
+    /// </summary>
+    public string ViewSourceLabel { get; private set; } = "View file";
     public string? CaseAssociationUnavailableReason { get; private set; }
     public Guid? CaseAssociationUnavailableCaseId { get; private set; }
 
@@ -490,6 +500,12 @@ public sealed class DetailsModel(
         EvidenceImages = receipt is null
             ? []
             : InstructionEvidenceImages.Select(receipt.AssetRecords);
+        var sourceIsEmail = receipt is not null && !string.IsNullOrWhiteSpace(receipt.MediaType)
+            ? UnidentifiedMediaKindPolicy.Classify(
+                receipt.SourceIdentity.Channel,
+                receipt.MediaType) == UnidentifiedMediaKind.Email
+            : triage.Record.Origin.SourceIdentity.Channel == IntakeSourceChannel.Mailbox;
+        ViewSourceLabel = sourceIsEmail ? "View email" : "View file";
 
         ActiveFindings = triage.Findings
             .Where(candidate => !triage.Findings.Any(

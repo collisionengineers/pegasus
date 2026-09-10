@@ -61,7 +61,6 @@ public sealed class EditModel(
     [BindProperty, StringLength(200)] public string? LocationLabel { get; set; }
     [BindProperty, StringLength(500)] public string? LocationAddress { get; set; }
     [BindProperty, StringLength(20)] public string? LocationPostcode { get; set; }
-    [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumReasonLength)] public string? LocationReason { get; set; }
     [BindProperty] public string? LocationOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public long CredentialVersion { get; set; }
     [BindProperty] public string? CredentialOperationKey { get; set; } = NewOperationKey();
@@ -234,7 +233,6 @@ public sealed class EditModel(
             nameof(LocationLabel),
             nameof(LocationAddress),
             nameof(LocationPostcode),
-            nameof(LocationReason),
             nameof(PrincipalExpectedVersion),
             nameof(ExpectedVersion),
             nameof(LeaseToken),
@@ -243,13 +241,12 @@ public sealed class EditModel(
         var expectedVersion = PrincipalExpectedVersion;
         if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
         if (!IsOperationKeyValid(LocationOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        if (string.IsNullOrWhiteSpace(LocationReason)) ModelState.AddModelError(nameof(LocationReason), "A reason is required.");
         if (!LocationIsImageBasedAssessment && string.IsNullOrWhiteSpace(LocationAddress)) ModelState.AddModelError(nameof(LocationAddress), "An address is required.");
         if (ModelState.IsValid)
         {
             try
             {
-                await updatePrincipalDefaultInspectionLocation.ExecuteAsync(new(actor, Principal!.Id, expectedVersion, LocationOperationKey!, LocationReason!, LocationIsImageBasedAssessment ? InspectionAddressEvidenceKind.ImageBasedAssessment : InspectionAddressEvidenceKind.PhysicalAddress, LocationLabel, LocationAddress, LocationPostcode, "manual", null, null,
+                await updatePrincipalDefaultInspectionLocation.ExecuteAsync(new(actor, Principal!.Id, expectedVersion, LocationOperationKey!, LocationIsImageBasedAssessment ? InspectionAddressEvidenceKind.ImageBasedAssessment : InspectionAddressEvidenceKind.PhysicalAddress, LocationLabel, LocationAddress, LocationPostcode, "manual", null, null,
                     ExpectedVersion, LeaseToken), cancellationToken);
                 TempData["AdministrationStatus"] = "The principal's default inspection location was updated.";
                 return RedirectToPage(new { id = ContactId });

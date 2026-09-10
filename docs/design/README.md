@@ -9,7 +9,7 @@ These are requirements, not a claim of deployment or operator acceptance.
 ## Evidence discipline
 
 Use the accepted interface requirements and current FRD-12 interactions. One
-scrolling Case record with section jumps is the accepted Case layout. Native
+Case record supports the refined Scroll/Tabs display choice. Native
 engineering and reports remain independent of optional EVA. Prototype behavior
 is reference evidence; it does not overrule current requirements.
 
@@ -17,11 +17,17 @@ Record the actual scope of rendered/operator evidence. A screenshot,
 asset or planned interaction does not prove the implemented caller, deployment
 or acceptance. Engineering defines those evidence tiers; do not repeat them here.
 
-The 9 September pre-v1 correction uses the supplied in-progress UI as the
-visual reference: compact 13.5px body text, 36px controls, restrained surfaces
-and table rows, and account settings in dialogs. Current FRD interactions
-remain authoritative. Review actual routed pages and their error/edit states;
-the presence of shared CSS or prototype screenshots is not visual acceptance.
+The 10 September pre-v1 correction uses the operator-supplied
+Pegasus-v2-Refined-Pack as its visual reference: compact 13.5px body text,
+36px controls, restrained surfaces, aligned bounded forms, and contextual
+dialogs. The private prototype and its customer-derived fixtures must not be
+published. Current operator requirements override conflicting prototype
+behaviour: keep one Case Notes timeline, exactly one staff role, all engineering
+powers for Administrators, and the agreed EVA retry behaviour. Prototype
+handlers and illustrative figures are not application policy. Review actual
+routed pages and their error/edit states against the reference at 1580×1000
+and a smaller desktop width; shared-layout changes also need a 760px capture.
+The presence of shared CSS or prototype screenshots is not visual acceptance.
 
 ## Product direction
 
@@ -68,7 +74,7 @@ The `.app-shell` grid is a 220px sticky `.app-rail` beside the `.app-column`.
 The rail is the dark `--nav` gradient with a 3px `--red` top stripe. Its
 content, top to bottom:
 
-- **Brand** — the `pegasus-lockup` mark at 40px beside "PEGASUS" and the line
+- **Brand** — the unchanged `pegasus-lockup` mark at 52px beside "PEGASUS" and the line
   "Case management".
 - **Nav label "Work"**, then the links in order: Work Centre (`/`), Inbox
   [count], Upload, Cases (`/cases`) [count], Search (`/search`), Operations
@@ -100,9 +106,9 @@ Session started (an `auth_time` claim) and Idle lock, with Close and Sign out.
 
 The **utility bar** is dark and sticky at the top of the column: freshness
 text, the global search input with its "Ctrl K" hint (Enter or Ctrl K opens
-the command palette dialog), the "Add" primary button (dialog: Upload files,
-Create Case, Create upload request, Review Inbox) and the bell (Notifications
-dialog).
+the command palette dialog), the "New case" link to the real creation form
+when intake is available, and the bell (Notifications dialog). Upload and
+Inbox retain their named navigation destinations.
 
 The **workspace-tab strip** sits under the utility bar: a "Work Centre" tab,
 one closable tab per open Case record — at most four, least-recently-used
@@ -238,11 +244,12 @@ RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
   record is one container — header, identity ribbon, action bar, sections as
   tabs — and the operator reaches its identity, its state, its available
   actions and its main content without scrolling.
-- The Case record is one scrolling page (D29, 2026-09-02): its identity
-  ribbon, action bar and section jump-nav are sticky, the jump-nav marks the
-  section in view, sections below the fold render lazily, and `?section=`
-  jumps to a section. No layout switch exists. The "sections as tabs" rule
-  above is superseded for the Case record only.
+- The Case record has Scroll and Tabs display modes using the same section
+  hosts and one edit form. Scroll is the no-script fallback: its identity
+  ribbon, action bar and section navigation are sticky, sections below the
+  fold load lazily, and `?section=` reaches a section. Tabs hide inactive
+  sections without removing their loaded fields or discarding unsaved edits.
+  Retain the personal display preference and the single Case Notes timeline.
 - Provenance is an icon with a one-word tooltip, shown on hover **and** on
   keyboard focus with a matching accessible name: Staff · Extracted · AI ·
   E-mail · Lookup · Principal · Automatic. Source labels, policy keys and
@@ -485,7 +492,7 @@ sixty glyphs; the pre-PLAT-029 seventeen-glyph sprite was
 | --- | --- | --- | --- |
 | `dashboard` | `layout-dashboard` | `F8A9AFA8D2245E34D3DAEB88C9FF80A2AA546D1F8671212896E743E596F3752B` | Rail: Work Centre |
 | `inbox` | `inbox` | `0817485BFAE1A740458AA3FC1E6E4542047FA890C547D35B17C771E6D352E901` | Rail: Inbox; Inbox scopes |
-| `upload` | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Rail: Upload; dropzone; Add dialog |
+| `upload` | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Rail: Upload; dropzone |
 | `queues` | `list` | `E7AF143D4992901731088F11F4AFDC0342361D5B85DB3841D252A9DCA5D97E45` | Rail: Cases (as the prototype draws it); Cases rail groups |
 | `cases` | `folder-open` | `11EDC315700BAA321B840623A707A8571C28D511815EEB505516EAC795194BB9` | Rail: Search (as the prototype draws it); Case tabs |
 | `image` | `image` | `309035AB9321F61F17336BD1B23E869BDE47EA07BA16CF72BE38762EF8922067` | Image record; gallery; image-initiated rows |
@@ -752,7 +759,7 @@ second caller and a reason in the ticket plan.
 | --- | --- |
 | `_Layout`, `_LayoutAuth`, `_LayoutExternal` | Frames |
 | `_LucideSprite` | The inlined sprite |
-| `_ShellDialogs` | Account, Add, Notifications, command palette |
+| `_ShellDialogs` | Account, Notifications, command palette |
 | `_AdminNav` | Administration panel nav |
 | `_StatusChip`, `_PageHeader`, `_ReasonDialog`, `_ErrorSummary`, `_EvidenceViewer`, `_ImageGallery`, `_UploadOutcome`, `_Provenance` | Retained, restyled to the vocabulary |
 | `Presentation/OperatorLabels.cs` | The one label map |

@@ -18,7 +18,11 @@ resolution can link it to a supported destination, without changing that U-refer
 - A used principal code is replaced by one linked successor in an atomic Core transaction: deactivate the predecessor, continue its next unused sequence in the Europe/London cutover year, and begin later years at `001`. Both identities and the reason remain permanent.
 - A wrong-principal Case records `Created in error`, a reason and a linked
   replacement. Neither identity changes and neither reference is reused. This
-  correction is a recorded disposition, not an irreversible Case closure.
+  correction is a recorded disposition, not an irreversible Case closure. The
+  replacement Case records the replacement Principal as a Confirmed
+  `work_provider_code`, source kind staff correction; the original Case's own
+  fields are left untouched
+  ([FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)).
 - A Case is never deleted or terminally closed. A return to engineering work
   records a reason and uses the normal destination gates; the query cycle below
   does not require a separate manual reopen.
@@ -148,9 +152,13 @@ requirements. No formal Case appears as terminally Closed.
 
 - **Hand to Engineer** in Review assigns an eligible Engineer and starts native
   engineering work through the Case lease and version gates.
-- **Send to EVA** is optional in Review or With Engineer. Download ZIP and Send
-  via API share [FRD-07](frd-07-eva-and-external-engineering-handoff.md); the
-  Principal must enable the API route. EVA never gates native work.
+- EVA work is optional in Review or With Engineer and is governed by the
+  Principal's report-generation policy
+  ([FRD-07](frd-07-eva-and-external-engineering-handoff.md),
+  [ADR-0048](../adr/0048-principal-report-generation-policies.md)): EVA ZIP
+  offers the export, manual EVA API offers Send via API, and automatic EVA
+  API on Review permits a staff retry only after its automatic delivery
+  failed. Pegasus generation has no EVA action. EVA never gates native work.
 - Damage, Valuation, Estimate, Settlement and Report are always viewable.
   Engineering edits require With Engineer and the normal Case edit authority.
   No pre-assignment valuation check may depend on an Engineer-only edit.
@@ -161,8 +169,18 @@ requirements. No formal Case appears as terminally Closed.
 - **Return to Engineer** records a reason and applies the destination gates
   when further engineering changes are required. It is not a prerequisite for
   receiving, attaching or replying to a query.
-- Cancellation, rejection and Created in error record their reason and source
-  without permanently locking the Case or deleting any evidence.
+- **Close case** is the one adverse-disposition action, kept apart from
+  ordinary progression. Its offered outcomes are exactly the terminal
+  dispositions Core currently permits for that Case: `Provider cancelled` and
+  `Collision Engineers rejected`. `Created in error` requires its own atomic
+  corrected-principal replacement action and `E-mail unlinked` requires
+  unlinking the source email that created the Case; neither is offered by
+  this generic dialog. `PostReportComplete` is ordinary post-report
+  progression under **Completed**, not an adverse closure. A reason is
+  required, and a missing or unrecognised outcome is refused rather than
+  falling through to the outcome type's default value. Cancellation,
+  rejection and Created in error record their reason and source without
+  permanently locking the Case or deleting any evidence.
 
 ### Sign-off Engineer
 

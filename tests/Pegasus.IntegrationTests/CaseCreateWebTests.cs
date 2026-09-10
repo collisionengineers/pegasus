@@ -125,6 +125,9 @@ public sealed partial class CaseCreateWebTests
             item.CaseId == caseId && item.EventType == "case_guidance_applied");
         Assert.Contains("claim_source_guidance_applied", guidance.ResultJson, StringComparison.Ordinal);
         Assert.Contains("Call the Claim Source before finalising the report.", guidance.ResultJson, StringComparison.Ordinal);
+        var notes = await client.GetStringAsync($"/Cases/{caseId:D}?section=notes");
+        Assert.Contains("Call the Claim Source before finalising the report.", notes, StringComparison.Ordinal);
+        Assert.DoesNotContain("<strong>Guidance applied</strong>", notes, StringComparison.Ordinal);
     }
 
     [Fact]

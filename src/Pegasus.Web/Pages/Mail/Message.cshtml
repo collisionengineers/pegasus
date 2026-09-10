@@ -537,7 +537,7 @@
                                 <th scope="col">Type</th>
                                 <th scope="col">Size</th>
                                 <th scope="col">Search content</th>
-                                <th scope="col">Custody</th>
+                                <th scope="col">Retention</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -549,7 +549,7 @@
                                 <td class="tabular">@OperatorLabels.FileSize(attachment.ContentLength)</td>
                                 <td>@OperatorLabels.AttachmentSearchability(attachment.IsSearchable)</td>
                                 @* The row exists because the attachment was kept, so
-                                   custody is a fact of the row rather than a lookup. *@
+                                   retention is a fact of the row rather than a lookup. *@
                                 <td><partial name="Shared/_StatusChip" model="@("Retained")" /></td>
                             </tr>
                         }

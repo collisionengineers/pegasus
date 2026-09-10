@@ -144,7 +144,7 @@ public static class OperatorLabels
     /// display mapping only. <see cref="CaseLifecycleState.ReportPreparation"/>
     /// and <see cref="CaseLifecycleState.PostReport"/> both read "With
     /// Engineer", <see cref="CaseLifecycleState.PostReportComplete"/> reads
-    /// "Complete", and every other terminal outcome reads "Closed · outcome".
+    /// "Completed", and <see cref="CaseLifecycleState.Query"/> reads "Query".
     /// The Core enum is untouched.
     /// </summary>
     public static string CaseStage(CaseLifecycleState state) => state switch
@@ -153,12 +153,28 @@ public static class OperatorLabels
         CaseLifecycleState.Held => "Held",
         CaseLifecycleState.Review => "Review",
         CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => "With Engineer",
-        CaseLifecycleState.PostReportComplete => "Complete",
+        CaseLifecycleState.PostReportComplete => "Completed",
+        CaseLifecycleState.Query => "Query",
         CaseLifecycleState.ProviderCancelled => "Closed · Provider cancelled",
         CaseLifecycleState.CollisionEngineersRejected => "Closed · Collision Engineers rejected",
         CaseLifecycleState.CreatedInError => "Closed · Created in error",
         CaseLifecycleState.SourceEmailUnlinked => "Closed · E-mail unlinked",
         _ => Humanise(state.ToString())
+    };
+
+    /// <summary>
+    /// One named closure outcome, as the operator chooses it. The words are
+    /// <see cref="CaseStage(CaseLifecycleState)"/>'s own terminal names without
+    /// the "Closed · " prefix, which the chooser's heading already carries.
+    /// </summary>
+    public static string CaseClosure(CaseClosureOutcome outcome) => outcome switch
+    {
+        CaseClosureOutcome.PostReportComplete => "Completed",
+        CaseClosureOutcome.ProviderCancelled => "Provider cancelled",
+        CaseClosureOutcome.CollisionEngineersRejected => "Collision Engineers rejected",
+        CaseClosureOutcome.CreatedInError => "Created in error",
+        CaseClosureOutcome.SourceEmailUnlinked => "E-mail unlinked",
+        _ => Humanise(outcome.ToString())
     };
 
     /// <summary>The Triage record's own lifecycle words (moved here from the Cases page by CASE-025).</summary>
@@ -1340,8 +1356,6 @@ public static class OperatorLabels
         public const string Review = "Review";
         public const string Reason = "Reason";
         public const string Confirm = "Confirm";
-        public const string DisableConsequence =
-            "Disabling revokes existing browser sessions; the account is retained permanently.";
         public const string SignOffEngineer = "Sign-off Engineer";
         public const string Yes = "Yes";
         public const string No = "No";
@@ -1544,7 +1558,7 @@ public static class OperatorLabels
         public static readonly IReadOnlyList<CaseSection> Sections =
         [
             new("overview", "Overview", "icon-layout-dashboard"),
-            new("inspection", "Inspection", "icon-map-pin"),
+            new("inspection", "Inspection details", "icon-map-pin"),
             new("vehicle", "Vehicle", "icon-car"),
             new("damage", "Damage", "icon-alert-triangle"),
             new("valuation", "Valuation", "icon-file-text"),
@@ -1586,6 +1600,13 @@ public static class OperatorLabels
         public const string EvaApiNotEnabled =
             "EVA API submission is not enabled for this principal.";
         // end CASE-040
+
+        // Review point 12: the adverse disposition, named apart from the
+        // progression actions it must never sit among.
+        public const string CloseCase = "Close case";
+        public const string ClosureOutcome = "Outcome";
+        public const string AdverseActions = "Adverse actions";
+        // end review point 12
 
         // C08 labels batch: Stream B's documents/chase port (INTK-060 C08).
         public const string Recipient = "Recipient";
@@ -1834,7 +1855,7 @@ public static class OperatorLabels
         public static string AcceptedFiles(long maximumFileBytes, int maximumFileCount) =>
             string.Create(
                 CultureInfo.InvariantCulture,
-                $"EML, MSG, PDF, DOC, DOCX, JPG or PNG · up to {FileSize(maximumFileBytes)} each · {maximumFileCount} files");
+                $"EML, MSG, PDF, DOC, DOCX, JPG, PNG, MP4 or MOV · up to {FileSize(maximumFileBytes)} each · {maximumFileCount} files");
 
         /// <summary>
         /// The public request page's post-submission wording, handed to C08 by

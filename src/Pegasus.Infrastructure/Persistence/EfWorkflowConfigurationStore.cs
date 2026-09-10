@@ -98,7 +98,7 @@ public sealed class EfWorkflowConfigurationStore(
             OccurredAtUtc = timeProvider.GetUtcNow(),
             Outcome = "succeeded",
             CorrelationId = request.OperationKey,
-            Reason = request.Reason,
+            Reason = null,
             BeforeJson = JsonSerializer.Serialize(before),
             AfterJson = JsonSerializer.Serialize(after),
             PolicyVersion = $"{entity.Id}/v{entity.Version}"
@@ -118,7 +118,6 @@ public sealed class EfWorkflowConfigurationStore(
             || history.EventKind != EventKind
             || history.ActorKind != request.Actor.Kind.ToString()
             || history.ActorSubjectId != request.Actor.SubjectId
-            || history.Reason != request.Reason
             || history.AfterJson is null)
         {
             throw new WorkflowConfigurationOperationConflictException();

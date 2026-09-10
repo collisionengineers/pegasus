@@ -20,8 +20,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-worker-recovery.eml");
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName, email.MediaType, email.Content);
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
         var caseId = await QdosTriageIntegrationTests.SeedMatchingFormalCaseAsync(factory.Services, receiptId);
         await factory.Database.ExecuteAsync($"""
             CREATE USER [pegasus_test_triage_pairing_worker] WITHOUT LOGIN;

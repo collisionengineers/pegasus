@@ -132,8 +132,7 @@ public sealed partial class OrganizationAdministrationWebTests
                 ["PrincipalExpectedVersion"] = InputValue(locationHtml, "PrincipalExpectedVersion"),
                 ["ExpectedVersion"] = InputValue(locationHtml, "ExpectedVersion"),
                 ["LeaseToken"] = InputValue(locationHtml, "LeaseToken"),
-                ["LocationIsImageBasedAssessment"] = bool.TrueString,
-                ["LocationReason"] = "Image Based Assessment default"
+                ["LocationIsImageBasedAssessment"] = bool.TrueString
             }));
         Assert.Equal(HttpStatusCode.Redirect, locationPost.StatusCode);
         Assert.Equal(evaSubmissionPath, locationPost.Headers.Location?.OriginalString);

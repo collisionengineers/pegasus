@@ -315,10 +315,77 @@ public sealed class IntakeDestinationSelectionWebTests
         Assert.Equal(UnidentifiedResolutionTargetKind.ExternalReference, resolved.ResolutionTargetKind);
     }
 
+    [Fact]
+    public async Task AssociatedReceiptStopsClaimingItAwaitsCaseAllocation()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "AB12 CDE", "LINKED-STATE-01");
+        var receipt = await StoreUnidentifiedReceiptAsync(
+            factory,
+            decision: IntakeDecision.CaseCreated);
+
+        var awaitingHtml = await client.GetStringAsync($"/Received/{receipt.Id:D}");
+        Assert.Contains("Ready for case allocation", awaitingHtml, StringComparison.Ordinal);
+
+        var selectedHtml = await client.GetStringAsync(
+            $"/Received/{receipt.Id:D}?targetCaseId={caseId:D}");
+        using var claimed = await client.PostAsync(
+            $"/Received/{receipt.Id:D}?handler=ClaimCaseLease",
+            new FormUrlEncodedContent(HiddenFormValues(selectedHtml, "ClaimCaseLease")));
+        Assert.Equal(HttpStatusCode.Redirect, claimed.StatusCode);
+        var leasedHtml = await client.GetStringAsync(claimed.Headers.Location);
+        var linkForm = HiddenFormValues(leasedHtml, "LinkCase");
+        linkForm["reason"] = "Staff identified the Case from the retained source.";
+        using var linked = await client.PostAsync(
+            $"/Received/{receipt.Id:D}?handler=LinkCase",
+            new FormUrlEncodedContent(linkForm));
+        Assert.Equal(HttpStatusCode.Redirect, linked.StatusCode);
+
+        var linkedHtml = await client.GetStringAsync($"/Received/{receipt.Id:D}");
+
+        // One effective state: the linked item cannot also be awaiting the
+        // allocation that already happened (operator review 25).
+        Assert.Contains("<h1>Linked to Case</h1>", linkedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ready for case allocation", linkedHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UnidentifiedItemLeadsWithLinkToCaseAndKeepsItsAlternatives()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await StoreUnidentifiedReceiptAsync(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var item = await RegisterUnidentifiedAsync(scope.ServiceProvider, receipt.Id);
+
+        using var response = await client.GetAsync($"/Unidentified/{item.Id:D}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // The primary action says where the material is going, and it opens
+        // the existing dialog (operator review 29 and 30b).
+        Assert.Contains(
+            "data-dialog-open=\"unidentified-resolve-dialog\"",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains("<span>Link to Case</span>", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "data-dialog=\"unidentified-resolve-dialog\"",
+            html,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("Resolve material", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Resolution<", html, StringComparison.Ordinal);
+        // The other supported resolutions stay reachable and named.
+        Assert.Contains(">Close</a>", html, StringComparison.Ordinal);
+    }
+
     private static async Task<IntakeReceipt> StoreUnidentifiedReceiptAsync(
         IntakeWebApplicationFactory factory,
         IntakeSourceChannel channel = IntakeSourceChannel.ManualUpload,
-        IReadOnlyList<IntakeAssetRecord>? assets = null)
+        IReadOnlyList<IntakeAssetRecord>? assets = null,
+        IntakeDecision decision = IntakeDecision.NeedsSorting)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
@@ -333,7 +400,7 @@ public sealed class IntakeDestinationSelectionWebTests
                 receivedAt,
                 receivedAt,
                 "test-actor",
-                IntakeDecision.NeedsSorting,
+                decision,
                 "test decision reason",
                 [],
                 [],

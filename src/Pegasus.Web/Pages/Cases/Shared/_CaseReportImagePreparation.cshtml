@@ -8,7 +8,7 @@
     var view = Model;
     IHtmlContent? PreparationMetadata(CaseAssetPreparation item) => !view.MayPrepare
         ? null
-        : new HtmlString($"""data-preparation-card="" data-preparation-occurrence="{item.OccurrenceId:D}" data-preparation-version="{item.PreparationVersion}" data-preparation-role="{item.Role}" data-preparation-order="{item.Order?.ToString(CultureInfo.InvariantCulture) ?? string.Empty}" data-preparation-rotation="{(int)item.Rotation}" data-preparation-crop-left="{item.Crop.Left.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-top="{item.Crop.Top.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-width="{item.Crop.Width.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-height="{item.Crop.Height.ToString(CultureInfo.InvariantCulture)}"""
+        : new HtmlString($"""data-preparation-card="" data-preparation-occurrence="{item.OccurrenceId:D}" data-preparation-version="{item.PreparationVersion}" data-preparation-role="{item.Role}" data-preparation-order="{item.Order?.ToString(CultureInfo.InvariantCulture) ?? string.Empty}" data-preparation-rotation="{(int)item.Rotation}" data-preparation-crop-left="{item.Crop.Left.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-top="{item.Crop.Top.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-width="{item.Crop.Width.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-height="{item.Crop.Height.ToString(CultureInfo.InvariantCulture)}""" + "\""
         );
 }
 <div class="report-images" data-report-images="@view.Section">

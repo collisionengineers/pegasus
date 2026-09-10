@@ -206,7 +206,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             .GetRequiredService<IUpdatePrincipalDefaultInspectionLocation>()
             .ExecuteAsync(new(
                 Administrator, predecessor.Id, predecessor.Version,
-                "principal:default-location:replacement", "Keep the customer default across code replacement",
+                "principal:default-location:replacement",
                 InspectionAddressEvidenceKind.PhysicalAddress,
                 "Directory Web Caller Yard", "1 Directory Way, DW1 2EF", "DW1 2EF",
                 "manual", null, null,

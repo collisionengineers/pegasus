@@ -82,6 +82,8 @@ public sealed class ImageIntakeWebTests
         Assert.Equal($"/Received/{receiptId:D}", ActionHref(imageIntakePage, "View received item"));
         Assert.DoesNotContain("Open the origin receipt", imageIntakePage, StringComparison.Ordinal);
         Assert.DoesNotContain("Open in Box", imageIntakePage, StringComparison.Ordinal);
+        // This receipt never opened a Triage, so the record has nothing to link to.
+        Assert.DoesNotContain("Open Triage", imageIntakePage, StringComparison.Ordinal);
 
         using var associationResponse = await client.GetAsync($"/Received/{receiptId:D}");
         var associationPage = await associationResponse.Content.ReadAsStringAsync();

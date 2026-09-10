@@ -15,11 +15,10 @@ namespace Pegasus.Web.Pages.Administration.ValuationPresets;
 /// calculation.
 /// </summary>
 /// <remarks>
-/// One form per preset row plus the create form post to this page, so the
-/// submitted values arrive as handler parameters rather than bound
-/// properties: a <c>[Required]</c> property belonging to one form would
-/// invalidate every other form's post. The same rule the Accounts area
-/// follows.
+/// The create and edit editor forms post to this page, so their submitted
+/// values arrive as handler parameters rather than bound properties: a
+/// <c>[Required]</c> property belonging to one form would invalidate the
+/// other form's post. The same rule the Accounts area follows.
 /// </remarks>
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class IndexModel(
@@ -46,8 +45,8 @@ public sealed class IndexModel(
     /// <summary>The amount typed into the create form, kept over a failed post.</summary>
     public decimal? CreateAmount { get; private set; }
 
-    /// <summary>The reason typed into the create form, kept over a failed post.</summary>
-    public string CreateReason { get; private set; } = string.Empty;
+    /// <summary>The active state selected in the create editor.</summary>
+    public bool CreateActive { get; private set; } = true;
 
     /// <summary>The preset targeted by the most recent row post.</summary>
     public Guid RowPresetId { get; private set; }
@@ -58,8 +57,8 @@ public sealed class IndexModel(
     /// <summary>The raw amount submitted to the targeted row, kept after a failed post.</summary>
     public string RowAmount { get; private set; } = string.Empty;
 
-    /// <summary>The reason submitted by the most recent row post.</summary>
-    public string RowReason { get; private set; } = string.Empty;
+    /// <summary>The active state submitted by the most recent row post.</summary>
+    public bool RowActive { get; private set; }
 
     public Guid EditingPresetId { get; private set; }
     public long EditingPresetVersion { get; private set; }
@@ -119,18 +118,18 @@ public sealed class IndexModel(
         Guid presetId,
         string? label,
         decimal? amount,
-        string? reason,
+        bool active,
         string? operationKey,
         CancellationToken cancellationToken)
     {
         CreatePresetId = presetId == Guid.Empty ? Guid.NewGuid() : presetId;
         CreateLabel = label?.Trim() ?? string.Empty;
         CreateAmount = amount;
-        CreateReason = reason ?? string.Empty;
+        CreateActive = active;
         return RunAsync(
             async actor =>
             {
-                if (!Validate(operationKey, reason, label, amount))
+                if (!Validate(operationKey, label, amount))
                 {
                     return null;
                 }
@@ -140,10 +139,9 @@ public sealed class IndexModel(
                         CreatePresetId,
                         label!,
                         amount!.Value,
-                        Active: true,
+                        active,
                         ExpectedVersion: 0,
                         actor,
-                        reason!,
                         operationKey!),
                     cancellationToken);
                 return ValuationPresetLabels.Created;
@@ -152,10 +150,8 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// The one write a preset row performs. Enabling and disabling is the
-    /// same save with a different <paramref name="active"/> value, which is
-    /// why the row's buttons carry it rather than posting to a second
-    /// handler.
+    /// The one write the preset editor performs. Its enabled checkbox is part
+    /// of the save rather than a separate state-changing command.
     /// </summary>
     public Task<IActionResult> OnPostSaveAsync(
         Guid presetId,
@@ -163,7 +159,6 @@ public sealed class IndexModel(
         string? label,
         decimal? amount,
         bool active,
-        string? reason,
         string? editLeaseToken,
         string? operationKey,
         CancellationToken cancellationToken)
@@ -171,14 +166,14 @@ public sealed class IndexModel(
         RowPresetId = presetId;
         RowLabel = label ?? string.Empty;
         RowAmount = Request.Form["amount"].ToString();
-        RowReason = reason ?? string.Empty;
+        RowActive = active;
         EditingPresetId = presetId;
         EditingPresetVersion = expectedVersion;
         EditingLeaseToken = editLeaseToken ?? string.Empty;
         return RunAsync(
             async actor =>
             {
-                if (!Validate(operationKey, reason, label, amount) | !RequirePreset(presetId))
+                if (!Validate(operationKey, label, amount) | !RequirePreset(presetId))
                 {
                     return null;
                 }
@@ -191,7 +186,6 @@ public sealed class IndexModel(
                         active,
                         expectedVersion,
                         actor,
-                        reason!,
                         operationKey!)
                     {
                         EditLeaseToken = editLeaseToken ?? string.Empty
@@ -315,7 +309,6 @@ public sealed class IndexModel(
 
     private bool Validate(
         string? operationKey,
-        string? reason,
         string? label,
         decimal? amount)
     {
@@ -323,11 +316,6 @@ public sealed class IndexModel(
         if (string.IsNullOrWhiteSpace(operationKey) || !IsOperationKeyValid(operationKey))
         {
             ModelState.AddModelError(string.Empty, ValuationPresetLabels.Expired);
-            valid = false;
-        }
-        if (string.IsNullOrWhiteSpace(reason))
-        {
-            ModelState.AddModelError(string.Empty, ValuationPresetLabels.ReasonRequired);
             valid = false;
         }
         if (string.IsNullOrWhiteSpace(label))
@@ -408,7 +396,6 @@ internal static class ValuationPresetLabels
     public const string Amount = "Amount";
     public const string State = "State";
     public const string Version = "Version";
-    public const string Reason = "Reason";
     public const string Save = "Save";
     public const string Disable = "Disable";
     public const string Enable = "Enable";
@@ -420,7 +407,6 @@ internal static class ValuationPresetLabels
     public const string Saved = "The valuation preset was saved.";
     public const string Disabled = "The valuation preset was disabled.";
     public const string Expired = "The form has expired. Retry the operation.";
-    public const string ReasonRequired = "Enter a reason.";
     public const string LabelRequired = "Enter a label.";
     public const string AmountRequired = "Enter an amount of £0.00 or more.";
     public const string NotFound = "The valuation preset no longer exists.";

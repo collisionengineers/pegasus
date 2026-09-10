@@ -22,6 +22,7 @@ internal static class V1FoundationModelConfiguration
             e.HasIndex(x => new { x.ActorSubjectId, x.MailboxId, x.OperationKey }).IsUnique();
             e.Property(x => x.ActorSubjectId).HasMaxLength(200); e.Property(x => x.OperationKey).HasMaxLength(100);
             e.Property(x => x.PayloadHash).HasMaxLength(64).IsFixedLength(); e.Property(x => x.CorrelationMarker).HasMaxLength(100);
+            e.Property(x => x.ObservedSentImmutableMessageId).HasMaxLength(500);
             e.Property(x => x.Purpose).HasConversion<string>().HasMaxLength(40); e.Property(x => x.ComposeMode).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.State).HasConversion<string>().HasMaxLength(40); e.Property(x => x.AttemptStage).HasConversion<string>().HasMaxLength(40);
             e.Property(x => x.Version).IsConcurrencyToken(); e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();

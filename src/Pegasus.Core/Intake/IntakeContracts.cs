@@ -1096,7 +1096,7 @@ public sealed record LinkIntakeRequest(
     string EditLeaseToken,
     ActionActor Actor,
     string OperationKey,
-    string Reason);
+    string? Reason);
 
 public sealed record ReverseIntakeLinkRequest(
     Guid ReceiptId,

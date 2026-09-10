@@ -35,7 +35,6 @@ public sealed class EfStaffAccountAdministration(
         if (replay is not null)
         {
             if (replay.EventKind != "staff_account_created"
-                || !string.Equals(replay.Reason, request.Reason, StringComparison.Ordinal)
                 || !Guid.TryParse(replay.AggregateId, out var replayStaffId))
             {
                 throw OperationConflict();
@@ -72,7 +71,6 @@ public sealed class EfStaffAccountAdministration(
             StaffRole.User,
             "staff_account_created",
             request.OperationKey,
-            request.Reason,
             cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -604,7 +602,6 @@ public sealed class EfStaffAccountAdministration(
         StaffRole role,
         string eventKind,
         string operationKey,
-        string? reason,
         CancellationToken cancellationToken)
     {
         var normalizedUserName = NormalizeUserName(userName);
@@ -640,8 +637,7 @@ public sealed class EfStaffAccountAdministration(
             operationKey,
             beforeJson: null,
             Snapshot(user, role),
-            timeProvider.GetUtcNow(),
-            reason);
+            timeProvider.GetUtcNow());
         return EfStaffAccountQueries.Summary(user, role);
     }
 

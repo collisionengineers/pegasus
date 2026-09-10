@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
@@ -109,6 +110,82 @@ public sealed class CaseWorkflowPersistenceTests
 
         Assert.Equal(CaseLifecycleState.PostReport, reopened.State);
         Assert.Equal(evidenceId, reopened.ReportSentEvidence?.EvidenceId);
+    }
+
+    [Fact]
+    public async Task ReturnToEngineerAllowsQueryWithTheNormalLeaseAndAssignedEngineerGates()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId);
+            workflow.State = nameof(CaseLifecycleState.Query);
+            workflow.ClosureOutcome = null;
+            await context.SaveChangesAsync();
+        }
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, actor, "claim-return-query"),
+            CancellationToken.None);
+
+        var returned = await new ReturnCaseToEngineer(
+            harness.Store, harness.EngineerEligibility).ExecuteAsync(
+            new(
+                harness.CaseId,
+                0,
+                actor,
+                "return-query-to-engineer",
+                "Query requires report preparation work.",
+                lease.Token),
+            CancellationToken.None);
+
+        Assert.Equal(CaseLifecycleState.ReportPreparation, returned.State);
+        Assert.Equal(1L, returned.Version);
+    }
+
+    [Fact]
+    public async Task ReturnToEngineerRefusesOtherStatesAndAnUnassignedCase()
+    {
+        await using var stateHarness = await WorkflowHarness.CreateAsync();
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var reviewLease = await stateHarness.Store.ClaimAsync(
+            new(stateHarness.CaseId, 0, actor, "claim-return-review"),
+            CancellationToken.None);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new ReturnCaseToEngineer(
+                stateHarness.Store, stateHarness.EngineerEligibility).ExecuteAsync(
+                new(
+                    stateHarness.CaseId,
+                    0,
+                    actor,
+                    "return-review-to-engineer",
+                    "This state is not post-report.",
+                    reviewLease.Token),
+                CancellationToken.None));
+
+        await using var assignmentHarness = await WorkflowHarness.CreateAsync();
+        await using (var context = await assignmentHarness.Factory.CreateDbContextAsync())
+        {
+            var workflow = await context.CaseWorkflows.SingleAsync(item =>
+                item.CaseId == assignmentHarness.NotReadyCaseId);
+            workflow.State = nameof(CaseLifecycleState.PostReportComplete);
+            workflow.AssignedEngineerId = null;
+            await context.SaveChangesAsync();
+        }
+        var missingEngineerLease = await assignmentHarness.Store.ClaimAsync(
+            new(assignmentHarness.NotReadyCaseId, 0, actor, "claim-return-unassigned"),
+            CancellationToken.None);
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            new ReturnCaseToEngineer(
+                assignmentHarness.Store, assignmentHarness.EngineerEligibility).ExecuteAsync(
+                new(
+                    assignmentHarness.NotReadyCaseId,
+                    0,
+                    actor,
+                    "return-unassigned-to-engineer",
+                    "An Engineer must be assigned.",
+                    missingEngineerLease.Token),
+                CancellationToken.None));
     }
 
     [Fact]
@@ -1327,7 +1404,6 @@ public sealed class CaseWorkflowPersistenceTests
             lease.Token,
             actor,
             "record-manual-chase",
-            "Requested the outstanding vehicle images",
             "email",
             "claims@qdosassist.co.uk",
             attemptedAtUtc,
@@ -1349,6 +1425,12 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(CaseChaseSchedule.NextChaseAt(attemptedAtUtc), recorded.NextChaseAtUtc);
         Assert.Equal(1L, recorded.Version);
         Assert.Equal(1L, await harness.WorkflowEventCountAsync(request.OperationKey));
+        var history = await harness.QueryStore.ListHistoryByCursorAsync(
+            harness.NotReadyCaseId, null, null, 20, default);
+        var chase = Assert.Single(history, entry => entry.EventType == "manual_chase_recorded");
+        Assert.Equal(
+            "email to claims@qdosassist.co.uk: Provider confirmed the images will follow — Awaiting the promised upload.",
+            chase.Reason);
     }
 
     [Fact]
@@ -2147,6 +2229,14 @@ public sealed class CaseWorkflowPersistenceTests
     public async Task WrongPrincipalReplacementIsAllocatedLinkedAndReplayedAtomically()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var principal = await context.Principals.Include(item => item.Organization)
+                .SingleAsync(item => item.Code == "QDOS");
+            principal.Organization.GuidanceTemplate = "Contact the repairer before finalising.";
+            principal.Organization.GuidanceTemplateVersion = 1;
+            await context.SaveChangesAsync();
+        }
         var standaloneAuditEvidenceId =
             await harness.SeedStandaloneAuditEvidenceAsync(harness.CaseId);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
@@ -2185,6 +2275,7 @@ public sealed class CaseWorkflowPersistenceTests
             CancellationToken.None);
         Assert.NotNull(originalDataBefore);
         Assert.Equal("Jane Workflow", originalDataBefore.Claimant.Name.Confirmed?.Value);
+        var originalIndexRowBefore = await harness.FindMatchIndexRowAsync(harness.CaseId);
         var allocated = await create.ExecuteAsync(request, default);
         var replay = await create.ExecuteAsync(request, default);
 
@@ -2236,6 +2327,38 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(originalDataBefore.Identity, originalDataAfter?.Identity);
         Assert.Equal(originalDataBefore.Origin, originalDataAfter?.Origin);
         Assert.Equal(originalDataBefore.Claimant.Name, originalDataAfter?.Claimant.Name);
+
+        // Wrong-Principal correction: the replacement's reference and sequence
+        // are allocated under QDOS, so its work_provider_code must name QDOS
+        // too, as a staff-confirmed value, even though every other cloned
+        // field carried the original's provenance verbatim. The projected
+        // CaseMatchIndex row must follow suit, while the original — still
+        // CreatedInError, keeping its own history — is unaffected.
+        var replacementProvider = replacementData!.Provider.WorkProviderCode.Current;
+        Assert.Equal(CaseDataValueKind.Confirmed, replacementProvider?.Kind);
+        Assert.Equal("QDOS", replacementProvider?.Value);
+        var originalIndexRowAfter = await harness.FindMatchIndexRowAsync(harness.CaseId);
+        Assert.Equal(originalIndexRowBefore?.WorkProviderCode, originalIndexRowAfter?.WorkProviderCode);
+        var replacementIndexRow = await harness.FindMatchIndexRowAsync(allocated.Identity.CaseId);
+        Assert.Equal("QDOS", replacementIndexRow?.WorkProviderCode);
+
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var principal = await context.Principals.Include(item => item.Organization)
+                .SingleAsync(item => item.Code == "QDOS");
+            principal.Organization.GuidanceTemplate = "Updated guidance for future Cases.";
+            principal.Organization.GuidanceTemplateVersion = 2;
+            await context.SaveChangesAsync();
+        }
+        var history = await harness.QueryStore.ListHistoryByCursorAsync(
+            allocated.Identity.CaseId, null, null, 20, default);
+        var guidance = Assert.Single(history.SelectMany(entry => entry.Guidance));
+        Assert.Equal("principal_guidance_applied", guidance.EventType);
+        Assert.Equal("Contact the repairer before finalising.", guidance.Text);
+        Assert.Equal(1, guidance.TemplateVersion);
+        var originalHistory = await harness.QueryStore.ListHistoryByCursorAsync(
+            harness.CaseId, null, null, 20, default);
+        Assert.Empty(originalHistory.SelectMany(entry => entry.Guidance));
     }
 
     [Theory]
@@ -2398,7 +2521,10 @@ public sealed class CaseWorkflowPersistenceTests
             ReportSentEvidenceStore = new EfCaseReportSentEvidenceStore(
                 factory,
                 new EfApprovedMailboxStore(factory, timeProvider));
-            ReplacementStore = new EfLinkedCaseReplacementStore(factory, timeProvider);
+            ReplacementStore = new EfLinkedCaseReplacementStore(
+                factory,
+                timeProvider,
+                [new PrincipalCaseMatchPolicy(new QdosInstructionExtractionPolicy())]);
             TaskStore = new EfCaseTaskStore(factory, timeProvider);
             DataStore = new EfCaseDataStore(factory, timeProvider);
         }
@@ -2747,6 +2873,15 @@ public sealed class CaseWorkflowPersistenceTests
             var workflow = await context.CaseWorkflows.AsNoTracking()
                 .SingleAsync(item => item.CaseId == caseId);
             return workflow.EditLeaseOperationKey;
+        }
+
+        /// <summary>The case's projected CaseMatchIndex row, or null when the case has no provider yet.</summary>
+        public async Task<CaseMatchIndexEntity?> FindMatchIndexRowAsync(Guid caseId)
+        {
+            await using var context = await factory.CreateDbContextAsync();
+            return await context.CaseMatchIndex
+                .AsNoTracking()
+                .SingleOrDefaultAsync(item => item.CaseId == caseId);
         }
 
         public async Task<long> WorkflowEventCountAsync(string operationKey)

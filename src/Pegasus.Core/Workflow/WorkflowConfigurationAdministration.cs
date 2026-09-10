@@ -5,7 +5,6 @@ namespace Pegasus.Core.Workflow;
 public sealed record UpdateWorkflowConfigurationRequest(
     int ExpectedVersion,
     ActionActor Actor,
-    string Reason,
     string OperationKey)
 {
     public bool RequireInstructions { get; init; } = true;
@@ -62,10 +61,6 @@ public sealed class UpdateWorkflowConfiguration(IWorkflowConfigurationStore stor
         return _store.UpdateAsync(
             request with
             {
-                Reason = RequireText(
-                    request.Reason,
-                    1000,
-                    "A configuration-change reason is required."),
                 OperationKey = RequireText(
                     request.OperationKey,
                     100,

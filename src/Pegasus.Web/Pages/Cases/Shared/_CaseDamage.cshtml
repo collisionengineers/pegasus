@@ -6,6 +6,7 @@
     var mayEdit = Model.CanEditEngineering && Model.Case!.Data is not null;
     var rawImpacts = Model.AssessmentEditorValue(AssessmentVocabulary.DamageImpacts) ?? "[]";
     var damageFields = CaseWorkspaceLabels.Editors.Damage;
+    var diagramClass = mayEdit ? "damage-diagram" : "damage-diagram damage-diagram--readonly";
 }
 
 <section class="panel case-damage" aria-labelledby="section-damage-title"
@@ -18,18 +19,36 @@
         }
         <div class="damage-workbench">
             <div class="damage-diagram-wrap">
-                <svg class="damage-diagram" viewBox="0 0 300 520" role="img" aria-labelledby="damage-diagram-title damage-diagram-description">
+                <svg class="@diagramClass" viewBox="@DamageDiagramGeometry.ViewBox" role="group" aria-labelledby="damage-diagram-title damage-diagram-description">
                     <title id="damage-diagram-title">Vehicle damage diagram</title>
-                    <desc id="damage-diagram-description">Select a vehicle region to view its damage. The controls below cover underside, interior and mechanical damage.</desc>
-                    <path class="vehicle-outline" d="M95 22h110l27 63 21 69v213l-21 69-27 62H95l-27-62-21-69V154l21-69z" />
+                    <desc id="damage-diagram-description">@(mayEdit ? "Select a vehicle region to record damage. The controls below cover underside, interior and mechanical damage." : "Select a recorded vehicle region to view its damage.")</desc>
+                    <text class="damage-diagram-label" x="120" y="14" text-anchor="middle">FRONT</text>
+                    @foreach (var wheel in DamageDiagramGeometry.Wheels)
+                    {
+                        <rect class="damage-wheel" x="@(wheel.CentreX - 10)" y="@(wheel.CentreY - 22)" width="20" height="44" rx="6" />
+                    }
+                    <path class="damage-vehicle-body" d="@DamageDiagramGeometry.BodyPath" />
+                    <path class="damage-glass" d="@DamageDiagramGeometry.FrontGlassPath" />
+                    <path class="damage-glass" d="@DamageDiagramGeometry.RearGlassPath" />
+                    <path class="damage-structural-path damage-structural-path--strong" d="@DamageDiagramGeometry.StrongStructuralLinesPath" />
+                    <path class="damage-structural-path" d="@DamageDiagramGeometry.StructuralLinesPath" />
                     <g class="damage-zones">
-                        <path data-damage-zone="bonnet" d="M112 83h76l12 44h-100z" /><path data-damage-zone="windscreen" d="M105 132h90l9 33h-108z" /><path data-damage-zone="roof" d="M100 170h100v153H100z" /><path data-damage-zone="rear_screen" d="M105 328h90l9 34h-108z" /><path data-damage-zone="tailgate" d="M112 367h76l12 46h-100z" />
-                        <path data-damage-zone="front_left_corner" d="M76 94l33-11 3 44-35 18z" /><path data-damage-zone="front_centre" d="M112 46h76v32h-76z" /><path data-damage-zone="front_right_corner" d="M224 94l-33-11-3 44 35 18z" />
-                        <path data-damage-zone="left_front_wing" d="M70 151l30-17v53l-29 20z" /><path data-damage-zone="left_front_door" d="M65 211l35-20v62l-36 20z" /><path data-damage-zone="left_rear_door" d="M64 278l36-20v61l-35 19z" /><path data-damage-zone="left_quarter" d="M69 343l31-18v54l-30 19z" />
-                        <path data-damage-zone="right_front_wing" d="M230 151l-30-17v53l29 20z" /><path data-damage-zone="right_front_door" d="M235 211l-35-20v62l36 20z" /><path data-damage-zone="right_rear_door" d="M236 278l-36-20v61l35 19z" /><path data-damage-zone="right_quarter" d="M231 343l-31-18v54l30 19z" />
-                        <path data-damage-zone="rear_left_corner" d="M76 405l35 17-2 45-33-13z" /><path data-damage-zone="rear_centre" d="M112 418h76v35h-76z" /><path data-damage-zone="rear_right_corner" d="M224 405l-35 17 2 45 33-13z" />
-                        <ellipse data-damage-zone="wheel_left_front" cx="77" cy="185" rx="13" ry="29" /><ellipse data-damage-zone="wheel_right_front" cx="223" cy="185" rx="13" ry="29" /><ellipse data-damage-zone="wheel_left_rear" cx="77" cy="335" rx="13" ry="29" /><ellipse data-damage-zone="wheel_right_rear" cx="223" cy="335" rx="13" ry="29" />
+                        @foreach (var zone in DamageDiagramGeometry.Zones)
+                        {
+                            <path data-damage-zone="@zone.Code" d="@zone.Path" />
+                        }
+                        @foreach (var wheel in DamageDiagramGeometry.Wheels)
+                        {
+                            <rect data-damage-zone="@wheel.Code" x="@(wheel.CentreX - 10)" y="@(wheel.CentreY - 22)" width="20" height="44" rx="6" />
+                        }
                     </g>
+                    <g class="damage-markers" aria-hidden="true">
+                        @foreach (var marker in DamageDiagramGeometry.Markers)
+                        {
+                            <g class="damage-marker is-hidden" data-damage-marker="@marker.Code" transform="translate(@(marker.CentreX - 9) @(marker.CentreY - 9))"><circle cx="9" cy="9" r="9" /><path transform="translate(3 3) scale(.5)" d="M14.5 0 3 14h8l-1.5 10L21 9h-8z" /></g>
+                        }
+                    </g>
+                    <text class="damage-diagram-label" x="120" y="386" text-anchor="middle">REAR</text>
                 </svg>
                 <div class="damage-extra-zones" aria-label="Other vehicle areas">
                     @foreach (var zone in new[] { "underside", "interior", "mechanical" })

@@ -109,7 +109,7 @@ public sealed class ConfigurationModel(
             if (ModelState.IsValid)
             {
                 if (EditingId == GetWorkflowConfiguration.RecordId)
-                    await updateWorkflowConfiguration.ExecuteAsync(new(checked((int)ExpectedVersion), actor, Reason ?? string.Empty, OperationKey)
+                    await updateWorkflowConfiguration.ExecuteAsync(new(checked((int)ExpectedVersion), actor, OperationKey)
                     {
                         RequireInstructions = RequireInstructions, RequireImages = RequireImages,
                         ChaseIntervalDays = ChaseIntervalDays, EditLeaseToken = LeaseToken ?? string.Empty

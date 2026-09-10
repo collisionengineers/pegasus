@@ -24,9 +24,10 @@ public sealed partial class OrganizationDirectoryWebTests
         var settingsPath = $"/Administration/Contacts/Edit/{contactId:D}";
         var settingsHtml = await EditContactAsync(client, settingsPath);
         Assert.Contains("Pegasus", settingsHtml, StringComparison.Ordinal);
-        Assert.Contains("EVA ZIP export", settingsHtml, StringComparison.Ordinal);
-        Assert.Contains("EVA manual API submission", settingsHtml, StringComparison.Ordinal);
-        Assert.Contains("EVA automatic API submission at Review", settingsHtml, StringComparison.Ordinal);
+        Assert.Contains(">EVA</option>", settingsHtml, StringComparison.Ordinal);
+        Assert.Contains("ZIP export", settingsHtml, StringComparison.Ordinal);
+        Assert.Contains("Manual API submission", settingsHtml, StringComparison.Ordinal);
+        Assert.Contains("Automatic API submission at Review", settingsHtml, StringComparison.Ordinal);
 
         var locationForm = new Dictionary<string, string>
         {
@@ -38,8 +39,7 @@ public sealed partial class OrganizationDirectoryWebTests
             ["LocationIsImageBasedAssessment"] = bool.FalseString,
             ["LocationLabel"] = "Directory Web Caller Yard",
             ["LocationAddress"] = "1 Directory Way, DW1 2EF",
-            ["LocationPostcode"] = "DW1 2EF",
-            ["LocationReason"] = "Web caller default location proof"
+            ["LocationPostcode"] = "DW1 2EF"
         };
         using var locationPost = await client.PostAsync(
             $"{settingsPath}?handler=UpdateLocation",

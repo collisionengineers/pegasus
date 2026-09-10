@@ -96,7 +96,7 @@ public interface IOrganizationAdministrationStore
     /// <summary>
     /// EXT-18/S05 item 6: the principal's one default inspection-location
     /// choice — Image Based Assessment, or one sourced/manual physical
-    /// address kept alongside a staff reason. This never changes B's separate
+    /// address. This never changes B's separate
     /// CE assessment method and never touches the shared <see cref="Principal"/>
     /// record; it is C's own directory-facing summary field.
     /// </summary>
@@ -115,7 +115,6 @@ public sealed record UpdatePrincipalDefaultInspectionLocationRequest(
     Guid PrincipalId,
     long ExpectedVersion,
     string OperationKey,
-    string Reason,
     InspectionAddressEvidenceKind Kind,
     string? Label,
     string? Address,
@@ -364,8 +363,7 @@ public static class OrganizationAdministrationPolicy
 
     /// <summary>
     /// EXT-18/S05 item 6: an Image Based Assessment choice carries no address;
-    /// a physical choice requires one and, when it corrects a sourced value,
-    /// keeps the reason a staff override always requires.
+    /// a physical choice requires one.
     /// </summary>
     public static UpdatePrincipalDefaultInspectionLocationRequest Normalize(
         UpdatePrincipalDefaultInspectionLocationRequest request)
@@ -388,10 +386,6 @@ public static class OrganizationAdministrationPolicy
                 request.OperationKey,
                 MaximumOperationKeyLength,
                 nameof(request.OperationKey)),
-            Reason = NormalizeRequiredText(
-                request.Reason,
-                MaximumReasonLength,
-                nameof(request.Reason)),
             EditLeaseToken = NormalizeEditLeaseToken(request.EditLeaseToken)
         };
 

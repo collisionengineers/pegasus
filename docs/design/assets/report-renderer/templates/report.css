@@ -218,8 +218,18 @@ tbody tr:nth-child(even) td { background: #f5f5f5; }
 .work-list { margin-bottom: 4mm; }
 .impact-diagram { display: flex; justify-content: center; margin: 2mm 0; }
 .impact-diagram svg { height: 75mm; width: auto; }
-.impact-diagram path, .impact-diagram polygon, .impact-diagram ellipse { fill: #f5f5f5; stroke: #777; stroke-width: 1.5; }
-.impact-diagram .marked { fill: #c80a32; stroke: #8d0020; }
+.impact-diagram-body { fill: #fff; stroke: #9ba7ad; stroke-width: 1.5; }
+.impact-diagram-glass { fill: #e9eef0; stroke: #9ba7ad; stroke-width: 1; }
+.impact-diagram-wheel { fill: #30383d; }
+.impact-diagram > svg > path:not(.impact-diagram-body):not(.impact-diagram-glass):not(.impact-diagram-structural):not(.marked) { fill: transparent; stroke: transparent; }
+.impact-diagram-structural { fill: none; stroke: #75828a; stroke-width: 1; }
+.impact-diagram-structural--strong { stroke: #9ba7ad; }
+.impact-diagram-marker { pointer-events: none; }
+.impact-diagram-marker circle { fill: #c80a32; }
+.impact-diagram-marker path { fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.impact-diagram rect:not(.impact-diagram-wheel):not(.marked) { fill: transparent; stroke: transparent; }
+.impact-diagram .marked { fill: #f8dce1; stroke: #c80a32; stroke-width: 1.5; }
+.impact-diagram-label { fill: #75828a; font: 600 7pt Arial, sans-serif; letter-spacing: .08em; }
 
 /* ============================================================================
    DENSITY VARIANTS (valuation auto-fit) — ported verbatim

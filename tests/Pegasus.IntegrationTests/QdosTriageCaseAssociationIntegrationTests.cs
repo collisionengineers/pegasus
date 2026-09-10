@@ -20,9 +20,8 @@ public sealed partial class QdosTriageIntegrationTests
     public async Task AutomaticPairingRechecksCurrentIdentityLeaseVersionAndManualIntent()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-link-guards.eml");
-        _ = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName, email.MediaType, email.Content);
+        _ = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
         var triage = (await GetOnlyTriageAsync(factory.Services)).Record;
         var caseId = await SeedMatchingFormalCaseAsync(factory.Services, triage.Origin.ReceiptId);
         await using var scope = factory.Services.CreateAsyncScope();
@@ -150,12 +149,8 @@ public sealed partial class QdosTriageIntegrationTests
     public async Task CaseAssociationUsesCanonicalWorkflowVersionAndActiveCaseLease()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-case-association.eml");
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
-        email.MediaType,
-        email.Content);
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
         var initial = await GetOnlyTriageAsync(factory.Services);
         var triageId = initial.Record.Id;
         var actor = ActionActor.Staff(

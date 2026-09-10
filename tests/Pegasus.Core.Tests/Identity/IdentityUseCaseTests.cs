@@ -17,14 +17,12 @@ public sealed class IdentityUseCaseTests
             {
                 PrintedName = "  A. Engineer  ",
                 Qualifications = "  M.Inst.IAEA  ",
-                Reason = "  Approved sign-off  ",
                 OperationKey = "  settings-1  "
             }, default);
 
         Assert.Equal(StaffRole.Engineer, store.SettingsRequest?.Role);
         Assert.Equal("A. Engineer", store.SettingsRequest?.PrintedName);
         Assert.Equal("M.Inst.IAEA", store.SettingsRequest?.Qualifications);
-        Assert.Equal("Approved sign-off", store.SettingsRequest?.Reason);
         Assert.Equal("settings-1", store.SettingsRequest?.OperationKey);
     }
 
@@ -122,7 +120,7 @@ public sealed class IdentityUseCaseTests
 
     private static UpdateStaffAccountSettingsRequest SettingsRequest(Guid staffId) =>
         new(Administrator, staffId, StaffRole.Engineer, true, "A Engineer", null, Png(), true,
-            "Approved", "settings-operation", 2, LeaseToken);
+            "settings-operation", 2, LeaseToken);
 
     private static byte[] Png() => [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 

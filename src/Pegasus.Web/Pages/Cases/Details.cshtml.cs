@@ -369,8 +369,14 @@ public sealed partial class DetailsModel(
             ? value
             : Labels.CaseWorkspace.AbsentValue;
 
-    public bool CanEditEngineering => AssessmentCanOpen && !AssessmentIsReadOnly
-        && !string.IsNullOrWhiteSpace(RenderLeaseToken) && Case?.Workflow.Archive is null;
+    public bool IsPostReportReadOnly => Case?.Workflow.State is
+        CaseLifecycleState.PostReportComplete or CaseLifecycleState.Query;
+
+    public bool CanEditCaseData => !IsPostReportReadOnly
+        && !string.IsNullOrWhiteSpace(RenderLeaseToken)
+        && Case?.Workflow.Archive is null;
+
+    public bool CanEditEngineering => CanEditCaseData && AssessmentCanOpen && !AssessmentIsReadOnly;
 
     public bool CanEditAssessmentField(string path) => CanEditEngineering
         && (!AssessmentVocabulary.Definitions[path].IsFinding || ActorIsEngineer);
@@ -514,6 +520,87 @@ public sealed partial class DetailsModel(
 
     public string RenewLeaseOperationKey { get; private set; } = NewOperationKey();
 
+    /// <summary>
+    /// Review point 12: the adverse dispositions this Case may actually be
+    /// closed with right now, for the one Close action that is kept apart from
+    /// normal progression. Empty when none is available, including on a Case
+    /// that is already closed — closing never deletes a Case, so a terminal
+    /// Case simply reads its outcome instead of offering the action again.
+    /// </summary>
+    public IReadOnlyList<CaseClosureOutcome> AvailableClosureOutcomes { get; private set; } = [];
+
+    /// <summary>
+    /// The closure chooser's options, decided by Core's own closure rules
+    /// rather than by a second copy of them here. Each named outcome is put to
+    /// <see cref="CaseLifecycleRules.ValidateClose"/> and
+    /// <see cref="CaseLifecycleRules.RequireClosureIsAllowed"/> exactly as the
+    /// Closure handler will put the real request, so an outcome the command
+    /// would refuse is never offered and the two cannot drift. The probe is a
+    /// question, never a command: nothing is executed and nothing is persisted.
+    /// </summary>
+    /// <remarks>
+    /// An outcome whose resulting state is not terminal is normal progression —
+    /// post-report completion — and belongs to the completion action, not to
+    /// the adverse group. The store writes the outcome's own name as the state,
+    /// so the resulting state is read from the name rather than mapped again.
+    /// </remarks>
+    private static IReadOnlyList<CaseClosureOutcome> DescribeClosureOutcomes(
+        CaseWorkflowRecord workflow,
+        ActionActor actor) =>
+        [
+            .. Enum.GetValues<CaseClosureOutcome>()
+                .Where(outcome => IsAdverseDisposition(outcome)
+                    && ClosureIsAllowed(workflow, actor, outcome))
+        ];
+
+    private static bool IsAdverseDisposition(CaseClosureOutcome outcome) =>
+        Enum.TryParse<CaseLifecycleState>(outcome.ToString(), out var resulting)
+        && CaseLifecycleRules.IsTerminal(resulting);
+
+    private static bool ClosureIsAllowed(
+        CaseWorkflowRecord workflow,
+        ActionActor actor,
+        CaseClosureOutcome outcome)
+    {
+        // The envelope the real post will carry, so the probe reaches the
+        // outcome rules the same way the command does. The reason is the
+        // operator's to write; the chooser only asks which outcomes exist.
+        var probe = new CloseCaseRequest(
+            workflow.CaseId,
+            workflow.Version,
+            actor,
+            ClosureProbeOperationKey,
+            ClosureProbeReason,
+            ClosureProbeLeaseToken,
+            outcome);
+        try
+        {
+            CaseLifecycleRules.ValidateClose(probe);
+            CaseLifecycleRules.RequireClosureIsAllowed(workflow, probe);
+            return true;
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException
+                or InvalidOperationException
+                or StaffAuthorizationException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Placeholders the closure probe carries so the mutation envelope is
+    /// well-formed while the outcome rules are asked. Neither reaches a store:
+    /// the probe is never executed, and the posted form carries the operator's
+    /// own reason and this browser's real lease token.
+    /// </summary>
+    private const string ClosureProbeOperationKey = "closure-outcome-probe";
+
+    private const string ClosureProbeReason = "closure-outcome-probe";
+
+    private static readonly string ClosureProbeLeaseToken =
+        new('0', CaseEditAuthority.LeaseTokenLength);
+
     public async Task<IActionResult> OnGetAsync(
         Guid id,
         string? estimate,
@@ -577,6 +664,7 @@ public sealed partial class DetailsModel(
                 Valuations = await listCaseValuations.ExecuteAsync(id, cancellationToken);
             }
             await DescribeWorkspaceExtrasAsync(cancellationToken);
+            AvailableClosureOutcomes = DescribeClosureOutcomes(Case.Workflow, actor);
             RestoreProposedValues(id);
             await DescribeEditAuthorityHolderAsync(actor, cancellationToken);
             return Page();

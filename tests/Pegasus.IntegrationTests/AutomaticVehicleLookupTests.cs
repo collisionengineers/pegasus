@@ -57,10 +57,10 @@ public sealed class AutomaticVehicleLookupTests
     }
 
     [Fact]
-    public async Task SweepSkipsTerminalCasesAndUnusableValues()
+    public async Task SweepSkipsClosedCasesAndUnusableValues()
     {
         await using var database = await CreateDatabaseAsync();
-        var terminalCase = await SeedCaseAsync(database, CaseLifecycleState.PostReportComplete);
+        var terminalCase = await SeedCaseAsync(database, CaseLifecycleState.ProviderCancelled);
         await SeedRegistrationFieldAsync(database, terminalCase, "AB12CDE", "fact");
         var unusableCase = await SeedCaseAsync(database, CaseLifecycleState.Review);
         await SeedRegistrationFieldAsync(database, unusableCase, "???", "fact");
@@ -68,6 +68,20 @@ public sealed class AutomaticVehicleLookupTests
         Assert.Equal(0, await SweepAsync(database));
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM VehicleLookupRequests"));
+    }
+
+    [Theory]
+    [InlineData(CaseLifecycleState.PostReportComplete)]
+    [InlineData(CaseLifecycleState.Query)]
+    public async Task SweepEnqueuesLookupsForCompletedAndQueryCases(CaseLifecycleState state)
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database, state);
+        await SeedRegistrationFieldAsync(database, caseId, "AB12CDE", "fact");
+
+        Assert.Equal(1, await SweepAsync(database));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}'"));
     }
 
     [Fact]

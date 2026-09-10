@@ -34,7 +34,6 @@ public sealed record ManualChaseRecord(
     string EditLeaseToken,
     Pegasus.Core.Identity.ActionActor Actor,
     string OperationKey,
-    string Reason,
     string Channel,
     string TargetPartyOrAddress,
     DateTimeOffset AttemptedAtUtc,

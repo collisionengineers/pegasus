@@ -921,7 +921,7 @@ public sealed class CaseReportGenerationPersistenceTests
             {
                 await store.UpdateAsync(new(
                     actor, account.Id, StaffRole.User, false, null, null, null, false,
-                    "Duties changed", "change-signatory", account.Version, lease.Token), default);
+                    "change-signatory", account.Version, lease.Token), default);
             }
             else
             {
@@ -930,7 +930,7 @@ public sealed class CaseReportGenerationPersistenceTests
                     change == "name" ? "Ed M" : "Ed Mawdsley",
                     change == "qualifications" ? "ATA VDA" : "ATA VDA AQP",
                     change == "signature" ? EvidenceBytesOf(7) : SignatureBytes,
-                    change != "eligibility", "Updated signatory", "change-signatory",
+                    change != "eligibility", "change-signatory",
                     account.Version, lease.Token), default);
             }
         }

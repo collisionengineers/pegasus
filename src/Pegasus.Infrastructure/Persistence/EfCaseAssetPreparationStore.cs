@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -72,6 +73,12 @@ public sealed class EfCaseAssetPreparationStore(
         CaseMutationGuard.RequireVersion(workflow, request.ExpectedVersion);
         CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
         ArchivedCaseGuard.RequireMutable(workflow);
+        if (!Enum.TryParse<CaseLifecycleState>(workflow.State, out var state)
+            || !AssessmentPolicy.IsWritableState(state))
+        {
+            throw new InvalidOperationException(
+                "Case asset preparation cannot be saved in its current state.");
+        }
 
         var beforeVersion = workflow.Version;
         var beforeState = await LoadCurrentAsync(context, request.CaseId, cancellationToken);
@@ -148,6 +155,12 @@ public sealed class EfCaseAssetPreparationStore(
         CaseMutationGuard.RequireVersion(workflow, request.ExpectedVersion);
         CaseMutationGuard.RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
         ArchivedCaseGuard.RequireMutable(workflow);
+        if (!Enum.TryParse<CaseLifecycleState>(workflow.State, out var state)
+            || !AssessmentPolicy.IsWritableState(state))
+        {
+            throw new InvalidOperationException(
+                "Case asset preparation cannot be reset in its current state.");
+        }
 
         var beforeVersion = workflow.Version;
 

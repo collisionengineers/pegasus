@@ -7,7 +7,16 @@
 
 Intake may begin through staff-forwarded email, a staff-created request-scoped upload link, provider material, manually supplied files, images, correspondence, or a future approved API route. Receipt is not case creation.
 
-Direct Case creation is one of those ways, not an exception to them (D26, 2026-09-01). Staff enter the required identity and either attach the instruction or record it. Pegasus persists an attributable intake receipt for that instruction — actor, time, the attached or recorded instruction and its custody identity — and only then reuses the normal principal resolution and Case/PO allocation policy. There is no parallel allocation implementation and no direct-creation route that skips the receipt: the allocator that serves automatic creation is the only allocator.
+Direct Case creation is a staff path that shares the permanent Case/PO
+allocator with intake acceptance. It requires the identity-critical Case
+facts, records the staff action, and creates neither an intake receipt nor
+invented source provenance. Ordinary business detail may remain incomplete and
+the new Case enters `Not ready` until its normal progression requirements are
+satisfied. A staff-created Case, and any other staff acceptance that has
+neither an accepted mail route nor a Provider API credential binding to
+supply one, records `work_provider_code` as a Confirmed value from the
+accepted Principal, source kind case acceptance, so match indexing and EVA
+export name the Principal instead of projecting an empty value.
 
 Image-only material with a usable normalised VRM creates a searchable Image-initiated Case projection with an Image Intake Reference; it is not Unidentified merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; [FRD-06](frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) owns the accepted threshold). Image material without a usable normalised VRM enters Unidentified with a required reason. An Image-initiated Case is never allocated a formal Case/PO; it merges into one matching formal Case or is staff-closed with a reason.
 
@@ -52,7 +61,9 @@ Every intake path must:
 - be idempotent for the same source occurrence without collapsing distinct visible placements;
 - surface unsupported, incomplete, corrupt, encrypted, oversized, ambiguous, or technically failed input as an explicit decision rather than silently dropping or accepting it;
 
-- record the actor, time, caller, source, policy version, and reason for every transition;
+- record the actor, time, caller, source, policy version, and structured
+  before/after values for every transition; retain a reason where that
+  transition's policy requires one;
 - prevent untrusted content from becoming instructions, policy, identity, or authority.
 
 When a retained source becomes Unidentified because no category can be determined, the UI shows its U-reference, canonical reason, bounded safe detail, source/group, custody, and next permitted action rather than presenting the positive rationale for an unrelated category.
@@ -223,7 +234,7 @@ association or consolidation.
 
 The immutable source occurrence and its evidence remain distinct from the accepted, editable Case projection. Linking creates a versioned source-to-case relationship; it never converts the source into the case, rewrites source facts, or changes the original intake origin.
 
-An Image-initiated Case remains Awaiting instruction until its retained evidence can associate with exactly one eligible pre-report instructed Case. Automatic association requires an unambiguous normalised VRM match and no explicit contradictory identity evidence; otherwise an authorised staff member makes the reasoned decision. A Case after report delivery is not eligible. Association retains both permanent identities and source histories: the instructed Case/PO remains the sole formal Case identity and the Image Intake Reference remains linked history. On a unique match the Image-initiated Case becomes Merged into Instruction-initiated Case; if instructions never arrive, staff may record a permanent Staff-closed outcome with a reason. Neither identity, source fact, or relationship event is reused, rewritten, or deleted.
+An Image-initiated Case remains Awaiting instruction until its retained evidence can associate with exactly one eligible pre-report instructed Case. Automatic association requires an unambiguous normalised VRM match and no explicit contradictory identity evidence; otherwise an authorised staff member makes the explicit decision. A Case after report delivery is not eligible. Association retains both permanent identities and source histories: the instructed Case/PO remains the sole formal Case identity and the Image Intake Reference remains linked history. On a unique match the Image-initiated Case becomes Merged into Instruction-initiated Case; if instructions never arrive, staff may record a permanent Staff-closed outcome with a reason. Neither identity, source fact, or relationship event is reused, rewritten, or deleted.
 
 Image-only material with a usable VRM therefore creates a searchable Image-initiated Case reference, not a formal Case/PO. A group with no usable VRM or conflicting valid VRMs follows the Unidentified contract with its explicit reason marker instead.
 
@@ -370,6 +381,18 @@ Operator UI shows that provenance without treating it as confirmation. A
 derived value identifies its accepted inputs and calculation rather than
 claiming a separate raw source; provenance and value status remain distinct.
 
+Each Case datum also carries a value kind — Fact, Suggestion, or Confirmed —
+and a source kind identifying what produced it (intake evidence, mail route,
+case acceptance, staff correction, vehicle lookup, provider setting, or
+Provider API). `work_provider_code` is the field naming the Principal for
+match indexing and EVA export: it is Confirmed with source kind case
+acceptance when staff acceptance itself names the Principal (see
+[Ways intake starts](#ways-intake-starts)), and Confirmed with source kind
+staff correction on a Wrong-Principal replacement Case
+([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
+A Confirmed value supersedes an earlier Fact or Suggestion for current use
+without erasing it from history.
+
 ### Upload confirmation surface
 
 A grouped upload exposes **one submission decision** — whether the submission
@@ -417,8 +440,7 @@ carries the decision itself:
    first, including a sole viable candidate; typed receipt-scoped search adds
    only current viable Cases (reference, registration, claimant and stage
    shown — never an internal identifier). A unique candidate is never an
-   automatic selection. Selecting a Case and confirming with a nonblank
-   reason of at most 500 characters acquires that
+   automatic selection. Selecting a Case and confirming acquires that
    Case's edit lease and links through the existing staff link path, which also
    runs the Image-initiated Case merge transition where one is registered. The
    route and group membership are loaded server-side; a posted receipt id is
@@ -426,7 +448,7 @@ carries the decision itself:
    target Case version bind the decision. A typed non-script reference first
    renders that exact target for confirmation before any write. A replay is
    successful only for the identical committed staff decision (actor, target,
-   reason and reviewed input), not merely the same target. A stale version,
+   reviewed input), not merely the same target. A stale version,
    changed decision, competing lease, unavailable
    destination or incomplete group reports an honest conflict and changes
    nothing further.

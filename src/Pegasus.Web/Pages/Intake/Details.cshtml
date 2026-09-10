@@ -111,10 +111,30 @@
     </section>
 }
 
-<div class="grid grid-2 section-gap">
-    <section class="panel" aria-labelledby="result-title">
-        <div class="panel-head"><h2 id="result-title">Result</h2></div>
-        <div class="panel-body stack">
+@if (allocationSucceeded)
+{
+    <section class="received-linked-record" aria-label="Linked case">
+        <div class="record-ribbon received-ribbon">
+            <div class="ribbon-item ribbon-ref"><div class="ribbon-label">Received item</div><div class="ribbon-value">@Model.Receipt.SourceFileName</div></div>
+            <div class="ribbon-item"><div class="ribbon-label">Case</div><div class="ribbon-value">@Model.Receipt.CurrentCaseReference</div></div>
+            <div class="ribbon-item"><div class="ribbon-label">Received</div><div class="ribbon-value">@OperatorLabels.OfficeTime(Model.Receipt.ReceivedAtUtc)</div></div>
+        </div>
+        <div class="record-bar received-linked-actions">
+            <a class="btn btn--primary" asp-page="/Cases/Details" asp-route-id="@Model.Receipt.CurrentCaseId">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                <span>Open Case</span>
+            </a>
+        </div>
+    </section>
+}
+
+<details class="received-source-details section-gap" id="received-source-details" open="@(!allocationSucceeded)">
+    <summary>Source details</summary>
+    <div class="received-source-details-body">
+        <div class="grid grid-2 received-overview-grid">
+            <section class="panel received-source-panel" aria-labelledby="result-title">
+                <div class="panel-head"><h2 id="result-title">Result</h2></div>
+                <div class="panel-body stack">
             @if (Model.Receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
             {
                 var imageHref = $"/Received/{Model.Receipt.Id:D}/Image";
@@ -122,7 +142,14 @@
                     imageHref, imageHref, Model.Receipt.SourceFileName, Model.Receipt.MediaType) }" />
             }
             <div class="definition-list">
-                <dl class="definition"><dt>Status</dt><dd>@DetailsModel.DecisionLabel(Model.Receipt)</dd></dl>
+                @* An associated item has one effective state, and the heading
+                   and the linked-Case ribbon above already carry it. Repeating
+                   the pre-association decision here is how "Ready for case
+                   allocation" survived alongside its own Case. *@
+                @if (!allocationSucceeded)
+                {
+                    <dl class="definition"><dt>Status</dt><dd>@DetailsModel.DecisionLabel(Model.Receipt)</dd></dl>
+                }
                 <dl class="definition"><dt>Source</dt><dd>@Model.Receipt.SourceFileName</dd></dl>
                 <dl class="definition"><dt>Channel</dt><dd>@DetailsModel.SourceChannelLabel(Model.Receipt.SourceIdentity.Channel)</dd></dl>
                 <dl class="definition"><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Receipt.ReceivedAtUtc)</dd></dl>
@@ -142,24 +169,26 @@
                     <span>@OperatorLabels.IntakeFailure(Model.Receipt.FailureCode) — @Model.Receipt.FailureReason</span>
                 </div>
             }
-        </div>
-    </section>
+                </div>
+            </section>
 
     @if (Model.Receipt.MissingFields.Count > 0)
     {
-        <section class="panel" aria-labelledby="missing-title">
-            <div class="panel-head"><h2 id="missing-title">Missing fields</h2></div>
-            <div class="panel-body">
-                <ul class="stack">
+            <section class="panel received-resolution-panel" aria-labelledby="missing-title">
+                <div class="panel-head"><h2 id="missing-title">Missing fields</h2></div>
+                <div class="panel-body">
+                    <ul class="stack">
                     @foreach (var field in Model.Receipt.MissingFields)
                     {
                         <li>@field</li>
                     }
-                </ul>
-            </div>
-        </section>
+                    </ul>
+                </div>
+            </section>
     }
-</div>
+        </div>
+        </div>
+</details>
 
 @if (Model.ImageIntake is { } imageIntake)
 {
@@ -300,8 +329,8 @@
 
 @if (Model.Receipt.AcceptedCaseId is null)
 {
-    <section class="panel section-gap" aria-labelledby="intake-resolution-title">
-        <div class="panel-head"><h2 id="intake-resolution-title">Resolution</h2></div>
+    <section class="panel section-gap" aria-labelledby="intake-decision-title">
+        <div class="panel-head"><h2 id="intake-decision-title">Decision</h2></div>
         <div class="panel-body stack">
             @* Correcting the detail belongs on the create screen now, where the
                same values are confirmed on the way to a case. It survives here
@@ -354,21 +383,18 @@
 <section class="panel section-gap" aria-labelledby="case-association-title">
     <div class="panel-head"><h2 id="case-association-title">Case link</h2></div>
     <div class="panel-body stack">
-        <div class="definition-list">
-            <dl class="definition">
-                <dt>Case</dt>
-                <dd>
-                    @if (Model.Receipt.CurrentCaseId is { } currentCaseId)
-                    {
-                        <a asp-page="/Cases/Details" asp-route-id="@currentCaseId">@Model.Receipt.CurrentCaseReference</a>
-                    }
-                    else
-                    {
-                        @:None
-                    }
-                </dd>
-            </dl>
-        </div>
+        @* The linked Case is named once. When it is associated the ribbon
+           above carries the reference and its Open Case action, so repeating
+           it here is the duplicate Case identity, not a second fact. *@
+        @if (!allocationSucceeded)
+        {
+            <div class="definition-list">
+                <dl class="definition">
+                    <dt>Case</dt>
+                    <dd>None</dd>
+                </dl>
+            </div>
+        }
 
         @if (Model.AssociationTargetCase is { } targetCase)
         {

@@ -24,11 +24,11 @@ public sealed class TriageFromIntakeIntegrationTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-recovery-order.eml");
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName, email.MediaType, email.Content);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var queries = services.GetRequiredService<IIntakeReceiptQueries>();
-        var original = Assert.IsType<IntakeReceipt>(await queries.GetAsync(IntakeWebDriver.ReceiptId(upload), CancellationToken.None));
+        var original = Assert.IsType<IntakeReceipt>(await queries.GetAsync(receiptId, CancellationToken.None));
         var first = Assert.Single(await services.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
         var store = services.GetRequiredService<ITriageStore>();
         var copies = new List<TriageRecord>();
@@ -79,9 +79,7 @@ public sealed class TriageFromIntakeIntegrationTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("engineer-triage.eml");
 
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(
-            factory, client, email.FileName, email.MediaType, email.Content);
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var receipt = Assert.IsType<IntakeReceipt>(
@@ -137,9 +135,7 @@ public sealed class TriageFromIntakeIntegrationTests
             subject: "FW: RE: Engineer Triage - Our Claim Reference : 46246/1 - "
                 + "Vehicle Registration : VO75DFJ");
 
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(
-            factory, client, email.FileName, email.MediaType, email.Content);
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var receipt = Assert.IsType<IntakeReceipt>(
@@ -176,9 +172,7 @@ public sealed class TriageFromIntakeIntegrationTests
             + "Triage Only Request\r\n\r\n"
             + "Please find attached our client's images.");
 
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(
-            factory, client, email.FileName, email.MediaType, email.Content);
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var triage = Assert.Single(
@@ -203,9 +197,7 @@ public sealed class TriageFromIntakeIntegrationTests
             "triage-without-registration.eml",
             "Triage Only Request\r\n\r\nPlease find attached our client's images.");
 
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(
-            factory, client, email.FileName, email.MediaType, email.Content);
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var receipt = Assert.IsType<IntakeReceipt>(
@@ -238,9 +230,7 @@ public sealed class TriageFromIntakeIntegrationTests
             "triage-registration-supplied.eml",
             "Triage Only Request\r\n\r\nPlease find attached our client's images.");
 
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(
-            factory, client, email.FileName, email.MediaType, email.Content);
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
 
         // Stranded exactly as the branch above leaves it.
         await using (var before = factory.Services.CreateAsyncScope())

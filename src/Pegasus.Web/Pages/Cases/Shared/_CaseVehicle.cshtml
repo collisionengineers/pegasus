@@ -7,7 +7,7 @@
     var workflow = details.Workflow;
     var data = details.Data;
     var leaseToken = Model.LeaseToken;
-    var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
+    var mayEdit = Model.CanEditCaseData;
     string Value(string? text) => string.IsNullOrWhiteSpace(text)
         ? OperatorLabels.CaseWorkspace.AbsentValue : text;
     // Confirmed ?? Fact only — CaseField<T>.Current also falls through to an

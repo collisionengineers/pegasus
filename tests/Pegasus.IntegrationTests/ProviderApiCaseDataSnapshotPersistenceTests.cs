@@ -58,12 +58,14 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
     /// key a different principal entirely to correct a provider that posted
     /// under the wrong account. Labelling that "authenticated credential
     /// binding" would export a provenance to the EVA archive that no credential
-    /// supplied, so this path records no work provider fact at all — the same
-    /// discipline <c>AddExtractedValue</c> keeps by mapping a person-keyed
-    /// value to <c>StaffCorrection</c>.
+    /// supplied — the same discipline <c>AddExtractedValue</c> keeps by mapping
+    /// a person-keyed value to <c>StaffCorrection</c>. The case still carries
+    /// the Principal the operator allocated it to, because without it the EVA
+    /// export sends an empty Work Provider and no case-match index row exists;
+    /// it is recorded as the operator's own confirmation at acceptance.
     /// </summary>
     [Fact]
-    public async Task AStaffCreatedCaseDoesNotClaimTheCredentialBindingAsItsWorkProvider()
+    public async Task AStaffCreatedCaseRecordsItsAllocatedPrincipalNotTheCredentialBinding()
     {
         await using var harness = await Harness.CreateAsync();
 
@@ -82,7 +84,14 @@ public sealed class ProviderApiCaseDataSnapshotPersistenceTests
             CancellationToken.None);
 
         Assert.NotNull(projection);
-        Assert.Null(projection.Provider.WorkProviderCode.Current);
+        var workProvider = projection.Provider.WorkProviderCode.Current;
+        Assert.NotNull(workProvider);
+        Assert.Equal("QDOS", workProvider.Value);
+        Assert.Equal(CaseDataValueKind.Confirmed, workProvider.Kind);
+        Assert.Equal(CaseDataSourceKind.CaseAcceptance, workProvider.Source.Kind);
+        Assert.Equal("staff-accepted principal allocation", workProvider.Source.Label);
+        Assert.Equal(harness.StaffActor.SubjectId, workProvider.ConfirmedByActor);
+        Assert.Null(projection.Provider.WorkProviderCode.Fact);
     }
 
     private sealed class Harness : IAsyncDisposable

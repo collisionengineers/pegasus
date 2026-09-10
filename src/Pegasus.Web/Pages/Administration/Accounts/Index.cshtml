@@ -76,7 +76,6 @@
                 @if (Model.CreatePostSubmitted) { <partial name="Shared/_ErrorSummary" /> }
                 <div class="field"><label class="req" for="create-username">Username</label><input id="create-username" name="userName" value="@Model.NewUserName" required maxlength="@StaffAccountAdministrationPolicy.MaximumUserNameLength" autocomplete="off" /></div>
                 <div class="field"><label class="req" for="create-password">Temporary password</label><input id="create-password" name="temporaryPassword" type="password" required minlength="@StaffAccountAdministrationPolicy.MinimumPasswordLength" maxlength="@StaffAccountAdministrationPolicy.MaximumPasswordLength" autocomplete="new-password" /></div>
-                <div class="field"><label class="req" for="create-reason">Reason</label><textarea id="create-reason" name="reason" rows="2" required maxlength="@reasonLimit">@Model.NewReason</textarea></div>
             </div>
             <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Create staff account</button></div>
         </form>
@@ -103,21 +102,26 @@
                         <div class="field" data-account-signoff-field><label for="@settingsId-name">Printed name</label><input id="@settingsId-name" name="printedName" value="@Model.SettingsPostPrintedName" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffPrintedNameLength" /></div>
                         <div class="field" data-account-signoff-field><label for="@settingsId-qualifications">Qualifications</label><input id="@settingsId-qualifications" name="qualifications" value="@Model.SettingsPostQualifications" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffQualificationsLength" /></div>
                     </div>
+                    <section class="account-settings-section" aria-labelledby="@settingsId-glass-title"><div class="settings-line"><div><strong id="@settingsId-glass-title">Glass's repair estimates</strong><span class="meta">Manage this account's login.</span></div><a class="btn" asp-page="/Administration/Glass/Index" asp-route-staffId="@account.Id" data-account-glass-login>Manage login</a></div><p class="notice notice--error" data-account-glass-login-error role="alert" hidden></p></section>
                     <div class="field" data-account-signoff-field><label for="@settingsId-signature">@(account.SignOff.HasSignature ? "Replace signature" : "Signature image")</label><input id="@settingsId-signature" name="signature" type="file" accept="@SignOffSignaturePolicy.MediaType" /></div>
                     <label class="choice" for="@settingsId-default" data-account-signoff-field><input id="@settingsId-default" name="isDefaultSignOffEngineer" type="checkbox" value="true" checked="@Model.SettingsPostIsDefault" data-account-default disabled="@(!signatoryAllowed)" /><span>Default sign-off Engineer</span></label>
                 </div>
                 <div class="dialog-foot"><button type="submit" formaction="?handler=CancelSettings" formnovalidate class="btn">Cancel</button><button type="button" class="btn btn--primary" data-dialog-open="@settingsId-confirm">Save settings</button></div>
                 <div class="dialog-backdrop" data-dialog="@settingsId-confirm" hidden>
-                    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="@settingsId-confirm-title">
-                        <div class="dialog-head"><h2 id="@settingsId-confirm-title">Save account settings</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
-                        <div class="dialog-body stack"><p>Confirm this account settings change and record why it was made.</p><div class="field"><label class="req" for="@settingsId-reason">Reason</label><textarea id="@settingsId-reason" name="reason" rows="2" required maxlength="@reasonLimit">@Model.SettingsPostReason</textarea></div></div>
-                        <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Save settings</button></div>
+                    <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="@settingsId-confirm-title">
+                        <div class="dialog-head"><h2 id="@settingsId-confirm-title" tabindex="-1" data-dialog-initial-focus>Save changes</h2></div>
+                        <div class="dialog-body field"><label class="req" for="@settingsId-reason">Reason</label><textarea id="@settingsId-reason" name="reason" rows="2" required maxlength="@reasonLimit">@Model.SettingsPostReason</textarea></div>
+                        <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Confirm</button></div>
                     </section>
                 </div>
             </form>
             @if (!row.IsCurrentOperator)
             {
-                <div class="dialog-foot"><button type="button" class="btn" data-dialog-open="@settingsId-disable">@(account.IsEnabled ? "Disable" : "Enable")</button>@if (account.IsEnabled) { <button type="button" class="btn" data-dialog-open="@settingsId-logout">Force logout</button><button type="button" class="btn" data-dialog-open="@settingsId-password">Reset password</button> }<button type="button" class="btn btn--danger" data-dialog-open="@settingsId-delete">Delete</button></div>
+                var disableButtonClass = account.IsEnabled ? "btn btn--danger" : "btn";
+                <div class="dialog-foot">
+                    <div class="left"><button type="button" class="@disableButtonClass" data-dialog-open="@settingsId-disable">@(account.IsEnabled ? "Disable" : "Enable")</button><button type="button" class="btn btn--danger" data-dialog-open="@settingsId-delete">Delete</button></div>
+                    @if (account.IsEnabled) { <button type="button" class="btn" data-dialog-open="@settingsId-logout">Force logout</button><button type="button" class="btn" data-dialog-open="@settingsId-password">Reset password</button> }
+                </div>
             }
         </section>
     </div>

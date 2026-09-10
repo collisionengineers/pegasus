@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,7 +23,7 @@ namespace Pegasus.IntegrationTests;
 public sealed class CaseVehicleSaveWebTests
 {
     [Fact]
-    public async Task SavingMakeOnlyWithAnAcceptedRegistrationKeepsAllCaseSurfacesReadable()
+    public async Task SavingThenClearingMakeKeepsAcceptedRegistrationAndCaseSurfacesReadable()
     {
         using var factory = new IntakeWebApplicationFactory(
             useIntegrationTestAuthentication: true);
@@ -86,9 +88,44 @@ public sealed class CaseVehicleSaveWebTests
             Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
         }
 
+        var clearedAvailable = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        await ClaimLeaseAsync(client, caseId, clearedAvailable);
+        var clearing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Equal("Ford", InputValue(clearing, "vehicleMake"));
+        using (var clear = await client.PostAsync(
+                   $"/Cases/{caseId:D}?handler=Save",
+                   Form(
+                       AntiforgeryValue(clearing),
+                       CurrentCaseSaveValues(
+                           clearing,
+                           caseId,
+                           vehicleMake: string.Empty,
+                           reason: "Cleared an incorrectly recorded vehicle make."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, clear.StatusCode);
+        }
+
+        var unchangedAvailable = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        await ClaimLeaseAsync(client, caseId, unchangedAvailable);
+        var unchanged = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Equal(string.Empty, InputValue(unchanged, "vehicleMake"));
+        using (var save = await client.PostAsync(
+                   $"/Cases/{caseId:D}?handler=Save",
+                   Form(
+                       AntiforgeryValue(unchanged),
+                       CurrentCaseSaveValues(
+                           unchanged,
+                           caseId,
+                           vehicleMake: string.Empty,
+                           reason: "Recorded vehicle facts remain unchanged."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
+        }
+
         var details = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
         Assert.Contains("AB12CDE", details, StringComparison.Ordinal);
-        Assert.Contains("Ford", details, StringComparison.Ordinal);
+        var vehicle = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=vehicle");
+        Assert.Contains("AB12CDE", vehicle, StringComparison.Ordinal);
 
         var cases = await GetHtmlAsync(client, $"/Cases?tab=review&selected={caseId:D}");
         Assert.Contains(caseId.ToString("D"), cases, StringComparison.Ordinal);
@@ -112,10 +149,103 @@ public sealed class CaseVehicleSaveWebTests
         Assert.Equal(before.Vehicle.Model, data.Vehicle.Model);
         Assert.Equal(before.Vehicle.Mileage, data.Vehicle.Mileage);
         Assert.Equal(before.Vehicle.MileageUnit, data.Vehicle.MileageUnit);
-        Assert.Equal("Ford", data.Vehicle.Make.Confirmed?.Value);
-        Assert.NotNull(evidence?.Confirmed);
-        Assert.Null(evidence!.Confirmed!.Registration);
-        Assert.Equal("Ford", evidence.Confirmed.Make?.Value);
+        Assert.Null(data.Vehicle.Make.Confirmed);
+        Assert.NotNull(evidence);
+        Assert.Null(evidence!.Confirmed);
+    }
+
+    [Fact]
+    public async Task ASecondStaffClientCannotClaimOrSaveOverAnActiveVehicleEditor()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+                services.PostConfigure<PolicySchemeOptions>(
+                    "Pegasus",
+                    options => options.ForwardDefaultSelector = static _ =>
+                        IdentityConstants.ApplicationScheme)));
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, QdosPrincipal.Code);
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            QdosPrincipal.Code);
+        await SeedAcceptedWorkspaceValuesAsync(factory.Services, receipt.Id);
+        var actor = ActionActor.Staff(
+            DevelopmentOfflineIdentity.AdministratorId,
+            [StaffRole.Administrator]);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var accepted = await scope.ServiceProvider.GetRequiredService<IAcceptIntake>()
+            .ExecuteAsync(
+                new(
+                    receipt.Id,
+                    0,
+                    actor,
+                    "accept-case-vehicle-two-editors",
+                    CaseType.Inspection,
+                    QdosPrincipal.Code,
+                    new(true, true),
+                    AcceptedInspectionDeadline: new DateOnly(2031, 5, 20)),
+                CancellationToken.None);
+        var caseId = accepted.Identity.CaseId;
+
+        await CreateEngineerAsync(factory.Services, "vehicle-editor-one", "Password-1");
+        await CreateEngineerAsync(factory.Services, "vehicle-editor-two", "Password-1");
+        using var firstClient = await SignInAsync(factory, "vehicle-editor-one", "Password-1");
+        using var secondClient = await SignInAsync(factory, "vehicle-editor-two", "Password-1");
+
+        var firstAvailable = await GetHtmlAsync(firstClient, $"/Cases/{caseId:D}");
+        var secondAvailable = await GetHtmlAsync(secondClient, $"/Cases/{caseId:D}");
+        Assert.Contains("<strong>vehicle-editor-one</strong>", firstAvailable, StringComparison.Ordinal);
+        Assert.Contains("<strong>vehicle-editor-two</strong>", secondAvailable, StringComparison.Ordinal);
+        await ClaimLeaseAsync(firstClient, caseId, firstAvailable);
+        var firstEditing = await GetHtmlAsync(firstClient, $"/Cases/{caseId:D}");
+
+        using (var claim = await secondClient.PostAsync(
+                   $"/Cases/{caseId:D}?handler=ClaimLease",
+                   Form(
+                       AntiforgeryValue(secondAvailable),
+                       ("id", caseId.ToString("D")),
+                       ("expectedVersion", InputValue(secondAvailable, "expectedVersion")),
+                       ("operationKey", InputValue(secondAvailable, "operationKey")))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, claim.StatusCode);
+        }
+
+        using (var overwrite = await secondClient.PostAsync(
+                   $"/Cases/{caseId:D}?handler=Save",
+                   Form(
+                       AntiforgeryValue(secondAvailable),
+                       CurrentCaseSaveValues(
+                           firstEditing,
+                           caseId,
+                           vehicleMake: "Renault",
+                           reason: "Attempted competing vehicle correction."))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, overwrite.StatusCode);
+        }
+
+        var beforeFirstSave = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CancellationToken.None);
+        Assert.NotNull(beforeFirstSave);
+        Assert.Null(beforeFirstSave!.Vehicle.Make.Confirmed);
+
+        using (var firstSave = await firstClient.PostAsync(
+                   $"/Cases/{caseId:D}?handler=Save",
+                   Form(
+                       AntiforgeryValue(firstEditing),
+                       CurrentCaseSaveValues(
+                           firstEditing,
+                           caseId,
+                           vehicleMake: "Ford"))))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, firstSave.StatusCode);
+        }
+
+        var saved = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CancellationToken.None);
+        Assert.NotNull(saved);
+        Assert.Equal("Ford", saved!.Vehicle.Make.Confirmed?.Value);
+        Assert.Equal("AB12CDE", saved.Vehicle.Registration.Fact?.Value);
     }
 
     private static async Task SeedAcceptedWorkspaceValuesAsync(IServiceProvider services, Guid receiptId)
@@ -172,19 +302,23 @@ public sealed class CaseVehicleSaveWebTests
         IsDefaulted: false,
         HasConflict: false);
 
-    private static (string Name, string Value)[] CurrentCaseSaveValues(string html, Guid caseId) =>
+    private static (string Name, string Value)[] CurrentCaseSaveValues(
+        string html,
+        Guid caseId,
+        string vehicleMake = "Ford",
+        string reason = "Corrected vehicle make from retained instruction.") =>
     [
         ("id", caseId.ToString("D")),
         ("expectedVersion", InputValue(html, "expectedVersion")),
         ("operationKey", InputValue(html, "operationKey")),
         ("editLeaseToken", InputValue(html, "editLeaseToken")),
-        ("reason", "Corrected vehicle make from retained instruction."),
+        ("reason", reason),
         ("claimantName", InputValue(html, "claimantName")),
         ("claimantContactNumber", InputValue(html, "claimantContactNumber")),
         ("claimantAddress", InputValue(html, "claimantAddress")),
         ("claimNumber", InputValue(html, "claimNumber")),
         ("vehicleRegistration", InputValue(html, "vehicleRegistration")),
-        ("vehicleMake", "Ford"),
+        ("vehicleMake", vehicleMake),
         ("vehicleModel", InputValue(html, "vehicleModel")),
         ("vehicleMileage", InputValue(html, "vehicleMileage")),
         ("vehicleMileageUnit", InputValue(html, "vehicleMileageUnit")),
@@ -201,6 +335,60 @@ public sealed class CaseVehicleSaveWebTests
         ("inspectionMode", InputValue(html, "inspectionMode")),
         ("storageLocation", InputValue(html, "storageLocation"))
     ];
+
+    private static async Task ClaimLeaseAsync(HttpClient client, Guid caseId, string html)
+    {
+        using var claim = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("expectedVersion", InputValue(html, "expectedVersion")),
+                ("operationKey", InputValue(html, "operationKey"))));
+        Assert.Equal(HttpStatusCode.Redirect, claim.StatusCode);
+    }
+
+    private static async Task<HttpClient> SignInAsync(
+        WebApplicationFactory<Program> factory,
+        string userName,
+        string password)
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+        var signIn = await GetHtmlAsync(client, "/Account/SignIn");
+        using var response = await client.PostAsync(
+            "/Account/SignIn",
+            Form(
+                AntiforgeryValue(signIn),
+                ("UserName", userName),
+                ("Password", password)));
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains(
+            response.Headers.GetValues("Set-Cookie"),
+            value => value.StartsWith("__Host-Pegasus=", StringComparison.Ordinal));
+        return client;
+    }
+
+    private static async Task CreateEngineerAsync(
+        IServiceProvider services,
+        string userName,
+        string password)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<PegasusIdentityUser>>();
+        var user = new PegasusIdentityUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = userName,
+            IsEnabled = true,
+            MustChangePassword = false
+        };
+        Assert.True((await users.CreateAsync(user, password)).Succeeded);
+        Assert.True((await users.AddToRoleAsync(user, StaffRole.Engineer.ToString())).Succeeded);
+    }
 
     private static async Task<string> GetHtmlAsync(HttpClient client, string path)
     {

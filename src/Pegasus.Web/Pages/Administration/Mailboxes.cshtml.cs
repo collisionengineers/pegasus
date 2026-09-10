@@ -44,6 +44,19 @@ public sealed class MailboxesModel(
 
     public string NewCategoryOperationKey { get; private set; } = NewOperationKey();
 
+    public bool IsNewMailboxEditorOpen { get; private set; }
+
+    public bool IsNewCategoryEditorOpen { get; private set; }
+
+    /// <summary>
+    /// The default-sender dialog opens only from its own handlers. The bound
+    /// form object exists on every POST, so its presence cannot decide this.
+    /// </summary>
+    public bool IsDefaultEditorOpen { get; private set; }
+
+    private DefaultMailboxFormInput? ActiveDefaultForm =>
+        IsDefaultEditorOpen ? DefaultMailboxForm : null;
+
     public EditScopeLease? MailboxEditLease { get; private set; }
 
     [BindProperty]
@@ -165,6 +178,7 @@ public sealed class MailboxesModel(
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
         await LoadAsync(actor, cancellationToken);
+        IsDefaultEditorOpen = true;
         var input = RequireForm(DefaultMailboxForm, value => DefaultMailboxForm = value);
         if (!TryParseMailboxSelection(input.SelectedMailbox, out var mailboxId, out var expectedVersion))
         {
@@ -285,7 +299,6 @@ public sealed class MailboxesModel(
                         state,
                         input.ExpectedVersion,
                         actor,
-                        input.Reason,
                         input.OperationKey,
                         resolution?.MailboxIdentity ?? existingMailbox?.MailboxIdentity,
                         resolution?.InboxFolderIdentity ?? existingMailbox?.InboxFolderIdentity,
@@ -325,6 +338,7 @@ public sealed class MailboxesModel(
             }
         }
 
+        IsNewMailboxEditorOpen = isNewMailbox;
         await LoadAsync(actor, cancellationToken);
         PrepareFormState();
         return Page();
@@ -382,7 +396,6 @@ public sealed class MailboxesModel(
                         mailbox.State,
                         mailbox.Version,
                         actor,
-                        "Refresh approved logical folder bindings from the mail system.",
                         input.OperationKey,
                         mailbox.MailboxIdentity,
                         mailbox.InboxFolderIdentity,
@@ -426,6 +439,7 @@ public sealed class MailboxesModel(
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
         await LoadAsync(actor, cancellationToken);
+        IsDefaultEditorOpen = true;
         var input = RequireForm(DefaultMailboxForm, value => DefaultMailboxForm = value);
         ValidateForm(input, nameof(DefaultMailboxForm));
         if (!TryParseMailboxSelection(input.SelectedMailbox, out var mailboxId, out var expectedVersion))
@@ -450,7 +464,6 @@ public sealed class MailboxesModel(
                         input.ExpectedPreviousDefaultMailboxId,
                         input.ExpectedPreviousDefaultMailboxVersion,
                         actor,
-                        input.Reason,
                         input.OperationKey)
                     {
                         EditLeaseToken = input.EditLeaseToken
@@ -477,7 +490,7 @@ public sealed class MailboxesModel(
             {
                 ModelState.AddModelError(
                     nameof(DefaultMailboxFormInput.SelectedMailbox),
-                    "Select an eligible staff-send mailbox and give a reason.");
+                    "Select an eligible staff-send mailbox.");
             }
         }
 
@@ -614,7 +627,6 @@ public sealed class MailboxesModel(
                         state,
                         input.ExpectedVersion,
                         actor,
-                        input.Reason,
                         input.OperationKey)
                     {
                         EditLeaseToken = input.EditLeaseToken
@@ -650,10 +662,11 @@ public sealed class MailboxesModel(
             {
                 ModelState.AddModelError(
                     nameof(CategoryFormInput.DisplayName),
-                    "Enter a supported display name and reason.");
+                    "Enter a supported display name.");
             }
         }
 
+        IsNewCategoryEditorOpen = input.ExpectedVersion == 0;
         await LoadAsync(actor, cancellationToken);
         PrepareFormState();
         return Page();
@@ -664,11 +677,6 @@ public sealed class MailboxesModel(
             ? input.Address
             : mailbox.Address;
 
-    public string ReasonFor(ApprovedMailbox mailbox) =>
-        MailboxForm is { ExpectedVersion: > 0 } input && input.MailboxId == mailbox.Id
-            ? input.Reason
-            : string.Empty;
-
     public bool IsEditingMailbox(ApprovedMailbox mailbox) =>
         MailboxForm is { ExpectedVersion: > 0 } input
         && input.MailboxId == mailbox.Id
@@ -678,10 +686,10 @@ public sealed class MailboxesModel(
         IsEditingMailbox(mailbox) ? MailboxForm!.EditLeaseToken : string.Empty;
 
     public bool IsEditingDefaultMailbox =>
-        DefaultMailboxForm is { EditLeaseToken.Length: > 0 };
+        ActiveDefaultForm is { EditLeaseToken.Length: > 0 };
 
     public Guid DefaultEditingMailboxId =>
-        DefaultMailboxForm is { } input
+        ActiveDefaultForm is { } input
         && TryParseMailboxSelection(input.SelectedMailbox, out var mailboxId, out _)
             ? mailboxId
             : Guid.Empty;
@@ -717,7 +725,7 @@ public sealed class MailboxesModel(
         $"{mailbox.Id:D}|{mailbox.Version}";
 
     public bool IsDefaultMailboxSelection(ApprovedMailbox mailbox) =>
-        DefaultMailboxForm is { } input
+        ActiveDefaultForm is { } input
             ? string.Equals(
                 input.SelectedMailbox,
                 DefaultMailboxSelectionFor(mailbox),
@@ -725,7 +733,7 @@ public sealed class MailboxesModel(
             : mailbox.IsDefaultStaffSend;
 
     public bool DefaultMailboxPromptIsSelected =>
-        DefaultMailboxForm is { } input
+        ActiveDefaultForm is { } input
             ? !EligibleDefaultStaffSendMailboxes.Any(mailbox =>
                 string.Equals(
                     input.SelectedMailbox,
@@ -737,7 +745,7 @@ public sealed class MailboxesModel(
     {
         get
         {
-            if (DefaultMailboxForm is not { } input
+            if (ActiveDefaultForm is not { } input
                 || !DefaultMailboxPromptIsSelected
                 || !TryParseMailboxSelection(input.SelectedMailbox, out var mailboxId, out _))
             {
@@ -748,16 +756,11 @@ public sealed class MailboxesModel(
         }
     }
 
-    public string DefaultMailboxReason => DefaultMailboxForm?.Reason ?? string.Empty;
-
     public string DefaultMailboxOperationKey =>
         DefaultMailboxForm?.OperationKey ?? NewOperationKey();
 
     public string NewAddress =>
         MailboxForm is { ExpectedVersion: 0 } input ? input.Address : string.Empty;
-
-    public string NewReason =>
-        MailboxForm is { ExpectedVersion: 0 } input ? input.Reason : string.Empty;
 
     public long? NewVerifiedSendLimit =>
         MailboxForm is { ExpectedVersion: 0 } input ? input.VerifiedEncodedMessageSizeLimit : null;
@@ -808,11 +811,6 @@ public sealed class MailboxesModel(
     public string CategoryEditLeaseTokenFor(ApprovedOutlookCategory category) =>
         IsEditingCategory(category) ? CategoryForm!.EditLeaseToken : string.Empty;
 
-    public string CategoryReasonFor(ApprovedOutlookCategory category) =>
-        CategoryForm is { ExpectedVersion: > 0 } input && input.CategoryId == category.Id
-            ? input.Reason
-            : string.Empty;
-
     public string CategoryOperationKeyFor(ApprovedOutlookCategory category) =>
         CategoryForm is { ExpectedVersion: > 0 } input && input.CategoryId == category.Id
             ? input.OperationKey
@@ -827,9 +825,6 @@ public sealed class MailboxesModel(
 
     public string NewCategoryDisplayName =>
         CategoryForm is { ExpectedVersion: 0 } input ? input.DisplayName : string.Empty;
-
-    public string NewCategoryReason =>
-        CategoryForm is { ExpectedVersion: 0 } input ? input.Reason : string.Empty;
 
     public bool IsNewCategoryStateSelected(ApprovedOutlookCategoryState state) =>
         CategoryForm is { ExpectedVersion: 0 } input
@@ -1097,9 +1092,6 @@ public sealed class MailboxesModel(
         [Range(0, int.MaxValue)]
         public int ExpectedVersion { get; set; }
 
-        [Required, StringLength(1000, MinimumLength = 1)]
-        public string Reason { get; set; } = string.Empty;
-
         public string OperationKey { get; set; } = string.Empty;
 
         public string EditLeaseToken { get; set; } = string.Empty;
@@ -1117,9 +1109,6 @@ public sealed class MailboxesModel(
         public Guid? ExpectedPreviousDefaultMailboxId { get; set; }
 
         public int? ExpectedPreviousDefaultMailboxVersion { get; set; }
-
-        [Required, StringLength(1000, MinimumLength = 1)]
-        public string Reason { get; set; } = string.Empty;
 
         public string OperationKey { get; set; } = string.Empty;
 
@@ -1140,9 +1129,6 @@ public sealed class MailboxesModel(
 
         [Range(0, int.MaxValue)]
         public int ExpectedVersion { get; set; }
-
-        [Required, StringLength(1000, MinimumLength = 1)]
-        public string Reason { get; set; } = string.Empty;
 
         public string OperationKey { get; set; } = string.Empty;
 

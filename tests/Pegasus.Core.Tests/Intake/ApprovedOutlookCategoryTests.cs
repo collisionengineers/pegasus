@@ -15,12 +15,12 @@ public sealed class ApprovedOutlookCategoryTests
         var command = new UpdateApprovedOutlookCategory(store);
         var request = new UpdateApprovedOutlookCategoryRequest(
             Guid.NewGuid(), "  Awaiting engineer  ", ApprovedOutlookCategoryState.Active, 0,
-            Administrator, " Add approved name ", " operation-1 ");
+            Administrator, " operation-1 ");
 
         var result = await command.ExecuteAsync(request, default);
 
         Assert.Equal("Awaiting engineer", result.DisplayName);
-        Assert.Equal("Add approved name", store.LastRequest!.Reason);
+        Assert.Equal("operation-1", store.LastRequest!.OperationKey);
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             command.ExecuteAsync(request with { Actor = User }, default));
     }
@@ -36,16 +36,15 @@ public sealed class ApprovedOutlookCategoryTests
     }
 
     [Theory]
-    [InlineData("", "Reason", "operation-1")]
-    [InlineData("Awaiting engineer", "", "operation-1")]
-    [InlineData("Awaiting engineer", "Reason", "")]
-    [InlineData("Awaiting\nengineer", "Reason", "operation-1")]
-    public async Task ManagementRejectsInvalidText(string displayName, string reason, string operationKey)
+    [InlineData("", "operation-1")]
+    [InlineData("Awaiting engineer", "")]
+    [InlineData("Awaiting\nengineer", "operation-1")]
+    public async Task ManagementRejectsInvalidText(string displayName, string operationKey)
     {
         var command = new UpdateApprovedOutlookCategory(new FakeStore());
         var request = new UpdateApprovedOutlookCategoryRequest(
             Guid.NewGuid(), displayName, ApprovedOutlookCategoryState.Active, 0,
-            Administrator, reason, operationKey);
+            Administrator, operationKey);
 
         await Assert.ThrowsAsync<ArgumentException>(() => command.ExecuteAsync(request, default));
     }
@@ -56,7 +55,7 @@ public sealed class ApprovedOutlookCategoryTests
         var command = new UpdateApprovedOutlookCategory(new FakeStore());
         var request = new UpdateApprovedOutlookCategoryRequest(
             Guid.NewGuid(), "Awaiting engineer", ApprovedOutlookCategoryState.Active, 0,
-            Administrator, "Reason", "operation-1");
+            Administrator, "operation-1");
 
         await Assert.ThrowsAsync<ArgumentException>(() =>
             command.ExecuteAsync(request with { CategoryId = Guid.Empty }, default));

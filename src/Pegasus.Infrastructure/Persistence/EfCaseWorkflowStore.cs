@@ -749,7 +749,12 @@ public sealed class EfCaseWorkflowStore(
     public Task<CaseWorkflowRecord> CloseAsync(
         CloseCaseRequest request,
         CancellationToken cancellationToken) =>
-        MutateAsync(request, $"case_closed_{request.Outcome}", async (context, workflow, now) =>
+        MutateAsync(
+            request,
+            request.Outcome == CaseClosureOutcome.PostReportComplete
+                ? "case_completed"
+                : $"case_closed_{request.Outcome}",
+            async (context, workflow, now) =>
         {
             await CaseTerminalReadinessGuard.RequireNoOpenTasksAsync(
                 context,
@@ -768,6 +773,17 @@ public sealed class EfCaseWorkflowStore(
             workflow.State = request.Outcome.ToString();
             workflow.ClosureOutcome = request.Outcome.ToString();
             CaseChaseState.Stop(workflow);
+        }, cancellationToken);
+
+    public Task<CaseWorkflowRecord> ReturnToEngineerAsync(
+        ReturnCaseToEngineerRequest request,
+        CancellationToken cancellationToken) =>
+        MutateAsync(request, "case_returned_to_engineer", (context, workflow, now) =>
+        {
+            workflow.State = nameof(CaseLifecycleState.ReportPreparation);
+            workflow.ClosureOutcome = null;
+            CaseChaseState.Stop(workflow);
+            return Task.CompletedTask;
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> ReopenAsync(ReopenCaseRequest request, CancellationToken cancellationToken) =>
@@ -918,7 +934,6 @@ public sealed class EfCaseWorkflowStore(
             ActorKind = request.Actor.Kind.ToString(),
             ActorSubjectId = request.Actor.SubjectId,
             ActorRolesJson = RolesJson(request.Actor),
-            Reason = request.Reason,
             Channel = request.Channel,
             TargetPartyOrAddress = request.TargetPartyOrAddress,
             AttemptedAtUtc = request.AttemptedAtUtc,
@@ -931,14 +946,21 @@ public sealed class EfCaseWorkflowStore(
             workflow,
             request.Actor,
             request.OperationKey.Trim(),
-            request.Reason.Trim(),
+            ManualChaseHistoryDetail(request),
             hash,
             "manual_chase_recorded",
             workflow.Version - 1,
             workflow.Version,
             timeProvider.GetUtcNow(),
             beforeJson: null,
-            afterJson: JsonSerializer.Serialize(Map(due)));
+            afterJson: JsonSerializer.Serialize(new
+            {
+                Channel = request.Channel.Trim(),
+                Recipient = request.TargetPartyOrAddress.Trim(),
+                Content = request.Note?.Trim(),
+                Outcome = request.Outcome.Trim(),
+                DueWork = Map(due)
+            }));
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(due);
@@ -1750,6 +1772,15 @@ public sealed class EfCaseWorkflowStore(
         long Version);
 
     private static string RolesJson(ActionActor actor) => JsonSerializer.Serialize(actor.Roles.OrderBy(role => role));
+
+    private static string ManualChaseHistoryDetail(ManualChaseRecord request)
+    {
+        var detail = $"{request.Channel.Trim()} to {request.TargetPartyOrAddress.Trim()}: {request.Outcome.Trim()}";
+        return string.IsNullOrWhiteSpace(request.Note)
+            ? detail
+            : $"{detail} — {request.Note.Trim()}";
+    }
+
     private static string RequestHash<T>(T request) => Hash(JsonSerializer.Serialize(request));
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 }

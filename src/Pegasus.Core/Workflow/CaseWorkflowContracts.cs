@@ -16,6 +16,7 @@ public enum CaseLifecycleState
     ReportPreparation,
     PostReport,
     PostReportComplete,
+    Query,
     ProviderCancelled,
     CollisionEngineersRejected,
     CreatedInError,
@@ -381,6 +382,15 @@ public sealed record ReopenCaseRequest(
     CaseReadinessEvidence? Readiness = null)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
+public sealed record ReturnCaseToEngineerRequest(
+    Guid CaseId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    string EditLeaseToken)
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
+
 public interface ICaseWorkflowQueries
 {
     Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken);
@@ -462,6 +472,10 @@ public interface ICaseWorkflowStore : ICaseWorkflowQueries, ILeaseCaseForEdit
     Task<CaseWorkflowRecord> CloseAsync(CloseCaseRequest request, CancellationToken cancellationToken);
 
     Task<CaseWorkflowRecord> ReopenAsync(ReopenCaseRequest request, CancellationToken cancellationToken);
+
+    Task<CaseWorkflowRecord> ReturnToEngineerAsync(
+        ReturnCaseToEngineerRequest request,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -545,4 +559,11 @@ public interface ICloseCase
 public interface IReopenCase
 {
     Task<CaseWorkflowRecord> ExecuteAsync(ReopenCaseRequest request, CancellationToken cancellationToken);
+}
+
+public interface IReturnCaseToEngineer
+{
+    Task<CaseWorkflowRecord> ExecuteAsync(
+        ReturnCaseToEngineerRequest request,
+        CancellationToken cancellationToken);
 }

@@ -102,10 +102,6 @@
                             <span class="nav-count" aria-label="@operationsCount outstanding">@operationsCount</span>
                         }
                     </a>
-                    <a class="nav-link" href="/Operations#ai-jobs-title">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
-                        <span>AI board</span>
-                    </a>
                 }
                 @if (isAdministrator)
                 {
@@ -141,10 +137,13 @@
                     <span class="shortcut-hint" aria-hidden="true">Ctrl K</span>
                 </form>
                 <div class="utility-actions">
-                    <button type="button" class="btn btn--primary" data-dialog-open="add-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-                        <span>Add</span>
-                    </button>
+                    @if (inboxEnabled)
+                    {
+                        <a class="btn btn--primary" asp-page="/Cases/Create">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                            <span>New case</span>
+                        </a>
+                    }
                     <button type="button" class="icon-button" data-dialog-open="notifications-dialog" aria-label="Notifications">
                         <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
                     </button>

@@ -1,21 +1,26 @@
 @*
-    The Case record's section jump-nav (D29): one horizontal nav inside the
-    sticky block, one link per section in D30 order. Each link is a real
-    fragment anchor to the section's host. With no script a host whose body is
-    served below the fold is still empty, and `?section=<key>` is the address
-    that renders that one section server-side; script mounts the body and adds
-    the scroll-spy that moves `aria-current` as the page scrolls. The section
+    The Case record's section nav (D29): one link per section in D30 order.
+    Without script each link requests and reaches its section on the scrolling
+    record. Script preserves that Scroll view and may enhance it to Tabs using
+    the same section hosts; it never creates another Case form. The section
     list is `OperatorLabels.CaseWorkspace.Sections`.
 *@
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Cases.DetailsModel
-<nav class="section-nav" aria-label="@OperatorLabels.CaseWorkspace.SectionNav" data-section-nav>
-    @foreach (var entry in OperatorLabels.CaseWorkspace.Sections)
-    {
-        <a class="section-link" href="#section-@entry.Key" data-section-link="@entry.Key"
-           aria-current="@(Model.Section == entry.Key ? "true" : "false")">
-            <svg class="icon" aria-hidden="true"><use href="#@entry.Icon" /></svg>
-            <span>@entry.Label</span>
-        </a>
-    }
-</nav>
+<div class="case-section-navigation">
+    <nav class="section-nav case-section-nav" aria-label="@OperatorLabels.CaseWorkspace.SectionNav" data-section-nav>
+        @foreach (var entry in OperatorLabels.CaseWorkspace.Sections)
+        {
+            <a class="section-link" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId"
+               asp-route-section="@entry.Key" asp-fragment="section-@entry.Key" data-section-link="@entry.Key"
+               aria-current="@(Model.Section == entry.Key ? "true" : "false")">
+                <svg class="icon" aria-hidden="true"><use href="#@entry.Icon" /></svg>
+                <span>@entry.Label</span>
+            </a>
+        }
+    </nav>
+    <div class="layout-switch case-layout-switch" role="group" aria-label="Case layout" data-case-layout-switch hidden>
+        <button type="button" data-case-layout="scroll" aria-pressed="true">Scroll</button>
+        <button type="button" data-case-layout="tabs" aria-pressed="false">Tabs</button>
+    </div>
+</div>

@@ -31,21 +31,17 @@
 <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
 
 <article class="record">
-    <header class="record-head">
-        <strong>@Model.Item.Reference</strong>
-        <span class="record-identity">
-            <span>@Model.MediaKindLabel</span>
-            <span>Received @OperatorLabels.OfficeTime(Model.Item.CreatedAtUtc)</span>
-            <span>@Model.Handle</span>
-        </span>
-        <span class="record-head-end">
-            <partial name="Shared/_StatusChip" model="@OperatorLabels.UnidentifiedState(Model.Item.State)" />
-        </span>
-    </header>
+    <div class="record-ribbon unidentified-ribbon" aria-label="Unidentified material identity">
+        <div class="ribbon-item ribbon-ref"><div class="ribbon-label">Reference</div><div class="ribbon-value">@Model.Item.Reference</div></div>
+        <div class="ribbon-item"><div class="ribbon-label">Kind</div><div class="ribbon-value">@Model.MediaKindLabel</div></div>
+        <div class="ribbon-item"><div class="ribbon-label">Received</div><div class="ribbon-value">@OperatorLabels.OfficeTime(Model.Item.CreatedAtUtc)</div></div>
+        <div class="ribbon-item"><div class="ribbon-label">State</div><div class="ribbon-value"><partial name="Shared/_StatusChip" model="@OperatorLabels.UnidentifiedState(Model.Item.State)" /></div></div>
+    </div>
     <div class="record-accent"></div>
 
     <div class="record-body">
-        <section class="panel section-gap" aria-labelledby="unidentified-source-title">
+        <div class="grid grid-2 unidentified-workspace">
+        <section class="panel unidentified-source-panel" aria-labelledby="unidentified-source-title">
             <div class="panel-head"><h2 id="unidentified-source-title">@Model.SourceSectionTitle</h2></div>
             <div class="panel-body stack">
                 <div class="definition-list">
@@ -88,16 +84,27 @@
                             <span>@Model.ViewSourceLabel</span>
                         </a>
                     }
-                    @if (isOpen)
-                    {
-                        <button type="button" class="btn btn--dark" data-dialog-open="unidentified-resolve-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                            <span>Link to Case</span>
-                        </button>
-                    }
                 </div>
             </div>
         </section>
+
+        @if (isOpen)
+        {
+            @* Where this material belongs is the question, and the answer is
+               almost always an existing Case: the primary action says so.
+               Creating a Case, registering images and closing stay available
+               as named alternatives inside the same dialog. *@
+            <section class="panel unidentified-resolution-panel" aria-labelledby="unidentified-link-case-title">
+                <div class="panel-head"><h2 id="unidentified-link-case-title">Case</h2></div>
+                <div class="panel-body button-row">
+                    <button type="button" class="btn btn--primary" data-dialog-open="unidentified-resolve-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                        <span>Link to Case</span>
+                    </button>
+                </div>
+            </section>
+        }
+        </div>
 
         @if (Model.History.Count > 0)
         {

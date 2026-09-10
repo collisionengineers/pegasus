@@ -708,7 +708,7 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     [Theory]
-    [InlineData(CaseLifecycleState.PostReportComplete)]
+    [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
     [InlineData(CaseLifecycleState.ProviderCancelled)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
     [InlineData(CaseLifecycleState.CreatedInError)]

@@ -48,7 +48,7 @@ public sealed class CaseTaskArchivePersistenceTests
         {
             CaseLifecycleState[] states =
             [
-                CaseLifecycleState.PostReportComplete,
+                CaseLifecycleState.SourceEmailUnlinked,
                 CaseLifecycleState.ProviderCancelled,
                 CaseLifecycleState.CollisionEngineersRejected,
                 CaseLifecycleState.CreatedInError
@@ -66,7 +66,7 @@ public sealed class CaseTaskArchivePersistenceTests
 
     [Theory]
     [MemberData(nameof(TerminalTaskMutations))]
-    public async Task EveryTaskMutationRequiresAReasonedReopenFromEveryTerminalState(
+    public async Task EveryTaskMutationRequiresAReasonedReopenFromActualTerminalStates(
         CaseLifecycleState terminalState,
         string mutation)
     {

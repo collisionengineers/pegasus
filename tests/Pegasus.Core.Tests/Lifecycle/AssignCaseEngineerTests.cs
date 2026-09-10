@@ -265,6 +265,11 @@ public sealed class AssignCaseEngineerTests
             ReopenCaseRequest request,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<CaseWorkflowRecord> ReturnToEngineerAsync(
+            ReturnCaseToEngineerRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
 

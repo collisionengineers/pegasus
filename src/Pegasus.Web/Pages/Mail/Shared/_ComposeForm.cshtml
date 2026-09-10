@@ -1,0 +1,146 @@
+@using Pegasus.Web.Presentation
+@model Pegasus.Web.Pages.Mail.ComposeModel
+@{
+    var unresolvedOperation = Model.Operation?.State is Pegasus.Core.Operations.StaffMailState.Submitted
+        or Pegasus.Core.Operations.StaffMailState.Unknown;
+}
+
+<section id="mail-compose-content" class="dialog mail-compose-dialog" role="dialog"
+         aria-modal="true" aria-labelledby="mail-compose-title" tabindex="-1">
+    <header class="dialog-head">
+        <div>
+            <p class="eyebrow">Inbox</p>
+            <h1 id="mail-compose-title">Compose</h1>
+        </div>
+        <a class="dialog-close" asp-page="/Mail/Index" data-mail-compose-close aria-label="Close composer">
+            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+        </a>
+    </header>
+    <div class="dialog-body mail-compose-body">
+        @if (TempData["SendNotice"] is string sendNotice)
+        {
+            <div class="notice notice--success" role="status">
+                <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                <span>@sendNotice</span>
+            </div>
+        }
+
+        <partial name="/Pages/Shared/_ErrorSummary.cshtml" />
+
+        @if (Model.Operation is { } operation)
+        {
+            <section class="mail-compose-status" aria-labelledby="mail-compose-status-title">
+                <h2 id="mail-compose-status-title">Send status</h2>
+                <p>@OperatorLabels.StaffMail.State(operation.State)</p>
+                @if (unresolvedOperation)
+                {
+                    <p class="field-hint">Confirm the provider outcome before starting another message.</p>
+                    <form method="post" asp-page="/Mail/Compose" asp-page-handler="Reconcile"
+                          data-mail-compose-form>
+                        <input type="hidden" name="operationId" value="@operation.Id" />
+                        <input type="hidden" name="expectedOperationVersion" value="@operation.Version" />
+                        <button type="submit" class="btn">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                            <span>@OperatorLabels.StaffMail.Reconcile</span>
+                        </button>
+                    </form>
+                }
+            </section>
+        }
+
+        @if (Model.StaffMailAvailable)
+        {
+            if (Model.DefaultMailbox is null)
+            {
+                <div class="notice" role="status">No default approved mailbox is configured for correspondence.</div>
+            }
+            else
+            {
+                <form method="post" asp-page="/Mail/Compose" asp-page-handler="Send"
+                      class="mail-compose-form" data-mail-compose-form>
+                    <input type="hidden" asp-for="OperationKey" />
+                    <input type="hidden" asp-for="OperationId" />
+                    <input type="hidden" asp-for="ExpectedContextVersion" />
+                    <div class="mail-compose-form-fields">
+                        <div class="mail-compose-case-search">
+                            <div class="field">
+                                <label asp-for="CaseQuery">Find a Case</label>
+                                <input asp-for="CaseQuery" type="search" maxlength="300" data-dialog-initial-focus />
+                                <span asp-validation-for="CaseQuery"></span>
+                            </div>
+                            <button type="submit" asp-page="/Mail/Compose" asp-page-handler="SearchCase" class="btn">Search</button>
+                        </div>
+                        @if (Model.CaseResults.Count > 0)
+                        {
+                            <ul class="search-results" data-mail-compose-results>
+                                @foreach (var candidate in Model.CaseResults)
+                                {
+                                    <li>
+                                        <button type="submit" asp-page="/Mail/Compose" asp-page-handler="SelectCase"
+                                                name="SelectedCaseReference" value="@candidate.Reference" class="btn">
+                                            @candidate.Reference · @(candidate.Registration ?? "No registration") · @(candidate.Claimant ?? "No claimant")
+                                        </button>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                        <div class="field mail-compose-case-reference">
+                            <label asp-for="CaseReference">Case / PO</label>
+                            <input asp-for="CaseReference" type="text" maxlength="100" />
+                            <span asp-validation-for="CaseReference"></span>
+                        </div>
+                        <div class="mail-compose-addresses">
+                            <div class="field mail-compose-from">
+                                <label>From</label>
+                                <input value="@Model.DefaultMailbox.Address" readonly aria-label="From" />
+                            </div>
+                            <div class="field mail-compose-to">
+                                <label asp-for="To">To</label>
+                                <input asp-for="To" type="text" />
+                                <span asp-validation-for="To"></span>
+                            </div>
+                            <div class="field mail-compose-cc">
+                                <label asp-for="Cc">Cc</label>
+                                <input asp-for="Cc" type="text" />
+                            </div>
+                        </div>
+                        <div class="field mail-compose-subject">
+                            <label asp-for="Subject">Subject</label>
+                            <input asp-for="Subject" type="text" />
+                            <span asp-validation-for="Subject"></span>
+                        </div>
+                        <div class="field mail-compose-message">
+                            <label asp-for="Body">Message</label>
+                            <textarea asp-for="Body" rows="6"></textarea>
+                            <span asp-validation-for="Body"></span>
+                        </div>
+                        @if (Model.AvailableAttachments.Count > 0)
+                        {
+                            <fieldset class="field mail-compose-attachments">
+                                <legend>Attachments</legend>
+                                @foreach (var attachment in Model.AvailableAttachments)
+                                {
+                                    <label>
+                                        <input type="checkbox" name="SelectedAttachments" value="@attachment.Selection"
+                                               checked="@Model.SelectedAttachments.Contains(attachment.Selection)" />
+                                        @attachment.FileName
+                                    </label>
+                                }
+                                <span asp-validation-for="SelectedAttachments"></span>
+                            </fieldset>
+                        }
+                    </div>
+                    @if (!unresolvedOperation)
+                    {
+                        <footer class="mail-compose-footer">
+                            <button type="submit" class="btn btn--primary">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                                <span>Send</span>
+                            </button>
+                        </footer>
+                    }
+                </form>
+            }
+        }
+    </div>
+</section>

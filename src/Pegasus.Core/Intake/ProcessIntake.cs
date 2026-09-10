@@ -786,7 +786,8 @@ public sealed class ProcessIntake(
                 mailRouteDecision);
         }
 
-        var principalContext = EstablishPrincipalContext(mailRouteDecision);
+        var principalContext = EstablishPrincipalContext(mailRouteDecision)
+            ?? EstablishManualUploadPrincipalContext(sourceChannel, instructionSelection);
         var conflictingProfile = instructionSelection.Outcome == InstructionPolicySelectionOutcome.Ambiguous
             || (instructionSelection.Policy is { } selected
                 && principalContext is not null
@@ -807,8 +808,35 @@ public sealed class ProcessIntake(
             instructionRead,
             extractionPolicy is null ? null : mailRouteDecision,
             cancellationToken);
+        // A candidate label names its retained source asset, not a page: every
+        // page from one PDF carries that asset label. This is the same
+        // source-identity distinction enforced by the OCR scheduler and
+        // retained-instruction analysis. OCR can resolve one scanned source;
+        // more than one requires a staff decision rather than a merged result.
+        var requiresExplicitMultiSourceScanReview = readResult.RequiresOcr
+            && sourceChannel is IntakeSourceChannel.Mailbox or IntakeSourceChannel.ManualUpload
+            && readResult.ScannedPdfPages.Select(candidate => candidate.SourceLabel)
+                .Distinct(StringComparer.Ordinal).Skip(1).Any();
         if (principalContext is null)
         {
+            if (requiresExplicitMultiSourceScanReview)
+            {
+                return new(
+                    IntakeDecision.NeedsSorting,
+                    "Instructions with more than one scanned source require staff review.",
+                    readerEvidence,
+                    [],
+                    null,
+                    [],
+                    null,
+                    null,
+                    null,
+                    null,
+                    mailRouteDecision,
+                    mailClassificationDecision,
+                    caseMatchDecision);
+            }
+
             if (readResult.RequiresOcr)
             {
                 return new(
@@ -845,6 +873,24 @@ public sealed class ProcessIntake(
 
         if (extractionPolicy is null)
         {
+            if (requiresExplicitMultiSourceScanReview && !conflictingProfile)
+            {
+                return new(
+                    IntakeDecision.NeedsSorting,
+                    "Instructions with more than one scanned source require staff review.",
+                    readerEvidence,
+                    [],
+                    null,
+                    [],
+                    null,
+                    null,
+                    null,
+                    null,
+                    mailRouteDecision,
+                    mailClassificationDecision,
+                    caseMatchDecision);
+            }
+
             return new(
                 readResult.RequiresOcr && !conflictingProfile ? IntakeDecision.OcrRequired : IntakeDecision.NeedsSorting,
                 conflictingProfile
@@ -866,6 +912,11 @@ public sealed class ProcessIntake(
             InstructionPolicyApplicability.Applicable => (
                 IntakeDecision.CaseCreated,
                 "A definitive instruction was identified and is eligible for case allocation.",
+                null,
+                null),
+            InstructionPolicyApplicability.Indeterminate when requiresExplicitMultiSourceScanReview => (
+                IntakeDecision.NeedsSorting,
+                "Instructions with more than one scanned source require staff review.",
                 null,
                 null),
             InstructionPolicyApplicability.Indeterminate when readResult.RequiresOcr => (
@@ -891,19 +942,26 @@ public sealed class ProcessIntake(
             && mailClassificationDecision is not { CaseType: not null }
             && mailClassificationDecision is not { IsTriageRequest: true })
         {
-            decision = readResult.RequiresOcr ? IntakeDecision.OcrRequired : IntakeDecision.NeedsSorting;
-            reason = "The current instruction does not identify one accepted work type.";
-            if (readResult.RequiresOcr)
+            if (requiresExplicitMultiSourceScanReview)
             {
-                failureCode = "ocr_required";
-                failureReason = "Scanned instruction content is required to establish the work type.";
+                decision = IntakeDecision.NeedsSorting;
+                reason = "Instructions with more than one scanned source require staff review.";
+            }
+            else
+            {
+                decision = readResult.RequiresOcr ? IntakeDecision.OcrRequired : IntakeDecision.NeedsSorting;
+                reason = "The current instruction does not identify one accepted work type.";
+                if (readResult.RequiresOcr)
+                {
+                    failureCode = "ocr_required";
+                    failureReason = "Scanned instruction content is required to establish the work type.";
+                }
             }
         }
-        // A Triage request is pre-case work, and the accepted route policy has
-        // already said so. Left as CaseCreated it went to automatic allocation,
-        // which fails closed for want of a case type a Triage request correctly
-        // does not carry — producing no case, no Triage and no queue entry at
-        // all (INTK-033).
+        // A classified Triage request is pre-case work, so it cannot start
+        // automatic Case allocation. Only accepted-route evidence below may
+        // additionally open a Triage; the Provider API supplies its own
+        // declared evidence, while manual classification remains staff-held.
         if (mailClassificationDecision is { IsTriageRequest: true }
             && decision == IntakeDecision.CaseCreated)
         {
@@ -911,7 +969,9 @@ public sealed class ProcessIntake(
             reason = "A Triage request is pre-case work; no case is created from it.";
         }
 
-        var triageMatch = AcceptedTriageMatchEvidence(mailClassificationDecision);
+        var triageMatch = mailRouteDecision?.Disposition == MailRouteDisposition.Accepted
+            ? AcceptedTriageMatchEvidence(mailClassificationDecision)
+            : null;
 
         IntakeEvidence[] evidence = triageMatch is null
             ? [.. readerEvidence, .. policyResult.Evidence]
@@ -1102,6 +1162,25 @@ public sealed class ProcessIntake(
             ? new(route.WorkProviderCode, mailRouteDecision.PolicyKey, mailRouteDecision.PolicyVersion)
             : null;
 
+    // A staff-uploaded file has no trusted transport route: an embedded email
+    // sender is part of the file, not the channel identity. A uniquely selected
+    // document profile can nevertheless propose its own principal so staff can
+    // review and explicitly accept the retained draft. This does not create a
+    // mail-route result and manual uploads remain excluded from automatic
+    // allocation by AllocateIntake.
+    private static EstablishedPrincipalContext? EstablishManualUploadPrincipalContext(
+        IntakeSourceChannel sourceChannel,
+        InstructionPolicySelection selection) =>
+        sourceChannel == IntakeSourceChannel.ManualUpload
+        && selection is
+        {
+            Outcome: InstructionPolicySelectionOutcome.Selected,
+            Policy: { } policy
+        }
+        && policy is IInstructionDocumentProfile profile
+            ? new(policy.PrincipalCode, profile.DocumentProfileKey, profile.DocumentProfileVersion)
+            : null;
+
     private static void EnsureConsistentClassificationResult(MailClassificationResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -1145,9 +1224,10 @@ public sealed class ProcessIntake(
         IntakeSourceChannel sourceChannel,
         InstructionPolicySelection instruction)
     {
-        // A Provider API submission's route identity is its credential, so
-        // the sender of a forwarded message inside it never selects a route.
-        if (sourceChannel == IntakeSourceChannel.ProviderApi)
+        // A Provider API submission's route identity is its credential, and a
+        // manual upload awaits a staff decision. Sender metadata inside either
+        // submitted file is not a channel route identity.
+        if (sourceChannel is IntakeSourceChannel.ProviderApi or IntakeSourceChannel.ManualUpload)
         {
             return null;
         }

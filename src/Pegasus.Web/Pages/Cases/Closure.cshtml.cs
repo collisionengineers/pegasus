@@ -17,6 +17,7 @@ public sealed class ClosureModel(
     IRecordCaseReportApproval recordCaseReportApproval,
     ICloseCase closeCase,
     IReopenCase reopenCase,
+    IReturnCaseToEngineer returnToEngineer,
     IArchiveCase archiveCase,
     ILogger<ClosureModel> logger) : CaseMutationPageModel(logger)
 {
@@ -49,22 +50,65 @@ public sealed class ClosureModel(
                 cancellationToken),
             "The immutable report artifact was approved; this does not claim it was sent.");
 
+    /// <summary>
+    /// The Case workspace's adverse disposition. The outcome is nullable and
+    /// checked because the chooser is required: an omitted or unrecognised
+    /// value must be refused, not fall through to the enum's default, which
+    /// would complete the Case instead of closing it. Which outcomes exist for
+    /// the current state is Core's decision and is applied by
+    /// <see cref="ICloseCase"/> itself.
+    /// </summary>
     public Task<IActionResult> OnPostCloseAsync(
         Guid id,
         long expectedVersion,
         string operationKey,
         string reason,
         string editLeaseToken,
-        CaseClosureOutcome outcome,
+        CaseClosureOutcome? outcome,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
             id,
             editLeaseToken,
             "close",
             actor => closeCase.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, reason, editLeaseToken, outcome),
+                new(
+                    id,
+                    expectedVersion,
+                    actor,
+                    operationKey,
+                    reason,
+                    editLeaseToken,
+                    RequireOutcome(outcome)),
                 cancellationToken),
             "The selected terminal outcome was recorded.");
+
+    private static CaseClosureOutcome RequireOutcome(CaseClosureOutcome? outcome) =>
+        outcome is { } selected && Enum.IsDefined(selected)
+            ? selected
+            : throw new InvalidOperationException("A closure outcome is required.");
+
+    public Task<IActionResult> OnPostCompleteAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string reason,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandAsync(
+            id,
+            editLeaseToken,
+            "complete_case",
+            actor => closeCase.ExecuteAsync(
+                new(
+                    id,
+                    expectedVersion,
+                    actor,
+                    operationKey,
+                    reason,
+                    editLeaseToken,
+                    CaseClosureOutcome.PostReportComplete),
+                cancellationToken),
+            "The case is now Completed.");
 
     public Task<IActionResult> OnPostReopenAsync(
         Guid id,
@@ -98,6 +142,22 @@ public sealed class ClosureModel(
                         : null),
                 cancellationToken),
             "The case was reopened through the selected destination gates.");
+
+    public Task<IActionResult> OnPostReturnToEngineerAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string reason,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandAsync(
+            id,
+            editLeaseToken,
+            "return_to_engineer",
+            actor => returnToEngineer.ExecuteAsync(
+                new(id, expectedVersion, actor, operationKey, reason, editLeaseToken),
+                cancellationToken),
+            "The case was returned to Engineer.");
 
     public Task<IActionResult> OnPostArchiveAsync(
         Guid id,

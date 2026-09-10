@@ -124,7 +124,7 @@ public sealed record CaseHistoryEntry(
     string Actor,
     string ActorKind,
     DateTimeOffset OccurredAtUtc,
-    string Reason,
+    string? Reason,
     long BeforeVersion,
     long AfterVersion)
 {

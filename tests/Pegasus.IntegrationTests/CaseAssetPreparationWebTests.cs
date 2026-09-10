@@ -52,6 +52,12 @@ public sealed partial class CaseDetailsWebTests
         var panel = Section(html, "report-images-title");
         var visible = WebUtility.HtmlDecode(VisibleText(panel));
 
+        // Preview cards must address the routed document endpoint, so the
+        // crop editor can load the same retained image as the Files viewer.
+        Assert.Contains(
+            $"/Cases/{store.CaseId:D}/Documents/{fixture.OverviewOccurrenceId:D}/Download?versionId=",
+            WebUtility.HtmlDecode(panel), StringComparison.Ordinal);
+        Assert.DoesNotContain("/Cases/Documents/Download?", panel, StringComparison.Ordinal);
         Assert.Contains(ReportImageLabels.SectionTitle, visible, StringComparison.Ordinal);
         foreach (var fileName in new[]
         {
@@ -98,6 +104,9 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(1, Occurrences(leased, "id=\"case-edit-form\""));
         Assert.DoesNotContain("handler=SaveAssetPreparation", leased, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ResetAssetPreparation", leased, StringComparison.Ordinal);
+        // A missing closing quote used to swallow the preview URL into the
+        // crop-height attribute, leaving the browser crop editor without a source.
+        Assert.Matches("data-preparation-crop-height=\"[0-9.]+\"\\s+data-preparation-preview=\"/Cases/", leased);
 
         using var response = await workspace.Client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=Save",

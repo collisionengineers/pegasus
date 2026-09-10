@@ -70,7 +70,6 @@ public sealed record CreateStaffAccountRequest(
     ActionActor Actor,
     string UserName,
     string TemporaryPassword,
-    string Reason,
     string OperationKey);
 
 public sealed record CreateStaffAccountResult(
@@ -100,10 +99,10 @@ public sealed record UpdateStaffAccountSettingsRequest(
     string? Qualifications,
     byte[]? Signature,
     bool IsDefaultSignOffEngineer,
-    string Reason,
     string OperationKey,
     long ExpectedVersion,
-    string EditLeaseToken);
+    string EditLeaseToken,
+    string? Reason = null);
 
 public sealed record UpdateStaffAccountSettingsResult(
     StaffAccountSummary Account,
@@ -576,10 +575,6 @@ public static class StaffAccountAdministrationPolicy
                 request.UserName,
                 MaximumUserNameLength,
                 nameof(request.UserName)),
-            Reason = NormalizeRequiredText(
-                request.Reason,
-                MaximumReasonLength,
-                nameof(request.Reason)),
             OperationKey = NormalizeRequiredText(
                 request.OperationKey,
                 MaximumOperationKeyLength,
@@ -659,10 +654,6 @@ public static class StaffAccountAdministrationPolicy
                 : null,
             IsSignOffEngineer = isSignOffEngineer,
             IsDefaultSignOffEngineer = isDefaultSignOffEngineer,
-            Reason = NormalizeRequiredText(
-                request.Reason,
-                MaximumReasonLength,
-                nameof(request.Reason)),
             OperationKey = NormalizeRequiredText(
                 request.OperationKey,
                 MaximumOperationKeyLength,
@@ -670,7 +661,11 @@ public static class StaffAccountAdministrationPolicy
             EditLeaseToken = NormalizeRequiredText(
                 request.EditLeaseToken,
                 CaseEditAuthority.LeaseTokenLength,
-                nameof(request.EditLeaseToken))
+                nameof(request.EditLeaseToken)),
+            Reason = NormalizeOptionalText(
+                request.Reason,
+                MaximumReasonLength,
+                nameof(request.Reason))
         };
         return NormalizeEditScope(normalized, normalized.ExpectedVersion, normalized.EditLeaseToken,
             (version, token) => normalized with { ExpectedVersion = version, EditLeaseToken = token });

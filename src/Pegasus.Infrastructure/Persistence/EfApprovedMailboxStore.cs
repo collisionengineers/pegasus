@@ -363,7 +363,6 @@ public sealed class EfApprovedMailboxStore(
             OccurredAtUtc = timeProvider.GetUtcNow(),
             Outcome = "succeeded",
             CorrelationId = request.OperationKey,
-            Reason = request.Reason,
             BeforeJson = before is null ? null : JsonSerializer.Serialize(before),
             AfterJson = JsonSerializer.Serialize(after),
             PolicyVersion = $"approved-mailbox/{entity.Id:D}/v{entity.Version}"
@@ -474,7 +473,6 @@ public sealed class EfApprovedMailboxStore(
             OccurredAtUtc = timeProvider.GetUtcNow(),
             Outcome = "succeeded",
             CorrelationId = request.OperationKey,
-            Reason = request.Reason,
             BeforeJson = JsonSerializer.Serialize(before),
             AfterJson = JsonSerializer.Serialize(after),
             PolicyVersion = $"approved-mailbox/{target.Id:D}/v{target.Version}"
@@ -495,7 +493,6 @@ public sealed class EfApprovedMailboxStore(
             || history.EventKind != EventKind
             || history.ActorKind != request.Actor.Kind.ToString()
             || history.ActorSubjectId != request.Actor.SubjectId
-            || history.Reason != request.Reason
             || history.AfterJson is null)
         {
             throw new ApprovedMailboxUpdateException(
@@ -533,7 +530,6 @@ public sealed class EfApprovedMailboxStore(
             || history.EventKind != DefaultSelectedEventKind
             || history.ActorKind != request.Actor.Kind.ToString()
             || history.ActorSubjectId != request.Actor.SubjectId
-            || history.Reason != request.Reason
             || history.AfterJson is null)
         {
             throw new ApprovedMailboxUpdateException(

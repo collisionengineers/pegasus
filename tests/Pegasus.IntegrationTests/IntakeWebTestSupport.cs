@@ -956,6 +956,51 @@ internal static class IntakeTestEvidence
 
 internal sealed record TestEmail(string FileName, string MediaType, byte[] Content);
 
+
+/// <summary>
+/// Submits a fixture through the same mailbox ingress that owns automatic
+/// routing, classification and Triage creation. It deliberately does not use
+/// the staff Upload page, whose ManualUpload channel requires a staff decision.
+/// </summary>
+internal static class MailboxIntakeTestData
+{
+    public static Task<Guid> SubmitAndProcessAsync(
+        IServiceProvider services,
+        TestEmail email,
+        string? externalReceiptToken = null) =>
+        SubmitAndProcessAsync(
+            services,
+            email.FileName,
+            email.MediaType,
+            email.Content,
+            externalReceiptToken);
+
+    public static Task<Guid> SubmitAndProcessAsync(
+        IServiceProvider services,
+        string fileName,
+        string mediaType,
+        byte[] content,
+        string? externalReceiptToken = null)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(mediaType);
+        ArgumentNullException.ThrowIfNull(content);
+        return AllocationTestData.SubmitAndProcessAsync(
+            services,
+            new(
+                fileName,
+                mediaType,
+                content,
+                services.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(
+                    IntakeSourceChannel.Mailbox,
+                    externalReceiptToken ?? Guid.NewGuid().ToString("N"))),
+            $"mailbox-submit:{Guid.NewGuid():N}");
+    }
+}
+
 internal sealed record GenuineCorpusSample(string Hash, string UploadName, string MediaType, byte[] Bytes);
 
 internal static class GenuineQdosCorpus
@@ -996,9 +1041,15 @@ internal static class GenuineQdosCorpus
         return paths;
     }
 
-    private static string CorpusRoot => Path.Combine(
-        QdosCorpus.Root,
-        "qdos-email-corpus");
+    private static string CorpusRoot
+    {
+        get
+        {
+            var configuredRoot = QdosCorpus.Root;
+            var qdosEmailCorpus = Path.Combine(configuredRoot, "qdos-email-corpus");
+            return Directory.Exists(qdosEmailCorpus) ? qdosEmailCorpus : configuredRoot;
+        }
+    }
 }
 
 internal sealed class GenuineQdosCorpusFactAttribute : FactAttribute
@@ -1007,14 +1058,14 @@ internal sealed class GenuineQdosCorpusFactAttribute : FactAttribute
     {
         if (!GenuineQdosCorpus.IsPresent)
         {
-            Skip = "The ignored local qdos-email-corpus is absent under the configured corpus root; genuine-input evidence was not run.";
+            Skip = "The configured corpus root has no genuine QDOS source files; genuine-input evidence was not run.";
             return;
         }
 
         var missing = requiredHashes.FirstOrDefault(hash => !GenuineQdosCorpus.Contains(hash));
         if (missing is not null)
         {
-            Skip = $"This machine's qdos-email-corpus lacks the frozen item {missing[..12]}...; corpora differ per system.";
+            Skip = $"This machine's configured genuine corpus lacks the frozen item {missing[..12]}...; corpora differ per system.";
         }
     }
 }

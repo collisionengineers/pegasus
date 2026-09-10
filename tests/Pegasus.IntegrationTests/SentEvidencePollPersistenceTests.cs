@@ -204,10 +204,7 @@ public sealed class SentEvidencePollPersistenceTests
         var email = IntakeTestEvidence.CreateEmail(
             "triage-request.eml",
             "Triage Only Request\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-001\r\nVehicle Registration: AB12 CDE");
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(factory, client, email.FileName,
-        email.MediaType,
-        email.Content);
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
         var activatedAtUtc = factory.Services.GetRequiredService<TimeProvider>()
             .GetUtcNow()
             .AddMinutes(-10);

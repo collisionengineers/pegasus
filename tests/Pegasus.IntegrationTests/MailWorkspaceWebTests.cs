@@ -1082,7 +1082,7 @@ public sealed class MailWorkspaceWebTests
         await GetHtmlAsync(client, "/Inbox?search=%20%20%20");
         var overlong = await GetHtmlAsync(client, $"/Inbox?search={new string('x', 201)}");
 
-        Assert.Contains("No retained mail in this mailbox matched", noMatch, StringComparison.Ordinal);
+        Assert.Contains("No emails in this mailbox matched", noMatch, StringComparison.Ordinal);
         Assert.DoesNotContain("No mail has been received.", noMatch, StringComparison.Ordinal);
         Assert.Contains("Search terms must be 200 characters or fewer.", overlong, StringComparison.Ordinal);
     }
