@@ -196,6 +196,7 @@ public sealed partial class DownloadModel(
 
         try
         {
+            var thumbnailUnavailable = false;
             if (wantsThumbnail)
             {
                 var thumbnail = await readCaseDocumentThumbnail.OpenAsync(
@@ -218,8 +219,13 @@ public sealed partial class DownloadModel(
                     SetInlineDisposition(fileName);
                     return File(thumbnail.Content, thumbnail.MediaType);
                 }
-                // No rendering could be produced. The full image is the answer,
-                // under its own content ETag rather than the thumbnail's.
+                // No rendering could be produced. The full image is the answer
+                // for this one request only, and is not cached: a rendering
+                // failure can be transient — the renderer was busy, the source
+                // read did not complete — and a cached full image on a tile's
+                // thumbnail URL would keep serving those bytes for a week
+                // after the rendering started working again.
+                thumbnailUnavailable = true;
             }
 
             var content = await readLogicalDocumentVersion.OpenAsync(
@@ -233,7 +239,8 @@ public sealed partial class DownloadModel(
                     ExpectedSha256: sha256,
                     ExpectedContentLength: preview.ContentLength),
                 cancellationToken);
-            SetPreviewCaching(ContentETag(sha256), IsCacheablePreview(mediaType));
+            SetPreviewCaching(
+                ContentETag(sha256), IsCacheablePreview(mediaType) && !thumbnailUnavailable);
             Response.Headers["X-Content-SHA256"] = sha256;
             Response.ContentLength = content.ContentLength;
             SetInlineDisposition(fileName);
@@ -291,9 +298,11 @@ public sealed partial class DownloadModel(
     private static string ThumbnailETag(string sha256) => $"\"{sha256}-thumb\"";
 
     /// <summary>
-    /// Whether the caller already holds this representation, and which one.
-    /// A thumbnail URL accepts the full image's validator too, because that is
-    /// what it answers with when no rendering can be produced.
+    /// Whether the caller already holds this representation. Each URL accepts
+    /// only its own validator: a thumbnail request is answered 304 only for a
+    /// thumbnail, because the full image the route falls back to when no
+    /// rendering can be produced is served uncached for that one request and
+    /// must not become the tile's permanent answer.
     /// </summary>
     private bool TryMatchHeldRepresentation(
         string sha256,
@@ -306,9 +315,7 @@ public sealed partial class DownloadModel(
         {
             return false;
         }
-        string[] accepted = wantsThumbnail
-            ? [ThumbnailETag(sha256), ContentETag(sha256)]
-            : [ContentETag(sha256)];
+        string[] accepted = [wantsThumbnail ? ThumbnailETag(sha256) : ContentETag(sha256)];
         foreach (var header in offered)
         {
             foreach (var candidate in (header ?? string.Empty).Split(','))

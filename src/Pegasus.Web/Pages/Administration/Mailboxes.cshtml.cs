@@ -60,10 +60,27 @@ public sealed class MailboxesModel(
     public EditScopeLease? MailboxEditLease { get; private set; }
 
     /// <summary>
-    /// The mailbox policy this operator is already editing in another window,
-    /// offered with the take-over that ends the other window's claim.
+    /// The mailbox policy this operator is already editing in another
+    /// window's per-row Settings editor, offered with the take-over that
+    /// ends the other window's claim. Set only by
+    /// <see cref="OnPostEditMailboxAsync"/>'s refusal; the default-sender
+    /// dialog's own refusal is tracked separately by
+    /// <see cref="TakeOverDefaultMailboxId"/>, since a lease held on a
+    /// different mailbox than the one the dialog currently has selected must
+    /// never be offered as a take-over here.
     /// </summary>
     public Guid TakeOverMailboxId { get; private set; }
+
+    /// <summary>
+    /// The mailbox policy this operator is already editing elsewhere, as
+    /// discovered by the default-sender dialog's own claim attempt. The
+    /// dialog offers Take over only when this equals the mailbox the dialog
+    /// currently has selected (<see cref="DefaultEditingMailboxId"/>'s
+    /// parsed selection) — otherwise a stale value here (e.g. from a lease
+    /// held on some other mailbox) must not relabel Continue as Take over
+    /// for a mailbox nobody has refused.
+    /// </summary>
+    public Guid TakeOverDefaultMailboxId { get; private set; }
 
     /// <summary>The same for an Outlook category.</summary>
     public Guid TakeOverCategoryId { get; private set; }
@@ -219,7 +236,7 @@ public sealed class MailboxesModel(
         }
         catch (EditScopeHeldElsewhereException)
         {
-            TakeOverMailboxId = mailboxId;
+            TakeOverDefaultMailboxId = mailboxId;
             ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(MailboxRecordName));
         }
         catch (EditScopeConflictException)

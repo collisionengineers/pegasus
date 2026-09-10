@@ -170,14 +170,16 @@ public static class EditScopeAuthority
 
     /// <summary>
     /// How long a still-unexpired scope must have gone unbeaten before its own
-    /// holder may silently replace it. Three missed renewals are the shortest
-    /// proof that the window which claimed it is gone: a hidden browser tab
-    /// throttles its timers, so one missed renewal is routine and even two can
-    /// occur without the window actually having left. A holder who is
-    /// genuinely still editing elsewhere keeps the scope until they choose to
-    /// take it over.
+    /// holder may silently replace it. A scope goes stale one heartbeat before
+    /// it would lapse of its own accord, so a silent replacement only ever
+    /// takes a lease the holder was about to lose anyway. Anything sooner
+    /// would rotate the token of a window that is still open and still
+    /// beating - a hidden browser tab throttles its timers, so several
+    /// consecutive renewals can arrive late without the window having left. A
+    /// holder who is genuinely still editing elsewhere keeps the scope until
+    /// they choose to take it over.
     /// </summary>
-    public static readonly TimeSpan StaleAfter = HeartbeatInterval * 3;
+    public static readonly TimeSpan StaleAfter = Duration - HeartbeatInterval;
 
     /// <summary>
     /// When the scope was last claimed or renewed. Persistence retains only the

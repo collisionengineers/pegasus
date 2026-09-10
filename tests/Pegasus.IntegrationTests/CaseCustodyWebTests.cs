@@ -318,14 +318,18 @@ public sealed partial class CaseDetailsWebTests
         Assert.EndsWith("#case-files-images", location, StringComparison.Ordinal);
     }
 
-    /// <summary>One live case file: a current, unremoved, custody-confirmed version.</summary>
+    /// <summary>
+    /// One current case file: a current, unremoved version, custody-confirmed
+    /// unless the test names another custody state.
+    /// </summary>
     private static CaseDocument Document(
         Guid occurrenceId,
         Guid versionId,
         string fileName,
         string mediaType,
         DocumentSemanticRole role = DocumentSemanticRole.Instruction,
-        IReadOnlyList<ImageTagAssignment>? tags = null)
+        IReadOnlyList<ImageTagAssignment>? tags = null,
+        DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed)
     {
         var documentId = Guid.NewGuid();
         var recordedAtUtc = new DateTimeOffset(2031, 5, 5, 9, 0, 0, TimeSpan.Zero);
@@ -353,7 +357,7 @@ public sealed partial class CaseDetailsWebTests
                     mediaType,
                     24_576,
                     new string('c', 64),
-                    DocumentCustodyStatus.Confirmed,
+                    custody,
                     recordedAtUtc,
                     "staff",
                     IsCurrent: true,

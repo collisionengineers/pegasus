@@ -162,7 +162,11 @@
     // session open. Each marked form carries only its existing antiforgery
     // value and opaque lease token; the server owns the record and actor
     // resolution. A failed renewal stops rather than silently continuing with
-    // an edit the operator can no longer save.
+    // an edit the operator can no longer save. A hidden tab keeps beating:
+    // the operator's unsaved edit is still open, and a scope that stops being
+    // renewed is exactly what the server reads as an abandoned window. The
+    // browser throttles a hidden tab's timers, so the beat on becoming
+    // visible again settles whatever phase the throttling left.
     function bindEditScopeHeartbeats(root) {
         root.querySelectorAll('form[data-edit-heartbeat][data-edit-heartbeat-status]').forEach(function (form) {
             if (form.dataset.editHeartbeatBound === 'true') {
@@ -182,7 +186,7 @@
                 }
             };
             var heartbeat = function () {
-                if (stopped || document.hidden || typeof window.fetch !== 'function') {
+                if (stopped || typeof window.fetch !== 'function') {
                     return;
                 }
 
@@ -1554,7 +1558,7 @@
                     return;
                 }
                 image.dataset.galleryImageBound = 'true';
-                image.addEventListener('error', function () {
+                function handleFailure() {
                     var source = image.getAttribute('src');
                     if (!source) {
                         return;
@@ -1580,7 +1584,17 @@
                         note.textContent = 'Storing…';
                         caption.appendChild(note);
                     }
-                });
+                }
+                image.addEventListener('error', handleFailure);
+                // A tile whose image already failed before this end-of-body
+                // script ran (a 503 during the initial page load) fired its
+                // error event before this listener existed to catch it, and
+                // the browser never re-fires a load failure on its own. Catch
+                // that already-failed state at bind time and start the same
+                // retry pacing immediately instead of leaving the tile stuck.
+                if (image.complete && image.naturalWidth === 0 && image.getAttribute('src')) {
+                    handleFailure();
+                }
             });
         }
         bindGalleryImages(document);

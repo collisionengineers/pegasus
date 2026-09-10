@@ -174,6 +174,105 @@ public sealed class DocumentCustodyDurabilityTests
     }
 
     /// <summary>
+    /// A replay asserts the audited action, not the current state. The image
+    /// the tag was put on can legitimately stop being taggable afterwards — it
+    /// is removed, or a new version supersedes it — and the retry of the same
+    /// operation key still has to answer with the action it already recorded.
+    /// The taggable-image rule ran before the replay check and turned that
+    /// retry into a refusal, which is a lost tag for any caller that retries.
+    /// </summary>
+    [Fact]
+    public async Task AnImageTagReplaysAfterTheTaggedVersionStopsBeingTaggable()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            var occurrenceId = await SeedCurrentImageAsync(database, caseId);
+            await using var scope = database.CreateAsyncScope();
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
+            var lease = await leases.ClaimAsync(
+                new(caseId, 0, actor, $"image-tag-lease:{Guid.NewGuid():N}"),
+                CancellationToken.None);
+            var command = new TagCaseImageCommand(
+                caseId,
+                occurrenceId,
+                ImageTagVocabulary.ThirdPartyId,
+                actor,
+                $"image-tag:{Guid.NewGuid():N}",
+                lease.Version,
+                lease.Token);
+            var tagger = scope.ServiceProvider.GetRequiredService<ITagCaseImage>();
+            await tagger.ExecuteAsync(command, CancellationToken.None);
+
+            long taggedVersion;
+            await using (var verification = await database.CreateContextAsync())
+            {
+                taggedVersion = await verification.CaseWorkflows
+                    .Where(item => item.CaseId == caseId)
+                    .Select(item => item.Version)
+                    .SingleAsync();
+            }
+
+            // The tagged version stops being taggable: the operator removes the
+            // file.
+            var removalLease = await leases.ClaimAsync(
+                new(caseId, taggedVersion, actor, $"image-removal-lease:{Guid.NewGuid():N}"),
+                CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<ILogicallyRemoveDocument>()
+                .ExecuteAsync(
+                    new(
+                        caseId,
+                        occurrenceId,
+                        actor,
+                        "Wrong vehicle — the photograph belongs to another claim.",
+                        $"image-removal:{Guid.NewGuid():N}",
+                        taggedVersion,
+                        removalLease.Token),
+                    CancellationToken.None);
+
+            // The exact replay returns, and adds nothing.
+            await tagger.ExecuteAsync(command, CancellationToken.None);
+
+            await using var afterReplay = await database.CreateContextAsync();
+            Assert.Equal(
+                "case_image_tagged",
+                await afterReplay.ActionHistory
+                    .Where(item => item.CorrelationId == command.OperationKey)
+                    .Select(item => item.EventKind)
+                    .SingleAsync());
+
+            // A first submission on the same image is still refused: the rule
+            // moved behind the replay check, it did not go away.
+            var removedVersion = await afterReplay.CaseWorkflows
+                .Where(item => item.CaseId == caseId)
+                .Select(item => item.Version)
+                .SingleAsync();
+            var refusedLease = await leases.ClaimAsync(
+                new(caseId, removedVersion, actor, $"image-tag-refused-lease:{Guid.NewGuid():N}"),
+                CancellationToken.None);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => tagger.ExecuteAsync(
+                command with
+                {
+                    OperationKey = $"image-tag:{Guid.NewGuid():N}",
+                    ExpectedCaseVersion = refusedLease.Version,
+                    EditLeaseToken = refusedLease.Token
+                },
+                CancellationToken.None));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
     /// A tag belongs to the case that holds the image: another case's lease
     /// and version reach nothing, and the vocabulary refuses a second entry
     /// with a name it already has, whatever the casing.

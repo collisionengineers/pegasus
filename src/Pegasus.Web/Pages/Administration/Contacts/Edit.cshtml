@@ -19,7 +19,7 @@
             <div class="form-grid form-grid--2">
                 <div class="field field-wide"><label class="req" asp-for="Name">Organisation name</label><input asp-for="Name" autocomplete="organization" /><span asp-validation-for="Name"></span></div>
                 <div class="field"><label asp-for="ContactPerson">Contact person</label><input asp-for="ContactPerson" autocomplete="name" /></div>
-                <div class="field"><label asp-for="Telephone">Phone</label><input asp-for="Telephone" type="tel" inputmode="tel" pattern="^\+?[0-9 ]{6,20}$" autocomplete="tel" /><span asp-validation-for="Telephone"></span></div>
+                <div class="field"><label asp-for="Telephone">Phone</label><input asp-for="Telephone" type="tel" inputmode="tel" pattern="^\+?[0-9 ]+$" autocomplete="tel" /><span asp-validation-for="Telephone"></span></div>
                 <div class="field field-wide"><label asp-for="Email">Email</label><input asp-for="Email" type="email" autocomplete="email" /></div>
                 <div class="field"><label asp-for="Address">Address</label><textarea asp-for="Address" rows="3" autocomplete="street-address"></textarea></div>
                 <div class="field"><label asp-for="Postcode">Postcode</label><input asp-for="Postcode" autocomplete="postal-code" /></div>

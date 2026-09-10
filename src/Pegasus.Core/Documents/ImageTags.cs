@@ -78,11 +78,18 @@ public static class ImageTagVocabulary
         new(ReflectionId, ReflectionName, ImageTagColour.Navy, IsBuiltIn: true, Version: 1)
     ];
 
-    /// <summary>The stored spelling of a supplied name.</summary>
+    /// <summary>
+    /// The stored spelling of a supplied name: trimmed, with every interior
+    /// run of Unicode whitespace (including a non-breaking space) collapsed
+    /// to one ordinary space. Without this, "Third  party" (two spaces) would
+    /// pass the uniqueness check as a different name from the built-in
+    /// "Third party" while rendering identically, silently escaping its EVA
+    /// exclusion.
+    /// </summary>
     public static string Normalize(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        var value = name.Trim();
+        var value = CollapseWhitespace(name.Trim());
         if (value.Length > MaximumNameLength)
         {
             throw new ArgumentOutOfRangeException(
@@ -95,6 +102,29 @@ public static class ImageTagVocabulary
         }
 
         return value;
+    }
+
+    private static string CollapseWhitespace(string value)
+    {
+        var builder = new System.Text.StringBuilder(value.Length);
+        var lastWasWhitespace = false;
+        foreach (var character in value)
+        {
+            if (char.IsWhiteSpace(character))
+            {
+                if (!lastWasWhitespace)
+                {
+                    builder.Append(' ');
+                }
+                lastWasWhitespace = true;
+            }
+            else
+            {
+                builder.Append(character);
+                lastWasWhitespace = false;
+            }
+        }
+        return builder.ToString();
     }
 
     /// <summary>The comparison key: names are unique without regard to case.</summary>

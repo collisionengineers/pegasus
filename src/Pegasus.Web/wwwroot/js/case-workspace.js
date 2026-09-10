@@ -315,11 +315,17 @@
             });
             strip.hidden = false;
             wrap.classList.add('is-tabbed');
+            // Only an explicit `#case-files-<tab>` fragment picks a tab. A bare
+            // `?section=files` route value with no such fragment (a Refresh or
+            // a section-nav link) is not a request for Images specifically —
+            // it keeps the server-rendered default (Documents). A redirect
+            // that does mean Images (tag/untag/create) always carries the
+            // `#case-files-images` fragment itself (Custody.cshtml.cs
+            // RedirectToDetailsFilesImages), and browsers apply a fragment
+            // from a 302 Location, so that case is handled by fromHash too.
             var fromHash = (window.location.hash || '').replace('#case-files-', '');
-            var fromSection = new URLSearchParams(window.location.search).get('section') === 'files' ? 'images' : '';
-            var requested = fromHash || fromSection;
-            show(buttons.some(function (button) { return button.getAttribute('data-file-tab') === requested; })
-                ? requested
+            show(buttons.some(function (button) { return button.getAttribute('data-file-tab') === fromHash; })
+                ? fromHash
                 : buttons[0].getAttribute('data-file-tab'), false);
         });
     }

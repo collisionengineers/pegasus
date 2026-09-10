@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Pages;
 
 namespace Pegasus.IntegrationTests;
 
@@ -592,6 +593,40 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         AssertFolderBinding(refreshedEditing, "Instructions", "Not configured");
         AssertFolderBinding(refreshedEditing, "Billing", "Configured");
         Assert.Contains("value=\"10485760\"", refreshedEditing, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A per-row Settings dialog's own "held elsewhere" refusal must never
+    /// relabel the unrelated default-sender dialog's Continue button as Take
+    /// over. Both dialogs render on the same page, and before this was fixed
+    /// they shared one refusal flag with no check against which mailbox the
+    /// default-sender dialog actually had selected.
+    /// </summary>
+    [Fact]
+    public async Task ARowSettingsHeldElsewhereRefusalDoesNotMislabelTheDefaultSenderDialog()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var mailboxId = TestMailboxId.From("instructions").ToString("D");
+
+        var page = await GetPageAsync(client);
+        // Claims the row's edit lease once, exactly as the preset "second
+        // window" scenario does, so the next attempt without takeOver is
+        // refused as held elsewhere by this same operator's own claim.
+        await OpenMailboxEditAsync(client, mailboxId, MailboxVersion(page, mailboxId), page);
+        var refused = await OpenMailboxEditAsync(client, mailboxId, MailboxVersion(page, mailboxId), page);
+
+        Assert.Contains(EditModeDisplay.HeldElsewhere("mailbox policy"), refused, StringComparison.Ordinal);
+
+        var dialogStart = refused.IndexOf(
+            "data-dialog=\"default-sender-dialog\"", StringComparison.Ordinal);
+        Assert.True(dialogStart >= 0);
+        var dialogEnd = refused.IndexOf("</form>", dialogStart, StringComparison.Ordinal);
+        Assert.True(dialogEnd >= 0);
+        var defaultSenderDialog = refused[dialogStart..dialogEnd];
+
+        Assert.DoesNotContain(">Take over<", defaultSenderDialog, StringComparison.Ordinal);
+        Assert.Contains(">Continue<", defaultSenderDialog, StringComparison.Ordinal);
     }
 
     /// <summary>

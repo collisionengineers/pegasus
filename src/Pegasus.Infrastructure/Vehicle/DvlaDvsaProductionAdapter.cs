@@ -391,17 +391,41 @@ internal sealed class DvlaDvsaProductionAdapter(
         {
             using var document = JsonDocument.Parse(body);
             return ErrorElements(document.RootElement).Any(element =>
-                (element.FromErrorCollection
-                    && (IsFourOhFour(Text(element.Value, "code"))
-                        || IsFourOhFour(Text(element.Value, "status"))))
-                || ErrorTextProperties
-                    .Select(property => Text(element.Value, property))
-                    .Any(text => SaysVehicleNotFound(text, registration)));
+                IsVehicleNotFoundElement(element.Value, element.FromErrorCollection, registration));
         }
         catch (JsonException)
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Whether a single error element (an object, a bare string, or anything
+    /// else) says "vehicle not found". A string element — as in
+    /// <c>{"errors":["Resource not found"]}</c> or a bare
+    /// <c>["Resource not found"]</c> array — is its own text; any other
+    /// non-object shape (number, bool, null, nested array) carries no
+    /// recognisable signal and is never "vehicle not found".
+    /// </summary>
+    private static bool IsVehicleNotFoundElement(
+        JsonElement value, bool fromErrorCollection, string registration)
+    {
+        if (value.ValueKind == JsonValueKind.String)
+        {
+            return fromErrorCollection && SaysVehicleNotFound(value.GetString(), registration);
+        }
+
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            return false;
+        }
+
+        return (fromErrorCollection
+                && (IsFourOhFour(Text(value, "code"))
+                    || IsFourOhFour(Text(value, "status"))))
+            || ErrorTextProperties
+                .Select(property => Text(value, property))
+                .Any(text => SaysVehicleNotFound(text, registration));
     }
 
     private static readonly string[] ErrorTextProperties =
@@ -499,7 +523,9 @@ internal sealed class DvlaDvsaProductionAdapter(
     }
 
     private static string? Text(JsonElement value, string property) =>
-        value.TryGetProperty(property, out var result) && result.ValueKind == JsonValueKind.String
+        value.ValueKind == JsonValueKind.Object
+            && value.TryGetProperty(property, out var result)
+            && result.ValueKind == JsonValueKind.String
             ? result.GetString()
             : null;
 

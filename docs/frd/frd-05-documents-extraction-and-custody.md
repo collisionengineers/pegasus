@@ -111,12 +111,14 @@ never as an audited download: every read re-verifies the source content hash
 and serves only confirmed custody. A cache entry is content-hash addressed,
 so it is immutable and safely shared, and a smaller thumbnail variant is
 served to gallery and tile surfaces while the full image serves the viewer
-and crop. The instruction/receipt gallery does not omit an image whose
-custody is still in flight (not yet confirmed); it renders as a placeholder
-naming the file until custody resolves. The Case's own Images tab carries no
-such placeholder: it is built from `CaseFiles.Live`, which requires Confirmed
-custody, so an image still in flight is simply absent from it until custody
-resolves.
+and crop. No gallery omits an image whose custody is still in flight (not yet
+confirmed) or has failed; it renders as a placeholder naming the file and
+stating its custody state until custody resolves. The Case's own Images tab
+draws the same placeholder: it is built from `CaseFiles.Current`, every
+current, not logically removed image occurrence whatever its custody has
+reached, and offers the thumbnail, viewer link, tags and Crop only on the
+Confirmed ones. The Documents tab lists the same set, each row stating its
+custody, and offers Preview and Save as only where the bytes are held.
 
 ## Image tags
 

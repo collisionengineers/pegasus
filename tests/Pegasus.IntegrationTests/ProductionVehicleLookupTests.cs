@@ -325,6 +325,54 @@ public sealed class ProductionVehicleLookupTests
     }
 
     /// <summary>
+    /// A gateway 404 whose <c>errors</c> array holds plain strings rather than
+    /// objects — e.g. <c>{"errors":["Resource not found"]}</c> — must not
+    /// throw when the code inspects each element for a "404" code/status: a
+    /// string element has no such properties. It names no vehicle, so it is a
+    /// failure, never an absent vehicle.
+    /// </summary>
+    [Fact]
+    public async Task AStringErrorsArrayNotFoundBodyIsAFailure()
+    {
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            return Json(HttpStatusCode.NotFound, """{"errors":["Resource not found"]}""");
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Failed, result.Outcome);
+        Assert.Equal("dvla_failed_404", result.Failure?.Code);
+    }
+
+    /// <summary>
+    /// A bare JSON array of strings at the document root — no wrapping
+    /// <c>errors</c> object at all — must likewise not throw, and must not be
+    /// read as naming a vehicle.
+    /// </summary>
+    [Fact]
+    public async Task ABareStringArrayNotFoundBodyIsAFailure()
+    {
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            return Json(HttpStatusCode.NotFound, """["Resource not found"]""");
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Failed, result.Outcome);
+        Assert.Equal("dvla_failed_404", result.Failure?.Code);
+    }
+
+    /// <summary>
     /// One provider's route 404 beside the other's real evidence is a partial
     /// answer carrying that failure, not the "vehicle not found" partial.
     /// </summary>

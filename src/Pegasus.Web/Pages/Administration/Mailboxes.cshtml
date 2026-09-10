@@ -208,9 +208,9 @@
                 }
                 else
                 {
-                    @* A take-over is offered only to the operator whose own other window still holds this mailbox policy; it rotates the token so that window can no longer save. *@
+                    @* A take-over is offered only when the default-sender dialog's own refusal named exactly the mailbox this dialog currently has selected; it rotates the token so that window can no longer save. *@
                     <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    if (Model.TakeOverMailboxId != Guid.Empty)
+                    if (Model.TakeOverDefaultMailboxId != Guid.Empty && Model.TakeOverDefaultMailboxId == Model.DefaultEditingMailboxId)
                     {
                         <input type="hidden" name="takeOver" value="true" />
                         <button type="submit" class="btn btn--primary" formaction="@Url.Page(null, "EditDefault")" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)">Take over</button>
