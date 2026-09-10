@@ -102,7 +102,12 @@ account and signature digest, Current estimate identity/version and breakdown,
 accepted Engineer value and applied valuation identity, content switches,
 report date or override, narrative, fee, source documents with Box identities,
 and prepared-image role, order, rotation and crop. Report and fee note are
-separately addressable generated artifacts through custody. Relevant accepted
+separately addressable generated artifacts through custody. The generating
+operator chooses whether the fee note is a separate document or the report's
+own final pages, and the frozen snapshot carries that choice, so the combined
+report is one artifact under the report's file name and reproduces the same
+way. The fee facts, readiness requirements and accepted fee terms are the same
+either way. Relevant accepted
 fact changes mark a generation stale; notes and recipient edits do not. A
 ready generation records ActionHistory `case_report_generation_ready`.
 Preview creates neither an artifact nor Sent evidence. Viewing a preview

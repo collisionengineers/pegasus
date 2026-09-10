@@ -42,6 +42,15 @@ namespace Pegasus.Core.Reports;
 /// a generation freezes it, or when a preview is explicitly rendered at a
 /// stated date; a persisted override wins over both.
 /// </para>
+/// <para>
+/// <see cref="IncludeFeeNote"/> is the operator's packaging choice for this
+/// generation, supplied by the caller and never loaded: off means the fee
+/// note is only ever the separate <see cref="CaseReportArtifactKind.FeeNote"/>
+/// document, on means the report itself ends with the fee note. It is frozen
+/// into the immutable snapshot, so an issued report renders the same way
+/// again. The fee facts themselves are the assessment's, whichever way it is
+/// packaged.
+/// </para>
 /// </remarks>
 public sealed record AssessmentReportProjectionInput(
     CaseAssessmentProjection Assessment,
@@ -55,7 +64,8 @@ public sealed record AssessmentReportProjectionInput(
     RepairSpecificationVersion? CurrentEstimate = null,
     ReportSignatory? Signatory = null,
     ReportGuideSources? Guides = null,
-    string? ValuationCommentary = null);
+    string? ValuationCommentary = null,
+    bool IncludeFeeNote = false);
 
 /// <summary>
 /// Either a snapshot ready to render, or the enumerated reasons it is not —
@@ -203,7 +213,8 @@ public static class AssessmentReportProjection
             Content: content,
             Guides: input.Guides ?? ReportGuideSources.None,
             ValuationCommentary: input.ValuationCommentary,
-            ReportDateOverridden: reportDateOverridden);
+            ReportDateOverridden: reportDateOverridden,
+            IncludeFeeNote: input.IncludeFeeNote);
 
         return new(snapshot, []);
     }
@@ -450,11 +461,14 @@ public sealed class GenerateCaseAssessmentReportDraft(
     /// requested kind. Nothing is persisted: no generation, no artifact, no
     /// custody object and no Sent claim. The preview's report date is today's
     /// unless the Case records an override — a generation is what freezes one.
+    /// The preview shows the same packaging the generation would produce, so
+    /// <paramref name="includeFeeNote"/> is the operator's current choice.
     /// </summary>
     public async Task<GenerateCaseAssessmentReportDraftResult> ExecuteAsync(
         Guid caseId,
         ActionActor actor,
         CaseReportArtifactKind kind,
+        bool includeFeeNote = false,
         CancellationToken cancellationToken = default)
     {
         var access = await getAssessmentAccess.ExecuteAsync(
@@ -476,6 +490,7 @@ public sealed class GenerateCaseAssessmentReportDraft(
         var projected = AssessmentReportProjection.Project(input with
         {
             ReportDate = LondonCalendar.DateAt(timeProvider.GetUtcNow()),
+            IncludeFeeNote = includeFeeNote,
         });
         if (!projected.IsReady)
         {

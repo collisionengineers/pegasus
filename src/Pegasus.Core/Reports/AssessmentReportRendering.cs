@@ -376,7 +376,8 @@ public sealed record AssessmentReportSnapshot(
     ReportGuideSources Guides,
     string? ValuationCommentary = null,
     bool ReportDateOverridden = false,
-    string PayloadVersion = AssessmentReportContract.TemplateVersion)
+    string PayloadVersion = AssessmentReportContract.TemplateVersion,
+    bool IncludeFeeNote = false)
 {
     /// <summary>
     /// Whether the accepted Glass's guide-disclosure sentence prints: the
@@ -519,9 +520,12 @@ public sealed record RenderedReportArtifact(
     string EngineVersion);
 
 /// <summary>
-/// Renders exactly the requested artifact kind. A caller that wants both the
-/// assessment report and the fee note asks twice from the same frozen
-/// snapshot; nothing is rendered and discarded.
+/// Renders exactly the requested artifact kind. A caller that wants the
+/// assessment report and a separate fee-note document asks twice from the
+/// same frozen snapshot; nothing is rendered and discarded. When the frozen
+/// snapshot's <see cref="AssessmentReportSnapshot.IncludeFeeNote"/> is set,
+/// the <see cref="CaseReportArtifactKind.AssessmentReport"/> render carries
+/// the fee note as its final pages instead, and no second document exists.
 /// </summary>
 public interface IAssessmentReportRenderer
 {

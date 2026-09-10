@@ -350,8 +350,10 @@ public static class CaseWorkspaceLabels
         public const string GenerationNotReady = "Report not ready";
         public const string CurrentGeneration = "Generated";
         public const string GenerationState = "State";
+        public const string IncludeFeeNote = "Include fee note";
         public const string DownloadReport = "Report";
         public const string DownloadFeeNote = "Fee note";
+        public const string DownloadReportWithFeeNote = "Report with fee note";
         public const string GenerationStaleNotice =
             "A newer fact changed after this generation. Generate again before delivery.";
         public const string PrepareDelivery = "Prepare delivery";
