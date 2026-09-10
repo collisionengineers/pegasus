@@ -15,6 +15,8 @@ public sealed class InstructionReviewFieldTests
     [InlineData("Vehicle make and model", CaseDataFieldNames.VehicleMake)]
     [InlineData("Claimant mobile telephone", CaseDataFieldNames.ClaimantContactNumber)]
     [InlineData("Claimant home telephone", CaseDataFieldNames.ClaimantContactNumber)]
+    [InlineData("Repairer name", CaseDataFieldNames.RepairerName)]
+    [InlineData("Repairer address", CaseDataFieldNames.RepairerAddress)]
     [InlineData("Insurer policy number", null)]
     public void CurrentProfileBindingsResolveWithoutChangingPrintedEvidence(string name, string? expected)
     {

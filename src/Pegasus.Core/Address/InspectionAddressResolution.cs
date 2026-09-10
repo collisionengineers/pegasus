@@ -163,11 +163,19 @@ public sealed record InspectionAddressChoicesData(
     string? ClaimantAddress,
     string? RepairerAddress,
     string? StorageLocation,
-    IReadOnlyList<string> PreviousAddresses);
+    IReadOnlyList<string> PreviousAddresses,
+    // INTK-058: the Case's recorded repairer name, so the repairer option
+    // says which repairer rather than only offering an address.
+    string? RepairerName = null);
 
+/// <param name="SourceLabel">
+/// Which record the address came from, where the Case knows it — the
+/// repairer's name today. Null when the kind is the whole provenance.
+/// </param>
 public sealed record InspectionAddressChoice(
     InspectionAddressChoiceKind Kind,
-    string? Address)
+    string? Address,
+    string? SourceLabel = null)
 {
     public bool IsAvailable => Kind is InspectionAddressChoiceKind.ImageBasedAssessment
         or InspectionAddressChoiceKind.ManualEntry
@@ -187,7 +195,10 @@ public static class InspectionAddressChoices
                 InspectionAddressChoiceKind.ImageBasedAssessment,
                 Ext18InspectionAddressPolicy.ImageBasedAssessment),
             new(InspectionAddressChoiceKind.ClaimantAddress, data.ClaimantAddress),
-            new(InspectionAddressChoiceKind.RepairerLocation, data.RepairerAddress),
+            new(
+                InspectionAddressChoiceKind.RepairerLocation,
+                data.RepairerAddress,
+                data.RepairerName),
             new(InspectionAddressChoiceKind.StorageLocation, data.StorageLocation),
             .. data.PreviousAddresses.Select(address =>
                 new InspectionAddressChoice(InspectionAddressChoiceKind.PreviousAddress, address)),

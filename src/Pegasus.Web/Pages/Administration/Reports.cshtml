@@ -25,4 +25,69 @@
         </tbody></table></div>
     </div>
 </section>
+<section class="panel" aria-labelledby="mi02-title">
+    <div class="panel-head"><div><h2 id="mi02-title">Reports by Principal</h2><span class="muted">MI02</span></div></div>
+    <div class="panel-body">
+        <a class="btn" asp-page="/Administration/Reports" asp-page-handler="PrincipalCsv" asp-route-from="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" asp-route-to="@Model.To?.ToString("yyyy-MM-ddTHH:mm")">Download CSV</a>
+        <div class="metric-strip metric-strip--2 section-gap" aria-label="Reports by Principal totals">
+            <div class="metric"><span class="metric-label">Reports produced</span><span class="metric-value">@(Model.PrincipalActivity is { } mi02Totals ? mi02Totals.Rows.Sum(row => row.GeneratedArtifacts).ToString() : "Unavailable")</span></div>
+            <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">@(Model.PrincipalActivity is { } mi02SentTotals ? mi02SentTotals.Rows.Sum(row => row.Sent).ToString() : "Unavailable")</span></div>
+        </div>
+        <div class="table-wrap section-gap"><table><thead><tr><th>Principal</th><th>Reports produced</th><th>Reports sent</th><th>Report types</th></tr></thead><tbody>
+        @if (Model.PrincipalActivity is { } mi02)
+        {
+            var mi02Rows = mi02.Rows.Where(row => row.GeneratedArtifacts > 0 || row.Sent > 0).ToArray();
+            @foreach (var row in mi02Rows)
+            {
+                <tr>
+                    <td>@row.PrincipalCode</td>
+                    <td class="tabular">@row.GeneratedArtifacts</td>
+                    <td class="tabular">@row.Sent</td>
+                    <td>@string.Join(", ", row.ArtifactTypes.Where(type => type.Generated > 0).Select(type => $"{OperatorLabels.ReportKind(type.Kind)} {type.Generated}"))</td>
+                </tr>
+            }
+            @if (mi02Rows.Length == 0) { <tr><td colspan="4" class="muted">No reports were recorded for this period.</td></tr> }
+        }
+        else
+        {
+            <tr><td colspan="4" class="muted">Unavailable</td></tr>
+        }
+        </tbody></table></div>
+    </div>
+</section>
+<section class="panel" aria-labelledby="mi03-title">
+    <div class="panel-head"><div><h2 id="mi03-title">Turnaround</h2><span class="muted">MI03</span></div></div>
+    <div class="panel-body">
+        <a class="btn" asp-page="/Administration/Reports" asp-page-handler="TurnaroundCsv" asp-route-from="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" asp-route-to="@Model.To?.ToString("yyyy-MM-ddTHH:mm")">Download CSV</a>
+        <div class="metric-strip section-gap" aria-label="Turnaround totals">
+            <div class="metric"><span class="metric-label">Cases currently held</span><span class="metric-value">@(Model.PrincipalActivity is { } mi03Totals ? mi03Totals.Rows.Sum(row => row.CurrentHeldCases).ToString() : "Unavailable")</span></div>
+        </div>
+        <div class="table-wrap section-gap"><table><thead><tr><th>Principal</th><th>Currently held</th><th>Oldest held since</th><th>Time to produce</th><th>Time to ready</th><th>Time to send</th></tr></thead><tbody>
+        @if (Model.PrincipalActivity is { } mi03)
+        {
+            var mi03Rows = mi03.Rows.Where(row =>
+                row.CurrentHeldCases > 0
+                || row.AverageReceivedToGeneration.HasValue
+                || row.AverageReceivedToReady.HasValue
+                || row.AverageReceivedToSent.HasValue).ToArray();
+            @foreach (var row in mi03Rows)
+            {
+                <tr>
+                    <td>@row.PrincipalCode</td>
+                    <td class="tabular">@row.CurrentHeldCases</td>
+                    <td>@OperatorLabels.OfficeTime(row.OldestHeldAtUtc, "—")</td>
+                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToGeneration, "—")</td>
+                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToReady, "—")</td>
+                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
+                </tr>
+            }
+            @if (mi03Rows.Length == 0) { <tr><td colspan="6" class="muted">No holding or turnaround activity was recorded for this period.</td></tr> }
+        }
+        else
+        {
+            <tr><td colspan="6" class="muted">Unavailable</td></tr>
+        }
+        </tbody></table></div>
+    </div>
+</section>
 </div></div>

@@ -74,8 +74,13 @@ public interface IContactDirectoryQueries
 {
     Task<ContactDirectoryRecord?> GetAsync(ActionActor actor, Guid organizationId, CancellationToken cancellationToken);
     Task<IReadOnlyList<ContactDirectoryRecord>> ListAsync(ContactDirectoryQuery query, CancellationToken cancellationToken);
-    Task<IReadOnlyList<ContactDirectoryRecord>> ListClaimSourcesAsync(
-        ActionActor actor, CancellationToken cancellationToken);
+    /// <summary>
+    /// Every active directory organisation holding one role, for the case
+    /// screens that let a member of staff link one to a Case. Casework
+    /// authority, not directory administration.
+    /// </summary>
+    Task<IReadOnlyList<ContactDirectoryRecord>> ListByRoleAsync(
+        ActionActor actor, ContactRole role, CancellationToken cancellationToken);
     Task<IReadOnlyList<ContactDirectoryRecord>> FindPossibleMatchesAsync(
         ActionActor actor, string name, CancellationToken cancellationToken);
     Task<IReadOnlyList<PrincipalAdministrationDetails>> ListPrincipalChoicesAsync(

@@ -689,6 +689,82 @@ public sealed class CaseReportGenerationPersistenceTests
                 CancellationToken.None));
     }
 
+    /// <summary>
+    /// DOCS-014: a preview is a Case-history "viewed" event, never a
+    /// "downloaded" one, and repeat previews the same staff day never grow
+    /// the Case's history — the simplest idempotent rule the existing
+    /// per-Case operation-key pattern already supports.
+    /// </summary>
+    [Fact]
+    public async Task PreviewingTheDraftRecordsAViewedCaseHistoryEventOncePerStaffDay()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        await harness.Store.RecordDraftPreviewedAsync(
+            new(harness.StaffActor, harness.CaseId, CaseReportArtifactKind.AssessmentReport, Harness.StartUtc),
+            CancellationToken.None);
+        // A second preview a couple of hours later, same London day, same
+        // staff member: a silent no-op, never a second row.
+        await harness.Store.RecordDraftPreviewedAsync(
+            new(harness.StaffActor, harness.CaseId, CaseReportArtifactKind.AssessmentReport,
+                Harness.StartUtc.AddHours(2)),
+            CancellationToken.None);
+
+        var viewed = Assert.Single(await harness.CaseHistoryEventsAsync("case_report_draft_previewed"));
+        Assert.Equal("Report draft previewed", viewed.Reason);
+        Assert.Equal(nameof(ActorKind.Staff), viewed.ActorKind);
+        Assert.Equal(harness.StaffActor.SubjectId, viewed.ActorSubjectId);
+        // A view is never a Case mutation.
+        Assert.Equal(viewed.BeforeVersion, viewed.AfterVersion);
+        Assert.Empty(await harness.CaseHistoryEventsAsync("case_report_artifact_downloaded"));
+
+        // A genuinely later London day is a genuinely new view.
+        await harness.Store.RecordDraftPreviewedAsync(
+            new(harness.StaffActor, harness.CaseId, CaseReportArtifactKind.AssessmentReport,
+                Harness.StartUtc.AddDays(1)),
+            CancellationToken.None);
+        Assert.Equal(2, (await harness.CaseHistoryEventsAsync("case_report_draft_previewed")).Count);
+    }
+
+    /// <summary>
+    /// DOCS-014's other half: reopening a confirmed generation artifact is a
+    /// completed download, recorded distinctly from a preview view, and only
+    /// once the bytes are actually reopened — never on a failed or refused
+    /// attempt.
+    /// </summary>
+    [Fact]
+    public async Task ReopeningAConfirmedArtifactRecordsADownloadedCaseHistoryEventOncePerStaffDay()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var generated = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        var artifact = Assert.Single(generated.Generation!.Artifacts);
+
+        var sameDayStore = harness.StoreAt(Harness.StartUtc.AddHours(1));
+        await using (await sameDayStore.OpenAsync(
+            harness.StaffActor, harness.CaseId, generated.Generation.Id, artifact.Id, CancellationToken.None))
+        {
+        }
+        // A second download the same London day is a silent no-op.
+        await using (await sameDayStore.OpenAsync(
+            harness.StaffActor, harness.CaseId, generated.Generation.Id, artifact.Id, CancellationToken.None))
+        {
+        }
+
+        var downloaded = Assert.Single(await harness.CaseHistoryEventsAsync("case_report_artifact_downloaded"));
+        Assert.Equal("Report downloaded", downloaded.Reason);
+        Assert.Equal(downloaded.BeforeVersion, downloaded.AfterVersion);
+        Assert.Empty(await harness.CaseHistoryEventsAsync("case_report_draft_previewed"));
+
+        // A genuinely later London day is a genuinely new download.
+        var nextDayStore = harness.StoreAt(Harness.StartUtc.AddDays(1));
+        await using (await nextDayStore.OpenAsync(
+            harness.StaffActor, harness.CaseId, generated.Generation.Id, artifact.Id, CancellationToken.None))
+        {
+        }
+        Assert.Equal(2, (await harness.CaseHistoryEventsAsync("case_report_artifact_downloaded")).Count);
+    }
+
     private sealed class Harness : IAsyncDisposable
     {
         internal const string OperationKey = "case-report-1";
@@ -812,6 +888,12 @@ public sealed class CaseReportGenerationPersistenceTests
 
         public EfCaseReportGenerationStore StoreUsing(IDbContextFactory<PegasusDbContext> factory) =>
             new(factory, snapshotSource, new FakeDocumentReader(this), Clock);
+
+        /// <summary>The same store, clocked to a different instant — used to
+        /// prove the view/download day boundary genuinely depends on the
+        /// London calendar day, not call count.</summary>
+        public EfCaseReportGenerationStore StoreAt(DateTimeOffset now) =>
+            new(Factory, snapshotSource, new FakeDocumentReader(this), new FixedTimeProvider(now));
 
         public GenerateCaseReportRequest Request(
             CaseReportArtifactKind kind = CaseReportArtifactKind.AssessmentReport,
@@ -1075,6 +1157,19 @@ public sealed class CaseReportGenerationPersistenceTests
                 .CountAsync(item => item.AggregateType == "case"
                     && item.AggregateId == CaseId.ToString("D")
                     && item.EventKind == eventKind);
+        }
+
+        /// <summary>
+        /// The Case-history events a preview view or artifact download
+        /// records (DOCS-014) — <c>CaseWorkflowEvents</c>, the table the
+        /// Case's own Notes/history panel reads, not <c>ActionHistory</c>.
+        /// </summary>
+        public async Task<IReadOnlyList<CaseWorkflowEventEntity>> CaseHistoryEventsAsync(string eventType)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            return await context.Set<CaseWorkflowEventEntity>().AsNoTracking()
+                .Where(item => item.CaseId == CaseId && item.EventType == eventType)
+                .ToArrayAsync();
         }
 
         public async Task<string?> StaleReasonAsync()
@@ -1410,6 +1505,13 @@ public sealed class CaseReportGenerationPersistenceTests
         public Task<int> MarkStaleAsync(
             Guid caseId, string reasonCode, CancellationToken cancellationToken) =>
             inner.MarkStaleAsync(caseId, reasonCode, cancellationToken);
+
+        public Task RecordDraftPreviewedAsync(
+            RecordCaseReportDraftPreviewedRequest request, CancellationToken cancellationToken)
+        {
+            sequence.Add("preview");
+            return inner.RecordDraftPreviewedAsync(request, cancellationToken);
+        }
     }
 
     private sealed class RecordingRenderer(CaseReportGenerationPersistenceTests.Harness harness)

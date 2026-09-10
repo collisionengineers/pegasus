@@ -19,6 +19,9 @@
         .FirstOrDefault(value => value?.Source.Kind == CaseDataSourceKind.ProviderSetting);
     var mode = data?.Inspection.Mode.Current;
     var storage = data?.Inspection.StorageLocation?.Current;
+    var repairerName = data?.Inspection.RepairerName?.Current;
+    var repairerAddress = data?.Inspection.RepairerAddress?.Current;
+    var linkedRepairerId = data?.Workspace?.Repairer?.DirectoryOrganizationId;
     var choices = Model.InspectionAddressChoices;
     var selectedChoice = choices.FirstOrDefault(choice =>
         recorded is not null
@@ -29,7 +32,9 @@
     {
         InspectionAddressChoiceKind.ImageBasedAssessment => OperatorLabels.CaseWorkspace.ImageBasedAssessment,
         InspectionAddressChoiceKind.ClaimantAddress => OperatorLabels.CaseWorkspace.ClaimantAddress,
-        InspectionAddressChoiceKind.RepairerLocation => OperatorLabels.CaseWorkspace.RepairerLocation,
+        InspectionAddressChoiceKind.RepairerLocation => choice.SourceLabel is null
+            ? OperatorLabels.CaseWorkspace.RepairerLocation
+            : $"{OperatorLabels.CaseWorkspace.RepairerLocation} · {choice.SourceLabel}",
         InspectionAddressChoiceKind.StorageLocation => OperatorLabels.CaseWorkspace.StorageLocation,
         InspectionAddressChoiceKind.PreviousAddress => $"{OperatorLabels.CaseWorkspace.PreviousAddress} · {choice.Address}",
         InspectionAddressChoiceKind.ManualEntry => OperatorLabels.CaseWorkspace.ManualEntry,
@@ -123,6 +128,33 @@
                     <label for="storage-location">@OperatorLabels.CaseWorkspace.StorageLocation</label>
                     <input id="storage-location" name="storageLocation" form="case-edit-form"
                            maxlength="1000" value="@storage?.Value" />
+                </div>
+                @* INTK-058: the Case's repairer. Selecting a maintained
+                   Contacts organisation copies its name and address onto the
+                   Case; leaving it unlinked keeps the extracted or keyed
+                   text. Either way the Save is the staff confirmation, and
+                   the confirmed address is what the Inspect-at repairer
+                   option offers. *@
+                <div class="field">
+                    <label for="repairer-directory">@OperatorLabels.CaseWorkspace.RepairerDirectory</label>
+                    <select id="repairer-directory" name="repairerDirectoryId" form="case-edit-form">
+                        <option value="">@OperatorLabels.CaseWorkspace.NotLinked</option>
+                        @foreach (var contact in Model.RepairerChoices)
+                        {
+                            <option value="@contact.OrganizationId"
+                                    selected="@(contact.OrganizationId == linkedRepairerId ? "selected" : null)">@contact.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="repairer-name">@OperatorLabels.CaseWorkspace.Repairer</label>
+                    <input id="repairer-name" name="repairerName" form="case-edit-form"
+                           maxlength="300" value="@repairerName?.Value" />
+                </div>
+                <div class="field">
+                    <label for="repairer-address">@OperatorLabels.CaseWorkspace.RepairerLocation</label>
+                    <input id="repairer-address" name="repairerAddress" form="case-edit-form"
+                           maxlength="1000" value="@repairerAddress?.Value" />
                 </div>
             </div>
         </section>

@@ -67,7 +67,7 @@ public static class EngineerActivityReportCsv
         return builder.ToString();
     }
 
-    internal static string EscapeField(string value)
+    public static string EscapeField(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
         var safe = value.Length > 0 && value[0] is '=' or '+' or '-' or '@'

@@ -100,42 +100,8 @@ internal sealed class LocalDurableApprovedInboxSource(
         ArgumentNullException.ThrowIfNull(lease);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumMessages);
 
-        // Which mailbox may be read is settled by the approved estate, not by this
-        // adapter. What it still owns is refusing to leave its own root: the folder
-        // identity must be one plain segment that resolves directly beneath it.
         var folder = lease.InboxFolderIdentity;
-        if (string.IsNullOrWhiteSpace(folder)
-            || !string.Equals(Path.GetFileName(folder), folder, StringComparison.Ordinal))
-        {
-            throw new UnauthorizedAccessException(
-                "The approved Inbox folder identity is not a single local folder segment.");
-        }
-
-        var rootPath = Path.GetFullPath(options.RootPath);
-        var directory = Path.GetFullPath(Path.Combine(rootPath, folder));
-        if (!string.Equals(
-                Path.TrimEndingDirectorySeparator(Path.GetDirectoryName(directory) ?? string.Empty),
-                Path.TrimEndingDirectorySeparator(rootPath),
-                StringComparison.Ordinal))
-        {
-            throw new UnauthorizedAccessException(
-                "The approved Inbox folder resolved outside the immutable local root.");
-        }
-
-        var root = new DirectoryInfo(directory);
-        root.Refresh();
-        if (!root.Exists)
-        {
-            throw new DirectoryNotFoundException(
-                "The configured immutable local approved-inbox folder does not exist.");
-        }
-
-        if ((root.Attributes & FileAttributes.ReparsePoint) != 0)
-        {
-            throw new InvalidDataException(
-                "The immutable local approved-inbox root cannot be a reparse point.");
-        }
-
+        var root = ResolveFolder(lease);
         var cursor = ParseCursor(lease.Cursor);
         var files = root
             .EnumerateFiles("*", SearchOption.TopDirectoryOnly)
@@ -289,6 +255,144 @@ internal sealed class LocalDurableApprovedInboxSource(
         }
 
         return new(messages, serializedNextCursor);
+    }
+
+    /// <summary>
+    /// The wake path's read: exactly the notified message, found by the immutable
+    /// identity the notification carried, without scanning the folder into a page
+    /// or touching the recovery cursor.
+    /// </summary>
+    /// <remarks>
+    /// A message the local estate cannot yet show is <see langword="null"/>, not an
+    /// error. That is the same answer Graph gives while a message is still
+    /// replicating, and it is the case the recovery poll exists to finish.
+    /// </remarks>
+    public async Task<ApprovedInboxMessage?> ReadNotifiedAsync(
+        ApprovedInboxPollLease lease,
+        string immutableMessageId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(lease);
+        ArgumentException.ThrowIfNullOrWhiteSpace(immutableMessageId);
+
+        var folder = lease.InboxFolderIdentity;
+        var root = ResolveFolder(lease);
+        foreach (var file in root
+                     .EnumerateFiles("*", SearchOption.TopDirectoryOnly)
+                     .Where(item => string.Equals(
+                         item.Extension,
+                         ".eml",
+                         StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(item => item.Name, StringComparer.Ordinal))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // The identity is derived from the content, so the folder is searched by
+            // streaming each candidate's hash and only the match is materialised.
+            string hash;
+            try
+            {
+                hash = (await ReadImmutableFileAsync(file, retainContent: false, cancellationToken))
+                    .Hash;
+            }
+            catch (ApprovedInboxSourceMissingException)
+            {
+                continue;
+            }
+
+            if (!string.Equals(
+                    CreateImmutableMessageId(file.Name, hash),
+                    immutableMessageId,
+                    StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            ImmutableFileRead read;
+            try
+            {
+                read = await ReadImmutableFileAsync(file, retainContent: true, cancellationToken);
+            }
+            catch (ApprovedInboxSourceMissingException)
+            {
+                return null;
+            }
+
+            // The file changed between the two reads, so what is on disk is no longer
+            // the notified message. The recovery poll owns that difference; this read
+            // must not present the new bytes under the notified identity.
+            if (!string.Equals(read.Hash, hash, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            return new(
+                immutableMessageId,
+                file.Name,
+                new ReadOnlyMemory<byte>(read.Content ?? Array.Empty<byte>()),
+                new DateTimeOffset(file.LastWriteTimeUtc),
+                // Carried only because a message record has the field; a wake never
+                // advances the recovery cursor, so the lease's own cursor is returned
+                // unchanged rather than a position this read invented.
+                lease.Cursor ?? SerializeCursor(new Dictionary<string, string>(StringComparer.Ordinal)))
+            {
+                SourceRejection = read.RetentionKey is null
+                    ? null
+                    : new(
+                        "message_too_large",
+                        read.SourceLength,
+                        read.Hash,
+                        read.RetentionKey),
+                RetainedMetadata = read.Content is null || read.RetentionKey is not null
+                    ? null
+                    : await ReadRetainedMetadataAsync(read.Content, folder, cancellationToken)
+            };
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Which mailbox may be read is settled by the approved estate, not by this
+    /// adapter. What it still owns is refusing to leave its own root: the folder
+    /// identity must be one plain segment that resolves directly beneath it.
+    /// </summary>
+    private DirectoryInfo ResolveFolder(ApprovedInboxPollLease lease)
+    {
+        var folder = lease.InboxFolderIdentity;
+        if (string.IsNullOrWhiteSpace(folder)
+            || !string.Equals(Path.GetFileName(folder), folder, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException(
+                "The approved Inbox folder identity is not a single local folder segment.");
+        }
+
+        var rootPath = Path.GetFullPath(options.RootPath);
+        var directory = Path.GetFullPath(Path.Combine(rootPath, folder));
+        if (!string.Equals(
+                Path.TrimEndingDirectorySeparator(Path.GetDirectoryName(directory) ?? string.Empty),
+                Path.TrimEndingDirectorySeparator(rootPath),
+                StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException(
+                "The approved Inbox folder resolved outside the immutable local root.");
+        }
+
+        var root = new DirectoryInfo(directory);
+        root.Refresh();
+        if (!root.Exists)
+        {
+            throw new DirectoryNotFoundException(
+                "The configured immutable local approved-inbox folder does not exist.");
+        }
+
+        if ((root.Attributes & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidDataException(
+                "The immutable local approved-inbox root cannot be a reparse point.");
+        }
+
+        return root;
     }
 
     /// <summary>

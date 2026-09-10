@@ -1,8 +1,11 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
@@ -133,6 +136,125 @@ public sealed class ApprovedMailboxEstateIntegrationTests
             await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
     }
 
+    /// <summary>
+    /// FABLE-06: the exact same message (same RFC Internet Message-ID) delivered
+    /// to two approved mailboxes is two durable messages, not one deduplicated
+    /// occurrence.
+    /// </summary>
+    /// <remarks>
+    /// FRD-08 "Inbound mailbox identity" names the rule directly: "Mailbox
+    /// identity plus RFC Internet Message-ID is the durable message and intake
+    /// duplicate boundary" and "the same RFC identity may occur independently in
+    /// two approved mailboxes." <c>PollApprovedInbox</c>'s
+    /// <c>externalReceiptToken</c> (<c>MailboxIntake.cs</c>, message preparation)
+    /// folds the mailbox identity in beside the message identity —
+    /// <c>$"{mailboxId.Length}:{mailboxId}{sourceMessageIdentity}"</c> — so the
+    /// same Message-ID from two mailboxes derives two distinct tokens.
+    /// <c>DurableIntake.ExecuteAsync</c>'s de-duplication
+    /// (<c>workStore.FindBySourceIdentityAsync</c>) looks a source up by that
+    /// token alone, so the second mailbox's delivery finds no existing receipt
+    /// under its own token and stages its own row rather than folding into the
+    /// first mailbox's. The design therefore stages two receipts and allocates
+    /// two staged-receipt tokens for one piece of mail seen twice, never one.
+    /// </remarks>
+    [Fact]
+    public async Task SameMessageDeliveredToTwoApprovedMailboxesStagesTwoReceipts()
+    {
+        const string sharedMessageId = "fable-06-shared-message@example.invalid";
+        using var workspace = new MailboxWorkspace();
+        workspace.WriteMessage(DefaultFolder, "0001-shared.eml", messageId: sharedMessageId);
+        workspace.WriteMessage(SecondFolder, "0001-shared.eml", messageId: sharedMessageId);
+
+        await using var database = await CreateDatabaseAsync(workspace);
+        await database.ExecuteAsync(AddSecondMailboxSql(
+            state: "Approved",
+            mailboxIdentity: SecondMailboxId,
+            inboxFolderIdentity: SecondFolder));
+
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+            Assert.Equal(2, await poll.ExecuteAsync(10, WorkerActor, CancellationToken.None));
+        }
+
+        // Two staged receipts, one per mailbox — the identical Message-ID never
+        // collapses them into one, because the mailbox identity is folded into
+        // the receipt token beside it.
+        Assert.Equal(
+            2L,
+            await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+        Assert.Equal(
+            2L,
+            await database.ScalarAsync<long>(
+                "SELECT COUNT(DISTINCT ExternalReceiptToken) FROM IntakeStagedReceipts"));
+        Assert.Equal(
+            2L,
+            await database.ScalarAsync<long>("SELECT COUNT(*) FROM RetainedMailboxMessages"));
+    }
+
+    /// <summary>
+    /// A change notification can name a message the mail source cannot show yet:
+    /// Exchange has accepted it but not replicated it to the folder the delta reads.
+    /// The wake must not invent it, must not advance the recovery cursor past it,
+    /// and — once it is visible — both routes together must leave exactly one
+    /// occurrence.
+    /// </summary>
+    [Fact]
+    public async Task NotifiedMessageInvisibleAtWakeIsStillIngestedExactlyOnce()
+    {
+        using var workspace = new MailboxWorkspace();
+        await using var database = await CreateDatabaseAsync(workspace);
+        var mailboxId = TestMailboxId.From("instructions");
+        var generation = await database.ScalarAsync<long>(
+            $"SELECT MailboxGeneration FROM ApprovedMailboxes WHERE Id = '{mailboxId:D}'");
+
+        // The notification arrives before the message is visible to any read.
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+            Assert.Equal(0, await poll.ExecuteNotificationAsync(
+                mailboxId,
+                generation,
+                new string('A', 64),
+                WorkerActor,
+                CancellationToken.None));
+        }
+
+        Assert.Equal(0L, await AdvancedInboxCursorsAsync(database));
+        Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+
+        // Replication completes and the same notification is redelivered.
+        const string fileName = "0001-notified.eml";
+        workspace.WriteMessage(DefaultFolder, fileName);
+        var immutableMessageId = ImmutableMessageId(workspace, DefaultFolder, fileName);
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+            Assert.Equal(1, await poll.ExecuteNotificationAsync(
+                mailboxId, generation, immutableMessageId, WorkerActor, CancellationToken.None));
+            Assert.Equal(1, await poll.ExecuteNotificationAsync(
+                mailboxId, generation, immutableMessageId, WorkerActor, CancellationToken.None));
+        }
+
+        // A wake reads one message; the recovery cursor stays exactly where it was,
+        // so the sweep still owns the message and cannot skip it.
+        Assert.Equal(0L, await AdvancedInboxCursorsAsync(database));
+
+        await using (var scope = database.CreateAsyncScope())
+        {
+            var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+            Assert.Equal(1, await poll.ExecuteAsync(10, WorkerActor, CancellationToken.None));
+        }
+
+        Assert.Equal(1L, await AdvancedInboxCursorsAsync(database));
+        Assert.Equal(
+            1L,
+            await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+        Assert.Equal(
+            1L,
+            await database.ScalarAsync<long>("SELECT COUNT(*) FROM RetainedMailboxMessages"));
+    }
+
     [Fact]
     public async Task DisablingAMailboxStopsPollingAndPreservesItsCursor()
     {
@@ -186,6 +308,123 @@ public sealed class ApprovedMailboxEstateIntegrationTests
         Assert.Equal(
             receiptsBeforeDisable + 1,
             await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+    }
+
+    /// <summary>
+    /// Re-enabling is a fresh start, not a resumption: the stored cursor and start
+    /// boundary are replaced, so mail that arrived while the mailbox was disabled
+    /// never becomes a backlog, and the new generation makes the mailbox a
+    /// subscription-maintenance candidate again while its old subscription row
+    /// survives to be replaced.
+    /// </summary>
+    [Fact]
+    public async Task ReEnablingAMailboxStartsAFreshCycleAndNeedsANewSubscription()
+    {
+        using var workspace = new MailboxWorkspace();
+        workspace.WriteMessage(
+            DefaultFolder,
+            "0001-before.eml",
+            DateTime.UtcNow.AddMinutes(-2));
+        await using var database = await CreateDatabaseAsync(workspace);
+        var mailboxId = TestMailboxId.From("instructions");
+        await using var scope = database.CreateAsyncScope();
+        var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+        Assert.Equal(1, await poll.ExecuteAsync(10, WorkerActor, CancellationToken.None));
+        Assert.Equal(1L, await AdvancedInboxCursorsAsync(database));
+
+        var subscriptions = scope.ServiceProvider
+            .GetRequiredService<IApprovedMailboxSubscriptionStore>();
+        var nowUtc = DateTimeOffset.UtcNow;
+        await subscriptions.SaveAsync(
+            new(
+                mailboxId,
+                "current-subscription",
+                "users/instructions/mailFolders/inbox/messages",
+                nowUtc.AddDays(2),
+                ApprovedMailboxSubscriptionLifecycleState.Active,
+                nowUtc,
+                null,
+                1),
+            null,
+            CancellationToken.None);
+        Assert.Empty(await subscriptions.ListMaintenanceCandidatesAsync(
+            nowUtc,
+            CancellationToken.None));
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var command = scope.ServiceProvider.GetRequiredService<UpdateApprovedMailbox>();
+        var mailboxes = scope.ServiceProvider.GetRequiredService<ListApprovedMailboxes>();
+        var editScopes = scope.ServiceProvider.GetRequiredService<IEditScopeLeases>();
+        async Task SetStateAsync(ApprovedMailboxState state, string operationKey)
+        {
+            var current = (await mailboxes.ExecuteAsync(actor, CancellationToken.None))
+                .Single(item => item.Id == mailboxId);
+            var lease = await editScopes.ClaimAsync(
+                new(
+                    EditScopeKind.ApprovedMailbox,
+                    current.Id,
+                    current.Version,
+                    actor,
+                    $"{operationKey}-edit"),
+                CancellationToken.None);
+            await command.ExecuteAsync(
+                new(
+                    current.Id,
+                    current.Address,
+                    current.RouteScopes,
+                    state,
+                    current.Version,
+                    actor,
+                    operationKey,
+                    current.MailboxIdentity,
+                    current.InboxFolderIdentity,
+                    current.SentFolderIdentity,
+                    current.FolderBindings,
+                    current.VerifiedEncodedMessageSizeLimit)
+                {
+                    EditLeaseToken = lease.Token
+                },
+                CancellationToken.None);
+        }
+
+        await SetStateAsync(ApprovedMailboxState.Disabled, "estate-disable");
+        workspace.WriteMessage(
+            DefaultFolder,
+            "0002-while-disabled.eml",
+            DateTime.UtcNow.AddMinutes(-1));
+        await SetStateAsync(ApprovedMailboxState.Approved, "estate-reenable");
+
+        // The cursor is gone and the boundary is the new activation, for the new
+        // generation: nothing resumes the cycle the disabled mailbox left behind.
+        Assert.Equal(0L, await AdvancedInboxCursorsAsync(database));
+        Assert.Equal(
+            1L,
+            await database.ScalarAsync<long>(
+                """
+                SELECT COUNT(*) FROM ApprovedInboxPollStates state
+                INNER JOIN ApprovedMailboxes mailbox ON mailbox.Id = state.ApprovedMailboxId
+                WHERE state.StartBoundaryUtc = mailbox.ActivatedAtUtc
+                  AND state.Generation = mailbox.MailboxGeneration;
+                """));
+
+        // The surviving subscription belongs to the old generation, so maintenance
+        // has to replace it before notifications can wake this mailbox again.
+        var candidate = Assert.Single(await subscriptions.ListMaintenanceCandidatesAsync(
+            nowUtc,
+            CancellationToken.None));
+        Assert.Equal("current-subscription", candidate.Subscription?.SubscriptionId);
+        Assert.Equal(1L, candidate.Subscription?.Generation);
+        Assert.NotEqual(candidate.Subscription!.Generation, candidate.Generation);
+
+        // Both messages predate the new boundary, so neither is ingested a second
+        // time and the one that arrived while disabled is not a backlog.
+        await poll.ExecuteAsync(10, WorkerActor, CancellationToken.None);
+        Assert.Equal(
+            1L,
+            await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+        Assert.Equal(
+            1L,
+            await database.ScalarAsync<long>("SELECT COUNT(*) FROM RetainedMailboxMessages"));
     }
 
     [Fact]
@@ -356,6 +595,26 @@ public sealed class ApprovedMailboxEstateIntegrationTests
     private static Task<string> CurrentSubscriptionFailureAsync(LocalDbTestDatabase database) =>
         database.ScalarAsync<string>("SELECT LastMaintenanceFailureCode FROM ApprovedMailboxSubscriptions");
 
+    private static Task<long> AdvancedInboxCursorsAsync(LocalDbTestDatabase database) =>
+        database.ScalarAsync<long>(
+            "SELECT COUNT(*) FROM ApprovedInboxPollStates WHERE [Cursor] IS NOT NULL");
+
+    /// <summary>
+    /// The immutable identity the local source derives for a file, restated here
+    /// because a notification carries that identity from outside Pegasus: the test
+    /// has to name the message before anything has read it.
+    /// </summary>
+    private static string ImmutableMessageId(
+        MailboxWorkspace workspace,
+        string folderIdentity,
+        string fileName)
+    {
+        var content = File.ReadAllBytes(Path.Combine(workspace.Root, folderIdentity, fileName));
+        var contentHash = Convert.ToHexString(SHA256.HashData(content));
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes($"{fileName.Length}:{fileName}{contentHash}")));
+    }
+
     private static Task<string> SecondCursorAsync(LocalDbTestDatabase database) =>
         database.ScalarAsync<string>(
             $"SELECT [Cursor] FROM ApprovedInboxPollStates WHERE ApprovedMailboxId = '{SecondMailboxRowId:D}'");
@@ -420,10 +679,30 @@ public sealed class ApprovedMailboxEstateIntegrationTests
 
         internal string ArtifactRoot { get; }
 
-        internal void WriteMessage(string folderIdentity, string fileName) =>
-            File.WriteAllBytes(
-                Path.Combine(Root, folderIdentity, fileName),
-                CreateMessage(fileName));
+        /// <param name="receivedAtUtc">
+        /// The local source reads a file's last write time as the received time, so
+        /// a test that depends on an ordering against an activation boundary states
+        /// it rather than racing the clock.
+        /// </param>
+        /// <param name="messageId">
+        /// Overrides the otherwise-random RFC Internet-Message-ID MimeKit assigns,
+        /// so a test can put the exact same durable message identity in two
+        /// mailboxes deliberately (FABLE-06) instead of two messages that merely
+        /// share a file name.
+        /// </param>
+        internal void WriteMessage(
+            string folderIdentity,
+            string fileName,
+            DateTime? receivedAtUtc = null,
+            string? messageId = null)
+        {
+            var path = Path.Combine(Root, folderIdentity, fileName);
+            File.WriteAllBytes(path, CreateMessage(fileName, messageId));
+            if (receivedAtUtc is { } received)
+            {
+                File.SetLastWriteTimeUtc(path, received);
+            }
+        }
 
         public void Dispose()
         {
@@ -434,16 +713,23 @@ public sealed class ApprovedMailboxEstateIntegrationTests
         }
 
         /// <summary>
-        /// Distinct content per file, so two mailboxes cannot accidentally share a source
-        /// identity and make an isolation failure look like a pass.
+        /// Distinct content per file by default (a fresh random RFC Message-ID
+        /// among them), so two mailboxes cannot accidentally share a source
+        /// identity and make an isolation failure look like a pass. A caller that
+        /// deliberately wants the same durable message identity in two mailboxes
+        /// (FABLE-06) passes an explicit <paramref name="messageId"/>.
         /// </summary>
-        private static byte[] CreateMessage(string fileName)
+        private static byte[] CreateMessage(string fileName, string? messageId = null)
         {
             var message = new MimeMessage
             {
                 Subject = $"Estate fixture {fileName}",
                 Body = new TextPart("plain") { Text = $"Fixture body for {fileName}." }
             };
+            if (messageId is not null)
+            {
+                message.MessageId = messageId;
+            }
             message.From.Add(new MailboxAddress("Sender", "sender@example.invalid"));
             message.To.Add(new MailboxAddress("Approved Inbox", SeededAddress));
             using var stream = new MemoryStream();

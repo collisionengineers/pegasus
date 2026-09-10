@@ -63,6 +63,7 @@ public sealed partial class DetailsModel(
     IReleaseCaseEditLease releaseLease,
     ISaveCaseWorkspace saveCaseWorkspace,
     IInspectionAddressChoicesQueries inspectionAddressChoicesQueries,
+    IContactDirectoryQueries contactDirectory,
     IImageIntakeQueries imageIntakeQueries,
     ICaseEvidenceImageQueries caseEvidenceImageQueries,
     IListCaseValuations listCaseValuations,
@@ -94,6 +95,13 @@ public sealed partial class DetailsModel(
     public IReadOnlyList<LabourRateCard> LabourRateCards { get; private set; } = [];
 
     public IReadOnlyList<InspectionAddressChoice> InspectionAddressChoices { get; private set; } = [];
+
+    /// <summary>
+    /// The Contacts directory's Repairer organisations, offered so a member of
+    /// staff can link this Case's repairer to a maintained record (INTK-058).
+    /// Loaded only while the record is being edited.
+    /// </summary>
+    public IReadOnlyList<ContactDirectoryRecord> RepairerChoices { get; private set; } = [];
 
     public IReadOnlyList<ImageIntakeSummary> ImageIntakes { get; private set; } = [];
 
@@ -646,6 +654,11 @@ public sealed partial class DetailsModel(
                 InspectionAddressChoices = choices is null
                     ? []
                     : Pegasus.Core.Address.InspectionAddressChoices.Resolve(choices);
+                if (CanEditCaseData)
+                {
+                    RepairerChoices = await contactDirectory.ListByRoleAsync(
+                        actor, ContactRole.Repairer, cancellationToken);
+                }
             }
             if (!SectionIsDeferred("files"))
             {
@@ -1045,6 +1058,9 @@ public sealed partial class DetailsModel(
         DateOnly? reportDate,
         AssetPreparationEditForm[]? preparationEdits,
         string? damageImpacts,
+        string? repairerName,
+        string? repairerAddress,
+        Guid? repairerDirectoryId,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
             id,
@@ -1112,7 +1128,28 @@ public sealed partial class DetailsModel(
                 var reportSubmitted = reportFields.Count > 0 || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate));
                 var overviewSubmitted = new[] { nameof(claimantName), nameof(claimantContactNumber), nameof(claimantAddress),
                     nameof(claimNumber), nameof(contactName), nameof(contactEmailAddress), nameof(contactPhoneNumber),
-                    nameof(incidentDate), nameof(accidentCircumstances), nameof(instructionDate), nameof(vatStatus) }.Any(Posted);
+                    nameof(incidentDate), nameof(accidentCircumstances), nameof(instructionDate), nameof(vatStatus),
+                    nameof(repairerName), nameof(repairerAddress), nameof(repairerDirectoryId) }.Any(Posted);
+                // INTK-058: a linked directory organisation is copied onto the
+                // Case — its identity, its version and its own name and
+                // address — so a later directory edit never rewrites this
+                // Case. Without a link the Case keeps the extracted or keyed
+                // text, and the member of staff saving it is its confirmation.
+                var linkedRepairer = overviewSubmitted && repairerDirectoryId is { } directoryId
+                    ? (await contactDirectory.ListByRoleAsync(actor, ContactRole.Repairer, cancellationToken))
+                        .SingleOrDefault(item => item.OrganizationId == directoryId)
+                        ?? throw new InvalidOperationException("The selected repairer is not an active directory Repairer.")
+                    : null;
+                // An unposted selector is not an unlink: only the rendered
+                // control, which offers "not linked" explicitly, may clear it.
+                var selectorPosted = Posted(nameof(repairerDirectoryId));
+                var repairer = linkedRepairer is not null
+                    ? new CaseWorkspaceRepairer(
+                        linkedRepairer.OrganizationId, linkedRepairer.Version, linkedRepairer.Name)
+                    : new CaseWorkspaceRepairer(
+                        selectorPosted ? null : persisted?.Repairer?.DirectoryOrganizationId,
+                        selectorPosted ? null : persisted?.Repairer?.DirectoryOrganizationVersion,
+                        Submitted(nameof(repairerName), repairerName, Accepted(data.Inspection.RepairerName)?.Value));
                 var inspectionSubmitted = new[] { nameof(inspectionAddress), nameof(storageLocation), nameof(inspectionDate),
                     nameof(inspectionDeadline), nameof(storagePerDay), nameof(recoveryCharge) }.Any(Posted);
                 var vehicleSubmitted = new[] { nameof(vehicleRegistration), nameof(vehicleMake), nameof(vehicleModel),
@@ -1137,7 +1174,11 @@ public sealed partial class DetailsModel(
                         Submitted(nameof(accidentCircumstances), accidentCircumstances, Accepted(data.Accident.Circumstances)?.Value),
                         Submitted(nameof(instructionDate), instructionDate, Accepted(data.Instruction.InstructionDate)?.Value),
                         Submitted(nameof(vatStatus), vatStatus, Accepted(data.Instruction.VatStatus)?.Value),
-                        Accepted(data.Inspection.RepairerAddress)?.Value, persisted?.ClaimSource),
+                        linkedRepairer?.Address
+                            ?? Submitted(nameof(repairerAddress), repairerAddress,
+                                Accepted(data.Inspection.RepairerAddress)?.Value),
+                        persisted?.ClaimSource,
+                        repairer),
                     Inspection = !inspectionSubmitted ? null : new(treatment, address, persisted?.InspectionLocationProvenance,
                         Submitted(nameof(storageLocation), storageLocation, Accepted(data.Inspection.StorageLocation)?.Value),
                         persisted?.StorageBusiness,
@@ -1231,12 +1272,22 @@ public sealed partial class DetailsModel(
 
         var result = await generateReportDraft.ExecuteAsync(
             id, actor, CaseReportArtifactKind.AssessmentReport, cancellationToken);
-        return result.Outcome switch
+        switch (result.Outcome)
         {
-            GenerateCaseAssessmentReportDraftOutcome.NotFound => NotFound(),
-            GenerateCaseAssessmentReportDraftOutcome.NotReady => RedirectToEstimate(id),
-            _ => File(result.Draft!.Pdf, "application/pdf"),
-        };
+            case GenerateCaseAssessmentReportDraftOutcome.NotFound:
+                return NotFound();
+            case GenerateCaseAssessmentReportDraftOutcome.NotReady:
+                return RedirectToEstimate(id);
+            default:
+                // DOCS-014: an inline preview of the unretained working
+                // draft is a view, never a completed download — recorded
+                // only once the draft actually rendered, at most once per
+                // Case, artifact kind, staff member and day.
+                await reportGenerations.RecordDraftPreviewedAsync(
+                    new(actor, id, CaseReportArtifactKind.AssessmentReport, DateTimeOffset.UtcNow),
+                    cancellationToken);
+                return File(result.Draft!.Pdf, "application/pdf");
+        }
     }
 
     /// <summary>

@@ -601,7 +601,8 @@ public sealed partial class CreateModel(
         ActionActor actor,
         CancellationToken cancellationToken)
     {
-        ClaimSourceChoices = await contacts.ListClaimSourcesAsync(actor, cancellationToken);
+        ClaimSourceChoices = await contacts.ListByRoleAsync(
+            actor, ContactRole.ClaimSource, cancellationToken);
     }
 
     private ContactDirectoryRecord? ResolveClaimSource()

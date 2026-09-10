@@ -147,7 +147,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260910100000_ManualUploadGroupDiscard",
                 "20260910101000_RemoveManualChaseReason",
                 "20260910102000_AllowInitialIntakeAssociationWithoutReason",
-                "20260910103000_RetainObservedStaffMailSentEvidence"
+                "20260910103000_RetainObservedStaffMailSentEvidence",
+                "20260910104000_RecordCaseReportViewAndDownloadEvents"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

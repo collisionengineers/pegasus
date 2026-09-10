@@ -49,6 +49,8 @@
                 <div class="overview-facts">
                     <dl><dt>Claimant</dt><dd>@Value(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.Name)?.Value ?? (data is null ? summary.Claimant : null))</dd></dl>
                     <dl><dt>Contact</dt><dd>@Value(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.Name)?.Value)</dd></dl>
+                    <dl><dt>@OperatorLabels.CaseWorkspace.Repairer</dt><dd>@Value(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Inspection.RepairerName)?.Value)</dd></dl>
+                    <dl><dt>@OperatorLabels.CaseWorkspace.RepairerLocation</dt><dd>@Value(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Inspection.RepairerAddress)?.Value)</dd></dl>
                 </div>
             </section>
         </div>

@@ -373,6 +373,61 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>The value of one hidden input inside the form that posts to the named handler.</summary>
+    /// <summary>
+    /// INTK-058/CASE-041: the Case's repairer is an Inspect-at option that
+    /// names the repairer it came from, and the Save carries the repairer the
+    /// operator confirmed into the one Case edit.
+    /// </summary>
+    [Fact]
+    public async Task InspectAtOffersTheRepairerAndTheSaveCarriesTheConfirmedRepairer()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            InspectionChoices = new(
+                "8 Claimant Street",
+                "12 Kingsway, Leeds LS1 1AA",
+                "14 Storage Lane",
+                [],
+                "Kingsway Accident Repair")
+        };
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<ISaveCaseWorkspace>(services, store);
+            Substitute<Pegasus.Core.Address.IInspectionAddressChoicesQueries>(services, store);
+        });
+        var html = await workspace.GetWorkspaceAsync();
+
+        Assert.Contains(
+            System.Text.Encodings.Web.HtmlEncoder.Default.Encode(
+                $"{OperatorLabels.CaseWorkspace.RepairerLocation} · Kingsway Accident Repair"),
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "value=\"RepairerLocation\" data-address=\"12 Kingsway, Leeds LS1 1AA\"",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains("name=\"repairerDirectoryId\"", html, StringComparison.Ordinal);
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            Form(workspace.AntiforgeryToken,
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", "Confirm the repairer"),
+                ("repairerDirectoryId", string.Empty),
+                ("repairerName", "Kingsway Accident Repair"),
+                ("repairerAddress", "12 Kingsway, Leeds LS1 1AA"),
+                ("inspectionAddress", "12 Kingsway, Leeds LS1 1AA")));
+
+        AssertPrg(response, store.CaseId);
+        var saved = Assert.Single(store.Saves);
+        Assert.Equal("Kingsway Accident Repair", saved.Overview!.Repairer!.Name);
+        Assert.Null(saved.Overview.Repairer.DirectoryOrganizationId);
+        Assert.Equal("12 Kingsway, Leeds LS1 1AA", saved.Overview.RepairerAddress);
+        Assert.Equal("12 Kingsway, Leeds LS1 1AA", saved.Inspection!.Address);
+    }
+
     private static string HandlerFormInputValue(string html, string handler, string name)
     {
         var form = Regex.Match(

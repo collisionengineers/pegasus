@@ -44,6 +44,13 @@ public static class OperatorLabels
     public const string PrincipalNotKnown = "Not known";
 
     /// <summary>
+    /// The Triage compact-dialog trigger and title for setting or correcting
+    /// the known principal — the one Image Intake action its inline editor has
+    /// no separate button for, because Triage exposes it as a dialog instead.
+    /// </summary>
+    public const string SetPrincipal = "Set principal";
+
+    /// <summary>
     /// The Triage's own permanent reference, distinct from the originating
     /// provider claim number.
     /// </summary>
@@ -357,6 +364,38 @@ public static class OperatorLabels
         var minutes = (int)Math.Round(value.TotalMinutes);
         return minutes == 1 ? "1 minute" : $"{minutes} minutes";
     }
+
+    /// <summary>
+    /// A reported average turnaround in the operator's words, in whole days
+    /// once it reaches one; otherwise the same words as <see cref="Duration"/>.
+    /// <paramref name="absent"/> stands for a period with no such transitions.
+    /// </summary>
+    public static string ReportTurnaround(TimeSpan? value, string absent)
+    {
+        if (value is not { } duration)
+        {
+            return absent;
+        }
+
+        if (duration.TotalDays >= 1)
+        {
+            var days = (int)Math.Round(duration.TotalDays, MidpointRounding.AwayFromZero);
+            return days == 1 ? "1 day" : $"{days} days";
+        }
+
+        return Duration(duration);
+    }
+
+    /// <summary>
+    /// The plain name for a generated report's kind, as persisted from
+    /// <see cref="Pegasus.Core.Reports.CaseReportArtifactKind"/>.
+    /// </summary>
+    public static string ReportKind(string kind) => kind switch
+    {
+        nameof(Pegasus.Core.Reports.CaseReportArtifactKind.AssessmentReport) => "Report",
+        nameof(Pegasus.Core.Reports.CaseReportArtifactKind.FeeNote) => "Fee note",
+        _ => Humanise(kind)
+    };
 
     /// <summary>The stage name for a persisted stage string, however stored.</summary>
     public static string CaseStage(string? state) =>
@@ -789,6 +828,8 @@ public static class OperatorLabels
         "case_guidance_applied" => "Guidance applied",
         "claim_source_guidance_applied" => "Claim source guidance applied",
         "triage_response_linked" => "Reply linked",
+        "case_report_draft_previewed" => "Report draft viewed",
+        "case_report_artifact_downloaded" => "Report downloaded",
         _ => Humanise(eventType)
     };
 
@@ -1290,10 +1331,19 @@ public static class OperatorLabels
         {
             if (status is null)
             {
-                return mailbox.State == ApprovedMailboxState.Approved
-                    && mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.InboundIntake)
-                        ? "Not yet polled."
-                        : "Not polled.";
+                if (mailbox.State != ApprovedMailboxState.Approved
+                    || !mailbox.RouteScopes.Contains(ApprovedMailboxRouteScope.InboundIntake))
+                {
+                    return "Not polled.";
+                }
+
+                // Polling starts from the recorded identity and activation the
+                // address check produced. Without them the estate never offers this
+                // mailbox, so "not yet polled" would promise a poll that cannot
+                // happen; the stored evidence says only that it is not activated.
+                return mailbox.IdentityIsBound && mailbox.ActivatedAtUtc is not null
+                    ? "Not yet polled."
+                    : $"{NotActivated}.";
             }
 
             var completed = status.LastCompletedAtUtc is { } lastCompletedAtUtc
@@ -1527,6 +1577,10 @@ public static class OperatorLabels
         public const string ManualEntry = "Manual entry";
         public const string NotRecorded = "Not recorded";
         public const string NotRecordedSuffix = " · not recorded";
+        // INTK-058: the Case's repairer.
+        public const string Repairer = "Repairer";
+        public const string RepairerDirectory = "Repairer contact";
+        public const string NotLinked = "Not linked";
         // End CASE-041.
         public const string FilesPanel = "Files";
         public const string UploadRequestsPanel = "Public upload requests";

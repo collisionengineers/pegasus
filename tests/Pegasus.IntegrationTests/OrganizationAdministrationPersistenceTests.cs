@@ -135,6 +135,11 @@ public sealed class OrganizationAdministrationPersistenceTests
             "SELECT COUNT(*) FROM OrganizationAdministrationOperations WHERE OperationKey = 'principal:create:pegasustest';"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = 'principal:create:pegasustest';"));
+        // ASTRA-F13: the typed actor's kind is not discarded on the way into
+        // this Core command's own audit trail — it is the caller's real kind,
+        // not a placeholder or an omitted column.
+        Assert.Equal(nameof(ActorKind.Staff), await factory.Database.ScalarAsync<string>(
+            "SELECT ActorKind FROM ActionHistory WHERE CorrelationId = 'principal:create:pegasustest';"));
     }
 
     [Fact]

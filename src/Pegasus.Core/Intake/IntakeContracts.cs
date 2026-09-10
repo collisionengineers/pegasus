@@ -597,6 +597,11 @@ public sealed record InstructionReviewField(
         "Contact email" => CaseDataFieldNames.ContactEmailAddress,
         "Contact phone" => CaseDataFieldNames.ContactPhoneNumber,
         "VAT status" => CaseDataFieldNames.VatStatus,
+        // INTK-058: the repairer the instruction names. The profiles print
+        // these two labels; the Case keeps the name and the address as its
+        // own facts, and a directory link is a separate staff decision.
+        "Repairer name" => CaseDataFieldNames.RepairerName,
+        "Repairer address" => CaseDataFieldNames.RepairerAddress,
         _ => null
     };
 }

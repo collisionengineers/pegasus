@@ -63,8 +63,13 @@ internal static class CaseWorkflowModelConfiguration
             entity.Property(item => item.ActorRolesJson).HasMaxLength(500).IsRequired();
             entity.Property(item => item.Reason).HasMaxLength(AddCaseNote.MaximumLength);
             entity.HasIndex(item => new { item.CaseId, item.OperationKey }).IsUnique();
+            // DOCS-014: a report preview or download is Case history, not a
+            // Case mutation, so it carries no fresh version and is exempted
+            // here exactly as operator_note and case_guidance_applied are.
             entity.HasIndex(item => new { item.CaseId, item.AfterVersion }).IsUnique()
-                .HasFilter("[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied'");
+                .HasFilter(
+                    "[EventType] <> 'operator_note' AND [EventType] <> 'case_guidance_applied' "
+                    + "AND [EventType] <> 'case_report_draft_previewed' AND [EventType] <> 'case_report_artifact_downloaded'");
             entity.HasOne(item => item.Workflow).WithMany().HasForeignKey(item => item.CaseId).OnDelete(DeleteBehavior.Restrict);
         });
 

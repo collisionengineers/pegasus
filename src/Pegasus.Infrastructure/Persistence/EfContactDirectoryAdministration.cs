@@ -107,16 +107,17 @@ public sealed class EfContactDirectoryAdministration(
         return await LoadRecordsAsync(context, ids, latestCases: null, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<ContactDirectoryRecord>> ListClaimSourcesAsync(
+    public async Task<IReadOnlyList<ContactDirectoryRecord>> ListByRoleAsync(
         ActionActor actor,
+        ContactRole role,
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-        var claimSourceRole = ToCode(ContactRole.ClaimSource);
+        var roleCode = ToCode(role);
         var ids = await context.Organizations.AsNoTracking()
             .Where(item => item.Active
-                && item.ContactRoles.Any(role => role.Role == claimSourceRole))
+                && item.ContactRoles.Any(contactRole => contactRole.Role == roleCode))
             .OrderBy(item => item.Name)
             .ThenBy(item => item.Id)
             .Select(item => item.Id)

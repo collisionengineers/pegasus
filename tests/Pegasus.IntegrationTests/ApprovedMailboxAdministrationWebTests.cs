@@ -116,6 +116,11 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.DoesNotContain("resolved-mailbox-id", reloaded, StringComparison.Ordinal);
         Assert.DoesNotContain("resolved-inbox-id", reloaded, StringComparison.Ordinal);
         Assert.DoesNotContain("resolved-sent-id", reloaded, StringComparison.Ordinal);
+        // Discovery and the read-access check both passed, so this mailbox really
+        // is waiting for its first poll — unlike the seeded row beside it, which
+        // has neither and says so.
+        Assert.Contains("Not yet polled.", reloaded, StringComparison.Ordinal);
+        Assert.Contains("Not activated.", reloaded, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -371,8 +376,11 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.DoesNotContain("name=\"InboxFolderIdentity\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"SentFolderIdentity\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("Version</th>", page, StringComparison.Ordinal);
-        // The per-mailbox polling column is present for the seeded mailbox.
-        Assert.Contains("Not yet polled.", page, StringComparison.Ordinal);
+        // The per-mailbox polling column is present for the seeded mailbox and
+        // reports the stored evidence: nothing has resolved this address, so no
+        // poll is pending for it and none can be.
+        Assert.Contains("Not activated.", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Not yet polled.", page, StringComparison.Ordinal);
         // Per-mailbox access state is intentionally disclosed only after Settings
         // claims its edit lease.
         var mailboxId = TestMailboxId.From("instructions").ToString("D");

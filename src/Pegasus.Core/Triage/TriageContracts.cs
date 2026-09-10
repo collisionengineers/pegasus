@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Cases;
 
 namespace Pegasus.Core.Triage;
 
@@ -161,6 +162,29 @@ public sealed record AssignTriageRequest(
     string Reason)
 {
     public string EditLeaseToken { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Records, replaces or clears the optional known principal on a Triage.
+/// Mirrors <see cref="Pegasus.Core.ImageIntake.SetImageIntakePrincipalRequest"/>:
+/// a null <see cref="PrincipalId"/> is the `Not known` state — a legitimate
+/// value staff may return to, not an error — so there is no operation key and
+/// no reason; <see cref="ExpectedVersion"/> alone guards the write.
+/// </summary>
+public sealed record SetTriagePrincipalRequest(
+    Guid TriageId,
+    Guid? PrincipalId,
+    ActionActor Actor,
+    long ExpectedVersion)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
+
+public interface ISetTriagePrincipal
+{
+    Task<TriageRecord> ExecuteAsync(
+        SetTriagePrincipalRequest request,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -481,6 +505,18 @@ public interface ITriageQueries
     Task<TriageSummary?> GetByOriginReceiptAsync(
         Guid originReceiptId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The active principals a staff member may record against a Triage,
+    /// ordered by code. Mirrors <c>IImageIntakeQueries.ListActivePrincipalsAsync</c>.
+    /// The default fails closed rather than returning an empty option list that
+    /// would silently look like `no principals exist` when an implementation is
+    /// missing.
+    /// </summary>
+    Task<IReadOnlyList<Principal>> ListActivePrincipalsAsync(
+        CancellationToken cancellationToken) =>
+        Task.FromException<IReadOnlyList<Principal>>(
+            new NotSupportedException("Active principal options are not available."));
 }
 
 public interface ITriageResponseEvidenceCandidateQueries
@@ -563,6 +599,19 @@ public interface ITriageStore : ITriageQueries, ITriageResponseEvidenceCandidate
         CancellationToken cancellationToken) =>
         Task.FromException<TriageRecord>(
             new NotSupportedException("Triage notes are not available."));
+
+    /// <summary>
+    /// Records, replaces or clears the optional known principal. Mirrors
+    /// <c>IImageIntakeStore.SetPrincipalAsync</c>: this writes no lifecycle
+    /// transition of its own — <see cref="TriageState"/> is untouched — but,
+    /// unlike Image Intake, it does append a history entry, so the Triage
+    /// timeline shows who recorded or corrected it and when.
+    /// </summary>
+    Task<TriageRecord> SetPrincipalAsync(
+        SetTriagePrincipalRequest request,
+        CancellationToken cancellationToken) =>
+        Task.FromException<TriageRecord>(
+            new NotSupportedException("Triage principal assignment is not available."));
 
     Task<TriageRecord> CreateAsync(
         CreateTriageFromIntakeRequest request,

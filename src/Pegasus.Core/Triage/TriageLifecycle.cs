@@ -160,6 +160,25 @@ public sealed class AddTriageNote(ITriageStore store) : IAddTriageNote
     }
 }
 
+/// <summary>
+/// Records, replaces or clears the known principal. Mirrors
+/// <c>ImageIntakeLifecycle</c>'s own rule: casework, not a lifecycle
+/// transition, so it neither probes nor requires the Triage to still be
+/// mutable — a completed or cancelled Triage's principal remains correctable.
+/// </summary>
+public sealed class SetTriagePrincipal(ITriageStore store) : ISetTriagePrincipal
+{
+    private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
+
+    public async Task<TriageRecord> ExecuteAsync(
+        SetTriagePrincipalRequest request,
+        CancellationToken cancellationToken)
+    {
+        TriageLifecycleRules.ValidateSetPrincipal(request);
+        return await _store.SetPrincipalAsync(request, cancellationToken);
+    }
+}
+
 public sealed class UnassignTriage(ITriageStore store) : IUnassignTriage
 {
     private readonly ITriageStore _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -466,6 +485,25 @@ public static class TriageLifecycleRules
         }
 
         ValidateActorAndOperation(request.Actor, request.OperationKey);
+    }
+
+    /// <summary>
+    /// Recording, replacing or clearing the known principal is casework, not a
+    /// lifecycle transition — mirrors
+    /// <c>ImageIntakeLifecycleRules.ValidateSetPrincipal</c> — so it takes no
+    /// operation key and no reason. A null principal is the `Not known` state
+    /// and is accepted; only an empty identifier is rejected.
+    /// </summary>
+    public static void ValidateSetPrincipal(SetTriagePrincipalRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Actor, nameof(request));
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        ValidateIdAndVersion(request.TriageId, request.ExpectedVersion);
+        if (request.PrincipalId == Guid.Empty)
+        {
+            throw new ArgumentException("A principal identifier cannot be empty.", nameof(request));
+        }
     }
 
     public static void ValidateFinding(

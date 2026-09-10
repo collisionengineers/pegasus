@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 
@@ -520,6 +521,78 @@ public sealed class EfTriageStore(
 
     private static string NoteRequestHash(AddTriageNoteRequest request) =>
         Hash($"note|{request.TriageId:N}|{request.ExpectedVersion}|{request.Actor.Kind}|{request.Actor.SubjectId}|{request.Note.Trim()}");
+
+    /// <summary>
+    /// Records, replaces or clears the optional known principal. Mirrors
+    /// <c>EfImageIntakeStore.SetPrincipalAsync</c>'s replace/clear/no-op shape,
+    /// with one deliberate difference: this writes a history entry
+    /// (<c>triage_principal_set</c>) under a freshly minted operation key
+    /// rather than none, because unlike Image Intake, Triage's timeline is the
+    /// one place staff read who acted and when. There is still no caller
+    /// operation key to replay against — the value is replaceable and
+    /// clearable at will, so <see cref="SetTriagePrincipalRequest.ExpectedVersion"/>
+    /// alone guards the write, exactly as it does for Image Intake.
+    /// </summary>
+    public async Task<TriageRecord> SetPrincipalAsync(
+        SetTriagePrincipalRequest request,
+        CancellationToken cancellationToken)
+    {
+        TriageLifecycleRules.ValidateSetPrincipal(request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var triage = await LoadForMutationAsync(
+            context,
+            request.TriageId,
+            request.ExpectedVersion,
+            cancellationToken);
+        await RequireEditScopeAsync(
+            context, triage, request.ExpectedVersion, request.Actor, request.EditLeaseToken, cancellationToken);
+
+        if (triage.PrincipalId == request.PrincipalId)
+        {
+            EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return Map(triage);
+        }
+
+        if (request.PrincipalId is { } principalId
+            && !await context.Principals.AsNoTracking().AnyAsync(
+                principal => principal.Id == principalId && principal.IsActive,
+                cancellationToken))
+        {
+            throw new InvalidOperationException("The selected principal is not active.");
+        }
+
+        triage.PrincipalId = request.PrincipalId;
+        var operationKey = $"triage-principal-set:{Guid.NewGuid():N}";
+        const string principalReason = "Principal recorded.";
+        AppendHistory(
+            context,
+            triage,
+            "triage_principal_set",
+            request.Actor,
+            operationKey,
+            principalReason,
+            Hash($"principal|{triage.Id:N}|{request.ExpectedVersion}|{request.PrincipalId:N}|{request.Actor.Kind}|{request.Actor.SubjectId}"));
+        EfEditScopeStore.Complete(context, EditScopeKind.Triage, triage.Id);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(triage);
+    }
+
+    public async Task<IReadOnlyList<Principal>> ListActivePrincipalsAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var principals = await context.Principals.AsNoTracking()
+            .Where(principal => principal.IsActive)
+            .OrderBy(principal => principal.Code)
+            .ToArrayAsync(cancellationToken);
+        return principals.Select(EfOrganizationAdministration.ToPrincipal).ToArray();
+    }
 
     public async Task LinkResponseEvidenceAsync(
         TriageResponseEvidenceLinkRequest request,

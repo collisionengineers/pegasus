@@ -102,6 +102,18 @@ public sealed record CaseLocationProvenance(
     long? DirectorySourceVersion,
     string? DirectorySourceLabel);
 
+/// <summary>
+/// The repairer recorded on this Case: the copied identity and version of the
+/// Contacts directory organisation a member of staff linked, beside the name
+/// and address the Case keeps in its own facts. Only a Repairer-role row may
+/// be linked, and the copy is what the Case keeps, so a later directory edit
+/// never rewrites the Case.
+/// </summary>
+public sealed record CaseWorkspaceRepairer(
+    Guid? DirectoryOrganizationId,
+    long? DirectoryOrganizationVersion,
+    string? Name);
+
 public sealed record CaseWorkspaceStorageBusiness(
     Guid? DirectoryOrganizationId,
     long? DirectoryOrganizationVersion,
@@ -142,7 +154,8 @@ public sealed record CaseWorkspaceOverview(
     DateOnly? InstructionDate,
     string? VatStatus,
     string? RepairerAddress,
-    CaseWorkspaceClaimSource? ClaimSource);
+    CaseWorkspaceClaimSource? ClaimSource,
+    CaseWorkspaceRepairer? Repairer = null);
 
 public sealed record CaseWorkspaceInspection(
     CaseReportAddressTreatment? AddressTreatment,
@@ -498,6 +511,9 @@ public static class CaseWorkspacePolicy
                 InstructionDate = overview.InstructionDate,
                 VatStatus = overview.VatStatus,
                 RepairerAddress = overview.RepairerAddress,
+                RepairerName = overview.Repairer?.Name,
+                RepairerId = overview.Repairer?.DirectoryOrganizationId,
+                RepairerVersion = overview.Repairer?.DirectoryOrganizationVersion,
                 ClaimSourceId = overview.ClaimSource?.ClaimSourceId,
                 ClaimSourceVersion = overview.ClaimSource?.ClaimSourceVersion,
                 ClaimSourceName = overview.ClaimSource?.Name,

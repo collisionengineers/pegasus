@@ -94,6 +94,14 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(
             offersHandoff,
             html.Contains("data-dialog=\"eva-handoff-dialog\"", StringComparison.Ordinal));
+        // TICK-223: the trigger is a real link to the fallback page the
+        // dialog's own form posts to, so the handoff stays reachable without
+        // JavaScript rather than being a dead button with no static target.
+        Assert.Equal(
+            offersHandoff,
+            html.Contains(
+                $"href=\"/Cases/{store.CaseId:D}/Eva/Send\"",
+                StringComparison.OrdinalIgnoreCase));
         // The handoff's own routes come with it: the export posts from the
         // dialog, so the route is present exactly when the control is.
         Assert.Equal(
