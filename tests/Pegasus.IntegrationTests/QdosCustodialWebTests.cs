@@ -231,6 +231,10 @@ public sealed class QdosCustodialWebTests
             {
                 services.RemoveAll<IDownloadCaseDocument>();
                 services.AddSingleton<IDownloadCaseDocument>(handlers);
+                services.RemoveAll<IReadCaseDocumentPreview>();
+                services.AddSingleton<IReadCaseDocumentPreview>(handlers);
+                services.RemoveAll<IReadLogicalDocumentVersion>();
+                services.AddSingleton<IReadLogicalDocumentVersion>(handlers);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -365,7 +369,11 @@ public sealed class QdosCustodialWebTests
                 false));
     }
 
-    private sealed class RecordingDocumentHandlers : IDownloadCaseDocument, IExportCaseDocuments
+    private sealed class RecordingDocumentHandlers :
+        IDownloadCaseDocument,
+        IExportCaseDocuments,
+        IReadCaseDocumentPreview,
+        IReadLogicalDocumentVersion
     {
         public string MediaType { get; set; } = "application/pdf";
 
@@ -374,6 +382,8 @@ public sealed class QdosCustodialWebTests
         public Guid CaseId { get; } = Guid.NewGuid();
 
         public Guid OccurrenceId { get; } = Guid.NewGuid();
+
+        public Guid DocumentId { get; } = Guid.NewGuid();
 
         public Guid VersionId { get; } = Guid.NewGuid();
 
@@ -428,6 +438,43 @@ public sealed class QdosCustodialWebTests
                             Sha256)
                     ]));
         }
+
+        public Task<CaseDocumentPreview?> ExecuteAsync(
+            CaseDocumentPreviewQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            if (query.CaseId != CaseId
+                || query.OccurrenceId != OccurrenceId
+                || query.VersionId != VersionId)
+            {
+                return Task.FromResult<CaseDocumentPreview?>(null);
+            }
+
+            return Task.FromResult<CaseDocumentPreview?>(
+                new(
+                    CaseId,
+                    OccurrenceId,
+                    DocumentId,
+                    VersionId,
+                    FileName,
+                    MediaType,
+                    Payload.Length,
+                    Sha256,
+                    DocumentCustodyStatus.Confirmed));
+        }
+
+        Task<LogicalDocumentContent> IReadLogicalDocumentVersion.OpenAsync(
+            ReadLogicalDocumentVersionRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new LogicalDocumentContent(
+                new MemoryStream(Payload, writable: false),
+                DocumentId,
+                VersionId,
+                null,
+                Sha256,
+                Payload.Length,
+                FileName,
+                MediaType));
     }
 
 }
