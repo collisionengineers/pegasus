@@ -796,7 +796,11 @@ public sealed class ProcessIntake(
             : instructionSelection.Policy ?? (principalContext.PrincipalCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
                 ? extractionPolicies.ForPrincipal(principalContext.PrincipalCode) : null);
         var instructionRead = instructionSelection.InstructionContent.Count > 0
-            ? readResult with { Content = instructionSelection.InstructionContent }
+            ? readResult with
+            {
+                Content = instructionSelection.InstructionContent,
+                Companions = CompanionContent(readResult, instructionSelection.InstructionContent)
+            }
             : principalContext?.PrincipalCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
                 ? readResult
                 : readResult with { Content = PrincipalMailRoutePolicy.CurrentInstructionContent(readResult).ToArray() };
@@ -1150,6 +1154,28 @@ public sealed class ProcessIntake(
             null,
             null,
             caseMatchDecision);
+    }
+
+    // INTK-060 narrowed the extraction input to the selected instruction
+    // document, and that silently dropped every fact only the accompanying
+    // third-party engineer report states — production QDOS cases stopped
+    // carrying a mileage. The submission's other current documents travel
+    // alongside as companions instead, split on the same document identity
+    // the selector groups by, so a policy's report grammar can read them
+    // while no labelled instruction field ever comes from one.
+    private static IReadOnlyList<IntakeContentFragment> CompanionContent(
+        IntakeSourceReadResult readResult,
+        IReadOnlyList<IntakeContentFragment> selected)
+    {
+        var selectedDocuments = selected
+            .Select(fragment => InstructionExtractionPolicySelector.DocumentIdentity(fragment.SourceLabel))
+            .ToHashSet(StringComparer.Ordinal);
+        return
+        [
+            .. PrincipalMailRoutePolicy.CurrentInstructionContent(readResult)
+                .Where(fragment => !selectedDocuments.Contains(
+                    InstructionExtractionPolicySelector.DocumentIdentity(fragment.SourceLabel)))
+        ];
     }
 
     private static EstablishedPrincipalContext? EstablishPrincipalContext(

@@ -66,7 +66,7 @@ public sealed class EvaCaseEvidenceReaderTests
             new(Accepted("QDOS")),
             new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(Empty<string>()),
-            new(Accepted("AB12CDE"), make, model, Empty<long>(), Empty<string>()),
+            new(Accepted("AB12CDE"), make, model, Empty<string>(), Empty<long>(), Empty<string>()),
             new(Empty<DateOnly>(), Empty<string>()),
             new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(Empty<DateOnly>(), Empty<string>()),

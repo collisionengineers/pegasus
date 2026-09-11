@@ -1,5 +1,5 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
-@using Pegasus.Core.Vehicle
+@using Pegasus.Core.Cases
 @using Pegasus.Core.Assessment
 @using Pegasus.Web.Presentation
 @{
@@ -13,63 +13,29 @@
     var editFields = mayEdit && data is not null;
     string Value(string? text) => string.IsNullOrWhiteSpace(text)
         ? OperatorLabels.CaseWorkspace.AbsentValue : text;
-    // Confirmed ?? Fact only — CaseField<T>.Current also falls through to an
-    // unaccepted suggestion, which would render with no marker distinguishing
-    // it from a recorded value while the chip beside it still offers "Use …".
-    var acceptedRegistration = data?.Vehicle.Registration.Confirmed?.Value
-        ?? data?.Vehicle.Registration.Fact?.Value;
-    var registration = details.VehicleEvidence?.Confirmed?.Registration?.Value
-        ?? acceptedRegistration
+    // Confirmed ?? Fact only. A lookup now fills an empty field as a fact
+    // carrying its own provenance, so no row has an unaccepted suggestion left
+    // to render and nothing is offered for acceptance beside one.
+    var registrationValue = data?.Vehicle.Registration.Confirmed ?? data?.Vehicle.Registration.Fact;
+    var registration = registrationValue?.Value
         // The list-summary value is only the identity when no Case-data
-        // projection is available; never use it to promote a suggestion.
+        // projection is available.
         ?? (data is null ? details.Summary.Registration : null);
-    var make = data?.Vehicle.Make.Confirmed?.Value ?? data?.Vehicle.Make.Fact?.Value;
-    var model = data?.Vehicle.Model.Confirmed?.Value ?? data?.Vehicle.Model.Fact?.Value;
-    var description = data?.Vehicle.Description.Fact;
-    var mileage = data?.Vehicle.Mileage.Confirmed?.Value ?? data?.Vehicle.Mileage.Fact?.Value;
-    var unit = data?.Vehicle.MileageUnit.Confirmed?.Value ?? data?.Vehicle.MileageUnit.Fact?.Value;
-    var makeSuggestion = data?.Vehicle.Make.Suggestion;
-    var modelSuggestion = data?.Vehicle.Model.Suggestion;
-    var mileageSuggestion = data?.Vehicle.Mileage.Suggestion;
-    var unitSuggestion = data?.Vehicle.MileageUnit.Suggestion;
-    var showMake = makeSuggestion is not null
-        && !string.IsNullOrWhiteSpace(makeSuggestion.Value)
-        && !string.Equals(makeSuggestion.Value,
-            data?.Vehicle.Make.Confirmed?.Value ?? data?.Vehicle.Make.Fact?.Value,
-            StringComparison.OrdinalIgnoreCase);
-    var showModel = modelSuggestion is not null
-        && !string.IsNullOrWhiteSpace(modelSuggestion.Value)
-        && !string.Equals(modelSuggestion.Value,
-            data?.Vehicle.Model.Confirmed?.Value ?? data?.Vehicle.Model.Fact?.Value,
-            StringComparison.OrdinalIgnoreCase);
-    var showMileage = mileageSuggestion is not null && unitSuggestion is not null
-        && (mileageSuggestion.Value != (data?.Vehicle.Mileage.Confirmed?.Value ?? data?.Vehicle.Mileage.Fact?.Value)
-            || !string.Equals(unitSuggestion.Value,
-                data?.Vehicle.MileageUnit.Confirmed?.Value ?? data?.Vehicle.MileageUnit.Fact?.Value,
-                StringComparison.Ordinal));
-    var mileageText = mileage is { } figure
-        ? string.IsNullOrWhiteSpace(unit) ? figure.ToString("N0") : $"{figure:N0} {unit}"
+    var makeValue = data?.Vehicle.Make.Confirmed ?? data?.Vehicle.Make.Fact;
+    var modelValue = data?.Vehicle.Model.Confirmed ?? data?.Vehicle.Model.Fact;
+    var yearValue = data?.Vehicle.Year.Confirmed ?? data?.Vehicle.Year.Fact;
+    var mileageValue = data?.Vehicle.Mileage.Confirmed ?? data?.Vehicle.Mileage.Fact;
+    var unit = (data?.Vehicle.MileageUnit.Confirmed ?? data?.Vehicle.MileageUnit.Fact)?.Value;
+    var mileageText = mileageValue is { } odometer
+        ? string.IsNullOrWhiteSpace(unit) ? odometer.Value.ToString("N0") : $"{odometer.Value:N0} {unit}"
         : null;
-    var mileageSource = (data?.Vehicle.Mileage.Confirmed ?? data?.Vehicle.Mileage.Fact) is { } mileageValue
-        ? OperatorLabels.Provenance(mileageValue.Source).Word : null;
-    var year = details.VehicleEvidence?.LatestObservation?.Vehicle?.ManufactureYear;
-    // The original mileage evidence stays on the record beside the case's own
-    // figure (ENG-034, B08): the latest lookup's MOT reading and the date it
-    // was observed, never merged into the recorded value.
-    var lookupMileage = details.VehicleEvidence?.LatestObservation?.Mileage is { } reading
-        ? $"{reading.Value:N0} {OperatorLabels.MileageUnit(reading.Unit)} · {reading.ObservedOn:d MMM yyyy}"
-        : null;
-    // What the lookup itself did. The suggestion chips below are edit-mode
-    // only, so without this line a lookup that ran and found nothing was
-    // indistinguishable from one that never ran (WP8).
+    // Who told staff the figure is theirs to state. The pick is kept beside
+    // the box whenever the box is editable, because the figure typed into it
+    // may be the one it describes; every other provenance resolves itself.
+    var mileageSource = Model.AssessmentEditorValue(AssessmentVocabulary.VehicleMileageSource);
+    // What the lookup itself did, so one that ran and found nothing is never
+    // read as one that never ran (WP8).
     var observation = details.VehicleEvidence?.LatestObservation;
-    // The same values the chips offer, as text, for an operator who is not
-    // editing. Accepting one still requires edit mode (FRD-06).
-    var suggestions = new List<string>();
-    if (showMake) { suggestions.Add($"Make {makeSuggestion!.Value}"); }
-    if (showModel) { suggestions.Add($"Model {modelSuggestion!.Value}"); }
-    if (year is { } suggestedYear) { suggestions.Add($"Year {suggestedYear}"); }
-    if (showMileage) { suggestions.Add($"Mileage {mileageSuggestion!.Value:N0} {unitSuggestion!.Value}"); }
 }
 
 <section class="panel" aria-labelledby="case-vehicle-title">
@@ -105,32 +71,31 @@
         <div class="overview-facts">
             @* WP6: the vehicle's own identity is edited where it is read. The
                controls belong to the record's one Save form, as every other
-               section's do. *@
-            <dl><dt>@if (editFields){<label for="edit-registration">Registration</label>} else {<text>Registration</text>}</dt><dd>@if (editFields){<input id="edit-registration" name="vehicleRegistration" form="case-edit-form" maxlength="20" value="@acceptedRegistration" />} else {@Value(registration)}</dd></dl>
-            <dl><dt>Source vehicle description</dt><dd>@Value(description?.Value)@if (description is not null){<partial name="Shared/_Provenance" model="description.Source" />}</dd></dl>
-            <dl><dt>@if (editFields){<label for="edit-make">Make</label>} else {<text>Make</text>}</dt><dd>@if (editFields){<input id="edit-make" name="vehicleMake" form="case-edit-form" maxlength="100" value="@make" />} else {@Value(make)}</dd>@if (mayEdit && showMake){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@makeSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Make" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion(makeSuggestion.Value)</button></form>}</dl>
-            <dl><dt>@if (editFields){<label for="edit-model">Model</label>} else {<text>Model</text>}</dt><dd>@if (editFields){<input id="edit-model" name="vehicleModel" form="case-edit-form" maxlength="100" value="@(model)" />} else {@Value(model)}</dd>@if (mayEdit && showModel){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@modelSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Model" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion(modelSuggestion.Value)</button></form>}</dl>
-            <dl><dt>Year</dt><dd>@Value(year?.ToString())</dd></dl>
-            <dl><dt>Mileage</dt><dd>@Value(mileageText)</dd>@if (mayEdit && showMileage){<form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion"><input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@mileageSuggestion!.Source.Identity" /><input type="hidden" name="field" value="Mileage" /><input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" /><button type="submit" class="suggestion-chip">@CaseWorkspaceLabels.Vehicle.UseSuggestion($"{mileageSuggestion.Value:N0} {unitSuggestion!.Value}")</button></form>}</dl>
-            <dl><dt>Mileage source</dt><dd>@Value(mileageSource)</dd></dl>
-            <dl><dt>@CaseWorkspaceLabels.Vehicle.LookupMileage</dt><dd>@Value(lookupMileage)</dd></dl>
+               section's do, and every value states where it came from. *@
+            <dl><dt>@if (editFields){<label for="edit-registration">Registration</label>} else {<text>Registration</text>}</dt><dd>@if (editFields){<input id="edit-registration" name="vehicleRegistration" form="case-edit-form" maxlength="20" value="@registrationValue?.Value" />} else {@Value(registration)}@if (registrationValue is not null){<partial name="Shared/_Provenance" model="registrationValue.Source" />}</dd></dl>
+            <dl><dt>@if (editFields){<label for="edit-make">Make</label>} else {<text>Make</text>}</dt><dd>@if (editFields){<input id="edit-make" name="vehicleMake" form="case-edit-form" maxlength="100" value="@makeValue?.Value" />} else {@Value(makeValue?.Value)}@if (makeValue is not null){<partial name="Shared/_Provenance" model="makeValue.Source" />}</dd></dl>
+            <dl><dt>@if (editFields){<label for="edit-model">Model</label>} else {<text>Model</text>}</dt><dd>@if (editFields){<input id="edit-model" name="vehicleModel" form="case-edit-form" maxlength="100" value="@modelValue?.Value" />} else {@Value(modelValue?.Value)}@if (modelValue is not null){<partial name="Shared/_Provenance" model="modelValue.Source" />}</dd></dl>
+            <dl><dt>@if (editFields){<label for="edit-year">Year</label>} else {<text>Year</text>}</dt><dd>@if (editFields){<input id="edit-year" name="vehicleYear" form="case-edit-form" maxlength="10" inputmode="numeric" value="@yearValue?.Value" />} else {@Value(yearValue?.Value)}@if (yearValue is not null){<partial name="Shared/_Provenance" model="yearValue.Source" />}</dd></dl>
+            @* One mileage row, with the provenance the report's source code is
+               read from. The staff pick rides beside the box while it is
+               editable, and is ignored unless staff supplied the figure. *@
+            <dl><dt>@if (editFields){<label for="edit-mileage">Mileage</label>} else {<text>Mileage</text>}</dt><dd>@if (editFields){<input id="edit-mileage" name="vehicleMileage" type="number" min="0" step="1" inputmode="numeric" form="case-edit-form" value="@mileageValue?.Value" />} else {@Value(mileageText)}@if (editFields){<select id="edit-mileage-source" name="vehicleMileageSource" form="case-edit-form" aria-label="Mileage source">@foreach (var code in CaseVehicleMileageSourcePolicy.StaffChoices){<option value="@code" selected="@(string.Equals(code, mileageSource ?? CaseVehicleMileageSourcePolicy.StaffChoices[0], StringComparison.Ordinal) ? "selected" : null)">@CaseWorkspaceLabels.Vehicle.MileageSource(code)</option>}</select>}@if (mileageValue is not null){<partial name="Shared/_Provenance" model="mileageValue.Source" />}</dd></dl>
             <dl><dt>@OperatorLabels.VehicleLookup.OutcomeTitle</dt><dd>@OperatorLabels.VehicleLookup.Outcome(observation)</dd></dl>
-            @if (!mayEdit && suggestions.Count > 0)
+        </div>
+        @* The history check is prose about the vehicle rather than one of its
+           facts, so it reads as its own area under the grid. *@
+        <div class="field vehicle-history">
+            <h3 id="case-vehicle-history-title" class="eyebrow">Vehicle history</h3>
+            @if (Model.CanEditAssessmentField(AssessmentVocabulary.HistoryCheck))
             {
-                <dl><dt>@OperatorLabels.VehicleLookup.SuggestionTitle</dt><dd>@(string.Join(" · ", suggestions))</dd></dl>
+                <textarea id="edit-vehicle-history" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.HistoryCheck)"
+                          form="case-edit-form" aria-labelledby="case-vehicle-history-title" rows="4"
+                          maxlength="@AssessmentVocabulary.Definitions[AssessmentVocabulary.HistoryCheck].MaximumLength">@Model.AssessmentEditorValue(AssessmentVocabulary.HistoryCheck)</textarea>
+            }
+            else
+            {
+                <p>@Model.AssessmentValue(AssessmentVocabulary.HistoryCheck)</p>
             }
         </div>
-        @if (Model.CanEditAssessmentField(AssessmentVocabulary.HistoryCheck))
-        {
-            <div class="field">
-                <label for="edit-vehicle-history">Vehicle history</label>
-                <textarea id="edit-vehicle-history" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.HistoryCheck)"
-                          form="case-edit-form" rows="4" maxlength="@AssessmentVocabulary.Definitions[AssessmentVocabulary.HistoryCheck].MaximumLength">@Model.AssessmentEditorValue(AssessmentVocabulary.HistoryCheck)</textarea>
-            </div>
-        }
-        else
-        {
-            <dl class="detail-list"><div><dt>Vehicle history</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.HistoryCheck)</dd></div></dl>
-        }
     </div>
 </section>

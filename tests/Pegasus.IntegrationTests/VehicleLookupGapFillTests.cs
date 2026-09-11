@@ -12,8 +12,9 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// ENG-013: the DVLA and DVSA lookup is enrichment. What it learns fills the
-/// case's own empty vehicle fields, and never displaces what the documents
-/// already said — which is what stops one case showing two rival mileages.
+/// case's own empty vehicle fields as working values, and never displaces what
+/// the documents already said — which is what stops one case showing two
+/// rival mileages.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class VehicleLookupGapFillTests
@@ -30,15 +31,30 @@ public sealed class VehicleLookupGapFillTests
         await RecordLookupAsync(database, caseId);
 
         Assert.Equal("121823", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'suggestion'"));
+            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
         Assert.Equal("Miles", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage_unit' AND ValueKind = 'suggestion'"));
+            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage_unit' AND ValueKind = 'fact'"));
+        // The working value carries Lookup provenance, which is what the
+        // report's mileage-source sentence is derived from.
         Assert.Equal("vehicle_lookup", await database.ScalarAsync<string>(
-            $"SELECT SourceKind FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'suggestion'"));
-        // A suggestion, never an accepted value: only staff acceptance
-        // promotes it, and only an accepted value can reach an EVA hand-off.
+            $"SELECT SourceKind FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
+        // Nothing is left at the suggestion tier for anyone to accept.
         Assert.Equal(0, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind <> 'suggestion'"));
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND ValueKind = 'suggestion'"));
+    }
+
+    [Fact]
+    public async Task ALookupFillsTheManufactureYear()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+
+        await RecordLookupAsync(database, caseId);
+
+        Assert.Equal("2016", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_year' AND ValueKind = 'fact'"));
+        Assert.Equal("vehicle_lookup", await database.ScalarAsync<string>(
+            $"SELECT SourceKind FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_year' AND ValueKind = 'fact'"));
     }
 
     [Fact]
@@ -54,13 +70,33 @@ public sealed class VehicleLookupGapFillTests
 
         await RecordLookupAsync(database, caseId);
 
-        // Both rows exist — the lookup's finding is not thrown away — but the
-        // extracted fact is what the case reads, because CaseField.Current
-        // ranks Confirmed then Fact then Suggestion.
+        // The extracted fact is untouched and the lookup wrote no rival row:
+        // a field the case already answers is left alone.
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make'"));
         Assert.Equal("MAZDA", await database.ScalarAsync<string>(
             $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
-        Assert.Equal("RENAULT", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'suggestion'"));
+        Assert.Equal("intake_evidence", await database.ScalarAsync<string>(
+            $"SELECT SourceKind FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
+    }
+
+    [Fact]
+    public async Task AStaffConfirmedModelOutranksTheLookupsOwn()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion, ConfirmedByActor, ConfirmedAtUtc) VALUES ({caseId}, {"vehicle_model"}, {"confirmed"}, {"text"}, {"CLIO"}, {"staff_correction"}, {"staff"}, {"staff case-data correction"}, {"case-data-edit"}, {1}, {"staff"}, {FixedUtcNow})");
+        }
+
+        await RecordLookupAsync(database, caseId);
+
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_model'"));
+        Assert.Equal("CLIO", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_model' AND ValueKind = 'confirmed'"));
     }
 
     [Fact]
@@ -75,135 +111,79 @@ public sealed class VehicleLookupGapFillTests
         Assert.Equal(1, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage'"));
         Assert.Equal("121823", await database.ScalarAsync<string>(
-            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'suggestion'"));
+            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
     }
 
     [Fact]
-    public async Task AcceptingOneSuggestionClearsOnlyThatFieldAndMileageIsAtomic()
+    public async Task ALookupClearsASuggestionAnEarlierLookupLeftBehind()
     {
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
+        await using (var context = await database.CreateContextAsync())
+        {
+            // The shape every estate case carried before the fill replaced the
+            // suggestion chip; the migration promotes these, and a re-run must
+            // not leave one orphaned behind the value that now outranks it.
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {"vehicle_make"}, {"suggestion"}, {"text"}, {"RENAULT"}, {"vehicle_lookup"}, {Guid.NewGuid().ToString("D")}, {"offline-replay/fixture-v1"}, {"vehicle-lookup-gap-fill"}, {1})");
+        }
+
         await RecordLookupAsync(database, caseId);
-        var observationId = await database.ScalarAsync<Guid>(
-            $"SELECT TOP (1) Id FROM VehicleLookupObservations WHERE Registration = 'ST66BCE' ORDER BY RecordedAtUtc DESC");
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-        var caseVersion = await database.ScalarAsync<long>(
-            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'");
-
-        await using var scope = database.CreateAsyncScope();
-        var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
-        var accept = scope.ServiceProvider.GetRequiredService<IAcceptVehicleSuggestion>();
-        var makeLease = await leases.ClaimAsync(
-            new(caseId, caseVersion, actor, "gap-fill-make-lease"),
-            CancellationToken.None);
-        var acceptedMake = await accept.ExecuteAsync(
-            new(
-                caseId,
-                makeLease.Version,
-                observationId,
-                VehicleSuggestionDecision.Accept,
-                null,
-                actor,
-                "gap-fill-accept-make",
-                "Accepted the make suggestion.",
-                makeLease.Token)
-            {
-                Field = VehicleSuggestionField.Make
-            },
-            CancellationToken.None);
-
-        Assert.Equal("RENAULT", acceptedMake.Values.Make);
-        Assert.Equal(0, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'suggestion'"));
-        Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_model' AND ValueKind = 'suggestion'"));
-
-        var mileageLease = await leases.ClaimAsync(
-            new(caseId, acceptedMake.ResultingCaseVersion, actor, "gap-fill-mileage-lease"),
-            CancellationToken.None);
-        await accept.ExecuteAsync(
-            new(
-                caseId,
-                mileageLease.Version,
-                observationId,
-                VehicleSuggestionDecision.Accept,
-                null,
-                actor,
-                "gap-fill-accept-mileage",
-                "Accepted the mileage suggestion.",
-                mileageLease.Token)
-            {
-                Field = VehicleSuggestionField.Mileage
-            },
-            CancellationToken.None);
 
         Assert.Equal(0, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName IN ('vehicle_mileage', 'vehicle_mileage_unit') AND ValueKind = 'suggestion'"));
-        Assert.Equal(2, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName IN ('vehicle_mileage', 'vehicle_mileage_unit') AND ValueKind = 'confirmed' AND SourceIdentity = '{observationId:D}'"));
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND ValueKind = 'suggestion'"));
+        Assert.Equal("RENAULT", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
     }
 
     /// <summary>
-    /// Stream A review (comment 5560667174): accepting a confirmed vehicle
-    /// suggestion changes frozen report inputs, so it stales the Case's
-    /// current generation inside the same serializable acceptance
-    /// transaction. Replay returns before staling, a superseded generation
-    /// never moves, and a lookup alone — which only records suggestions —
-    /// stales nothing.
+    /// A filled field is a frozen report input — the vehicle block reads the
+    /// make, model, year, mileage and unit — so the fill stales the Case's
+    /// current generation inside the same transaction that writes it. Only
+    /// the current one moves: a superseded generation keeps what it issued.
     /// </summary>
     [Fact]
-    public async Task AcceptingASuggestionStalesOnlyTheCurrentGeneration()
+    public async Task ALookupThatFillsAFieldStalesTheCurrentGeneration()
     {
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
-        await RecordLookupAsync(database, caseId);
         var (currentId, supersededId) = await SeedGenerationsAsync(database, caseId);
-        var observationId = await database.ScalarAsync<Guid>(
-            $"SELECT TOP (1) Id FROM VehicleLookupObservations WHERE Registration = 'ST66BCE' ORDER BY RecordedAtUtc DESC");
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-        var caseVersion = await database.ScalarAsync<long>(
-            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'");
 
-        await using var scope = database.CreateAsyncScope();
-        var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
-        var accept = scope.ServiceProvider.GetRequiredService<IAcceptVehicleSuggestion>();
-        var lease = await leases.ClaimAsync(
-            new(caseId, caseVersion, actor, "stale-accept-lease"), CancellationToken.None);
-        var request = new AcceptVehicleSuggestionCommand(
-            caseId,
-            lease.Version,
-            observationId,
-            VehicleSuggestionDecision.Accept,
-            null,
-            actor,
-            "stale-accept-make",
-            "Accepted the make suggestion.",
-            lease.Token)
-        {
-            Field = VehicleSuggestionField.Make
-        };
-        var accepted = await accept.ExecuteAsync(request, CancellationToken.None);
+        await RecordLookupAsync(database, caseId);
 
-        Assert.Equal("RENAULT", accepted.Values.Make);
+        Assert.Equal("RENAULT", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
         Assert.Equal("Stale", await database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
         Assert.Equal("Confirmed", await database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededId:D}'"));
         Assert.Equal(1, await StaleRowCountAsync(database, caseId));
-
-        // Replay of the same acceptance returns before any mutation: the
-        // stale row count does not move.
-        var replayed = await accept.ExecuteAsync(request, CancellationToken.None);
-        Assert.True(replayed.IsReplay);
-        Assert.Equal(accepted.ConfirmationId, replayed.ConfirmationId);
-        Assert.Equal(1, await StaleRowCountAsync(database, caseId));
     }
 
     [Fact]
-    public async Task ALookupAloneStalesNoGeneration()
+    public async Task ALookupThatFillsNothingStalesNoGeneration()
     {
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
+        await using (var context = await database.CreateContextAsync())
+        {
+            // Every field the fill could reach is already answered, so the
+            // lookup records its observation and changes nothing the report
+            // stands on.
+            foreach (var (fieldName, valueType, value) in new[]
+                     {
+                         ("vehicle_make", "text", "MAZDA"),
+                         ("vehicle_model", "text", "CX-5"),
+                         ("vehicle_year", "text", "2018"),
+                         ("vehicle_mileage", "integer", "132389"),
+                         ("vehicle_mileage_unit", "text", "Miles")
+                     })
+            {
+                await context.Database.ExecuteSqlInterpolatedAsync(
+                    $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {fieldName}, {"fact"}, {valueType}, {value}, {"intake_evidence"}, {"instruction.pdf"}, {"page 1"}, {"extraction"}, {1})");
+            }
+        }
+
         var (currentId, _) = await SeedGenerationsAsync(database, caseId);
 
         await RecordLookupAsync(database, caseId);

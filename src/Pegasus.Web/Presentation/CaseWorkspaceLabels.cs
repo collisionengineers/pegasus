@@ -1,5 +1,6 @@
 using System.Globalization;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 
 namespace Pegasus.Web.Presentation;
@@ -102,16 +103,26 @@ public static class CaseWorkspaceLabels
     }
 
     /// <summary>
-    /// The Vehicle section's lookup-chip surface. These live here, not in the
-    /// shared OperatorLabels, because they are Case-only: the shared file is
-    /// Stream C's and B never edits it.
+    /// The Vehicle section's own surface. These live here, not in the shared
+    /// OperatorLabels, because they are Case-only: the shared file is Stream
+    /// C's and B never edits it.
     /// </summary>
     public static class Vehicle
     {
         public const string LookupDvlaMot = "Look up DVLA & MOT";
-        public const string LookupMileage = "MOT mileage";
 
-        public static string UseSuggestion(string value) => $"Use {value}";
+        /// <summary>
+        /// Who told staff the mileage, for the codes staff may pick from once
+        /// they have entered the figure themselves. Every other code is
+        /// derived from the figure's own provenance and is never offered.
+        /// </summary>
+        public static string MileageSource(string code) => code switch
+        {
+            CaseVehicleMileageSourcePolicy.Owner => "Owner",
+            CaseVehicleMileageSourcePolicy.Repairer => "Repairer",
+            CaseVehicleMileageSourcePolicy.Principal => "Principal",
+            _ => throw new ArgumentOutOfRangeException(nameof(code))
+        };
     }
 
     /// <summary>

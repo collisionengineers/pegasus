@@ -500,13 +500,25 @@ public sealed record IntakeSourceReadResult(
     bool IsIncomplete = false,
     string ReaderKey = "unspecified_reader",
     string ReaderVersion = "1",
-    IReadOnlyList<IntakeAttachmentDescriptor>? Attachments = null)
+    IReadOnlyList<IntakeAttachmentDescriptor>? Attachments = null,
+    IReadOnlyList<IntakeContentFragment>? Companions = null)
 {
     public IReadOnlyList<IntakeAssetCandidate> AssetCandidates => Assets ?? [];
 
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
 
     public IReadOnlyList<IntakeAttachmentDescriptor> AttachmentRecords => Attachments ?? [];
+
+    /// <summary>
+    /// The current submission's other readable documents: the ones the
+    /// instruction-document selector did not select, typically the
+    /// third-party engineer report attached alongside the letter. No
+    /// labelled instruction field is ever read from here — only a policy's
+    /// own report-grammar pass reads it, so a companion can supply a fact
+    /// the instruction itself never printed without being able to speak for
+    /// the instruction.
+    /// </summary>
+    public IReadOnlyList<IntakeContentFragment> CompanionContent => Companions ?? [];
 }
 
 public sealed record IntakeAttachmentDescriptor(

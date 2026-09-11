@@ -104,11 +104,10 @@ public sealed class IncidentVehicleCompositionTests
         using var page = await client.GetAsync($"/Cases/{caseId:D}?section=vehicle");
         page.EnsureSuccessStatusCode();
         var html = await page.Content.ReadAsStringAsync();
-        Assert.Contains(
-            $"<dt>Source vehicle description</dt><dd>{description}",
-            html,
-            StringComparison.Ordinal);
-        Assert.Contains("aria-label=\"Extracted\"", html, StringComparison.Ordinal);
+        // The description stays a source field on the record (asserted above),
+        // but the section states the vehicle's own facts: it draws no row for a
+        // value the operator cannot act on.
+        Assert.DoesNotContain(description, html, StringComparison.Ordinal);
         Assert.Contains("<dt>Make</dt><dd>Not recorded</dd>", html, StringComparison.Ordinal);
         Assert.Contains("<dt>Model</dt><dd>Not recorded</dd>", html, StringComparison.Ordinal);
         Assert.Contains("<dt>Mileage</dt><dd>Not recorded</dd>", html, StringComparison.Ordinal);

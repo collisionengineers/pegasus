@@ -1167,6 +1167,44 @@ public sealed class ProcessIntakeTests
             Assert.Single(draft.Fields, field => field.Name == "Date of incident").SuggestedValue);
     }
 
+    [Fact]
+    public async Task ACompanionEngineerReportSuppliesTheDraftMileage()
+    {
+        // The selector picks the letter alone: the QDOS signature treats an
+        // "Exclusive Vehicle Assessors" report as a negative signal, and
+        // INTK-060 then handed the policy only the selected document, so
+        // every report-sourced mileage was silently lost. The submission's
+        // other documents travel alongside as companion content.
+        var letter = new IntakeContentFragment(
+            IntakeEvidenceSource.PdfContent,
+            "attachment 6: 42255_1_LtrtoAuditEngin.pdf, page 1",
+            """
+            QDOS instruction
+            Our Client’s Vehicle: AUDI
+            Registration: LF62GOC
+            Claimant Name: Review Claimant
+            Claim Number: COMPANION-1
+            """);
+        var report = new IntakeContentFragment(
+            IntakeEvidenceSource.PdfContent,
+            "attachment 7: ExclusiveVehicleAssessors.pdf, page 1",
+            """
+            Exclusive Vehicle Assessors
+            REPAIRABLE REPORT
+            Vehicle: AUDI NOT RECORDED Colour: Black Speedo: 50921 Miles
+            Reg No: LF62GOC Registered: Feb 2026 Type: 5 Door Hatchback Trans:
+            """);
+        var sut = CreateSut(
+            new StubReader(Readable(content: [letter, report])),
+            new RecordingStore());
+
+        var result = await sut.ExecuteAsync(CreateSource());
+
+        var typed = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(50_921L, typed.VehicleMileage);
+        Assert.Equal("LF62GOC", typed.VehicleRegistration);
+    }
+
     [Theory]
     [InlineData("Claim Number | PROTOCOL-BLANK-001")]
     [InlineData("Claim Number PROTOCOL-BLANK-001")]

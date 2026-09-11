@@ -582,7 +582,7 @@ public sealed partial class SendToAiIntegrationTests
             ];
             var assessment = new CaseAssessmentProjection(
                 caseId, "QDOS-2026-00042", 7, CaseLifecycleState.ReportPreparation, null,
-                fields, [], new(null, null, null, null, null, null, null, null, null));
+                fields, [], new(null, null, null, null, null, null, "tbc", null, null, null, null));
             return AssessmentWorkspaceTestData.Create(details, assessment);
         }
     }

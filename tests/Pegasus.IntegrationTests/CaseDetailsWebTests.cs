@@ -2788,56 +2788,19 @@ public sealed partial class CaseDetailsWebTests
                     Empty<string>()));
 
         /// <summary>
-        /// The vehicle as the case holds it. With
-        /// <see cref="IncludeVehicleSuggestions"/> the latest answered lookup
-        /// also suggests a different make, model and mileage, each cited to
-        /// that observation, which is the shape the section's per-field
-        /// acceptance controls render from (PR 670 port).
+        /// The vehicle as the case holds it. A lookup now fills empty fields as
+        /// working values rather than suggesting beside them, so there is no
+        /// suggestion shape to build.
         /// </summary>
-        private CaseVehicleData VehicleFields()
-        {
-            if (OmitVehicleValues)
-            {
-                return new(Empty<string>(), Empty<string>(), Empty<string>(), Empty<long>(), Empty<string>());
-            }
-            if (!IncludeVehicleSuggestions)
-            {
-                return new(
-                    Confirmed("AB12CDE"),
-                    Confirmed("Ford"),
-                    Confirmed("Transit"),
-                    Confirmed(42_000L),
-                    Confirmed("miles"));
-            }
-
-            var lookup = VehicleLookupEvidence?.LatestObservation
-                ?? throw new InvalidOperationException(
-                    "Vehicle suggestions cite a recorded lookup observation; supply VehicleLookupEvidence.");
-            return new(
+        private CaseVehicleData VehicleFields() => OmitVehicleValues
+            ? new(Empty<string>(), Empty<string>(), Empty<string>(), Empty<string>(), Empty<long>(), Empty<string>())
+            : new(
                 Confirmed("AB12CDE"),
-                WithSuggestion(Confirmed("Ford"), "Ford Motor Company", lookup),
-                WithSuggestion(Confirmed("Transit"), "Transit Custom", lookup),
-                WithSuggestion(Confirmed(42_000L), 43_210L, lookup),
-                WithSuggestion(Confirmed("miles"), "miles", lookup));
-        }
-
-        private static CaseField<T> WithSuggestion<T>(
-            CaseField<T> field,
-            T suggested,
-            VehicleLookupObservation lookup)
-            where T : notnull =>
-            field with
-            {
-                Suggestion = new(
-                    suggested,
-                    CaseDataValueKind.Suggestion,
-                    new(
-                        CaseDataSourceKind.VehicleLookup,
-                        lookup.Id.ToString("D"),
-                        "DVLA lookup",
-                        "vehicle-lookup",
-                        1))
-            };
+                Confirmed("Ford"),
+                Confirmed("Transit"),
+                Confirmed("2019"),
+                Confirmed(42_000L),
+                Confirmed("miles"));
 
         private static readonly CaseDataSource StaffCorrection =
             new(CaseDataSourceKind.StaffCorrection, "staff", "Staff correction", "case-edit", 1);

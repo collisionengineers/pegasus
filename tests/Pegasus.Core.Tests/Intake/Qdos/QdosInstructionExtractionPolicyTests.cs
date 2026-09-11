@@ -939,6 +939,80 @@ public sealed class QdosInstructionExtractionPolicyTests
     }
 
     [Fact]
+    public void ACompanionReportSuppliesItsMileageAndRegistration()
+    {
+        // The regression above only ever passed because it hands the policy
+        // both documents as content. In production the selector picks the
+        // letter alone — the QDOS signature deliberately rejects an
+        // "Exclusive Vehicle Assessors" report — so INTK-060 left the report
+        // unread and the mileage unextracted. It arrives as companion
+        // content instead, and the report grammar is the only pass reading
+        // it.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithCompanions(
+                [
+                    new(
+                        IntakeEvidenceSource.PdfContent,
+                        "attachment 6: 42255_1_LtrtoAuditEngin.pdf, page 1",
+                        "Our Client’s Vehicle: AUDI\n"
+                            + "Registration: LF62GOC\n"
+                            + "TP Vehicle: HONDA NSC 110 MPDH")
+                ],
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 7: ExclusiveVehicleAssessors.pdf, page 1",
+                    "Vehicle: AUDI NOT RECORDED Colour: Black Speedo: 50921 Miles\n"
+                        + "Reg No: LF62GOC Registered: Feb 2026 Type: 5 Door Hatchback Trans:\n"
+                        + "Vin No: WAUZZZ8P5CA156159 MOT Exp:\n"
+                        + "Exclusive Vehicle Assessors")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(50_921, draft.VehicleMileage);
+        // No extraction policy states a mileage unit on its draft; the unit
+        // stays in the printed field value, and CaseDataSnapshotFactory
+        // reads "miles" back out of exactly this text.
+        Assert.Equal("50921 Miles", Field(result, "Vehicle mileage").SuggestedValue);
+        Assert.Null(draft.VehicleMileageUnit);
+        Assert.Equal("LF62GOC", draft.VehicleRegistration);
+        Assert.Null(draft.VehicleMake);
+        Assert.Null(draft.VehicleModel);
+        // The letter still outranks the report's own vehicle column.
+        Assert.Equal("AUDI", Field(result, "Vehicle description").SuggestedValue);
+    }
+
+    [Fact]
+    public void ACompanionNeverSuppliesALabelledInstructionField()
+    {
+        // Companion content exists for the report grammar alone. A labelled
+        // field read from a document the selector rejected would let any
+        // attachment speak for the instruction.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithCompanions(
+                [
+                    new(
+                        IntakeEvidenceSource.PdfContent,
+                        "attachment 6: 42255_1_LtrtoAuditEngin.pdf, page 1",
+                        "Our Client’s Vehicle: AUDI\nRegistration: LF62GOC")
+                ],
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 7: ExclusiveVehicleAssessors.pdf, page 1",
+                    "Claim Number: XYZ/1\n"
+                        + "Our Client: Someone\n"
+                        + "Exclusive Vehicle Assessors")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Null(draft.ClaimNumber);
+        Assert.Null(draft.ClaimantName);
+        Assert.Null(Field(result, "Claim number").SuggestedValue);
+        Assert.Null(Field(result, "Claimant name").SuggestedValue);
+    }
+
+    [Fact]
     public void AMileageColumnIsCutFreeOfItsNeighbours()
     {
         // The value must stop where the next column starts, or it carries
@@ -1169,4 +1243,15 @@ public sealed class QdosInstructionExtractionPolicyTests
             [],
             [],
             false);
+
+    private static IntakeSourceReadResult ReadableWithCompanions(
+        IReadOnlyList<IntakeContentFragment> content,
+        params IntakeContentFragment[] companions) =>
+        new(
+            IntakeSourceReadStatus.Readable,
+            content,
+            [],
+            [],
+            false,
+            Companions: companions);
 }
