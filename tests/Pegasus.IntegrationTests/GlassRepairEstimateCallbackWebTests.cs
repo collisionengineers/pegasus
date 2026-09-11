@@ -481,6 +481,34 @@ public sealed class GlassRepairEstimateCallbackWebTests
     }
 
     /// <summary>
+    /// The staff cookie is SameSite=Strict and the provider's return is a
+    /// cross-site navigation, so the browser withholds the cookie on that first
+    /// arrival. The return is answered with a bounce through Pegasus's own
+    /// origin, to exactly the same address, and nothing is spent.
+    /// </summary>
+    [Fact]
+    public async Task AReturnThatArrivesCrossSiteWithoutTheCookieBouncesThroughItsOwnOrigin()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        var correlation = await workspace.LaunchAndReadCorrelationAsync();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get, CallbackRoute + correlation + GlassProviderFixture.SavedQuery);
+        request.Headers.Add("X-Test-Anonymous", "true");
+        request.Headers.Add("Sec-Fetch-Site", "cross-site");
+
+        using var bounced = await workspace.Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, bounced.StatusCode);
+        Assert.Contains(
+            "data-glass-bounce=\"" + CallbackRoute + correlation + GlassProviderFixture.SavedQuery.Replace("&", "&amp;", StringComparison.Ordinal) + "\"",
+            await bounced.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+        var session = Assert.Single(await workspace.SessionsAsync());
+        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
+    }
+
+    /// <summary>
     /// The return route is anonymous-reachable by construction, so it is rate
     /// limited per client. The policy is the host's; this proves it is attached
     /// to this route.

@@ -1,0 +1,20 @@
+@model string
+@* CASE-047 B04: the provider's return arrives as a cross-site navigation, and
+   the staff cookie is SameSite=Strict, so the browser withholds it on that
+   first arrival. This document is served in its place, from Pegasus's own
+   origin, and asks for the same address again: that second navigation is
+   same-site, so the cookie travels and the return is read by the Engineer
+   who launched. The model is the return's own address, path and query,
+   exactly as the provider composed it. *@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <meta http-equiv="refresh" content="0;url=@Model" />
+    <title>Pegasus</title>
+</head>
+<body data-glass-bounce="@Model">
+    <script src="~/js/glass-bounce.js" asp-append-version="true"></script>
+</body>
+</html>

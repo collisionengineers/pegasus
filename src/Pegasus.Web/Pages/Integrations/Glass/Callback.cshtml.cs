@@ -25,7 +25,13 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// <b>No staff token can be asked for.</b> The request is composed by the
 /// provider, so it carries no antiforgery token; it is refused instead on what
 /// it does carry — the one-use token in its own path, and the signed-in staff
-/// member who owns the session that token names. <b>Nothing is read out of the
+/// member who owns the session that token names. The staff cookie is
+/// SameSite=Strict, and the provider's return is a cross-site navigation, so
+/// the browser withholds the cookie on that first arrival: a return that
+/// arrives cross-site without a session is answered with
+/// <c>Shared/_GlassBounce</c>, which asks for the same address again from
+/// Pegasus's own origin, where the cookie travels. A return that still has no
+/// session after that is sent to sign in and back to the same address, whole. <b>Nothing is read out of the
 /// query to decide anything</b>: no identity, no role, no case. The query is
 /// handed to the gateway exactly as it arrived, because it is the provider's
 /// message and re-encoding it would change what Glass's verifies.
@@ -42,8 +48,7 @@ namespace Pegasus.Web.Pages.Integrations.Glass;
 /// produced rather than acting on it twice.
 /// </para>
 /// </remarks>
-[Authorize(
-    Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
+[AllowAnonymous]
 [IgnoreAntiforgeryToken]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class CallbackModel(
@@ -60,7 +65,16 @@ public sealed class CallbackModel(
         string correlation,
         CancellationToken cancellationToken)
     {
-        if (!TryGetActor(out var actor))
+        if (User.Identity?.IsAuthenticated != true)
+        {
+            // The browser names where a navigation came from; a cross-site
+            // arrival is the provider's own and is bounced once through this
+            // origin. Anything else without a session is a signed-out operator.
+            return string.Equals(Request.Headers["Sec-Fetch-Site"], "cross-site", StringComparison.OrdinalIgnoreCase)
+                ? Partial("_GlassBounce", Request.Path.Value + Request.QueryString.Value)
+                : Challenge();
+        }
+        if (!TryGetActor(out var actor) || !IsStaff(actor))
         {
             return Forbid();
         }
@@ -98,6 +112,12 @@ public sealed class CallbackModel(
             return Estimate(session.CaseId);
         }
     }
+
+    /// <summary>The roles the page used to declare; every staff role may return.</summary>
+    private static bool IsStaff(ActionActor actor) =>
+        actor.IsInRole(StaffRole.Administrator)
+        || actor.IsInRole(StaffRole.Engineer)
+        || actor.IsInRole(StaffRole.User);
 
     /// <summary>
     /// The provider's message travels verbatim: its identity is the correlation
