@@ -433,12 +433,30 @@ public sealed class GlassRepairEstimateGatewayTests
             GlassRepairEstimateSessionState.Failed
         },
         {
+            "lookup-unreadable",
+            "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000",
+            (int)HttpStatusCode.OK,
+            "<html>not json</html>",
+            null,
+            GlassFailure.LookupRequest,
+            GlassRepairEstimateSessionState.Failed
+        },
+        {
             "lookup-unavailable",
             "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1",
             (int)HttpStatusCode.OK,
             "\uFEFF{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":0}",
             null,
             GlassFailure.LookupUnavailable,
+            GlassRepairEstimateSessionState.Failed
+        },
+        {
+            "lookup-not-found",
+            "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000",
+            (int)HttpStatusCode.OK,
+            "{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":-1}",
+            null,
+            GlassFailure.LookupNotFound,
             GlassRepairEstimateSessionState.Failed
         },
         {
@@ -613,6 +631,61 @@ public sealed class GlassRepairEstimateGatewayTests
             2,
             harness.Mva.Count(
                 "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1"));
+    }
+
+    /// <summary>
+    /// The portal's own rule: a registration the account does not stock is
+    /// looked up by the stock search itself and never searched afresh. The
+    /// spike only ever ran stocked registrations, which is why the first live
+    /// Case (LF62GOC, never valued in the account) failed at this stage.
+    /// </summary>
+    [Fact]
+    public async Task ANewVehicleIsLookedUpWithoutAFreshSearch()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Set(
+            "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000",
+            new(HttpStatusCode.OK,
+                "\uFEFF{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":1,\"natcode\":\"" + GlassProviderFixture.NatCode + "\"}"));
+
+        var session = await harness.LaunchAsync();
+
+        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
+        Assert.Equal(0, harness.Mva.Count("GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1"));
+        Assert.Equal(1, harness.Mva.Count("GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000"));
+    }
+
+    [Fact]
+    public async Task AVehicleTheProviderCannotFindIsRefusedOnce()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Set(
+            "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000",
+            new(HttpStatusCode.OK, "{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":-1}"));
+
+        var session = await harness.LaunchAsync();
+
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, session.State);
+        Assert.Equal(GlassFailure.LookupNotFound, session.FailureCode);
+        Assert.Equal(1, harness.Mva.Count("GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000"));
+        Assert.Equal(0, harness.Mva.Count("GET /index/create-new-vehicle"));
+    }
+
+    [Fact]
+    public async Task ANewVehicleLookupWithoutATypeNumberIsRetriedOnce()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Enqueue(
+            "GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000",
+            new Reply(HttpStatusCode.OK, "\uFEFF{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":0}"),
+            new Reply(HttpStatusCode.OK,
+                "\uFEFF{\"stockcount\":0,\"vehicle_id\":0,\"vrm_lookup\":1,\"natcode\":\"" + GlassProviderFixture.NatCode + "\"}"));
+
+        var session = await harness.LaunchAsync();
+
+        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
+        Assert.Equal(0, harness.Mva.Count("GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000/nostocksearch/1"));
+        Assert.Equal(2, harness.Mva.Count("GET /index/search-vrm/vrms_reg_no/AB12CDE/valuate/1/vrms_mileage/33000"));
     }
 
     [Theory]
@@ -1955,7 +2028,8 @@ public sealed class GlassRepairEstimateGatewayTests
                     new ClientFactory(transport?.Invoke(mva) ?? mva),
                     protector,
                     options,
-                    clock),
+                    clock,
+                    Microsoft.Extensions.Logging.Abstractions.NullLogger<GlassRepairEstimateGateway>.Instance),
                 sessions,
                 memory,
                 mva,
