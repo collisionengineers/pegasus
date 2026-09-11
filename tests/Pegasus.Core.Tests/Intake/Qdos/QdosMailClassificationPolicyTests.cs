@@ -348,6 +348,80 @@ public sealed class QdosMailClassificationPolicyTests
     }
 
     [Theory]
+    [InlineData("The vehicle is repairable.", AuditAssessment.Repairable)]
+    [InlineData("The vehicle is a total loss.", AuditAssessment.TotalLoss)]
+    public void SuppliedOriginalReportReadsExactlyOneUnnegatedLiteral(
+        string reportText,
+        AuditAssessment expected)
+    {
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [new(IntakeEvidenceSource.PdfContent, "report, page 1", reportText)],
+            [],
+            [],
+            false);
+
+        var evaluation = QdosMailClassificationPolicy.EvaluateSuppliedOriginalReport(read, "supplied original report: r.pdf");
+
+        var report = Assert.IsType<StandaloneAuditReportEvaluation>(evaluation);
+        Assert.Equal(expected, report.Assessment);
+        Assert.Equal("supplied original report: r.pdf", report.AssetSourceLabel);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("The engineer's opinion is recorded on page 2.")]
+    [InlineData("The vehicle is unrepairable.")]
+    [InlineData("The vehicle is not repairable.")]
+    [InlineData("The vehicle is not a total loss.")]
+    public void SuppliedOriginalReportWithoutOneLiteralIsRefused(string reportText)
+    {
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [new(IntakeEvidenceSource.PdfContent, "report, page 1", reportText)],
+            [],
+            [],
+            false);
+
+        Assert.Null(QdosMailClassificationPolicy.EvaluateSuppliedOriginalReport(read, "supplied original report: r.pdf"));
+    }
+
+    [Fact]
+    public void SuppliedOriginalReportStatingBothLiteralsIsRefused()
+    {
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [new(IntakeEvidenceSource.PdfContent, "report, page 1", "The vehicle is repairable and also a total loss.")],
+            [],
+            [],
+            false);
+
+        Assert.Null(QdosMailClassificationPolicy.EvaluateSuppliedOriginalReport(read, "supplied original report: r.pdf"));
+    }
+
+    [Fact]
+    public void SuppliedOriginalReportOverAllDocumentFragments()
+    {
+        // The literal may sit in any document fragment of the read result —
+        // the helper reads them all, exactly as the received-message
+        // classification does over a report's pages.
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.EmailBody, "body", "Please audit the attached report."),
+                new(IntakeEvidenceSource.PdfContent, "report, page 1", "Structural assessment follows."),
+                new(IntakeEvidenceSource.PdfContent, "report, page 2", "Conclusion: the vehicle is repairable.")
+            ],
+            [],
+            [],
+            false);
+
+        var report = Assert.IsType<StandaloneAuditReportEvaluation>(
+            QdosMailClassificationPolicy.EvaluateSuppliedOriginalReport(read, "supplied original report: r.pdf"));
+        Assert.Equal(AuditAssessment.Repairable, report.Assessment);
+    }
+
+    [Theory]
     [InlineData("ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)\nOur Ref: 23456/1")]
     [InlineData("ENGINEER NOTIFICATION\nOur Ref: 23456/1")]
     public void EngineerNotificationTitleClassifiesNewInstructionInspection(string document)

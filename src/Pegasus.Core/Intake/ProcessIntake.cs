@@ -202,6 +202,11 @@ public sealed class ProcessIntake(
             safeSource.SourceIdentity,
             processedAtUtc,
             cancellationToken);
+        assessment = await ApplySuppliedOriginalReportAsync(
+            assessment,
+            existing,
+            replaceExisting,
+            cancellationToken);
         if (assessment.Decision == IntakeDecision.CaseCreated
             && assessment.MailClassificationDecision is
                 { CaseType: CaseType.Audit, StandaloneAuditReport: null })
@@ -209,7 +214,7 @@ public sealed class ProcessIntake(
             assessment = assessment with
             {
                 Decision = IntakeDecision.NeedsSorting,
-                DecisionReason = "A standalone Audit instruction requires one attached original report stating Repairable or Total loss.",
+                DecisionReason = "The Audit instruction arrived without the original report it audits. Add that report to continue.",
                 InstructionDraft = null,
                 MissingFields = []
             };
@@ -599,8 +604,76 @@ public sealed class ProcessIntake(
             UnidentifiedReasonCode.AmbiguousOwnershipOrDestination,
         _ when receipt.Evidence.Any(evidence => evidence.Signal == "intake_limit_exceeded") =>
             UnidentifiedReasonCode.UnreadableOrCorruptContent,
+        // A classified Audit whose original report never arrived is its own
+        // reason with its own next step: the instruction waits until the
+        // report is supplied (operator decision, 2026-09-11).
+        _ when receipt.MailClassificationDecision is
+                { CaseType: CaseType.Audit, StandaloneAuditReport: null } =>
+            UnidentifiedReasonCode.AuditOriginalReportMissing,
         _ => UnidentifiedReasonCode.NoUsableIdentification
     };
+
+    /// <summary>
+    /// On a re-evaluation, lets a staff-supplied original report decide the
+    /// Audit's assessment — mirroring the Provider API precedent of a declared
+    /// report (<see cref="DeclaredAuditReportAsync"/>): the verdict rides the
+    /// classification decision, and everything downstream (evidence recording,
+    /// allocation, Unidentified resolution) runs unchanged.
+    ///
+    /// The report's text is deliberately NOT merged into the e-mail's read
+    /// result: that result also feeds instruction extraction, case matching
+    /// and the search projection, so a third party's claim number or
+    /// registration would pollute the draft or manufacture a case match, and a
+    /// report carrying "ENGINEER NOTIFICATION" would make the classification
+    /// ambiguous. Only the outcome is taken from the supplied bytes.
+    /// </summary>
+    private async Task<IntakeAssessment> ApplySuppliedOriginalReportAsync(
+        IntakeAssessment assessment,
+        IntakeReceipt? existing,
+        bool replaceExisting,
+        CancellationToken cancellationToken)
+    {
+        if (!replaceExisting
+            || existing is null
+            || assessment.Decision != IntakeDecision.CaseCreated
+            || assessment.MailClassificationDecision is not
+                { CaseType: CaseType.Audit, StandaloneAuditReport: null } decision)
+        {
+            return assessment;
+        }
+
+        var report = existing.AssetRecords.SingleOrDefault(asset =>
+            asset.Disposition == IntakeAssetDisposition.SuppliedOriginalReport);
+        if (report is null)
+        {
+            return assessment;
+        }
+
+        var bytes = await artifactStore.ReadAsync(report.StorageKey, cancellationToken)
+            ?? throw new FileNotFoundException(
+                $"The supplied original report '{report.Id}' is unavailable.");
+        var standaloneRead = await sourceReader.ReadAsync(
+            new(
+                report.FileName,
+                report.MediaType,
+                bytes,
+                existing.ReceivedAtUtc,
+                "intake-processing",
+                new(IntakeSourceChannel.ManualUpload, $"supplied-original-report:{existing.Id:N}")),
+            cancellationToken);
+        var outcome = QdosMailClassificationPolicy.EvaluateSuppliedOriginalReport(
+            standaloneRead,
+            report.SourceLabel);
+        if (outcome is null)
+        {
+            return assessment;
+        }
+
+        return assessment with
+        {
+            MailClassificationDecision = decision with { StandaloneAuditReport = outcome }
+        };
+    }
 
     private async Task RecordAutomaticAuditEvidenceAsync(
         IntakeReceipt receipt,

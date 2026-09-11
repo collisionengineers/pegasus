@@ -243,6 +243,13 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.BoxVersionId).HasMaxLength(200);
             entity.Property(item => item.CustodyStatus).HasMaxLength(40);
             entity.HasIndex(item => new { item.IntakeReceiptId, item.ContentHash });
+            // One staff-supplied original report per Audit instruction. A
+            // filtered index: only the supplied-report disposition is unique
+            // per receipt; every other disposition repeats freely. The filter
+            // literal is the same code EfIntakeReceiptStore.ToCode writes.
+            entity.HasIndex(item => item.IntakeReceiptId)
+                .HasFilter("[Disposition] = 'supplied_original_report'")
+                .IsUnique();
             entity.HasOne(item => item.IntakeReceipt)
                 .WithMany(item => item.Assets)
                 .HasForeignKey(item => item.IntakeReceiptId)

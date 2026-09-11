@@ -28,10 +28,10 @@ submission group. Group membership is durable: one group receives one `U<n>` ref
 and every member keeps its own filename, receipt identity, custody, and chronology.
 The reference is uppercase `U` followed by positive, invariant, unpadded decimal
 digits, allocated atomically from a dedicated sequence and never reused. The item
-stores one of the six Core-owned reasons—unreadable/corrupt, unsupported, no usable
-identification, conflicting identification, ambiguous ownership/destination, or
-terminal technical processing failure—and bounded safe detail. Retryable work does
-not allocate a reference.
+stores one of the seven Core-owned reasons—unreadable/corrupt, unsupported, no usable
+identification, conflicting identification, ambiguous ownership/destination, terminal
+technical processing failure, or a missing Audit original report—and bounded safe
+detail. Retryable work does not allocate a reference.
 
 Unidentified is open or resolved. Authorised staff resolution requires an operation
 key, expected version, reason, and one supported destination; it appends immutable
@@ -44,6 +44,22 @@ promoted outside their own pass), with the destination recorded in the item's
 history; a receipt that is still legitimately unidentified is never force-closed.
 The U-reference is never accepted as a Case/PO, Audit, Image Intake, or principal
 identity.
+
+**Supplying a missing Audit original report (2026-09-11).** An Audit instruction that
+arrived without the original report it audits waits in Unidentified under the
+`AuditOriginalReportMissing` reason with its own next step; no Case/PO is allocated
+before a report states repairable or total loss. Staff supply the report on the
+Unidentified page itself (manual add only — matching a report that arrives later is
+a separate decision). The upload is read as a standalone document and pre-checked
+before anything is retained: it must state exactly one unnegated literal outcome;
+otherwise it is refused and nothing is kept. An accepted report is retained as the
+receipt's single supplied-original-report attachment (at most one per instruction)
+and the same transaction queues the receipt's re-evaluation. That re-evaluation
+reads the outcome from the supplied report, records the automatic Audit evidence,
+allocates the `a.`/`ap.` Case, and resolves the Unidentified item in the ordinary
+way. Only the outcome is taken from the supplied bytes; its text never joins the
+instruction's own read result, so it cannot feed extraction, case matching or
+search.
 
 Every intake path must:
 
@@ -144,10 +160,10 @@ Before creating a case or allocating a reference, Pegasus must establish:
 Once those identity-critical facts are established, Pegasus creates the Case/PO
 and allocates its permanent reference. Incomplete ordinary business detail,
 images, or mandatory external checks retain that Case as `Not ready`; they do
-not form another pre-Case acceptance gate. An Audit's retained original report
-is identity-critical: without one separate report with one literal outcome,
-Pegasus cannot determine whether the reference is `a.` or `ap.` and enters
-`Unidentified`. The manual case-create screen does not offer Audit; it is
+not form another pre-Case acceptance gate. An Audit's retained original report is
+identity-critical: without one separate report with one literal outcome, Pegasus
+cannot determine whether the reference is `a.` or `ap.`, so no Case/PO is
+allocated and the instruction waits in Unidentified ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), FRD-02 above) until a report is supplied. The manual case-create screen does not offer Audit; it is
 created only by this retained-email route. If the route cannot establish an identity-critical fact, it persists only what is safe and enters the
 corresponding pre-Case outcome. `Blocked intake` records a reason and visible
 warning, offers reasoned resolve and retry actions, and retains the resolution

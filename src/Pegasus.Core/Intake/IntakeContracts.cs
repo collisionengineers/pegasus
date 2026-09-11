@@ -453,7 +453,17 @@ public enum IntakeAssetDisposition
     Source,
     Attachment,
     Inline,
-    Embedded
+    Embedded,
+
+    /// <summary>
+    /// The original engineer's report a staff member supplied on the
+    /// Unidentified page for an Audit instruction that arrived without one
+    /// (operator decision, 2026-09-11). At most one per receipt; the queued
+    /// re-evaluation that its supply schedules reads the Audit's outcome from
+    /// it. Not a received attachment: it never enters the e-mail's own read
+    /// result, extraction, case matching or the search projection.
+    /// </summary>
+    SuppliedOriginalReport
 }
 
 public sealed record IntakeAssetBounds(
@@ -742,7 +752,8 @@ public sealed record IntakeReceiptSummary(
     string? Subject = null,
     Guid? CaseId = null,
     string? CaseReference = null,
-    IntakeAllocationState? AllocationState = null);
+    IntakeAllocationState? AllocationState = null,
+    string? FailureCode = null);
 
 public sealed record InstructionExtractionResult(
     InstructionPolicyApplicability Applicability,
@@ -1030,6 +1041,23 @@ public sealed record ReevaluateIntakeRequest(
     string OperationKey,
     string Reason);
 
+/// <summary>
+/// Attaches one staff-supplied original report to an Audit receipt and queues
+/// its re-evaluation in the same transaction, so a receipt can never hold the
+/// report without the queued pass that consumes it.
+/// </summary>
+public sealed record AttachSuppliedOriginalReportRequest(
+    Guid ReceiptId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string FileName,
+    string MediaType,
+    string SourceLabel,
+    string ContentHash,
+    string StorageKey,
+    long ContentLength);
+
 public sealed record AcceptIntakeRequest(
     Guid ReceiptId,
     long ExpectedVersion,
@@ -1087,6 +1115,17 @@ public interface IIntakeMutationStore
 
     Task<IntakeReceipt> ScheduleReevaluationAsync(
         ReevaluateIntakeRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Adds the staff-supplied original report as a retained attachment and
+    /// queues the receipt's re-evaluation inside the same serializable,
+    /// replay-protected, version-checked envelope the other mutations use. It
+    /// refuses an accepted receipt like every other pre-case mutation.
+    /// </summary>
+    Task<IntakeReceipt> AttachSuppliedOriginalReportAsync(
+        AttachSuppliedOriginalReportRequest request,
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken);
 

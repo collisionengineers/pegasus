@@ -54,12 +54,48 @@ public sealed class EfUnidentifiedStore(
             cancellationToken);
         if (existing is not null)
         {
-            if (!string.Equals(existing.RegistrationFingerprint, fingerprint, StringComparison.Ordinal))
+            if (string.Equals(existing.RegistrationFingerprint, fingerprint, StringComparison.Ordinal))
             {
-                throw new UnidentifiedOperationConflictException();
+                return new(Map(existing), true);
             }
 
-            return new(Map(existing), true);
+            if (existing.State == UnidentifiedState.Open.ToString())
+            {
+                // A later processing pass re-describes the same waiting work:
+                // most visibly, an Audit instruction whose original report
+                // never arrived now re-registers under its own reason code
+                // (AuditOriginalReportMissing) and a reworded safe detail, so
+                // every fingerprint an item registered before that reason
+                // existed has changed. Refusing here would fail an evaluation
+                // that is already committed; the open item is updated in place
+                // instead, with the new detail carried on its history. A stale
+                // pass re-running an older operation key still conflicts
+                // through the by-key replay check above.
+                existing.ReasonCode = request.ReasonCode.ToString();
+                existing.SafeDetail = request.SafeDetail.Trim();
+                existing.RegistrationFingerprint = fingerprint;
+                existing.Version++;
+                context.Set<UnidentifiedHistoryEntity>().Add(new UnidentifiedHistoryEntity
+                {
+                    Id = Guid.NewGuid(),
+                    UnidentifiedItemId = existing.Id,
+                    PreviousState = UnidentifiedState.Open.ToString(),
+                    NewState = UnidentifiedState.Open.ToString(),
+                    ActorKind = request.Actor.Kind.ToString(),
+                    ActorSubjectId = request.Actor.SubjectId,
+                    ActorRolesJson = JsonSerializer.Serialize(request.Actor.Roles.OrderBy(role => role)),
+                    OccurredAtUtc = request.CreatedAtUtc,
+                    // As at registration: SafeDetail can exceed the history
+                    // column's narrower length, so truncate rather than fail.
+                    Reason = TruncateForHistory(request.SafeDetail.Trim()),
+                    OperationKey = operationKey
+                });
+                await context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return new(Map(existing), false);
+            }
+
+            throw new UnidentifiedOperationConflictException();
         }
 
         var sequence = await context.Set<UnidentifiedSequenceEntity>().SingleOrDefaultAsync(
@@ -285,6 +321,67 @@ public sealed class EfUnidentifiedStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(Map(entity), Map(history), false);
+    }
+
+    /// <summary>
+    /// Appends an <c>Open → Open</c> note to an open item without touching the
+    /// item row: no state, reason or version change, exactly the history entry
+    /// the page shows. Replay-safe by the unique operation key, like resolve.
+    /// </summary>
+    public async Task<UnidentifiedHistoryEntry> AppendNoteAsync(
+        Guid unidentifiedItemId,
+        string note,
+        ActionActor actor,
+        string operationKey,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        UnidentifiedValidation.ValidateNote(unidentifiedItemId, note, actor, operationKey, occurredAtUtc);
+        var key = operationKey.Trim();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var replay = await context.Set<UnidentifiedHistoryEntity>().SingleOrDefaultAsync(
+            item => item.OperationKey == key, cancellationToken);
+        if (replay is not null)
+        {
+            if (replay.UnidentifiedItemId != unidentifiedItemId
+                || !string.Equals(replay.Reason, note.Trim(), StringComparison.Ordinal)
+                || !string.Equals(replay.PreviousState, UnidentifiedState.Open.ToString(), StringComparison.Ordinal)
+                || !string.Equals(replay.NewState, UnidentifiedState.Open.ToString(), StringComparison.Ordinal))
+            {
+                throw new UnidentifiedOperationConflictException();
+            }
+
+            return Map(replay);
+        }
+
+        var entity = await context.Set<UnidentifiedItemEntity>().SingleOrDefaultAsync(
+            item => item.Id == unidentifiedItemId, cancellationToken)
+            ?? throw new KeyNotFoundException("The Unidentified item does not exist.");
+        if (!string.Equals(entity.State, UnidentifiedState.Open.ToString(), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "A note can be appended only to an open Unidentified item.");
+        }
+
+        var noteHistory = new UnidentifiedHistoryEntity
+        {
+            Id = Guid.NewGuid(),
+            UnidentifiedItemId = entity.Id,
+            PreviousState = UnidentifiedState.Open.ToString(),
+            NewState = UnidentifiedState.Open.ToString(),
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role)),
+            OccurredAtUtc = occurredAtUtc,
+            Reason = note.Trim(),
+            OperationKey = key
+        };
+        context.Set<UnidentifiedHistoryEntity>().Add(noteHistory);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(noteHistory);
     }
 
     public async Task<UnidentifiedItem?> GetAsync(Guid id, CancellationToken cancellationToken = default)
@@ -584,7 +681,8 @@ public sealed class EfUnidentifiedStore(
             emailSubject,
             emailSender,
             item.CreatedAtUtc,
-            Enum.Parse<UnidentifiedReasonCode>(item.ReasonCode));
+            Enum.Parse<UnidentifiedReasonCode>(item.ReasonCode),
+            Enum.Parse<UnidentifiedOriginKind>(item.OriginKind));
     }
 
     public async Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(Guid unidentifiedItemId, CancellationToken cancellationToken = default)

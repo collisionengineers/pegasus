@@ -131,6 +131,75 @@ public sealed class UnidentifiedPersistenceTests
     }
 
     /// <summary>
+    /// A later pass re-describing the same waiting work updates the open item
+    /// in place instead of conflicting: the reason and safe detail move to the
+    /// new registration, an Open → Open history row carries the new detail,
+    /// and a same-fingerprint replay still returns the original result.
+    /// Before the AuditOriginalReportMissing reason existed, any re-evaluation
+    /// of a report-less Audit instruction failed here after its evaluation had
+    /// already committed.
+    /// </summary>
+    [Fact]
+    public async Task ReRegisteringAnOpenSameOriginItemWithAChangedReasonUpdatesItInPlace()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var register = scope.ServiceProvider.GetRequiredService<IRegisterUnidentified>();
+        var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+        var origin = UnidentifiedOrigin.Receipt(Guid.NewGuid());
+        var registered = await register.ExecuteAsync(
+            new(
+                origin,
+                UnidentifiedReasonCode.NoUsableIdentification,
+                "no usable identification detail",
+                ActionActor.SystemWorker("test-worker"),
+                $"unidentified-test:{Guid.NewGuid():N}",
+                CreatedAtUtc));
+
+        // A different reason and detail for the same origin: the fingerprint
+        // changes, and the item is updated rather than thrown at.
+        var updated = await register.ExecuteAsync(
+            new(
+                origin,
+                UnidentifiedReasonCode.AuditOriginalReportMissing,
+                "the audit instruction arrived without the original report it audits",
+                ActionActor.SystemWorker("intake-processing"),
+                $"unidentified-test:{Guid.NewGuid():N}",
+                CreatedAtUtc));
+
+        Assert.False(updated.IsReplay);
+        Assert.Equal(registered.Item.Id, updated.Item.Id);
+        Assert.Equal(registered.Item.Reference, updated.Item.Reference);
+        Assert.Equal(UnidentifiedReasonCode.AuditOriginalReportMissing, updated.Item.ReasonCode);
+        Assert.Equal("the audit instruction arrived without the original report it audits", updated.Item.SafeDetail);
+        Assert.Equal(registered.Item.Version + 1, updated.Item.Version);
+        Assert.Equal(UnidentifiedState.Open, updated.Item.State);
+
+        // The same registration replayed returns the updated row as a replay.
+        var replayed = await register.ExecuteAsync(
+            new(
+                origin,
+                UnidentifiedReasonCode.AuditOriginalReportMissing,
+                "the audit instruction arrived without the original report it audits",
+                ActionActor.SystemWorker("intake-processing"),
+                $"unidentified-test:{Guid.NewGuid():N}",
+                CreatedAtUtc));
+        Assert.True(replayed.IsReplay);
+        Assert.Equal(UnidentifiedReasonCode.AuditOriginalReportMissing, replayed.Item.ReasonCode);
+
+        var history = await store.HistoryAsync(registered.Item.Id);
+        Assert.Equal(2, history.Count);
+        Assert.All(history, entry =>
+        {
+            Assert.Equal(UnidentifiedState.Open, entry.PreviousState);
+            Assert.Equal(UnidentifiedState.Open, entry.NewState);
+        });
+        Assert.Contains(
+            history,
+            entry => entry.Reason == "the audit instruction arrived without the original report it audits");
+    }
+
+    /// <summary>
     /// INTK-009's Unidentified tab filters: media kind is derived from the
     /// origin receipt's channel and content type, not a stored field, so this
     /// exercises the join and the classification together.

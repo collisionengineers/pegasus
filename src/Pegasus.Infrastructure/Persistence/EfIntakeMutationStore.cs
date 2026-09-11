@@ -242,40 +242,135 @@ internal sealed class EfIntakeMutationStore(
             expectedCaseId: null,
             expectedCaseVersion: null,
             editLeaseToken: null,
+            (context, receipt, _, token) =>
+                QueueReevaluationAsync(context, receipt, occurredAtUtc, token),
+            occurredAtUtc,
+            cancellationToken);
+
+    /// <summary>
+    /// The body both re-evaluation scheduling paths share: the retained
+    /// evaluation source's work item is reset to pending, and the receipt moves
+    /// to Blocked intake under the reevaluation-pending code. Runs inside the
+    /// caller's transaction, so supplying the original report and queueing the
+    /// pass that reads it commit together — a receipt can never hold the
+    /// report without its queued re-evaluation.
+    /// </summary>
+    private static async Task QueueReevaluationAsync(
+        PegasusDbContext context,
+        IntakeReceiptEntity receipt,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken token)
+    {
+        var stagedReceiptId = await context.IntakeEvaluations
+            .Where(item => item.ProcessedReceiptId == receipt.Id)
+            .OrderByDescending(item => item.Revision)
+            .Select(item => (Guid?)item.StagedReceiptId)
+            .FirstOrDefaultAsync(token)
+            ?? throw new InvalidDataException(
+                "The intake receipt does not have a retained evaluation source.");
+        var workItem = await context.IntakeWorkItems.SingleOrDefaultAsync(
+            item => item.StagedReceiptId == stagedReceiptId,
+            token)
+            ?? throw new InvalidDataException(
+                "The intake receipt does not have durable evaluation work.");
+        if (workItem.State == "processing"
+            && workItem.LeaseExpiresAtUtc is { } leaseExpiresAtUtc
+            && leaseExpiresAtUtc > occurredAtUtc)
+        {
+            throw new InvalidOperationException(
+                "The intake receipt is already being evaluated.");
+        }
+
+        workItem.State = "pending";
+        workItem.DueAtUtc = occurredAtUtc;
+        workItem.LeaseToken = null;
+        workItem.LeaseExpiresAtUtc = null;
+        workItem.FailureCode = null;
+        receipt.Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.BlockedIntake);
+        receipt.DecisionReason = "A policy re-evaluation of the retained source is queued.";
+        receipt.FailureCode = "reevaluation_pending";
+        receipt.FailureReason = null;
+    }
+
+    public Task<IntakeReceipt> AttachSuppliedOriginalReportAsync(
+        AttachSuppliedOriginalReportRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.FileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.MediaType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.SourceLabel);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.ContentHash);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.StorageKey);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.ContentLength);
+        return ExecuteAsync(
+            request.ReceiptId,
+            request.ExpectedVersion,
+            request.Actor,
+            request.OperationKey.Trim(),
+            TruncateReason($"Original report supplied: {request.FileName.Trim()}"),
+            "intake_original_report_supplied",
+            RequestHash("intake_original_report_supplied", request),
+            expectedCaseId: null,
+            expectedCaseVersion: null,
+            editLeaseToken: null,
             async (context, receipt, _, token) =>
             {
-                var stagedReceiptId = await context.IntakeEvaluations
-                    .Where(item => item.ProcessedReceiptId == receipt.Id)
-                    .OrderByDescending(item => item.Revision)
-                    .Select(item => (Guid?)item.StagedReceiptId)
-                    .FirstOrDefaultAsync(token)
-                    ?? throw new InvalidDataException(
-                        "The intake receipt does not have a retained evaluation source.");
-                var workItem = await context.IntakeWorkItems.SingleOrDefaultAsync(
-                    item => item.StagedReceiptId == stagedReceiptId,
-                    token)
-                    ?? throw new InvalidDataException(
-                        "The intake receipt does not have durable evaluation work.");
-                if (workItem.State == "processing"
-                    && workItem.LeaseExpiresAtUtc is { } leaseExpiresAtUtc
-                    && leaseExpiresAtUtc > occurredAtUtc)
+                // At most one supplied report per instruction — checked inside
+                // the transaction, after the replay check above it, so a
+                // retried command under the same operation key replays as a
+                // no-op instead of tripping this refusal or the unique index.
+                if (receipt.Assets.Any(asset =>
+                        asset.Disposition
+                        == EfIntakeReceiptStore.ToCode(IntakeAssetDisposition.SuppliedOriginalReport)))
                 {
                     throw new InvalidOperationException(
-                        "The intake receipt is already being evaluated.");
+                        "The retained instruction already has a supplied original report.");
                 }
 
-                workItem.State = "pending";
-                workItem.DueAtUtc = occurredAtUtc;
-                workItem.LeaseToken = null;
-                workItem.LeaseExpiresAtUtc = null;
-                workItem.FailureCode = null;
-                receipt.Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.BlockedIntake);
-                receipt.DecisionReason = "A policy re-evaluation of the retained source is queued.";
-                receipt.FailureCode = "reevaluation_pending";
-                receipt.FailureReason = null;
+                var reportAsset = new IntakeAssetEntity
+                {
+                    Id = Guid.NewGuid(),
+                    IntakeReceiptId = receipt.Id,
+                    IntakeReceipt = receipt,
+                    SourceLabel = request.SourceLabel,
+                    FileName = request.FileName,
+                    MediaType = request.MediaType,
+                    Kind = EfIntakeReceiptStore.ToCode(IntakeAssetKind.Attachment),
+                    Disposition = EfIntakeReceiptStore.ToCode(
+                        IntakeAssetDisposition.SuppliedOriginalReport),
+                    ContentLength = request.ContentLength,
+                    ContentHash = request.ContentHash,
+                    StorageKey = request.StorageKey
+                };
+                // DbSet.Add, not receipt.Assets.Add: a keyed entity discovered
+                // through a tracked navigation is read as existing work and
+                // UPDATEd; only an explicitly Added one INSERTs.
+                context.Add(reportAsset);
+                context.IntakeReceiptEvents.Add(new()
+                {
+                    Id = Guid.NewGuid(),
+                    IntakeReceiptId = receipt.Id,
+                    EventType = "intake_original_report_supplied",
+                    Actor = $"{request.Actor.Kind}:{request.Actor.SubjectId}",
+                    OccurredAtUtc = occurredAtUtc,
+                    DetailsJson = JsonSerializer.Serialize(new
+                    {
+                        schemaVersion = 1,
+                        fileName = request.FileName,
+                        mediaType = request.MediaType,
+                        contentLength = request.ContentLength,
+                        sha256 = request.ContentHash,
+                        storageKey = request.StorageKey
+                    })
+                });
+                await QueueReevaluationAsync(context, receipt, occurredAtUtc, token);
             },
             occurredAtUtc,
             cancellationToken);
+    }
 
     public async Task LinkAsync(
         LinkIntakeRequest request,
@@ -784,8 +879,20 @@ internal sealed class EfIntakeMutationStore(
             await context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
-        catch (DbUpdateConcurrencyException)
+        catch (DbUpdateConcurrencyException exception)
         {
+            Console.WriteLine("PROBE-ENTRIES " + string.Join(",", exception.Entries.Select(e => e.Entity.GetType().Name + "[" + e.State + "]")));
+            Console.WriteLine("PROBE-MSG " + exception.Message);
+            if (exception.InnerException is { } inner)
+            {
+                Console.WriteLine("PROBE-SQL " + inner.GetType().Name + " " + inner.Message);
+            }
+            foreach (var entry in exception.Entries)
+            {
+                var props = entry.Properties.Where(prop => prop.IsModified)
+                    .Select(prop => prop.Metadata.Name + ":" + prop.OriginalValue + "->" + prop.CurrentValue);
+                Console.WriteLine("PROBE-ENTRY " + entry.Entity.GetType().Name + " " + string.Join(" | ", props));
+            }
             throw new IntakeVersionConflictException();
         }
 
@@ -1123,6 +1230,29 @@ internal sealed class EfIntakeMutationStore(
             request.OperationKey,
             request.Reason
         }));
+
+    private static string RequestHash(string eventType, AttachSuppliedOriginalReportRequest request) =>
+        Hash(JsonSerializer.Serialize(new
+        {
+            EventType = eventType,
+            request.ReceiptId,
+            // ExpectedVersion is deliberately excluded: the use case derives it
+            // from a fresh read, so a retried command that arrives after the
+            // first attempt already bumped the receipt reads a different
+            // version than it executed under. The key plus these details name
+            // the command; the version check governs only the first execution.
+            Actor = ActorMaterial(request.Actor),
+            request.OperationKey,
+            request.FileName,
+            request.MediaType,
+            request.ContentHash,
+            request.StorageKey,
+            request.ContentLength
+        }));
+
+    /// <summary>The mutation history's Reason column holds 500 characters.</summary>
+    private static string TruncateReason(string reason) =>
+        reason.Length > 500 ? reason[..500] : reason;
 
     private static string RequestHash(string eventType, AutomaticIntakeLinkRequest request) =>
         Hash(JsonSerializer.Serialize(new

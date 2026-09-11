@@ -459,8 +459,15 @@ public sealed class IndexModel(
         var blocked = await _listIntake.ExecuteAsync(
             new(actor, IntakeDecision.BlockedIntake, Page: 1, PageSize: MergedPageSize),
             cancellationToken);
+        // A receipt whose re-evaluation is queued ("Process again" from its
+        // open Unidentified item) is mid-flight work, not a decision waiting:
+        // the item's own row already carries it, so without this the tab lists
+        // the same receipt twice for as long as the re-run takes.
+        var listed = blocked.Items
+            .Where(item => !string.Equals(item.FailureCode, "reevaluation_pending", StringComparison.Ordinal))
+            .ToArray();
         return openRows.Select(UnidentifiedRow)
-            .Concat(blocked.Items.Select(BlockedRow))
+            .Concat(listed.Select(BlockedRow))
             .ToArray();
     }
 

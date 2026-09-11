@@ -5,6 +5,7 @@
 @{
     ViewData["Title"] = Model.Item.Reference;
     var isOpen = Model.Item.State == UnidentifiedState.Open;
+    var viewLinkLabel = Model.MediaKind == UnidentifiedMediaKind.Email ? "View email" : "View file";
 }
 
 <header class="page-header">
@@ -27,6 +28,13 @@
 </header>
 
 <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
+@if (Model.StatusMessage is { } statusMessage)
+{
+    <div class="notice notice--success" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+        <span>@statusMessage</span>
+    </div>
+}
 
 <article class="record">
     <header class="record-head">
@@ -43,26 +51,28 @@
     <div class="record-accent"></div>
 
     <div class="record-body">
-        <div class="notice notice--warning" role="status">
-            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-            <span>@Model.ReasonLabel</span>
-        </div>
+        <section class="panel section-gap" aria-labelledby="unidentified-why-title">
+            <div class="panel-head"><h2 id="unidentified-why-title">Why it is here</h2></div>
+            <div class="panel-body stack">
+                <p class="why-reason">@Model.ReasonLabel</p>
+                <p>@Model.Item.SafeDetail</p>
+            </div>
+        </section>
 
         <section class="panel section-gap" aria-labelledby="unidentified-source-title">
             <div class="panel-head"><h2 id="unidentified-source-title">Retained source</h2></div>
             <div class="panel-body stack">
                 <div class="definition-list">
-                    <dl class="definition"><dt>Permanent reference</dt><dd>@Model.Item.Reference</dd></dl>
-                    <dl class="definition"><dt>Kind</dt><dd>@Model.MediaKindLabel</dd></dl>
-                    <dl class="definition"><dt>Operator handle</dt><dd>@Model.Handle</dd></dl>
-                    <dl class="definition"><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Item.CreatedAtUtc)</dd></dl>
+                    <dl class="definition">
+                        <dt>@(Model.MediaKind == UnidentifiedMediaKind.Email ? "Email" : "Filename")</dt>
+                        <dd>@Model.Handle</dd>
+                    </dl>
                     <dl class="definition">
                         <dt>Source</dt>
                         <dd>@(Model.SourceReceipt is { } receipt
                             ? OperatorLabels.SourceChannel(receipt.SourceIdentity.Channel)
                             : "Not available")</dd>
                     </dl>
-                    <dl class="definition"><dt>Canonical reason</dt><dd>@Model.ReasonLabel</dd></dl>
                 </div>
                 @if (Model.SourceReceipt is { } imageReceipt
                     && imageReceipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
@@ -71,24 +81,142 @@
                     <partial name="Shared/_ImageGallery" model="@new[] { new GalleryImage(
                         href, href, imageReceipt.SourceFileName, imageReceipt.MediaType) }" />
                 }
-                <div class="button-row">
-                    @if (Model.SourceReceipt is { } viewableReceipt)
-                    {
+                @if (Model.SourceReceipt is { } viewableReceipt)
+                {
+                    <div class="button-row">
                         <a class="btn" asp-page="/Intake/Details" asp-route-id="@viewableReceipt.Id">
                             <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
-                            <span>View retained source</span>
+                            <span>@viewLinkLabel</span>
                         </a>
-                    }
-                    @if (isOpen)
-                    {
-                        <button type="button" class="btn btn--dark" data-dialog-open="unidentified-resolve-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                            <span>Resolve destination</span>
-                        </button>
-                    }
-                </div>
+                    </div>
+                }
             </div>
         </section>
+
+        @if (isOpen)
+        {
+            <section class="panel section-gap" aria-labelledby="unidentified-next-step-title">
+                <div class="panel-head"><h2 id="unidentified-next-step-title">Next step</h2></div>
+                <div class="panel-body stack">
+                    @if (Model.NextStep == UnidentifiedNextStep.AddOriginalReport)
+                    {
+                        <form method="post" enctype="multipart/form-data" asp-page-handler="SupplyOriginalReport" asp-route-id="@Model.Item.Id" class="stack">
+                            <input type="hidden" asp-for="ExpectedVersion" />
+                            <input type="hidden" asp-for="SupplyOperationKey" />
+                            <p class="next-step-help">
+                                Upload the engineer's report this Audit reviews. Pegasus reads Repairable or
+                                Total loss from it and creates the Audit Case; corrections recorded on the
+                                received item meanwhile are overwritten by that re-read.
+                            </p>
+                            <div class="field">
+                                <label class="req" for="unidentified-supply-report">Original report</label>
+                                <input id="unidentified-supply-report" asp-for="Report" type="file" required />
+                            </div>
+                            <div class="button-row">
+                                <button type="submit" class="btn btn--primary">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                                    <span>Add original report</span>
+                                </button>
+                            </div>
+                        </form>
+                    }
+                    else if (Model.NextStep == UnidentifiedNextStep.ProcessAgain)
+                    {
+                        <form method="post" asp-page-handler="ProcessAgain" asp-route-id="@Model.Item.Id" class="stack">
+                            <input type="hidden" asp-for="ExpectedVersion" />
+                            <input type="hidden" asp-for="ProcessAgainOperationKey" />
+                            <div class="button-row">
+                                <button type="submit" class="btn btn--primary">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                                    <span>Process again</span>
+                                </button>
+                            </div>
+                        </form>
+                    }
+                    else if (Model.NextStep == UnidentifiedNextStep.RegisterImages)
+                    {
+                        <div class="button-row">
+                            @if (Model.Item.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup)
+                            {
+                                <a class="btn btn--primary" asp-page="/UploadGroupStatus" asp-route-id="@Model.Item.Origin.Id">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg>
+                                    <span>Register images</span>
+                                </a>
+                            }
+                            else if (Model.SourceReceipt is { } registerReceipt)
+                            {
+                                <a class="btn btn--primary" asp-page="/Intake/Details" asp-route-id="@registerReceipt.Id">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg>
+                                    <span>Register images</span>
+                                </a>
+                            }
+                        </div>
+                    }
+                    else if (Model.NextStep == UnidentifiedNextStep.LinkToCase)
+                    {
+                        await RenderLinkToCaseAsync();
+                    }
+
+                    @if (Model.ShowsLinkAlternative)
+                    {
+                        <details class="upload-attach">
+                            <summary class="btn btn--small">Link to Case</summary>
+                            @{ await RenderLinkToCaseAsync(); }
+                        </details>
+                    }
+                    <div class="button-row">
+                        @if (Model.CanCreateCase && Model.SourceReceipt is { } createReceipt)
+                        {
+                            <a class="btn" asp-page="/Cases/Create" asp-route-receiptId="@createReceipt.Id">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                <span>Create Case</span>
+                            </a>
+                        }
+                        @if (isOpen)
+                        {
+                            <details class="upload-attach">
+                                <summary class="btn btn--small">Close</summary>
+                                <form method="post" asp-page-handler="Resolve" asp-route-id="@Model.Item.Id" class="upload-attach__form stack">
+                                    <input type="hidden" asp-for="ExpectedVersion" />
+                                    <input type="hidden" asp-for="OperationKey" />
+                                    <div class="notice notice--warning">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                                        <span>The U-reference and original source remain after resolution.</span>
+                                    </div>
+                                    <div class="field">
+                                        <label class="req" for="unidentified-target-kind">Destination</label>
+                                        <select id="unidentified-target-kind" asp-for="TargetKind" required>
+                                            @foreach (UnidentifiedResolutionTargetKind kind in Enum.GetValues<UnidentifiedResolutionTargetKind>())
+                                            {
+                                                <option value="@kind">@OperatorLabels.UnidentifiedResolutionTarget(kind)</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="field">
+                                        <label class="req" for="unidentified-target-id">Destination identifier</label>
+                                        <input id="unidentified-target-id" asp-for="TargetId" maxlength="200" required autocomplete="off" />
+                                    </div>
+                                    <div class="field">
+                                        <label for="unidentified-target-reference">Destination reference</label>
+                                        <input id="unidentified-target-reference" asp-for="TargetReference" maxlength="200" autocomplete="off" />
+                                    </div>
+                                    <div class="field">
+                                        <label class="req" for="unidentified-resolution-reason">Reason</label>
+                                        <textarea id="unidentified-resolution-reason" asp-for="ResolutionReason" maxlength="500" rows="3" required></textarea>
+                                    </div>
+                                    <div class="button-row">
+                                        <button type="submit" class="btn btn--primary">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                                            <span>Close with reason</span>
+                                        </button>
+                                    </div>
+                                </form>
+                            </details>
+                        }
+                    </div>
+                </div>
+            </section>
+        }
 
         @if (Model.History.Count > 0)
         {
@@ -118,56 +246,64 @@
     </div>
 </article>
 
-@if (isOpen)
-{
-    <div class="dialog-backdrop" data-dialog="unidentified-resolve-dialog" hidden>
-        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="unidentified-resolve-dialog-title">
-            <div class="dialog-head">
-                <h2 id="unidentified-resolve-dialog-title" tabindex="-1">Resolve @Model.Item.Reference</h2>
-                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                </button>
-            </div>
-            <form method="post" asp-page-handler="Resolve" asp-route-id="@Model.Item.Id">
-                <input type="hidden" asp-for="ExpectedVersion" />
-                <input type="hidden" asp-for="OperationKey" />
-                <div class="dialog-body stack">
-                    <div class="notice notice--warning">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                        <span>The U-reference and original source remain after resolution.</span>
-                    </div>
-                    <div class="field">
-                        <label class="req" for="unidentified-target-kind">Destination</label>
-                        <select id="unidentified-target-kind" asp-for="TargetKind" required data-dialog-initial-focus>
-                            @foreach (UnidentifiedResolutionTargetKind kind in Enum.GetValues<UnidentifiedResolutionTargetKind>())
-                            {
-                                <option value="@kind">@OperatorLabels.UnidentifiedResolutionTarget(kind)</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="field">
-                        <label class="req" for="unidentified-target-id">Destination identifier</label>
-                        <input id="unidentified-target-id" asp-for="TargetId" maxlength="200" required autocomplete="off" />
-                    </div>
-                    <div class="field">
-                        <label for="unidentified-target-reference">Destination reference</label>
-                        <input id="unidentified-target-reference" asp-for="TargetReference" maxlength="200" autocomplete="off" />
-                    </div>
-                    <div class="field">
-                        <label class="req" for="unidentified-resolution-reason">Reason</label>
-                        <textarea id="unidentified-resolution-reason" asp-for="ResolutionReason" maxlength="500" rows="3" required></textarea>
-                    </div>
-                </div>
-                <div class="dialog-foot">
-                    <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    <button type="submit" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-                        <span>Record resolution</span>
-                    </button>
-                </div>
-            </form>
-        </section>
-    </div>
-}
-
 <partial name="Shared/_EvidenceViewer" />
+
+@{
+    async Task RenderLinkToCaseAsync()
+    {
+        <form method="get" class="stack" data-refresh-hold>
+            <div class="field">
+                <label for="unidentified-link-query">Find the Case this material belongs to</label>
+                <input id="unidentified-link-query"
+                       name="LinkQuery"
+                       type="text"
+                       maxlength="60"
+                       value="@Model.LinkQuery"
+                       autocomplete="off"
+                       spellcheck="false"
+                       placeholder="Reference, claim number, registration or claimant" />
+            </div>
+            <div class="button-row">
+                <button type="submit" class="btn btn--small">Search</button>
+            </div>
+        </form>
+        @if (Model.CandidateCases.Count > 0)
+        {
+            <ul class="stack unidentified-link-candidates">
+                @foreach (var candidate in Model.CandidateCases)
+                {
+                    <li class="unidentified-link-candidate">
+                        <span class="unidentified-link-candidate__summary">
+                            <strong>@candidate.Reference</strong>
+                            @if (!string.IsNullOrWhiteSpace(candidate.ClaimNumber))
+                            {
+                                @:· claim @candidate.ClaimNumber
+                            }
+                            @if (!string.IsNullOrWhiteSpace(candidate.Registration))
+                            {
+                                @:· @candidate.Registration
+                            }
+                            @if (!string.IsNullOrWhiteSpace(candidate.Claimant))
+                            {
+                                @:· @candidate.Claimant
+                            }
+                        </span>
+                        <form method="post" asp-page-handler="Resolve" asp-route-id="@Model.Item.Id">
+                            <input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" />
+                            <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                            <input type="hidden" name="TargetKind" value="@UnidentifiedResolutionTargetKind.InstructionCase" />
+                            <input type="hidden" name="TargetId" value="@candidate.CaseId" />
+                            <input type="hidden" name="TargetReference" value="@candidate.Reference" />
+                            <input type="hidden" name="ResolutionReason" value="Linked to case @candidate.Reference." />
+                            <button type="submit" class="btn btn--small btn--primary">Link</button>
+                        </form>
+                    </li>
+                }
+            </ul>
+        }
+        else if (!string.IsNullOrWhiteSpace(Model.LinkQuery))
+        {
+            <p>No Case matches that search.</p>
+        }
+    }
+}

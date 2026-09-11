@@ -41,7 +41,7 @@ Source evidence of a vehicle other than the Case vehicle, identified from reliab
 _Avoid_: Wrong image, unrelated evidence
 
 **Audit**:
-An Audit Case is instructed work to review another engineering firm’s original report. A definitive instruction creates the normal Case/PO without confirmation; its lowercase `a.` or `ap.` Audit reference is derived later only from an unambiguous repairable or total-loss assessment in that original report.
+An Audit Case is instructed work to review another engineering firm’s original report. A definitive instruction creates the normal Case/PO without confirmation; its lowercase `a.` or `ap.` Audit reference is derived only from an unambiguous repairable or total-loss assessment in that original report. Without that report the instruction waits in Unidentified with the reason `Audit is missing the original report`; supplying an unambiguous report there creates the Case.
 _Avoid_: Triage, sorting
 
 **Inspection + Audit**:
@@ -56,7 +56,7 @@ normal Case/PO and link the Triage; Triage itself allocates neither.
 _Avoid_: Inbox sorting, generic sorting
 
 **Unidentified**:
-A safe pre-case routing state for persisted material that cannot yet progress: unclassifiable email, and recorded Triage material awaiting a vehicle registration. It is never a pre-Case Image intake or `Not ready`.
+A safe pre-case routing state for persisted material that cannot yet progress: unclassifiable email, recorded Triage material awaiting a vehicle registration, and an Audit instruction waiting for the original report it audits — that Case/PO is allocated only once an unambiguous report is supplied. It is never a pre-Case Image intake or `Not ready`.
 _Avoid_: Triage, Blocked intake
 
 **Blocked intake**:

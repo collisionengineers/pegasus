@@ -16,7 +16,8 @@ internal sealed record UnidentifiedToolItem(
     string SafeDetail,
     string State,
     DateTimeOffset CreatedAtUtc,
-    long Version);
+    long Version,
+    string NextStep);
 
 internal sealed record UnidentifiedListToolResult(
     IReadOnlyList<UnidentifiedQueueToolItem> Items,
@@ -32,7 +33,8 @@ internal sealed record UnidentifiedQueueToolItem(
     string? EmailSubject,
     string? EmailSender,
     DateTimeOffset ReceivedAtUtc,
-    string ReasonCode);
+    string ReasonCode,
+    string NextStep);
 
 internal sealed record UnidentifiedToolDetail(
     UnidentifiedToolItem Item,
@@ -293,7 +295,8 @@ internal sealed class UnidentifiedMcpTools(
         item.SafeDetail,
         item.State.ToString(),
         item.CreatedAtUtc,
-        item.Version);
+        item.Version,
+        UnidentifiedNextStepPolicy.Primary(item.ReasonCode, item.Origin.Kind).ToString());
 
     private static UnidentifiedQueueToolItem MapQueue(UnidentifiedQueueRow item) => new(
         item.Id,
@@ -303,7 +306,8 @@ internal sealed class UnidentifiedMcpTools(
         item.EmailSubject,
         item.EmailSender,
         item.ReceivedAtUtc,
-        item.ReasonCode.ToString());
+        item.ReasonCode.ToString(),
+        UnidentifiedNextStepPolicy.Primary(item.ReasonCode, item.OriginKind).ToString());
 
     private static string RequireReference(string? reference)
     {

@@ -54,13 +54,28 @@ public static class OperatorLabels
 
     public static string UnidentifiedReason(UnidentifiedReasonCode reason) => reason switch
     {
-        UnidentifiedReasonCode.UnreadableOrCorruptContent => "Unreadable or corrupt content",
-        UnidentifiedReasonCode.UnsupportedContent => "Unsupported content",
-        UnidentifiedReasonCode.NoUsableIdentification => "No usable identification",
-        UnidentifiedReasonCode.ConflictingIdentification => "Conflicting identification",
-        UnidentifiedReasonCode.AmbiguousOwnershipOrDestination => "Ambiguous ownership or destination",
-        UnidentifiedReasonCode.TechnicalProcessingFailure => "Technical processing failure",
+        UnidentifiedReasonCode.AuditOriginalReportMissing => "Audit is missing the original report",
+        UnidentifiedReasonCode.UnreadableOrCorruptContent => "File could not be read",
+        UnidentifiedReasonCode.UnsupportedContent => "File type is not supported",
+        UnidentifiedReasonCode.NoUsableIdentification => "No claim, registration or claimant found",
+        UnidentifiedReasonCode.ConflictingIdentification => "Matches more than one Case",
+        UnidentifiedReasonCode.AmbiguousOwnershipOrDestination => "Could be more than one kind of work",
+        UnidentifiedReasonCode.TechnicalProcessingFailure => "Processing failed",
         _ => Humanise(reason.ToString())
+    };
+
+    /// <summary>
+    /// The one primary control the Unidentified page offers for an item, named
+    /// by <see cref="UnidentifiedNextStepPolicy"/>. Same vocabulary as the
+    /// page's own buttons — this map is their one list.
+    /// </summary>
+    public static string UnidentifiedNextStep(UnidentifiedNextStep step) => step switch
+    {
+        Pegasus.Core.Intake.Unidentified.UnidentifiedNextStep.AddOriginalReport => "Add original report",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedNextStep.LinkToCase => "Link to Case",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedNextStep.RegisterImages => "Register images",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedNextStep.ProcessAgain => "Process again",
+        _ => Humanise(step.ToString())
     };
 
     /// <summary>

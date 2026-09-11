@@ -276,6 +276,11 @@ public sealed class ImageIntakeCasePairingTests
             DateTimeOffset occurredAtUtc,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        public Task<IntakeReceipt> AttachSuppliedOriginalReportAsync(
+            AttachSuppliedOriginalReportRequest request,
+            DateTimeOffset occurredAtUtc,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task LinkAsync(
             LinkIntakeRequest request,
             DateTimeOffset occurredAtUtc,

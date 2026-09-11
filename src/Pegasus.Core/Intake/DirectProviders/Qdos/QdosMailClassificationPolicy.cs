@@ -312,6 +312,33 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         TotalLossLiteralRegex().IsMatch(text)
         && !NegatedTotalLossLiteralRegex().IsMatch(text);
 
+    /// <summary>
+    /// Reads one literal outcome from a staff-supplied original report, over
+    /// every document/PDF fragment of its own read result: exactly one of the
+    /// two unnegated literals yields the evaluation; none, a negated form, or
+    /// both yields null. One owner for the upload pre-check and the
+    /// re-evaluation that consumes the retained bytes, so both read the same
+    /// rule the received-message classification reads (<see cref="ContainsRepairable"/>
+    /// / <see cref="ContainsTotalLoss"/>).
+    /// </summary>
+    internal static StandaloneAuditReportEvaluation? EvaluateSuppliedOriginalReport(
+        IntakeSourceReadResult standaloneRead,
+        string assetSourceLabel)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(assetSourceLabel);
+        var texts = standaloneRead.Content
+            .Where(fragment => fragment.Source
+                is IntakeEvidenceSource.DocumentContent
+                or IntakeEvidenceSource.PdfContent)
+            .Select(fragment => fragment.Text)
+            .ToArray();
+        var hasRepairable = texts.Any(ContainsRepairable);
+        var hasTotalLoss = texts.Any(ContainsTotalLoss);
+        return hasRepairable != hasTotalLoss
+            ? new(assetSourceLabel, hasRepairable ? AuditAssessment.Repairable : AuditAssessment.TotalLoss)
+            : null;
+    }
+
     private static string[] Texts(
         IntakeSourceReadResult readResult,
         IntakeEvidenceSource source) =>

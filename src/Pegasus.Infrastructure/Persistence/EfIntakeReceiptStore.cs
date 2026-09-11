@@ -223,6 +223,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 item.ReceivedAtUtc,
                 item.Decision,
                 item.FailureReason,
+                item.FailureCode,
                 item.EvidenceJson,
                 Sender = item.MailRouteDecision!.EffectiveSenderAddress
             })
@@ -271,7 +272,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                     ReadSubject(item.EvidenceJson),
                     linkedCase?.CaseId,
                     linkedCase?.Reference,
-                    allocationState);
+                    allocationState,
+                    item.FailureCode);
             })
             .ToArray();
         return new(summaries, page, pageSize, totalCount);
@@ -327,6 +329,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 item.ReceivedAtUtc,
                 item.Decision,
                 item.FailureReason,
+                item.FailureCode,
                 item.EvidenceJson,
                 item.MailRouteDecision!.EffectiveSenderAddress))
             .ToListAsync(cancellationToken);
@@ -346,6 +349,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         DateTimeOffset ReceivedAtUtc,
         string Decision,
         string? FailureReason,
+        string? FailureCode,
         string EvidenceJson,
         string? Sender);
 
@@ -400,7 +404,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 ReadSubject(item.EvidenceJson),
                 linkedCase?.CaseId,
                 linkedCase?.Reference,
-                allocationState);
+                allocationState,
+                item.FailureCode);
         }).ToArray();
     }
 
@@ -1470,7 +1475,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownCode("evidence finding", value)
     };
 
-    private static string ToCode(IntakeAssetKind value) => value switch
+    internal static string ToCode(IntakeAssetKind value) => value switch
     {
         IntakeAssetKind.Source => "source",
         IntakeAssetKind.Attachment => "attachment",
@@ -1568,12 +1573,13 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownCode("asset kind", value)
     };
 
-    private static string ToCode(IntakeAssetDisposition value) => value switch
+    internal static string ToCode(IntakeAssetDisposition value) => value switch
     {
         IntakeAssetDisposition.Source => "source",
         IntakeAssetDisposition.Attachment => "attachment",
         IntakeAssetDisposition.Inline => "inline",
         IntakeAssetDisposition.Embedded => "embedded",
+        IntakeAssetDisposition.SuppliedOriginalReport => "supplied_original_report",
         _ => throw UnknownEnum(value)
     };
 
@@ -1583,6 +1589,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "attachment" => IntakeAssetDisposition.Attachment,
         "inline" => IntakeAssetDisposition.Inline,
         "embedded" => IntakeAssetDisposition.Embedded,
+        "supplied_original_report" => IntakeAssetDisposition.SuppliedOriginalReport,
         _ => throw UnknownCode("asset disposition", value)
     };
 

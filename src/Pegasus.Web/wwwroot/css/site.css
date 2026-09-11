@@ -2487,3 +2487,24 @@ th a:hover { text-decoration: underline; }
 
 /* A mail subject is the record title and wraps; an ellipsis read as clipping. */
 .record__head h1.wrap { overflow: visible; white-space: normal; text-overflow: clip; }
+
+/* The Unidentified detail's "Why it is here" and link-to-case candidates.
+   The reason reads as the panel's heading fact with the stored safe detail
+   beneath it; a candidate row pairs the Case facts with its single link
+   action on one line and wraps under it on narrow screens. */
+.why-reason { margin: 0; font-weight: 700; }
+.unidentified-link-candidates { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--sp-2); }
+.unidentified-link-candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+.unidentified-link-candidate__summary { overflow-wrap: anywhere; }
+@media (max-width: 560px) {
+  .unidentified-link-candidate { flex-direction: column; align-items: stretch; }
+}

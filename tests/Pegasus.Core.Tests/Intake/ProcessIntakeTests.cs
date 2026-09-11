@@ -624,6 +624,214 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task StandaloneAuditWithoutReportRegistersAuditOriginalReportMissing()
+    {
+        // The report-less Audit instruction is its own reason with its own
+        // next step (operator decision, 2026-09-11): it must not collapse into
+        // the generic NoUsableIdentification fallback.
+        var readResult = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "message, attachment 1: audit-instructions.pdf",
+                    "AUDIT REPORT NOTIFICATION\nQDOS instruction\nClaimant Name: Review Claimant\nClaim Number: Q-AUDIT-NR")
+            ],
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
+            [],
+            false);
+        var store = new RecordingStore();
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var sut = CreateSut(new StubReader(readResult), store, registerUnidentified: registerUnidentified);
+        var source = CreateSource() with
+        {
+            FileName = "audit-no-report.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "audit-without-original-report")
+        };
+
+        var result = await sut.ExecuteAsync(source);
+
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
+        Assert.Equal(
+            "The Audit instruction arrived without the original report it audits. Add that report to continue.",
+            result.DecisionReason);
+        var request = Assert.Single(registerUnidentified.Requests);
+        Assert.Equal(UnidentifiedReasonCode.AuditOriginalReportMissing, request.ReasonCode);
+    }
+
+    [Fact]
+    public async Task ReevaluationWithSuppliedOriginalReportClassifiesAuditAndRecordsEvidence()
+    {
+        const string suppliedLabel = "supplied original report: original-report.pdf";
+        var automaticEvidence = new RecordingAutomaticAuditEvidence();
+        var artifactStore = new RecordingArtifactStore();
+        var suppliedBytes = new ReadOnlyMemory<byte>([9, 9, 9]);
+        var suppliedHash = Convert.ToHexString(SHA256.HashData(suppliedBytes.Span));
+        var storageKey = await artifactStore.StoreAsync(suppliedHash, suppliedBytes, CancellationToken.None);
+        var suppliedAsset = new IntakeAssetRecord(
+            Guid.NewGuid(),
+            suppliedLabel,
+            "original-report.pdf",
+            "application/pdf",
+            IntakeAssetKind.Attachment,
+            IntakeAssetDisposition.SuppliedOriginalReport,
+            suppliedBytes.Length,
+            suppliedHash,
+            storageKey,
+            null,
+            null,
+            null,
+            null);
+
+        IntakeSourceReadResult InstructionOnly() => new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "message, attachment 1: audit-instructions.pdf",
+                    "AUDIT REPORT NOTIFICATION\nQDOS instruction\nClaimant Name: Review Claimant\nClaim Number: Q-AUDIT-RE")
+            ],
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
+            [],
+            false);
+
+        // The instruction-only result for the source itself; the supplied
+        // report's own bytes read through the same reader port.
+        var reader = new StubReader((supplied, _) =>
+            supplied.SourceIdentity.ExternalReceiptToken.StartsWith("supplied-original-report:", StringComparison.Ordinal)
+                ? Task.FromResult(Readable(content:
+                [
+                    new(
+                        IntakeEvidenceSource.PdfContent,
+                        $"{suppliedLabel}, page 1",
+                        "The vehicle is a total loss.")
+                ]))
+                : Task.FromResult(InstructionOnly()));
+        var store = new RecordingStore((draft, _) =>
+            Task.FromResult(RecordingStore.RecordFrom(draft) with
+            {
+                // The real ReplaceEvaluationAsync keeps the supplied report
+                // asset across the re-run; only this pass's derived assets are
+                // rebuilt. The receipt the pipeline reads back carries it.
+                Assets = [.. (draft.Assets ?? []), suppliedAsset]
+            }));
+        var sut = CreateSut(
+            reader,
+            store,
+            artifactStore: artifactStore,
+            automaticStandaloneAuditEvidence: automaticEvidence);
+        var source = CreateSource() with
+        {
+            FileName = "audit.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "audit-reevaluation-supply")
+        };
+
+        var first = await sut.ExecuteAsync(source);
+        Assert.Equal(IntakeDecision.NeedsSorting, first.Decision);
+        Assert.Empty(automaticEvidence.Requests);
+
+        // The receipt returned by the store already carries the supplied
+        // report asset — the real ReplaceEvaluationAsync keeps it across the
+        // re-run, and only this pass's derived assets are rebuilt.
+        store.ExistingRecord = first;
+        var reevaluated = await sut.ExecuteRetainedAsync(source, "retained-source-key", replaceExisting: true);
+
+        Assert.Equal(IntakeDecision.CaseCreated, reevaluated.Decision);
+        var decision = Assert.IsType<MailClassificationResult>(reevaluated.MailClassificationDecision);
+        Assert.Equal(AuditAssessment.TotalLoss, decision.StandaloneAuditReport!.Assessment);
+        Assert.Equal(suppliedLabel, decision.StandaloneAuditReport.AssetSourceLabel);
+        var recorded = Assert.Single(automaticEvidence.Requests);
+        Assert.Equal(suppliedAsset.Id, recorded.OriginalReportAssetId);
+    }
+
+    [Fact]
+    public async Task SuppliedReportStatingBothOutcomesLeavesAuditUnidentified()
+    {
+        var readResult = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "message, attachment 1: audit-instructions.pdf",
+                    "AUDIT REPORT NOTIFICATION\nQDOS instruction\nClaimant Name: Review Claimant\nClaim Number: Q-AUDIT-AM")
+            ],
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
+            [],
+            false);
+        var artifactStore = new RecordingArtifactStore();
+        var suppliedBytes = new ReadOnlyMemory<byte>([7, 7]);
+        var storageKey = await artifactStore.StoreAsync(
+            Convert.ToHexString(SHA256.HashData(suppliedBytes.Span)), suppliedBytes, CancellationToken.None);
+        var suppliedAsset = new IntakeAssetRecord(
+            Guid.NewGuid(),
+            "supplied original report: original-report.pdf",
+            "original-report.pdf",
+            "application/pdf",
+            IntakeAssetKind.Attachment,
+            IntakeAssetDisposition.SuppliedOriginalReport,
+            suppliedBytes.Length,
+            Convert.ToHexString(SHA256.HashData(suppliedBytes.Span)),
+            storageKey,
+            null,
+            null,
+            null,
+            null);
+        var reader = new StubReader((supplied, _) =>
+            supplied.SourceIdentity.ExternalReceiptToken.StartsWith("supplied-original-report:", StringComparison.Ordinal)
+                ? Task.FromResult(Readable(content:
+                [
+                    new(
+                        IntakeEvidenceSource.PdfContent,
+                        "report, page 1",
+                        "The vehicle is repairable and also a total loss.")
+                ]))
+                : Task.FromResult(readResult));
+        var store = new RecordingStore();
+        var automaticEvidence = new RecordingAutomaticAuditEvidence();
+        var sut = CreateSut(
+            reader,
+            store,
+            artifactStore: artifactStore,
+            automaticStandaloneAuditEvidence: automaticEvidence);
+        var source = CreateSource() with
+        {
+            FileName = "audit.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "audit-reevaluation-ambiguous-report")
+        };
+
+        var first = await sut.ExecuteAsync(source);
+        store.ExistingRecord = first with { Assets = [.. first.AssetRecords, suppliedAsset] };
+        var reevaluated = await sut.ExecuteRetainedAsync(source, "retained-source-key", replaceExisting: true);
+
+        // Both literals: the supplied report decides nothing, the instruction
+        // stays waiting, and no Audit evidence is recorded.
+        Assert.Equal(IntakeDecision.NeedsSorting, reevaluated.Decision);
+        Assert.Null(Assert.IsType<MailClassificationResult>(reevaluated.MailClassificationDecision).StandaloneAuditReport);
+        Assert.Empty(automaticEvidence.Requests);
+    }
+
+    [Fact]
     public async Task AmbiguousCaseMatchForcesNeedsSortingOnAnOtherwiseCaseCreatedMessage()
     {
         var caseA = Guid.NewGuid();

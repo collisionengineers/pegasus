@@ -603,6 +603,10 @@ public static class DependencyInjection
                 ActivatorUtilities.CreateInstance<ProcessIntake>(
                     provider,
                     provider.GetRequiredService<QdosInstructionExtractionPolicy>()));
+            // The supplied-original-report command reads uploads through the
+            // source reader and retains them through the artifact store, both
+            // of which exist only on this document-composing surface.
+            services.AddScoped<ISupplyAuditOriginalReport, SupplyAuditOriginalReport>();
 
             // Shared by both EVA routes so the archive and the API submission
             // cannot state the same case differently.

@@ -15,7 +15,16 @@ public enum UnidentifiedReasonCode
     NoUsableIdentification,
     ConflictingIdentification,
     AmbiguousOwnershipOrDestination,
-    TechnicalProcessingFailure
+    TechnicalProcessingFailure,
+
+    /// <summary>
+    /// An Audit instruction arrived without the original engineer's report it
+    /// audits, so Repairable/Total loss — and with it the <c>a.</c>/<c>ap.</c>
+    /// reference — is unknown (CASE-014). The instruction waits here until the
+    /// report is supplied on the Unidentified page; only then is the Case/PO
+    /// allocated (operator decision, 2026-09-11).
+    /// </summary>
+    AuditOriginalReportMissing
 }
 
 public enum UnidentifiedState
@@ -37,6 +46,51 @@ public enum UnidentifiedResolutionTargetKind
     Triage,
     BlockedIntake,
     ExternalReference
+}
+
+/// <summary>
+/// What the Unidentified page offers as the one primary control for an item.
+/// The reason decides it; <see cref="UnidentifiedNextStepPolicy"/> is the one
+/// owner of that mapping, so the page and the automation surface read one
+/// answer.
+/// </summary>
+public enum UnidentifiedNextStep
+{
+    AddOriginalReport,
+    LinkToCase,
+    RegisterImages,
+    ProcessAgain
+}
+
+/// <summary>
+/// Maps an Unidentified item's reason (and origin kind) onto the single next
+/// step the page offers as primary. It invents no destination: every value
+/// names a flow that already exists, and the existing gates stay authoritative
+/// (Create Case only when <see cref="IntakeDecisionPolicy.CanBecomeCase"/> and
+/// no allocation; Register images only for image material).
+/// </summary>
+public static class UnidentifiedNextStepPolicy
+{
+    /// <summary>
+    /// The primary next step for an item. Submission-group origins are image
+    /// material by construction — every grouped registration is an image
+    /// group — so the group's own register-images flow is primary whatever the
+    /// reason; receipt origins follow the reason.
+    /// </summary>
+    public static UnidentifiedNextStep Primary(
+        UnidentifiedReasonCode reason,
+        UnidentifiedOriginKind originKind) => originKind switch
+    {
+        UnidentifiedOriginKind.SubmissionGroup => UnidentifiedNextStep.RegisterImages,
+        _ => reason switch
+        {
+            UnidentifiedReasonCode.AuditOriginalReportMissing =>
+                UnidentifiedNextStep.AddOriginalReport,
+            UnidentifiedReasonCode.TechnicalProcessingFailure =>
+                UnidentifiedNextStep.ProcessAgain,
+            _ => UnidentifiedNextStep.LinkToCase
+        }
+    };
 }
 
 /// <summary>
@@ -107,7 +161,8 @@ public sealed record UnidentifiedQueueRow(
     string? EmailSubject,
     string? EmailSender,
     DateTimeOffset ReceivedAtUtc,
-    UnidentifiedReasonCode ReasonCode);
+    UnidentifiedReasonCode ReasonCode,
+    UnidentifiedOriginKind OriginKind = UnidentifiedOriginKind.Receipt);
 
 public sealed record UnidentifiedOrigin(UnidentifiedOriginKind Kind, Guid Id)
 {
@@ -402,6 +457,26 @@ public interface IUnidentifiedStore
     Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(
         Guid unidentifiedItemId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Appends an <c>Open → Open</c> history note to an open item without
+    /// changing the item's state, reason or version — the record of something
+    /// done to the waiting work (the supplied Audit original report) that the
+    /// page's History must show. Replay-safe by operation key.
+    ///
+    /// Default: unsupported, like <see cref="ReopenAsync"/> — an in-memory
+    /// double that never reopens anything has no history to append to; the one
+    /// production implementation is <c>Pegasus.Infrastructure.Persistence.EfUnidentifiedStore</c>.
+    /// </summary>
+    Task<UnidentifiedHistoryEntry> AppendNoteAsync(
+        Guid unidentifiedItemId,
+        string note,
+        ActionActor actor,
+        string operationKey,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken = default) =>
+        Task.FromException<UnidentifiedHistoryEntry>(
+            new NotSupportedException("Appending an Unidentified note is not available."));
 }
 
 public interface IRegisterUnidentified
@@ -541,6 +616,23 @@ public static class UnidentifiedValidation
         RequireOperation(request.OperationKey);
         RequireText(request.Reason, MaximumReasonLength, nameof(request.Reason));
         RequireUtc(request.ReopenedAtUtc, nameof(request.ReopenedAtUtc));
+    }
+
+    public static void ValidateNote(
+        Guid unidentifiedItemId,
+        string note,
+        ActionActor actor,
+        string operationKey,
+        DateTimeOffset occurredAtUtc)
+    {
+        if (unidentifiedItemId == Guid.Empty)
+        {
+            throw new ArgumentException("A note requires a valid item.", nameof(unidentifiedItemId));
+        }
+        RequireStaffOrAutomation(actor);
+        RequireOperation(operationKey);
+        RequireText(note, MaximumReasonLength, nameof(note));
+        RequireUtc(occurredAtUtc, nameof(occurredAtUtc));
     }
 
     public static void RequireDetail(string value) => RequireText(value, MaximumDetailLength, nameof(value));

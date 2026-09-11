@@ -79,17 +79,35 @@ public sealed class WorkCentreLabelTests
         Assert.Equal(expected, NeedsAttentionPresentation.RecordPage(kind));
     }
 
+    /// <summary>
+    /// The needs-attention row holds the Core reason enum name as a string;
+    /// the new Audit reason (2026-09-11) must reach the operator through the
+    /// same one label map, as its plain-language operator label.
+    /// </summary>
+    [Fact]
+    public void AuditOriginalReportMissingReasonLabelRendersOnTheRow()
+    {
+        var item = NewItem(
+            NeedsAttentionKind.Mail,
+            title: "U42",
+            attempts: null,
+            reason: "AuditOriginalReportMissing");
+
+        Assert.Equal("Audit is missing the original report", NeedsAttentionPresentation.ReasonLabel(item));
+    }
+
     private static NeedsAttentionItem NewItem(
         NeedsAttentionKind kind,
         string title,
         int? attempts,
-        string? detail = null) => new(
+        string? detail = null,
+        string reason = "custody_failed") => new(
         kind,
         Guid.NewGuid(),
         "C/2026/009",
         title,
         detail,
-        "custody_failed",
+        reason,
         NeedsAttentionPriority.High,
         Owner: null,
         Due: null,

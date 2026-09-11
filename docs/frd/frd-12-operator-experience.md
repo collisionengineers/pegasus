@@ -191,17 +191,25 @@ derived from the retained receipt's source channel and content type, not a
 separate stored field. Terminal Cases other than Complete are excluded from
 the Cases rail and appear in Search as `Closed · <outcome>`.
 
-Unidentified detail shows the kind/received/reason facts, the retained file
+Unidentified detail shows the kind/received facts, the retained file
 or message by its operator-meaningful handle, one link to the underlying
-retained material, chronological history, and the resolution form
-(Destination: add to an existing Case, create a Case from an accepted
-instruction, register an Image-initiated Case, or close with a reason).
-Exact U-reference search returns both open and resolved items as a distinct
-result type and never treats U<n> as a Case, Audit, or Image Intake
-reference. Resolution is staff-authorised, antiforgery protected,
-version-checked, idempotent by operation key, and requires a supported
-destination and reason. A stale version is a non-destructive conflict; a
-replay shows the original result. The permanent U-reference and origin
+retained material, and chronological history. The reason and its stored safe
+detail are shown together under "Why it is here". One "Next step" panel offers
+the single primary control the reason decides (via the shared Core policy, so
+automation reads the same answer): add the original report for an Audit missing
+it, link to an existing Case — with the eliminator's own candidates pre-listed
+for a conflicting identification — for every other identification reason,
+process the retained source again for a technical processing failure only, and
+the existing image registration links for grouped image material. Remaining
+options render as secondary controls beneath the primary one: the link-to-case
+search when it is not primary, Create Case under the same gates as the received
+item, and Close, which discloses the resolution form and its reason textarea.
+There is no resolution dialog. Resolution stays staff-authorised, antiforgery
+protected, version-checked, idempotent by operation key, and requires a
+supported destination and reason. A stale version is a non-destructive conflict;
+a replay shows the original result. Exact U-reference search returns both open
+and resolved items as a distinct result type and never treats U<n> as a Case,
+Audit, or Image Intake reference. The permanent U-reference and origin
 remain visible after resolution.
 
 Triage detail carries the determinations (roadworthiness, repair outcome),
