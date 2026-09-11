@@ -273,6 +273,58 @@ public sealed class GlassRepairEstimateCallbackWebTests
         Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
     }
 
+    /// <summary>
+    /// The account has one live slot. While this Engineer holds it from
+    /// another Case, this Case offers no launch and names that Case instead.
+    /// </summary>
+    [Fact]
+    public async Task ALiveSessionOnAnotherCaseIsNamedHereAndNoLaunchIsOffered()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        var otherCaseId = await workspace.SeedOwnSessionElsewhereAsync();
+
+        var html = await workspace.CaseHtmlAsync();
+
+        Assert.DoesNotContain("handler=LaunchGlass", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ResumeGlass", html, StringComparison.Ordinal);
+        Assert.Contains($"data-glass-elsewhere=\"{otherCaseId:D}\"", html, StringComparison.Ordinal);
+        Assert.Contains("Open on", html, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{otherCaseId:D}?section=estimate", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// An open session can be closed from its own Case by its owner, with
+    /// the same confirmation as an uncertain one, and the account is then
+    /// free for the next launch.
+    /// </summary>
+    [Fact]
+    public async Task AnOpenSessionCanBeClosedFromItsCaseAndTheNextLaunchProceeds()
+    {
+        await using var workspace = await Workspace.CreateAsync();
+        await workspace.ClaimLeaseAsync();
+        using (var launched = await workspace.LaunchAsync())
+        {
+            Assert.Equal(HttpStatusCode.Found, launched.StatusCode);
+        }
+        Assert.Equal(GlassRepairEstimateSessionState.Active, Assert.Single(await workspace.SessionsAsync()).State);
+        var html = await workspace.CaseHtmlAsync();
+        Assert.Contains("handler=CloseGlass", html, StringComparison.Ordinal);
+
+        var close = FormFor(html, "CloseGlass");
+        close["reason"] = "Closed in Glass's without saving.";
+        close["externalSessionClosed"] = "true";
+        using (var closed = await workspace.PostAsync("CloseGlass", close))
+        {
+            Assert.Equal(HttpStatusCode.Found, closed.StatusCode);
+        }
+        Assert.Equal(GlassRepairEstimateSessionState.Cancelled, Assert.Single(await workspace.SessionsAsync()).State);
+
+        using var next = await workspace.LaunchAsync();
+
+        Assert.Equal(HttpStatusCode.Found, next.StatusCode);
+        Assert.Equal(2, (await workspace.SessionsAsync()).Count);
+    }
+
     // --------------------------------------------------------------- the page
 
     /// <summary>
@@ -908,6 +960,36 @@ public sealed class GlassRepairEstimateCallbackWebTests
         /// through the real store so the callback resolves it exactly as it
         /// resolves one this browser launched.
         /// </summary>
+        /// <summary>
+        /// This Engineer's own live session on some other Case, as the reader
+        /// finds it: the account is theirs and the session holds it.
+        /// </summary>
+        public async Task<Guid> SeedOwnSessionElsewhereAsync()
+        {
+            var otherCaseId = await SeedCaseAsync(factory.Services, "GLAS31002");
+            await using var scope = factory.Services.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<IGlassRepairEstimateSessionStore>().CreateAsync(
+                new GlassRepairEstimateSessionMaterial(
+                    new GlassRepairEstimateSession(
+                        Guid.NewGuid(),
+                        otherCaseId,
+                        DevelopmentOfflineIdentity.AdministratorId,
+                        CredentialGeneration: 1,
+                        OtherAccountKey,
+                        GlassRepairEstimateSessionState.Active,
+                        Version: 0,
+                        OperationKey: Guid.NewGuid().ToString("N"),
+                        FixedUtcNow,
+                        FixedUtcNow.AddHours(8),
+                        ProviderVehicleId: null,
+                        ProviderEstimateId: null,
+                        FailureCode: null),
+                    protectedProviderState: "protected:fixture:not-a-secret",
+                    GlassRepairEstimateGateway.CallbackDigestOf(NewCorrelation())),
+                CancellationToken.None);
+            return otherCaseId;
+        }
+
         public async Task<string> SeedAnotherEngineersSessionAsync()
         {
             var correlation = NewCorrelation();
@@ -994,7 +1076,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         /// yet Complete, with the vehicle facts a Glass's launch is made of and
         /// a custody root so a retained document confirms rather than waits.
         /// </summary>
-        private static async Task<Guid> SeedCaseAsync(IServiceProvider services)
+        private static async Task<Guid> SeedCaseAsync(IServiceProvider services, string reference = "GLAS31001")
         {
             await using var scope = services.CreateAsyncScope();
             await using var context = await scope.ServiceProvider
@@ -1005,11 +1087,10 @@ public sealed class GlassRepairEstimateCallbackWebTests
             var principalId = Guid.NewGuid();
             var receiptId = Guid.NewGuid();
             var caseId = Guid.NewGuid();
-            const string reference = "GLAS31001";
             var actor = DevelopmentOfflineIdentity.AdministratorId.ToString("D");
 
             context.AddRange(
-                new OrganizationEntity { Id = organizationId, Name = "Glass's web test", Version = 0 },
+                new OrganizationEntity { Id = organizationId, Name = $"Glass's web test {reference}", Version = 0 },
                 new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = FixedUtcNow },
                 new PrincipalEntity
                 {

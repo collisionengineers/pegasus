@@ -358,6 +358,39 @@ public sealed class EfGlassRepairEstimateSessionStore(
             entity.CallbackDigest,
             entity.ResultArtifactsJson);
 
+    /// <summary>
+    /// The session holding the account, read off the same column the unique
+    /// index guards. A launch asks this first so an ordinary refusal is a
+    /// read, and the index decides only a genuine race.
+    /// </summary>
+    public async Task<GlassRepairEstimateSession?> FindLiveForAccountAsync(
+        string normalizedExternalAccountKey, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(normalizedExternalAccountKey);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Set<GlassRepairEstimateSessionEntity>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.ActiveAccountKey == normalizedExternalAccountKey, cancellationToken);
+        return entity is null ? null : ToSession(entity);
+    }
+
+    /// <summary>
+    /// The Engineer's session that holds an account now, wherever it was
+    /// launched, so every Case they open can say where it is.
+    /// </summary>
+    public async Task<GlassRepairEstimateSession?> GetLiveForUserAsync(
+        Guid pegasusUserId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Set<GlassRepairEstimateSessionEntity>()
+            .AsNoTracking()
+            .Where(item => item.UserId == pegasusUserId && item.ActiveAccountKey != null)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+        return entity is null ? null : ToSession(entity);
+    }
+
     private static GlassRepairEstimateSession ToSession(GlassRepairEstimateSessionEntity entity) =>
         new(
             entity.Id,

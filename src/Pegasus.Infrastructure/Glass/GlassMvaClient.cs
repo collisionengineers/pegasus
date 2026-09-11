@@ -410,8 +410,12 @@ internal sealed partial class GlassMvaClient(
     /// the answer must name this estimate and report success.
     /// </summary>
     public async Task RelayCallbackAsync(
-        Uri originalCallback, string ereId, string rawQuery, CancellationToken cancellationToken)
+        Uri originalCallback,
+        IReadOnlyCollection<string> estimateIds,
+        string rawQuery,
+        CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(estimateIds);
         if (!options.IsMarketValueAssessor(originalCallback))
         {
             throw new GlassMvaStageException(GlassFailure.RelayRequest);
@@ -430,9 +434,13 @@ internal sealed partial class GlassMvaClient(
         {
             throw new GlassMvaStageException(GlassFailure.RelayShape);
         }
-        if (!string.Equals(arguments[7], ereId, StringComparison.Ordinal))
+        if (!estimateIds.Contains(arguments[7], StringComparer.Ordinal))
         {
-            throw new GlassMvaStageException(GlassFailure.RelayEstimate);
+            // The relayed id is a provider number; anything else is not repeated.
+            var relayed = arguments[7].All(char.IsAsciiDigit) ? arguments[7] : "non-numeric";
+            throw new GlassMvaStageException(
+                GlassFailure.RelayEstimate,
+                detail: $"expected_ids={estimateIds.Count} relayed={relayed}");
         }
         if (arguments[8] != "1")
         {

@@ -404,6 +404,7 @@ public static class CaseWorkspaceLabels
         public const string CloseRefused = "The Glass's session was not closed.";
         public const string State = "State";
         public const string Failure = "Failure";
+        public const string OpenOn = "Open on";
 
         /// <summary>The outcomes a launch, a return or a resume reports.</summary>
         public const string Imported = "The Glass's estimate was recorded as a draft.";
