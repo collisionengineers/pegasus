@@ -1,4 +1,4 @@
-﻿@page
+@page
 @using Pegasus.Core.AiWork
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Administration.Automation.IndexModel
@@ -79,12 +79,21 @@
                             <dd class="tabular">@Model.JobCounts.Failed</dd>
                         </dl>
                     </div>
-                    <div class="button-row section-gap">
-                        <button type="button" class="btn btn--danger" data-dialog-open="automation-kill-switch-dialog">
+                    @* The switch posts on its click. Stopping is the
+                       destructive half, so only that direction carries the
+                       danger styling and its consequence sentence. *@
+                    <form method="post" asp-page-handler="SetEnabled" class="button-row section-gap">
+                        <input type="hidden" name="TargetEnabled" value="@((!registration.IsEnabled).ToString())" />
+                        <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
+                        @if (registration.IsEnabled)
+                        {
+                            <p class="muted">@OperatorLabels.AutomationAdmin.StopConsequence</p>
+                        }
+                        <button type="submit" class="btn @(registration.IsEnabled ? "btn--danger" : "btn--primary")">
                             <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
                             <span>@killSwitchLabel</span>
                         </button>
-                    </div>
+                    </form>
                 </div>
             </section>
         }
@@ -153,10 +162,6 @@
                             <input asp-for="SendToAiEnabled" type="checkbox" />
                             <span>@OperatorLabels.AutomationAdmin.SendToAiEnabled</span>
                         </label>
-                        <div class="field">
-                            <label class="req" for="ai-settings-reason">@OperatorLabels.AutomationAdmin.Reason</label>
-                            <input id="ai-settings-reason" name="Reason" required maxlength="1000" />
-                        </div>
                         <div class="button-row">
                             <button type="submit" class="btn btn--primary">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
@@ -164,7 +169,7 @@
                             </button>
                             @if (connector.TokenHeld)
                             {
-                                <button type="button" class="btn btn--danger" data-dialog-open="ai-remove-token-dialog">
+                                <button type="submit" formaction="?handler=ClearChannelToken" formnovalidate class="btn btn--danger">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
                                     <span>@OperatorLabels.AutomationAdmin.RemoveChannelToken</span>
                                 </button>
@@ -185,37 +190,3 @@
         }
     </div>
 </div>
-
-@* The one allowed consequence sentence belongs to the destructive half of the
-   switch; starting automation destroys nothing, so it carries none. *@
-@if (registration is not null)
-{
-    <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
-    {
-        ["DialogId"] = "automation-kill-switch-dialog",
-        ["DialogTitle"] = killSwitchLabel,
-        ["DialogConsequence"] = registration.IsEnabled
-            ? OperatorLabels.AutomationAdmin.StopConsequence
-            : null,
-        ["DialogActionUrl"] = Url.Page("/Administration/Automation/Index", "SetEnabled"),
-        ["DialogHiddenFields"] = new Dictionary<string, string?>
-        {
-            ["TargetEnabled"] = (!registration.IsEnabled).ToString(),
-            ["OperationKey"] = Model.OperationKey
-        }
-    })" />
-}
-
-@if (connector is { TokenHeld: true })
-{
-    <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
-    {
-        ["DialogId"] = "ai-remove-token-dialog",
-        ["DialogTitle"] = OperatorLabels.AutomationAdmin.RemoveChannelToken,
-        ["DialogActionUrl"] = Url.Page("/Administration/Automation/Index", "ClearChannelToken"),
-        ["DialogHiddenFields"] = new Dictionary<string, string?>
-        {
-            ["OperationKey"] = Model.OperationKey
-        }
-    })" />
-}

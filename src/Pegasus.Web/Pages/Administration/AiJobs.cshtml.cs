@@ -31,21 +31,21 @@ public sealed class AiJobsModel(
     public async Task<IActionResult> OnPostStopAsync(
         Guid jobId,
         long expectedVersion,
-        string reason,
+        string? reason,
         string operationKey,
         int pageNumber,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
         var returnPage = Math.Max(pageNumber, 1);
-        if (jobId == Guid.Empty || !IsOperationKeyValid(operationKey) || string.IsNullOrWhiteSpace(reason))
+        if (jobId == Guid.Empty || !IsOperationKeyValid(operationKey))
         {
             StatusMessage = "The AI job could not be stopped.";
             return RedirectToPage(new { pageNumber = returnPage });
         }
         try
         {
-            await cancelJob.ExecuteAsync(new(jobId, expectedVersion, actor, operationKey, reason.Trim()), cancellationToken);
+            await cancelJob.ExecuteAsync(new(jobId, expectedVersion, actor, operationKey, reason?.Trim()), cancellationToken);
             StatusMessage = "The AI job was stopped.";
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)

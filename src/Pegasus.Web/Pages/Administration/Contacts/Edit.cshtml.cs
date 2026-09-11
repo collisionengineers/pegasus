@@ -67,7 +67,7 @@ public sealed class EditModel(
     [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumReasonLength)] public string? CredentialReason { get; set; }
     [BindProperty] public long ReplacementExpectedVersion { get; set; }
     [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumPrincipalCodeLength)] public string SuccessorCode { get; set; } = string.Empty;
-    [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumReasonLength)] public string ReplacementReason { get; set; } = string.Empty;
+    [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumReasonLength)] public string? ReplacementReason { get; set; }
     [BindProperty] public string ReplacementOperationKey { get; set; } = NewOperationKey();
     public bool IsEditing => !string.IsNullOrWhiteSpace(LeaseToken);
 
@@ -353,7 +353,6 @@ public sealed class EditModel(
         if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
         if (!IsOperationKeyValid(ReplacementOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
         if (string.IsNullOrWhiteSpace(SuccessorCode)) ModelState.AddModelError(nameof(SuccessorCode), "A new principal code is required.");
-        if (string.IsNullOrWhiteSpace(ReplacementReason)) ModelState.AddModelError(nameof(ReplacementReason), "A reason is required.");
         if (ModelState.IsValid)
         {
             try
@@ -389,12 +388,11 @@ public sealed class EditModel(
         var submittedVersion = CredentialVersion;
         if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
         if (!IsOperationKeyValid(CredentialOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
-        if (string.IsNullOrWhiteSpace(CredentialReason)) ModelState.AddModelError(nameof(CredentialReason), "A reason is required.");
         if (ModelState.IsValid)
         {
             try
             {
-                var request = new PrincipalCredentialCommandRequest(Principal!.Id, submittedVersion, actor, CredentialOperationKey!, CredentialReason!,
+                var request = new PrincipalCredentialCommandRequest(Principal!.Id, submittedVersion, actor, CredentialOperationKey!, CredentialReason,
                     ExpectedVersion, LeaseToken);
                 if (action == "issue")
                 {

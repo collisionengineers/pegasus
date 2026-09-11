@@ -162,7 +162,7 @@ public static class AiJobPolicy
                 when transition.Actor.Kind != ActorKind.Staff:
                 throw new InvalidOperationException(
                     "Cancelling or confirming an AI job is a staff action.");
-            case AiJobState.Cancelled or AiJobState.Failed
+            case AiJobState.Failed
                 when string.IsNullOrWhiteSpace(transition.Reason):
                 throw new ArgumentException(
                     $"Marking an AI job {transition.TargetState} requires a reason.",

@@ -19,7 +19,6 @@ public sealed class IndexModel(
     IForceStaffLogout forceStaffLogout,
     IResetStaffPassword resetStaffPassword,
     IDeleteStaffAccount deleteStaffAccount,
-    IClearCaseEditLease clearCaseEditLease,
     IEditScopeLeases editScopes) : AdministrationPageModel
 {
     public IReadOnlyList<StaffAccountRow> Rows { get; private set; } = [];
@@ -34,7 +33,6 @@ public sealed class IndexModel(
     public string SettingsPostPrintedName { get; private set; } = string.Empty;
     public string SettingsPostQualifications { get; private set; } = string.Empty;
     public bool SettingsPostIsDefault { get; private set; }
-    public string SettingsPostReason { get; private set; } = string.Empty;
     public long SettingsPostVersion { get; private set; }
     public string SettingsLeaseToken { get; private set; } = string.Empty;
     public string? ResetTemporaryPassword { get; private set; }
@@ -233,12 +231,11 @@ public sealed class IndexModel(
         SettingsPostPrintedName = printedName ?? string.Empty;
         SettingsPostQualifications = qualifications ?? string.Empty;
         SettingsPostIsDefault = isDefaultSignOffEngineer;
-        SettingsPostReason = reason ?? string.Empty;
         SettingsPostVersion = expectedVersion;
         SettingsLeaseToken = editLeaseToken ?? string.Empty;
         return RunAsync(async actor =>
         {
-            if (!RequireStaffId(staffId) || !ValidateReasoned(operationKey, reason))
+            if (!RequireStaffId(staffId) || !ValidateOperationKey(operationKey))
             {
                 return null;
             }
@@ -342,7 +339,7 @@ public sealed class IndexModel(
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        if (!ValidateReasoned(operationKey, reason) | !RequireStaffId(staffId))
+        if (!ValidateOperationKey(operationKey) | !RequireStaffId(staffId))
         {
             await LoadAsync(actor, cancellationToken);
             return Page();
@@ -350,7 +347,7 @@ public sealed class IndexModel(
         try
         {
             ResetTemporaryPassword = (await resetStaffPassword.ExecuteAsync(
-                new(actor, staffId, reason!, operationKey!, expectedVersion, editLeaseToken ?? string.Empty), cancellationToken)).TemporaryPassword;
+                new(actor, staffId, reason, operationKey!, expectedVersion, editLeaseToken ?? string.Empty), cancellationToken)).TemporaryPassword;
             Response.Headers.CacheControl = "no-store, no-cache";
             Response.Headers.Pragma = "no-cache";
         }
@@ -368,14 +365,6 @@ public sealed class IndexModel(
         (actor, validReason, validKey) => deleteStaffAccount.ExecuteAsync(new(actor, staffId, validReason, validKey, expectedVersion, editLeaseToken ?? string.Empty), cancellationToken),
         "The account was deleted.", cancellationToken);
 
-    public Task<IActionResult> OnPostClearLeaseAsync(Guid staffId, Guid caseId, long expectedLeaseGeneration,
-        string? reason, string? operationKey, CancellationToken cancellationToken) => RunAdministrativeActionAsync(
-        staffId, reason, operationKey,
-        (actor, validReason, validKey) => clearCaseEditLease.ExecuteAsync(
-            new(caseId, staffId, expectedLeaseGeneration, actor, validKey, validReason), cancellationToken),
-        "The case edit hold was cleared.", cancellationToken,
-        requireCaseId: caseId != Guid.Empty && expectedLeaseGeneration >= 0);
-
     private async Task<byte[]?> ReadSignatureAsync(IFormFile? signature, CancellationToken cancellationToken)
     {
         if (signature is null) return null;
@@ -391,11 +380,10 @@ public sealed class IndexModel(
     }
 
     private Task<IActionResult> RunAdministrativeActionAsync(Guid staffId, string? reason, string? operationKey,
-        Func<ActionActor, string, string, Task> action, string confirmation, CancellationToken cancellationToken,
-        bool requireCaseId = true) => RunAsync(async actor =>
+        Func<ActionActor, string?, string, Task> action, string confirmation, CancellationToken cancellationToken) => RunAsync(async actor =>
     {
-        if (!ValidateReasoned(operationKey, reason) | !RequireStaffId(staffId) || !requireCaseId) return null;
-        await action(actor, reason!, operationKey!);
+        if (!ValidateOperationKey(operationKey) | !RequireStaffId(staffId)) return null;
+        await action(actor, reason, operationKey!);
         return confirmation;
     }, cancellationToken);
 
@@ -404,7 +392,6 @@ public sealed class IndexModel(
         if (!TryGetActor(out var actor)) return Forbid();
         string? confirmation = null;
         try { confirmation = await operation(actor); }
-        catch (CaseEditLeaseConflictException) { ModelState.AddModelError(string.Empty, "The case edit hold changed. Reload the account before trying again."); }
         catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, HeldByAnother); }
         catch (EditScopeExpiredException) { ModelState.AddModelError(string.Empty, "Your account edit session expired. Reopen account settings and try again."); }
         catch (EditScopeVersionConflictException) { ModelState.AddModelError(string.Empty, "The account changed. Reload and try again."); }
@@ -418,18 +405,6 @@ public sealed class IndexModel(
         CreateOperationKey = NewOperationKey();
         await LoadAsync(actor, cancellationToken);
         return Page();
-    }
-
-    private bool ValidateReasoned(string? operationKey, string? reason)
-    {
-        var valid = ValidateOperationKey(operationKey);
-        if (!Require(reason, "Enter a reason.")) valid = false;
-        else if (reason!.Trim().Length > StaffAccountAdministrationPolicy.MaximumReasonLength)
-        {
-            ModelState.AddModelError(string.Empty, $"A reason is at most {StaffAccountAdministrationPolicy.MaximumReasonLength} characters.");
-            valid = false;
-        }
-        return valid;
     }
 
     private bool ValidateOperationKey(string? operationKey)

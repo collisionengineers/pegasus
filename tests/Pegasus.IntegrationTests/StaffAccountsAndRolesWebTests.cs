@@ -46,7 +46,7 @@ public sealed class StaffAccountsAndRolesWebTests
     }
 
     [Fact]
-    public async Task SettingsSaveRequiresAndRecordsAConsequentialReason()
+    public async Task SettingsSavePostsDirectlyAndRecordsHistoryWithoutAReason()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -61,7 +61,6 @@ public sealed class StaffAccountsAndRolesWebTests
             AreaRoute + "?editStaffId=" + administrator.Id + "&expectedVersion=" + administrator.Version);
         var editHtml = await editResponse.Content.ReadAsStringAsync();
 
-        const string reason = "Confirming settings after quarterly access review";
         var fields = new Dictionary<string, string>
         {
             ["staffId"] = administrator.Id.ToString("D"),
@@ -79,13 +78,8 @@ public sealed class StaffAccountsAndRolesWebTests
             fields["isDefaultSignOffEngineer"] = "true";
         }
 
-        // Without a reason the save is refused and nothing is persisted.
-        using var missingReason = await client.PostAsync(
-            AreaRoute + "?handler=Settings", new FormUrlEncodedContent(fields));
-        Assert.Equal(HttpStatusCode.OK, missingReason.StatusCode);
-        Assert.Contains("Enter a reason.", await missingReason.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-
-        fields["reason"] = reason;
+        // Save posts on the click: no confirmation step and no reason field.
+        Assert.DoesNotContain("name=\"reason\"", editHtml, StringComparison.Ordinal);
         using var saved = await client.PostAsync(
             AreaRoute + "?handler=Settings", new FormUrlEncodedContent(fields));
         Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
@@ -99,20 +93,15 @@ public sealed class StaffAccountsAndRolesWebTests
             .OrderByDescending(item => item.OccurredAtUtc)
             .FirstOrDefaultAsync();
         Assert.NotNull(recorded);
-        Assert.Equal(reason, recorded!.Reason);
+        Assert.Null(recorded!.Reason);
     }
 
-    // WP2: the settings dialog auto-opens (data-dialog-open-on-load) and the
-    // Disable/Delete/Force logout/Reset password dialogs render as its
-    // siblings, not descendants. site.js's inertOutside() used to mark every
-    // sibling of every ancestor inert, including those sibling dialogs, so
-    // they opened already unusable. This is an HTTP-only harness (no
-    // browser), so the fix is verified at the markup precondition the fixed
-    // site.js relies on: the action dialogs exist, their openers are present,
-    // and the server never bakes `inert` into their markup (only client-side
-    // dialog-stack bookkeeping in site.js may add or remove it at runtime).
+    // The settings dialog auto-opens (data-dialog-open-on-load) and carries
+    // Disable/Delete/Force logout/Reset password as direct row forms: no
+    // confirmation dialog, no reason. Disable posts on the click and its
+    // history row records no reason.
     [Fact]
-    public async Task SettingsAutoOpenRendersSiblingActionDialogsWithoutServerInert()
+    public async Task SettingsDialogPostsAccountActionsDirectly()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -144,20 +133,34 @@ public sealed class StaffAccountsAndRolesWebTests
             html,
             StringComparison.Ordinal);
 
-        foreach (var actionId in new[] { "disable", "delete", "logout", "password" })
+        foreach (var handler in new[] { "Disable", "Delete", "ForceLogout", "ResetPassword" })
         {
-            var dialogTag = Regex.Match(
-                html,
-                "<div class=\"dialog-backdrop\" data-dialog=\"" +
-                    Regex.Escape(settingsId + "-" + actionId) + "\"[^>]*>");
-            Assert.True(dialogTag.Success, "Missing action dialog " + actionId);
-            Assert.DoesNotContain("inert", dialogTag.Value, StringComparison.Ordinal);
-
-            Assert.Contains(
-                "data-dialog-open=\"" + settingsId + "-" + actionId + "\"",
-                html,
-                StringComparison.Ordinal);
+            Assert.Contains("?handler=" + handler + "\"", html, StringComparison.Ordinal);
         }
+        Assert.DoesNotContain("data-dialog=\"" + settingsId + "-", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"reason\"", html, StringComparison.Ordinal);
+
+        using var disabled = await client.PostAsync(
+            AreaRoute + "?handler=Disable",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["staffId"] = staffId,
+                ["expectedVersion"] = Field(html, "expectedVersion"),
+                ["editLeaseToken"] = Field(html, "editLeaseToken"),
+                ["operationKey"] = Field(html, "operationKey"),
+                ["__RequestVerificationToken"] = Field(html, "__RequestVerificationToken")
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, disabled.StatusCode);
+
+        await using var context = await scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var recorded = await context.ActionHistory
+            .Where(item => item.AggregateId == staffId && item.EventKind == "staff_account_disabled")
+            .OrderByDescending(item => item.OccurredAtUtc)
+            .FirstOrDefaultAsync();
+        Assert.NotNull(recorded);
+        Assert.Null(recorded!.Reason);
     }
 
     private static string Field(string html, string name)
