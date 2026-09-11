@@ -16,8 +16,6 @@ internal sealed class EfVehicleLookupWorkStore(
     : IVehicleLookupWorkStore
 {
     private const int MotJsonVersion = 1;
-    private const string GapFillPolicyKey = "vehicle-lookup-gap-fill";
-    private const int GapFillPolicyVersion = 1;
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
 
     public async Task<VehicleLookupWorkItem?> ClaimProcessingAsync(
@@ -201,13 +199,25 @@ internal sealed class EfVehicleLookupWorkStore(
             RecordedAtUtc = recordedAtUtc
         });
 
-        await AddLookupSuggestionsAsync(
+        var filled = await FillEmptyVehicleFieldsAsync(
             context,
             workflow.CaseId,
             observationId,
             result,
             outcome.Mileage,
             cancellationToken);
+        if (filled > 0)
+        {
+            // A filled field is a frozen report input, so the Case's current
+            // generation goes stale in this same transaction: the fill and the
+            // staleness it causes commit together or not at all.
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context,
+                workflow.CaseId,
+                "vehicle_lookup_filled",
+                recordedAtUtc,
+                cancellationToken);
+        }
 
         work.State = state switch
         {
@@ -284,16 +294,18 @@ internal sealed class EfVehicleLookupWorkStore(
     /// <summary>
     /// ENG-013: the lookup is enrichment, so what it learns fills the case's
     /// own empty vehicle fields instead of sitting beside them as a rival
-    /// reading. Values land as suggestions, which
-    /// <see cref="Pegasus.Core.Cases.CaseField{T}.Current"/> already ranks
-    /// below an extracted fact and a staff-confirmed value — so a case that
-    /// already knows something keeps knowing it, and a case that does not
-    /// stops saying "Not recorded" when we do.
+    /// reading. A filled value is the case's working value from the moment it
+    /// lands, carrying Lookup provenance so the report can still say where the
+    /// figure came from. It never overwrites an extracted fact or a staff
+    /// value: <see cref="Pegasus.Core.Vehicle.VehicleLookupFillPolicy.Fills"/>
+    /// is the one rule, and a field the case already answers is left alone.
     ///
     /// Runs inside the caller's transaction, alongside the observation it
     /// came from, so the two can never disagree about what the lookup said.
+    /// Returns how many rows it wrote, because a fill that changed nothing
+    /// must not disturb a frozen report.
     /// </summary>
-    private static async Task AddLookupSuggestionsAsync(
+    private static async Task<int> FillEmptyVehicleFieldsAsync(
         PegasusDbContext context,
         Guid caseId,
         Guid observationId,
@@ -301,17 +313,36 @@ internal sealed class EfVehicleLookupWorkStore(
         VehicleMileageCalculation? mileage,
         CancellationToken cancellationToken)
     {
-        var existing = await context.CaseDataFields
+        var answered = await context.CaseDataFields
             .Where(item => item.CaseId == caseId
-                           && item.ValueKind == CaseDataCodes.Suggestion)
-            .Select(item => item.FieldName)
+                           && (item.ValueKind == CaseDataCodes.Fact
+                               || item.ValueKind == CaseDataCodes.Confirmed))
+            .Select(item => new { item.FieldName, item.ValueKind })
             .ToListAsync(cancellationToken);
+
+        // Suggestion rows are no longer written, but an estate case looked up
+        // before this change can still carry them. Clearing this case's
+        // lookup-sourced suggestions leaves no orphan behind a value that now
+        // outranks it, and re-running a lookup cannot accumulate two.
+        var staleSuggestions = await context.CaseDataFields
+            .Where(item => item.CaseId == caseId
+                           && item.ValueKind == CaseDataCodes.Suggestion
+                           && item.SourceKind == CaseDataCodes.VehicleLookup)
+            .ToListAsync(cancellationToken);
+        context.CaseDataFields.RemoveRange(staleSuggestions);
+
         var sourceIdentity = observationId.ToString("D");
         var sourceLabel = $"{result.Provider}/{result.ProviderVersion}";
 
-        void Suggest(string fieldName, string valueType, string? value, string policyKey, int policyVersion)
+        var filled = 0;
+        void Fill(string fieldName, string valueType, string? value, string policyKey, int policyVersion)
         {
-            if (string.IsNullOrWhiteSpace(value) || existing.Contains(fieldName))
+            var hasFact = answered.Any(item =>
+                item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Fact);
+            var hasConfirmed = answered.Any(item =>
+                item.FieldName == fieldName && item.ValueKind == CaseDataCodes.Confirmed);
+            if (string.IsNullOrWhiteSpace(value)
+                || !VehicleLookupFillPolicy.Fills(hasFact, hasConfirmed))
             {
                 return;
             }
@@ -320,7 +351,7 @@ internal sealed class EfVehicleLookupWorkStore(
             {
                 CaseId = caseId,
                 FieldName = fieldName,
-                ValueKind = CaseDataCodes.Suggestion,
+                ValueKind = CaseDataCodes.Fact,
                 ValueType = valueType,
                 Value = value,
                 SourceKind = CaseDataCodes.VehicleLookup,
@@ -329,38 +360,47 @@ internal sealed class EfVehicleLookupWorkStore(
                 PolicyKey = policyKey,
                 PolicyVersion = policyVersion
             });
+            filled++;
         }
 
-        Suggest(
+        Fill(
             CaseDataFieldNames.VehicleMake,
             CaseDataCodes.Text,
             result.Vehicle?.Make,
-            GapFillPolicyKey,
-            GapFillPolicyVersion);
-        Suggest(
+            VehicleLookupFillPolicy.PolicyKey,
+            VehicleLookupFillPolicy.PolicyVersion);
+        Fill(
             CaseDataFieldNames.VehicleModel,
             CaseDataCodes.Text,
             result.Vehicle?.Model,
-            GapFillPolicyKey,
-            GapFillPolicyVersion);
+            VehicleLookupFillPolicy.PolicyKey,
+            VehicleLookupFillPolicy.PolicyVersion);
+        Fill(
+            CaseDataFieldNames.VehicleYear,
+            CaseDataCodes.Text,
+            result.Vehicle?.ManufactureYear?.ToString(CultureInfo.InvariantCulture),
+            VehicleLookupFillPolicy.PolicyKey,
+            VehicleLookupFillPolicy.PolicyVersion);
         if (mileage is { } derived)
         {
             // The mileage carries the calculation's own key and version, not
             // this rule's, because that is what classifies it as a derived
             // estimate everywhere it is later shown (ENG-010).
-            Suggest(
+            Fill(
                 CaseDataFieldNames.VehicleMileage,
                 CaseDataCodes.Integer,
                 derived.Value.ToString(CultureInfo.InvariantCulture),
                 VehicleMileagePolicy.MethodKey,
                 derived.MethodVersion);
-            Suggest(
+            Fill(
                 CaseDataFieldNames.VehicleMileageUnit,
                 CaseDataCodes.Text,
                 derived.Unit.ToString(),
                 VehicleMileagePolicy.MethodKey,
                 derived.MethodVersion);
         }
+
+        return filled;
     }
 
     internal static VehicleLookupObservation MapObservation(VehicleLookupObservationEntity entity)

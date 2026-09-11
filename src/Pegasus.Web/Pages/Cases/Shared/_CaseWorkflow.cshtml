@@ -151,7 +151,10 @@
                        from the Case contact (CASE-027). *@
                     <input type="hidden" name="claimantContactNumber" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Claimant.ContactNumber)?.Value)" />
                     <input type="hidden" name="claimantAddress" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Claimant.Address)?.Value)" />
-                    <input type="hidden" name="vehicleMileage" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Vehicle.Mileage)?.Value)" />
+                    @* `vehicleMileage` is not hidden here: the Vehicle section
+                       renders the one visible control for it, so the figure has
+                       a single writer and a save cannot overwrite an unsaved
+                       mileage with the stored one. The unit has no editor. *@
                     <input type="hidden" name="vehicleMileageUnit" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Vehicle.MileageUnit)?.Value)" />
                     <input type="hidden" name="incidentDate" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Accident.IncidentDate)?.Value.ToString("yyyy-MM-dd"))" />
                     <input type="hidden" name="contactName" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Contact.Name)?.Value)" />

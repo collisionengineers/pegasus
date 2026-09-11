@@ -126,6 +126,14 @@ public sealed partial class CaseDetailsWebTests
             Assert.Matches($"<(input|textarea|select)[^>]*name=\"{Regex.Escape(name)}\"[^>]*form=\"case-edit-form\"", html);
         }
         Assert.Single(Regex.Matches(html, "id=\"case-edit-form\""));
+        // The history check is the Vehicle section's own labelled area rather
+        // than a row among the vehicle's facts, in edit mode as in read mode.
+        Assert.Contains("class=\"field vehicle-history\"", html, StringComparison.Ordinal);
+        Assert.Contains("<h3 id=\"case-vehicle-history-title\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "aria-labelledby=\"case-vehicle-history-title\"",
+            html,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("Saving returns the case to Not ready", html, StringComparison.Ordinal);
         Assert.True(store.MetadataReads > 0);
 
@@ -497,7 +505,7 @@ public sealed partial class CaseDetailsWebTests
             CaseId, "QDOS3100042", CaseVersion, State, null,
             [new(AssessmentVocabulary.ReportDate, "2031-05-06", ActorKind.Staff,
                 "recorded-engineer", _now, "recorded-engineer", _now)],
-            [], new("AB12CDE", null, null, null, null, null, null, null, null));
+            [], new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
 
         Task<AssessmentAccessState?> IGetAssessmentAccess.ExecuteAsync(
             GetAssessmentAccessQuery query, CancellationToken cancellationToken) =>

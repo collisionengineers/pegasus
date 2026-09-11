@@ -7,8 +7,8 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The Vehicle page — lookups and suggestion decisions — and the Case
-/// workspace's Vehicle section that calls them (EPIC-011 §1.8).
+/// The Vehicle page — the DVLA and MOT lookup — and the Case workspace's
+/// Vehicle section that calls it (EPIC-011 §1.8).
 ///
 /// ENG-016 removed the EVA half of this file with the act it covered: the
 /// GenerateEvaHandoff handler and the Eva/Download page are gone, and the
@@ -33,7 +33,7 @@ public sealed partial class CaseDetailsWebTests
         var circumstances = data.Accident.Circumstances.Confirmed
             ?? throw new InvalidOperationException("The vehicle fixture has no confirmed circumstances.");
 
-        CaseField<string> Values(CaseDataValue<string> source, string fact, string suggestion, string? confirmed = null) =>
+        CaseField<string> Values(CaseDataValue<string> source, string fact, string? confirmed = null) =>
             new(
                 source with
                 {
@@ -42,35 +42,20 @@ public sealed partial class CaseDetailsWebTests
                     ConfirmedByActor = null,
                     ConfirmedAtUtc = null
                 },
-                source with
-                {
-                    Value = suggestion,
-                    Kind = CaseDataValueKind.Suggestion,
-                    ConfirmedByActor = null,
-                    ConfirmedAtUtc = null
-                },
+                null,
                 confirmed is null ? null : source with { Value = confirmed });
 
         store.DataOverride = data with
         {
             Vehicle = data.Vehicle with
             {
-                Registration = new(
-                    null,
-                    registration with
-                    {
-                        Value = "Suggested registration",
-                        Kind = CaseDataValueKind.Suggestion,
-                        ConfirmedByActor = null,
-                        ConfirmedAtUtc = null
-                    },
-                    null),
-                Make = Values(make, "Fact make", "Suggested make", "Confirmed make"),
-                Model = Values(model, "Fact model", "Suggested model")
+                Registration = new(null, null, registration),
+                Make = Values(make, "Fact make", "Confirmed make"),
+                Model = Values(model, "Fact model")
             },
             Accident = data.Accident with
             {
-                Circumstances = Values(circumstances, "Fact circumstances", "Suggested circumstances")
+                Circumstances = Values(circumstances, "Fact circumstances")
             }
         };
         using var workspace = await EnterEditModeAsync(store, _ => { });
@@ -84,10 +69,6 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("Confirmed make Fact model", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("AB12CDE", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Fact make", overview, StringComparison.Ordinal);
-        Assert.DoesNotContain("Suggested registration", overview, StringComparison.Ordinal);
-        Assert.DoesNotContain("Suggested make", overview, StringComparison.Ordinal);
-        Assert.DoesNotContain("Suggested model", overview, StringComparison.Ordinal);
-        Assert.DoesNotContain("Suggested circumstances", overview, StringComparison.Ordinal);
         // WP6: while the lease is held the vehicle's identity is edited where
         // it is read, still through the record's one Save form.
         Assert.Contains(
@@ -100,8 +81,14 @@ public sealed partial class CaseDetailsWebTests
             StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The combined description an instruction states instead of a make and a
+    /// model stays on the record as its own source field, but the section no
+    /// longer draws a row for it: the operator acts on Make and Model, and the
+    /// description is neither of them.
+    /// </summary>
     [Fact]
-    public async Task VehicleSectionRendersTheSourceDescriptionWithExtractedProvenance()
+    public async Task TheSourceDescriptionStaysOnTheRecordAndLeavesTheVehicleSection()
     {
         var store = new RecordingCaseDetailsStore();
         var data = await store.GetAsync(store.CaseId, CancellationToken.None)
@@ -132,40 +119,26 @@ public sealed partial class CaseDetailsWebTests
             workspace.Client,
             $"/Cases/{store.CaseId:D}?section=vehicle");
 
-        Assert.Contains(
-            "<dt>Source vehicle description</dt><dd>SEAT LEON SPORT TDI 105",
-            html,
-            StringComparison.Ordinal);
-        Assert.Contains("aria-label=\"Extracted\"", html, StringComparison.Ordinal);
+        var held = await store.GetAsync(store.CaseId, CancellationToken.None);
+        Assert.Equal("SEAT LEON SPORT TDI 105", held!.Vehicle.Description.Fact!.Value);
+
+        Assert.DoesNotContain("Source vehicle description", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("SEAT LEON SPORT TDI 105", html, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"vehicleDescription\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("<dt>Make</dt><dd>SEAT", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("<dt>Model</dt><dd>LEON", html, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task VehiclePageBindsLookupAndOneFieldSuggestionAcceptance()
+    public async Task VehiclePageBindsTheLookupRequest()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
-        {
-            Substitute<IRequestVehicleLookup>(services, store);
-            Substitute<IAcceptVehicleSuggestion>(services, store);
-        });
-        var observationId = Guid.NewGuid();
+            Substitute<IRequestVehicleLookup>(services, store));
 
         using var requested = await workspace.PostAsync(
             "Vehicle?handler=RequestVehicleLookup",
             workspace.MutationForm("request-lookup", "Registration on the instruction", ("registration", "AB12 CDE")));
-        using var accepted = await workspace.PostAsync(
-            "Vehicle?handler=AcceptVehicleSuggestion",
-            workspace.MutationForm(
-                "accept-suggestion",
-                "Matches the photographs",
-                ("lookupObservationId", observationId.ToString("D")),
-                ("field", "Make")));
 
         AssertPrg(requested, store.CaseId);
-        AssertPrg(accepted, store.CaseId);
 
         var lookup = Assert.Single(store.LookupRequests);
         AssertClaimant(workspace, lookup.Actor);
@@ -173,17 +146,6 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(store.LeaseToken, lookup.EditLeaseToken);
         Assert.Equal("request-lookup", lookup.OperationKey);
         Assert.Equal("AB12 CDE", lookup.Registration);
-
-        var acceptance = Assert.Single(store.SuggestionDecisions);
-        AssertClaimant(workspace, acceptance.Actor);
-        Assert.Equal(store.CaseVersion, acceptance.ExpectedCaseVersion);
-        Assert.Equal(store.LeaseToken, acceptance.EditLeaseToken);
-        Assert.Equal("accept-suggestion", acceptance.OperationKey);
-        Assert.Equal("Accepted vehicle lookup suggestion.", acceptance.Reason);
-        Assert.Equal(observationId, acceptance.LookupObservationId);
-        Assert.Equal(VehicleSuggestionDecision.Accept, acceptance.Decision);
-        Assert.Null(acceptance.Correction);
-        Assert.Equal(VehicleSuggestionField.Make, acceptance.Field);
 
         await AssertRefusalKeepsEditModeAsync(
             workspace,
@@ -220,43 +182,163 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// The suggestion decisions are the only surface for
-    /// <see cref="IAcceptVehicleSuggestion"/>, whose forms PR #599 removed. They
-    /// render in edit context only, because Core refuses the command without the
-    /// edit authority, so a read-only visit draws neither them nor the lookup.
+    /// The lookup is the section's one command and Core refuses it without the
+    /// edit authority, so a read-only visit draws no handler at all.
     /// </summary>
     [Fact]
-    public async Task VehicleSuggestionDecisionsRenderOnlyInEditContext()
+    public async Task TheLookupRendersOnlyInEditContext()
     {
-        var store = new RecordingCaseDetailsStore
-        {
-            VehicleLookupEvidence = LookupEvidence(),
-            IncludeVehicleSuggestions = true
-        };
-        using var baseFactory = new IntakeWebApplicationFactory();
-        using var readOnlyFactory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
-        using var readOnlyClient = readOnlyFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
+        var store = new RecordingCaseDetailsStore { VehicleLookupEvidence = LookupEvidence() };
 
-        var readOnly = await GetHtmlAsync(readOnlyClient, $"/Cases/{store.CaseId:D}?section=vehicle");
+        var readOnly = await ReadOnlyVehicleSectionAsync(store);
 
-        Assert.DoesNotContain("handler=AcceptVehicleSuggestion", readOnly, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=RequestVehicleLookup", readOnly, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=AcceptVehicleSuggestion", readOnly, StringComparison.Ordinal);
 
         using var workspace = await EnterEditModeAsync(store, _ => { });
         var editing = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
 
         Assert.Equal(
-            3,
-            CountOccurrences(editing, $"/Cases/{store.CaseId:D}/Vehicle?handler=AcceptVehicleSuggestion"));
-        Assert.Contains("name=\"field\" value=\"Make\"", editing, StringComparison.Ordinal);
-        Assert.Contains("name=\"field\" value=\"Model\"", editing, StringComparison.Ordinal);
-        Assert.Contains("name=\"field\" value=\"Mileage\"", editing, StringComparison.Ordinal);
-        Assert.DoesNotContain("value=\"Correct\"", editing, StringComparison.Ordinal);
+            1,
+            CountOccurrences(editing, $"/Cases/{store.CaseId:D}/Vehicle?handler=RequestVehicleLookup"));
+        Assert.DoesNotContain("handler=AcceptVehicleSuggestion", editing, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// One mileage, stated once, with the provenance its report code is read
+    /// from. The section used to draw the case's figure, the MOT reading and a
+    /// suggested reading as three rows, which left the operator to work out
+    /// which of them the report would print.
+    /// </summary>
+    [Fact]
+    public async Task MileageShowsOneBoxWithItsProvenance()
+    {
+        var store = new RecordingCaseDetailsStore { VehicleLookupEvidence = LookupEvidence() };
+        var data = await store.GetAsync(store.CaseId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
+        store.DataOverride = data with
+        {
+            Vehicle = data.Vehicle with
+            {
+                Mileage = LookedUp(49_089L),
+                MileageUnit = LookedUp("Miles")
+            }
+        };
+
+        var html = await ReadOnlyVehicleSectionAsync(store);
+
+        Assert.Equal(1, CountOccurrences(html, "49,089 Miles"));
+        Assert.Contains("<dt>Mileage</dt><dd>49,089 Miles", html, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Lookup\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("MOT mileage", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Mileage source", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("DVLA suggests", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A lookup fills the fields the case left empty, so the values themselves
+    /// are the lookup's answer and each says so.
+    /// </summary>
+    [Fact]
+    public async Task LookupFilledValuesRenderWithLookupProvenance()
+    {
+        var store = new RecordingCaseDetailsStore { VehicleLookupEvidence = LookupEvidence() };
+        var data = await store.GetAsync(store.CaseId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
+        store.DataOverride = data with
+        {
+            Vehicle = data.Vehicle with
+            {
+                Make = LookedUp("Ford"),
+                Model = LookedUp("Transit"),
+                Year = LookedUp("2018")
+            }
+        };
+
+        var html = await ReadOnlyVehicleSectionAsync(store);
+
+        Assert.Contains("<dt>Make</dt><dd>Ford", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Model</dt><dd>Transit", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Year</dt><dd>2018", html, StringComparison.Ordinal);
+        Assert.True(CountOccurrences(html, "aria-label=\"Lookup\"") >= 3);
+    }
+
+    /// <summary>
+    /// Only staff know who told them a mileage they typed, so the three people
+    /// a case hears one from ride beside the box for as long as the box can be
+    /// typed into — including on a case whose current figure was looked up,
+    /// because the next figure typed over it may be an owner's. A read-only
+    /// case is asked nothing, and a looked-up figure that stands keeps
+    /// answering the question on its own.
+    /// </summary>
+    [Fact]
+    public async Task TheMileageSourceChoiceIsOfferedInEditMode()
+    {
+        var staffStore = new RecordingCaseDetailsStore();
+        using var staffWorkspace = await EnterEditModeAsync(staffStore, _ => { });
+
+        var staffHtml = await GetHtmlAsync(
+            staffWorkspace.Client,
+            $"/Cases/{staffStore.CaseId:D}?section=vehicle");
+
+        Assert.Contains(
+            "id=\"edit-mileage-source\" name=\"vehicleMileageSource\" form=\"case-edit-form\"",
+            staffHtml,
+            StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Mileage source\"", staffHtml, StringComparison.Ordinal);
+        foreach (var code in CaseVehicleMileageSourcePolicy.StaffChoices)
+        {
+            Assert.Contains(
+                $"<option value=\"{code}\"",
+                staffHtml,
+                StringComparison.Ordinal);
+            Assert.Contains(
+                CaseWorkspaceLabels.Vehicle.MileageSource(code),
+                staffHtml,
+                StringComparison.Ordinal);
+        }
+
+        var lookupStore = new RecordingCaseDetailsStore { VehicleLookupEvidence = LookupEvidence() };
+        var data = await lookupStore.GetAsync(lookupStore.CaseId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The vehicle fixture did not return case data.");
+        lookupStore.DataOverride = data with
+        {
+            Vehicle = data.Vehicle with { Mileage = LookedUp(49_089L) }
+        };
+        using var lookupWorkspace = await EnterEditModeAsync(lookupStore, _ => { });
+
+        var lookupHtml = await GetHtmlAsync(
+            lookupWorkspace.Client,
+            $"/Cases/{lookupStore.CaseId:D}?section=vehicle");
+
+        Assert.Contains("name=\"vehicleMileage\"", lookupHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"vehicleMileageSource\"", lookupHtml, StringComparison.Ordinal);
+
+        var readOnlyHtml = await ReadOnlyVehicleSectionAsync(new RecordingCaseDetailsStore());
+
+        Assert.DoesNotContain("name=\"vehicleMileageSource\"", readOnlyHtml, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The history check is prose about the vehicle, not one of its facts, so
+    /// it is titled and read as its own area rather than a row in the grid.
+    /// </summary>
+    [Fact]
+    public async Task VehicleHistoryIsItsOwnLabelledArea()
+    {
+        var store = new RecordingCaseDetailsStore();
+
+        var readOnly = await ReadOnlyVehicleSectionAsync(store);
+
+        Assert.Contains("class=\"field vehicle-history\"", readOnly, StringComparison.Ordinal);
+        Assert.Contains("id=\"case-vehicle-history-title\"", readOnly, StringComparison.Ordinal);
+        Assert.Contains("Vehicle history", readOnly, StringComparison.Ordinal);
+
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+        var editing = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
+
+        Assert.Contains("class=\"field vehicle-history\"", editing, StringComparison.Ordinal);
+        Assert.Contains("id=\"case-vehicle-history-title\"", editing, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -396,34 +478,23 @@ public sealed partial class CaseDetailsWebTests
         }
     }
 
-    /// <summary>The whole <c>.gated</c> element carrying the named condition.</summary>
     /// <summary>
     /// WP8: read mode says what the lookup did. A live Case recorded
     /// <c>not_found</c> for its registration and the section drew nothing at
-    /// all — the suggestion chips are edit-mode only and no failed, not-found
-    /// or throttled outcome rendered anywhere — so the operator concluded no
-    /// lookup had ever run. The outcome line, and the values as plain text,
-    /// are what tell them otherwise; accepting one still needs edit mode.
+    /// all — a failed, not-found or throttled outcome fills no field and
+    /// rendered nowhere — so the operator concluded no lookup had ever run.
+    /// The outcome line is what tells them otherwise.
     /// </summary>
     [Fact]
-    public async Task ReadModeStatesTheLookupOutcomeAndDrawsSuggestionsAsText()
+    public async Task ReadModeStatesTheLookupOutcome()
     {
         var recordedAtUtc = new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero);
         var store = new RecordingCaseDetailsStore
         {
-            VehicleLookupEvidence = NotFoundEvidence(recordedAtUtc),
-            IncludeVehicleSuggestions = true
+            VehicleLookupEvidence = NotFoundEvidence(recordedAtUtc)
         };
-        using var baseFactory = new IntakeWebApplicationFactory();
-        using var readOnlyFactory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
-        using var readOnlyClient = readOnlyFactory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
 
-        var html = await GetHtmlAsync(readOnlyClient, $"/Cases/{store.CaseId:D}?section=vehicle");
+        var html = await ReadOnlyVehicleSectionAsync(store);
 
         Assert.Contains(
             System.Net.WebUtility.HtmlEncode(OperatorLabels.VehicleLookup.OutcomeTitle),
@@ -431,10 +502,6 @@ public sealed partial class CaseDetailsWebTests
             StringComparison.Ordinal);
         Assert.Contains(
             $"Not found for AB12CDE ({OperatorLabels.OfficeTime(recordedAtUtc)})",
-            html,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            OperatorLabels.VehicleLookup.SuggestionTitle,
             html,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
@@ -461,6 +528,37 @@ public sealed partial class CaseDetailsWebTests
             html,
             StringComparison.Ordinal);
     }
+
+    /// <summary>The case's vehicle section as an operator without the lease sees it.</summary>
+    private static async Task<string> ReadOnlyVehicleSectionAsync(RecordingCaseDetailsStore store)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var readOnlyFactory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var readOnlyClient = readOnlyFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        return await GetHtmlAsync(readOnlyClient, $"/Cases/{store.CaseId:D}?section=vehicle");
+    }
+
+    /// <summary>A field the DVLA and MOT lookup filled, as the fill records it.</summary>
+    private static CaseField<T> LookedUp<T>(T value)
+        where T : notnull =>
+        new(
+            new(
+                value,
+                CaseDataValueKind.Fact,
+                new(
+                    CaseDataSourceKind.VehicleLookup,
+                    "latest-observation",
+                    "DVLA lookup",
+                    "vehicle-lookup",
+                    1)),
+            null,
+            null);
 
     /// <summary>One recorded lookup that answered "no such vehicle".</summary>
     private static CaseVehicleEvidence NotFoundEvidence(DateTimeOffset recordedAtUtc)
@@ -586,12 +684,9 @@ public sealed partial class CaseDetailsWebTests
         return new(caseId, null, answered, [answered, refused], []);
     }
 
-    private sealed partial class RecordingCaseDetailsStore :
-        IRequestVehicleLookup,
-        IAcceptVehicleSuggestion
+    private sealed partial class RecordingCaseDetailsStore : IRequestVehicleLookup
     {
         public List<RequestVehicleLookupCommand> LookupRequests { get; } = [];
-        public List<AcceptVehicleSuggestionCommand> SuggestionDecisions { get; } = [];
 
         /// <summary>The case's recorded vehicle lookups, when a test supplies them.</summary>
         public CaseVehicleEvidence? VehicleLookupEvidence { get; init; }
@@ -601,8 +696,6 @@ public sealed partial class CaseDetailsWebTests
         /// the state a case with no registration is actually in.
         /// </summary>
         public bool OmitVehicleValues { get; init; }
-
-        public bool IncludeVehicleSuggestions { get; init; }
 
         Task<RequestedVehicleLookup> IRequestVehicleLookup.ExecuteAsync(
             RequestVehicleLookupCommand command,
@@ -615,23 +708,6 @@ public sealed partial class CaseDetailsWebTests
                 CaseId,
                 command.Registration,
                 VehicleLookupWorkState.Pending,
-                CaseVersion + 1,
-                IsReplay: false));
-        }
-
-        Task<AcceptedVehicleSuggestion> IAcceptVehicleSuggestion.ExecuteAsync(
-            AcceptVehicleSuggestionCommand command,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            SuggestionDecisions.Add(command);
-            return Task.FromResult(new AcceptedVehicleSuggestion(
-                Guid.NewGuid(),
-                CaseId,
-                command.LookupObservationId,
-                command.Decision,
-                command.Correction ?? new("AB12CDE", "Ford", "Transit", 42_000, VehicleMileageUnit.Miles),
-                new("dvla", "1", "response-1", _now, null, null),
                 CaseVersion + 1,
                 IsReplay: false));
         }

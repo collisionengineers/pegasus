@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
@@ -276,6 +277,13 @@ public static class AssessmentPolicy
                     "No confirmed model is recorded.",
                     "Confirm it on the case details."));
             }
+            if (projection.CaseOwned.Year is null)
+            {
+                items.Add(new(
+                    "Vehicle year", "Case record",
+                    "No confirmed year is recorded.",
+                    "Confirm it on the case details."));
+            }
             if (projection.CaseOwned.InstructionDate is null)
             {
                 items.Add(new(
@@ -286,8 +294,6 @@ public static class AssessmentPolicy
         }
 
         RequireField(AssessmentVocabulary.VehicleType, "Vehicle type", "Vehicle");
-        RequireField(AssessmentVocabulary.VehicleYear, "Vehicle year", "Vehicle");
-        RequireField(AssessmentVocabulary.VehicleMileageSource, "Mileage source", "Vehicle");
         RequireField(AssessmentVocabulary.VehicleCondition, "Pre-incident condition", "Vehicle");
         RequireField(AssessmentVocabulary.IncidentAssessed, "Assessed date", "Incident and impact");
         RequireField(AssessmentVocabulary.ImpactSeverity, "Impact severity", "Incident and impact");
@@ -309,20 +315,12 @@ public static class AssessmentPolicy
         // record the same three facts.
         RequireField(AssessmentVocabulary.AgreedFee, "Agreed fee", "Report content");
 
-        if (includeReviewEntryRequirements)
-        {
-            var mileageSourceIsTbc = fields.TryGetValue(
-                    AssessmentVocabulary.VehicleMileageSource,
-                    out var mileageSource)
-                && string.Equals(mileageSource, "tbc", StringComparison.Ordinal);
-            if (!mileageSourceIsTbc && projection.CaseOwned.Mileage is null)
-            {
-                items.Add(new(
-                    "Odometer reading", "Case record",
-                    "No confirmed mileage is recorded and the mileage source is not To be confirmed.",
-                    "Confirm the mileage on the case details, or record the mileage source as To be confirmed."));
-            }
-        }
+        // No odometer readiness item: the report's mileage-source code is
+        // derived from the mileage's own provenance, so a case with no mileage
+        // reads "tbc" by construction and the report says it is to be
+        // confirmed. The former item could only fire when staff recorded a
+        // source for a mileage they had not entered, which is no longer
+        // possible.
 
         if (fields.TryGetValue(AssessmentVocabulary.LegalStatus, out var legalStatus)
             && string.Equals(legalStatus, "unroadworthy", StringComparison.Ordinal)

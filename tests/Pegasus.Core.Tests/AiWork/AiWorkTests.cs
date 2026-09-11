@@ -385,6 +385,7 @@ public sealed class AiWorkTests
                     Empty<string>(),
                     Empty<string>(),
                     Empty<string>(),
+                    Empty<string>(),
                     Empty<long>(),
                     Empty<string>()),
                 new(Empty<DateOnly>(), Empty<string>()),

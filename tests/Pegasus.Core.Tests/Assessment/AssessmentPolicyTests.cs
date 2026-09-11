@@ -501,16 +501,26 @@ public sealed class AssessmentPolicyTests
         var empty = Projection([]);
         var readiness = AssessmentPolicy.EvaluateReadiness(empty);
         Assert.Contains(readiness, item => item.Requirement == "Vehicle type");
-        Assert.Contains(readiness, item => item.Requirement == "Odometer reading");
         Assert.Contains(readiness, item => item.Requirement == "Repairer VAT answer");
 
-        var tbc = Projection(
-        [
-            Field("vehicle.mileage_source", "tbc")
-        ]);
+        // The year is the case record's own fact now, named beside the make
+        // and the model rather than asked for again on the Vehicle section.
+        Assert.Contains(
+            readiness,
+            item => item.Requirement == "Vehicle year" && item.Source == "Case record");
+        Assert.DoesNotContain(readiness, item => item.Requirement == "Mileage source");
+
+        // The report's mileage source is derived from the mileage's own
+        // provenance, so a case with no mileage reads To be confirmed and the
+        // odometer requirement is waived exactly as it was when staff typed it.
+        Assert.DoesNotContain(readiness, item => item.Requirement == "Odometer reading");
+
+        var recorded = Projection(
+            [],
+            new(null, null, null, "2012", 80_000, "miles", "owner", null, null, null, null));
         Assert.DoesNotContain(
-            AssessmentPolicy.EvaluateReadiness(tbc),
-            item => item.Requirement == "Odometer reading");
+            AssessmentPolicy.EvaluateReadiness(recorded),
+            item => item.Requirement is "Odometer reading" or "Vehicle year");
     }
 
     [Fact]
@@ -563,7 +573,8 @@ public sealed class AssessmentPolicyTests
         DateTimeOffset.UtcNow);
 
     private static CaseAssessmentProjection Projection(
-        IReadOnlyList<AssessmentFieldValue> fields) => new(
+        IReadOnlyList<AssessmentFieldValue> fields,
+        AssessmentCaseOwnedData? caseOwned = null) => new(
         Guid.NewGuid(),
         "CE-QDOS-31-00001",
         0,
@@ -571,5 +582,5 @@ public sealed class AssessmentPolicyTests
         null,
         fields,
         [],
-        new(null, null, null, null, null, null, null, null, null));
+        caseOwned ?? new(null, null, null, null, null, null, "tbc", null, null, null, null));
 }

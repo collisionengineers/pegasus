@@ -17,10 +17,8 @@ namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfVehicleWorkflowStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider,
-    IEnumerable<Pegasus.Core.Intake.IProviderCaseMatchPolicy>? caseMatchPolicies = null)
-    : IRequestVehicleLookupStore, IAcceptVehicleSuggestionStore, IVehicleEvidenceQueries,
-        IAutomaticVehicleLookupStore
+    TimeProvider timeProvider)
+    : IRequestVehicleLookupStore, IVehicleEvidenceQueries, IAutomaticVehicleLookupStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly string[] VehicleFieldNames =
@@ -203,253 +201,6 @@ internal sealed class EfVehicleWorkflowStore(
             IsReplay: false);
     }
 
-    public async Task<AcceptedVehicleSuggestion> AcceptAsync(
-        AcceptVehicleSuggestionCommand command,
-        CancellationToken cancellationToken)
-    {
-        for (var attempt = 1; attempt <= 3; attempt++)
-        {
-            try
-            {
-                return await AcceptOnceAsync(command, cancellationToken);
-            }
-            catch (Exception exception)
-                when (attempt < 3 && IsRetryableConcurrencyFailure(exception))
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
-            }
-        }
-
-        throw new UnreachableException();
-    }
-
-    private async Task<AcceptedVehicleSuggestion> AcceptOnceAsync(
-        AcceptVehicleSuggestionCommand command,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        var fingerprint = AcceptanceFingerprint(command);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
-            cancellationToken);
-
-        var replay = await context.Set<VehicleConfirmationEntity>()
-            .AsNoTracking()
-            .Include(item => item.LookupObservation)
-                .ThenInclude(item => item.Request)
-            .SingleOrDefaultAsync(
-                item => item.CaseId == command.CaseId
-                    && item.OperationKey == command.OperationKey,
-                cancellationToken);
-        if (replay is not null)
-        {
-            RequireMatchingFingerprint(
-                command.CaseId,
-                command.OperationKey,
-                replay.RequestFingerprint,
-                fingerprint);
-            return MapAccepted(replay, isReplay: true);
-        }
-
-        if (await OperationKeyExistsAsync(context, command.CaseId, command.OperationKey, cancellationToken))
-        {
-            throw new VehicleOperationConflictException(command.CaseId, command.OperationKey);
-        }
-
-        await ArchivedCaseGuard.RequireMutableAsync(context, command.CaseId, cancellationToken);
-        var workflow = await context.CaseWorkflows
-            .SingleAsync(item => item.CaseId == command.CaseId, cancellationToken);
-        RequireVersion(workflow, command.ExpectedCaseVersion);
-        RequireVehicleDataWritable(workflow);
-        var nowUtc = UtcNow();
-        RequireLease(workflow, command.Actor, command.EditLeaseToken, nowUtc);
-
-        var observationEntity = await context.Set<VehicleLookupObservationEntity>()
-            .Include(item => item.Request)
-            .SingleOrDefaultAsync(item => item.Id == command.LookupObservationId, cancellationToken)
-            ?? throw new KeyNotFoundException(
-                $"Vehicle lookup observation '{command.LookupObservationId}' was not found.");
-        if (observationEntity.Request.CaseId != command.CaseId)
-        {
-            throw new VehicleSuggestionUnavailableException(
-                command.LookupObservationId,
-                ParseOutcome(observationEntity.Outcome));
-        }
-
-        var observation = EfVehicleLookupWorkStore.MapObservation(observationEntity);
-        var sourceIdentity = observation.Id.ToString("D");
-        var selectedNames = SuggestionFieldNames(command.Field);
-        var suggestionFields = await context.CaseDataFields
-            .Where(item => item.CaseId == command.CaseId
-                && item.ValueKind == CaseDataCodes.Suggestion
-                && item.SourceIdentity == sourceIdentity
-                && selectedNames.Contains(item.FieldName))
-            .ToArrayAsync(cancellationToken);
-        var proposedValues = ResolvePendingSuggestion(
-            command.Field,
-            observation,
-            suggestionFields);
-        if (!await context.CaseDataSnapshots
-                .AnyAsync(item => item.CaseId == command.CaseId, cancellationToken))
-        {
-            throw new InvalidOperationException(
-                "The case has no canonical accepted-data snapshot for vehicle confirmation.");
-        }
-
-        var confirmedFields = await context.CaseDataFields
-            .Where(item => item.CaseId == command.CaseId
-                && item.ValueKind == CaseDataCodes.Confirmed
-                && VehicleFieldNames.Contains(item.FieldName))
-            .ToDictionaryAsync(item => item.FieldName, StringComparer.Ordinal, cancellationToken);
-        var confirmationId = Guid.NewGuid();
-        var sourceLabel = suggestionFields[0].SourceLabel;
-        foreach (var fieldName in selectedNames)
-        {
-            var (valueType, value) = fieldName switch
-            {
-                CaseDataFieldNames.VehicleMake => (CaseDataCodes.Text, proposedValues.Make),
-                CaseDataFieldNames.VehicleModel => (CaseDataCodes.Text, proposedValues.Model),
-                CaseDataFieldNames.VehicleMileage => (
-                    CaseDataCodes.Integer,
-                    proposedValues.Mileage?.ToString(CultureInfo.InvariantCulture)),
-                CaseDataFieldNames.VehicleMileageUnit => (
-                    CaseDataCodes.Text,
-                    proposedValues.MileageUnit?.ToString()),
-                _ => throw new UnreachableException()
-            };
-            SetConfirmedField(
-                context,
-                confirmedFields,
-                command.CaseId,
-                fieldName,
-                valueType,
-                value,
-                CaseDataCodes.VehicleLookup,
-                sourceIdentity,
-                sourceLabel,
-                command.Actor.SubjectId,
-                nowUtc,
-                removeWhenMissing: false);
-        }
-        context.CaseDataFields.RemoveRange(suggestionFields);
-
-        // A confirmed vehicle value is the projector's preferred kind, so the case-match
-        // index reprojects in this same transaction (drift here would strand the old VRM
-        // as a match key). Queried rows are tracked, so updated values are visible; the
-        // change tracker supplies rows this method just added or removed.
-        var trackedFields = await context.CaseDataFields
-            .Where(item => item.CaseId == command.CaseId)
-            .ToListAsync(cancellationToken);
-        var removedFields = context.ChangeTracker.Entries<CaseDataFieldEntity>()
-            .Where(entry => entry.State == EntityState.Deleted
-                && entry.Entity.CaseId == command.CaseId)
-            .Select(entry => entry.Entity)
-            .ToHashSet();
-        var addedFields = context.ChangeTracker.Entries<CaseDataFieldEntity>()
-            .Where(entry => entry.State == EntityState.Added
-                && entry.Entity.CaseId == command.CaseId)
-            .Select(entry => entry.Entity);
-        var effectiveFields = trackedFields
-            .Where(field => !removedFields.Contains(field))
-            .Concat(addedFields)
-            .ToList();
-        CaseMatchIndexProjector.Apply(
-            context,
-            await context.CaseMatchIndex.SingleOrDefaultAsync(
-                item => item.CaseId == command.CaseId,
-                cancellationToken),
-            CaseMatchIndexProjector.Project(
-                await context.Cases.SingleAsync(
-                    item => item.Id == command.CaseId,
-                    cancellationToken),
-                effectiveFields,
-                caseMatchPolicies ?? [],
-                nowUtc));
-
-        var beforeVersion = workflow.Version;
-        workflow.Version = checked(workflow.Version + 1);
-        ClearLease(workflow);
-        context.Set<VehicleConfirmationEntity>().Add(new()
-        {
-            Id = confirmationId,
-            CaseId = command.CaseId,
-            LookupObservationId = observation.Id,
-            Decision = ToCode(command.Decision),
-            Registration = proposedValues.Registration,
-            Make = proposedValues.Make,
-            Model = proposedValues.Model,
-            Mileage = proposedValues.Mileage,
-            MileageUnit = proposedValues.MileageUnit?.ToString(),
-            ActorKind = command.Actor.Kind.ToString(),
-            ActorSubjectId = command.Actor.SubjectId,
-            ActorRolesJson = RolesJson(command.Actor),
-            OperationKey = command.OperationKey,
-            RequestFingerprint = fingerprint,
-            Reason = command.Reason,
-            OccurredAtUtc = nowUtc,
-            BeforeCaseVersion = beforeVersion,
-            AfterCaseVersion = workflow.Version,
-            PolicyKey = VehicleSuggestionAcceptancePolicy.PolicyKey,
-            PolicyVersion = VehicleSuggestionAcceptancePolicy.PolicyVersion
-        });
-        const string eventKind = "vehicle_suggestion_accepted";
-        AddWorkflowEvent(
-            context,
-            workflow,
-            command.Actor,
-            command.OperationKey,
-            command.Reason,
-            fingerprint,
-            eventKind,
-            beforeVersion,
-            workflow.Version,
-            nowUtc);
-        AddActionHistory(
-            context,
-            command.CaseId,
-            command.Actor,
-            command.OperationKey,
-            eventKind,
-            command.Reason,
-            beforeVersion,
-            workflow.Version,
-            new
-            {
-                confirmationId,
-                observationId = observation.Id,
-                command.Field,
-                command.Decision,
-                Values = proposedValues
-            },
-            nowUtc);
-
-        // A confirmed vehicle make/model/mileage is a frozen report input:
-        // the acceptance stales the Case's current generation in this same
-        // serializable transaction (Stream A review, comment 5560667174).
-        // Replay returned before any mutation above; superseded generations
-        // are never touched by the stale operation itself; a lookup request
-        // alone never reaches this path.
-        await EfCaseReportGenerationStore.MarkStaleAsync(
-            context,
-            command.CaseId,
-            "vehicle_suggestion_accepted",
-            nowUtc,
-            cancellationToken);
-
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-        return new(
-            confirmationId,
-            command.CaseId,
-            observation.Id,
-            command.Decision,
-            proposedValues,
-            observation.Provenance,
-            workflow.Version,
-            IsReplay: false);
-    }
-
     public async Task<CaseVehicleEvidence?> GetAsync(
         Guid caseId,
         CancellationToken cancellationToken)
@@ -519,112 +270,6 @@ internal sealed class EfVehicleWorkflowStore(
         || await context.ExternalWorkItems.AsNoTracking().AnyAsync(
             item => item.OperationKey == operationKey,
             cancellationToken);
-
-    private static string[] SuggestionFieldNames(VehicleSuggestionField field) => field switch
-    {
-        VehicleSuggestionField.Make => [CaseDataFieldNames.VehicleMake],
-        VehicleSuggestionField.Model => [CaseDataFieldNames.VehicleModel],
-        VehicleSuggestionField.Mileage =>
-        [
-            CaseDataFieldNames.VehicleMileage,
-            CaseDataFieldNames.VehicleMileageUnit
-        ],
-        _ => throw new ArgumentOutOfRangeException(nameof(field))
-    };
-
-    private static VehicleConfirmationValues ResolvePendingSuggestion(
-        VehicleSuggestionField field,
-        VehicleLookupObservation observation,
-        IReadOnlyCollection<CaseDataFieldEntity> suggestions)
-    {
-        var values = suggestions.ToDictionary(item => item.FieldName, StringComparer.Ordinal);
-        string Required(string fieldName) => values.TryGetValue(fieldName, out var value)
-            ? value.Value
-            : throw new VehicleSuggestionUnavailableException(observation.Id, observation.Outcome);
-
-        return field switch
-        {
-            VehicleSuggestionField.Make => new(
-                observation.Registration,
-                Required(CaseDataFieldNames.VehicleMake),
-                null,
-                null,
-                null),
-            VehicleSuggestionField.Model => new(
-                observation.Registration,
-                null,
-                Required(CaseDataFieldNames.VehicleModel),
-                null,
-                null),
-            VehicleSuggestionField.Mileage => new(
-                observation.Registration,
-                null,
-                null,
-                long.Parse(
-                    Required(CaseDataFieldNames.VehicleMileage),
-                    CultureInfo.InvariantCulture),
-                Enum.Parse<VehicleMileageUnit>(
-                    Required(CaseDataFieldNames.VehicleMileageUnit),
-                    ignoreCase: false)),
-            _ => throw new ArgumentOutOfRangeException(nameof(field))
-        };
-    }
-
-    private static void SetConfirmedField(
-        PegasusDbContext context,
-        Dictionary<string, CaseDataFieldEntity> fields,
-        Guid caseId,
-        string fieldName,
-        string valueType,
-        string? value,
-        string sourceKind,
-        string sourceIdentity,
-        string sourceLabel,
-        string confirmedByActor,
-        DateTimeOffset confirmedAtUtc,
-        bool removeWhenMissing)
-    {
-        if (value is null)
-        {
-            if (removeWhenMissing && fields.Remove(fieldName, out var removed))
-            {
-                context.CaseDataFields.Remove(removed);
-            }
-            return;
-        }
-
-        if (!fields.TryGetValue(fieldName, out var field))
-        {
-            field = new()
-            {
-                CaseId = caseId,
-                FieldName = fieldName,
-                ValueKind = CaseDataCodes.Confirmed,
-                ValueType = valueType,
-                Value = value,
-                SourceKind = sourceKind,
-                SourceIdentity = sourceIdentity,
-                SourceLabel = sourceLabel,
-                PolicyKey = VehicleSuggestionAcceptancePolicy.PolicyKey,
-                PolicyVersion = VehicleSuggestionAcceptancePolicy.PolicyVersion,
-                ConfirmedByActor = confirmedByActor,
-                ConfirmedAtUtc = confirmedAtUtc
-            };
-            fields.Add(fieldName, field);
-            context.CaseDataFields.Add(field);
-            return;
-        }
-
-        field.ValueType = valueType;
-        field.Value = value;
-        field.SourceKind = sourceKind;
-        field.SourceIdentity = sourceIdentity;
-        field.SourceLabel = sourceLabel;
-        field.PolicyKey = VehicleSuggestionAcceptancePolicy.PolicyKey;
-        field.PolicyVersion = VehicleSuggestionAcceptancePolicy.PolicyVersion;
-        field.ConfirmedByActor = confirmedByActor;
-        field.ConfirmedAtUtc = confirmedAtUtc;
-    }
 
     private static ConfirmedVehicleEvidence? MapConfirmed(
         Dictionary<string, CaseDataFieldEntity> fields,
@@ -743,7 +388,7 @@ internal sealed class EfVehicleWorkflowStore(
             entity.Id,
             entity.CaseId,
             entity.LookupObservationId,
-            ParseDecision(entity.Decision),
+            entity.Decision,
             new(entity.Registration, entity.Make, entity.Model, entity.Mileage, unit),
             ActionActor.Staff(actorId, roles),
             entity.Reason,
@@ -753,25 +398,6 @@ internal sealed class EfVehicleWorkflowStore(
             entity.AfterCaseVersion,
             entity.PolicyKey,
             entity.PolicyVersion);
-    }
-
-    private static AcceptedVehicleSuggestion MapAccepted(
-        VehicleConfirmationEntity entity,
-        bool isReplay)
-    {
-        var observation = EfVehicleLookupWorkStore.MapObservation(entity.LookupObservation);
-        VehicleMileageUnit? unit = entity.MileageUnit is null
-            ? null
-            : Enum.Parse<VehicleMileageUnit>(entity.MileageUnit, ignoreCase: false);
-        return new(
-            entity.Id,
-            entity.CaseId,
-            entity.LookupObservationId,
-            ParseDecision(entity.Decision),
-            new(entity.Registration, entity.Make, entity.Model, entity.Mileage, unit),
-            observation.Provenance,
-            entity.AfterCaseVersion,
-            isReplay);
     }
 
     /// <summary>
@@ -1002,21 +628,6 @@ internal sealed class EfVehicleWorkflowStore(
             command.OperationKey
         }, JsonOptions));
 
-    private static string AcceptanceFingerprint(AcceptVehicleSuggestionCommand command) => Hash(
-        JsonSerializer.Serialize(new
-        {
-            command.CaseId,
-            command.LookupObservationId,
-            command.Field,
-            Decision = command.Decision.ToString(),
-            command.Correction,
-            ActorKind = command.Actor.Kind.ToString(),
-            command.Actor.SubjectId,
-            Roles = command.Actor.Roles.OrderBy(role => role).Select(role => role.ToString()).ToArray(),
-            command.OperationKey,
-            command.Reason
-        }, JsonOptions));
-
     private static void RequireMatchingFingerprint(
         Guid caseId,
         string operationKey,
@@ -1107,7 +718,7 @@ internal sealed class EfVehicleWorkflowStore(
             Reason = reason,
             BeforeJson = JsonSerializer.Serialize(new { Version = beforeVersion }, JsonOptions),
             AfterJson = JsonSerializer.Serialize(new { Version = afterVersion, Value = after }, JsonOptions),
-            PolicyVersion = $"{VehicleSuggestionAcceptancePolicy.PolicyKey}/v{VehicleSuggestionAcceptancePolicy.PolicyVersion}"
+            PolicyVersion = $"{VehicleLookupFillPolicy.PolicyKey}/v{VehicleLookupFillPolicy.PolicyVersion}"
         });
 
     private static string RolesJson(ActionActor actor) =>
@@ -1117,19 +728,6 @@ internal sealed class EfVehicleWorkflowStore(
 
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
-
-    private static string ToCode(VehicleSuggestionDecision decision) => decision switch
-    {
-        VehicleSuggestionDecision.Accept => "accepted",
-        _ => throw new ArgumentOutOfRangeException(nameof(decision))
-    };
-
-    private static VehicleSuggestionDecision ParseDecision(string decision) => decision switch
-    {
-        "accepted" => VehicleSuggestionDecision.Accept,
-        _ => throw new InvalidDataException(
-            $"Persisted vehicle suggestion decision '{decision}' is invalid.")
-    };
 
     private static bool IsDuplicateKeyFailure(Exception exception) => exception switch
     {
@@ -1146,18 +744,5 @@ internal sealed class EfVehicleWorkflowStore(
         DbUpdateException { InnerException: { } innerException } =>
             IsRetryableConcurrencyFailure(innerException),
         _ => false
-    };
-
-    private static VehicleLookupOutcome ParseOutcome(string outcome) => outcome switch
-    {
-        "current" => VehicleLookupOutcome.Current,
-        "stale" => VehicleLookupOutcome.Stale,
-        "partial" => VehicleLookupOutcome.Partial,
-        "not_found" => VehicleLookupOutcome.NotFound,
-        "throttled" => VehicleLookupOutcome.Throttled,
-        "unavailable" => VehicleLookupOutcome.Unavailable,
-        "error" => VehicleLookupOutcome.Failed,
-        _ => throw new InvalidDataException(
-            $"Persisted vehicle lookup outcome '{outcome}' is invalid.")
     };
 }

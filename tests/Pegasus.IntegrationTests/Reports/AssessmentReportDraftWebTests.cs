@@ -259,7 +259,9 @@ public sealed partial class AssessmentReportDraftWebTests
                 null, new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
                     [AssessmentVocabulary.HistoryCheck] = "History clear"
-                }),
+                },
+                // The year is a Case fact now, recorded through the same writer.
+                Year: "2012"),
             Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
             {
                 [AssessmentVocabulary.SettlementExcess] = "250.00",
@@ -435,8 +437,6 @@ public sealed partial class AssessmentReportDraftWebTests
         var fields = new[]
         {
             Field(AssessmentVocabulary.VehicleType, "car"),
-            Field(AssessmentVocabulary.VehicleYear, "2012"),
-            Field(AssessmentVocabulary.VehicleMileageSource, "online_data"),
             Field(AssessmentVocabulary.VehicleCondition, "good"),
             Field(AssessmentVocabulary.IncidentAssessed, "2026-08-03"),
             Field(AssessmentVocabulary.ImpactSeverity, "moderate"),
@@ -457,8 +457,10 @@ public sealed partial class AssessmentReportDraftWebTests
             Registration: "PK12TMZ",
             Make: "Ford",
             Model: "Focus",
+            Year: "2012",
             Mileage: 80_000,
             MileageUnit: "miles",
+            MileageSource: "online_data",
             IncidentDate: new DateOnly(2026, 8, 1),
             InstructionDate: new DateOnly(2026, 8, 2),
             InspectionMode: "ImageBasedAssessment",

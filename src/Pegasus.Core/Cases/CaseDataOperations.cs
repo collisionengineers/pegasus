@@ -198,6 +198,7 @@ public static class CaseDataPolicy
             VehicleRegistration = Registration(data.VehicleRegistration),
             VehicleMake = Text(data.VehicleMake, 100, nameof(data.VehicleMake)),
             VehicleModel = Text(data.VehicleModel, 100, nameof(data.VehicleModel)),
+            VehicleYear = Text(data.VehicleYear, 10, nameof(data.VehicleYear)),
             VehicleMileageUnit = Text(data.VehicleMileageUnit, 40, nameof(data.VehicleMileageUnit)),
             AccidentCircumstances = Paragraphs(data.AccidentCircumstances, 2000, nameof(data.AccidentCircumstances)),
             ContactName = Text(data.ContactName, 300, nameof(data.ContactName)),

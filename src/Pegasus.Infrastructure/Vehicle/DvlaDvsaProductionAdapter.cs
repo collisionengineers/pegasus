@@ -80,8 +80,13 @@ internal sealed class DvlaDvsaProductionAdapter(
         var dvsa = await ReadDvsaAsync(request.Registration, cancellationToken);
         var identity = Hash($"{dvla.Identity}\n{dvsa.Identity}");
 
+        // VES never returns a model, so the DVSA vehicle object is the only
+        // description of the model there is; the fill policy owns which
+        // provider answers for each member.
+        var vehicle = VehicleLookupFillPolicy.Merge(dvla.Vehicle, dvsa.Vehicle);
+
         VehicleLookupResult result;
-        if (dvla.Vehicle is not null || dvsa.Tests.Count > 0)
+        if (vehicle is not null || dvsa.Tests.Count > 0)
         {
             var failure = dvla.Failure
                 ?? dvsa.Failure
@@ -101,7 +106,7 @@ internal sealed class DvlaDvsaProductionAdapter(
                 retrievedAtUtc,
                 retrievedAtUtc - sourceAge,
                 retrievedAtUtc - sourceAge,
-                dvla.Vehicle,
+                vehicle,
                 dvsa.Tests,
                 failure);
         }
@@ -187,7 +192,7 @@ internal sealed class DvlaDvsaProductionAdapter(
         var token = await GetDvsaTokenAsync(cancellationToken);
         if (token.Failure is not null)
         {
-            return new([], false, token.Failure, token.Identity, TimeSpan.Zero);
+            return new(null, [], false, token.Failure, token.Identity, TimeSpan.Zero);
         }
         var uri = new Uri(options.DvsaBaseUri, Uri.EscapeDataString(registration));
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
@@ -199,8 +204,9 @@ internal sealed class DvlaDvsaProductionAdapter(
         if (response.StatusCode == HttpStatusCode.NotFound)
         {
             return IsVehicleNotFoundBody(body, registration)
-                ? new([], true, null, identity, response.Headers.Age ?? TimeSpan.Zero)
+                ? new(null, [], true, null, identity, response.Headers.Age ?? TimeSpan.Zero)
                 : new(
+                    null,
                     [],
                     false,
                     new("dvsa_failed_404", Retryable: false),
@@ -209,7 +215,7 @@ internal sealed class DvlaDvsaProductionAdapter(
         }
         if (!response.IsSuccessStatusCode)
         {
-            return new([], false, ProviderFailure("dvsa", response), identity, response.Headers.Age ?? TimeSpan.Zero);
+            return new(null, [], false, ProviderFailure("dvsa", response), identity, response.Headers.Age ?? TimeSpan.Zero);
         }
         try
         {
@@ -237,17 +243,24 @@ internal sealed class DvlaDvsaProductionAdapter(
             if (rawTests.Length > 0 && tests.Length == 0)
             {
                 return new(
+                    null,
                     [],
                     false,
                     new("dvsa_unreadable_tests", Retryable: false),
                     identity,
                     response.Headers.Age ?? TimeSpan.Zero);
             }
-            return new(tests, false, null, identity, response.Headers.Age ?? TimeSpan.Zero);
+            return new(
+                vehicles.Select(ParseDvsaVehicle).FirstOrDefault(item => item is not null),
+                tests,
+                false,
+                null,
+                identity,
+                response.Headers.Age ?? TimeSpan.Zero);
         }
         catch (JsonException)
         {
-            return new([], false, new("dvsa_malformed", Retryable: false), identity, response.Headers.Age ?? TimeSpan.Zero);
+            return new(null, [], false, new("dvsa_malformed", Retryable: false), identity, response.Headers.Age ?? TimeSpan.Zero);
         }
     }
 
@@ -349,6 +362,53 @@ internal sealed class DvlaDvsaProductionAdapter(
                 : VehicleMileageUnit.Miles;
         return new(date, Text(value, "testResult")!, expiry, mileage, unit);
     }
+
+    /// <summary>
+    /// The vehicle the DVSA MOT History API describes alongside its tests.
+    /// It carries the model, which VES does not, so it is the only source of
+    /// the model the product has. Null where the element describes nothing.
+    /// </summary>
+    private static VehicleDetails? ParseDvsaVehicle(JsonElement value) =>
+        value.ValueKind != JsonValueKind.Object
+            ? null
+            // Merge normalises blank members to null and answers null for a
+            // record that describes nothing, which is exactly the test here.
+            : VehicleLookupFillPolicy.Merge(
+                new(
+                    Text(value, "make"),
+                    Text(value, "model"),
+                    ParseManufactureYear(value),
+                    ParseEngineSize(value),
+                    Text(value, "fuelType")),
+                null);
+
+    /// <summary>
+    /// The MOT History API writes <c>manufactureDate</c> as a full instant for
+    /// some vehicles, a plain date for others, and a bare year for the rest.
+    /// All three mean the same year.
+    /// </summary>
+    private static int? ParseManufactureYear(JsonElement value)
+    {
+        var text = Text(value, "manufactureDate")?.Trim();
+        if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+
+        return text.Length == 4
+            && int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out var year)
+                ? year
+                : ParseProviderDate(text)?.Year;
+    }
+
+    /// <summary>
+    /// <c>engineSize</c> is documented as a string but arrives as a number for
+    /// some vehicles; anything outside a capacity's range is not a capacity.
+    /// </summary>
+    private static int? ParseEngineSize(JsonElement value) =>
+        LongNumber(value, "engineSize") is { } size and > 0 and <= int.MaxValue
+            ? (int)size
+            : null;
 
     private static VehicleLookupResult FailureResult(
         string registration,
@@ -563,6 +623,7 @@ internal sealed class DvlaDvsaProductionAdapter(
         string Identity,
         TimeSpan ResponseAge);
     private sealed record ProviderMotResult(
+        VehicleDetails? Vehicle,
         IReadOnlyList<MotTestObservation> Tests,
         bool NotFound,
         VehicleLookupFailure? Failure,

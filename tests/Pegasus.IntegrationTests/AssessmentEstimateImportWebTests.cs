@@ -1329,7 +1329,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 null,
                 [],
                 [],
-                new(null, null, null, null, null, null, null, null, null));
+                new(null, null, null, null, null, null, "tbc", null, null, null, null));
             return AssessmentWorkspaceTestData.Create(
                 details, assessment, CurrentDraft, CurrentAccepted);
         }

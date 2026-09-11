@@ -112,6 +112,17 @@ public sealed class CaseDataOperationsTests
     }
 
     [Fact]
+    public void NormalizeVehicleYearUsesTheCaseTextPolicy()
+    {
+        var normalized = CaseDataPolicy.Normalize(new(VehicleYear: "  2016 "));
+
+        Assert.Equal("2016", normalized.VehicleYear);
+        Assert.Null(CaseDataPolicy.Normalize(new(VehicleYear: "   ")).VehicleYear);
+        Assert.Throws<ArgumentOutOfRangeException>(() => CaseDataPolicy.Normalize(
+            new(VehicleYear: new string('9', 11))));
+    }
+
+    [Fact]
     public void InspectionAddressChoicesHaveTheD33OrderAndAvailability()
     {
         var choices = InspectionAddressChoices.Resolve(new(

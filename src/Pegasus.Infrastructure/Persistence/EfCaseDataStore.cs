@@ -385,6 +385,7 @@ public sealed class EfCaseDataStore(
             TextField(snapshot, CaseDataFieldNames.VehicleRegistration),
             TextField(snapshot, CaseDataFieldNames.VehicleMake),
             TextField(snapshot, CaseDataFieldNames.VehicleModel),
+            TextField(snapshot, CaseDataFieldNames.VehicleYear),
             LongField(snapshot, CaseDataFieldNames.VehicleMileage),
             TextField(snapshot, CaseDataFieldNames.VehicleMileageUnit))
         {
@@ -567,7 +568,12 @@ public sealed class EfCaseDataStore(
             $"Unknown persisted case-data value kind '{value}'.")
     };
 
-    private static CaseDataSourceKind ParseSourceKind(string value) => value switch
+    /// <summary>
+    /// The one reader of a persisted source-kind code. Shared so that a second
+    /// reader of the same column — the assessment projection derives the
+    /// report's mileage source from it — cannot spell the mapping differently.
+    /// </summary>
+    internal static CaseDataSourceKind ParseSourceKind(string value) => value switch
     {
         CaseDataCodes.IntakeEvidence => CaseDataSourceKind.IntakeEvidence,
         CaseDataCodes.MailRoute => CaseDataSourceKind.MailRoute,
@@ -611,6 +617,7 @@ internal static class CaseDataFieldWriter
         Text(CaseDataFieldNames.VehicleRegistration, data.VehicleRegistration);
         Text(CaseDataFieldNames.VehicleMake, data.VehicleMake);
         Text(CaseDataFieldNames.VehicleModel, data.VehicleModel);
+        Text(CaseDataFieldNames.VehicleYear, data.VehicleYear);
         Whole(CaseDataFieldNames.VehicleMileage, data.VehicleMileage);
         Text(CaseDataFieldNames.VehicleMileageUnit, data.VehicleMileageUnit);
         Text(CaseDataFieldNames.AccidentCircumstances, data.AccidentCircumstances);
@@ -715,7 +722,8 @@ internal static class CaseDataFieldWriter
         ConfirmedText(snapshot, CaseDataFieldNames.InspectionNotes),
         ConfirmedText(snapshot, CaseDataFieldNames.RepairerName),
         ConfirmedGuid(snapshot, CaseDataFieldNames.RepairerId),
-        ConfirmedLong(snapshot, CaseDataFieldNames.RepairerVersion));
+        ConfirmedLong(snapshot, CaseDataFieldNames.RepairerVersion),
+        ConfirmedText(snapshot, CaseDataFieldNames.VehicleYear));
 
     private static void SetConfirmed(
         PegasusDbContext context,

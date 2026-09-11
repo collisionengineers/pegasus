@@ -188,6 +188,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             (CaseDataFieldNames.VehicleRegistration, CaseDataCodes.Text, "AB12CDE"),
             (CaseDataFieldNames.VehicleMake, CaseDataCodes.Text, "Ford"),
             (CaseDataFieldNames.VehicleModel, CaseDataCodes.Text, "Focus"),
+            (CaseDataFieldNames.VehicleYear, CaseDataCodes.Text, "2012"),
             (CaseDataFieldNames.VehicleMileage, CaseDataCodes.Integer, "80000"),
             (CaseDataFieldNames.VehicleMileageUnit, CaseDataCodes.Text, "miles"),
             (CaseDataFieldNames.IncidentDate, CaseDataCodes.Date, "2031-04-01"),
@@ -221,8 +222,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var values = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             [AssessmentVocabulary.VehicleType] = "car",
-            [AssessmentVocabulary.VehicleYear] = "2012",
-            [AssessmentVocabulary.VehicleMileageSource] = "online_data",
+            [AssessmentVocabulary.VehicleMileageSource] = "owner",
             [AssessmentVocabulary.VehicleCondition] = "good",
             [AssessmentVocabulary.IncidentAssessed] = "2031-05-06",
             [AssessmentVocabulary.ImpactSeverity] = "moderate",
