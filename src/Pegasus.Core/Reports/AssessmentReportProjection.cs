@@ -237,7 +237,7 @@ public static class AssessmentReportProjection
         CaseAssessmentProjection assessment,
         IReadOnlyDictionary<string, string?> fields)
     {
-        var mileageSource = Field(fields, AssessmentVocabulary.VehicleMileageSource) ?? "tbc";
+        var mileageSource = assessment.CaseOwned.MileageSource;
         var mileage = assessment.CaseOwned.Mileage;
         var mileageUnit = assessment.CaseOwned.MileageUnit ?? "miles";
         var mileageDescription = mileage is { } value
@@ -248,7 +248,7 @@ public static class AssessmentReportProjection
             Registration: assessment.CaseOwned.Registration ?? string.Empty,
             Make: assessment.CaseOwned.Make ?? string.Empty,
             Model: assessment.CaseOwned.Model ?? string.Empty,
-            Year: Field(fields, AssessmentVocabulary.VehicleYear) ?? string.Empty,
+            Year: assessment.CaseOwned.Year ?? string.Empty,
             VehicleType: Field(fields, AssessmentVocabulary.VehicleType) ?? string.Empty,
             Condition: Field(fields, AssessmentVocabulary.VehicleCondition) ?? string.Empty,
             MileageDescription: mileageDescription,

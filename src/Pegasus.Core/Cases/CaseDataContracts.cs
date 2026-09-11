@@ -93,6 +93,7 @@ public sealed record CaseVehicleData(
     CaseField<string> Registration,
     CaseField<string> Make,
     CaseField<string> Model,
+    CaseField<string> Year,
     CaseField<long> Mileage,
     CaseField<string> MileageUnit)
 {
@@ -255,7 +256,11 @@ public sealed record CaseEditableData(
     // the address already above, and the linked Contacts directory row.
     string? RepairerName = null,
     Guid? RepairerId = null,
-    long? RepairerVersion = null);
+    long? RepairerVersion = null,
+    // Appended for the Vehicle section: the manufacture year is a Case fact
+    // beside the make and model, not an assessment field. Same rule as above —
+    // appended, never inserted.
+    string? VehicleYear = null);
 
 public sealed record ConfirmCompletenessRequest(
     Guid CaseId,

@@ -36,7 +36,6 @@ public sealed record AssessmentFieldDefinition(
 public static class AssessmentVocabulary
 {
     public const string VehicleType = "vehicle.vehicle_type";
-    public const string VehicleYear = "vehicle.year";
     public const string VehicleVin = "vehicle.vin";
     public const string VehicleEngineCc = "vehicle.engine_cc";
     public const string VehicleFuel = "vehicle.fuel";
@@ -202,7 +201,6 @@ public static class AssessmentVocabulary
     [
         new(VehicleType, AssessmentFieldType.Enumerated, 20, IsFinding: false,
             Codes: ["car", "van", "motorcycle", "scooter", "bicycle", "trailer", "caravan", "other"]),
-        new(VehicleYear, AssessmentFieldType.Text, 10, IsFinding: false),
         new(VehicleVin, AssessmentFieldType.Text, 30, IsFinding: false),
         new(VehicleEngineCc, AssessmentFieldType.WholeNumber, 10, IsFinding: false),
         new(VehicleFuel, AssessmentFieldType.Text, 40, IsFinding: false),
@@ -330,6 +328,7 @@ public static class AssessmentVocabulary
         "vehicle.registration",
         "vehicle.make",
         "vehicle.model",
+        "vehicle.year",
         "vehicle.odometer_miles",
         "incident.date",
         "incident.instructions_received",
@@ -443,8 +442,12 @@ public sealed record AssessmentCaseOwnedData(
     string? Registration,
     string? Make,
     string? Model,
+    string? Year,
     long? Mileage,
     string? MileageUnit,
+    // The report's mileage-source code, derived from where the case's mileage
+    // came from. Never absent: a case with no mileage reads "tbc".
+    string MileageSource,
     DateOnly? IncidentDate,
     DateOnly? InstructionDate,
     string? InspectionMode,

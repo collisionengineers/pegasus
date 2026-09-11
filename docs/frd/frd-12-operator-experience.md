@@ -330,16 +330,17 @@ non-destructive conflict.
   says something the value itself does not), Principal default shown only
   when it differs from the recorded value, Storage location, and Repairer
   (D33, [FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
-- Vehicle: registration, make, model, year, mileage and its source; one
-  **Look up DVLA & MOT** action (`EXT-01`) whose looked-up values appear as
-  per-field suggestion chips that fill the field when chosen — no checks
-  panel and no suggestion table; Run Experian check stays the disabled seam
-  (D34) — and the vehicle-history narrative
-  ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
+- Vehicle: registration, make, model, year, and one mileage with its
+  provenance (Extracted · Lookup · Staff); one **Look up DVLA & MOT** action
+  (`EXT-01`) whose looked-up values fill an empty Make, Model, Year, or
+  Mileage directly and never overwrite an extracted or staff-entered value —
+  no checks panel and no suggestion table; Run Experian check stays the
+  disabled seam (D34 amended, 2026-09-11) — and a labelled Vehicle history
+  area (the history-check narrative, read-only text, editable in edit mode,
+  [FRD-06](frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)).
   A **DVLA & MOT lookup** outcome line states what the lookup itself did
-  (looked up and current, or a failure reason), separately from whether any
-  suggestion was accepted; in read mode any unaccepted suggestion values are
-  shown together under a **DVLA suggests** label rather than as field chips.
+  (looked up and current, or a failure reason), separately from whether it
+  ever filled a field.
 - Damage: the zone list with severity and note per zone; tyres and
   seat belts per corner, spare tyre and centre belt; unrelated damage with
   its deduction; paint or material transfer; impact location and severity

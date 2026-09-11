@@ -483,9 +483,12 @@ obtained from the applicable DVLA/MOT source. Mileage evidence ranks as:
    odometer-vision evidence; and
 4. a DVSA-derived estimate.
 
-DVSA is run for every Case. Where no higher-tier mileage value is available, it
-supplies the source-labelled estimate. A difference between DVSA mileage and
-any accepted staff-entered, instruction-extracted, Document Intelligence, or
+A third-party engineer report supplied with a Principal's instruction is read
+as instruction text for tier 2 (2026-09-11).
+
+DVSA is run for every Case. The DVSA-derived estimate fills the Case mileage
+only where no higher-tier mileage value is available. A difference between
+DVSA mileage and any accepted staff-entered, instruction-extracted, Document Intelligence, or
 odometer value is a visible Case discrepancy. The later odometer-vision
 capability does not imply an activated AI caller before its own accepted
 evaluation and integration contract.
@@ -559,7 +562,7 @@ A Work Instruction contains details of a claimant involved in a road traffic acc
 | Claimant Name | Extract from the instruction. |
 | Claim Number | External reference number. |
 | Vehicle Registration | VRM. |
-| Source Vehicle Description | Preserve an unambiguous combined claimant-vehicle description from the instruction, with its source locator. Display it on the Case without heuristically splitting it into make/model or treating a third-party vehicle as the claimant's. |
+| Source Vehicle Description | Preserve an unambiguous combined claimant-vehicle description from the instruction, with its source locator. Keep it on the Case record and the Received screen without heuristically splitting it into make/model or treating a third-party vehicle as the claimant's; the Case Vehicle section shows the looked-up or confirmed make and model instead (2026-09-11). |
 | Vehicle Make | Extract from the instruction or obtain through an authorized lookup capability when absent. |
 | Vehicle Model | Extract from the instruction or obtain through an authorized lookup capability when absent. |
 | Vehicle Mileage | Extract when supplied; estimation from MOT data is a required capability when available. |

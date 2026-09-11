@@ -11,6 +11,7 @@ public static class CaseDataFieldNames
     public const string VehicleDescription = "vehicle_description";
     public const string VehicleMake = "vehicle_make";
     public const string VehicleModel = "vehicle_model";
+    public const string VehicleYear = "vehicle_year";
     public const string VehicleMileage = "vehicle_mileage";
     public const string VehicleMileageUnit = "vehicle_mileage_unit";
     public const string AccidentCircumstances = "accident_circumstances";
@@ -75,6 +76,7 @@ public static class CaseDataFieldNames
         VehicleDescription,
         VehicleMake,
         VehicleModel,
+        VehicleYear,
         VehicleMileage,
         VehicleMileageUnit,
         AccidentCircumstances,

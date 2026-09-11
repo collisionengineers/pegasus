@@ -166,7 +166,7 @@ public sealed class CaseEngineerSectionsWebTests
                 null,
                 Fields(),
                 [],
-                new("AB12CDE", null, null, null, null, null, null, null, null));
+                new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
             workspace = AssessmentWorkspaceTestData.Create(assessment);
             details = new(
                 summary,

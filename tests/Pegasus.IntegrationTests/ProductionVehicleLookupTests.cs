@@ -47,7 +47,7 @@ public sealed class ProductionVehicleLookupTests
             }
             Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
             Assert.True(request.Headers.Contains("X-API-Key"));
-            return Json(HttpStatusCode.OK, """[{"motTests":[{"completedDate":"2026-01-02","testResult":"PASSED","expiryDate":"2027-01-01","odometerValue":"12000","odometerUnit":"mi"}]}]""");
+            return Json(HttpStatusCode.OK, """[{"make":"FORD","model":"FOCUS","manufactureDate":"2020-03-01","engineSize":"999","motTests":[{"completedDate":"2026-01-02","testResult":"PASSED","expiryDate":"2027-01-01","odometerValue":"12000","odometerUnit":"mi"}]}]""");
         });
 
         var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
@@ -72,19 +72,26 @@ public sealed class ProductionVehicleLookupTests
         {
             if (request.RequestUri!.Host == "driver-vehicle-licensing.api.gov.uk")
             {
-                return Json(HttpStatusCode.OK, """{"make":"TOYOTA","model":"ALPHARD","yearOfManufacture":2007}""");
+                // VES answers no model, ever.
+                return Json(HttpStatusCode.OK, """{"make":"TOYOTA","yearOfManufacture":2007}""");
             }
             if (request.RequestUri.Host == "login.microsoftonline.com")
             {
                 return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
             }
-            return Json(HttpStatusCode.OK, """{"make":"TOYOTA","model":"ALPHARD","registration":"DP07EFB","motTests":[{"completedDate":"2026-05-14T13:11:22.000Z","testResult":"PASSED","expiryDate":"2027-05-13","odometerValue":"113068","odometerUnit":"KM"},{"completedDate":"2025-05-14T15:38:02.000Z","testResult":"PASSED","odometerValue":"102742","odometerUnit":"KM"}]}""");
+            return Json(HttpStatusCode.OK, """{"make":"TOYOTA","model":"ALPHARD","registration":"DP07EFB","manufactureDate":"2007-06-29T00:00:00.000Z","engineSize":"2362","fuelType":"Petrol","motTests":[{"completedDate":"2026-05-14T13:11:22.000Z","testResult":"PASSED","expiryDate":"2027-05-13","odometerValue":"113068","odometerUnit":"KM"},{"completedDate":"2025-05-14T15:38:02.000Z","testResult":"PASSED","odometerValue":"102742","odometerUnit":"KM"}]}""");
         });
 
         var result = await adapter.LookupAsync(new VehicleLookupRequest("DP07EFB"), CancellationToken.None);
 
         Assert.Equal(VehicleLookupOutcome.Current, result.Outcome);
         Assert.Equal(2, result.MotTests.Count);
+        // The model is the DVSA vehicle object's alone; DVLA answers for the
+        // make and year it did return.
+        Assert.Equal("ALPHARD", result.Vehicle?.Model);
+        Assert.Equal("TOYOTA", result.Vehicle?.Make);
+        Assert.Equal(2007, result.Vehicle?.ManufactureYear);
+        Assert.Equal(2362, result.Vehicle?.EngineCapacityCc);
         var latest = result.MotTests[0];
         Assert.Equal(new DateOnly(2026, 5, 14), latest.TestDate);
         Assert.Equal(113068, latest.Mileage);
@@ -397,6 +404,96 @@ public sealed class ProductionVehicleLookupTests
         Assert.Equal(VehicleLookupOutcome.Partial, result.Outcome);
         Assert.Equal("dvsa_failed_404", result.Failure?.Code);
         Assert.Equal("FORD", result.Vehicle?.Make);
+    }
+
+    /// <summary>
+    /// A registration VES does not hold, beside a DVSA answer that describes
+    /// the vehicle: the description is real evidence and survives as a partial
+    /// answer carrying the DVLA failure.
+    /// </summary>
+    [Fact]
+    public async Task DvlaNotFoundBesideADvsaDescriptionKeepsTheVehicle()
+    {
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == "driver-vehicle-licensing.api.gov.uk")
+            {
+                return Json(HttpStatusCode.NotFound, DvlaVehicleNotFound);
+            }
+            if (request.RequestUri.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            return Json(HttpStatusCode.OK, """{"make":"TOYOTA","model":"ALPHARD","manufactureDate":"2007-06-29","engineSize":2362,"fuelType":"Petrol","motTests":[{"completedDate":"2026-05-14T13:11:22.000Z","testResult":"PASSED","odometerValue":"113068","odometerUnit":"mi"}]}""");
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("DP07EFB"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Partial, result.Outcome);
+        Assert.Equal("dvla_not_found", result.Failure?.Code);
+        Assert.Equal("TOYOTA", result.Vehicle?.Make);
+        Assert.Equal("ALPHARD", result.Vehicle?.Model);
+        Assert.Equal(2007, result.Vehicle?.ManufactureYear);
+        Assert.Equal(2362, result.Vehicle?.EngineCapacityCc);
+        Assert.Equal("Petrol", result.Vehicle?.FuelType);
+    }
+
+    /// <summary>
+    /// The MOT History API answers some registrations with an array of vehicle
+    /// objects rather than one object, and writes <c>manufactureDate</c> as a
+    /// bare year for some vehicles. Both shapes describe the same vehicle.
+    /// </summary>
+    [Fact]
+    public async Task TheArrayShapedDvsaAnswerCarriesTheVehicleToo()
+    {
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == "driver-vehicle-licensing.api.gov.uk")
+            {
+                return Json(HttpStatusCode.OK, """{"make":"FORD","yearOfManufacture":2020,"engineCapacity":999}""");
+            }
+            if (request.RequestUri.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            return Json(HttpStatusCode.OK, """[{"make":"FORD","model":"FOCUS","manufactureDate":"2019","engineSize":"1499","motTests":[{"completedDate":"2026-01-02","testResult":"PASSED","odometerValue":"12000","odometerUnit":"mi"}]}]""");
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Current, result.Outcome);
+        Assert.Equal("FOCUS", result.Vehicle?.Model);
+        // DVLA answers first for every member it holds.
+        Assert.Equal(2020, result.Vehicle?.ManufactureYear);
+        Assert.Equal(999, result.Vehicle?.EngineCapacityCc);
+    }
+
+    /// <summary>
+    /// A DVSA answer describing the vehicle with an empty MOT history is a
+    /// vehicle that has never been tested, not a reading failure.
+    /// </summary>
+    [Fact]
+    public async Task ADescribedVehicleWithNoMotHistoryIsEvidenceRatherThanFailure()
+    {
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == "driver-vehicle-licensing.api.gov.uk")
+            {
+                return Json(HttpStatusCode.NotFound, DvlaVehicleNotFound);
+            }
+            if (request.RequestUri.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            return Json(HttpStatusCode.OK, """{"make":"FORD","model":"FOCUS","motTests":[]}""");
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Partial, result.Outcome);
+        Assert.Equal("dvla_not_found", result.Failure?.Code);
+        Assert.Equal("FOCUS", result.Vehicle?.Model);
+        Assert.Empty(result.MotTests);
     }
 
     private static DvlaDvsaProductionAdapter Create(Func<HttpRequestMessage, HttpResponseMessage> handler)

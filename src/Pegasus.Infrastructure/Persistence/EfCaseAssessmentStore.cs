@@ -276,7 +276,7 @@ public sealed class EfCaseAssessmentStore(
                 item.PaintWorkUnits,
                 item.Quantity))
             .ToArray(),
-        MapCaseOwned(caseDataFields));
+        MapCaseOwned(caseDataFields, fields));
 
     /// <summary>
     /// The current specification for report/read purposes is the accepted
@@ -298,7 +298,8 @@ public sealed class EfCaseAssessmentStore(
     }
 
     private static AssessmentCaseOwnedData MapCaseOwned(
-        IReadOnlyList<CaseDataFieldEntity> caseDataFields)
+        IReadOnlyList<CaseDataFieldEntity> caseDataFields,
+        IReadOnlyList<CaseAssessmentFieldEntity> assessmentFields)
     {
         string? Current(string fieldName) => CaseDataFieldValues.Current(caseDataFields, fieldName);
 
@@ -315,14 +316,32 @@ public sealed class EfCaseAssessmentStore(
             var unknown => throw new InvalidDataException(
                 $"Unknown persisted inspection mode '{unknown}'.")
         };
+        // The report's mileage-source sentence is derived from where the case's
+        // mileage came from, so it is read off the winning mileage row's own
+        // provenance. The recorded assessment value is only the staff pick
+        // between the people who could have told them.
+        var mileageField = CaseDataFieldValues.CurrentField(
+            caseDataFields,
+            CaseDataFieldNames.VehicleMileage);
+        var mileageSource = CaseVehicleMileageSourcePolicy.Resolve(
+            mileageField is null ? null : EfCaseDataStore.ParseSourceKind(mileageField.SourceKind),
+            mileageField is not null,
+            // Only a confirmed pick counts, which is the same row the Case
+            // record reads: an unconfirmed draft must not reach the report.
+            assessmentFields
+                .SingleOrDefault(item => item.FieldPath == AssessmentVocabulary.VehicleMileageSource
+                    && item.ConfirmedAtUtc is not null)
+                ?.Value);
         return new(
             Current(CaseDataFieldNames.VehicleRegistration),
             Current(CaseDataFieldNames.VehicleMake),
             Current(CaseDataFieldNames.VehicleModel),
-            Current(CaseDataFieldNames.VehicleMileage) is { } mileage
-                ? long.Parse(mileage, NumberStyles.None, CultureInfo.InvariantCulture)
+            Current(CaseDataFieldNames.VehicleYear),
+            mileageField is { } mileage
+                ? long.Parse(mileage.Value, NumberStyles.None, CultureInfo.InvariantCulture)
                 : null,
             Current(CaseDataFieldNames.VehicleMileageUnit),
+            mileageSource,
             CurrentDate(CaseDataFieldNames.IncidentDate),
             CurrentDate(CaseDataFieldNames.InstructionDate),
             inspectionMode,
@@ -384,12 +403,20 @@ public sealed class EfCaseAssessmentStore(
 /// </summary>
 internal static class CaseDataFieldValues
 {
-    internal static string? Current(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName)
+    internal static string? Current(IReadOnlyList<CaseDataFieldEntity> fields, string fieldName) =>
+        CurrentField(fields, fieldName)?.Value;
+
+    /// <summary>
+    /// The winning row itself, for the one reader that needs more than the
+    /// value: the report's mileage source is derived from the row's provenance.
+    /// </summary>
+    internal static CaseDataFieldEntity? CurrentField(
+        IReadOnlyList<CaseDataFieldEntity> fields,
+        string fieldName)
     {
         var values = fields.Where(item => item.FieldName == fieldName).ToArray();
-        var current = values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
+        return values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Confirmed)
             ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Fact)
             ?? values.SingleOrDefault(item => item.ValueKind == CaseDataCodes.Suggestion);
-        return current?.Value;
     }
 }

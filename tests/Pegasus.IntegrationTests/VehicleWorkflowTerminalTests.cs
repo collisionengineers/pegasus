@@ -22,7 +22,7 @@ public sealed class VehicleWorkflowTerminalTests
     [InlineData(CaseLifecycleState.ProviderCancelled)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
     [InlineData(CaseLifecycleState.CreatedInError)]
-    public async Task TerminalCaseRejectsVehicleRequestAndAcceptance(CaseLifecycleState terminalState)
+    public async Task TerminalCaseRejectsVehicleRequest(CaseLifecycleState terminalState)
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(
             configureServices: services =>
@@ -35,27 +35,12 @@ public sealed class VehicleWorkflowTerminalTests
                 new(caseId, 0, "AB12CDE", Staff, "terminal-vehicle-request", "lease-token"),
                 CancellationToken.None));
         Assert.Contains("read-only", requestException.Message, StringComparison.Ordinal);
-
-        var acceptanceException = await Assert.ThrowsAnyAsync<InvalidOperationException>(() =>
-            scope.ServiceProvider.GetRequiredService<IAcceptVehicleSuggestion>().ExecuteAsync(
-                new(
-                    caseId,
-                    0,
-                    Guid.NewGuid(),
-                    VehicleSuggestionDecision.Accept,
-                    null,
-                    Staff,
-                    "terminal-vehicle-accept",
-                    "Terminal cases must remain immutable.",
-                    "lease-token"),
-                CancellationToken.None));
-        Assert.Contains("read-only", acceptanceException.Message, StringComparison.Ordinal);
     }
 
     [Theory]
     [InlineData(CaseLifecycleState.PostReportComplete)]
     [InlineData(CaseLifecycleState.Query)]
-    public async Task CompletedOrQueryRejectsVehicleRequestAndAcceptanceBeforeLeaseCheck(
+    public async Task CompletedOrQueryRejectsVehicleRequestBeforeLeaseCheck(
         CaseLifecycleState readOnlyState)
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(
@@ -69,21 +54,6 @@ public sealed class VehicleWorkflowTerminalTests
                 new(caseId, 0, "AB12CDE", Staff, "read-only-vehicle-request", "lease-token"),
                 CancellationToken.None));
         Assert.Contains("read-only", requestException.Message, StringComparison.Ordinal);
-
-        var acceptanceException = await Assert.ThrowsAnyAsync<InvalidOperationException>(() =>
-            scope.ServiceProvider.GetRequiredService<IAcceptVehicleSuggestion>().ExecuteAsync(
-                new(
-                    caseId,
-                    0,
-                    Guid.NewGuid(),
-                    VehicleSuggestionDecision.Accept,
-                    null,
-                    Staff,
-                    "read-only-vehicle-accept",
-                    "Completed and Query cases cannot accept vehicle suggestions.",
-                    "lease-token"),
-                CancellationToken.None));
-        Assert.Contains("read-only", acceptanceException.Message, StringComparison.Ordinal);
     }
 
     [Fact]

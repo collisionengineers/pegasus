@@ -30,7 +30,7 @@ internal static class AssessmentWorkspaceTestData
             new CaseClaimantData(emptyString, emptyString, emptyString),
             new CaseClaimData(emptyString),
             new CaseVehicleData(
-                emptyString, emptyString, emptyString,
+                emptyString, emptyString, emptyString, emptyString,
                 new CaseField<long>(null, null, null), emptyString),
             new CaseAccidentData(emptyDate, emptyString),
             new CaseContactData(emptyString, emptyString, emptyString),
