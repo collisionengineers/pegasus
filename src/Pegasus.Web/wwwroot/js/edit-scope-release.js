@@ -45,6 +45,17 @@
         }, 2000);
     }, true);
 
+    // A navigation the page itself asked for on a command's behalf — the
+    // Glass's window handing its outcome back to this Case record — keeps the
+    // scope exactly as a posted command does.
+    window.pegasusHoldEditScopeRelease = function () {
+        submitting = true;
+        if (submittingTimeoutId !== null) {
+            clearTimeout(submittingTimeoutId);
+            submittingTimeoutId = null;
+        }
+    };
+
     // Restored from the back/forward cache: the earlier submit is over and the
     // page is live again, so the next departure releases as usual.
     window.addEventListener('pageshow', function (event) {

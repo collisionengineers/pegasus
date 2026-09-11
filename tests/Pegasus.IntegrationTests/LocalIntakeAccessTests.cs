@@ -121,6 +121,10 @@ public sealed class LocalIntakeAccessTests
     [InlineData("Eva:RequestFrom")]
     [InlineData("Eva:InspectionType")]
     [InlineData("Eva:InstructionEmail")]
+    [InlineData("Glass:MarketValueAssessorBaseUri")]
+    [InlineData("Glass:EstimatorBaseUri")]
+    [InlineData("Glass:CallbackBaseUri")]
+    [InlineData("Glass:RepairProfileId")]
     public void ProductionFailsClosedWithoutTheExternalConfigurationItComposes(string missingKey)
     {
         // Production now composes Box-backed custody and managed document content,
@@ -150,7 +154,11 @@ public sealed class LocalIntakeAccessTests
             ["Eva:ClientSecret"] = "eva-secret",
             ["Eva:RequestFrom"] = "COLLENGAPI",
             ["Eva:InspectionType"] = "Vehicle Damage Inspection",
-            ["Eva:InstructionEmail"] = "digital@collisionengineers.co.uk"
+            ["Eva:InstructionEmail"] = "digital@collisionengineers.co.uk",
+            ["Glass:MarketValueAssessorBaseUri"] = "https://mva.test/",
+            ["Glass:EstimatorBaseUri"] = "https://ere.test/",
+            ["Glass:CallbackBaseUri"] = "https://pegasus.test/",
+            ["Glass:RepairProfileId"] = "4063"
         };
         configuration[missingKey] = null;
 

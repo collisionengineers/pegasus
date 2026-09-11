@@ -38,7 +38,9 @@ read-backs immediately before this recipe. Unknown or stale containment blocks S
      'AZURE_SQL_SERVER_FQDN', 'AZURE_SQL_DATABASE_NAME', 'WEB_IDENTITY_CLIENT_ID',
      'TRANSPORT_STORAGE_ACCOUNT_NAME', 'CUSTODY_STORAGE_ACCOUNT_NAME',
      'AZURE_TENANT_ID', 'BOX_HOLDING_FOLDER_ID', 'EVA_BASE_URI',
-     'EVA_REQUEST_FROM', 'EVA_INSPECTION_TYPE', 'EVA_INSTRUCTION_EMAIL')
+     'EVA_REQUEST_FROM', 'EVA_INSPECTION_TYPE', 'EVA_INSTRUCTION_EMAIL',
+     'GLASS_MARKET_VALUE_ASSESSOR_BASE_URI', 'GLASS_ESTIMATOR_BASE_URI',
+     'GLASS_REPAIR_PROFILE_ID', 'WEB_CONTAINER_APP_FQDN')
    $missing = @($required | Where-Object { [string]::IsNullOrWhiteSpace($values[$_]) })
    if ($missing.Count) { throw "azd environment is missing: $($missing -join ', ')" }
 
@@ -67,6 +69,10 @@ read-backs immediately before this recipe. Unknown or stale containment blocks S
      Eva__RequestFrom = $values['EVA_REQUEST_FROM']
      Eva__InspectionType = $values['EVA_INSPECTION_TYPE']
      Eva__InstructionEmail = $values['EVA_INSTRUCTION_EMAIL']
+     Glass__MarketValueAssessorBaseUri = $values['GLASS_MARKET_VALUE_ASSESSOR_BASE_URI']
+     Glass__EstimatorBaseUri = $values['GLASS_ESTIMATOR_BASE_URI']
+     Glass__CallbackBaseUri = "https://$($values['WEB_CONTAINER_APP_FQDN'])/"
+     Glass__RepairProfileId = $values['GLASS_REPAIR_PROFILE_ID']
    }
    foreach ($entry in $migrationHost.GetEnumerator()) {
      [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, 'Process')
@@ -78,6 +84,13 @@ read-backs immediately before this recipe. Unknown or stale containment blocks S
    intentionally non-empty process-only placeholders, not azd configuration
    or secrets. The Box value is shape-valid JWT JSON. The migration host builds
    its deferred Box and EVA factories but does not use their external routes.
+   The four `Glass__*` values are the Web host's Production required keys
+   (CASE-047 B04); the two provider origins and the profile id are the same
+   non-secret azd values bicep hands the Web container, and the callback origin
+   is the Web ingress. `GLASS_MARKET_VALUE_ASSESSOR_BASE_URI` and
+   `GLASS_ESTIMATOR_BASE_URI` fall back to the `main.parameters.json` defaults
+   when unset in azd, so set them explicitly with `azd env set` before this
+   step or the required-value check above refuses.
    Run the resolved bundle with only `--connection`; its native exit code must
    succeed before bootstrap:
 

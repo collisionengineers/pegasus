@@ -178,8 +178,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         using var refused = await workspace.LaunchAsync();
 
-        Assert.Equal(HttpStatusCode.Found, refused.StatusCode);
-        Assert.StartsWith($"/Cases/{workspace.CaseId:D}", refused.Headers.Location!.ToString(), StringComparison.Ordinal);
+        await AssertHandsBackToTheEstimateSectionAsync(refused, workspace.CaseId);
         Assert.Contains("no vehicle registration", await workspace.CaseHtmlAsync(), StringComparison.Ordinal);
         Assert.Empty(await workspace.SessionsAsync());
     }
@@ -197,8 +196,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         using var refused = await workspace.LaunchAsync();
 
-        Assert.Equal(HttpStatusCode.Found, refused.StatusCode);
-        Assert.StartsWith($"/Cases/{workspace.CaseId:D}", refused.Headers.Location!.ToString(), StringComparison.Ordinal);
+        await AssertHandsBackToTheEstimateSectionAsync(refused, workspace.CaseId);
         var session = Assert.Single(await workspace.SessionsAsync());
         Assert.Equal(GlassRepairEstimateSessionState.Failed, session.State);
         Assert.Equal(GlassFailure.StartStatus, session.FailureCode);
@@ -234,12 +232,8 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         using var second = await workspace.PostAsync("LaunchGlass", await workspace.LaunchFormAsync());
 
-        Assert.Equal(HttpStatusCode.Found, second.StatusCode);
         // Back to the Estimate section, not out to the provider.
-        Assert.StartsWith(
-            $"/Cases/{workspace.CaseId:D}",
-            second.Headers.Location!.ToString(),
-            StringComparison.Ordinal);
+        await AssertHandsBackToTheEstimateSectionAsync(second, workspace.CaseId);
         Assert.Contains(
             "already holds a live session",
             await workspace.CaseHtmlAsync(),
@@ -256,13 +250,13 @@ public sealed class GlassRepairEstimateCallbackWebTests
                 "&EuComp=1005_1005_powered_by_eucomp", string.Empty, StringComparison.Ordinal))));
         await workspace.ClaimLeaseAsync();
         using var launch = await workspace.LaunchAsync();
-        Assert.Equal(HttpStatusCode.Found, launch.StatusCode);
+        await AssertHandsBackToTheEstimateSectionAsync(launch, workspace.CaseId);
         Assert.Equal(GlassRepairEstimateSessionState.Unknown, Assert.Single(await workspace.SessionsAsync()).State);
         var html = await workspace.CaseHtmlAsync();
         Assert.Contains("handler=ResumeGlass", html, StringComparison.Ordinal);
         Assert.Contains("handler=CloseGlass", html, StringComparison.Ordinal);
         using var resumed = await workspace.PostAsync("ResumeGlass", FormFor(html, "ResumeGlass"));
-        Assert.Equal(HttpStatusCode.Found, resumed.StatusCode);
+        await AssertHandsBackToTheEstimateSectionAsync(resumed, workspace.CaseId);
         Assert.Equal(1, workspace.Mva.Count("POST /ere/start-ere"));
 
         var close = FormFor(await workspace.CaseHtmlAsync(), "CloseGlass");
@@ -317,10 +311,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         using var returned = await workspace.ReturnAsync(correlation);
 
-        Assert.Equal(HttpStatusCode.Found, returned.StatusCode);
-        Assert.Equal(
-            $"/Cases/{workspace.CaseId:D}?section=estimate",
-            returned.Headers.Location!.ToString());
+        await AssertHandsBackToTheEstimateSectionAsync(returned, workspace.CaseId);
         var session = Assert.Single(await workspace.SessionsAsync());
         Assert.Null(session.FailureCode);
         Assert.Equal(GlassRepairEstimateSessionState.Completed, session.State);
@@ -346,10 +337,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         using var returned = await workspace.ReturnAsync(correlation);
 
-        Assert.Equal(HttpStatusCode.Found, returned.StatusCode);
-        Assert.Equal(
-            $"/Cases/{workspace.CaseId:D}?section=estimate",
-            returned.Headers.Location!.ToString());
+        await AssertHandsBackToTheEstimateSectionAsync(returned, workspace.CaseId);
         var session = Assert.Single(await workspace.SessionsAsync());
         Assert.Equal(GlassRepairEstimateSessionState.Expired, session.State);
         Assert.Equal(GlassFailure.CallbackExpired, session.FailureCode);
@@ -379,17 +367,14 @@ public sealed class GlassRepairEstimateCallbackWebTests
         var correlation = await workspace.LaunchAndReadCorrelationAsync();
         using (var first = await workspace.ReturnAsync(correlation))
         {
-            Assert.Equal(HttpStatusCode.Found, first.StatusCode);
+            await AssertHandsBackToTheEstimateSectionAsync(first, workspace.CaseId);
         }
         var consumedAtUtc = Assert.Single(await workspace.SessionsAsync()).CallbackConsumedAtUtc;
         var completedVersion = await workspace.CaseVersionAsync();
 
         using var again = await workspace.ReturnAsync(correlation);
 
-        Assert.Equal(HttpStatusCode.Found, again.StatusCode);
-        Assert.Equal(
-            $"/Cases/{workspace.CaseId:D}?section=estimate",
-            again.Headers.Location!.ToString());
+        await AssertHandsBackToTheEstimateSectionAsync(again, workspace.CaseId);
         var session = Assert.Single(await workspace.SessionsAsync());
         Assert.Equal(GlassRepairEstimateSessionState.Completed, session.State);
         Assert.Equal(consumedAtUtc, session.CallbackConsumedAtUtc);
@@ -441,10 +426,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         fault.OnComplete = false;
         using var delivered = await workspace.ReturnAsync(correlation);
-        Assert.Equal(HttpStatusCode.Found, delivered.StatusCode);
-        Assert.Equal(
-            $"/Cases/{workspace.CaseId:D}?section=estimate",
-            delivered.Headers.Location!.ToString());
+        await AssertHandsBackToTheEstimateSectionAsync(delivered, workspace.CaseId);
         Assert.NotNull(Assert.Single(await workspace.SessionsAsync()).CallbackConsumedAtUtc);
     }
 
@@ -536,7 +518,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
 
         using (var returned = await workspace.ReturnAsync(correlation))
         {
-            Assert.Equal(HttpStatusCode.Found, returned.StatusCode);
+            await AssertHandsBackToTheEstimateSectionAsync(returned, workspace.CaseId);
         }
 
         var waiting = Assert.Single(await workspace.SessionsAsync());
@@ -550,7 +532,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
         await workspace.ClaimLeaseAsync();
         using var resumed = await workspace.PostAsync("ResumeGlass", await workspace.ResumeFormAsync());
 
-        Assert.Equal(HttpStatusCode.Found, resumed.StatusCode);
+        await AssertHandsBackToTheEstimateSectionAsync(resumed, workspace.CaseId);
         var session = Assert.Single(await workspace.SessionsAsync());
         Assert.Equal(GlassRepairEstimateSessionState.Completed, session.State);
         var estimate = Assert.Single(await workspace.EstimatesAsync());
@@ -559,6 +541,21 @@ public sealed class GlassRepairEstimateCallbackWebTests
     }
 
     // -------------------------------------------------------------- the shape
+
+    /// <summary>
+    /// Every Glass's answer but the estimator itself: the window Glass's ran
+    /// in hands the Estimate section back to the Case window rather than
+    /// rendering it, so the response is that hand-back document naming the
+    /// section, not a redirect to it.
+    /// </summary>
+    private static async Task AssertHandsBackToTheEstimateSectionAsync(HttpResponseMessage response, Guid caseId)
+    {
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(
+            $"data-glass-return=\"/Cases/{caseId:D}?section=estimate\"",
+            await response.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+    }
 
     private static string NewCorrelation() =>
         Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));

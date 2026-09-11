@@ -618,11 +618,20 @@ The approved release operator supplies these deployment inputs:
 | `AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS` | Comma-separated, exact versioned Key Vault secret URIs for the current and retained signing certificates. |
 | `AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS` | Comma-separated, exact versioned secret URIs for the separate encryption certificates. |
 | `BOX_HOLDING_FOLDER_ID` | Operator-created holding folder below the approved Pegasus Box root for non-Case sources. |
+| `GLASS_MARKET_VALUE_ASSESSOR_BASE_URI` | Glass's Market Value Assessor origin. Defaults to `https://www.marketvalueassessor.jdpower.com/`. |
+| `GLASS_ESTIMATOR_BASE_URI` | Glass's repair estimator origin a launch may send the Engineer to. Defaults to `https://repairestimate.autovistagroup.com/`. |
+| `GLASS_REPAIR_PROFILE_ID` | Numeric MVA repair-estimate profile the account starts a new estimate against; `4063` for the current account. No default. |
 
 Bicep supplies the configured vault origin and indexed certificate URI settings
-to the Web container. These are references, never PFX bytes or passwords in the
-repository. Initial certificate creation and the initial alex Glass's account
-configuration are separately authorized operator actions; no secret is seeded.
+to the Web container, and derives `Glass__CallbackBaseUri` from the Web ingress
+itself. These are references, never PFX bytes or passwords in the repository.
+The Web host lists the four `Glass:*` keys among its Production required
+settings, so a revision deployed without them stops at startup naming the key;
+the migration host is built the same way and must be handed the same values.
+Initial certificate creation is a separately authorized operator action; no
+secret is seeded. Each Engineer's own Glass's account name and password are
+entered by an Administrator on that staff account's Glass's page and are held
+protected per Engineer, never in deployment configuration.
 
 For rotation, publish new certificate secret versions, then deploy all replicas
 with both the new and still-required old versions. Verify token issue,

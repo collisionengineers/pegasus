@@ -165,7 +165,14 @@ if (productionProfile)
         "Eva:ClientSecret",
         "Eva:RequestFrom",
         "Eva:InspectionType",
-        "Eva:InstructionEmail"
+        "Eva:InstructionEmail",
+        // CASE-047 B04. The Glass's gateway is built from these on first use;
+        // listed here so a deployment without them fails at startup naming the
+        // key, rather than at the Engineer's Launch on a Case record.
+        "Glass:MarketValueAssessorBaseUri",
+        "Glass:EstimatorBaseUri",
+        "Glass:CallbackBaseUri",
+        "Glass:RepairProfileId"
     })
     {
         if (string.IsNullOrWhiteSpace(builder.Configuration[key]))

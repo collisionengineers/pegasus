@@ -53,11 +53,15 @@
                     @* CASE-047 B04: the Engineer's own Glass's account opens the
                        provider's estimator. Without an enabled account the control
                        is absent, not disabled: it belongs to the operator's
-                       credential rather than to this deployment. *@
+                       credential rather than to this deployment. The estimator
+                       opens in its own window so this record stays open; the
+                       target is the no-script path and case-workspace.js names
+                       the window. *@
                     @if (Model.CanLaunchGlass)
                     {
                         <form method="post" asp-page="/Cases/Details" asp-page-handler="LaunchGlass"
-                              asp-route-id="@caseId" asp-route-section="estimate">
+                              asp-route-id="@caseId" asp-route-section="estimate"
+                              target="_blank" data-glass-window>
                             <input type="hidden" name="operationKey" value="@Model.LaunchGlassOperationKey" />
                             <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                             <button type="submit" class="btn">
@@ -128,7 +132,8 @@
                 {
                     <div class="button-row">
                         <form method="post" asp-page="/Cases/Details" asp-page-handler="ResumeGlass"
-                              asp-route-id="@caseId" asp-route-section="estimate">
+                              asp-route-id="@caseId" asp-route-section="estimate"
+                              target="_blank" data-glass-window>
                             <input type="hidden" name="operationKey" value="@Model.ResumeGlassOperationKey" />
                             <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                             <input type="hidden" name="sessionId" value="@glassSession.Id" />
