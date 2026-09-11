@@ -77,6 +77,12 @@ param evaRequestFrom string
 param evaInspectionType string
 @description('Instruction contact address sent to EVA.')
 param evaInstructionEmail string
+@description('Glass Market Value Assessor origin (absolute HTTPS); the sign-in, lookup, launch, relay and export routes are under it.')
+param glassMarketValueAssessorBaseUri string
+@description('Glass repair estimator origin (absolute HTTPS) that a launch is allowed to send the Engineer to.')
+param glassEstimatorBaseUri string
+@description('Numeric MVA repair-estimate profile id a new Glass estimate is started against. Account configuration; no default.')
+param glassRepairProfileId string
 @description('Versioned Key Vault secret URI containing the DVSA API key.')
 param dvsaApiKeySecretUri string
 @description('Approved DVSA OAuth token endpoint.')
@@ -129,6 +135,9 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     evaRequestFrom: evaRequestFrom
     evaInspectionType: evaInspectionType
     evaInstructionEmail: evaInstructionEmail
+    glassMarketValueAssessorBaseUri: glassMarketValueAssessorBaseUri
+    glassEstimatorBaseUri: glassEstimatorBaseUri
+    glassRepairProfileId: glassRepairProfileId
     dvsaApiKeySecretUri: dvsaApiKeySecretUri
     dvsaTokenUri: dvsaTokenUri
     dvsaScope: dvsaScope

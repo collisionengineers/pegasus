@@ -280,7 +280,14 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Eva:ClientSecret"] = "test-eva-secret",
             ["Eva:RequestFrom"] = "COLLENGAPI",
             ["Eva:InspectionType"] = "Vehicle Damage Inspection",
-            ["Eva:InstructionEmail"] = "digital@collisionengineers.co.uk"
+            ["Eva:InstructionEmail"] = "digital@collisionengineers.co.uk",
+            // CASE-047 B04: Production requires the Glass's adapter settings
+            // to start. Reserved test origins; no provider call is made by
+            // composing them.
+            ["Glass:MarketValueAssessorBaseUri"] = "https://mva.test/",
+            ["Glass:EstimatorBaseUri"] = "https://ere.test/",
+            ["Glass:CallbackBaseUri"] = "https://pegasus.test/",
+            ["Glass:RepairProfileId"] = "4063"
         };
         foreach (var setting in settings)
         {
