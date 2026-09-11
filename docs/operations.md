@@ -4,6 +4,32 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 48 — 11 September 2026
+
+The Glass's return is bounced through Pegasus's own origin before it is
+read (PR 733): the staff cookie is SameSite=Strict, and the estimator returns
+the operator by a cross-site navigation, so the first live round trip
+(EX10UHD, 17:09Z, session Active with an MVA vehicle and an ERE id) reached
+the callback without a session and was met with the sign-in challenge.
+Deployed through the normal route of the release skill from an isolated
+worktree at source `8d4031ff051309886d51c6d55ed3404983df695b`, version
+`0.1.0-alpha.1`.
+
+| Observation | Value |
+| --- | --- |
+| Promotion | PR 733 fast-forwarded into `dev` after its CI passed; PR 734 ran the full suite on the merged head; `main` = `dev` = `8d4031ff` by atomic fast-forward from `70877fb6`. |
+| Manifest | schema 3, SHA-256 `2DF4576D747C57420051533AF83972E4B6F9C4BE411C8BFAA5F7F40370F42819`, `win-x64` / `efbundle.exe`. |
+| Web image | `pegasusprodacr252ow37gij.azurecr.io/pegasus/web@sha256:7b8dd2054e44f167e0fc6056adee194e19d9c7ff985800c13d56a8974ce64183`; remote digest equalled the manifest. |
+| Migration | Identity unchanged at `20260911100000_PromoteVehicleLookupSuggestionsToFacts`; no bundle or bootstrap run. |
+| Web | `pegasus-prod-web-252ow37gij--8d4031ff0513` active, `Healthy`, one replica, at the approved digest. |
+| Worker | `worker.zip` deployed with the Worker approved live; state `Running`; every `AzureWebJobs.*.Disabled` setting `false`. |
+| Smoke | Full smoke passed on the first run (last poll 18:30:03Z, subscription expiry 17 September 18:10:00Z). |
+| Live check | Unauthenticated smoke only; the full Glass's round trip (launch, Save & Exit, return, import) on a plate MVA can look up remains for Alex. LF62GOC is not such a plate: MVA answers `vrm_lookup=0` with an empty candidate list for it, which the portal reports as vehicle not found. |
+| Artifacts | Retained at `artifacts/releases/release-48-8d4031ff` (ignored) with the phase logs and the driver. |
+
+Authorization: Alex, 11 September 2026 (the Glass's debug task, continued
+after the return failure on EX10UHD). No outage: normal route.
+
 ## Release 47 — 11 September 2026
 
 Glass's candidate list read again before refusal, with the refusal saying
