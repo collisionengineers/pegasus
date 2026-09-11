@@ -113,11 +113,14 @@ internal sealed record GlassEstimateLaunch(string EreId, Uri OriginalCallback, U
 /// </para>
 ///
 /// <para>
-/// <b>Nothing retries blindly.</b> The VRM lookup is the one stage that
-/// retries, once, after 250 ms, and only when the provider answered readable
-/// JSON that reported no lookup yet. Vehicle creation and starting the
-/// estimate change state inside the Glass's account, so a lost answer to
-/// either is reported as unknown rather than repeated.
+/// <b>Nothing retries blindly.</b> Only the two reads that follow a lookup
+/// retry, and only when the provider answered readable JSON that reported
+/// nothing yet: the VRM lookup once after 250 ms, and the candidate list
+/// twice more at the same spacing, because the portal's own page reads it
+/// after the lookup and a list that is not ready is an empty answer, not a
+/// refusal. Vehicle creation and starting the estimate change state inside
+/// the Glass's account, so a lost answer to either is reported as unknown
+/// rather than repeated.
 /// </para>
 ///
 /// <para>
@@ -145,8 +148,11 @@ internal sealed partial class GlassMvaClient(
     IDictionary<string, string> cookies,
     TimeProvider timeProvider)
 {
-    /// <summary>The one delay before the one retryable stage runs again.</summary>
+    /// <summary>The one delay before a retryable read runs again.</summary>
     private static readonly TimeSpan LookupRetryDelay = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>How many times the candidate list is read before it is refused.</summary>
+    private const int CandidateReads = 3;
 
     /// <summary>
     /// Every parameter the provider's launch URL must carry. The rewrite
@@ -225,14 +231,9 @@ internal sealed partial class GlassMvaClient(
     {
         var search = $"index/search-vrm/vrms_reg_no/{Uri.EscapeDataString(registration)}"
             + $"/valuate/1/vrms_mileage/{mileageMiles.ToString(CultureInfo.InvariantCulture)}";
-        var natCode = await LookupNatCodeAsync(search, cancellationToken);
+        var (natCode, lookupDetail) = await LookupNatCodeAsync(search, cancellationToken);
         var valuationDate = ValuationMonth();
-        var candidates = await JsonAsync(
-            new HttpRequestMessage(
-                HttpMethod.Get,
-                options.MarketValueAssessor($"three-phase-vehicle/get-vehicles/source/vrm/valdate/{valuationDate}")),
-            GlassFailure.CandidatesRequest,
-            cancellationToken);
+        var candidates = await CandidatesAsync(valuationDate, lookupDetail, cancellationToken);
         var ordinal = CandidateOrdinal(candidates, natCode);
 
         // The valuation body is deliberately discarded: Pegasus records no
@@ -554,7 +555,8 @@ internal sealed partial class GlassMvaClient(
     /// there is nothing to say it was safe; and an answer that reports the
     /// vehicle was not found is the provider's decision, not a glitch.
     /// </summary>
-    private async Task<string> LookupNatCodeAsync(string search, CancellationToken cancellationToken)
+    private async Task<(string NatCode, string Detail)> LookupNatCodeAsync(
+        string search, CancellationToken cancellationToken)
     {
         var stock = await JsonAsync(
             new HttpRequestMessage(HttpMethod.Get, options.MarketValueAssessor(search)),
@@ -578,7 +580,7 @@ internal sealed partial class GlassMvaClient(
             }
             if (lookup >= 0 && !string.IsNullOrEmpty(natCode))
             {
-                return natCode;
+                return (natCode, detail);
             }
             if (attempt == 2)
             {
@@ -591,18 +593,50 @@ internal sealed partial class GlassMvaClient(
     }
 
     /// <summary>
+    /// Stage 7: the candidate list the lookup produced (a read the portal's
+    /// page makes straight after the lookup). An answer whose success flag
+    /// is not set is read again, twice, 250 ms apart, before it is refused:
+    /// the read changes nothing, and the refusal carries what the lookup
+    /// and the list each answered, in numbers and flags only.
+    /// </summary>
+    private async Task<JsonElement> CandidatesAsync(
+        string valuationDate, string lookupDetail, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            var candidates = await JsonAsync(
+                new HttpRequestMessage(
+                    HttpMethod.Get,
+                    options.MarketValueAssessor($"three-phase-vehicle/get-vehicles/source/vrm/valdate/{valuationDate}")),
+                GlassFailure.CandidatesRequest,
+                cancellationToken);
+            if (Text(candidates, "success") is "true" or "True")
+            {
+                return candidates;
+            }
+            if (attempt == CandidateReads)
+            {
+                var keys = candidates.ValueKind == JsonValueKind.Object
+                    ? string.Join(',', candidates.EnumerateObject().Select(property => property.Name))
+                    : candidates.ValueKind.ToString();
+                throw new GlassMvaStageException(
+                    GlassFailure.CandidatesRefused,
+                    detail: $"lookup[{lookupDetail}] candidates[success={Text(candidates, "success") ?? "absent"}"
+                        + $" keys={keys} html={(Text(candidates, "html") ?? string.Empty).Length} attempt={attempt}]");
+            }
+
+            await Task.Delay(LookupRetryDelay, timeProvider, cancellationToken);
+        }
+    }
+
+    /// <summary>
     /// Which candidate the lookup's type number names. The provider answers a
-    /// success flag and a rendered list, each entry carrying its own type
-    /// number; nothing is guessed, so no candidate and more than one candidate
-    /// are separate refusals and neither continues.
+    /// rendered list, each entry carrying its own type number; nothing is
+    /// guessed, so no candidate and more than one candidate are separate
+    /// refusals and neither continues.
     /// </summary>
     private static int CandidateOrdinal(JsonElement candidates, string natCode)
     {
-        if (Text(candidates, "success") is not "true" and not "True")
-        {
-            throw new GlassMvaStageException(GlassFailure.CandidatesRefused);
-        }
-
         var html = Text(candidates, "html") ?? string.Empty;
         var blocks = CandidateBlock().Matches(html);
         var matched = 0;

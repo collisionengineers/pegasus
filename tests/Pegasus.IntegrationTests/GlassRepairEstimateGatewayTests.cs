@@ -671,6 +671,41 @@ public sealed class GlassRepairEstimateGatewayTests
         Assert.Equal(0, harness.Mva.Count("GET /index/create-new-vehicle"));
     }
 
+    /// <summary>
+    /// The candidate list is a read the portal's page makes straight after
+    /// the lookup, so one that is not ready yet is read again rather than
+    /// refused; the third empty answer is the refusal.
+    /// </summary>
+    [Fact]
+    public async Task ACandidateListThatIsNotReadyYetIsReadAgain()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Enqueue(
+            "GET /three-phase-vehicle/get-vehicles",
+            new Reply(HttpStatusCode.OK, "{\"success\":false,\"html\":\"\"}"));
+
+        var session = await harness.LaunchAsync();
+
+        Assert.Equal(GlassRepairEstimateSessionState.Active, session.State);
+        Assert.Equal(2, harness.Mva.Count("GET /three-phase-vehicle/get-vehicles"));
+    }
+
+    [Fact]
+    public async Task ACandidateListThatNeverComesIsReadThreeTimesAndNoMore()
+    {
+        var harness = Harness.Create();
+        harness.Mva.Set(
+            "GET /three-phase-vehicle/get-vehicles",
+            new(HttpStatusCode.OK, "{\"success\":false,\"html\":\"\"}"));
+
+        var session = await harness.LaunchAsync();
+
+        Assert.Equal(GlassRepairEstimateSessionState.Failed, session.State);
+        Assert.Equal(GlassFailure.CandidatesRefused, session.FailureCode);
+        Assert.Equal(3, harness.Mva.Count("GET /three-phase-vehicle/get-vehicles"));
+        Assert.Equal(0, harness.Mva.Count("GET /index/create-new-vehicle"));
+    }
+
     [Fact]
     public async Task ANewVehicleLookupWithoutATypeNumberIsRetriedOnce()
     {
