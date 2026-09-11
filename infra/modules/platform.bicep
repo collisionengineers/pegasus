@@ -41,8 +41,13 @@ param evaBaseUri string
 param evaRequestFrom string
 param evaInspectionType string
 param evaInstructionEmail string
+// CASE-047 B04. The Glass's adapter is Web-only and built from these at
+// startup; the callback origin is derived below from the Web ingress itself.
+param glassMarketValueAssessorBaseUri string
+param glassEstimatorBaseUri string
+param glassRepairProfileId string
 
-var suffix = take(uniqueString(subscription().subscriptionId, resourceGroup().id, 'prod'), 10)
+var suffix =take(uniqueString(subscription().subscriptionId, resourceGroup().id, 'prod'), 10)
 var prefix = 'pegasus-prod'
 var telemetryDailyCapGb = json('0.5')
 var transportStorageName = 'pegtrans${suffix}'
@@ -512,6 +517,14 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'Eva__InstructionEmail', value: evaInstructionEmail }
             { name: 'AutomationMcp__PublicOrigin', value: 'https://${prefix}-web-${suffix}.${containerEnvironment.properties.defaultDomain}/' }
             { name: 'AutomationMcp__RedirectUris', value: automationMcpRedirectUris }
+            // CASE-047 B04 Glass's Repair Estimate. Program.cs lists these four
+            // among the Production required keys, so a Web revision without
+            // them stops at startup naming the key. The callback origin is the
+            // Web ingress itself, exactly as AutomationMcp__PublicOrigin above.
+            { name: 'Glass__MarketValueAssessorBaseUri', value: glassMarketValueAssessorBaseUri }
+            { name: 'Glass__EstimatorBaseUri', value: glassEstimatorBaseUri }
+            { name: 'Glass__CallbackBaseUri', value: 'https://${prefix}-web-${suffix}.${containerEnvironment.properties.defaultDomain}/' }
+            { name: 'Glass__RepairProfileId', value: glassRepairProfileId }
             // INT-31 upload links. Program.cs:247-250 composes the upload-link
             // services only when AcceptedLimitsVersion is non-empty, so before
             // this block production had no /Uploads surface at all.
