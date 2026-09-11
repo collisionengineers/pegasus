@@ -1,0 +1,19 @@
+@model string
+@* CASE-047 B04: where a Glass's launch, resume or return answers when it is
+   not the estimator itself. The provider runs in its own window opened from
+   the Case record, so the answer is a hand-back rather than a page: the Case
+   window is sent to its Estimate section, where the outcome is reported, and
+   this window closes. Without script, or without an opener, this window goes
+   there itself. The model is the Estimate section's own address. *@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <meta http-equiv="refresh" content="0;url=@Model" />
+    <title>Pegasus</title>
+</head>
+<body data-glass-return="@Model">
+    <script src="~/js/glass-return.js" asp-append-version="true"></script>
+</body>
+</html>
