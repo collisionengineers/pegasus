@@ -386,10 +386,17 @@ authority; callback replay creates neither another Draft nor another mutation.
 An interrupted provider write whose answer was lost remains `Unknown` and
 holds the account. It must not create another vehicle or calculation, or
 release the account merely because local time elapsed. The owning Engineer
-can close that uncertain record only after confirming Glass's is closed and
-no estimate remains open, with a reason. Stale versions and another Engineer's
-closure are refused. Checkpoints and explicit closure are permanently audited
-without provider credentials, callback tokens or document content.
+can close any session that still holds the account, except one mid-import,
+only after confirming Glass's is closed and no estimate remains open, with a
+reason (2026-09-11: previously only an `Unknown` record). Stale versions and
+another Engineer's closure are refused. An account holds one live session:
+while it is held from another Case, every Case the Engineer opens names that
+Case instead of offering a launch, and a second launch is refused before the
+provider is contacted. Reopening an existing estimate may be answered under
+a different provider estimate id; every id a session was launched under is
+retained and the provider's return may name any of them. Checkpoints and
+explicit closure are permanently audited without provider credentials,
+callback tokens or document content.
 
 ### Conservative MOT mileage estimation
 

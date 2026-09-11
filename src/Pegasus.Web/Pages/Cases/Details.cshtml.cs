@@ -477,14 +477,22 @@ public sealed partial class DetailsModel(
     public GlassRepairEstimateSession? GlassSession { get; private set; }
 
     /// <summary>
+    /// This Engineer's session that holds their Glass's account on another
+    /// Case. The account has one live slot, so while this is set no launch is
+    /// offered here; the section says which Case holds it instead.
+    /// </summary>
+    public GlassSessionElsewhere? GlassSessionElsewhere { get; private set; }
+
+    /// <summary>
     /// Whether the Estimate section offers the Glass's control at all: an
-    /// Engineer, on a writable open assessment, holding an enabled account.
-    /// Without the account the control is absent rather than disabled — the
-    /// capability belongs to the operator's own credential, not to this
-    /// deployment.
+    /// Engineer, on a writable open assessment, holding an enabled account
+    /// that no other Case is using. Without the account the control is absent
+    /// rather than disabled — the capability belongs to the operator's own
+    /// credential, not to this deployment.
     /// </summary>
     public bool CanLaunchGlass =>
-        ActorIsEngineer && AssessmentCanOpen && !AssessmentIsReadOnly && GlassAccountEnabled;
+        ActorIsEngineer && AssessmentCanOpen && !AssessmentIsReadOnly && GlassAccountEnabled
+        && GlassSessionElsewhere is null;
 
     /// <summary>
     /// Whether the session on the screen can be picked back up: an open
@@ -496,8 +504,13 @@ public sealed partial class DetailsModel(
         && GlassSession is { } session
         && GlassRepairEstimateSessionPolicy.OccupiesAccount(session.State);
 
+    /// <summary>
+    /// Whether the session on the screen can be closed by its owner: any one
+    /// that still holds the account except one mid-import, per the policy.
+    /// </summary>
     public bool CanCloseGlass => ActorIsEngineer && AssessmentCanOpen
-        && GlassSession?.State == GlassRepairEstimateSessionState.Unknown;
+        && GlassSession is { } session
+        && GlassRepairEstimateSessionPolicy.CanClose(session.State);
 
     private static decimal? ParseNumber(string? value) =>
         string.IsNullOrWhiteSpace(value)
@@ -765,6 +778,17 @@ public sealed partial class DetailsModel(
         if (GlassAccountEnabled)
         {
             GlassSession = await glassSessions.GetForCaseAsync(id, staffId, cancellationToken);
+            if (GlassSession is null || !GlassRepairEstimateSessionPolicy.OccupiesAccount(GlassSession.State))
+            {
+                // The account's one live slot may be held from another Case;
+                // this Case then says where, and offers no launch.
+                var live = await glassSessions.GetLiveForUserAsync(staffId, cancellationToken);
+                if (live is not null && live.CaseId != id)
+                {
+                    var other = await getCase.ExecuteAsync(new(live.CaseId, actor), cancellationToken);
+                    GlassSessionElsewhere = new(live, other?.Summary.Reference ?? live.CaseId.ToString("D"));
+                }
+            }
         }
     }
 
@@ -2150,7 +2174,7 @@ public sealed partial class DetailsModel(
         {
             // Answered in the Glass's window: a refusal goes back to the Case
             // window that posted it, as every other outcome here does.
-            return guard is RedirectToPageResult ? GlassReturn(id) : guard;
+            return RefusedGlassGuard(id, "LaunchGlass", guard);
         }
         if (!TryGetActor(out var actor))
         {
@@ -2209,7 +2233,7 @@ public sealed partial class DetailsModel(
         var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
         {
-            return guard is RedirectToPageResult ? GlassReturn(id) : guard;
+            return RefusedGlassGuard(id, "ResumeGlass", guard);
         }
         if (!TryGetActor(out var actor) || !Guid.TryParse(actor.SubjectId, out var staffId))
         {
@@ -2356,9 +2380,31 @@ public sealed partial class DetailsModel(
         return RedirectToEstimate(id);
     }
 
+    /// <summary>
+    /// A Glass's command the Estimate guard refused before the gateway was
+    /// asked. Logged once with the notice the guard set, so a report of the
+    /// same screen can be told apart from a provider outcome.
+    /// </summary>
+    private IActionResult RefusedGlassGuard(Guid id, string handler, IActionResult guard)
+    {
+        if (guard is not RedirectToPageResult)
+        {
+            return guard;
+        }
+        LogGlassCommandRefused(logger, id, handler, TempData["CaseError"] as string ?? guard.GetType().Name);
+        return GlassReturn(id);
+    }
+
     private PartialViewResult RefuseGlassCommand(
         Guid id, string? editLeaseToken, Exception exception, string refusal)
     {
+        LogGlassCommandRefused(
+            logger,
+            id,
+            refusal == GlassLabels.ResumeRefused ? "ResumeGlass" : "LaunchGlass",
+            exception is GlassRepairEstimateSessionConflictException conflict
+                ? $"{conflict.GetType().Name}:{conflict.Conflict}"
+                : exception.GetType().Name);
         HandleLeaseFailure(id, editLeaseToken, exception);
         TempData["CaseError"] = exception is GlassRepairEstimateSessionConflictException
         {
@@ -3103,7 +3149,22 @@ public sealed partial class DetailsModel(
         ILogger logger,
         Guid caseId,
         Exception exception);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Glass's {Handler} on case {CaseId} was refused before the provider: {Reason}")]
+    private static partial void LogGlassCommandRefused(
+        ILogger logger,
+        Guid caseId,
+        string handler,
+        string reason);
 }
+
+/// <summary>
+/// This Engineer's live Glass's session on another Case, and that Case's
+/// reference for the Estimate section to name.
+/// </summary>
+public sealed record GlassSessionElsewhere(GlassRepairEstimateSession Session, string CaseReference);
 
 /// <summary>
 /// One field of a refused submission beside the value the case now holds, for comparison only.

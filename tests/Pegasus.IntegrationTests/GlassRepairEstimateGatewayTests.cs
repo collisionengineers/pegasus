@@ -1133,6 +1133,71 @@ public sealed class GlassRepairEstimateGatewayTests
             QueryOf(harness.Mva.Requests.Last(request => request.Path == "/ere/start-ere").Body!)["ere_id"]);
     }
 
+    /// <summary>
+    /// Reopening an existing estimate can answer a launch URL naming it
+    /// differently. Both ids stay with the session and the provider's return
+    /// may carry either.
+    /// </summary>
+    [Fact]
+    public async Task AResumedEstimateKeepsEveryIdItWasLaunchedUnderAndReturnsUnderTheFirst()
+    {
+        var harness = Harness.Create();
+        var session = await harness.LaunchAsync();
+        harness.Mva.Set("POST /ere/start-ere", new(HttpStatusCode.OK, GlassProviderFixture.StartEre(
+            GlassProviderFixture.LaunchUrl(
+                $"https://mva.test/ere/ere-callback/ere_id/53768/ere_session/{GlassProviderFixture.EreSession}"))));
+
+        var resumed = await harness.Gateway.ResumeAsync(
+            new GlassRepairEstimateResumeRequest(harness.Engineer, session.Id, session.Version),
+            CancellationToken.None);
+        Assert.Equal("53768", resumed.ProviderEstimateId);
+
+        // The scripted relay names the first id; the session still accepts it.
+        var completed = await harness.CompleteAsync(resumed);
+
+        Assert.Equal(GlassRepairEstimateSessionState.Completed, completed.State);
+    }
+
+    /// <summary>
+    /// A second launch on an account that holds a live session is refused by
+    /// a read that names that session, before anything is inserted.
+    /// </summary>
+    [Fact]
+    public async Task ASecondLaunchIsRefusedByNamingTheLiveSessionBeforeAnyInsert()
+    {
+        var harness = Harness.Create();
+        var first = await harness.LaunchAsync(operationKey: "launch-1");
+        var stored = harness.Store.Sessions.Count;
+
+        var conflict = await Assert.ThrowsAsync<GlassRepairEstimateSessionConflictException>(
+            () => harness.LaunchAsync(operationKey: "launch-2"));
+
+        Assert.Equal(GlassRepairEstimateSessionConflict.ActiveAccount, conflict.Conflict);
+        Assert.Equal(first.Id, conflict.SessionId);
+        Assert.Equal(stored, harness.Store.Sessions.Count);
+    }
+
+    /// <summary>
+    /// The owner can close a session that still holds the account, not only
+    /// an uncertain one, and the account is free for the next launch.
+    /// </summary>
+    [Fact]
+    public async Task AnOpenSessionCanBeClosedByItsOwnerAndTheAccountIsFreedForTheNextLaunch()
+    {
+        var harness = Harness.Create();
+        var open = await harness.LaunchAsync(operationKey: "launch-1");
+        Assert.Equal(GlassRepairEstimateSessionState.Active, open.State);
+
+        var closed = await harness.Gateway.CloseAsync(
+            new GlassRepairEstimateCloseRequest(harness.Engineer, open.Id, open.Version, true, "Closed in Glass's."),
+            CancellationToken.None);
+        Assert.Equal(GlassRepairEstimateSessionState.Cancelled, closed.State);
+
+        var next = await harness.LaunchAsync(operationKey: "launch-2");
+        Assert.Equal(GlassRepairEstimateSessionState.Active, next.State);
+        Assert.NotEqual(open.Id, next.Id);
+    }
+
     [Fact]
     public async Task AnotherEngineerCannotReadOrResumeThisEngineersSession()
     {
@@ -1857,6 +1922,13 @@ public sealed class GlassRepairEstimateGatewayTests
             return Task.CompletedTask;
         }
 
+        public Task<GlassRepairEstimateSession?> FindLiveForAccountAsync(
+            string normalizedExternalAccountKey, CancellationToken cancellationToken) =>
+            Task.FromResult(Sessions.Values
+                .Select(item => item.Session)
+                .FirstOrDefault(session =>
+                    session.NormalizedExternalAccountKey == normalizedExternalAccountKey && Occupies(session.State)));
+
         public async Task<GlassRepairEstimateSession> CloseAsync(
             GlassRepairEstimateCloseRequest request, CancellationToken cancellationToken)
         {
@@ -1900,6 +1972,10 @@ public sealed class GlassRepairEstimateGatewayTests
         public Task<GlassRepairEstimateSession> CloseAsync(
             GlassRepairEstimateCloseRequest request, CancellationToken cancellationToken) =>
             inner.CloseAsync(request, cancellationToken);
+
+        public Task<GlassRepairEstimateSession?> FindLiveForAccountAsync(
+            string normalizedExternalAccountKey, CancellationToken cancellationToken) =>
+            inner.FindLiveForAccountAsync(normalizedExternalAccountKey, cancellationToken);
 
         public Task<GlassRepairEstimateSessionMaterial> CreateAsync(
             GlassRepairEstimateSessionMaterial material, CancellationToken cancellationToken) =>

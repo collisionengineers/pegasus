@@ -14,6 +14,14 @@ public static class GlassRepairEstimateSessionPolicy
         or GlassRepairEstimateSessionState.Active or GlassRepairEstimateSessionState.Importing
         or GlassRepairEstimateSessionState.AwaitingImport or GlassRepairEstimateSessionState.Unknown;
 
+    /// <summary>
+    /// Which sessions the owning Engineer may close: every one that still
+    /// holds the account except one mid-import, whose claim is acting on the
+    /// provider's return and must be allowed to settle.
+    /// </summary>
+    public static bool CanClose(GlassRepairEstimateSessionState state) =>
+        OccupiesAccount(state) && state != GlassRepairEstimateSessionState.Importing;
+
     public static void ValidateClosure(
         GlassRepairEstimateCloseRequest request, GlassRepairEstimateSession session)
     {
@@ -24,12 +32,12 @@ public static class GlassRepairEstimateSessionPolicy
         {
             throw new GlassRepairEstimateRefusalException("This Glass's session belongs to another Engineer.");
         }
-        if (session.State != GlassRepairEstimateSessionState.Unknown
+        if (!CanClose(session.State)
             || !request.ExternalSessionClosed || string.IsNullOrWhiteSpace(request.Reason)
             || request.Reason.Trim().Length > 2000)
         {
             throw new GlassRepairEstimateRefusalException(
-                "Closing an uncertain Glass's session requires confirmation of external closure and a reason.");
+                "Closing a Glass's session that holds the account requires confirmation of external closure and a reason.");
         }
     }
 }
@@ -111,4 +119,7 @@ public interface IGlassRepairEstimateSessionStore
         CancellationToken cancellationToken);
     Task<GlassRepairEstimateSession> CloseAsync(
         GlassRepairEstimateCloseRequest request, CancellationToken cancellationToken);
+    /// <summary>The session that holds the external account now, or null when none does.</summary>
+    Task<GlassRepairEstimateSession?> FindLiveForAccountAsync(
+        string normalizedExternalAccountKey, CancellationToken cancellationToken);
 }

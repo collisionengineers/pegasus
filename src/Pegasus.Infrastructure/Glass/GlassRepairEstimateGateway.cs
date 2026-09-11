@@ -117,6 +117,19 @@ public sealed partial class GlassRepairEstimateGateway(
         var facts = await caseAuthority.RequireEditAuthorityAsync(
             request.Actor, request.CaseId, request.ExpectedCaseVersion, request.LeaseToken, cancellationToken);
         var credential = await RequireCredentialAsync(request.Actor, cancellationToken);
+        // The account holds one live session. Asking first makes the ordinary
+        // refusal a read that names the session in the way; the store's index
+        // still decides a genuine race. A replay of the same operation key is
+        // not a second launch and is answered by the store as before.
+        if (await store.FindLiveForAccountAsync(
+                credential.Reference.NormalizedExternalAccountKey, cancellationToken) is { } live
+            && !string.Equals(live.OperationKey, request.OperationKey.Trim(), StringComparison.Ordinal))
+        {
+            throw Conflict(
+                GlassRepairEstimateSessionConflict.ActiveAccount,
+                live.Id,
+                "The Glass's account already holds a live session.");
+        }
 
         var now = timeProvider.GetUtcNow();
         var correlation = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
@@ -521,7 +534,10 @@ public sealed partial class GlassRepairEstimateGateway(
         try
         {
             await client.RelayCallbackAsync(
-                new Uri(originalCallback, UriKind.Absolute), ereId, callback.RawQuery, cancellationToken);
+                new Uri(originalCallback, UriKind.Absolute),
+                EstimateIdsOf(provider, ereId),
+                callback.RawQuery,
+                cancellationToken);
         }
         catch (Exception failure)
             when (failure is GlassMvaStageException || IsTransportFailure(failure, cancellationToken))
@@ -948,8 +964,24 @@ public sealed partial class GlassRepairEstimateGateway(
         return next with { Version = session.Version + 1 };
     }
 
+    /// <summary>
+    /// Every estimate id this session has been launched under. Reopening an
+    /// existing estimate can answer a launch URL that names it differently,
+    /// and the provider's return may carry either, so none is forgotten.
+    /// </summary>
+    private static HashSet<string> EstimateIdsOf(ProviderState provider, string current) =>
+        new(provider.EstimateIds, StringComparer.Ordinal) { current };
+
     private static void Record(ProviderState provider, GlassEstimateLaunch launch)
     {
+        if (provider.EreId is { } previous && !provider.EstimateIds.Contains(previous))
+        {
+            provider.EstimateIds.Add(previous);
+        }
+        if (!provider.EstimateIds.Contains(launch.EreId))
+        {
+            provider.EstimateIds.Add(launch.EreId);
+        }
         provider.EreId = launch.EreId;
         provider.OriginalCallback = launch.OriginalCallback.AbsoluteUri;
         provider.EstimatorUrl = launch.EstimatorUrl.AbsoluteUri;
@@ -1060,6 +1092,13 @@ public sealed partial class GlassRepairEstimateGateway(
         public string? MvaVehicleId { get; set; }
 
         public string? EreId { get; set; }
+
+        /// <summary>
+        /// Every estimate id a launch or a resume of this session recorded, in
+        /// order. Absent from state protected before it existed, which reads as
+        /// empty; <see cref="EreId"/> alone then names the estimate.
+        /// </summary>
+        public List<string> EstimateIds { get; init; } = [];
 
         /// <summary>
         /// The provider's own callback, whole. It names the estimate and the

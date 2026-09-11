@@ -159,6 +159,8 @@
                     </div>
                 }
             </dl>
+            @* Any session that still holds the account can be closed by its
+               owner here; one mid-import settles on its own. *@
             @if (Model.CanCloseGlass)
             {
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="CloseGlass"
@@ -176,6 +178,26 @@
                     <button type="submit" class="btn btn--danger">@GlassLabels.Close</button>
                 </form>
             }
+        </section>
+    }
+    else if (Model.GlassSessionElsewhere is { } elsewhere)
+    {
+        @* The account's one live slot is held from another Case: name it
+           and link to it. Resume and Close belong to that Case's own section. *@
+        <section class="panel" aria-labelledby="section-glass-elsewhere-title" data-glass-elsewhere="@elsewhere.Session.CaseId">
+            <div class="panel-head">
+                <h2 id="section-glass-elsewhere-title">@GlassLabels.Launch</h2>
+            </div>
+            <dl class="detail-list">
+                <div>
+                    <dt>@GlassLabels.State</dt>
+                    <dd>@GlassLabels.StateLabel(elsewhere.Session.State)</dd>
+                </div>
+                <div>
+                    <dt>@GlassLabels.OpenOn</dt>
+                    <dd><a asp-page="/Cases/Details" asp-route-id="@elsewhere.Session.CaseId" asp-route-section="estimate">@elsewhere.CaseReference</a></dd>
+                </div>
+            </dl>
         </section>
     }
 
