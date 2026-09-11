@@ -83,6 +83,15 @@
     "evaInstructionEmail": {
       "value": "${EVA_INSTRUCTION_EMAIL}"
     },
+    "glassMarketValueAssessorBaseUri": {
+      "value": "${GLASS_MARKET_VALUE_ASSESSOR_BASE_URI=https://www.marketvalueassessor.jdpower.com/}"
+    },
+    "glassEstimatorBaseUri": {
+      "value": "${GLASS_ESTIMATOR_BASE_URI=https://repairestimate.autovistagroup.com/}"
+    },
+    "glassRepairProfileId": {
+      "value": "${GLASS_REPAIR_PROFILE_ID}"
+    },
     "dvsaApiKeySecretUri": {
       "value": "${DVSA_API_KEY_SECRET_URI}"
     },

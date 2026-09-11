@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Actors;
@@ -2134,7 +2135,9 @@ public sealed partial class DetailsModel(
         var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
         {
-            return guard;
+            // Answered in the Glass's window: a refusal goes back to the Case
+            // window that posted it, as every other outcome here does.
+            return guard is RedirectToPageResult ? GlassReturn(id) : guard;
         }
         if (!TryGetActor(out var actor))
         {
@@ -2193,7 +2196,7 @@ public sealed partial class DetailsModel(
         var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
         if (guard is not null)
         {
-            return guard;
+            return guard is RedirectToPageResult ? GlassReturn(id) : guard;
         }
         if (!TryGetActor(out var actor) || !Guid.TryParse(actor.SubjectId, out var staffId))
         {
@@ -2204,7 +2207,7 @@ public sealed partial class DetailsModel(
         if (held is null || held.Id != sessionId)
         {
             TempData["CaseError"] = GlassLabels.ResumeRefused;
-            return RedirectToEstimate(id);
+            return GlassReturn(id);
         }
 
         try
@@ -2261,6 +2264,22 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
+    /// Where every Glass's answer but the estimator itself goes: the provider
+    /// runs in a window opened from the Case record, so the answer hands that
+    /// record's Estimate section back to the window that holds it rather than
+    /// rendering it where the provider was. Shared with the provider's return.
+    /// </summary>
+    public static PartialViewResult GlassReturn(PageModel page, Guid caseId)
+    {
+        ArgumentNullException.ThrowIfNull(page);
+        return page.Partial(
+            "_GlassReturn",
+            page.Url.Page("/Cases/Details", new { id = caseId, section = "estimate" })!);
+    }
+
+    private PartialViewResult GlassReturn(Guid id) => GlassReturn(this, id);
+
+    /// <summary>
     /// The one operator-facing reading of a settled Glass's session, shared by
     /// the Estimate section's commands and the provider's own return.
     /// </summary>
@@ -2286,10 +2305,10 @@ public sealed partial class DetailsModel(
             // Never opened at the provider and never settled: nothing to
             // report but the refusal the command carries.
             TempData["CaseError"] = refusal;
-            return RedirectToEstimate(id);
+            return GlassReturn(id);
         }
 
-        return ReportSessionOutcome(session, TempData, () => RedirectToEstimate(id));
+        return ReportSessionOutcome(session, TempData, () => GlassReturn(id));
     }
 
     public async Task<IActionResult> OnPostCloseGlassAsync(
@@ -2324,7 +2343,7 @@ public sealed partial class DetailsModel(
         return RedirectToEstimate(id);
     }
 
-    private RedirectToPageResult RefuseGlassCommand(
+    private PartialViewResult RefuseGlassCommand(
         Guid id, string? editLeaseToken, Exception exception, string refusal)
     {
         HandleLeaseFailure(id, editLeaseToken, exception);
@@ -2336,7 +2355,7 @@ public sealed partial class DetailsModel(
             // session says nothing an operator can act on beyond the refusal.
             ? refusal
             : MutationRefusalMessage(exception, refusal);
-        return RedirectToEstimate(id);
+        return GlassReturn(id);
     }
 
     private static bool IsGlassRefusal(Exception exception) =>
