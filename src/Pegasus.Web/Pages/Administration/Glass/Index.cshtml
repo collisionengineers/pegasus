@@ -89,7 +89,7 @@
             <div class="dialog-foot">
                 @if (status.Configured)
                 {
-                    <div class="left"><button type="button" class="btn btn--danger" data-dialog-open="glass-clear-confirm" disabled="@(!Model.IsEditing)">@CaseWorkspaceLabels.GlassCredential.Clear</button></div>
+                    <div class="left"><form method="post" asp-page-handler="Clear"><input type="hidden" name="ExpectedVersion" value="@status.Version" /><input type="hidden" name="ExpectedStaffAccountVersion" value="@account.Version" /><input type="hidden" name="EditLeaseToken" value="@Model.EditLeaseToken" /><button type="submit" class="btn btn--danger" disabled="@(!Model.IsEditing)">@CaseWorkspaceLabels.GlassCredential.Clear</button></form></div>
                 }
                 @if (Model.IsEditing)
                 {
@@ -139,13 +139,4 @@
             }
         </section>
     </div>
-    @if (status.Configured)
-    {
-        <div class="dialog-backdrop" data-dialog="glass-clear-confirm" hidden>
-            <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="glass-clear-confirm-title">
-                <div class="dialog-head"><h2 id="glass-clear-confirm-title">Clear Glass's login?</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
-                <form method="post" asp-page-handler="Clear"><input type="hidden" name="ExpectedVersion" value="@status.Version" /><input type="hidden" name="ExpectedStaffAccountVersion" value="@account.Version" /><input type="hidden" name="EditLeaseToken" value="@Model.EditLeaseToken" /><div class="dialog-body"><dl class="detail-list"><div><dt>@CaseWorkspaceLabels.GlassCredential.Account</dt><dd>@account.UserName</dd></div></dl></div><div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger">@CaseWorkspaceLabels.GlassCredential.Clear</button></div></form>
-            </section>
-        </div>
-    }
 }

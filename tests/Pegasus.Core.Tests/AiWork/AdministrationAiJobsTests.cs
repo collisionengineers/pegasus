@@ -67,6 +67,6 @@ public sealed class AdministrationAiJobsTests
     private sealed class Control(bool enabled) : ISendToAiControl
     {
         public Task<bool> IsEnabledAsync(CancellationToken cancellationToken) => Task.FromResult(enabled);
-        public Task<bool> SetEnabledAsync(bool value, ActionActor actor, string reason, string operationKey, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<bool> SetEnabledAsync(bool value, ActionActor actor, string? reason, string operationKey, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

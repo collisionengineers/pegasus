@@ -77,7 +77,7 @@ The Principal section of a Contact carries:
   from the provider route policy in
   [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-and-intermediary-routes);
 - the existing default inspection location: Image Based Assessment or a
-  physical address, with a reason for changes;
+  physical address, saved on the click;
 - the report-generation policy and recipient suggestions: Pegasus, EVA ZIP,
   manual EVA API, or automatic EVA API on Review; configured additional
   recipients and the optional original instruction sender are the only
@@ -85,7 +85,8 @@ The Principal section of a Contact carries:
   is owned by [FRD-07](frd-07-eva-and-external-engineering-handoff.md) and
   [ADR-0048](../adr/0048-principal-report-generation-policies.md);
 - the Provider API credential (API-04): issue, reset, revoke, pause, and
-  resume, each with a reason. The secret is shown once at issue or reset and
+  resume, each acting on the click and entering permanent history with an
+  optional reason. The secret is shown once at issue or reset and
   never again, including after an exact request replay. Its response is
   non-cacheable and the secret is never put in TempData, URLs or history;
   only its hash is retained. The credential is delivered with the
@@ -105,20 +106,21 @@ The staff accounts table lists Name, Username, Role, and State in compact
 rows. Each row opens a Settings dialog for its one role and account actions;
 Create opens its own dialog (9 September 2026 operator-selected UI correction).
 A settings change preserves entered values and visible validation inside
-Settings when refused. Saving Settings opens a compact confirmation dialog
-collecting a required reason, recorded on the `staff_account_settings_updated`
-history event; `UpdateStaffAccountSettingsRequest.Reason` is optional in Core
-and the Web page enforces it as required. Account actions are Create, Enable,
-Disable, Delete access, Force logout and Reset password; Disable/Enable and
-Delete are visually separated as adverse actions from Force logout and Reset
-password. Periodic reviews, review dates and review actions
+Settings when refused. Saving Settings posts on the click and records the
+`staff_account_settings_updated` history event; no Administration action opens
+a confirmation dialog or asks for a reason (11 September 2026 operator
+decision), and `Reason` is optional on every staff-account command in Core.
+Account actions are Create, Enable, Disable, Delete access, Force logout and
+Reset password, each acting on its click from the Settings dialog;
+Disable/Enable and Delete are visually separated as adverse actions from Force
+logout and Reset password. Periodic reviews, review dates and review actions
 are removed by the 6 September 2026 operator decision. An account cannot
 disable or delete itself, and concurrent actions cannot remove the last
 enabled Administrator.
 
 **Reset password** is an Administrator-only account action on the same table
-(D15, 2026-09-06). It generates and reveals a temporary password once through
-the protected confirmation UI, visible to the Administrator so it can be
+(D15, 2026-09-06). It generates and reveals a temporary password once on the
+redisplayed page, visible to the Administrator so it can be
 conveyed to the user. Accounts are not email-bound; it is not automatically
 emailed. The existing password policy and
 non-reversible hash remain the password owner. The existing
@@ -131,8 +133,8 @@ Disable, role change, reset and Force logout revoke existing sessions and
 tokens; the next request must observe current staff authority. Delete removes
 active access, role and credential material while retaining the minimal actor
 identity needed by immutable business history and printed reports. It never
-deletes a Case. Destructive confirmation names the selected account and its
-consequence. Force logout clears the account's non-Case edit scopes with its
+deletes a Case. Disable and Delete act immediately from the selected account's
+Settings dialog, with no confirmation step. Force logout clears the account's non-Case edit scopes with its
 session revocation, so an old token cannot later mutate Triage, Image Intake
 or an administration record. Case edit authority retains its existing
 Case-workflow owner and targeted clearance rules.

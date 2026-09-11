@@ -58,7 +58,7 @@ public sealed record RemoveValuationPresetRequest(
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    string Reason)
+    string? Reason)
 {
     public string EditLeaseToken { get; init; } = string.Empty;
 }
@@ -633,14 +633,14 @@ public static class ValuationCalculationPolicy
     }
 
     /// <summary>
-    /// A typed reason. Line breaks are the operator's own paragraphing, so
-    /// only emptiness and length are refused here.
+    /// An optional typed reason. Line breaks are the operator's own
+    /// paragraphing, so only length is refused here; blank becomes null.
     /// </summary>
-    internal static string RequireReason(string? value, string parameterName)
+    internal static string? NormalizeOptionalReason(string? value, string parameterName)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
-            throw new ArgumentException("A reason is required.", parameterName);
+            return null;
         }
 
         var normalized = value.Trim();
@@ -740,7 +740,7 @@ public sealed class RemoveValuationPreset(IValuationPresetStore store) : IRemove
                     request.OperationKey,
                     100,
                     nameof(request)),
-                Reason = ValuationCalculationPolicy.RequireReason(
+                Reason = ValuationCalculationPolicy.NormalizeOptionalReason(
                     request.Reason,
                     nameof(request))
             },

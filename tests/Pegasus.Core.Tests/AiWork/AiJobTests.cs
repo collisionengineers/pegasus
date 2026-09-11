@@ -85,9 +85,9 @@ public sealed class AiJobTests
         Assert.Throws<InvalidOperationException>(() =>
             AiJobPolicy.ValidateTransition(new(
                 Guid.NewGuid(), 0, AiJobState.Cancelled, Client, "op", "reason")));
-        Assert.Throws<ArgumentException>(() =>
-            AiJobPolicy.ValidateTransition(new(
-                Guid.NewGuid(), 0, AiJobState.Cancelled, Staff, "op")));
+        // Staff cancel a job on the click; a reason is optional.
+        AiJobPolicy.ValidateTransition(new(
+            Guid.NewGuid(), 0, AiJobState.Cancelled, Staff, "op"));
         Assert.Throws<ArgumentException>(() =>
             AiJobPolicy.ValidateTransition(new(
                 Guid.NewGuid(), 0, AiJobState.Failed, Client, "op")));
@@ -338,7 +338,7 @@ public sealed class AiJobTests
         public Task<bool> SetEnabledAsync(
             bool enabled,
             ActionActor actor,
-            string reason,
+            string? reason,
             string operationKey,
             CancellationToken cancellationToken) => throw new NotSupportedException();
     }

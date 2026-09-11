@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.AiWork;
@@ -52,8 +52,8 @@ public sealed class IndexModel : AdministrationPageModel
     public bool TargetEnabled { get; set; }
 
     [BindProperty]
-    [Required, StringLength(1000, MinimumLength = 1)]
-    public string Reason { get; set; } = string.Empty;
+    [StringLength(1000)]
+    public string? Reason { get; set; }
 
     [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
@@ -259,7 +259,7 @@ public sealed class IndexModel : AdministrationPageModel
             : await HttpContext.RequestServices
                 .GetRequiredService<ISendToAiControl>()
                 .IsEnabledAsync(cancellationToken);
-        // Reason-dialog forms do not post this checkbox. Seed it from the
+        // The kill-switch form does not post this checkbox. Seed it from the
         // stored state; ModelState still wins for a redisplayed AI settings form.
         SendToAiEnabled = SendToAiEnabledNow;
     }

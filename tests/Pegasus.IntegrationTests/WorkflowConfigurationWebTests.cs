@@ -41,8 +41,7 @@ public sealed partial class WorkflowConfigurationWebTests
             ["EditingId"] = id, ["ExpectedVersion"] = Field(editor, "ExpectedVersion"),
             ["LeaseToken"] = Field(editor, "LeaseToken"), ["OperationKey"] = Field(editor, "OperationKey"),
             ["__RequestVerificationToken"] = Field(editor, "__RequestVerificationToken"),
-            ["RequireInstructions"] = "true", ["RequireImages"] = "false", ["ChaseIntervalDays"] = "12",
-            ["Reason"] = "Change the schedule"
+            ["RequireInstructions"] = "true", ["RequireImages"] = "false", ["ChaseIntervalDays"] = "12"
         };
         var forged = new Dictionary<string,string>(fields) { ["LeaseToken"] = new string('a', 64) };
         using var refused = await client.PostAsync(Route + "?handler=Save", new FormUrlEncodedContent(forged));

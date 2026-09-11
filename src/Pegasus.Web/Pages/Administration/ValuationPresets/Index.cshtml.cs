@@ -289,8 +289,7 @@ public sealed class IndexModel(
         return RunAsync(
             async actor =>
             {
-                if (!RequireOperationKey(operationKey) | !RequireReason(reason)
-                    | !RequirePreset(presetId))
+                if (!RequireOperationKey(operationKey) | !RequirePreset(presetId))
                 {
                     return null;
                 }
@@ -304,7 +303,7 @@ public sealed class IndexModel(
                         NewOperationKey()),
                     cancellationToken);
                 await removeValuationPreset.ExecuteAsync(
-                    new(presetId, expectedVersion, actor, operationKey!, reason!)
+                    new(presetId, expectedVersion, actor, operationKey!, reason)
                     {
                         EditLeaseToken = lease.Token
                     },
@@ -491,18 +490,6 @@ public sealed class IndexModel(
         return false;
     }
 
-    private bool RequireReason(string? reason)
-    {
-        if (!string.IsNullOrWhiteSpace(reason)
-            && reason.Trim().Length <= ValuationCalculationPolicy.MaximumReasonLength)
-        {
-            return true;
-        }
-
-        ModelState.AddModelError(string.Empty, ValuationPresetLabels.ReasonRequired);
-        return false;
-    }
-
     private bool RequirePreset(Guid presetId)
     {
         if (presetId != Guid.Empty)
@@ -588,7 +575,6 @@ internal static class ValuationPresetLabels
     public const string Disabled = "The valuation preset was disabled.";
     public const string Removed = "The valuation preset was removed.";
     public const string AlreadyRemoved = "That valuation preset was removed.";
-    public const string ReasonRequired = "Enter a reason.";
     public const string Expired = "The form has expired. Retry the operation.";
     public const string LabelRequired = "Enter a label.";
     public const string AmountRequired = "Enter an amount of £0.00 or more.";

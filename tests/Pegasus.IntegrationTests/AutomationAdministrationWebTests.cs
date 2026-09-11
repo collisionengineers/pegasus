@@ -76,7 +76,7 @@ public sealed partial class AutomationAdministrationWebTests
     }
 
     [Fact]
-    public async Task StoppingAutomationDisablesTheClientRegistrationThroughTheReasonDialog()
+    public async Task StoppingAutomationDisablesTheClientRegistrationOnTheClick()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = WithAutomationMcp(baseFactory);
@@ -89,8 +89,7 @@ public sealed partial class AutomationAdministrationWebTests
             Form(
                 AntiforgeryValue(html),
                 ("TargetEnabled", InputValue(html, "TargetEnabled")),
-                ("OperationKey", InputValue(html, "OperationKey")),
-                ("Reason", "Stopped while the estimate connector is replaced."))))
+                ("OperationKey", InputValue(html, "OperationKey")))))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
             Assert.Equal(AutomationRoute, response.Headers.Location?.OriginalString);
@@ -112,7 +111,7 @@ public sealed partial class AutomationAdministrationWebTests
     [Theory]
     [InlineData("SetEnabled")]
     [InlineData("ClearChannelToken")]
-    public async Task FailedReasonDialogPostKeepsTheStoredSendToAiState(string handler)
+    public async Task AFailedPostKeepsTheStoredSendToAiState(string handler)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var automationFactory = WithAutomationMcp(baseFactory);
@@ -131,7 +130,7 @@ public sealed partial class AutomationAdministrationWebTests
                 .RotateTokenAsync(
                     new(
                         Administrator,
-                        "Exercise both reason-dialog redisplay paths.",
+                        "Exercise both redisplay paths.",
                         "auto-006-redisplay-token",
                         "auto-006-administration-channel-token-0123456789"),
                     CancellationToken.None);
@@ -144,8 +143,7 @@ public sealed partial class AutomationAdministrationWebTests
             Form(
                 AntiforgeryValue(html),
                 ("TargetEnabled", "false"),
-                ("OperationKey", InputValue(html, "OperationKey")),
-                ("Reason", " ")));
+                ("OperationKey", "not-a-key")));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var redisplayedHtml = await response.Content.ReadAsStringAsync();
@@ -223,8 +221,7 @@ public sealed partial class AutomationAdministrationWebTests
                 ("jobId", InputValue(second, "jobId")),
                 ("expectedVersion", InputValue(second, "expectedVersion")),
                 ("operationKey", InputValue(second, "operationKey")),
-                ("pageNumber", InputValue(second, "pageNumber")),
-                ("reason", "Stop the queued test job.")));
+                ("pageNumber", InputValue(second, "pageNumber"))));
 
         Assert.Equal(HttpStatusCode.Redirect, stopped.StatusCode);
         Assert.Equal("/Administration/AiJobs?pageNumber=2", stopped.Headers.Location?.OriginalString);
@@ -289,8 +286,7 @@ public sealed partial class AutomationAdministrationWebTests
             Form(
                 AntiforgeryValue(html),
                 ("SendToAiEnabled", "false"),
-                ("OperationKey", operationKey),
-                ("Reason", "Pause hand-offs without changing the connector."))))
+                ("OperationKey", operationKey))))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         }

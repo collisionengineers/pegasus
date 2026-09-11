@@ -29,7 +29,7 @@ public sealed class ConfigurationModel(
     [BindProperty] public string? CardName { get; set; } = string.Empty;
     [BindProperty] public decimal HourlyRate { get; set; }
     [BindProperty] public bool Enabled { get; set; } = true;
-    [BindProperty] public string? Reason { get; set; } = string.Empty;
+    [BindProperty] public string? Reason { get; set; }
     public bool IsEditing => EditingId != Guid.Empty;
 
     /// <summary>
@@ -145,7 +145,7 @@ public sealed class ConfigurationModel(
                     }, cancellationToken);
                 else
                     await rateCards.SaveAsync(new(EditingId, CardName ?? string.Empty, HourlyRate, Enabled, ExpectedVersion,
-                        actor, Reason ?? string.Empty, OperationKey, LeaseToken ?? string.Empty), cancellationToken);
+                        actor, Reason, OperationKey, LeaseToken ?? string.Empty), cancellationToken);
                 TempData["Confirmation"] = "Settings saved.";
                 return RedirectToPage();
             }

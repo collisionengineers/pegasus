@@ -289,7 +289,7 @@ public sealed record UpdatePrincipalReportSettingsRequest(
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    string Reason,
+    string? Reason,
     PrincipalReportGenerationPolicy ReportGenerationPolicy,
     PrincipalReportRecipientSettings ReportRecipients,
     long ExpectedContactVersion,
@@ -301,7 +301,7 @@ public sealed record ReplacePrincipalRequest(
     string SuccessorCode,
     ActionActor Actor,
     string OperationKey,
-    string Reason,
+    string? Reason,
     long ExpectedContactVersion,
     string EditLeaseToken);
 

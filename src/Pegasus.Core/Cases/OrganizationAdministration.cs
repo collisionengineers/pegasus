@@ -353,7 +353,7 @@ public static class OrganizationAdministrationPolicy
                 request.OperationKey,
                 MaximumOperationKeyLength,
                 nameof(request.OperationKey)),
-            Reason = NormalizeRequiredText(
+            Reason = NormalizeOptionalText(
                 request.Reason,
                 MaximumReasonLength,
                 nameof(request.Reason)),
@@ -501,7 +501,7 @@ public static class OrganizationAdministrationPolicy
                 request.OperationKey,
                 MaximumOperationKeyLength,
                 nameof(request.OperationKey)),
-            Reason = NormalizeRequiredText(
+            Reason = NormalizeOptionalText(
                 request.Reason,
                 MaximumReasonLength,
                 nameof(request.Reason)),
@@ -598,6 +598,19 @@ public static class OrganizationAdministrationPolicy
         }
 
         return normalized;
+    }
+
+    internal static string? NormalizeOptionalText(
+        string? value,
+        int maximumLength,
+        string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return NormalizeRequiredText(value, maximumLength, parameterName);
     }
 
     private static string NormalizeEditLeaseToken(string? value) =>
