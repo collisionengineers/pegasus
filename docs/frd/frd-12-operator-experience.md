@@ -1,4 +1,4 @@
-﻿# FRD-12: Operator experience
+# FRD-12: Operator experience
 
 > Owner capabilities: UI · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [docs/design/README.md](../design/README.md)
 
@@ -475,10 +475,12 @@ Sources, Repairers, Storage and Third Party Engineers. Principal-specific
 settings are part of that Contact record; there are no separate Principal or
 Claim Source areas. Every
 consequential change — role, account state, principal credential, automation
-stop/start — takes a reason and enters permanent history. The **Staff accounts
+stop/start — enters permanent history with an optional reason; Administration
+pages perform Save, Enable, Disable, Delete, Remove, Clear and Stop on the
+click, with no confirmation dialog (11 September 2026 operator decision). The **Staff accounts
 & roles** area carries a **Reset password** action beside the other account actions:
-Pegasus generates a temporary password and visibly reveals it to the Administrator
-in the protected confirmation UI (FRD-04 D15). The Administrator can convey it
+Pegasus generates a temporary password and visibly reveals it once to the
+Administrator on the redisplayed page (FRD-04 D15). The Administrator can convey it
 to the user; staff accounts are not email-bound and no automatic email is sent.
 The existing policy and non-reversible hashing apply and forced change is set
 for the next sign-in. The stored secret cannot subsequently be retrieved (D15,
@@ -518,8 +520,8 @@ image-completeness rules as required/not-required items with exact blockers,
 and the chase interval as one global whole-calendar-day value (1 to 365,
 default 7, Europe/London), where `Held` preserves the remaining time (D23).
 It has no staff instruction-review or image-review settings. The default view
-shows current values; Edit claims the configuration, Save confirms a concise
-reason, and Cancel discards changes. It also holds labour-rate-card administration: the
+shows current values; Edit claims the configuration, Save applies it on the
+click, and Cancel discards changes. It also holds labour-rate-card administration: the
 global versioned cards (name, panel-and-paint hourly rate, enabled state) that
 every estimate version selects from, with disabling blocking future selection
 without changing history (D17). It stays inside that area; no ninth area is
@@ -528,7 +530,7 @@ added.
 **Valuation presets** adds and edits inline: a compact add row and in-row
 editing, with no separate creation or edit dialog. Its existing five-minute
 record-scoped edit lease still applies to an in-progress edit. **Remove** is
-a soft, reasoned removal: the preset drops out of the list and out of new
+a soft removal that acts on the click: the preset drops out of the list and out of new
 selection, but a valuation already recorded against it keeps its own
 snapshot, and that recorded addition is immune to any later removal, version
 change or disabling of the preset it was recorded against — the calculation

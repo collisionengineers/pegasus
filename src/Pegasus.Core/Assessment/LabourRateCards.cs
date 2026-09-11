@@ -8,7 +8,7 @@ public sealed class LabourRateCardConflictException(string message) : InvalidOpe
 
 public sealed record SaveLabourRateCardRequest(
     Guid Id, string Name, decimal HourlyRate, bool Enabled, long ExpectedVersion,
-    ActionActor Actor, string Reason, string OperationKey, string EditLeaseToken);
+    ActionActor Actor, string? Reason, string OperationKey, string EditLeaseToken);
 
 public interface ILabourRateCardStore
 {
@@ -37,9 +37,11 @@ public sealed class LabourRateCardAdministration(ILabourRateCardStore store)
             throw new ArgumentException("Enter a name of up to 200 characters.");
         if (request.HourlyRate < 0 || request.HourlyRate > 999999m || decimal.Round(request.HourlyRate, 2) != request.HourlyRate)
             throw new ArgumentException("Enter an hourly rate from 0 to 999999 with at most two decimal places.");
-        if (string.IsNullOrWhiteSpace(request.Reason) || request.Reason.Trim().Length > 1000
-            || string.IsNullOrWhiteSpace(request.OperationKey) || request.OperationKey.Length > 100)
-            throw new ArgumentException("Enter a reason and submit the current form.");
-        return request with { Name = request.Name.Trim(), Reason = request.Reason.Trim() };
+        var reason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim();
+        if (reason is { Length: > 1000 })
+            throw new ArgumentException("A reason cannot exceed 1000 characters.");
+        if (string.IsNullOrWhiteSpace(request.OperationKey) || request.OperationKey.Length > 100)
+            throw new ArgumentException("Submit the current form.");
+        return request with { Name = request.Name.Trim(), Reason = reason };
     }
 }

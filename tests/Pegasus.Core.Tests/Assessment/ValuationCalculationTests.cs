@@ -490,7 +490,7 @@ public sealed class ValuationCalculationTests
     /// disappearance.
     /// </summary>
     [Fact]
-    public async Task RemovingAPresetIsReasonedAdministratorConfiguration()
+    public async Task RemovingAPresetIsAdministratorConfigurationWithAnOptionalReason()
     {
         var store = new RecordingPresetStore();
         var remove = new RemoveValuationPreset(store);
@@ -505,10 +505,6 @@ public sealed class ValuationCalculationTests
             remove.ExecuteAsync(
                 RemoveRequest(Administrator) with { PresetId = Guid.Empty },
                 CancellationToken.None));
-        await Assert.ThrowsAsync<ArgumentException>(() =>
-            remove.ExecuteAsync(
-                RemoveRequest(Administrator) with { Reason = "  " },
-                CancellationToken.None));
         Assert.Empty(store.Removals);
 
         var removed = await remove.ExecuteAsync(
@@ -517,7 +513,12 @@ public sealed class ValuationCalculationTests
 
         Assert.NotNull(removed.RemovedAtUtc);
         Assert.Equal(2, removed.Version);
-        Assert.Equal("No longer offered.", Assert.Single(store.Removals).Reason);
+        Assert.Equal("No longer offered.", store.Removals[0].Reason);
+
+        await remove.ExecuteAsync(
+            RemoveRequest(Administrator) with { Reason = "  " },
+            CancellationToken.None);
+        Assert.Null(store.Removals[1].Reason);
     }
 
     private static RemoveValuationPresetRequest RemoveRequest(ActionActor actor) => new(

@@ -469,7 +469,7 @@ public sealed class ServiceHealthTests
         public Task<bool> SetEnabledAsync(
             bool enabled,
             ActionActor actor,
-            string reason,
+            string? reason,
             string operationKey,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by the snapshot.");

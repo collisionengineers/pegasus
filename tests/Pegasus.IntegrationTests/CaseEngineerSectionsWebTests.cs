@@ -282,7 +282,7 @@ public sealed class CaseEngineerSectionsWebTests
         public Task<bool> SetEnabledAsync(
             bool enabled,
             ActionActor actor,
-            string reason,
+            string? reason,
             string operationKey,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();

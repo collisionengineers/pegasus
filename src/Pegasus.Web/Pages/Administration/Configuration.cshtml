@@ -96,14 +96,7 @@
                 <input type="hidden" asp-for="LeaseToken" /><input type="hidden" asp-for="OperationKey" />
                 <div class="button-row">
                     <button type="submit" class="btn" asp-page-handler="Cancel" formnovalidate>Cancel</button>
-                    <button type="button" class="btn btn--primary" data-dialog-open="configuration-confirm">Save</button>
-                </div>
-                <div class="dialog-backdrop" data-dialog="configuration-confirm" hidden>
-                    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="configuration-confirm-title">
-                        <div class="dialog-head"><h2 id="configuration-confirm-title">Save changes</h2></div>
-                        <div class="dialog-body field"><label for="configuration-reason">Reason</label><textarea id="configuration-reason" asp-for="Reason" rows="2" maxlength="1000" required></textarea></div>
-                        <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button class="btn btn--primary" type="submit">Confirm</button></div>
-                    </section>
+                    <button type="submit" class="btn btn--primary">Save</button>
                 </div>
                 <p data-config-lease-message class="muted" role="status"></p>
             </form>

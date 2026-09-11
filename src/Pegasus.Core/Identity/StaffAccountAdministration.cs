@@ -79,7 +79,7 @@ public sealed record CreateStaffAccountResult(
 public sealed record DisableStaffAccountRequest(
     ActionActor Actor,
     Guid StaffId,
-    string Reason,
+    string? Reason,
     string OperationKey,
     long ExpectedVersion = 0,
     string EditLeaseToken = "");
@@ -113,7 +113,7 @@ public sealed record UpdateStaffAccountSettingsResult(
 public sealed record EnableStaffAccountRequest(
     ActionActor Actor,
     Guid StaffId,
-    string Reason,
+    string? Reason,
     string OperationKey,
     long ExpectedVersion = 0,
     string EditLeaseToken = "");
@@ -125,7 +125,7 @@ public sealed record EnableStaffAccountResult(
 public sealed record ForceStaffLogoutRequest(
     ActionActor Actor,
     Guid StaffId,
-    string Reason,
+    string? Reason,
     string OperationKey,
     long ExpectedVersion = 0,
     string EditLeaseToken = "");
@@ -139,7 +139,7 @@ public sealed record ForceStaffLogoutResult(
 public sealed record ResetStaffPasswordRequest(
     ActionActor Actor,
     Guid StaffId,
-    string Reason,
+    string? Reason,
     string OperationKey,
     long ExpectedVersion = 0,
     string EditLeaseToken = "");
@@ -162,7 +162,7 @@ public sealed class ResetStaffPasswordResult(
 public sealed record DeleteStaffAccountRequest(
     ActionActor Actor,
     Guid StaffId,
-    string Reason,
+    string? Reason,
     string OperationKey,
     long ExpectedVersion = 0,
     string EditLeaseToken = "");
@@ -590,7 +590,7 @@ public static class StaffAccountAdministrationPolicy
         RequireDifferentStaffAccount(request.Actor, request.StaffId);
         var normalized = request with
         {
-            Reason = NormalizeRequiredText(
+            Reason = NormalizeOptionalText(
                 request.Reason,
                 MaximumReasonLength,
                 nameof(request.Reason)),
@@ -678,7 +678,7 @@ public static class StaffAccountAdministrationPolicy
         RequireStaffId(request.StaffId);
         var normalized = request with
         {
-            Reason = NormalizeRequiredText(
+            Reason = NormalizeOptionalText(
                 request.Reason,
                 MaximumReasonLength,
                 nameof(request.Reason)),
@@ -797,9 +797,9 @@ public static class StaffAccountAdministrationPolicy
         T request,
         ActionActor actor,
         Guid staffId,
-        string reason,
+        string? reason,
         string operationKey,
-        Func<string, string, T> normalized)
+        Func<string?, string, T> normalized)
         where T : class
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -807,7 +807,7 @@ public static class StaffAccountAdministrationPolicy
         RequireStaffId(staffId);
         RequireDifferentStaffAccount(actor, staffId);
         return normalized(
-            NormalizeRequiredText(reason, MaximumReasonLength, nameof(reason)),
+            NormalizeOptionalText(reason, MaximumReasonLength, nameof(reason)),
             NormalizeRequiredText(operationKey, MaximumOperationKeyLength, nameof(operationKey)));
     }
 

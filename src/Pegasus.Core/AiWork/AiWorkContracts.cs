@@ -142,7 +142,7 @@ public interface ISendToAiControl
     Task<bool> SetEnabledAsync(
         bool enabled,
         ActionActor actor,
-        string reason,
+        string? reason,
         string operationKey,
         CancellationToken cancellationToken);
 }
@@ -208,14 +208,14 @@ public sealed record AiChannelConnectorRuntime(
 
 public sealed record UpdateAiChannelConnectorCommand(
     ActionActor Actor,
-    string Reason,
+    string? Reason,
     string OperationKey,
     string? ChannelBaseUrl,
     double? TimeoutSeconds);
 
 public sealed record RotateAiChannelTokenCommand(
     ActionActor Actor,
-    string Reason,
+    string? Reason,
     string OperationKey,
     string? NewToken);
 

@@ -175,7 +175,7 @@ public sealed record CancelAiJobCommand(
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    string Reason);
+    string? Reason);
 
 public sealed record ConfirmAiJobCommand(
     Guid JobId,

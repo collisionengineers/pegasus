@@ -743,7 +743,7 @@ public sealed class EfStaffAccountAdministration(
         ActionHistoryEntity replay,
         Guid staffId,
         string eventKind,
-        string reason)
+        string? reason)
     {
         if (replay.AggregateId != staffId.ToString("D")
             || replay.EventKind != eventKind

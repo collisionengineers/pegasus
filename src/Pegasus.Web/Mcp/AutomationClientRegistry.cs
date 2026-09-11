@@ -140,12 +140,11 @@ public sealed class AutomationClientRegistry(
     public async Task<AutomationClientStatus> SetEnabledAsync(
         bool enabled,
         ActionActor actor,
-        string reason,
+        string? reason,
         string operationKey,
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
-        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
 
         await EnsureRegisteredAsync(cancellationToken);
@@ -177,7 +176,7 @@ public sealed class AutomationClientRegistry(
                 timeProvider.GetUtcNow(),
                 currentlyEnabled == enabled ? "Unchanged" : "Succeeded",
                 operationKey.Trim(),
-                reason.Trim()),
+                string.IsNullOrWhiteSpace(reason) ? null : reason.Trim()),
             cancellationToken);
         return await GetStatusAsync(actor, cancellationToken);
     }
