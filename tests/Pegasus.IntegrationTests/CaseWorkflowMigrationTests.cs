@@ -152,7 +152,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260910105000_SoftRemoveValuationPresets",
                 "20260910110000_SecurityEventActingPrincipal",
                 "20260910111500_DocumentContentCacheVariants",
-                "20260910120000_CaseImageTags"
+                "20260910120000_CaseImageTags",
+                "20260911100000_PromoteVehicleLookupSuggestionsToFacts"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }
