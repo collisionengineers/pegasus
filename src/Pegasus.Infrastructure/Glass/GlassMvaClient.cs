@@ -19,12 +19,19 @@ namespace Pegasus.Infrastructure.Glass;
 /// server-side state behind at Glass's, and it is never retried or replaced
 /// automatically.
 /// </remarks>
-internal sealed class GlassMvaStageException(string failureCode, bool outcomeUnknown = false)
-    : Exception(failureCode)
+internal sealed class GlassMvaStageException(
+    string failureCode, bool outcomeUnknown = false, string? detail = null)
+    : Exception(detail is null ? failureCode : $"{failureCode} {detail}")
 {
     public string FailureCode { get; } = failureCode;
 
     public bool OutcomeUnknown { get; } = outcomeUnknown;
+
+    /// <summary>
+    /// What the provider's own answer said, in numbers and flags only, for
+    /// the host log. Never a registration, a body, a token or a URL.
+    /// </summary>
+    public string? Detail { get; } = detail;
 }
 
 /// <summary>
@@ -40,6 +47,7 @@ internal static class GlassFailure
     public const string LoginLanding = "glass.login.landing";
     public const string LookupRequest = "glass.lookup.request";
     public const string LookupUnavailable = "glass.lookup.unavailable";
+    public const string LookupNotFound = "glass.lookup.notfound";
     public const string CandidatesRequest = "glass.candidates.request";
     public const string CandidatesRefused = "glass.candidates.refused";
     public const string CandidatesNone = "glass.candidates.none";
@@ -105,11 +113,23 @@ internal sealed record GlassEstimateLaunch(string EreId, Uri OriginalCallback, U
 /// </para>
 ///
 /// <para>
-/// <b>Nothing retries blindly.</b> The fresh VRM lookup is the one stage that
+/// <b>Nothing retries blindly.</b> The VRM lookup is the one stage that
 /// retries, once, after 250 ms, and only when the provider answered readable
-/// JSON that reported no lookup. Vehicle creation and starting the estimate
-/// change state inside the Glass's account, so a lost answer to either is
-/// reported as unknown rather than repeated.
+/// JSON that reported no lookup yet. Vehicle creation and starting the
+/// estimate change state inside the Glass's account, so a lost answer to
+/// either is reported as unknown rather than repeated.
+/// </para>
+///
+/// <para>
+/// <b>The lookup follows the portal's own rule.</b> The stock search is the
+/// lookup: when the account already holds the registration
+/// (<c>stockcount &gt; 0</c>) the portal asks the operator and "Continue with
+/// New Entry" repeats the search as a fresh one (<c>nostocksearch/1</c>);
+/// when it holds nothing the stock search's own answer is the lookup and no
+/// fresh search is ever made. A negative <c>vrm_lookup</c> is the portal's
+/// "vehicle details have not been found" and is refused without retry.
+/// The live evidence for this is the provider's <c>searches.js</c>; the
+/// spike only ever ran registrations the account already stocked.
 /// </para>
 ///
 /// <para>
@@ -197,7 +217,7 @@ internal sealed partial class GlassMvaClient(
 
     /// <summary>
     /// Looks the registration up and establishes its Glass's type number
-    /// (stages 5–10). The fresh lookup is the one stage that may be retried,
+    /// (stages 5–10). The lookup is the one stage that may be retried,
     /// because it reads and changes nothing.
     /// </summary>
     public async Task<GlassVehicleLookup> LookupAsync(
@@ -205,13 +225,7 @@ internal sealed partial class GlassMvaClient(
     {
         var search = $"index/search-vrm/vrms_reg_no/{Uri.EscapeDataString(registration)}"
             + $"/valuate/1/vrms_mileage/{mileageMiles.ToString(CultureInfo.InvariantCulture)}";
-        await TextAsync(
-            new HttpRequestMessage(HttpMethod.Get, options.MarketValueAssessor(search)),
-            ajax: true,
-            GlassFailure.LookupRequest,
-            cancellationToken);
-
-        var natCode = await FreshLookupAsync(search, cancellationToken);
+        var natCode = await LookupNatCodeAsync(search, cancellationToken);
         var valuationDate = ValuationMonth();
         var candidates = await JsonAsync(
             new HttpRequestMessage(
@@ -532,30 +546,46 @@ internal sealed partial class GlassMvaClient(
     }
 
     /// <summary>
-    /// Stage 6, the one retryable stage: a fresh lookup that reads and changes
-    /// nothing. A readable answer reporting no lookup is retried once after
-    /// 250 ms; an unreadable one is not retried at all, because there is
-    /// nothing to say it was safe.
+    /// Stages 5–6, the one retryable stage: the stock search is the lookup,
+    /// and only a registration the account already stocks is looked up
+    /// again as a fresh search, exactly as the portal's "Continue with New
+    /// Entry" does. A readable answer that reports no lookup yet is retried
+    /// once after 250 ms; an unreadable one is not retried at all, because
+    /// there is nothing to say it was safe; and an answer that reports the
+    /// vehicle was not found is the provider's decision, not a glitch.
     /// </summary>
-    private async Task<string> FreshLookupAsync(string search, CancellationToken cancellationToken)
+    private async Task<string> LookupNatCodeAsync(string search, CancellationToken cancellationToken)
     {
+        var stock = await JsonAsync(
+            new HttpRequestMessage(HttpMethod.Get, options.MarketValueAssessor(search)),
+            GlassFailure.LookupRequest,
+            cancellationToken);
+        var path = Number(stock, "stockcount") > 0 ? search + "/nostocksearch/1" : search;
+        JsonElement? answer = path == search ? stock : null;
         for (var attempt = 1; ; attempt++)
         {
-            var fresh = await JsonAsync(
-                new HttpRequestMessage(HttpMethod.Get, options.MarketValueAssessor(search + "/nostocksearch/1")),
+            answer ??= await JsonAsync(
+                new HttpRequestMessage(HttpMethod.Get, options.MarketValueAssessor(path)),
                 GlassFailure.LookupRequest,
                 cancellationToken);
-            if (Number(fresh, "vrm_lookup") == 1)
+            var lookup = Number(answer.Value, "vrm_lookup");
+            var natCode = Text(answer.Value, "natcode");
+            var detail = $"stockcount={Text(answer.Value, "stockcount") ?? "?"} vrm_lookup={Text(answer.Value, "vrm_lookup") ?? "?"}"
+                + $" natcode={(string.IsNullOrEmpty(natCode) ? "absent" : "present")} attempt={attempt}";
+            if (lookup < 0)
             {
-                return Text(fresh, "natcode") is { Length: > 0 } natCode
-                    ? natCode
-                    : throw new GlassMvaStageException(GlassFailure.LookupUnavailable);
+                throw new GlassMvaStageException(GlassFailure.LookupNotFound, detail: detail);
+            }
+            if (lookup >= 0 && !string.IsNullOrEmpty(natCode))
+            {
+                return natCode;
             }
             if (attempt == 2)
             {
-                throw new GlassMvaStageException(GlassFailure.LookupUnavailable);
+                throw new GlassMvaStageException(GlassFailure.LookupUnavailable, detail: detail);
             }
 
+            answer = null;
             await Task.Delay(LookupRetryDelay, timeProvider, cancellationToken);
         }
     }

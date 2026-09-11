@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Logging;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
@@ -67,7 +68,7 @@ namespace Pegasus.Infrastructure.Glass;
 /// to regain edit authority.
 /// </para>
 /// </summary>
-public sealed class GlassRepairEstimateGateway(
+public sealed partial class GlassRepairEstimateGateway(
     IGlassRepairEstimateSessionStore store,
     IGlassRepairEstimateCaseAuthority caseAuthority,
     IPerUserExternalCredentialReader credentials,
@@ -77,7 +78,8 @@ public sealed class GlassRepairEstimateGateway(
     IHttpClientFactory httpClientFactory,
     IDataProtectionProvider dataProtection,
     GlassRepairEstimateOptions options,
-    TimeProvider timeProvider) : IGlassRepairEstimateGateway
+    TimeProvider timeProvider,
+    ILogger<GlassRepairEstimateGateway> logger) : IGlassRepairEstimateGateway
 {
     /// <summary>
     /// Versioned on purpose: changing it makes every session in flight
@@ -895,23 +897,39 @@ public sealed class GlassRepairEstimateGateway(
             results,
             cancellationToken);
 
+    /// <summary>
+    /// Records where a session stopped and says so once in the host log,
+    /// with the stage's own numbers and flags: the log is the only place
+    /// the provider's answer can be read after the fact, and the code alone
+    /// cannot tell a provider that refused from one that answered nothing.
+    /// </summary>
     private Task<GlassRepairEstimateSession> SettleAsync(
         GlassRepairEstimateSession session,
         GlassMvaStageException failure,
         ProviderState provider,
         string callbackDigest,
         Results? results,
-        CancellationToken cancellationToken) =>
-        WriteAsync(
+        CancellationToken cancellationToken)
+    {
+        var state = failure.OutcomeUnknown
+            ? GlassRepairEstimateSessionState.Unknown
+            : GlassRepairEstimateSessionState.Failed;
+        LogSettled(logger, session.Id, session.CaseId, state, failure.FailureCode, failure.Detail ?? string.Empty);
+        return WriteAsync(
             session,
-            failure.OutcomeUnknown
-                ? GlassRepairEstimateSessionState.Unknown
-                : GlassRepairEstimateSessionState.Failed,
+            state,
             failure.FailureCode,
             provider,
             callbackDigest,
             results,
             cancellationToken);
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "Glass's session {SessionId} for case {CaseId} settled {State} at {FailureCode} {Detail}")]
+    private static partial void LogSettled(
+        ILogger logger, Guid sessionId, Guid caseId, GlassRepairEstimateSessionState state, string failureCode, string detail);
 
     private async Task<GlassRepairEstimateSession> WriteAsync(
         GlassRepairEstimateSession session,
