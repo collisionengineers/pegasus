@@ -19,17 +19,13 @@
         <td>
             @if (!AiJobStates.IsTerminal(job.State))
             {
-                <details>
-                    <summary class="btn btn--small btn--danger">Stop</summary>
-                    <form method="post" asp-page-handler="Stop" class="row-confirm">
-                        <input type="hidden" name="jobId" value="@job.JobId" />
-                        <input type="hidden" name="expectedVersion" value="@job.Version" />
-                        <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-                        <input type="hidden" name="pageNumber" value="@Model.CurrentPage" />
-                        <label>Reason <input name="reason" maxlength="500" required /></label>
-                        <button class="btn btn--small" type="submit">Stop</button>
-                    </form>
-                </details>
+                <form method="post" asp-page-handler="Stop">
+                    <input type="hidden" name="jobId" value="@job.JobId" />
+                    <input type="hidden" name="expectedVersion" value="@job.Version" />
+                    <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                    <input type="hidden" name="pageNumber" value="@Model.CurrentPage" />
+                    <button class="btn btn--small btn--danger" type="submit">Stop</button>
+                </form>
             }
             else
             {

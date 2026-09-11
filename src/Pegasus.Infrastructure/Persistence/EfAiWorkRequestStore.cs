@@ -279,12 +279,11 @@ public sealed class EfSendToAiControlStore(
     public async Task<bool> SetEnabledAsync(
         bool enabled,
         ActionActor actor,
-        string reason,
+        string? reason,
         string operationKey,
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
-        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -320,7 +319,7 @@ public sealed class EfSendToAiControlStore(
             OccurredAtUtc = timeProvider.GetUtcNow(),
             Outcome = previous == enabled ? "Unchanged" : "Succeeded",
             CorrelationId = operationKey.Trim(),
-            Reason = reason.Trim()
+            Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim()
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -443,14 +442,13 @@ public sealed class EfAiChannelConnectorStore(
 
     private async Task<AiChannelConnectorSettings> WriteAsync(
         ActionActor actor,
-        string reason,
+        string? reason,
         string operationKey,
         string eventKind,
         Action<SendToAiControlEntity> apply,
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
-        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -486,7 +484,7 @@ public sealed class EfAiChannelConnectorStore(
             OccurredAtUtc = timeProvider.GetUtcNow(),
             Outcome = "Succeeded",
             CorrelationId = operationKey.Trim(),
-            Reason = reason.Trim()
+            Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim()
         });
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

@@ -1,4 +1,4 @@
-﻿using Pegasus.Core.Address;
+using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
@@ -11,7 +11,7 @@ public sealed class OrganizationAdministrationTests
         ActionActor.Staff(Guid.Parse("63f98d69-5368-48b8-b25d-a61ec91f6905"), [StaffRole.Administrator]);
 
     [Fact]
-    public async Task PrincipalCommandsNormalizeCodesAndRequiredChangeReasons()
+    public async Task PrincipalCommandsNormalizeCodesAndOptionalChangeReasons()
     {
         var store = new RecordingStore();
         var create = new CreatePrincipal(store);
@@ -95,7 +95,7 @@ public sealed class OrganizationAdministrationTests
     }
 
     [Fact]
-    public async Task InvalidReplacementVersionAndReasonFailBeforePersistence()
+    public async Task InvalidReplacementVersionFailsBeforePersistenceAndABlankReasonIsOptional()
     {
         var store = new RecordingStore();
         var command = new ReplacePrincipal(store);
@@ -111,9 +111,10 @@ public sealed class OrganizationAdministrationTests
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             () => command.ExecuteAsync(request, default));
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => command.ExecuteAsync(request with { ExpectedVersion = 0, Reason = " " }, default));
         Assert.Empty(store.PrincipalReplacements);
+
+        await command.ExecuteAsync(request with { ExpectedVersion = 0, Reason = " " }, default);
+        Assert.Null(Assert.Single(store.PrincipalReplacements).Reason);
     }
 
     [Fact]

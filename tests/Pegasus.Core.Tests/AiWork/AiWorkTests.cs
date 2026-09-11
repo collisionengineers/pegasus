@@ -263,7 +263,7 @@ public sealed class AiWorkTests
         public Task<bool> SetEnabledAsync(
             bool value,
             ActionActor actor,
-            string reason,
+            string? reason,
             string operationKey,
             CancellationToken cancellationToken) => Task.FromResult(value);
     }

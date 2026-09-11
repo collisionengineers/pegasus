@@ -84,9 +84,8 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.DoesNotContain("empty-state", presetList, StringComparison.Ordinal);
         Assert.Contains("class=\"input-money\"", body, StringComparison.Ordinal);
 
-        // Add and edit carry no routine reason. The one reason on this page
-        // belongs to the removal confirm, which is not part of the table.
-        Assert.DoesNotContain("name=\"reason\"", presetList, StringComparison.Ordinal);
+        // Nothing on this page asks for a reason; Remove posts from its row.
+        Assert.DoesNotContain("name=\"reason\"", body, StringComparison.Ordinal);
 
         // The add row is a compact final row of the presets table (points 20,
         // 32, 33), not a separate dialog-based creation panel.
@@ -95,9 +94,32 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.Contains(">Add<", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("data-dialog=\"preset-", body, StringComparison.Ordinal);
 
-        // No dialog is defined inside the table. The removal opener a row
-        // carries is not a dialog of its own.
+        // No dialog is defined inside the table, and removal opens none.
         Assert.DoesNotContain("data-dialog=\"", presetList, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"remove-preset-", body, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Remove acts on the click: the row form posts with no reason and the
+    /// removal history row records none.
+    /// </summary>
+    [Fact]
+    public async Task RemovePostsFromTheRowWithoutAReason()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+
+        var page = await GetPageAsync(client);
+        var form = RemoveForm(page, TowBarPresetId);
+        using var response = await client.PostAsync(
+            $"{Page}?handler=Remove",
+            new FormUrlEncodedContent(form));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(
+            1,
+            await factory.Database.ScalarAsync<int>(
+                $"SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = '{form["operationKey"]}' AND Reason IS NULL;"));
     }
 
     [Fact]
@@ -347,9 +369,8 @@ public sealed partial class ValuationPresetAdministrationWebTests
 
     /// <summary>
     /// The hidden add-row form's own fields, read from that form rather than
-    /// from the last matching input on the page: the removal dialogs each
-    /// carry their own <c>presetId</c> input after it, so a page-wide search
-    /// would find one of those instead of the create form's own.
+    /// from a page-wide search: every row's Remove form carries its own
+    /// <c>presetId</c> input.
     /// </summary>
     private static string CreateForm(string page)
     {
@@ -388,6 +409,34 @@ public sealed partial class ValuationPresetAdministrationWebTests
             ["active"] = active,
             ["__RequestVerificationToken"] = Token(page)
         };
+    }
+
+    /// <summary>
+    /// One preset's row Remove form: the form whose handler is Remove and
+    /// whose hidden <c>presetId</c> names that preset.
+    /// </summary>
+    private static Dictionary<string, string> RemoveForm(string page, Guid presetId)
+    {
+        var marker = $"name=\"presetId\" value=\"{presetId:D}\"";
+        var index = 0;
+        while (true)
+        {
+            var start = page.IndexOf("?handler=Remove", index, StringComparison.Ordinal);
+            Assert.True(start >= 0, "Missing row Remove form.");
+            var end = page.IndexOf("</form>", start, StringComparison.Ordinal);
+            var form = page[start..end];
+            if (form.Contains(marker, StringComparison.Ordinal))
+            {
+                return new(StringComparer.Ordinal)
+                {
+                    ["presetId"] = presetId.ToString("D"),
+                    ["expectedVersion"] = FirstValue(form, ExpectedVersionRegex()),
+                    ["operationKey"] = FirstValue(form, OperationKeyRegex()),
+                    ["__RequestVerificationToken"] = Token(page)
+                };
+            }
+            index = end;
+        }
     }
 
     private static Task<HttpResponseMessage> PostSaveAsync(

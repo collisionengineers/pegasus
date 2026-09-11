@@ -154,8 +154,7 @@ public sealed partial class OrganizationAdministrationWebTests
             ["ReplacementExpectedVersion"] = InputValue(replaceHtml, "ReplacementExpectedVersion"),
             ["ExpectedVersion"] = InputValue(replaceHtml, "ExpectedVersion"),
             ["LeaseToken"] = InputValue(replaceHtml, "LeaseToken"),
-            ["SuccessorCode"] = "WEBN",
-            ["ReplacementReason"] = "Web caller replacement proof"
+            ["SuccessorCode"] = "WEBN"
         };
         using var replacePost = await client.PostAsync(
             $"{replacePath}?handler=Replace",
@@ -177,7 +176,7 @@ public sealed partial class OrganizationAdministrationWebTests
         Assert.Equal(
             2,
             await factory.Database.ScalarAsync<int>(
-                $"SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = '{replacementOperationKey}' AND ActorSubjectId = '{DevelopmentOfflineIdentity.AdministratorId:D}' AND Reason = 'Web caller replacement proof';"));
+                $"SELECT COUNT(*) FROM ActionHistory WHERE CorrelationId = '{replacementOperationKey}' AND ActorSubjectId = '{DevelopmentOfflineIdentity.AdministratorId:D}' AND Reason IS NULL;"));
     }
 
     [Fact]
@@ -306,8 +305,7 @@ public sealed partial class OrganizationAdministrationWebTests
         ["ExpectedVersion"] = InputValue(html, "ExpectedVersion"),
         ["LeaseToken"] = InputValue(html, "LeaseToken"),
         ["CredentialOperationKey"] = InputValue(html, "CredentialOperationKey"),
-        ["CredentialVersion"] = InputValue(html, "CredentialVersion"),
-        ["CredentialReason"] = "Provider access administration"
+        ["CredentialVersion"] = InputValue(html, "CredentialVersion")
     };
 
     private static async Task<string> EditContactAsync(HttpClient client, string path)

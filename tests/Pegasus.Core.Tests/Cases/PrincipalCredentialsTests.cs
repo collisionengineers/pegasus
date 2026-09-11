@@ -159,8 +159,6 @@ public sealed class PrincipalCredentialsTests
             () => new RevokePrincipalCredential(store).ExecuteAsync(Request(1, Engineer), default));
         await Assert.ThrowsAsync<StaffAuthorizationException>(
             () => new GetPrincipalCredential(store).ExecuteAsync(Engineer, PrincipalId, default));
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => new PausePrincipalCredential(store).ExecuteAsync(Request(1) with { Reason = " " }, default));
         Assert.Empty(store.Issued);
         Assert.Empty(store.Transitions);
     }

@@ -56,7 +56,7 @@ public sealed record PrincipalCredentialCommandRequest(
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    string Reason,
+    string? Reason,
     long ExpectedContactVersion,
     string EditLeaseToken);
 
@@ -359,7 +359,7 @@ public static class PrincipalCredentialPolicy
                 request.OperationKey,
                 OrganizationAdministrationPolicy.MaximumOperationKeyLength,
                 nameof(request.OperationKey)),
-            Reason = OrganizationAdministrationPolicy.NormalizeRequiredText(
+            Reason = OrganizationAdministrationPolicy.NormalizeOptionalText(
                 request.Reason,
                 OrganizationAdministrationPolicy.MaximumReasonLength,
                 nameof(request.Reason)),
