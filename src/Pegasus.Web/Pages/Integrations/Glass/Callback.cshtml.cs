@@ -117,6 +117,10 @@ public sealed class CallbackModel(
                 Request.QueryString.Value ?? string.Empty),
             cancellationToken);
 
-    private RedirectToPageResult Estimate(Guid caseId) =>
-        RedirectToPage("/Cases/Details", new { id = caseId, section = "estimate" });
+    /// <summary>
+    /// The operator's browser arrives here in the window Glass's ran in, so
+    /// the Estimate section is handed back to the Case window rather than
+    /// rendered here (<see cref="DetailsModel.GlassReturn(PageModel, Guid)"/>).
+    /// </summary>
+    private PartialViewResult Estimate(Guid caseId) => DetailsModel.GlassReturn(this, caseId);
 }

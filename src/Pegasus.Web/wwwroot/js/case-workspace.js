@@ -348,6 +348,29 @@
         });
     }
 
-    bindPreparations(document); bindDamage(document); bindReportRecipients(document); bindFileTabs(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(function (root) { bindPreparations(root); bindDamage(root); bindReportRecipients(root); bindFileTabs(root); });
+    // CASE-047 B04: Glass's runs in its own window, opened here inside the
+    // submit so no popup rule refuses it, and the Case record stays open with
+    // its edit lease alive. The form's own target="_blank" stands when the
+    // window is refused, and is the no-script path.
+    function bindGlassWindow(root) {
+        Array.prototype.slice.call((root || document).querySelectorAll('form[data-glass-window]')).forEach(function (form) {
+            if (form.dataset.glassWindowBound) { return; }
+            form.dataset.glassWindowBound = 'true';
+            form.addEventListener('submit', function () {
+                var opened = window.open('', 'pegasus-glass', 'popup=yes,width=1280,height=900');
+                if (opened) { form.target = 'pegasus-glass'; }
+            });
+        });
+    }
+
+    // The Glass's window hands its outcome back here: the Estimate section is
+    // reloaded without beaconing the edit scope away, exactly as a posted
+    // command keeps it.
+    window.pegasusGlassReturn = function (url) {
+        if (typeof window.pegasusHoldEditScopeRelease === 'function') { window.pegasusHoldEditScopeRelease(); }
+        window.location.assign(url);
+    };
+
+    bindPreparations(document); bindDamage(document); bindReportRecipients(document); bindFileTabs(document); bindGlassWindow(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(function (root) { bindPreparations(root); bindDamage(root); bindReportRecipients(root); bindFileTabs(root); bindGlassWindow(root); });
 })();
