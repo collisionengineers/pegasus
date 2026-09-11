@@ -715,7 +715,6 @@ deleted in wave 5.
 | `case-sticky` | The Case record's sticky block: identity ribbon, one action row (Edit Case, or Cancel/Save with `case-edit-badge`, plus progression and More actions/Close case) and section jump-nav (D29) |
 | `section-nav`, `section-link` | Section jump-nav and its links; the link for the section in view carries `aria-current` (D29) |
 | `case-workspace`, `case-context` | Case record grid and its context column; the side nav they carried is superseded by `case-sticky` and `section-nav` (D29) |
-| `suggest-btn` | Per-field suggestion chip that fills its field when chosen (D34) |
 | `damage-diagram`, `impact` | The clickable damage diagram and its zone markers; `impact` marks a zone with recorded damage (D39) |
 | `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt (D39) |
 | `valuation-card` | One valuation entry: source, date, time, mileage, guide month (CASE-029), retail, trade (D40) |

@@ -52,7 +52,10 @@ public sealed class AssessmentVehiclePrefillWebTests
 
         Assert.Contains("id=\"case-vehicle-title\"", html, StringComparison.Ordinal);
         Assert.Contains("AB12CDE", html, StringComparison.Ordinal);
-        Assert.Contains("45,123 miles", html, StringComparison.Ordinal);
+        // The lookup fills the case record rather than displaying its own reading
+        // beside it: the observation is stated by the outcome line only.
+        Assert.DoesNotContain("45,123", html, StringComparison.Ordinal);
+        Assert.Contains("Looked up ", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -173,7 +176,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 null,
                 [],
                 [],
-                new(null, null, null, null, null, null, null, null, null));
+                new(null, null, null, null, null, null, "tbc", null, null, null, null));
             return AssessmentWorkspaceTestData.Create(details, assessment);
         }
     }
@@ -233,6 +236,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 partialConfirmedVehicleEvidence ? Fact("AB12CDE") : Confirmed("AB12CDE"),
                 Confirmed("FORD"),
                 partialConfirmedVehicleEvidence ? Empty<string>() : Confirmed("FOCUS"),
+                partialConfirmedVehicleEvidence ? Empty<string>() : Confirmed("2019"),
                 partialConfirmedVehicleEvidence ? Empty<long>() : Confirmed(40000L),
                 partialConfirmedVehicleEvidence ? Empty<string>() : Confirmed("miles")),
             new(Empty<DateOnly>(), Empty<string>()),

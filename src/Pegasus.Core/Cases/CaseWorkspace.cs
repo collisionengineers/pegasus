@@ -179,7 +179,10 @@ public sealed record CaseWorkspaceVehicle(
     string? Make,
     string? Model,
     CaseWorkspaceOdometer? Odometer,
-    IReadOnlyDictionary<string, string?>? AssessmentFields);
+    IReadOnlyDictionary<string, string?>? AssessmentFields,
+    // Appended, never inserted: this record is constructed positionally, so an
+    // inserted parameter would silently shift every value after it.
+    string? Year = null);
 
 public sealed record CaseWorkspaceDamage(
     IReadOnlyList<AssessmentImpact>? Impacts,
@@ -563,6 +566,7 @@ public static class CaseWorkspacePolicy
                 VehicleRegistration = vehicle.Registration,
                 VehicleMake = vehicle.Make,
                 VehicleModel = vehicle.Model,
+                VehicleYear = vehicle.Year,
                 VehicleMileage = vehicle.Odometer?.OriginalValue,
                 VehicleMileageUnit = vehicle.Odometer?.OriginalUnit is { } originalUnit
                     ? CaseOdometer.Format(originalUnit)

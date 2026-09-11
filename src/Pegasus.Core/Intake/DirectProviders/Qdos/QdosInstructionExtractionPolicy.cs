@@ -22,7 +22,12 @@ public sealed partial class QdosInstructionExtractionPolicy
     // longer appended to the accident circumstances, and the letter's own
     // party, damage, third-party, repairer and requested-work blocks are read
     // as their own role-bearing fields.
-    public const int Version = 8;
+    //
+    // v9 reads the report facts from the submission's companion documents
+    // again: INTK-060 narrowed the policy's input to the selected
+    // instruction document, and the attached engineer report is deliberately
+    // not that document, so every report-sourced mileage was lost.
+    public const int Version = 9;
     public const string SupportedPrincipalCode = "QDOS";
 
     public string PrincipalCode => SupportedPrincipalCode;
@@ -345,6 +350,10 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// the raw content first (the letter always outranks), then the
     /// circumstances paragraph synthesized from the letter's prompt, then the
     /// report-sourced vehicle facts, then the subject facts last.
+    ///
+    /// The circumstances paragraph and the letter blocks are read from the
+    /// instruction content alone; only the report grammar also reads the
+    /// submission's companion documents.
     /// </summary>
     private static IReadOnlyList<IntakeContentFragment> WithDerivedFacts(
         IntakeSourceReadResult readResult)
@@ -365,7 +374,7 @@ public sealed partial class QdosInstructionExtractionPolicy
         {
             extended.AddRange(LetterBlocks(fragment));
         }
-        foreach (var fragment in readResult.Content)
+        foreach (var fragment in readResult.Content.Concat(readResult.CompanionContent))
         {
             extended.AddRange(ReportFacts(fragment));
         }
@@ -387,17 +396,24 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// <summary>
     /// There is deliberately no "is this fragment a report" test.
     ///
+    /// The report grammar runs over every fragment of the selected
+    /// instruction content AND every fragment of the submission's companion
+    /// documents — the other current documents the instruction-document
+    /// selector did not select. INTK-060 narrowed the policy's input to the
+    /// selected document alone, and because the attached engineer report is
+    /// exactly the document the QDOS signature rejects, every report-sourced
+    /// mileage was silently dropped from production cases.
+    ///
     /// The report accompanying an instruction is written by a third-party
     /// engineer — a different firm each time, named however that firm's
     /// system named it (operator, 2026-08-21). Identifying it by file name
     /// only ever worked for the firms whose name happened to contain
     /// "report", and any structural test would be one more thing to get
-    /// wrong. Instead the report grammar runs over every fragment and is
-    /// written so that only a report can satisfy it: the letters address the
-    /// vehicle as "Our Client's Vehicle:" or "TP Vehicle:", never as a bare
-    /// "Vehicle:" opening a line, and carry no "Speedo:" column at all.
-    /// Its facts are appended after all content, so the letter still
-    /// outranks wherever both speak (INTK-028).
+    /// wrong. So the grammar is written so that only a report can satisfy
+    /// it: the letters address the vehicle as "Our Client's Vehicle:" or
+    /// "TP Vehicle:", never as a bare "Vehicle:" opening a line, and carry
+    /// no "Speedo:" column at all. Its facts are appended after all content,
+    /// so the letter still outranks wherever both speak (INTK-028).
     /// </summary>
     /// Trims a column value where the line's next column label begins, so a
     /// value never carries its neighbours.

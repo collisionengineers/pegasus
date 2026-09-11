@@ -252,7 +252,7 @@ public sealed class PrincipalIdentificationCorpusTests
                     .Select(reference => reference.GetString())));
         Assert.All(qdos.GetProperty("extractionLabels").EnumerateArray(), label =>
             Assert.Contains(
-                "qdos-extraction-policy-v8",
+                SnapshotId("qdos-extraction-policy", QdosInstructionExtractionPolicy.Version),
                 label.GetProperty("evidenceRefs").EnumerateArray()
                     .Select(reference => reference.GetString())));
 

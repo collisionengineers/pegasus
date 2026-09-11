@@ -2008,10 +2008,11 @@ public static class OperatorLabels
     /// What the DVLA/MOT lookup did, for the Vehicle panel's own line.
     /// </summary>
     /// <remarks>
-    /// Until WP8 the panel showed nothing at all: the suggestion chips render
-    /// only in edit mode and a not-found, failed or throttled outcome rendered
-    /// nowhere, so a lookup that ran and answered "no such vehicle" looked
-    /// exactly like one that never ran. The line states which it was.
+    /// A lookup that answers fills the empty vehicle fields, so it is visible
+    /// in the values themselves. A not-found, failed or throttled outcome
+    /// fills nothing and once rendered nowhere, which made a lookup that
+    /// answered "no such vehicle" look exactly like one that never ran. The
+    /// line states which it was.
     /// </remarks>
     public static class VehicleLookup
     {
@@ -2020,13 +2021,6 @@ public static class OperatorLabels
 
         /// <summary>No lookup has recorded an answer for this case yet.</summary>
         public const string NotYetLookedUp = "Not yet looked up";
-
-        /// <summary>
-        /// What the values on offer are, said once. Accepting one still
-        /// requires edit mode: a looked-up value fills a field only when a
-        /// person chooses it (FRD-06).
-        /// </summary>
-        public const string SuggestionTitle = "DVLA suggests";
 
         /// <summary>
         /// The one line under the vehicle facts: when the latest lookup ran

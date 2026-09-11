@@ -154,6 +154,117 @@ public sealed class CaseVehicleSaveWebTests
         Assert.Null(evidence!.Confirmed);
     }
 
+    /// <summary>
+    /// The record has one mileage box and no unit control beside it, so the
+    /// unit is settled by the box: a figure typed onto a case carrying neither
+    /// is read in miles, which is what every odometer this business inspects
+    /// reads in.
+    /// </summary>
+    [Fact]
+    public async Task TypingAMileageSavesItInMiles()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            useIntegrationTestAuthentication: true);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-vehicle-mileage-typed", withMileage: false);
+        using var client = CreateClient(factory);
+
+        await SaveMileageAsync(client, caseId, "51234", "Recorded the mileage read at inspection.");
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CancellationToken.None);
+        Assert.NotNull(data);
+        Assert.Equal(51234L, data!.Vehicle.Mileage.Confirmed?.Value);
+        Assert.Equal("miles", data.Vehicle.MileageUnit.Confirmed?.Value);
+    }
+
+    /// <summary>
+    /// Emptying the box clears the unit with it. A unit standing behind a
+    /// mileage that is gone is half an odometer reading, and the case record
+    /// refuses one.
+    /// </summary>
+    [Fact]
+    public async Task ClearingAMileageRemovesItsUnitToo()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            useIntegrationTestAuthentication: true);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-vehicle-mileage-cleared", withMileage: false);
+        using var client = CreateClient(factory);
+        await SaveMileageAsync(client, caseId, "51234", "Recorded the mileage read at inspection.");
+
+        await SaveMileageAsync(
+            client, caseId, string.Empty, "Removed a mileage recorded against the wrong vehicle.");
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CancellationToken.None);
+        Assert.NotNull(data);
+        Assert.Null(data!.Vehicle.Mileage.Confirmed);
+        Assert.Null(data.Vehicle.Mileage.Fact);
+        Assert.Null(data.Vehicle.MileageUnit.Confirmed);
+        Assert.Null(data.Vehicle.MileageUnit.Fact);
+    }
+
+    private static async Task<Guid> AcceptCaseAsync(
+        IntakeWebApplicationFactory factory,
+        string operationKey,
+        bool withMileage)
+    {
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, QdosPrincipal.Code);
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            QdosPrincipal.Code);
+        await SeedAcceptedWorkspaceValuesAsync(factory.Services, receipt.Id, withMileage);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var accepted = await scope.ServiceProvider.GetRequiredService<IAcceptIntake>()
+            .ExecuteAsync(
+                new(
+                    receipt.Id,
+                    0,
+                    ActionActor.Staff(
+                        DevelopmentOfflineIdentity.AdministratorId,
+                        [StaffRole.Administrator]),
+                    operationKey,
+                    CaseType.Inspection,
+                    QdosPrincipal.Code,
+                    new(true, true),
+                    AcceptedInspectionDeadline: new DateOnly(2031, 5, 20)),
+                CancellationToken.None);
+        return accepted.Identity.CaseId;
+    }
+
+    private static HttpClient CreateClient(IntakeWebApplicationFactory factory) =>
+        factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
+
+    private static async Task SaveMileageAsync(
+        HttpClient client,
+        Guid caseId,
+        string mileage,
+        string reason)
+    {
+        var available = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        await ClaimLeaseAsync(client, caseId, available);
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        using var save = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=Save",
+            Form(
+                AntiforgeryValue(editing),
+                CurrentCaseSaveValues(
+                    editing,
+                    caseId,
+                    vehicleMake: InputValue(editing, "vehicleMake"),
+                    reason: reason,
+                    vehicleMileage: mileage)));
+        Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
+    }
+
     [Fact]
     public async Task ASecondStaffClientCannotClaimOrSaveOverAnActiveVehicleEditor()
     {
@@ -248,7 +359,10 @@ public sealed class CaseVehicleSaveWebTests
         Assert.Equal("AB12CDE", saved.Vehicle.Registration.Fact?.Value);
     }
 
-    private static async Task SeedAcceptedWorkspaceValuesAsync(IServiceProvider services, Guid receiptId)
+    private static async Task SeedAcceptedWorkspaceValuesAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        bool withMileage = true)
     {
         var fields = new[]
         {
@@ -270,6 +384,12 @@ public sealed class CaseVehicleSaveWebTests
             Field("Contact phone", "020 7946 0123"),
             Field("VAT status", "VAT registered")
         };
+        if (!withMileage)
+        {
+            fields = [.. fields.Where(field =>
+                !field.Name.StartsWith("Vehicle mileage", StringComparison.Ordinal))];
+        }
+
         await using var scope = services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -277,8 +397,8 @@ public sealed class CaseVehicleSaveWebTests
         draft.ClaimantName = "Jane Example";
         draft.ClaimNumber = "QDOS-123";
         draft.VehicleModel = "Focus";
-        draft.VehicleMileage = 42000;
-        draft.VehicleMileageUnit = "miles";
+        draft.VehicleMileage = withMileage ? 42000 : null;
+        draft.VehicleMileageUnit = withMileage ? "miles" : null;
         draft.AccidentCircumstances = "Rear-end impact at a roundabout.";
         draft.DateOfIncident = new DateOnly(2031, 4, 1);
         draft.InstructionDate = new DateOnly(2031, 4, 2);
@@ -306,7 +426,8 @@ public sealed class CaseVehicleSaveWebTests
         string html,
         Guid caseId,
         string vehicleMake = "Ford",
-        string reason = "Corrected vehicle make from retained instruction.") =>
+        string reason = "Corrected vehicle make from retained instruction.",
+        string? vehicleMileage = null) =>
     [
         ("id", caseId.ToString("D")),
         ("expectedVersion", InputValue(html, "expectedVersion")),
@@ -320,7 +441,7 @@ public sealed class CaseVehicleSaveWebTests
         ("vehicleRegistration", InputValue(html, "vehicleRegistration")),
         ("vehicleMake", vehicleMake),
         ("vehicleModel", InputValue(html, "vehicleModel")),
-        ("vehicleMileage", InputValue(html, "vehicleMileage")),
+        ("vehicleMileage", vehicleMileage ?? InputValue(html, "vehicleMileage")),
         ("vehicleMileageUnit", InputValue(html, "vehicleMileageUnit")),
         ("accidentCircumstances", TextareaValue(html, "accidentCircumstances")),
         ("incidentDate", InputValue(html, "incidentDate")),

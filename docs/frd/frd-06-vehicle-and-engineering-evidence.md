@@ -163,11 +163,14 @@ value, or higher-tier mileage. Acceptance, rejection, or linking of an
 external fact enters permanent business history. Routine calls, retries, and
 polling remain content-safe telemetry.
 
-The Case record offers one **Look up DVLA & MOT** action (D34, 2026-09-02).
-Looked-up values are suggestions: each appears as a chip beside its field and
-fills the field only when chosen, with the accepted value recorded as above.
-There is no checks panel and no suggestion table. Experian stays a disabled
-seam (D7, `ENG-001`).
+The Case record offers one **Look up DVLA & MOT** action (D34, 2026-09-02;
+amended 2026-09-11). A looked-up value fills Make, Model, Year, or Mileage
+directly, as a working value carrying Lookup provenance, and only where the
+field is empty: it never overwrites an extracted instruction value or a
+staff-entered value, with the fill recorded as above. There are no
+per-field suggestion chips and no suggestion table. The Model comes from the
+DVSA MOT history vehicle record; DVLA supplies no model. Experian stays a
+disabled seam (D7, `ENG-001`).
 
 The combined DVLA/DVSA lookup also runs automatically at Case creation —
 both a manually created Case and an intake acceptance that allocates a
@@ -178,19 +181,31 @@ the existing 10-second Worker sweep, which remains the recovery path when the
 creation-time attempt is unavailable or fails. The outcome is visible on the
 Case regardless of which trigger produced it (D34 amended, 2026-09-10):
 looked up and current, or a stated failure reason, separately from whether
-any suggestion was ever accepted. A provider's HTTP 404 response is
+the lookup ever filled a field. A provider's HTTP 404 response is
 classified before it is treated as "no such vehicle": only a 404 whose body
 is that provider's own vehicle-not-found error counts as `NotFound`; any
 other 404 (a gateway, route or withdrawn-subscription 404) is recorded as a
-failed lookup instead of a false not-found result. Accepted values remain
-suggestions only, per the acceptance rule above; the automatic trigger never
-fills or confirms a field itself.
+failed lookup instead of a false not-found result. The automatic trigger
+fills only an empty Make, Model, Year, or Mileage, per the fill rule above;
+it never overwrites an extracted or staff-entered value and never confirms a
+field itself.
+
+The issued report's mileage sentence code (`online_data`, `owner`, `repairer`,
+`principal`, `average`, or `tbc`) is derived from the Case mileage's
+provenance rather than recorded separately (D34 amended, 2026-09-11): an
+instruction-extracted mileage (including one read from a third-party engineer
+report supplied with a Principal's instruction) derives `principal`; a DVSA
+lookup value derives `online_data`; a staff-entered mileage derives the staff
+member's own choice of `owner`, `repairer`, or `principal`, recorded beside
+the mileage in edit mode; and a Case with no mileage derives `tbc`. The
+`average` code remains a renderer sentence but no provenance derives it. Staff
+no longer record a separate mileage-source report field.
 
 **Evidence boundary:** the DVLA/DVSA production adapter and its composition
-exist. Returned fields remain source-labelled suggestions; unavailable fields
-are explicit and never inferred. Credential configuration, an exact deployed
-artifact, real caller/failure evidence and operator acceptance remain separate
-from source presence.
+exist. A returned field fills the Case only per the fill rule above;
+unavailable fields are explicit and never inferred. Credential configuration,
+an exact deployed artifact, real caller/failure evidence and operator
+acceptance remain separate from source presence.
 Vehicle enrichment does not activate valuation behavior.
 
 ### Professional engineering findings and correction

@@ -10,6 +10,10 @@ namespace Pegasus.IntegrationTests;
 /// Every case already in the estate had its lookup first, so its findings sat
 /// on the observation and nowhere else — QDOS26011 read "Not recorded" for
 /// mileage over an observation holding 121,823 miles.
+///
+/// The promotion migration behind it then makes each backfilled value the
+/// case's working value, because the suggestion tier the backfill wrote to is
+/// no longer displayed anywhere.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class VehicleLookupBackfillTests
@@ -23,11 +27,15 @@ public sealed class VehicleLookupBackfillTests
 
         await ApplyBackfillAsync(database);
 
-        Assert.Equal("121823", await ReadAsync(database, caseId, "vehicle_mileage", "suggestion"));
-        Assert.Equal("Miles", await ReadAsync(database, caseId, "vehicle_mileage_unit", "suggestion"));
-        Assert.Equal("MAZDA", await ReadAsync(database, caseId, "vehicle_make", "suggestion"));
+        // The backfill writes the suggestion tier the lookup used to write, and
+        // the promotion behind it makes each one the case's working value.
+        Assert.Equal("121823", await ReadAsync(database, caseId, "vehicle_mileage", "fact"));
+        Assert.Equal("Miles", await ReadAsync(database, caseId, "vehicle_mileage_unit", "fact"));
+        Assert.Equal("MAZDA", await ReadAsync(database, caseId, "vehicle_make", "fact"));
         Assert.Equal("latest-mot-observation", await database.ScalarAsync<string>(
-            $"SELECT PolicyKey FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'suggestion'"));
+            $"SELECT PolicyKey FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_mileage' AND ValueKind = 'fact'"));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND ValueKind = 'suggestion'"));
     }
 
     [Fact]
@@ -39,12 +47,31 @@ public sealed class VehicleLookupBackfillTests
 
         await ApplyBackfillAsync(database);
 
-        // The fact stands; the lookup's own value lands only at the suggestion
-        // tier, which CaseField.Current ranks below it.
+        // The fact stands. The lookup's own value lost to it, so the promotion
+        // deletes the suggestion rather than leaving a row nothing can read.
         Assert.Equal("HONDA", await ReadAsync(database, caseId, "vehicle_make", "fact"));
-        Assert.Equal("MAZDA", await ReadAsync(database, caseId, "vehicle_make", "suggestion"));
         Assert.Equal(1, await database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make'"));
+    }
+
+    [Fact]
+    public async Task TheMigrationGivesAnAlreadyLookedUpCaseItsYear()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false, useTemplate: false);
+        await MigrateToPreviousAsync(database);
+        var caseId = await SeedCaseWithObservationAsync(database, extractedMake: null);
+
+        await ApplyBackfillAsync(database);
+
+        // The year only ever lived on the observation: the backfill predates
+        // the case-owned field, so the promotion is what carries it across.
+        Assert.Equal("2016", await ReadAsync(database, caseId, "vehicle_year", "fact"));
+        Assert.Equal("vehicle_lookup", await database.ScalarAsync<string>(
+            $"SELECT SourceKind FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_year'"));
+        Assert.Equal("vehicle-lookup-fill", await database.ScalarAsync<string>(
+            $"SELECT PolicyKey FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_year'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_year'"));
     }
 
     [Fact]
@@ -125,7 +152,7 @@ public sealed class VehicleLookupBackfillTests
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO VehicleLookupRequests (WorkItemId, CaseId, Registration, OperationKey, RequestFingerprint, RequestedByKind, RequestedBySubjectId, RequestedByRolesJson, RequestedAtUtc, ResultingCaseVersion) VALUES ({workItemId}, {caseId}, {"ST66BCE"}, {$"backfill-{workItemId:N}"}, {new string('0', 64)}, {"Automation"}, {"vehicle-lookup-reconciliation"}, {"[]"}, {now}, {0L})");
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO VehicleLookupObservations (Id, WorkItemId, AttemptNumber, Outcome, Registration, Provider, ProviderVersion, ResponseIdentity, RetrievedAtUtc, Make, MileageValue, MileageUnit, MileageObservedOn, MileageMethodKey, MileageMethodVersion, MileageSupportingObservationCount, MotTestsJson, RecordedAtUtc) VALUES ({observationId}, {workItemId}, {1}, {"current"}, {"ST66BCE"}, {"offline-replay"}, {"fixture-v1"}, {$"resp-{observationId:N}"}, {now}, {"MAZDA"}, {121823L}, {"Miles"}, {new DateOnly(2025, 9, 25)}, {"latest-mot-observation"}, {2}, {1}, {"{\"version\":1,\"tests\":[]}"}, {now})");
+            $"INSERT INTO VehicleLookupObservations (Id, WorkItemId, AttemptNumber, Outcome, Registration, Provider, ProviderVersion, ResponseIdentity, RetrievedAtUtc, Make, ManufactureYear, MileageValue, MileageUnit, MileageObservedOn, MileageMethodKey, MileageMethodVersion, MileageSupportingObservationCount, MotTestsJson, RecordedAtUtc) VALUES ({observationId}, {workItemId}, {1}, {"current"}, {"ST66BCE"}, {"offline-replay"}, {"fixture-v1"}, {$"resp-{observationId:N}"}, {now}, {"MAZDA"}, {2016}, {121823L}, {"Miles"}, {new DateOnly(2025, 9, 25)}, {"latest-mot-observation"}, {2}, {1}, {"{\"version\":1,\"tests\":[]}"}, {now})");
 
         if (extractedMake is not null)
         {
