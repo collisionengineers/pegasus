@@ -625,6 +625,60 @@ code, .mono { font-family: var(--mono); font-size: .95em; }
 .mock .sep { width: 1px; height: 16px; background: #4a5157; margin: 0 2px; }
 @media (max-width: 760px) { .mock { left: 8px; right: 8px; } }
 
+/* ---- v26 working set: open records only, fused strip ---- */
+.workspace-tabs { height: var(--tabs-h); display: flex; align-items: flex-end; gap: 2px; padding: 6px var(--page-pad) 0; background: var(--bg); border-bottom: 1px solid #cbd2d5; position: sticky; top: var(--utility-h); z-index: 25; }
+.app-shell.no-tabs { --tabs-h: 0px; }
+.workspace-tab { flex: 0 1 auto; min-width: 0; max-width: 240px; height: 33px; padding: 0 5px 0 11px; border: 1px solid transparent; border-bottom: 0; border-radius: 4px 4px 0 0; background: transparent; display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12.5px; white-space: nowrap; position: relative; font-weight: 500; }
+.workspace-tab:hover { background: color-mix(in srgb, var(--surface) 55%, transparent); color: var(--ink); text-decoration: none; }
+.workspace-tab[aria-current="page"] { background: var(--surface); color: var(--ink); border-color: #cbd2d5; border-top: 1px solid #cbd2d5; margin-bottom: -1px; height: 34px; z-index: 1; font-weight: 500; }
+.workspace-tab[aria-current="page"]::before { content: ""; position: absolute; left: -1px; right: -1px; top: -1px; height: 2px; background: var(--red); border-radius: 4px 4px 0 0; }
+.workspace-tab > .icon { width: 14px; height: 14px; flex: none; opacity: .75; }
+.workspace-tab .ref { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+.workspace-tab .sub { font: 500 11px var(--mono); color: var(--quiet); overflow: hidden; text-overflow: ellipsis; }
+.workspace-tab .st { flex: none; }
+.workspace-tab .st--dirty { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+.workspace-tab .st--glass { width: 12px; height: 12px; color: var(--amber); opacity: 1; }
+.workspace-tab .st--held { width: 12px; height: 12px; color: var(--quiet); opacity: 1; }
+.workspace-tab .tab-close { visibility: hidden; width: 20px; height: 20px; border-radius: 3px; }
+.workspace-tab[aria-current="page"] .tab-close, .workspace-tab:hover .tab-close { visibility: visible; }
+.workspace-tab .tab-close .icon { width: 12px; height: 12px; }
+.tabs-more { position: relative; margin-left: 4px; align-self: center; }
+.tabs-more summary { list-style: none; display: flex; align-items: center; gap: 4px; height: 26px; padding: 0 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 11.5px; cursor: pointer; white-space: nowrap; }
+.tabs-more summary::-webkit-details-marker { display: none; }
+.tabs-more summary .icon { width: 12px; height: 12px; }
+.tabs-more .menu { position: absolute; top: 30px; left: 0; min-width: 250px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 4px; z-index: 40; }
+.tabs-more .menu a { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--radius); color: var(--ink); font-size: 12.5px; white-space: nowrap; }
+.tabs-more .menu a:hover { background: var(--surface-2); text-decoration: none; }
+.tabs-more .menu .icon { width: 14px; height: 14px; color: var(--quiet); }
+
+/* ---- v26 image viewer ---- */
+.dialog--viewer { width: min(1100px, 100%); height: min(calc(100vh - 40px), 820px); background: #111417; color: #fff; border-radius: 6px; overflow: hidden; }
+.dialog--viewer .dialog-form { flex: 1; min-height: 0; display: grid; grid-template-rows: 48px minmax(0, 1fr) auto; grid-template-columns: 56px minmax(0, 1fr) 56px; }
+.dialog--viewer .dialog-body { display: contents; }
+.dialog--viewer .viewer-top:focus, .dialog--viewer .viewer-top:focus-visible { outline: 0; position: static; }
+.dialog--viewer .viewer-top { grid-column: 1 / -1; grid-row: 1; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.dialog--viewer .viewer-title { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+.dialog--viewer .viewer-title b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dialog--viewer .viewer-n { font: 500 11.5px var(--mono); color: #aab2b8; white-space: nowrap; }
+.dialog--viewer .viewer-tools { display: flex; align-items: center; gap: 8px; }
+.dialog--viewer .btn { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.18); color: #fff; }
+.dialog--viewer .btn:hover { background: rgba(255,255,255,.16); color: #fff; }
+.dialog--viewer .icon-button { color: #fff; }
+.dialog--viewer .icon-button:hover { background: rgba(255,255,255,.12); }
+.dialog--viewer .viewer-nav { grid-row: 2; background: none; border: 0; color: #fff; opacity: .6; cursor: pointer; display: grid; place-items: center; }
+.dialog--viewer .viewer-nav.prev { grid-column: 1; }
+.dialog--viewer .viewer-nav.next { grid-column: 3; }
+.dialog--viewer .viewer-nav:hover { opacity: 1; }
+.dialog--viewer .viewer-nav .icon { width: 30px; height: 30px; }
+.dialog--viewer .viewer-stage { grid-column: 2; grid-row: 2; display: grid; place-items: center; overflow: hidden; cursor: zoom-in; padding: 14px; min-height: 0; }
+.dialog--viewer .viewer-stage.is-zoomed { cursor: zoom-out; overflow: auto; }
+.dialog--viewer .viewer-stage img { max-width: 100%; max-height: 100%; transition: transform .18s ease; box-shadow: 0 24px 60px rgba(0,0,0,.6); border-radius: 2px; }
+.dialog--viewer .viewer-strip { grid-column: 1 / -1; grid-row: 3; display: flex; gap: 6px; padding: 12px 14px; overflow-x: auto; border-top: 1px solid rgba(255,255,255,.1); }
+.dialog--viewer .viewer-strip > button { flex: 0 0 84px; width: 84px; height: 63px; min-height: 0; line-height: 0; display: block; border: 2px solid transparent; border-radius: 3px; background-size: cover; background-position: center; opacity: .5; cursor: pointer; padding: 0; }
+.dialog--viewer .viewer-strip > button.on { opacity: 1; border-color: #fff; }
+.dialog--viewer .viewer-strip > button:hover { opacity: .9; }
+body:has(.dialog--viewer) .mock { display: none; }
+
 </style>
 </head>
 <body>
@@ -2807,8 +2861,71 @@ AFTER_RENDER.push((path, params) => {
   if (params.fresh && S.freshness !== params.fresh) { S.freshness = params.fresh; S.mock.fresh = params.fresh; setTimeout(render, 0); }
   if (params.unavailable === '1' && !S.mock.unavailable) { S.mock.unavailable = true; S.freshness = 'unavailable'; setTimeout(render, 0); }
   if (path === '/upload' && params.sample === '1' && S.upload.stage === 'idle') { ACTIONS['upload-sample'](); ACTIONS['upload-submit'](); }
-  if (params.dialog && !S.dialog) openDialog(params.dialog, { ...params });
+  if (params.dialog && !S.dialog) openDialog(params.dialog, { ...(MOCK_DIALOG_ARGS[params.dialog] || {}), ...params });
 });
+
+/* ---- synthetic evidence previews (mockup only: there are no real files) ---- */
+function fakePhoto(name,i){i=i|0;const hue=[212,204,218,198,222,208][i%6];const dusk=i%4===3;const close=i%3===1||/close|lamp|panel|boot|repair image [3-9]/i.test(name);const flip=/N\/S|left|near/i.test(name);const interior=/interior|dash|odometer|vin/i.test(name);
+  const sky=`hsl(${hue},${dusk?22:16}%,${dusk?36:72}%)`,sky2=`hsl(${hue},12%,${dusk?50:84}%)`,gr1=`hsl(${hue-8},6%,${dusk?30:46}%)`,gr2=`hsl(${hue-8},6%,${dusk?18:32}%)`;
+  const car=`<g transform="${flip?'translate(800 0) scale(-1 1) ':''}${close?'translate(-170 -70) scale(1.5)':''}"><ellipse cx="400" cy="470" rx="290" ry="26" fill="#000" opacity=".35"/><path d="M130 440 L160 330 Q180 300 230 292 L330 250 Q400 236 520 250 L620 300 Q670 318 676 360 L672 440 Z" fill="#23282c"/><path d="M240 296 L335 256 Q400 244 505 256 L600 300 Z" fill="#3b4a55" opacity=".9"/><rect x="176" y="372" width="60" height="26" rx="6" fill="#d63a3a" opacity=".85"/><rect x="618" y="372" width="48" height="26" rx="6" fill="#d63a3a" opacity=".85"/><rect x="196" y="410" width="440" height="22" rx="4" fill="#15181b"/><circle cx="220" cy="442" r="40" fill="#101214"/><circle cx="220" cy="442" r="18" fill="#6a7278"/><circle cx="600" cy="442" r="40" fill="#101214"/><circle cx="600" cy="442" r="18" fill="#6a7278"/><path d="M420 336 L470 322 L500 356 L455 392 L410 380 Z" fill="#4a5259" opacity=".8"/><path d="M418 342 L462 330 L488 358 L450 386 Z" fill="none" stroke="#9aa3a9" stroke-width="2" opacity=".6"/></g>`;
+  const inside=`<rect width="800" height="600" fill="#2b2f33"/><path d="M0 380 Q400 300 800 380 L800 600 L0 600 Z" fill="#1c1f22"/><rect x="120" y="120" width="560" height="200" rx="18" fill="#0f1113" stroke="#3a4046" stroke-width="6"/><text x="400" y="240" font-family="monospace" font-size="54" fill="#8fd1ff" text-anchor="middle">${/odometer/i.test(name)?'087412':/vin/i.test(name)?'WVWZZZ1KZ9W':'!'}</text>`;
+  const s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600"><defs><linearGradient id="s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sky}"/><stop offset=".56" stop-color="${sky2}"/><stop offset=".565" stop-color="${gr1}"/><stop offset="1" stop-color="${gr2}"/></linearGradient><radialGradient id="v" cx=".5" cy=".5" r=".72"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".5"/></radialGradient><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter></defs>${interior?inside:`<rect width="800" height="600" fill="url(#s)"/><rect x="0" y="336" width="800" height="8" fill="#fff" opacity=".18"/>${car}`}<rect width="800" height="600" fill="url(#v)"/><rect width="800" height="600" filter="url(#n)" opacity=".16"/><text x="16" y="582" font-family="monospace" font-size="17" fill="#ffd28a" opacity=".85">27 08 2026 ${String(10+i%8).padStart(2,'0')}:${String(14+(i*7)%46).padStart(2,'0')}  ${name.replace(/[<>&"]/g,'')}</text></svg>`;
+  return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s);}
+function fakeDoc(name){const lines=[...Array(14)].map((_,k)=>`<rect x="70" y="${120+k*34}" width="${k%5===4?260:300+((k*37)%160)}" height="10" rx="3" fill="#cfd5d9"/>`).join('');const s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 800"><rect width="620" height="800" fill="#f6f7f8"/><rect x="40" y="30" width="540" height="740" fill="#fff" stroke="#d9dee2"/><rect x="70" y="60" width="180" height="16" rx="3" fill="#9aa3a9"/><text x="550" y="72" font-family="sans-serif" font-size="12" fill="#9aa3a9" text-anchor="end">${name.replace(/[<>&"]/g,'')}</text>${lines}</svg>`;return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s);}
+function previewSrc(name,i){return /\.(pdf|docx?|xlsx?|msg|eml|txt)$/i.test(name)?fakeDoc(name):fakePhoto(name,i);}
+
+/* ---- v26: working-set tabs (open records only, persisted with the Case record file) ---- */
+ICONS.image = ICONS.image || 'M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM21 15l-5-5L5 21';
+ICONS.mail = ICONS.mail || 'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 7l-10 7L2 7';
+ICONS['zoom-in'] = ICONS['zoom-in'] || 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35M11 8v6M8 11h6';
+ICONS.download = ICONS.download || 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3';
+const TAB_ICON = { case: 'folder', triage: 'clipboard-list', unidentified: 'alert-circle', image: 'image', message: 'mail' };
+S.tabState = {};
+function tabEntry(id) {
+  let e = null;
+  if (id.startsWith('ic')) { const r = byId(DATA.imageCases, id); e = r && { kind: 'image', ref: r.ref, sub: r.reg || '', route: `/images/${id}` }; }
+  else if (id.startsWith('c')) { const c = getCase(id); e = c && { kind: 'case', ref: c.ref, sub: c.reg, route: `/cases/${id}` }; }
+  else if (id.startsWith('t')) { const t = byId(DATA.triage, id); e = t && { kind: 'triage', ref: 'Triage', sub: t.reg, route: `/triage/${id}` }; }
+  else if (id.startsWith('u')) { const u = byId(DATA.unidentified, id); e = u && { kind: 'unidentified', ref: u.ref, sub: '', route: `/unidentified/${id}` }; }
+  else if (id.startsWith('m')) { const m = byId(DATA.mail, id); e = m && { kind: 'message', ref: m.subject.length > 30 ? m.subject.slice(0, 28) + '…' : m.subject, sub: '', route: `/inbox/${id}` }; }
+  return e ? Object.assign({ id, state: S.tabState[id] || '' }, e) : null;
+}
+function openTabs() { return S.openRecords.map(tabEntry).filter(Boolean); }
+function persistOpen() { try { localStorage.setItem('v26.open', JSON.stringify(openTabs())); } catch {} }
+openRecord = function (id) { if (!S.openRecords.includes(id)) S.openRecords = [...S.openRecords, id].slice(-12); persistOpen(); };
+try { const a = JSON.parse(localStorage.getItem('v26.open') || '[]'); if (Array.isArray(a) && a.length) { S.openRecords = a.map(t => t.id); a.forEach(t => { if (t.state) S.tabState[t.id] = t.state; }); } } catch {}
+{ const a = renderTriage, b = renderUnidentified, c = renderImageRecord, d = renderMessage; renderTriage = id => { openRecord(id); return a(id); }; renderUnidentified = id => { openRecord(id); return b(id); }; renderImageRecord = id => { openRecord(id); return c(id); }; renderMessage = id => { openRecord(id); return d(id); }; }
+workspaceTabs = function (path) {
+  const all = openTabs(); if (!all.length) return '';
+  const max = 6, shown = all.slice(0, max), more = all.slice(max);
+  const st = t => t.state === 'dirty' ? '<i class="st st--dirty" title="Unsaved changes"></i>' : t.state === 'glass' ? icon('zap', 'icon st st--glass') : t.state === 'held' ? icon('lock', 'icon st st--held') : '';
+  const tab = t => `<a class="workspace-tab" href="#${t.route}" ${path === t.route ? 'aria-current="page"' : ''} data-id="${t.id}">${icon(TAB_ICON[t.kind])}<span class="ref">${esc(t.ref)}</span>${t.sub ? `<span class="sub">${esc(t.sub)}</span>` : ''}${st(t)}<button type="button" class="tab-close" data-action="close-record" data-id="${t.id}" aria-label="Close ${attr(t.ref)}">${icon('x')}</button></a>`;
+  return `<nav class="workspace-tabs" aria-label="Open records">${shown.map(tab).join('')}${more.length ? `<details class="tabs-more"><summary>${more.length} more${icon('chevron-down')}</summary><div class="menu">${more.map(t => `<a href="#${t.route}" data-id="${t.id}">${icon(TAB_ICON[t.kind])}<span>${esc(t.ref)}${t.sub ? ' · ' + esc(t.sub) : ''}</span></a>`).join('')}</div></details>` : ''}</nav>`;
+};
+const shellWithTabs = shell;
+shell = function (path, page, opts) { let h = shellWithTabs(path, page, opts); if (!openTabs().length) h = h.replace('<div class="app-shell', '<div class="no-tabs app-shell'); return h; };
+ACTIONS['close-record'] = (el, e) => { if (e) { e.preventDefault(); e.stopPropagation(); } const id = el.dataset.id; const ent = tabEntry(id); S.openRecords = S.openRecords.filter(x => x !== id); persistOpen(); const { path } = parseRoute(); if (ent && path === ent.route) go('/'); else render(); };
+document.addEventListener('auxclick', e => { if (e.button !== 1) return; const t = e.target.closest('.workspace-tab[data-id]'); if (!t) return; ACTIONS['close-record']({ dataset: { id: t.dataset.id } }, e); });
+const MOCK_TABS = ['c99', 'c1', 't2', 'm4', 'c5', 'u1', 'ic1', 'c3', 'c7'];
+ACTIONS['mock-tabs'] = el => { const n = +el.dataset.n; S.openRecords = MOCK_TABS.slice(0, n); S.tabState = n > 1 ? { c1: 'glass', c5: 'held' } : {}; persistOpen(); render(); };
+const renderMockBase = renderMock;
+renderMock = function (path) { renderMockBase(path); const el = document.getElementById('mock'); if (!el) return; const n = S.openRecords.length; el.insertAdjacentHTML('beforeend', mockRow('Tabs', [0, 1, 4, 9].map(k => mockBtn(k === 0 ? 'None' : k + ' open', n === k, 'mock-tabs', { n: k })).join(''))); };
+
+/* ---- v26: image viewer (real stage, navigation across the record's images) ---- */
+const PREVIEW_CACHE = {};
+function previewFor(name, i) { return PREVIEW_CACHE[name] || (PREVIEW_CACHE[name] = previewSrc(name, i == null ? name.length : i)); }
+ACTIONS['preview-doc'] = el => { const g = el.closest('.gallery'); const list = g ? [...g.querySelectorAll('[data-name]')].map(b => b.dataset.name) : []; openDialog('viewer', { name: el.dataset.name, list, rot: 0, zoom: false }); };
+DIALOGS.viewer = d => {
+  const list = d.list && d.list.length ? d.list : [d.name || 'Evidence']; const i = Math.max(0, list.indexOf(d.name)); const name = list[i]; const isDoc = /\.(pdf|docx?|xlsx?|msg|eml|txt)$/i.test(name); const many = list.length > 1;
+  return { head: false, cls: 'dialog--viewer', foot: '', body: `<div class="viewer-top" tabindex="-1" autofocus><div class="viewer-title"><b>${esc(name)}</b>${many ? `<span class="viewer-n">${i + 1} of ${list.length}</span>` : ''}</div><div class="viewer-tools">${isDoc ? '' : `<button type="button" class="btn btn--small" data-action="viewer-rotate">${icon('rotate-cw')}<span>Rotate</span></button>`}<button type="button" class="btn btn--small" data-action="viewer-zoom">${icon('zoom-in')}<span>${d.zoom ? 'Fit' : 'Zoom'}</span></button><a class="btn btn--small" href="${previewFor(name, i)}" download="${attr(name)}">${icon('download')}<span>Download</span></a></div>${iconButton('x', 'dialog-close', 'Close')}</div>${many ? `<button type="button" class="viewer-nav prev" data-action="viewer-step" data-d="-1" aria-label="Previous">${icon('chevron-left')}</button>` : ''}<div class="viewer-stage${d.zoom ? ' is-zoomed' : ''}" data-action="viewer-zoom"><img src="${previewFor(name, i)}" alt="${attr(name)}" style="transform:rotate(${d.rot || 0}deg) scale(${d.zoom ? 2 : 1})"></div>${many ? `<button type="button" class="viewer-nav next" data-action="viewer-step" data-d="1" aria-label="Next">${icon('chevron-right')}</button><div class="viewer-strip">${list.map((n, k) => `<button type="button" class="${k === i ? 'on' : ''}" data-action="viewer-go" data-name="${attr(n)}" style="background-image:url('${previewFor(n, k)}')" aria-label="${attr(n)}" title="${attr(n)}"></button>`).join('')}</div>` : ''}` };
+};
+ACTIONS['viewer-step'] = el => { const d = S.dialog.data; const list = d.list; const i = list.indexOf(d.name); d.name = list[(i + Number(el.dataset.d) + list.length) % list.length]; d.rot = 0; d.zoom = false; renderDialog(); };
+ACTIONS['viewer-go'] = el => { const d = S.dialog.data; d.name = el.dataset.name; d.rot = 0; d.zoom = false; renderDialog(); };
+ACTIONS['viewer-rotate'] = () => { const d = S.dialog.data; d.rot = ((d.rot || 0) + 90) % 360; renderDialog(); };
+ACTIONS['viewer-zoom'] = () => { const d = S.dialog.data; d.zoom = !d.zoom; renderDialog(); };
+document.addEventListener('keydown', e => { if (!S.dialog || S.dialog.type !== 'viewer') return; const d = S.dialog.data; const many = d.list && d.list.length > 1; if (e.key === 'ArrowRight' && many) ACTIONS['viewer-step']({ dataset: { d: 1 } }); else if (e.key === 'ArrowLeft' && many) ACTIONS['viewer-step']({ dataset: { d: -1 } }); else if (e.key === 'r' || e.key === 'R') ACTIONS['viewer-rotate'](); else if (e.key === 'z' || e.key === 'Z') ACTIONS['viewer-zoom'](); });
+AFTER_RENDER.push(() => { document.querySelectorAll('.gallery-item[data-name]').forEach((b, k) => { if (!b.querySelector('img')) b.insertAdjacentHTML('afterbegin', `<img src="${previewFor(b.dataset.name, k)}" alt="">`); }); });
+MOCK_DIALOG_ARGS.viewer = { name: DATA.triage[1].images[0], list: DATA.triage[1].images.slice(), rot: 0, zoom: false };
 
 
 // ---- 90-router.js
@@ -2870,7 +2987,7 @@ ACTIONS['add-menu'] = () => openDialog('add');
 ACTIONS.notifications = () => openDialog('notifications');
 ACTIONS['account-menu'] = () => openDialog('account');
 ACTIONS['sign-out'] = () => { S.signedIn = false; closeDialog(); go('/signin'); };
-ACTIONS['close-record'] = (el, e) => { e.preventDefault(); e.stopPropagation(); const id = el.dataset.id; S.openRecords = S.openRecords.filter(x => x !== id); const { path } = parseRoute(); if (path === `/cases/${id}`) go('/'); else render(); };
+ACTIONS['close-record-router'] = (el, e) => { e.preventDefault(); e.stopPropagation(); const id = el.dataset.id; S.openRecords = S.openRecords.filter(x => x !== id); const { path } = parseRoute(); if (path === `/cases/${id}`) go('/'); else render(); };
 ACTIONS['case-layout'] = el => { S.caseLayout = el.dataset.layout; try { localStorage.setItem('pegasus.caseLayout', S.caseLayout); } catch {} if (S.dialog) renderDialog(); render(); };
 ACTIONS.refresh = () => { S.freshnessTime = nowTime(); render(); toast('Refreshed'); };
 ACTIONS['upload-request-create'] = (el, e, form) => {

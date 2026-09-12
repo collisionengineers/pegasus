@@ -44,6 +44,21 @@ f.onload=()=>{
       w.hoverZone('bonnet');check('variant '+v+' hover readout',$('dvName').textContent==='Bonnet'&&!!d.querySelector('#carView [data-damage-zone="bonnet"].is-hover'));w.hoverZone(null);
       const n=Object.keys(g('impacts')).length;d.querySelector('#carView [data-damage-zone="roof"]').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));check('variant '+v+' click toggles',Object.keys(g('impacts')).length===n+1);w.toggleZone('roof');}
     w.setDamageVariant('plan');check('legend rendered',d.querySelectorAll('#dvLegend span').length===5);
+    // image viewer
+    d.querySelector('#thumbs3 .th').click();check('viewer opens from evidence',!$('viewer').hidden&&$('vwImg').src.startsWith('data:image/svg'));
+    check('viewer names image',$('vwName').textContent==='Rear 3/4 O/S'&&$('vwN').textContent==='1 of 12');
+    w.stepViewer(1);check('viewer steps',$('vwName').textContent==='Rear straight');w.rotateViewer();check('viewer rotates',$('vwImg').style.transform.includes('rotate(90deg)'));w.zoomViewer();check('viewer zooms',$('vwStage').classList.contains('is-zoomed'));
+    check('viewer include control while editing',!!d.querySelector('#vwTools input[type=checkbox]'));const inc=d.querySelector('#vwTools input');inc.checked=!inc.checked;fire(inc,'change');check('viewer include toggles report set',g("imgState")[1].on===inc.checked);inc.checked=!inc.checked;fire(inc,'change');
+    check('viewer strip has every image',$('vwStrip').children.length===12);w.closeViewer();check('viewer closes',$('viewer').hidden);
+    check('report thumbs carry photos',d.querySelector('#thumbs .th').style.backgroundImage.includes('data:image/svg'));
+    // working set
+    w.mockTabs(9);check('nine open shows six tabs and more',d.querySelectorAll('#tabs .workspace-tab').length===6&&d.querySelector('#tabs .tabs-more summary').textContent.includes('3 more'));
+    check('active tab is this case',d.querySelector('#tabs .workspace-tab.is-active .ref').textContent==='QDOS26214');
+    check('tab state glyphs',!!d.querySelector('#tabs .workspace-tab[data-id="c1"] .st--glass')&&!!d.querySelector('#tabs .workspace-tab[data-id="c5"] .st--held'));
+    check('editing shows unsaved dot on active tab',!!d.querySelector('#tabs .workspace-tab.is-active .st--dirty'));
+    w.closeTab('t2');check('closing a tab removes it',!d.querySelector('#tabs .workspace-tab[data-id="t2"]')&&JSON.parse(w.localStorage.getItem('v26.open')).length===8);
+    check('no Work Centre or Open tab',!$('tabs').textContent.includes('Work Centre')&&![...d.querySelectorAll('#tabs .workspace-tab .ref')].some(r=>r.textContent==='Open'));
+    w.mockTabs(1);
     // valuation
     $('inc_tow').checked=true;w.adjWork();check('preset row on',$('inc_tow').closest('.add').classList.contains('on'));
     $('f-ptl').value='10';w.adjWork();w.applyAdj();check('EV applied',g("S").ev>0);

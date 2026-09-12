@@ -43,6 +43,21 @@ f.onload=()=>{
     route('/upload');g("ACTIONS['mock-upload']({dataset:{stage:'done'}})");check('upload decided via strip',has('files received'));g("ACTIONS['mock-upload']({dataset:{stage:'idle'}})");
     route('/');g("CHANGES['mock-dialog']({value:'notifications'})");check('strip opens dialog',dlgOpen());dlgClose();
     check('case tab present',!!d.querySelector('.workspace-tab[href="#/cases/c99"]'));
+    check('no Work Centre or Open tab',!d.querySelector('.workspace-tabs')||(!d.querySelector('.workspace-tabs').textContent.includes('Work Centre')&&!d.querySelector('.workspace-tab--open')));
+    route('/triage/t2');check('triage record joins the working set',!!d.querySelector('.workspace-tab[data-id="t2"][aria-current="page"]'));
+    route('/inbox/m4');check('message joins the working set',!!d.querySelector('.workspace-tab[data-id="m4"]'));
+    g("ACTIONS['close-record']({dataset:{id:'m4'}})");g('render()');check('closing current record leaves it',!d.querySelector('.workspace-tab[data-id="m4"]')&&w.location.hash!=='#/inbox/m4');
+    check('working set persisted',JSON.parse(w.localStorage.getItem('v26.open')).some(t=>t.id==='t2'));
+    g("ACTIONS['mock-tabs']({dataset:{n:'9'}})");check('nine open shows six tabs and more',d.querySelectorAll('.workspace-tab').length===6&&d.querySelector('.tabs-more summary').textContent.includes('3 more'));
+    g("ACTIONS['mock-tabs']({dataset:{n:'0'}})");check('no open records hides the strip',!d.querySelector('.workspace-tabs')&&d.querySelector('.app-shell').classList.contains('no-tabs'));
+    g("ACTIONS['mock-tabs']({dataset:{n:'1'}})");
+    route('/triage/t2');const gal=d.querySelector('.gallery-item[data-name]');check('gallery thumbs carry photos',!!gal&&!!gal.querySelector('img')&&gal.querySelector('img').src.startsWith('data:image/svg'));
+    g("ACTIONS['preview-doc'](document.querySelector('.gallery-item[data-name]'))");check('viewer opens with image',dlgOpen()&&!!d.querySelector('#dialog-root .viewer-stage img'));
+    check('viewer counts the gallery',d.querySelector('#dialog-root .viewer-n').textContent.startsWith('1 of 4'));
+    g("ACTIONS['viewer-step']({dataset:{d:'1'}})");check('viewer steps',d.querySelector('#dialog-root .viewer-n').textContent.startsWith('2 of 4'));
+    g("ACTIONS['viewer-rotate']()");check('viewer rotates',d.querySelector('#dialog-root .viewer-stage img').style.transform.includes('rotate(90deg)'));
+    g("ACTIONS['viewer-zoom']()");check('viewer zooms',!!d.querySelector('#dialog-root .viewer-stage.is-zoomed'));dlgClose();
+    g("openDialog('viewer',{name:'report.pdf'})");check('document preview renders a page',!!d.querySelector('#dialog-root .viewer-stage img')&&!d.querySelector('#dialog-root .viewer-nav'));dlgClose();
     check('case route hands off',typeof w.__pegasus.renderCase==='function'&&w.__pegasus.caseHref({section:'estimate'})==='pegasus_case_workspace_v26.html?layout=tabs&section=estimate');
   }catch(e){log.push('EXC '+e.message+'\n'+e.stack);}
   setTimeout(()=>{document.getElementById('out').textContent='RESULT '+JSON.stringify({fail:log,okCount:ok.length});},1500);

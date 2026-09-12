@@ -91,7 +91,7 @@ session states and a guarded close. v26 reproduces the live rules:
 Every rail destination is mocked in a second file that shares the Case
 record's tokens and shell. Its routes are hash routes; the Case record opens
 from any list as `pegasus_case_workspace_v26.html`, and that page's rail,
-workspace tabs, New case button and search box come back to the shell.
+working-set tabs, New case button and search box come back to the shell.
 
 | Route | Page |
 | --- | --- |
@@ -143,8 +143,54 @@ principal dialog.
 
 **Self-check.** `v26-shell-selfcheck.html` renders every route, opens and
 closes every dialog, and drives the main flows; run it the same way as the
-Case record's check. 12 September: `{"fail":[],"okCount":110}` including the strip, no console
+Case record's check. 12 September: `{"fail":[],"okCount":124}` including the strip, the working set (a Triage and a message joining and leaving it, the empty strip) and the viewer, no console
 errors on any of the 33 rendered routes and states (`v26-shots/s*.png`).
+
+## Working set — the tab strip, reworked
+
+The strip above the record used to hold a Work Centre tab, one case tab and a
+"+ Open" tab on a grey band. It now holds the working set only, and looks like
+one thing with the record beneath it.
+
+- **Open records only.** Cases and the pre-Case records (Triage, Unidentified,
+  Image intake, a message) join the strip when opened and leave when closed.
+  Work Centre stays in the rail. "+ Open" is gone; records open from Cases,
+  Search, the Inbox or Ctrl K. With nothing open the strip is not there.
+- **Fused with the record.** The strip sits on the page background with one
+  hairline under it. The active tab is white, carries the red accent once, and
+  runs into the record card with no seam, so the tab and the card read as one
+  surface. The card's own top edge is gone.
+- **Reference and registration.** Each tab shows the reference in bold and the
+  registration in mono; a message shows its subject, a Triage its registration.
+- **State on the tab.** An amber dot for unsaved edits, a lightning glyph while
+  a Glass's session is open, a lock while a colleague holds the record. Close ×
+  shows on the active tab and on hover.
+- **Six, then more.** Six tabs are shown; the rest sit in a "N more" menu at the
+  end of the strip.
+- **Persisted and shared.** The set is kept in the browser and read by both
+  files, so opening a Triage in the shell shows it on the Case record's strip
+  and closing it there removes it in the shell. Middle-click closes a tab.
+
+Mockup strip row `Tabs` (or `?tabs=1|4|9`) seeds one, four or nine open
+records; the shell's row also offers None. Shots `34`, `35`, `38`, `39`.
+
+## Image viewer
+
+Images now open in a viewer rather than a toast. On the Case record the viewer
+is full-screen: title, tag and position, Rotate, Zoom, Download, and while
+editing an "In report" toggle that drives the report image set. A filmstrip
+along the bottom shows every image with the excluded ones greyed; ← → step,
+R rotates, Z zooms, Esc closes. It opens from the evidence strip in Damage,
+from Files › Images, and from a report thumbnail outside an edit session (a
+small view glyph opens it during one, since the click there toggles inclusion).
+
+In the shell the viewer is a dark dialog with the same controls, stepping
+through the record's gallery, and a page preview for documents. Gallery tiles
+carry thumbnails. `?viewer=N` on the Case record and `?dialog=viewer` on a
+shell record open it. Shots `36`, `37`.
+
+The images are synthetic: there are no files behind this mockup, so each
+name renders a generated scene. Stage 2 uses the stored evidence.
 
 ## Damage clicker — three variants
 
@@ -198,6 +244,10 @@ Everything in `v25-notes.md` A–F still stands. New:
   missing from the table above.
 - **O. Damage clicker.** Pick one of Plan, Elevations or Dial for Stage 2
   (see § Damage clicker). Only one ships; the strip switch is mockup-only.
+- **P. Working set.** Open records only, fused into the record, six then a
+  menu, persisted per browser. Confirm, or ask for the rail list instead.
+- **Q. Viewer tagging.** The viewer toggles report inclusion but not the tag;
+  tags stay in Files (K). Confirm, or add the tag control to the viewer.
 
 ## Self-check
 
@@ -218,10 +268,11 @@ file access allowed and read the RESULT line:
   Select-String 'RESULT'
 ```
 
-12 September: `{"fail":[],"okCount":236}` with no console errors, on the
-Playwright Chromium 1228 build. The last 23 checks switch through the three
-damage clickers and confirm each covers every zone, paints and numbers the
-recorded damage, answers hover and click, and syncs the strip.
+12 September: `{"fail":[],"okCount":252}` with no console errors, on the
+Playwright Chromium 1228 build. The later checks switch through the three
+damage clickers, open the image viewer from the evidence strip (step, rotate,
+zoom, include, close), and seed nine open records to confirm six tabs plus a
+menu, the state glyphs, and that closing a tab persists.
 
 ## Known limits
 

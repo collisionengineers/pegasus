@@ -212,9 +212,27 @@ Reports panels, Default sender, Valuation presets and the Glass's login reached 
 the account were added to match live. `pegasus_shell_v26.html`, `v26-shell-selfcheck.html`
 and the `s*.png` shots were committed on the same branch.
 
+## 10. 12 September — damage clickers, the working set, the viewer
+
+The operator asked for three expert-tier variants of the vehicle damage
+clicker, selectable in the mockup: Plan, Elevations and Dial were built on the
+same zone model with severity-graded fills, numbered markers and hover naming
+(§ Damage clicker in `v26-notes.md`).
+
+Then: "focus on the tabs. I liked the idea a lot but I'm struggling to see how
+to make it good." The assessment named the problems (a grey band with dead
+space, Work Centre pretending to be a tab, the active tab repeating the header,
+an ambiguous "+ Open", no state on the tabs, nothing to switch between) and
+proposed a working-set-only strip fused into the record, stateful tabs and no
+fake Open tab, with a rail list or a breadcrumb menu as cheaper alternatives.
+"Put your good ideas in" — the fused working set was built across both files
+and persisted between them. "Also make the image viewer work" — the toast was
+replaced by a real viewer on both files, with synthetic images since the mockup
+has no files behind it.
+
 ## Outstanding
 
 Stage 1 is at v26 with every page mocked; it has not yet been given final approval to proceed to Stage 2 (the
-Razor implementation). Sign-off items A–F (`v25-notes.md`) and G–K (`v26-notes.md`)
+Razor implementation). Sign-off items A–F (`v25-notes.md`) and G–Q (`v26-notes.md`)
 are open. This folder is temporary per `docs/index.md`'s carve-out — remove it once
 Stage 2 lands or the design is formally accepted or rejected.
