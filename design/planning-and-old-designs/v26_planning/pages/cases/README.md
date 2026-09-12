@@ -1,0 +1,17 @@
+# Cases
+
+- **Mockup route:** `pegasus_shell_v26.html#/cases` in [`../../current/`](../../current/README.md)
+- **Live source:** `src/Pegasus.Web/Pages/Cases/Index.cshtml`
+- **Dialogs:** [`dialogs/`](dialogs/README.md) · **States:** [`states/`](states/README.md) · **Panels:** [`panels/`](panels/README.md)
+
+## Screenshots
+
+- [51-quick-detail-fixed.png](../../current/v26-shots/51-quick-detail-fixed.png)
+- [s06-cases.png](../../current/v26-shots/s06-cases.png)
+- [s07-cases-triage.png](../../current/v26-shots/s07-cases-triage.png)
+- [s08-cases-unidentified.png](../../current/v26-shots/s08-cases-unidentified.png)
+- [s32-cases-unavailable.png](../../current/v26-shots/s32-cases-unavailable.png)
+
+## Notes
+
+_Nothing recorded yet._
