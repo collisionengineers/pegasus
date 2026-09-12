@@ -55,6 +55,21 @@ Which date is "due":
 
 Because the Case kind only lists schedules whose next chase is already at or before now, every Case row is Overdue by construction. Today and Normal can only appear on Held, Review and Unassigned rows.
 
+### What "External work" means
+
+External work is a job the Worker runs against a service outside Pegasus, queued durably with an attempt count. Six kinds exist (`src/Pegasus.Core/Custody/ExternalWorkProcessing.cs`):
+
+| Kind | What it does | Outside service |
+| --- | --- | --- |
+| Create case custody | creates the Case's file storage when a Case is created | Box |
+| Create audit reference custody | creates storage for an audit reference | Box |
+| Create image case custody | creates storage for an image-initiated Case | Box |
+| Merge image case custody | moves an image case's files into the Case it was merged with | Box |
+| Vehicle lookup | fetches vehicle data for a registration | vehicle data provider |
+| Intake OCR | reads text from a scanned received file | OCR provider |
+
+A failure retries itself first: dependency-shaped failures back off at 1, 5, 15 minutes, 1 hour, 6 hours, six attempts in all. Only when the failure is terminal, or the attempts run out, does it become a request operation in state Failed with a retry available. That is the row the Work Centre shows as High, titled by the kind and carrying the attempt count, with Open Operations as the action; Operations is where Retry lives.
+
 ### Where the chase time comes from
 
 - First chase = the moment the Case entered Not ready plus the chase interval, same local time of day (London). Interval is a workflow configuration, default 7 days, 1 to 365.
