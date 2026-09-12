@@ -58,7 +58,9 @@ Validation: 0 to 365 days for targets, 1 to 365 for the chase interval, as now.
 ### Still open
 
 - Operations audience (D1).
-- Whether a Held decision should instead carry a review date chosen when the hold is placed, with the target as the fallback only.
+- Held decision due date. Today "Place on Hold" records a reason only (`PutCaseOnHoldRequest`: reason, no date). Two options:
+  - (a) no new field: a held Case is due held-at + Held decision target (D3, default 7 days);
+  - (b) add an optional "Review on" date to Place on Hold; when given it is the due instant, otherwise (a) applies.
 - The exact copy for the relative due text.
 
 ## How it works today (read from the live source, 13 September 2026)
