@@ -422,6 +422,11 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
 .dec .prop{display:flex;align-items:center;gap:8px;min-height:var(--control);padding:4px 9px;border:1px dashed var(--line-strong);border-radius:var(--radius);background:var(--navy-bg);font-size:13px}
 .dec .prop .btn{margin-left:auto}
 .next-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px}
+.notice,#staleBar{position:relative;padding-right:38px}
+.dismiss{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;border:0;background:transparent;color:inherit;opacity:.7;display:grid;place-items:center;border-radius:var(--radius)}
+.dismiss:hover{opacity:1;background:rgba(0,0,0,.06)}
+.dismiss .icon{width:14px;height:14px}
+#staleBar .btn{margin-left:auto;margin-right:6px}
 .mock{flex-direction:column;align-items:stretch;gap:5px;max-width:560px}
 .mock .mrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .mock .mrow b{min-width:78px}
@@ -704,11 +709,11 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
         <!-- ===== Estimate ===== -->
         <section class="case-section panel" id="section-estimate" data-section="estimate" data-avail="With Engineer">
           <div class="panel-head"><h2>Estimate</h2><span class="muted" id="estMeta"></span><span class="spacer"></span>
+            <button class="btn btn--small" onclick="if(!EDITING)startEdit();toast('Import estimate dialog (existing): PDF, JSON, XML')"><svg class="icon"><use href="#icon-upload"/></svg><span>Import</span></button>
             <button class="btn btn--small calc-only" id="glassBtn" onclick="glassLaunch()"><svg class="icon"><use href="#icon-external-link"/></svg><span>Glass's</span></button>
             <button class="btn btn--small btn--primary calc-only" onclick="toast('Send to AI dialog (existing): direction, target estimate %')"><svg class="icon"><use href="#icon-sparkles"/></svg><span>Send to AI</span></button>
             <details class="actions-menu"><summary class="btn btn--small"><span>More</span><svg class="icon"><use href="#icon-chevron-down"/></svg></summary><div class="actions-menu-body">
               <button class="btn calc-only" onclick="closeMenus();toast('New draft estimate created');duplicateEst()"><svg class="icon"><use href="#icon-plus"/></svg><span>New estimate</span></button>
-              <button class="btn calc-only" onclick="closeMenus();toast('Import estimate dialog (existing): PDF, JSON, XML')"><svg class="icon"><use href="#icon-upload"/></svg><span>Import</span></button>
               <button class="btn" onclick="closeMenus();toast('Compare estimates dialog (existing): net, VAT, gross per estimate')"><svg class="icon"><use href="#icon-list"/></svg><span>Compare</span></button>
             </div></details>
             <button class="btn btn--small btn--icon" id="estExpand" onclick="toggleExpand()" title="Expand" aria-label="Expand estimate"><svg class="icon"><use href="#icon-external-link"/></svg></button><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span></div>
@@ -1091,11 +1096,14 @@ function acceptDec(k){if(!canEditSec('settlement'))return;const p=PROPOSAL[k].v;
 function acceptAll(){Object.keys(PROPOSAL).forEach(k=>{if(k!=='ev')acceptDec(k);});}
 function decTouch(k){REVIEWED[k]=true;}
 
+/* ================= dismissable notices ================= */
+function dismissable(){document.querySelectorAll('.notice,#staleBar').forEach(n=>{if(n.dataset.dismiss)return;n.dataset.dismiss='1';const b=document.createElement('button');b.type='button';b.className='dismiss';b.setAttribute('aria-label','Dismiss');b.innerHTML='<svg class="icon"><use href="#icon-x"/></svg>';b.onclick=()=>{n.hidden=true;n.classList.remove('show');measure();};n.appendChild(b);});}
+
 /* ================= query-string presets (screenshots only) ================= */
 function applyQuery(){const q=new URLSearchParams(location.search);if(q.get('state'))setState(q.get('state'));if(q.get('layout'))setLayout(q.get('layout'),true);if(q.get('edit')==='1')startEdit();if(q.get('ev')==='1')applyAdj();if(q.get('proposal')==='1')toggleProposal();if(q.get('glass')==='return')glassReturn();else if(q.get('glass'))setGlass(q.get('glass'));if(q.get('closeopen')==='1'){const c=$('glassClose');if(c)c.open=true;}if(q.get('expand')==='1')toggleExpand();if(q.get('section'))jumpTo(q.get('section'));}
 
 /* ================= init ================= */
-buildNav();markNav('overview');buildCar();renderAdds();adjWork();vatDefaults();renderEstTabs();renderGrid();renderImgs();outcomeChange(true);renderReport();syncReads();setState('engineer');renderGlass();renderProposal();applyQuery();measure();
+buildNav();markNav('overview');buildCar();renderAdds();adjWork();vatDefaults();renderEstTabs();renderGrid();renderImgs();outcomeChange(true);renderReport();syncReads();setState('engineer');renderGlass();renderProposal();dismissable();applyQuery();measure();
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'&&EDITING){e.preventDefault();saveEdit();}});
 </script>
 </body>

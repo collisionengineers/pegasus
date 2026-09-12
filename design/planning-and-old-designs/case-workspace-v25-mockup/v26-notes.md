@@ -19,7 +19,7 @@ they exist only so the states can be rendered without a click.
 | --- | --- | --- |
 | Edit only from the ribbon | Every editable section head has Edit; it enters the one page-wide edit session and the page does not move | `01`, `04` |
 | Images buried in Files (9th of 10) | Damage carries the evidence strip under the workbench; Files keeps the tagged, croppable set | `16` |
-| Six controls on the Estimate head | Glass's / Resume, Send to AI, one More menu (New estimate, Import, Compare), Expand | `04`–`11` |
+| Six controls on the Estimate head | Import, Glass's / Resume, Send to AI, one More menu (New estimate, Compare), Expand. Import stays visible in read mode and opens the edit session first | `04`–`11` |
 | Drop zone always visible with a how-it-works sentence | Shown only while editing an estimate with no lines; label only | `05` |
 | Eight estimate header fields in read mode | One summary line in read mode; the grid returns on Edit | `04` vs `05` |
 | All seven valuation presets in read mode | Only applied increases render in read mode; the list is complete on Edit | `17` |
@@ -28,6 +28,7 @@ they exist only so the states can be rendered without a click.
 | Scroll was the default everywhere | Tabs is the default in With Engineer; Scroll elsewhere; the switch remembers a manual choice for the session | `01`, `02` |
 | Aside hidden below 1361px | Below 1441px the Figures and Next action cards fold into a two-up strip above the sections | `20` |
 | Ribbon height varied with content | Ribbon 56px, section row 40px; sticky block is measured, not assumed | all |
+| Notices could not be dismissed | Every notice and the stale bar carry a dismiss × | `09`, `18` |
 
 ## Glass's — mirrors `origin/dev` at 37d00f4c2
 
