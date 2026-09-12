@@ -59,7 +59,9 @@ Validation: 0 to 365 days for targets, 1 to 365 for the chase interval, as now.
 
 Place on Hold gains an optional "Review on" date beside the reason. When given, it is the held Case's due instant. When not given, the Held decision target (D3) applies from the moment the hold was placed. Today the hold records a reason only (`PutCaseOnHoldRequest`), so this is a new field on the Case's hold record and a change to the Place on Hold dialog (see `../case-record/dialogs/hold-release/`).
 
-### Proposed, not yet decided (13 September)
+### D6. Adopted improvements (13 September)
+
+P1 to P6, P8 and P9 are adopted as decisions. P7 (Blocked) is not adopted; the Blocked metric stays as it is.
 
 - **P1. Group the list by due day** instead of a chip per row: headings "Overdue (3)", "Due today (5)", "Later (12)", each row keeping its relative due text. The D2 chips then only appear in the Today pane and the notifications menu.
 - **P2. Office and Mine.** A two-way switch above the list: Office (everything, as now) or Mine (rows whose owner is me, plus unowned rows of kinds I can take). Engineers open on Mine, Administrators and Users on Office. Remembered per person.
@@ -67,13 +69,13 @@ Place on Hold gains an optional "Review on" date beside the reason. When given, 
 - **P4. The next action does the action.** Assign Engineer opens the assignment dialog on the spot; Review Case opens the Case at its Review decision; Open Triage opens the Triage. "Open full record" and the action button are the same link today, so one of them goes.
 - **P5. Freshness.** The snapshot is taken on load and never refreshed. Show "Updated 14:22", refresh when the tab regains focus and every five minutes, and a Refresh button. The mockup's rail already has the freshness indicator.
 - **P6. Received age on the row**: "Received 3 d ago" beside the owner, so a long-waiting item reads as such even before it is overdue.
-- **P7. Blocked opens Blocked.** The Blocked metric links to the Unidentified tab where blocked rows sit uncounted. It should open that tab filtered to blocked intake, and say "Blocked intake · 1" in the tab head.
+- **P7. Blocked opens Blocked** — not adopted. The Blocked metric keeps linking to the Unidentified tab as it does today.
 - **P8. Take it.** An "Assign to me" action on Unassigned Engineer rows for Engineers, and on Triage rows without an assignee, straight from the Today pane.
 - **P9. Empty states per group**, so "Nothing overdue" is visible good news rather than an absent heading.
 
 ### Still open
 
-- Operations audience (D1).
+- Operations audience (D1): deferred until the Operations page is planned. Not to be decided here.
 - The exact copy for the relative due text.
 
 ## How it works today (read from the live source, 13 September 2026)
