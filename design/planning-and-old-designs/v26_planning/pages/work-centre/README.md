@@ -55,12 +55,25 @@ Validation: 0 to 365 days for targets, 1 to 365 for the chase interval, as now.
 - The metric strip counts everything regardless of paging.
 - The shell notifications menu keeps showing the first 10 rows of page 1.
 
+### D5. Hold carries an optional review date
+
+Place on Hold gains an optional "Review on" date beside the reason. When given, it is the held Case's due instant. When not given, the Held decision target (D3) applies from the moment the hold was placed. Today the hold records a reason only (`PutCaseOnHoldRequest`), so this is a new field on the Case's hold record and a change to the Place on Hold dialog (see `../case-record/dialogs/hold-release/`).
+
+### Proposed, not yet decided (13 September)
+
+- **P1. Group the list by due day** instead of a chip per row: headings "Overdue (3)", "Due today (5)", "Later (12)", each row keeping its relative due text. The D2 chips then only appear in the Today pane and the notifications menu.
+- **P2. Office and Mine.** A two-way switch above the list: Office (everything, as now) or Mine (rows whose owner is me, plus unowned rows of kinds I can take). Engineers open on Mine, Administrators and Users on Office. Remembered per person.
+- **P3. Kind filter** as chips across the top of the list: Case, Held, Review, Unassigned, Unidentified, Triage. Multi-select, counts on each.
+- **P4. The next action does the action.** Assign Engineer opens the assignment dialog on the spot; Review Case opens the Case at its Review decision; Open Triage opens the Triage. "Open full record" and the action button are the same link today, so one of them goes.
+- **P5. Freshness.** The snapshot is taken on load and never refreshed. Show "Updated 14:22", refresh when the tab regains focus and every five minutes, and a Refresh button. The mockup's rail already has the freshness indicator.
+- **P6. Received age on the row**: "Received 3 d ago" beside the owner, so a long-waiting item reads as such even before it is overdue.
+- **P7. Blocked opens Blocked.** The Blocked metric links to the Unidentified tab where blocked rows sit uncounted. It should open that tab filtered to blocked intake, and say "Blocked intake · 1" in the tab head.
+- **P8. Take it.** An "Assign to me" action on Unassigned Engineer rows for Engineers, and on Triage rows without an assignee, straight from the Today pane.
+- **P9. Empty states per group**, so "Nothing overdue" is visible good news rather than an absent heading.
+
 ### Still open
 
 - Operations audience (D1).
-- Held decision due date. Today "Place on Hold" records a reason only (`PutCaseOnHoldRequest`: reason, no date). Two options:
-  - (a) no new field: a held Case is due held-at + Held decision target (D3, default 7 days);
-  - (b) add an optional "Review on" date to Place on Hold; when given it is the due instant, otherwise (a) applies.
 - The exact copy for the relative due text.
 
 ## How it works today (read from the live source, 13 September 2026)
