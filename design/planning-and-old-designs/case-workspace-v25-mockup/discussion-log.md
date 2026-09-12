@@ -166,8 +166,12 @@ requested path. This folder is that artifact: a new branch
 `design/planning-and-old-designs/case-workspace-v25-mockup/` — a path already
 pre-provisioned in `scripts/Test-MarkdownPlacement.ps1`'s allow-list for exactly this kind
 of material, even though no top-level `design/` folder existed before this commit.
-`pegasus_case_dashboard_v24.html` (the operator's own private reference file) was not
-copied here; it stays in `pegasus_pack/ui/`, described but not published.
+
+`pegasus_case_dashboard_v24.html` (the operator's own private reference file that v25 was
+built from) was initially left in `pegasus_pack/ui/`, described but not published, on the
+assumption that only the merged result was in scope. Alex asked for it to be included too
+("that reference should be there too"), so it was moved into this folder in a follow-up
+commit alongside the others.
 
 ## Outstanding
 

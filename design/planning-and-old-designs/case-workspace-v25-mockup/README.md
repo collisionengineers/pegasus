@@ -9,10 +9,10 @@ accepted or rejected.**
 ## What this is
 
 `pegasus_case_workspace_v25.html` is a self-contained, offline mockup of one Pegasus Case
-record. It merges a private reference mockup (`pegasus_case_dashboard_v24.html`, kept in
-the operator's local `pegasus_pack/ui/`, not published here) with the actual shell,
-tokens, section structure and Core policy shapes of the live application, taken from
-`origin/dev`. It proposes fixes to real, identified problems in the deployed Case record:
+record. It merges the operator's private reference mockup
+(`pegasus_case_dashboard_v24.html`, included alongside it in this folder) with the actual
+shell, tokens, section structure and Core policy shapes of the live application, taken
+from `origin/dev`. It proposes fixes to real, identified problems in the deployed Case record:
 a five-row sticky header, read and edit modes that render as two different pages, actions
 that reload to the top of the page, editing that is silently unavailable with no stated
 reason, and repeated facts across the ribbon, aside and body.
@@ -25,6 +25,7 @@ switches the Case's lifecycle state so each availability rule can be exercised.
 
 | File | Purpose |
 | --- | --- |
+| `pegasus_case_dashboard_v24.html` | The operator's original private reference mockup that `pegasus_case_workspace_v25.html` was built from. |
 | `pegasus_case_workspace_v25.html` | The interactive mockup. |
 | `v25-notes.md` | Design decisions taken and their authority, and the list of items still needing operator sign-off before Stage 2 implementation begins. |
 | `discussion-log.md` | Chronological record of the request, the exploration, and each round of operator feedback that shaped the mockup. |

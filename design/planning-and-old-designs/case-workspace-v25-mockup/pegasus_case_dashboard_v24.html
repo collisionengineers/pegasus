@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pegasus — Case MA59BDY · QDOS26214</title>
+<style>
+  :root{
+    --canvas:#F1F2F4; --card:#FFFFFF; --raised:#FFFFFF; --ink:#191B1E; --body:#3E4348;
+    --muted:#737981; --faint:#9AA0A7; --line:#DDE0E4;
+    --accent:#DB0816; --accent-wash:rgba(219,8,22,.06);
+    --badge-bg:#FCEBEB; --badge-fg:#791F1F;
+    --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,monospace;
+    --ok:#1F6B42; --ok-bg:#E7F3EC; --warn:#8A5A14; --warn-bg:#FDF3E4;
+    --blue:#1D4E89; --blue-bg:#E8F0F9;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--canvas);color:var(--body);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
+  button{font:inherit;cursor:pointer}
+  input,select,textarea{font:inherit;color:var(--ink)}
+
+  /* ---------- sticky header + jump tabs ---------- */
+  .top{position:sticky;top:0;z-index:50;background:var(--card);box-shadow:0 1px 0 var(--line)}
+  .id{display:flex;align-items:center;gap:14px;max-width:1120px;margin:0 auto;
+    padding:11px 22px 9px;flex-wrap:wrap}
+  .plate{font:700 15px var(--mono);letter-spacing:.04em;background:#fff;
+    border:1.5px solid var(--ink);border-radius:5px;padding:3px 9px;color:var(--ink)}
+  .id .veh{font-weight:700;color:var(--ink);font-size:15px}
+  .id .ref{font:12.5px var(--mono);color:var(--muted)}
+  .badge{font:700 10.5px/1 var(--mono);letter-spacing:.08em;padding:5px 9px;border-radius:4px}
+  .b-tl{background:#2C2A27;color:#fff}
+  .b-rep{background:var(--ok-bg);color:var(--ok)}
+  .b-ur{background:var(--badge-bg);color:var(--badge-fg)}
+  .b-rw{background:var(--ok-bg);color:var(--ok)}
+  .id .eng{margin-left:auto;font-size:12.5px;color:var(--muted)}
+  .id .eng b{color:var(--ink)}
+  .jump{display:flex;gap:2px;max-width:1120px;margin:0 auto;padding:0 16px 0;
+    overflow-x:auto;scrollbar-width:none}
+  .jump::-webkit-scrollbar{display:none}
+  .jump a{white-space:nowrap;font-size:12.5px;font-weight:600;color:var(--muted);
+    text-decoration:none;padding:8px 12px 10px;border-bottom:2px solid transparent}
+  .jump a:hover{color:var(--ink)}
+  .jump a.on{color:var(--ink);border-bottom-color:var(--accent)}
+
+  /* stale banner (global) */
+  #staleBanner{display:none;background:var(--warn-bg);color:var(--warn);
+    font-size:12.5px;font-weight:600;text-align:center;padding:7px 14px}
+  #staleBanner.show{display:block}
+
+  /* ---------- page frame ---------- */
+  .frame{max-width:1120px;margin:0 auto;padding:26px 22px 120px;display:grid;gap:22px}
+  .sec{background:var(--card);border-radius:10px;padding:22px 24px;scroll-margin-top:96px}
+  .sec-h{display:flex;align-items:baseline;gap:12px;margin-bottom:16px}
+  .sec-h b{font:700 12px var(--mono);color:var(--accent)}
+  .sec-h h2{font-size:16px;font-weight:700;color:var(--ink)}
+  .sec-h .hint{font-size:12px;color:var(--faint);margin-left:auto}
+
+  /* field grid */
+  .fg{display:grid;gap:14px 18px}
+  .g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr 1fr}
+  .g4{grid-template-columns:1fr 1fr 1fr 1fr}
+  .f label{display:block;font:600 10.5px/1 var(--mono);letter-spacing:.09em;
+    text-transform:uppercase;color:var(--faint);margin-bottom:6px}
+  .f .v{font-size:13.5px;color:var(--ink)}
+  .f input[type=text],.f input[type=date],.f input[type=number],.f select,.f textarea{
+    width:100%;border:1px solid var(--line);border-radius:6px;padding:7px 10px;
+    font-size:13.5px;background:#fff}
+  .f textarea{resize:vertical;min-height:64px}
+  .f textarea:disabled{background:#F7F8F9;color:var(--ink);border-color:transparent}
+  .f input:focus,.f select:focus,.f textarea:focus{outline:2px solid rgba(219,8,22,.25);outline-offset:0}
+  .chip{display:inline-block;font:600 10px/1 var(--mono);letter-spacing:.06em;
+    padding:3px 7px;border-radius:4px;vertical-align:1px;margin-left:7px}
+  .c-sys{background:#EDEFF2;color:var(--muted)}
+  .c-dvla{background:var(--blue-bg);color:var(--blue)}
+  .c-brian{background:var(--blue-bg);color:var(--blue)}
+  .c-ok{background:var(--ok-bg);color:var(--ok)}
+  .c-warn{background:var(--warn-bg);color:var(--warn)}
+  .c-imp{background:#EDEFF2;color:var(--muted)}
+  .c-amend{background:var(--warn-bg);color:var(--warn)}
+
+  .composed{background:#F7F8F9;border-left:3px solid var(--line);border-radius:0 6px 6px 0;
+    padding:9px 12px;font-size:12.5px;color:var(--body);font-style:italic;margin-top:8px}
+  .composed b{font-style:normal;font:600 10px var(--mono);letter-spacing:.09em;
+    color:var(--faint);display:block;margin-bottom:3px;text-transform:uppercase}
+
+  .subcard{border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-top:16px}
+  .subcard .sg-t{font:600 10.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .sg-t .rt{margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none;font-size:11.5px}
+
+  /* lockable fields */
+  .lockrow{display:flex;gap:6px;align-items:center}
+  .lockrow input,.lockrow textarea{flex:1}
+  .lockrow input:disabled,.lockrow textarea:disabled{background:#F7F8F9;color:var(--ink);border-color:transparent}
+  .lockbtn{width:28px;height:30px;flex-shrink:0;border:1px solid var(--line);border-radius:6px;
+    background:#fff;display:flex;align-items:center;justify-content:center;color:var(--faint)}
+  .lockbtn:hover{color:var(--ink);border-color:var(--faint)}
+  .lockbtn svg{width:13px;height:13px}
+  .lockable.open .lockbtn{border-color:var(--accent);color:var(--accent)}
+  .lockable.open .lockrow input,.lockable.open .lockrow textarea,.lockrow.lockable.open input,.lockrow.lockable.open textarea{border-color:var(--accent)}
+
+  /* odometer units + average */
+  .odorow{display:flex;gap:6px}
+  .odorow input{flex:1}
+  .unit{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .unit button{border:none;background:#fff;padding:0 11px;font:600 12px var(--mono);color:var(--muted)}
+  .unit button.on{background:var(--ink);color:#fff}
+  .warnnote{margin-top:6px;font-size:11.5px;color:var(--warn);background:var(--warn-bg);
+    border-radius:5px;padding:5px 9px}
+  #odo:disabled{background:#F7F8F9;color:var(--ink)}
+
+  /* impact zone picker */
+  .impactwrap{display:grid;grid-template-columns:300px 1fr;gap:22px;align-items:start}
+  .diag svg{width:100%;max-width:300px;display:block}
+  .zone{fill:#E7E9EC;cursor:pointer;transition:fill .1s}
+  .zone:hover{fill:#D7DADF}
+  .zone.on{fill:#FFDE33}
+  .zone.on:hover{fill:#F5D223}
+  .zone.oncar{fill:rgba(25,27,30,.05)}
+  .zone.oncar:hover{fill:rgba(25,27,30,.12)}
+  .zone.oncar.on{fill:rgba(255,222,51,.92)}
+  .carbody{fill:#F4F5F7;stroke:#C9CDD3;stroke-width:1.5}
+  .carglass{fill:#3E4348;opacity:.75}
+  .carline{fill:none;stroke:#C9CDD3;stroke-width:1.2}
+  .zonechips{display:flex;flex-wrap:wrap;gap:6px;min-height:30px}
+  .zc{font:600 11px var(--mono);background:#FFF6C9;border:1px solid #E8CC2E;color:#6B5A00;
+    border-radius:4px;padding:4px 8px}
+  .zc.none{background:#F4F5F6;border-color:var(--line);color:var(--faint)}
+  @media(max-width:900px){.impactwrap{grid-template-columns:1fr}}
+
+  /* buttons */
+  .btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:7px 14px;
+    font-size:13px;font-weight:600;color:var(--ink)}
+  .btn:hover{background:#F5F6F7}
+  .btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+  .btn.primary:hover{background:#000}
+  .btn.primary:disabled{background:#B9BDC3;border-color:#B9BDC3;cursor:not-allowed}
+  .btn.small{padding:4px 10px;font-size:12px}
+  .btn.danger{color:var(--accent);border-color:#F2C6C9}
+
+  /* ---------- valuation guides ---------- */
+  .guides{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .guide{border:1.5px solid var(--line);border-radius:8px;padding:12px 14px;cursor:pointer;
+    transition:border-color .12s}
+  .guide:hover{border-color:var(--faint)}
+  .guide.sel{border-color:var(--accent);background:var(--accent-wash)}
+  .guide .gn{font-weight:700;color:var(--ink);font-size:13px;margin-bottom:8px;
+    display:flex;align-items:center}
+  .guide.sel .gn::after{content:"SELECTED";font:700 9px var(--mono);letter-spacing:.08em;
+    color:var(--accent);margin-left:auto}
+  .guide .gr{display:flex;justify-content:space-between;font-size:12.5px;padding:3px 0}
+  .guide .gr span{color:var(--muted)}
+  .guide .gr b{font-family:var(--mono);color:var(--ink);font-weight:600}
+
+  .guide .gin{width:86px;border:1px solid var(--line);border-radius:5px;padding:3px 7px;
+    font:600 12.5px var(--mono);text-align:right;background:#fff}
+  .guide .gin:focus{outline:2px solid rgba(219,8,22,.25)}
+  .engval{margin-top:14px;border:1.5px solid var(--line);border-radius:8px;padding:12px 16px;
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#FAFBFC}
+  .engval .ev-l{font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink)}
+  .engval input{width:130px;border:1px solid var(--line);border-radius:6px;padding:7px 10px;
+    font:700 15px var(--mono);text-align:right}
+
+  .adjbar{margin-top:14px;border:1px dashed var(--line);border-radius:8px;padding:10px 16px 14px;
+    display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .adjbar .f label{margin-bottom:4px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;margin-top:14px;opacity:.45;pointer-events:none}
+  .seg.live{opacity:1;pointer-events:auto}
+  .seg button{border:none;background:#fff;padding:6px 12px;font:600 12px var(--mono);color:var(--muted)}
+  .seg button.on{background:var(--ink);color:#fff}
+  .working{font:600 12.5px var(--mono);color:var(--ink);margin-top:14px}
+  .working em{font-style:normal;color:var(--faint)}
+
+  .incpanel{margin-top:14px;border:1px dashed var(--line);border-radius:8px 8px 0 0;border-bottom:none;
+    padding:12px 16px 6px}
+  .incgrid{display:grid;grid-template-columns:1fr 1fr;gap:2px 26px}
+  .inc{display:flex;align-items:center;gap:9px;padding:5px 0}
+  .inc input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;flex-shrink:0}
+  .inc .il{font-size:13px;color:var(--ink);flex:1}
+  .inc input.ilab{flex:1;border:1px solid var(--line);border-radius:5px;padding:4px 8px;font-size:12.5px}
+  .inc input.iamt{width:88px;border:1px solid var(--line);border-radius:5px;padding:4px 8px;
+    font:600 12.5px var(--mono);text-align:right}
+  .inc .pct{font:600 12.5px var(--mono);color:var(--muted);width:88px;text-align:right}
+  .adjbar{border-radius:0 0 8px 8px}
+  .inc.blocked{opacity:.5}
+  .inc.blocked .il{color:var(--muted)}
+
+  /* ---------- images ---------- */
+  .thumbs{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .th{aspect-ratio:4/3;border-radius:6px;position:relative;cursor:pointer;overflow:hidden;
+    border:1.5px solid var(--line);display:flex;align-items:flex-end;padding:6px;
+    font:600 10px var(--mono);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+  .th .inc{position:absolute;top:5px;right:6px;width:18px;height:18px;border-radius:4px;
+    background:var(--ok);color:#fff;font-size:11px;font-weight:700;display:flex;
+    align-items:center;justify-content:center}
+  .th.off{opacity:.42}
+  .th.off .inc{background:#fff;color:var(--faint);border:1px solid var(--line)}
+
+  /* ---------- repair grid ---------- */
+  table.grid{width:100%;border-collapse:collapse;font-size:12.5px}
+  .grid th{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;
+    color:var(--faint);text-align:left;padding:7px 8px;border-bottom:1px solid var(--line)}
+  .grid td{padding:6px 8px;border-bottom:1px solid #EEF0F2;vertical-align:middle}
+  .grid tr:hover td{background:#FAFBFC}
+  .grid .num{text-align:right;font-family:var(--mono)}
+  .grid input{width:100%;border:1px solid transparent;border-radius:4px;padding:4px 6px;
+    font-size:12.5px;background:transparent}
+  .grid input.num{text-align:right;font-family:var(--mono)}
+  .grid input:hover{border-color:var(--line)}
+  .grid input:focus{border-color:var(--accent);outline:none;background:#fff}
+  .grid select{border:1px solid transparent;border-radius:4px;padding:3px 4px;
+    font-size:12px;background:transparent}
+  .grid select:hover{border-color:var(--line)}
+  .rowchip{font:600 9.5px var(--mono);letter-spacing:.05em;padding:2px 6px;border-radius:3px}
+  .grid td.na{text-align:right;color:#C6CAD0;font-family:var(--mono);padding-right:14px}
+  .grid input.viol{border-color:#E4C289;background:var(--warn-bg)}
+  .grid .del{border:none;background:none;color:var(--faint);font-size:15px;padding:0 4px}
+  .grid .del:hover{color:var(--accent)}
+
+  .rollup{margin-top:14px;border-top:2px solid var(--ink);padding-top:10px;
+    display:grid;gap:5px;max-width:420px;margin-left:auto}
+  .rollup .rr{display:flex;justify-content:space-between;font-size:13px}
+  .rollup .rr span{color:var(--muted)}
+  .rollup .rr b{font-family:var(--mono);font-weight:600;color:var(--ink)}
+  .rollup .rr.tot{border-top:1px solid var(--line);padding-top:7px;margin-top:3px}
+  .rollup .rr.tot span{color:var(--ink);font-weight:700}
+  .rollup .rr.tot b{color:var(--accent);font-size:15px;font-weight:700}
+
+  .wl{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+  .wl .wcol{border:1px dashed var(--line);border-radius:8px;padding:12px 14px}
+  .wl .wt{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:8px}
+  .wl ul{list-style:none;display:grid;gap:4px}
+  .wl li{font-size:12px;color:var(--body)}
+  .wl li::before{content:"·";color:var(--faint);margin-right:6px}
+
+  .dropzone{border:1.5px dashed var(--line);border-radius:8px;padding:14px 18px;display:flex;
+    gap:14px;align-items:center;cursor:pointer;transition:border-color .12s,background .12s}
+  .dropzone:hover,.dropzone.over{border-color:var(--accent);background:var(--accent-wash)}
+  .dropzone .dz-i{font-size:20px;color:var(--faint)}
+  .dropzone b{color:var(--ink);font-size:13px}
+  .dropzone .dz-s{font-size:12px;color:var(--muted);margin-top:2px}
+  .pendimp{margin-top:10px;border:1.5px solid var(--accent);border-radius:8px;padding:12px 16px;
+    background:var(--accent-wash);display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .pendimp .pi-t{font-size:13px;color:var(--ink)}
+  .pendimp .pi-t b{display:block}
+
+  .vatbar{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:14px;
+    border:1px dashed var(--line);border-radius:8px;padding:9px 14px}
+  .vatbar .vb-l{font:600 10.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+  .dsc{display:flex;align-items:center;gap:7px}
+  .dsc label{font-size:12.5px;color:var(--ink)}
+  .dsc input{width:64px;border:1px solid var(--line);border-radius:5px;padding:4px 8px;
+    font:600 12.5px var(--mono);text-align:right}
+
+  /* ---------- Brian decision panel ---------- */
+  .brian-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .brian-head .bh-t{font-weight:700;color:var(--ink);font-size:13.5px}
+  .brian-head .bh-s{font-size:12px;color:var(--muted)}
+  .brow{display:grid;grid-template-columns:150px 1fr 44px 1fr 110px;gap:10px;
+    align-items:center;padding:9px 0;border-bottom:1px solid #EEF0F2}
+  .brow .bl{font:600 10.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;
+    color:var(--faint)}
+  .brow .bv{font-size:13px;background:#F7F8F9;border:1px solid var(--line);border-radius:6px;
+    padding:7px 10px;color:var(--ink)}
+  .brow.done .bv{color:var(--faint)}
+  .brow .arrow{width:34px;height:30px;border:1px solid var(--line);border-radius:6px;
+    background:#fff;font-size:14px;color:var(--muted);display:flex;align-items:center;
+    justify-content:center}
+  .brow .arrow:hover{border-color:var(--accent);color:var(--accent)}
+  .brow input,.brow select{width:100%;border:1px solid var(--line);border-radius:6px;
+    padding:7px 10px;font-size:13px}
+  .brow input.st-acc,.brow select.st-acc{border-color:#9CCBB0}
+  .brow input.st-ovr,.brow select.st-ovr{border-color:#E4C289}
+  .schip{font:600 10px var(--mono);letter-spacing:.05em;padding:4px 8px;border-radius:4px;
+    text-align:center}
+  .s-wait{background:#EDEFF2;color:var(--muted)}
+  .s-acc{background:var(--ok-bg);color:var(--ok)}
+  .s-ovr{background:var(--warn-bg);color:var(--warn)}
+  .s-na{background:#F4F5F6;color:var(--faint)}
+  .brow.collapsed{opacity:.45}
+  .brow.collapsed input,.brow.collapsed select,.brow.collapsed .arrow{pointer-events:none}
+
+  .bfoot{display:flex;align-items:center;gap:14px;padding-top:14px}
+  .bfoot .cnt{font-size:12.5px;color:var(--muted)}
+  .bfoot .cnt b{color:var(--ink)}
+
+  .settle{margin-top:18px;background:#2C2A27;border-radius:8px;padding:16px 20px;
+    display:flex;gap:34px;align-items:center;flex-wrap:wrap}
+  .settle .sl{font:600 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;
+    color:rgba(255,255,255,.55);margin-bottom:4px}
+  .settle .sv{font:700 19px var(--mono);color:#fff}
+  .settle .sv.red{color:#F0524F}
+  .settle .op{color:rgba(255,255,255,.4);font-size:18px}
+
+  /* ---------- report / fee tabs ---------- */
+  .tabs{display:flex;gap:6px;margin-bottom:16px}
+  .tab{border:1px solid var(--line);background:#F5F6F7;border-radius:6px;padding:7px 16px;
+    font-size:13px;font-weight:600;color:var(--muted)}
+  .tab.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .preview{border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;
+    gap:18px;align-items:center;margin-bottom:14px}
+  .pv-thumb{width:82px;height:112px;border-radius:4px;background:#FDFCFA;
+    border:1px solid #E4DFD8;position:relative;flex-shrink:0}
+  .pv-thumb::before{content:"";position:absolute;inset:10px 10px auto;height:8px;background:#C80A32;border-radius:1px}
+  .pv-thumb::after{content:"";position:absolute;inset:26px 10px 12px;
+    background:repeating-linear-gradient(#EAE6E0 0 2px,transparent 2px 8px)}
+  .pv-meta{flex:1}
+  .pv-meta .pt{font-weight:700;color:var(--ink);font-size:13.5px}
+  .pv-meta .ps{font-size:12px;color:var(--muted);margin-top:3px}
+  .sendrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .sendnote{font-size:12px;color:var(--muted)}
+
+  /* fee */
+  .feetbl{width:100%;max-width:520px;border-collapse:collapse;font-size:13px}
+  .feetbl td{padding:7px 8px;border-bottom:1px solid #EEF0F2}
+  .feetbl .num{text-align:right;font-family:var(--mono)}
+  .feetbl .tot td{font-weight:700;color:var(--ink);border-top:1.5px solid var(--ink);border-bottom:none}
+
+  /* ---------- notes & queries ---------- */
+  .note{display:grid;grid-template-columns:120px 1fr;gap:14px;padding:10px 0;
+    border-bottom:1px solid #EEF0F2;font-size:12.5px}
+  .note .nw{color:var(--faint);font-family:var(--mono);font-size:11.5px}
+  .note .nb b{color:var(--ink)}
+  .empty{border:1px dashed var(--line);border-radius:8px;padding:18px;text-align:center;
+    color:var(--faint);font-size:12.5px}
+
+  .toggle{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);
+    cursor:pointer;user-select:none}
+  .toggle input{accent-color:var(--accent);width:15px;height:15px}
+
+  @media(max-width:900px){
+    .g2,.g3,.g4,.guides,.wl{grid-template-columns:1fr}
+    .thumbs{grid-template-columns:repeat(3,1fr)}
+    .brow{grid-template-columns:110px 1fr 38px 1fr 84px}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ STICKY HEADER ============ -->
+<div class="top">
+  <div class="id">
+    <span class="plate">MA59BDY</span>
+    <span class="veh">MINI First 1.4 · 2009</span>
+    <span class="ref">QDOS26214 · yr Q-88214-LC</span>
+    <span class="badge b-tl" id="hdrOutcome">TOTAL LOSS — CAT N</span>
+    <span class="badge b-ur" id="hdrLegal">UNROADWORTHY</span>
+    <span class="eng">Assigned <b id="hdrEng">A Patterson</b></span>
+  </div>
+  <nav class="jump" id="jump">
+    <a href="#s1">1 Case details</a><a href="#s2">2 Claim</a><a href="#s3">3 Inspection</a>
+    <a href="#s4">4 Vehicle</a><a href="#s5">5 Images</a><a href="#s6">6 Repair spec</a>
+    <a href="#s7">7 Decisions</a><a href="#s8">8 Report</a><a href="#s9">9 Notes &amp; queries</a>
+  </nav>
+  <div id="staleBanner">Report preview is out of date — the case has been edited since it was generated. Regenerate before sending.</div>
+</div>
+
+<div class="frame">
+
+  <!-- ============ 1 CASE DETAILS ============ -->
+  <section class="sec" id="s1">
+    <div class="sec-h"><b>1</b><h2>Case details</h2><span class="hint">system-held identity · padlock to edit</span></div>
+    <div class="fg g4">
+      <div class="f lockable" data-name="Principal"><label>Principal</label>
+        <div class="lockrow"><input type="text" value="QDOS Claims" disabled>
+        <button class="lockbtn" title="Unlock to edit"></button></div></div>
+      <div class="f lockable" data-name="Our ref"><label>Our ref</label>
+        <div class="lockrow"><input type="text" value="QDOS26214" disabled style="font-family:var(--mono)">
+        <button class="lockbtn" title="Unlock to edit"></button></div></div>
+      <div class="f"><label>Your ref</label><input type="text" value="Q-88214-LC"></div>
+      <div class="f"><label>Product type</label>
+        <select><option selected>Standard</option><option>Commercial (C.)</option><option>Audit (A.)</option><option>Audit — TL (AP.)</option><option>Diminution (D.)</option></select>
+      </div>
+      <div class="f"><label>Assigned engineer</label>
+        <select id="assignedEng" onchange="assignedChange(this.value)">
+          <option selected>A Patterson</option><option>E Mawdsley</option><option>N O'Reilly</option>
+          <option>Ben Docherty</option><option>Lisa Mckenzie</option><option>Fee Dutton</option>
+          <option>Jake Wells</option><option>Patrick Rooney</option><option>Alex Mercer</option>
+        </select>
+      </div>
+      <div class="f"><label>Sign off engineer</label>
+        <select id="signoffEng" onchange="touch()">
+          <option selected>A Patterson</option><option>E Mawdsley</option><option>N O'Reilly</option>
+        </select>
+      </div>
+      <div class="f lockable" data-name="Case status"><label>Case status</label>
+        <div class="lockrow"><input type="text" value="In assessment" disabled>
+        <button class="lockbtn" title="Unlock to edit"></button></div></div>
+      <div class="f lockable" data-name="Instructed"><label>Instructed</label>
+        <div class="lockrow"><input type="date" value="2026-07-21" id="instrDate" disabled>
+        <button class="lockbtn" title="Unlock to edit"></button></div></div>
+    </div>
+
+    <div class="subcard">
+      <div class="sg-t">Principal</div>
+      <div class="fg g2">
+        <div class="f"><label>Generic notes <span class="chip c-sys">PRINCIPAL RECORD — EVERY CASE</span></label>
+          <textarea disabled>In hire via QDOS Rapid — check hire status at triage. CC all reports to claims@qdosclaims.co.uk.</textarea></div>
+        <div class="f"><label>Case-specific notes</label>
+          <textarea>Triage 22 Jul: vehicle confirmed in hire since 21 Jul — expedite.</textarea></div>
+      </div>
+    </div>
+
+    <div class="subcard">
+      <div class="sg-t">Claim source</div>
+      <div class="fg g3">
+        <div class="f"><label>Source name</label><input type="text" value="Rapid Hire Solutions"></div>
+        <div class="f"><label>Contact number</label><input type="text" value="0151 496 0102"></div>
+        <div class="f"><label>Email</label><input type="text" value="claims@rapidhire.co.uk"></div>
+      </div>
+      <div class="fg g2" style="margin-top:12px">
+        <div class="f"><label>Generic notes <span class="chip c-sys">SOURCE RECORD — EVERY CASE</span></label>
+          <textarea disabled>Prefer total loss. CC report to rhs-claims@outlook.com. WhatsApp group called RHS.</textarea></div>
+        <div class="f"><label>Case-specific notes</label>
+          <textarea>Source advised in hire.</textarea></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2 CLAIM DETAILS ============ -->
+  <section class="sec" id="s2">
+    <div class="sec-h"><b>2</b><h2>Claim details</h2><span class="hint">paperwork — who, when, what happened</span></div>
+    <div class="fg g3">
+      <div class="f"><label>Claimant name</label><input type="text" value="Ms L Carter"></div>
+      <div class="f"><label>Claimant address</label><input type="text" id="clmAddr" value="14 Grove Street, Liverpool L15 8HY"></div>
+      <div class="f"><label>Claimant VAT status</label>
+        <select id="claimantVat"><option selected>Not VAT registered</option><option>VAT registered</option></select>
+      </div>
+      <div class="f"><label>Accident date</label><input type="date" value="2026-07-14" id="accDate"></div>
+      <div class="f lockable" data-name="Report date"><label>Report date <span class="chip c-sys">AUTO ON GENERATE</span></label>
+        <div class="lockrow"><input type="date" id="reportDate" disabled>
+        <button class="lockbtn" title="Unlock to overwrite"></button></div></div>
+    </div>
+    <div class="fg" style="margin-top:14px">
+      <div class="f"><label>Accident circumstances <span class="chip c-sys">NON-BLOCKING · MAY ARRIVE LATE</span></label>
+        <textarea>Claimant's vehicle stationary in traffic on Smithdown Road when struck in the rear by third party vehicle.</textarea>
+      </div>
+      <div class="f"><label>Notes from client</label>
+        <textarea>Please note claimant requires the vehicle for school runs — expedite where possible.</textarea>
+      </div>
+    </div>
+    <div class="composed"><b>Composed — matter line</b>Road Traffic Accident: Ms L Carter: 14 July 2026</div>
+  </section>
+
+  <!-- ============ 3 INSPECTION DETAILS ============ -->
+  <section class="sec" id="s3">
+    <div class="sec-h"><b>3</b><h2>Inspection details</h2><span class="hint">what actually happened</span></div>
+    <div class="fg g4">
+      <div class="f"><label>Inspection type</label>
+        <select id="inspType"><option value="image" selected>Image based assessment</option><option value="physical">Physical inspection</option></select>
+      </div>
+      <div class="f"><label>Inspection date</label><input type="date" value="2026-08-28"></div>
+      <div class="f"><label>Inspection location (shown on report)</label>
+        <select id="inspLoc">
+          <option value="iba" selected>Image based assessment</option>
+          <option value="claimant">Claimant address</option>
+          <option value="repairer">Repairer address</option>
+          <option value="storage">Storage address</option>
+          <option value="other">Other…</option>
+        </select>
+      </div>
+      <div class="f" id="inspLocWrap" style="display:none"><label>Other location</label>
+        <input type="text" id="inspLocOther" placeholder="Enter manually or pick from address book"></div>
+    </div>
+    <div class="composed" id="desktopSent"><b>Composed — assessment method</b><span id="locSent"></span></div>
+    <div class="subcard">
+      <div class="sg-t">Repairer</div>
+      <div class="fg g3">
+        <div class="f"><label>Repairer name</label><input type="text" value="Merseyside Accident Repair Centre"></div>
+        <div class="f"><label>Repairer address</label><input type="text" id="repAddr" value="Unit 4, Brasenose Rd, Bootle L20 8HL"></div>
+        <div class="f"><label>Repairer VAT status</label>
+          <select id="repVat"><option value="yes" selected>VAT registered</option><option value="no">Not VAT registered</option></select>
+        </div>
+      </div>
+      <div class="composed" style="margin-top:10px"><b>Drives the calculation</b><span id="vatModeSent">VAT registered — VAT at 20% applies to the full repair subtotal.</span></div>
+    </div>
+    <div class="subcard">
+      <div class="sg-t">Storage</div>
+      <div class="fg g4">
+        <div class="f"><label>Storage name</label><input type="text" id="stoName" value="Crosby Vehicle Storage"></div>
+        <div class="f"><label>Storage address</label><input type="text" id="stoAddr" value="Kings Dock Yard, Regent Rd, Liverpool L5 9TF"></div>
+        <div class="f"><label>Daily rate £/day</label><input type="number" id="stoRate" value="25.00" step="0.01"></div>
+        <div class="f"><label>Recovery charge £</label><input type="number" id="stoRec" value="250.00" step="0.01"></div>
+      </div>
+      <div class="composed" id="stoSentWrap" style="margin-top:10px"><b>Composed — appears only when a charge is entered</b><span id="stoSent"></span></div>
+    </div>
+  </section>
+
+  <!-- ============ 4 VEHICLE DETAILS ============ -->
+  <section class="sec" id="s4">
+    <div class="sec-h"><b>4</b><h2>Vehicle details</h2><span class="hint">identity · condition · value · history</span></div>
+    <div class="fg g4">
+      <div class="f"><label>Registration</label><div class="v" style="font-family:var(--mono)">MA59BDY</div></div>
+      <div class="f"><label>Make / model</label><div class="v">MINI First 1.4 <span class="chip c-dvla">DVLA</span></div></div>
+      <div class="f"><label>First registered</label><div class="v">Sep 2009 <span class="chip c-dvla">DVLA</span></div></div>
+      <div class="f"><label>Vehicle type</label>
+        <select><option selected>Car</option><option>Van</option><option>Motorcycle</option><option>Scooter</option><option>Bicycle</option><option>Trailer</option><option>Caravan</option><option>Other</option></select>
+      </div>
+      <div class="f"><label>Engine / fuel</label><div class="v">1397cc Petrol <span class="chip c-dvla">DVLA</span></div></div>
+      <div class="f"><label>Colour</label><div class="v">Silver <span class="chip c-dvla">DVLA</span></div></div>
+      <div class="f"><label>VIN</label><input type="text" value="WMWMF32040TZ12345"></div>
+      <div class="f"><label>Transmission</label><div class="v">Manual 6-speed <span class="chip c-dvla">LOOKUP</span></div></div>
+      <div class="f"><label>Body style / doors</label><div class="v">Hatchback · 3dr <span class="chip c-dvla">LOOKUP</span></div></div>
+      <div class="f"><label>CO₂ / Euro status</label><div class="v">129 g/km · Euro 4 <span class="chip c-dvla">DVLA</span></div></div>
+      <div class="f"><label>MOT / tax</label><div class="v">MOT to Mar 2027 · Taxed <span class="chip c-dvla">DVLA</span></div></div>
+    </div>
+
+    <div class="subcard">
+      <div class="sg-t">Mileage &amp; condition</div>
+      <div class="fg g3">
+        <div class="f"><label>Odometer</label>
+          <div class="odorow">
+            <input type="number" value="87412" id="odo">
+            <div class="unit"><button id="uMi" class="on" onclick="setUnit('mi')">mi</button><button id="uKm" onclick="setUnit('km')">km</button></div>
+          </div>
+          <label class="toggle" style="margin-top:8px;font-size:12.5px">
+            <input type="checkbox" id="avgTick" onchange="avgMileage()"> Average mileage — 7,100/yr from first registration
+          </label>
+          <div class="warnnote" id="avgWarn" style="display:none">Average basis — not appropriate for imported vehicles or taxis.</div>
+        </div>
+        <div class="f"><label>Mileage source</label>
+          <select id="mileSrc">
+            <option value="online_data" selected>Online data</option><option value="owner">Owner</option>
+            <option value="repairer">Repairer / storage yard</option><option value="principal">Principal</option>
+            <option value="average">Average for age &amp; type</option><option value="tbc">TBC</option>
+          </select>
+        </div>
+        <div class="f"><label>Pre-incident condition</label>
+          <select id="cond">
+            <option value="poor">Poor</option><option value="below_average">Below average</option>
+            <option value="average" selected>Average</option><option value="good">Good</option>
+            <option value="excellent">Excellent</option>
+          </select>
+        </div>
+      </div>
+      <div class="composed"><b>Composed — engineer's comments</b><span id="mileSent"></span></div>
+      <div class="composed"><b>Composed — pre-incident condition</b><span id="condSent"></span></div>
+    </div>
+
+    <div class="subcard">
+      <div class="sg-t">Impact <span class="rt">tap zones — multi-select · location auto-follows · N/S–O/S logged</span></div>
+      <div class="impactwrap">
+        <div class="diag"><svg id="carSvg" viewBox="0 0 300 540" aria-label="Damage zone picker"></svg></div>
+        <div class="impfields">
+          <div class="f"><label>Impact severity</label>
+            <select id="sev">
+              <option value="light">Light</option><option value="light_to_moderate">Light to moderate</option>
+              <option value="moderate" selected>Moderate</option>
+              <option value="moderate_to_heavy">Moderate to heavy</option><option value="heavy">Heavy</option>
+            </select>
+          </div>
+          <div class="f" style="margin-top:12px"><label>Impact location <span class="chip c-sys">AUTO FROM ZONES</span></label>
+            <select id="loc">
+              <option>Front</option><option>Left front</option><option>Right front</option>
+              <option>Left side</option><option>Right side</option><option selected>Rear</option>
+              <option>Left rear</option><option>Right rear</option><option>Roof</option>
+              <option>Underside</option><option>Wheel(s)</option><option>Interior</option>
+              <option>Mechanical</option>
+            </select>
+          </div>
+          <div class="f" style="margin-top:12px"><label>Damaged zones</label>
+            <div class="zonechips" id="zoneChips"></div>
+          </div>
+        </div>
+      </div>
+      <div class="composed"><b>Composed — nature of incident (override available)</b><span id="natSent"></span></div>
+    </div>
+
+    <div class="subcard">
+      <div class="sg-t">History / provenance check <button class="btn small" style="margin-left:auto" onclick="alert('Would call the data-provider API (e.g. Experian AutoCheck) and pass the result through verbatim.')">Run check</button></div>
+      <div class="composed" style="margin:0"><b>API pass-through — prints verbatim, clear or adverse</b>Experian AutoCheck: No adverse history recorded. Not previously recorded as a total loss. No outstanding finance. 3 previous keepers.</div>
+    </div>
+
+    <div class="subcard">
+      <div class="sg-t">Valuation <span class="rt">click a guide to select · Super CAP &amp; Market research entered manually</span></div>
+      <div class="guides" id="guides">
+        <div class="guide sel" data-g="CAP" data-retail="3100" data-trade="2320">
+          <div class="gn">CAP</div>
+          <div class="gr"><span>Retail</span><b>£3,100</b></div>
+          <div class="gr"><span>Trade</span><b>£2,320</b></div>
+        </div>
+        <div class="guide" data-g="Glass's" data-retail="2950" data-trade="2180">
+          <div class="gn">Glass's</div>
+          <div class="gr"><span>Retail</span><b>£2,950</b></div>
+          <div class="gr"><span>Trade</span><b>£2,180</b></div>
+        </div>
+        <div class="guide" data-g="Cazana" data-retail="2875" data-trade="2090">
+          <div class="gn">Cazana</div>
+          <div class="gr"><span>Retail</span><b>£2,875</b></div>
+          <div class="gr"><span>Trade</span><b>£2,090</b></div>
+        </div>
+        <div class="guide" data-g="Brego" data-retail="3050" data-trade="2260">
+          <div class="gn">Brego</div>
+          <div class="gr"><span>Retail</span><b>£3,050</b></div>
+          <div class="gr"><span>Trade</span><b>£2,260</b></div>
+        </div>
+        <div class="guide manual" data-g="Super CAP">
+          <div class="gn">Super CAP <span class="chip c-sys" style="margin-left:6px">MANUAL</span></div>
+          <div class="gr"><span>Retail</span><input class="gin" id="scRetail" type="number" placeholder="£"></div>
+          <div class="gr"><span>Trade</span><input class="gin" id="scTrade" type="number" placeholder="£"></div>
+        </div>
+        <div class="guide manual" data-g="Market research" data-noTrade="1">
+          <div class="gn">Market research <span class="chip c-sys" style="margin-left:6px">MANUAL</span></div>
+          <div class="gr"><span>Retail</span><input class="gin" id="mrRetail" type="number" value="3195"></div>
+          <div class="gr"><span style="color:var(--faint)">No trade figure</span><b style="color:var(--faint)">—</b></div>
+        </div>
+      </div>
+      <div class="incpanel">
+        <div class="sg-t" style="margin-bottom:10px">Value increases <span class="rt">tick to add · suggested figures — overwrite freely</span></div>
+        <div class="incgrid" id="incGrid"></div>
+      </div>
+      <div class="adjbar">
+        <div class="f" style="width:140px"><label>Condition deduction £</label>
+          <input type="number" id="adjDed" placeholder="e.g. 200" title="Deduct for poor condition" step="1"></div>
+        <label class="toggle" style="margin-top:14px"><input type="checkbox" id="ptlTick"> Previous total loss</label>
+        <div class="seg" id="ptlSeg">
+          <button class="on" data-p="10" onclick="setPtl(10)">−10%</button>
+          <button data-p="20" onclick="setPtl(20)">−20%</button>
+        </div>
+        <div class="working" id="adjWorking"></div>
+        <button class="btn small" id="adjApply" style="margin-left:auto" onclick="applyAdj()">Apply to engineer's value</button>
+      </div>
+      <div class="engval">
+        <div class="ev-l">Engineer's value (PAV)</div>
+        <input type="number" id="pavMirror" placeholder="£" onchange="engEdit('pav',this.value)">
+        <span class="chip c-sys">MIRRORS DECISIONS — ONE FIELD, TWO PLACES</span>
+        <span class="schip" id="pavMirrorChip" style="margin-left:auto"></span>
+      </div>
+      <div style="display:flex;gap:26px;flex-wrap:wrap;margin-top:12px">
+        <label class="toggle">
+          <input type="checkbox" id="discloseSrc" onchange="compose();adjWork();touch()"> Disclose guide source on report
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="valComm" onchange="adjWork();touch()"> Include valuation commentary on report
+        </label>
+      </div>
+      <div class="composed" id="valCommWrap" style="display:none"><b>Composed — valuation commentary</b><span id="valCommSent"></span></div>
+      <div class="composed" style="margin-top:10px"><b>Composed — what the report carries</b><span id="valSent"></span></div>
+    </div>
+
+    
+
+    <div class="subcard">
+      <div class="sg-t">Unrelated damage</div>
+      <div class="fg g2">
+        <div class="f"><label>Description</label><input type="text" value="Kerbing to both N/S alloys; dent to O/S front door, inconsistent with this incident"></div>
+        <div class="f" style="align-self:end">
+          <label class="toggle"><input type="checkbox" id="unrelPrint"> Print on report <span class="chip c-sys">OFF BY DEFAULT</span></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 5 IMAGES ============ -->
+  <section class="sec" id="s5">
+    <div class="sec-h"><b>5</b><h2>Images</h2>
+      <span class="hint"><span id="imgCount"></span> · click to include / exclude · drag to reorder (mock)</span></div>
+    <div class="thumbs" id="thumbs"></div>
+    <div style="margin-top:12px;display:flex;gap:10px">
+      <button class="btn small">Upload images</button>
+      <button class="btn small">Crop / rotate</button>
+      <span class="sendnote" style="align-self:center">Report renders included images in this order — 6 per page, fixed grid.</span>
+    </div>
+  </section>
+
+  <!-- ============ 6 REPAIR SPECIFICATION ============ -->
+  <section class="sec" id="s6">
+    <div class="sec-h"><b>6</b><h2>Repair specification</h2>
+      <span class="hint">the grid is the single source of truth — edit any cell</span></div>
+    <div class="dropzone" id="dropzone">
+      <div class="dz-i">⇣</div>
+      <div><b>Drag an estimate here to populate the grid</b>
+      <div class="dz-s">Audatex PDF · Audatex XML · Glass's repair estimate PDF · or click to browse</div></div>
+    </div>
+    <div class="pendimp" id="pendImp" style="display:none"></div>
+    <div style="display:flex;gap:10px;margin:12px 0 14px;align-items:center">
+      <button class="btn small" onclick="addRow()">Add row</button>
+      <button class="btn small" id="verBtn">Previous versions (2)</button>
+      <span class="sendnote" id="impLog">Populated 28 Aug 14:22 from <b>Audatex est. 88214-01 (PDF)</b> — 15 lines · labour rate <b id="rateShow"></b></span>
+    </div>
+    <table class="grid">
+      <thead><tr>
+        <th style="width:112px">Type</th><th>Description</th><th style="width:70px">Qty</th>
+        <th style="width:86px;text-align:right">Unit £</th><th style="width:70px;text-align:right">Hours</th>
+        <th style="width:86px;text-align:right">Material £</th>
+        <th style="width:96px">Provenance</th><th style="width:30px"></th>
+      </tr></thead>
+      <tbody id="gridBody"></tbody>
+    </table>
+    <div class="vatbar">
+      <span class="vb-l">Discounts %</span>
+      <span class="dsc"><label>Parts</label><input type="number" id="d_parts" min="0" max="100" step="0.5" placeholder="0"></span>
+      <span class="dsc"><label>Materials</label><input type="number" id="d_paint" min="0" max="100" step="0.5" placeholder="0"></span>
+      <span class="dsc"><label>Specialist</label><input type="number" id="d_spec" min="0" max="100" step="0.5" placeholder="0"></span>
+      <span class="dsc"><label>Overall</label><input type="number" id="d_all" min="0" max="100" step="0.5" placeholder="0"></span>
+    </div>
+    <div class="vatbar">
+      <span class="vb-l">VAT applies to</span>
+      <label class="toggle"><input type="checkbox" id="vc_labour" onchange="vatManual()"> Labour</label>
+      <label class="toggle"><input type="checkbox" id="vc_parts" onchange="vatManual()"> Parts</label>
+      <label class="toggle"><input type="checkbox" id="vc_materials" onchange="vatManual()"> Materials</label>
+      <label class="toggle"><input type="checkbox" id="vc_specialist" onchange="vatManual()"> Specialist</label>
+      <span class="chip c-warn" id="vatManChip" style="display:none">MANUAL OVERRIDE</span>
+      <button class="btn small" id="vatReset" style="display:none;margin-left:auto" onclick="vatDefaults();recalc();touch()">Reset to repairer status</button>
+    </div>
+    <div class="rollup" id="rollup"></div>
+    <div class="wl">
+      <div class="wcol"><div class="wt">→ Main new parts required</div><ul id="wlNew"></ul></div>
+      <div class="wcol"><div class="wt">→ Repairs required</div><ul id="wlRep"></ul></div>
+      <div class="wcol"><div class="wt">→ Additional operations</div><ul id="wlOps"></ul></div>
+    </div>
+  </section>
+
+  <!-- ============ 7 ENGINEER'S DECISIONS ============ -->
+  <section class="sec" id="s7">
+    <div class="sec-h"><b>7</b><h2>Engineer's decisions</h2><span class="hint">Brian suggests · you decide · everything logged</span></div>
+    <div class="brian-head">
+      <div class="bh-t">Brian pre-assessment</div>
+      <div class="bh-s">ran automatically at job-ready, 28 Aug 09:14 · arrow = use Brian's value</div>
+      <button class="btn small" style="margin-left:auto" onclick="acceptAll()">Accept all remaining</button>
+    </div>
+    <div id="brianRows"></div>
+
+    <div class="fg" style="margin-top:16px" id="urWrap">
+      <div class="f"><label>Unroadworthy reason <span class="chip c-warn">MANDATORY WHEN UNROADWORTHY</span> <span class="chip c-brian">BRIAN SUGGESTED</span></label>
+        <textarea id="urReason">the rear lamp assemblies are inoperative and the rear impact has compromised the tailgate closure.</textarea>
+        <div class="composed"><b>Composed — engineer's comments</b><span id="urSent"></span></div>
+      </div>
+    </div>
+
+    <div class="fg" style="margin-top:14px">
+      <div class="f"><label>Engineer's comments (optional, free text)</label>
+        <textarea placeholder="Additional comments beyond the composed sentences…"></textarea>
+      </div>
+    </div>
+
+    <div class="settle" id="settle"></div>
+
+    <div class="bfoot">
+      <span class="cnt" id="resolveCnt"></span>
+      <button class="btn primary" id="approveBtn" style="margin-left:auto" disabled onclick="approveJob()">Approve decisions</button>
+    </div>
+  </section>
+
+  <!-- ============ 8 PRODUCE & SEND REPORT ============ -->
+  <section class="sec" id="s8">
+    <div class="sec-h"><b>8</b><h2>Produce &amp; send report</h2><span class="hint">send is the approval act</span></div>
+    <div class="tabs">
+      <button class="tab on" id="tabReport" onclick="switchTab('report')">Report</button>
+      <button class="tab" id="tabFee" onclick="switchTab('fee')">Fee</button>
+    </div>
+
+    <div id="paneReport">
+      <div class="preview">
+        <div class="pv-thumb"></div>
+        <div class="pv-meta">
+          <div class="pt" id="pvTitle">Total Loss Report — MA59BDY</div>
+          <div class="ps" id="pvStatus">No preview generated yet.</div>
+        </div>
+        <button class="btn" onclick="genPreview()">Generate preview</button>
+      </div>
+      <div class="sendrow">
+        <div class="f" style="min-width:280px"><label>Deliver to</label>
+          <input type="text" value="claims@qdosclaims.co.uk  ·  Email"></div>
+        <button class="btn primary" id="sendBtn" disabled onclick="sendReport()">Attach and Send</button>
+        <span class="sendnote" id="sendNote">Locked — generate and check a preview first. Any edit after preview locks send again.</span>
+      </div>
+    </div>
+
+    <div id="paneFee" style="display:none">
+      <table class="feetbl">
+        <tr><td>Vehicle Damage Assessment Report — MA59BDY<br>
+          <span style="color:var(--muted);font-size:12px">QDOS standard fee — desktop total loss</span></td>
+          <td class="num">132.00</td></tr>
+        <tr><td>Subtotal (net)</td><td class="num">132.00</td></tr>
+        <tr><td>VAT @ 20%</td><td class="num">26.40</td></tr>
+        <tr class="tot"><td>TOTAL DUE</td><td class="num">£158.40</td></tr>
+      </table>
+      <p class="sendnote" style="margin-top:10px">Fee pulled from the QDOS principal fee table. Additional charges → open question: this tab or a separate .ADD reference.</p>
+    </div>
+  </section>
+
+  <!-- ============ 9 NOTES & QUERIES ============ -->
+  <section class="sec" id="s9">
+    <div class="sec-h"><b>9</b><h2>Notes &amp; queries</h2><span class="hint">case timeline · post-report work</span></div>
+    <div id="noteTop"></div>
+    <div class="note"><div class="nw">28 Aug 09:14</div><div class="nb"><b>System</b> — Brian pre-assessment completed. 5 suggestions ready for review.</div></div>
+    <div class="note"><div class="nw">28 Aug 09:02</div><div class="nb"><b>System</b> — Case set up from holding pen by E Mawdsley. Instruction + 24 images paired on registration.</div></div>
+    <div class="note"><div class="nw">27 Aug 16:44</div><div class="nb"><b>E Mawdsley</b> — Claimant confirmed vehicle at home address, not at repairer. Images requested via chase link.</div></div>
+    <div class="fg" style="margin:14px 0">
+      <div class="f"><label>Add note</label><input type="text" placeholder="Type a note and press Enter…"></div>
+    </div>
+    <div class="subcard">
+      <div class="sg-t">Queries (post-report)</div>
+      <div class="empty">No queries on this case. PAV disputes, TP cost challenges, Part 35 questions and supplementaries land here after the report has gone.</div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ================= state ================= */
+const S = {
+  rate: 83.28,
+  previewed:false, stale:false, sent:false,
+  guide:{name:'CAP', retail:3100, trade:2320},
+};
+const fmt = n => '£' + n.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+/* ================= composed sentences ================= */
+const MILE = {
+  online_data:"The mileage has been calculated from online data.",
+  owner:"The mileage was advised by the owner.",
+  repairer:"The mileage was advised by the repairer/storage yard.",
+  principal:"The mileage was advised by our instructing principal.",
+  average:"The mileage has been based on average mileage for the vehicle's age and type.",
+  tbc:"The mileage is to be confirmed."};
+const CONDW = {poor:"poor",below_average:"below average",average:"average",good:"good",excellent:"excellent"};
+function compose(){
+  document.getElementById('mileSent').textContent = MILE[val('mileSrc')];
+  document.getElementById('condSent').textContent =
+    `The vehicle is considered to be in ${CONDW[val('cond')]} condition for its age and type.`;
+  const sev = document.getElementById('sev').selectedOptions[0].text.toLowerCase();
+  const nat = document.getElementById('natSent');
+  if(S.regions && S.regions.length>1){
+    nat.innerHTML = `The vehicle has suffered ${sev} collision/impact damage to the following areas:`+
+      S.regions.map(r=>`<br>&mdash; ${r}`).join('');
+  } else {
+    nat.textContent =
+      `The vehicle has suffered ${sev} collision/impact damage to the ${val('loc').toLowerCase()}.`;
+  }
+  document.getElementById('urSent').textContent =
+    `Please note the vehicle is unroadworthy due to ${document.getElementById('urReason').value.trim()}`;
+  const fm=v=>v==null?'—':'£'+v.toLocaleString();
+  const disclose=document.getElementById('discloseSrc').checked;
+  const src=disclose?`${S.guide.name} — `:'Source not disclosed — ';
+  const tradeBit=S.guide.trade==null?'':` · Trade ${fm(S.guide.trade)}`;
+  const pav=FS.pav.val?'£'+parseFloat(FS.pav.val).toLocaleString():'—';
+  document.getElementById('valSent').textContent =
+    src+`Retail ${fm(S.guide.retail)}${tradeBit} · Engineer's value ${pav}.`;
+}
+const val = id => document.getElementById(id).value;
+
+/* ================= images ================= */
+const IMGS = ['Rear 3/4 O/S','Rear straight','Tailgate','Rear panel','Lamp O/S','Boot floor',
+  'Rear 3/4 N/S','Interior boot','Odometer 87,412','VIN plate','Front 3/4','Dash warning'];
+const IMGCOL = ['#5B6472','#6E7582','#7A8290','#616977','#8A93A1','#565E6B','#6B7380','#78808E','#525A67','#8F98A6','#5F6774','#737B89'];
+let imgState = IMGS.map((n,i)=>({n, on:i<9}));
+function renderImgs(){
+  const t = document.getElementById('thumbs'); t.innerHTML='';
+  imgState.forEach((im,i)=>{
+    const d=document.createElement('div');
+    d.className='th'+(im.on?'':' off');
+    d.style.background=IMGCOL[i];
+    d.innerHTML=`<span class="inc">${im.on?'✓':'–'}</span>${im.n}`;
+    d.onclick=()=>{im.on=!im.on;renderImgs();touch();};
+    t.appendChild(d);
+  });
+  const c=imgState.filter(x=>x.on).length;
+  document.getElementById('imgCount').textContent=`${c} of ${imgState.length} in report`;
+}
+
+/* ================= repair grid ================= */
+let ROWS = [
+ {t:'New',d:'Bumper rear (primed)',q:1,u:286.40,h:0,m:0,p:'imported'},
+ {t:'New',d:'Tailgate',q:1,u:512.30,h:0,m:0,p:'imported'},
+ {t:'New',d:'Lamp assembly rear O/S',q:1,u:148.75,h:0,m:0,p:'imported'},
+ {t:'New',d:'Impact absorber rear',q:1,u:96.20,h:0,m:0,p:'imported'},
+ {t:'Repair',d:'Rear panel — repair',q:0,u:0,h:3.5,m:0,p:'imported'},
+ {t:'Repair',d:'Floor pan rear — repair',q:0,u:0,h:1.2,m:0,p:'amended'},
+ {t:'R&R',d:'Rear bumper — R&R',q:0,u:0,h:0.8,m:0,p:'imported'},
+ {t:'R&R',d:'Tailgate trim — R&R',q:0,u:0,h:0.5,m:0,p:'imported'},
+ {t:'Paint',d:'Paint — tailgate (new)',q:0,u:0,h:2.1,m:96.40,p:'imported'},
+ {t:'Paint',d:'Paint — bumper rear (new)',q:0,u:0,h:1.5,m:78.20,p:'imported'},
+ {t:'Paint',d:'Paint — rear panel (repair)',q:0,u:0,h:1.8,m:72.90,p:'imported'},
+ {t:'Blend',d:'Blend — quarter panel O/S',q:0,u:0,h:0.9,m:38.50,p:'imported'},
+ {t:'Specialist',d:'Four-wheel alignment check',q:1,u:65.00,h:0,m:0,p:'imported'},
+ {t:'Specialist',d:'Diagnostic scan & fault report',q:1,u:85.00,h:0,m:0,p:'imported'},
+];
+const TYPES=['New','Repair','R&R','Paint','Blend','Specialist'];
+/* column availability per row type: [qty, unit, hours, material] */
+const COLS={
+  'New':       {q:1,u:1,h:1,m:1},
+  'Repair':    {q:0,u:0,h:1,m:1},
+  'R&R':       {q:0,u:0,h:1,m:0},
+  'Paint':     {q:0,u:0,h:1,m:1},
+  'Blend':     {q:0,u:0,h:1,m:1},
+  'Specialist':{q:1,u:1,h:1,m:1},
+};
+function renderGrid(){
+  const b=document.getElementById('gridBody'); b.innerHTML='';
+  ROWS.forEach((r,i)=>{
+    const tr=document.createElement('tr');
+    const c=COLS[r.t]||{q:1,u:1,h:1,m:1};
+    const cellIn=(k,shown)=>{
+      const n=parseFloat(shown)||0;
+      const meaningful = k==='q' ? n>1 : n>0;   // qty 1 on a non-qty row is furniture, not data
+      if(c[k]) return `<td><input class="num" value="${shown}" onchange="cell(${i},'${k}',this.value)"></td>`;
+      if(meaningful) return `<td><input class="num viol" title="Outside the usual pattern for ${r.t} — imported as received. Zero it or retype the row to normalise." value="${shown}" onchange="cell(${i},'${k}',this.value)"></td>`;
+      return `<td class="na">—</td>`;
+    };
+    tr.innerHTML=`
+      <td><select onchange="cell(${i},'t',this.value)">${TYPES.map(t=>`<option${t===r.t?' selected':''}>${t}</option>`).join('')}</select></td>
+      <td><input value="${r.d}" onchange="cell(${i},'d',this.value)"></td>
+      ${cellIn('q', r.q)}
+      ${cellIn('u', r.u?r.u.toFixed(2):'')}
+      ${cellIn('h', r.h||'')}
+      ${cellIn('m', r.m?r.m.toFixed(2):'')}
+      <td><span class="rowchip ${r.p==='imported'?'c-imp':'c-amend'}" title="${r.src||'Audatex est. 88214-01'}">${r.p.toUpperCase()}${r.src?" · "+(r.src==="Glass's"?"GL":r.src):" · AX"}</span></td>
+      <td><button class="del" onclick="delRow(${i})">×</button></td>`;
+    b.appendChild(tr);
+  });
+  recalc();
+}
+function cell(i,k,v){
+  if(k==='q'||k==='u'||k==='h'||k==='m') v=parseFloat(v)||0;
+  ROWS[i][k]=v;
+  if(k==='t'){
+    const c=COLS[v];
+    if(c.q&&!ROWS[i].q) ROWS[i].q=1;   // values never cleared — off-pattern cells go amber instead
+  }
+  if(ROWS[i].p==='imported'){ROWS[i].p='amended';}
+  renderGrid(); touch();
+}
+function delRow(i){ROWS.splice(i,1);renderGrid();touch();}
+function addRow(){ROWS.push({t:'New',d:'New item',q:1,u:0,h:0,m:0,p:'manual'});renderGrid();touch();}
+
+function recalc(){
+  const parts = ROWS.filter(r=>r.t==='New').reduce((s,r)=>s+r.q*r.u,0);
+  const panelH = ROWS.filter(r=>['New','Repair','R&R'].includes(r.t)).reduce((s,r)=>s+r.h,0);
+  const paintH = ROWS.filter(r=>r.t==='Paint'||r.t==='Blend').reduce((s,r)=>s+r.h,0);
+  const paintMat = ROWS.reduce((s,r)=>s+(r.m||0),0);
+  const specH = ROWS.filter(r=>r.t==='Specialist').reduce((s,r)=>s+r.h,0);
+  const spec = ROWS.filter(r=>r.t==='Specialist').reduce((s,r)=>s+(r.q||1)*r.u,0);   // hours listed, never costed
+  const offPat = ROWS.filter(r=>!['New','Specialist'].includes(r.t)&&r.u>0).reduce((s,r)=>s+(r.q||1)*r.u,0);
+  const labour = panelH*S.rate, paintLab = paintH*S.rate;
+  const pc=id=>Math.min(100,Math.max(0,parseFloat(val(id))||0))/100;
+  const dP=pc('d_parts'), dM=pc('d_paint'), dS=pc('d_spec'), dA=pc('d_all');
+  const partsDisc=parts*dP, paintDisc=paintMat*dM, specDisc=(spec+offPat)*dS;   // materials column only
+  const afterCat = parts+labour+paintLab+paintMat+spec+offPat - partsDisc-paintDisc-specDisc;
+  const allDisc = afterCat*dA;
+  const net = afterCat - allDisc;
+  let vatBase=(VATC.labour?labour+paintLab:0)+(VATC.parts?parts*(1-dP):0)
+    +(VATC.materials?paintMat*(1-dM):0)+(VATC.specialist?(spec+offPat)*(1-dS):0);   // off-pattern rides with Specialist
+  vatBase*=(1-dA);
+  const vat = vatBase*0.2;
+  const gross = net+vat;
+  S.gross = gross; S.hours = panelH+paintH;
+  const rs=document.getElementById('rateShow'); if(rs) rs.textContent = fmt(S.rate)+'/hr';
+  document.getElementById('vatModeSent').textContent = (val('repVat')==='yes')
+    ? 'VAT registered — VAT defaults to all categories.'+(VATMAN?' Category ticks manually overridden in the repair specification.':'')
+    : 'NOT VAT registered — VAT defaults to parts & materials only.'+(VATMAN?' Category ticks manually overridden in the repair specification.':'');
+  document.getElementById('rollup').innerHTML = `
+    <div class="rr"><span>Parts (${ROWS.filter(r=>r.t==='New').length} lines)</span><b>${fmt(parts)}</b></div>
+    <div class="rr"><span>Panel labour ${panelH.toFixed(2)} h × ${fmt(S.rate)}</span><b>${fmt(labour)}</b></div>
+    <div class="rr"><span>Paint labour ${paintH.toFixed(2)} h × ${fmt(S.rate)} <em style="color:var(--faint);font-style:normal">(single rate — open item)</em></span><b>${fmt(paintLab)}</b></div>
+    <div class="rr"><span>Materials (column total)</span><b>${fmt(paintMat)}</b></div>
+    <div class="rr"><span>Specialist operations${specH?` <em style="color:var(--faint);font-style:normal">(+ ${specH.toFixed(2)} h listed, not costed)</em>`:''}</span><b>${fmt(spec)}</b></div>
+    ${offPat?`<div class="rr"><span style="color:var(--warn)">Off-pattern items (imported) <em style="font-style:normal;color:var(--faint)">treated as specialist</em></span><b style="color:var(--warn)">${fmt(offPat)}</b></div>`:''}
+    ${partsDisc?`<div class="rr"><span>Parts discount (${(dP*100).toFixed(1).replace('.0','')}%)</span><b>−${fmt(partsDisc)}</b></div>`:''}
+    ${paintDisc?`<div class="rr"><span>Materials discount (${(dM*100).toFixed(1).replace('.0','')}%)</span><b>−${fmt(paintDisc)}</b></div>`:''}
+    ${specDisc?`<div class="rr"><span>Specialist discount (${(dS*100).toFixed(1).replace('.0','')}%)</span><b>−${fmt(specDisc)}</b></div>`:''}
+    ${allDisc?`<div class="rr"><span>Overall discount (${(dA*100).toFixed(1).replace('.0','')}%)</span><b>−${fmt(allDisc)}</b></div>`:''}
+    <div class="rr"><span>VAT (20% on: ${['labour','parts','materials','specialist'].filter(k=>VATC[k]).map(k=>k[0].toUpperCase()+k.slice(1)).join(', ')||'nothing'})${VATMAN?' <em style="color:var(--warn);font-style:normal">manual</em>':''}</span><b>${fmt(vat)}</b></div>
+    <div class="rr tot"><span>Repair cost inc VAT</span><b>${fmt(gross)}</b></div>`;
+  // derived worklists
+  fillWL('wlNew', ROWS.filter(r=>r.t==='New').map(r=>r.d));
+  fillWL('wlRep', ROWS.filter(r=>r.t==='Repair'||r.t==='R&R').map(r=>r.d));
+  fillWL('wlOps', ROWS.filter(r=>['Paint','Blend','Specialist'].includes(r.t)).map(r=>r.d));
+  renderSettle();
+}
+function fillWL(id,items){
+  document.getElementById(id).innerHTML = items.map(x=>`<li>${x}</li>`).join('')||'<li style="color:var(--faint)">none</li>';
+}
+
+/* estimate imports */
+const GLASS_ROWS=[
+ {t:'New',d:'Bumper rear complete',q:1,u:301.12,h:0,m:0,p:'imported',src:"Glass's"},
+ {t:'New',d:'Tailgate assembly',q:1,u:498.90,h:0,m:0,p:'imported',src:"Glass's"},
+ {t:'New',d:'Lamp unit rear O/S',q:1,u:152.30,h:0,m:0,p:'imported',src:"Glass's"},
+ {t:'Repair',d:'Rear panel — repair',q:0,u:0,h:3.2,m:0,p:'imported',src:"Glass's"},
+ {t:'R&R',d:'Rear bumper — R&R',q:0,u:0,h:0.9,m:0,p:'imported',src:"Glass's"},
+ {t:'Paint',d:'Paint — tailgate (new)',q:0,u:0,h:2.0,m:92.00,p:'imported',src:"Glass's"},
+ {t:'Paint',d:'Paint — bumper rear (new)',q:0,u:0,h:1.4,m:74.50,p:'imported',src:"Glass's"},
+ {t:'Blend',d:'Blend — quarter panel O/S',q:0,u:0,h:0.9,m:68.30,p:'imported',src:"Glass's"},
+ {t:'Specialist',d:'Four-wheel alignment check',q:1,u:65.00,h:0,m:0,p:'imported',src:"Glass's"},
+ {t:'Repair',d:'Wheel refurbishment O/S rear',q:0,u:95.00,h:0,m:0,p:'imported',src:"Glass's"},
+];
+let VERS=2;
+const dz=document.getElementById('dropzone');
+['dragover','dragenter'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('over');}));
+dz.addEventListener('drop',e=>mockImport(e.dataTransfer?.files?.[0]?.name||"glass_estimate_88214.pdf"));
+dz.addEventListener('click',()=>mockImport("glass_estimate_88214.pdf"));
+function mockImport(fname){
+  const pi=document.getElementById('pendImp');
+  pi.style.display='flex';
+  pi.innerHTML=`<div class="pi-t"><b>${fname}</b>Parsed as Glass's repair estimate — ${GLASS_ROWS.length} lines,
+      labour rate £83.28/hr. This will overwrite the current ${ROWS.length}-line grid
+      (preserved as v${VERS}).</div>
+    <div style="display:flex;gap:8px;margin-left:auto">
+      <button class="btn small primary" onclick="doImport('replace','${fname}')">Overwrite grid</button>
+      <button class="btn small" onclick="document.getElementById('pendImp').style.display='none'">Cancel</button>
+    </div>`;
+  pi.scrollIntoView({block:'nearest'});
+}
+function doImport(mode,fname){
+  VERS++;
+  ROWS=GLASS_ROWS.map(r=>({...r}));   // import always overwrites; history keeps the old grid
+  document.getElementById('pendImp').style.display='none';
+  document.getElementById('verBtn').textContent=`Previous versions (${VERS})`;
+  const stamp=new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  document.getElementById('impLog').innerHTML=
+    `Populated ${stamp} from <b>${fname}</b> — ${GLASS_ROWS.length} lines (previous grid preserved as v${VERS-1}) · labour rate <b id="rateShow">£83.28/hr</b>`;
+  logNote(`Repair grid overwritten from ${fname} by ${val('assignedEng')} — previous version preserved as v${VERS-1}.`);
+  renderGrid(); touch();
+}
+
+/* VAT categories */
+let VATC={labour:true,parts:true,materials:true,specialist:true}, VATMAN=false;
+function vatDefaults(){
+  const reg=val('repVat')==='yes';
+  VATC=reg?{labour:true,parts:true,materials:true,specialist:true}
+          :{labour:false,parts:true,materials:true,specialist:false};
+  VATMAN=false; vatPaint();
+}
+function vatPaint(){
+  ['labour','parts','materials','specialist'].forEach(k=>
+    document.getElementById('vc_'+k).checked=VATC[k]);
+  document.getElementById('vatManChip').style.display=VATMAN?'inline-block':'none';
+  document.getElementById('vatReset').style.display=VATMAN?'inline-block':'none';
+}
+function vatManual(){
+  ['labour','parts','materials','specialist'].forEach(k=>
+    VATC[k]=document.getElementById('vc_'+k).checked);
+  VATMAN=true; vatPaint(); recalc(); touch();
+}
+
+/* ================= Brian panel ================= */
+const FIELDS=[
+ {id:'outcome', label:'Outcome', brian:'Total loss', type:'select',
+   opts:['Repairable','Total loss','Cash in lieu','Contract repair']},
+ {id:'pav', label:"Engineer's PAV", brian:'2900', type:'money'},
+ {id:'salcat', label:'Salvage category', brian:'N', type:'select', opts:['A','B','S','N','N/A'], cond:true},
+ {id:'salval', label:'Salvage value', brian:'725', type:'money', cond:true},
+ {id:'road', label:'Roadworthy status', brian:'Unroadworthy', type:'select', opts:['Roadworthy','Unroadworthy']},
+];
+let FS = {}; FIELDS.forEach(f=>FS[f.id]={state:'wait', val:''});
+
+function renderBrian(){
+  const wrap=document.getElementById('brianRows'); wrap.innerHTML='';
+  const isTL = FS.outcome.val==='Total loss' || (FS.outcome.state==='wait' && true);
+  FIELDS.forEach(f=>{
+    const st=FS[f.id];
+    const collapsed = f.cond && FS.outcome.state!=='wait' && FS.outcome.val!=='Total loss';
+    const row=document.createElement('div');
+    row.className='brow'+(st.state!=='wait'?' done':'')+(collapsed?' collapsed':'');
+    const brianDisp = f.type==='money' ? fmt(parseFloat(f.brian)) : f.brian;
+    let editor;
+    if(f.type==='select'){
+      editor=`<select id="e_${f.id}" class="${cls(st.state)}" onchange="engEdit('${f.id}',this.value)">
+        <option value="" ${st.val===''?'selected':''}>—</option>
+        ${f.opts.map(o=>`<option ${st.val===o?'selected':''}>${o}</option>`).join('')}</select>`;
+    } else {
+      editor=`<input id="e_${f.id}" class="${cls(st.state)}" value="${st.val}" placeholder="£"
+        onchange="engEdit('${f.id}',this.value)">`;
+    }
+    const chip = collapsed
+      ? `<span class="schip s-na">N/A — outcome</span>`
+      : st.state==='wait' ? `<span class="schip s-wait">Awaiting</span>`
+      : st.state==='acc' ? `<span class="schip s-acc">Accepted ✓</span>`
+      : `<span class="schip s-ovr">Overridden</span>`;
+    row.innerHTML=`
+      <div class="bl">${f.label}</div>
+      <div class="bv">${brianDisp}<span class="chip c-brian" style="float:right">BRIAN</span></div>
+      <button class="arrow" title="Use Brian's value" onclick="acceptField('${f.id}')">→</button>
+      <div>${editor}</div>
+      ${chip}`;
+    wrap.appendChild(row);
+  });
+  // PAV mirror in the valuation subcard
+  const pm=document.getElementById('pavMirror');
+  if(pm){ pm.value=FS.pav.val||''; 
+    const mc=document.getElementById('pavMirrorChip');
+    const st=FS.pav.state;
+    mc.className='schip '+(st==='acc'?'s-acc':st==='ovr'?'s-ovr':'s-wait');
+    mc.textContent=st==='acc'?'Accepted ✓':st==='ovr'?'Overridden':'Awaiting';
+  }
+  compose();
+  // unroadworthy reason visibility
+  document.getElementById('urWrap').style.display =
+    (FS.road.val==='Roadworthy') ? 'none':'block';
+  // header badges follow decisions
+  const o=FS.outcome.val||'Total loss', c=FS.salcat.val||'N';
+  const hb=document.getElementById('hdrOutcome');
+  hb.textContent = o==='Total loss' ? `TOTAL LOSS — CAT ${c}` : o.toUpperCase();
+  hb.className = 'badge ' + (o==='Total loss'?'b-tl':'b-rep');
+  const hl=document.getElementById('hdrLegal');
+  const ur = FS.road.val!=='Roadworthy';
+  hl.textContent = ur?'UNROADWORTHY':'ROADWORTHY';
+  hl.className='badge '+(ur?'b-ur':'b-rw');
+  document.getElementById('pvTitle').textContent =
+    (o==='Total loss'?'Total Loss':o)+' Report — MA59BDY';
+  updateFoot(); renderSettle();
+}
+const cls = s => s==='acc'?'st-acc':s==='ovr'?'st-ovr':'';
+function acceptField(id){
+  const f=FIELDS.find(x=>x.id===id);
+  FS[id]={state:'acc', val:f.brian==='2900'||f.brian==='725'?f.brian:f.brian};
+  FS[id].val = f.type==='money'? f.brian : f.brian;
+  renderBrian(); touch();
+}
+function engEdit(id,v){
+  const f=FIELDS.find(x=>x.id===id);
+  const clean = f.type==='money' ? String(parseFloat(String(v).replace(/[£,]/g,''))||'') : v;
+  if(clean==='') {FS[id]={state:'wait',val:''};}
+  else if(clean===f.brian){FS[id]={state:'acc',val:clean};}   // typing Brian's exact value = accepted
+  else {FS[id]={state:'ovr',val:clean};}
+  renderBrian(); touch();
+}
+function acceptAll(){
+  FIELDS.forEach(f=>{
+    const collapsed = f.cond && FS.outcome.val && FS.outcome.val!=='Total loss';
+    if(FS[f.id].state==='wait' && !collapsed) FS[f.id]={state:'acc',val:f.brian};
+  });
+  renderBrian(); touch();
+}
+function updateFoot(){
+  const need = FIELDS.filter(f=>{
+    const collapsed = f.cond && FS.outcome.val && FS.outcome.val!=='Total loss';
+    return !collapsed && FS[f.id].state==='wait';
+  }).length;
+  document.getElementById('resolveCnt').innerHTML =
+    need? `<b>${need}</b> field${need>1?'s':''} awaiting review — approve locked until every field is resolved.`
+        : `All fields resolved. Per-field provenance logged.`;
+  document.getElementById('approveBtn').disabled = need>0;
+}
+function approveJob(){
+  alert('Decisions approved by A Patterson — per-field provenance (ai_accepted / engineer_overridden, timestamps) written to the case record.');
+}
+function renderSettle(){
+  const s=document.getElementById('settle');
+  const o=FS.outcome.val||'Total loss';
+  const pav=parseFloat(FS.pav.val)||0, sal=parseFloat(FS.salval.val)||0;
+  const gross=S.gross||0;
+  if(o==='Total loss'){
+    const set=pav-sal;
+    s.innerHTML=`
+      <div><div class="sl">Pre-accident value</div><div class="sv">${pav?fmt(pav):'—'}</div></div>
+      <div class="op">−</div>
+      <div><div class="sl">Salvage value</div><div class="sv">${sal?fmt(sal):'—'}</div></div>
+      <div class="op">=</div>
+      <div><div class="sl">Recommended settlement</div><div class="sv red">${pav?fmt(set):'—'}</div></div>
+      <div style="margin-left:auto"><div class="sl">Repair cost (from grid)</div>
+        <div class="sv" style="font-size:15px">${fmt(gross)} ${gross>pav&&pav?'· exceeds PAV':''}</div></div>`;
+  } else {
+    s.innerHTML=`
+      <div><div class="sl">Pre-accident value</div><div class="sv">${pav?fmt(pav):'—'}</div></div>
+      <div><div class="sl">Labour hours</div><div class="sv">${(S.hours||0).toFixed(2)}</div></div>
+      <div><div class="sl">${o==='Cash in lieu'?'Cash in lieu settlement':'Repair cost inc VAT'}</div>
+        <div class="sv red">${fmt(gross)}</div></div>`;
+  }
+}
+
+/* ================= report / send ================= */
+function genPreview(){
+  S.previewed=true; S.stale=false;
+  const rd=document.getElementById('reportDate');
+  if(!rd.value) rd.value=new Date().toISOString().slice(0,10);
+  document.getElementById('pvStatus').innerHTML =
+    'Preview generated <b>just now</b> · 9 pages · 9 images · check it, then send.';
+  document.getElementById('sendBtn').disabled=false;
+  document.getElementById('sendNote').textContent='Send transmits the PDF to the principal and closes the approval act.';
+  document.getElementById('staleBanner').classList.remove('show');
+}
+function sendReport(){
+  if(S.stale) return;
+  S.sent=true;
+  document.getElementById('sendBtn').disabled=true;
+  document.getElementById('sendNote').textContent='Sent to claims@qdosclaims.co.uk · report date stamped · case moves to Issued.';
+  alert('Attach and Send — the send act is the approval act.\n\nPDF attached and emailed to QDOS Claims. Case status → Issued.');
+}
+function touch(){
+  if(S.previewed && !S.sent){
+    S.stale=true;
+    document.getElementById('sendBtn').disabled=true;
+    document.getElementById('pvStatus').innerHTML='<span style="color:var(--warn)">Preview stale — case edited after generation.</span>';
+    document.getElementById('sendNote').textContent='Locked — regenerate the preview to send.';
+    document.getElementById('staleBanner').classList.add('show');
+  }
+}
+function switchTab(t){
+  document.getElementById('tabReport').classList.toggle('on',t==='report');
+  document.getElementById('tabFee').classList.toggle('on',t==='fee');
+  document.getElementById('paneReport').style.display=t==='report'?'block':'none';
+  document.getElementById('paneFee').style.display=t==='fee'?'block':'none';
+}
+
+/* ================= wiring ================= */
+function readGuide(g){
+  if(g.dataset.g==='Super CAP')
+    return {name:'Super CAP', retail:parseFloat(val('scRetail'))||null, trade:parseFloat(val('scTrade'))||null};
+  if(g.dataset.g==='Market research')
+    return {name:'Market research', retail:parseFloat(val('mrRetail'))||null, trade:null};
+  return {name:g.dataset.g, retail:+g.dataset.retail, trade:+g.dataset.trade};
+}
+document.getElementById('guides').addEventListener('click',e=>{
+  if(e.target.classList.contains('gin')) return;   // typing ≠ selecting
+  const g=e.target.closest('.guide'); if(!g)return;
+  document.querySelectorAll('.guide').forEach(x=>x.classList.remove('sel'));
+  g.classList.add('sel');
+  S.guide=readGuide(g);
+  compose(); adjWork(); touch();
+});
+['scRetail','scTrade','mrRetail'].forEach(id=>
+  document.getElementById(id).addEventListener('input',()=>{
+    const sel=document.querySelector('.guide.sel');
+    if(sel) S.guide=readGuide(sel);
+    compose(); adjWork(); touch();
+  }));
+['mileSrc','cond','sev','loc'].forEach(id=>
+  document.getElementById(id).addEventListener('change',()=>{compose();touch();}));
+document.getElementById('urReason').addEventListener('input',()=>{compose();touch();});
+document.getElementById('repVat').addEventListener('change',()=>{vatDefaults();recalc();touch();});
+['d_parts','d_paint','d_spec','d_all'].forEach(id=>
+  document.getElementById(id).addEventListener('input',()=>{recalc();touch();}));
+/* inspection location + desktop sentence */
+function composeLoc(){
+  const l=val('inspLoc');
+  const src={iba:'Image Based Assessment', claimant:val('clmAddr'), repairer:val('repAddr'),
+    storage:val('stoAddr'), other:val('inspLocOther')||'—'}[l];
+  let s=`Vehicle located at: ${src}.`;
+  document.getElementById('locSent').textContent=s;
+  document.getElementById('inspLocWrap').style.display = l==='other'?'block':'none';
+}
+['inspType','inspLoc','inspLocOther','clmAddr','repAddr','stoAddr'].forEach(id=>
+  document.getElementById(id).addEventListener('input',()=>{composeLoc();touch();}));
+/* storage charges sentence */
+const gbp=n=>'£'+n.toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+function composeStorage(){
+  const rate=parseFloat(val('stoRate'))||0, rec=parseFloat(val('stoRec'))||0;
+  const el=document.getElementById('stoSent');
+  if(rec&&rate) el.textContent=`We understand recovery and storage charges are accruing at ${gbp(rec)} and ${gbp(rate)}pd, plus VAT.`;
+  else if(rec) el.textContent=`We understand recovery charges of ${gbp(rec)} have been incurred, plus VAT.`;
+  else if(rate) el.textContent=`We understand storage charges are accruing at ${gbp(rate)}pd, plus VAT.`;
+  else el.innerHTML='<span style="color:var(--faint)">No charges entered — no line appears on the report.</span>';
+}
+['stoRate','stoRec'].forEach(id=>
+  document.getElementById(id).addEventListener('input',()=>{composeStorage();touch();}));
+document.getElementById('claimantVat').addEventListener('change',()=>{regateVat();touch();});
+// any other input edits mark the preview stale
+document.querySelector('.frame').addEventListener('change',e=>{ touch(); });
+
+// jump-tab scroll tracking
+const links=[...document.querySelectorAll('#jump a')];
+const obs=new IntersectionObserver(es=>{
+  es.forEach(en=>{ if(en.isIntersecting){
+    links.forEach(l=>l.classList.toggle('on', l.getAttribute('href')==='#'+en.target.id));
+  }});
+},{rootMargin:'-40% 0px -55% 0px'});
+document.querySelectorAll('.sec').forEach(s=>obs.observe(s));
+
+/* ================= section 1: locks, engineers, days ================= */
+const LOCK_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+const UNLOCK_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>';
+function logNote(text){
+  const now=new Date();
+  const stamp=now.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '
+    +now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  const d=document.createElement('div');
+  d.className='note';
+  d.innerHTML=`<div class="nw">${stamp}</div><div class="nb"><b>System</b> — ${text}</div>`;
+  document.getElementById('noteTop').prepend(d);
+}
+document.querySelectorAll('.lockable').forEach(w=>{
+  const btn=w.querySelector('.lockbtn'), inp=w.querySelector('input,textarea');
+  btn.innerHTML=LOCK_SVG;
+  let before='';
+  btn.addEventListener('click',()=>{
+    const open=w.classList.toggle('open');
+    inp.disabled=!open;
+    btn.innerHTML=open?UNLOCK_SVG:LOCK_SVG;
+    if(open){ before=inp.value; inp.focus(); }
+    else if(inp.value!==before){
+      logNote(`${w.dataset.name} amended by ${val('assignedEng')} — "${before}" → "${inp.value}".`);
+        touch();
+    }
+  });
+  if(inp.tagName==='INPUT')
+    inp.addEventListener('keydown',e=>{ if(e.key==='Enter') btn.click(); });
+});
+const SIGNOFF=['A Patterson','E Mawdsley',"N O'Reilly"];
+function assignedChange(name){
+  document.getElementById('hdrEng').textContent=name;
+  if(SIGNOFF.includes(name)) document.getElementById('signoffEng').value=name;
+  touch();
+}
+
+/* ================= section 4: units, average mileage, zones ================= */
+let UNIT='mi';
+function setUnit(u){
+  if(u===UNIT) return;
+  const o=document.getElementById('odo');
+  const v=parseFloat(o.value)||0;
+  o.value=Math.round(u==='km'? v*1.609344 : v/1.609344);
+  UNIT=u;
+  document.getElementById('uMi').classList.toggle('on',u==='mi');
+  document.getElementById('uKm').classList.toggle('on',u==='km');
+  touch();
+}
+const FIRST_REG=new Date('2009-09-01');
+function avgMileage(){
+  const on=document.getElementById('avgTick').checked;
+  const o=document.getElementById('odo');
+  document.getElementById('avgWarn').style.display=on?'block':'none';
+  o.disabled=on;
+  if(on){
+    const yrs=(new Date()-FIRST_REG)/(365.25*864e5);
+    let mi=Math.round(yrs*7100);
+    o.value=UNIT==='km'?Math.round(mi*1.609344):mi;
+    document.getElementById('mileSrc').value='average';
+  } else {
+    o.value=UNIT==='km'?Math.round(87412*1.609344):87412;
+    document.getElementById('mileSrc').value='online_data';
+  }
+  compose(); touch();
+}
+
+/* damage zone picker */
+const ZONES=[
+ // outside rows/columns  [id,label,region, x,y,w,h]
+ ['f_ns','Front N/S corner','Left front',   85,26,40,58],
+ ['f_c','Front centre','Front',            130,26,40,58],
+ ['f_os','Front O/S corner','Right front', 175,26,40,58],
+ ['ns_wing','N/S front wing','Left front',  38,95,42,84],
+ ['ns_fdoor','N/S front door','Left side',  38,186,42,84],
+ ['ns_rdoor','N/S rear door','Left side',   38,277,42,84],
+ ['ns_qtr','N/S rear quarter','Left rear',  38,368,42,88],
+ ['os_wing','O/S front wing','Right front',220,95,42,84],
+ ['os_fdoor','O/S front door','Right side',220,186,42,84],
+ ['os_rdoor','O/S rear door','Right side', 220,277,42,84],
+ ['os_qtr','O/S rear quarter','Right rear',220,368,42,88],
+ ['r_ns','Rear N/S corner','Left rear',     85,462,40,58],
+ ['r_c','Rear centre','Rear',              130,462,40,58],
+ ['r_os','Rear O/S corner','Right rear',   175,462,40,58],
+];
+const CAR_ZONES=[
+ ['bonnet','Bonnet','Front',           97,108,106,58],
+ ['wscreen','Windscreen','Front',      99,172,102,42],
+ ['roof','Roof','Roof',                99,220,102,108],
+ ['rscreen','Rear screen','Rear',      99,334,102,40],
+ ['boot','Boot / tailgate','Rear',     97,380,106,62],
+];
+const WHEELS=[
+ ['w_nsf','N/S front wheel','Wheel(s)', 84,140],
+ ['w_osf','O/S front wheel','Wheel(s)',216,140],
+ ['w_nsr','N/S rear wheel','Wheel(s)',  84,408],
+ ['w_osr','O/S rear wheel','Wheel(s)', 216,408],
+];
+let zoneSel=new Set(['r_c','boot']);   // demo: rear impact pre-picked
+function buildCar(){
+  const svg=document.getElementById('carSvg');
+  const rr=(x,y,w,h,r,cls,id,label)=>
+    `<rect class="${cls}" data-z="${id}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}"><title>${label}</title></rect>`;
+  let out='';
+  // outside zones first
+  ZONES.forEach(([id,l,,x,y,w,h])=>out+=rr(x,y,w,h,14,'zone',id,l));
+  // car silhouette
+  out+=`<rect class="carbody" x="85" y="92" width="130" height="366" rx="34"/>
+        <path class="carline" d="M97 170 Q150 158 203 170"/>
+        <path class="carglass" d="M101 176 Q150 164 199 176 L196 212 Q150 202 104 212 Z"/>
+        <path class="carglass" d="M103 336 Q150 344 197 336 L195 372 Q150 380 105 372 Z"/>
+        <path class="carline" d="M99 444 Q150 452 201 444"/>
+        <rect class="carline" x="70" y="196" width="15" height="8" rx="2"/>
+        <rect class="carline" x="215" y="196" width="15" height="8" rx="2"/>`;
+  // on-car zones
+  CAR_ZONES.forEach(([id,l,,x,y,w,h])=>out+=rr(x,y,w,h,12,'zone oncar',id,l));
+  // wheels
+  WHEELS.forEach(([id,l,,cx,cy])=>
+    out+=`<circle class="zone" data-z="${id}" cx="${cx}" cy="${cy}" r="15"><title>${l}</title></circle>`);
+  svg.innerHTML=out;
+  svg.addEventListener('click',e=>{
+    const z=e.target.closest('[data-z]'); if(!z) return;
+    const id=z.dataset.z;
+    zoneSel.has(id)?zoneSel.delete(id):zoneSel.add(id);
+    paintZones(); zonesToLoc(); touch();
+  });
+  paintZones();
+}
+const ALLZ=[...ZONES,...CAR_ZONES,...WHEELS];
+function paintZones(){
+  document.querySelectorAll('#carSvg [data-z]').forEach(el=>
+    el.classList.toggle('on',zoneSel.has(el.dataset.z)));
+  const chips=document.getElementById('zoneChips');
+  if(!zoneSel.size){chips.innerHTML='<span class="zc none">No zones selected</span>';return;}
+  chips.innerHTML=[...zoneSel].map(id=>{
+    const z=ALLZ.find(a=>a[0]===id); return `<span class="zc">${z[1]}</span>`;}).join('');
+}
+function zonesToLoc(){
+  const regions=[...new Set([...zoneSel].map(id=>ALLZ.find(a=>a[0]===id)[2]))];
+  S.regions=regions;
+  const sel=document.getElementById('loc');
+  if(regions.length===1){ sel.value=regions[0]; sel.disabled=false; }
+  else if(regions.length>1){ sel.disabled=true; }   // listed lines take over
+  else { sel.disabled=false; }                       // nothing picked — manual
+  compose();
+}
+
+/* value increases */
+const INCS=[
+ {id:'tow',   label:'Tow bar',            sug:300},
+ {id:'pco',   label:'PCO plated',         sug:1500},
+ {id:'dec',   label:'Decals',             sug:500},
+ {id:'vat',   label:'VAT (on commercial)',pct:20},
+ {id:'camp',  label:'Camper conversion',  sug:0},
+ {id:'tuit',  label:'Driving tuition',    sug:500},
+ {id:'oth1',  label:'',                   sug:0, other:true},
+ {id:'oth2',  label:'',                   sug:0, other:true},
+];
+function renderIncs(){
+  const g=document.getElementById('incGrid');
+  const vatBlocked = val('claimantVat')==='VAT registered';
+  g.innerHTML=INCS.map(i=>{
+    const blocked = i.pct && vatBlocked;
+    return `
+    <div class="inc${blocked?' blocked':''}" ${blocked?'title="Claimant is VAT registered — VAT cannot be added to the value."':''}>
+      <input type="checkbox" id="inc_${i.id}" ${blocked?'disabled':''}>
+      ${i.other
+        ? `<input class="ilab" id="lab_${i.id}" placeholder="Other…">`
+        : `<span class="il">${i.label}${blocked?' <span class="chip c-warn">CLAIMANT VAT REG</span>':''}</span>`}
+      ${i.pct
+        ? `<span class="pct">+${i.pct}%</span>`
+        : `<input class="iamt" id="amt_${i.id}" type="number" value="${i.sug}">`}
+    </div>`;}).join('');
+  INCS.forEach(i=>{
+    document.getElementById('inc_'+i.id).addEventListener('change',()=>{adjWork();touch();});
+    if(!i.pct) document.getElementById('amt_'+i.id).addEventListener('input',()=>{adjWork();touch();});
+    if(i.other) document.getElementById('lab_'+i.id).addEventListener('input',()=>{adjWork();});
+  });
+}
+function regateVat(){
+  const st=INCS.map(i=>({id:i.id,
+    on:document.getElementById('inc_'+i.id)?.checked||false,
+    amt:i.pct?null:val('amt_'+i.id), lab:i.other?val('lab_'+i.id):null}));
+  renderIncs();
+  const vatBlocked = val('claimantVat')==='VAT registered';
+  st.forEach(x=>{
+    const i=INCS.find(a=>a.id===x.id);
+    const cb=document.getElementById('inc_'+x.id);
+    cb.checked = (i.pct&&vatBlocked)?false:x.on;   // force-untick blocked VAT
+    if(!i.pct) document.getElementById('amt_'+x.id).value=x.amt;
+    if(i.other) document.getElementById('lab_'+x.id).value=x.lab;
+  });
+  adjWork();
+}
+function activeIncs(){
+  return INCS.filter(i=>document.getElementById('inc_'+i.id).checked).map(i=>({
+    label: i.other ? (val('lab_'+i.id)||'Other') : i.label,
+    pct: i.pct||null,
+    amt: i.pct?null:(parseFloat(val('amt_'+i.id))||0)
+  }));
+}
+
+/* valuation adjustments */
+let PTL=10;
+function setPtl(p){ PTL=p;
+  document.querySelectorAll('#ptlSeg button').forEach(b=>b.classList.toggle('on',+b.dataset.p===p));
+  adjWork(); }
+function adjCalc(){
+  const base=S.guide.retail;
+  if(base==null) return null;
+  const incs=activeIncs();
+  let sub=base;
+  const pctIncs=incs.filter(i=>i.pct);
+  pctIncs.forEach(i=>{ i.calc=Math.round(base*i.pct/100); sub+=i.calc; });   // 1. VAT on guide value
+  const ptlOn=document.getElementById('ptlTick').checked;
+  let ptlAmt=0;
+  if(ptlOn){ ptlAmt=Math.round(sub*PTL/100); sub-=ptlAmt; }                  // 2. prev. total loss on VAT-inc value
+  const fixed=incs.filter(i=>!i.pct).reduce((s,i)=>s+i.amt,0);
+  sub+=fixed;                                                                // 3. extras
+  const ded=parseFloat(val('adjDed'))||0;
+  sub-=ded;                                                                  // 4. condition deduction
+  return {base,incs,ded,ptlOn,ptlAmt,out:Math.round(sub)};
+}
+function adjWork(){
+  const w=document.getElementById('adjWorking');
+  const c=adjCalc();
+  document.getElementById('ptlSeg').classList.toggle('live',document.getElementById('ptlTick').checked);
+  if(!c){ w.innerHTML='<em>Select a guide with a retail figure first.</em>';
+    document.getElementById('adjApply').disabled=true; return; }
+  const bits=[`£${c.base.toLocaleString()}`];
+  c.incs.filter(i=>i.pct).forEach(i=>bits.push(`+ ${i.pct}% VAT <em>(£${i.calc.toLocaleString()})</em>`));
+  if(c.ptlOn) bits.push(`− ${PTL}% <em>(prev. TL, £${c.ptlAmt.toLocaleString()})</em>`);
+  c.incs.filter(i=>!i.pct).forEach(i=>bits.push(`+ ${i.label} £${i.amt.toLocaleString()}`));
+  if(c.ded) bits.push(`− £${c.ded.toLocaleString()} <em>(condition)</em>`);
+  w.innerHTML = bits.length>1 ? bits.join(' ')+` = <b>£${c.out.toLocaleString()}</b>`
+    : `<em>Retail £${c.base.toLocaleString()} — no adjustments entered.</em>`;
+  document.getElementById('adjApply').disabled = bits.length<2;
+  // report commentary
+  const cw=document.getElementById('valCommWrap');
+  if(document.getElementById('valComm').checked && bits.length>1){
+    cw.style.display='block';
+    const disclose=document.getElementById('discloseSrc').checked;
+    const lines=[`${disclose?S.guide.name+' retail value':'Guide retail value'}: £${c.base.toLocaleString()}`];
+    c.incs.filter(i=>i.pct).forEach(i=>lines.push(`VAT applicable (claimant not VAT registered): +£${i.calc.toLocaleString()}`));
+    if(c.ptlOn) lines.push(`Deduction for previous total loss history (${PTL}%): −£${c.ptlAmt.toLocaleString()}`);
+    c.incs.filter(i=>!i.pct).forEach(i=>lines.push(`${i.label}: +£${i.amt.toLocaleString()}`));
+    if(c.ded) lines.push(`Deduction for condition: −£${c.ded.toLocaleString()}`);
+    lines.push(`Engineer's assessed pre-accident value: £${c.out.toLocaleString()}`);
+    document.getElementById('valCommSent').innerHTML=lines.join('<br>');
+  } else cw.style.display='none';
+}
+function applyAdj(){
+  const c=adjCalc(); if(!c) return;
+  engEdit('pav', String(c.out));
+  logNote(`Engineer's value set from ${S.guide.name} retail: £${c.base.toLocaleString()}`+
+    c.incs.map(i=>i.pct?` + ${i.pct}% VAT`:` + ${i.label} £${i.amt.toLocaleString()}`).join('')+
+    (c.ded?` − £${c.ded.toLocaleString()}`:'')+(c.ptlOn?` − ${PTL}% previous total loss`:'')+
+    ` = £${c.out.toLocaleString()}.`);
+}
+document.getElementById('adjDed').addEventListener('input',()=>{adjWork();touch();});
+document.getElementById('ptlTick').addEventListener('change',()=>{adjWork();touch();});
+
+/* init */
+
+/* init */
+vatDefaults(); renderImgs(); renderGrid(); renderBrian(); buildCar(); zonesToLoc(); renderIncs(); compose(); composeLoc(); composeStorage(); adjWork();
+</script>
+</body>
+</html>
