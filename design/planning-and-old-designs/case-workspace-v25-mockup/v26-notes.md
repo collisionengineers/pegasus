@@ -86,6 +86,48 @@ session states and a guarded close. v26 reproduces the live rules:
    is stated once per section.
 5. Read mode shows values, never empty inputs or unapplied options.
 
+## Shell pages — `pegasus_shell_v26.html`
+
+Every rail destination is mocked in a second file that shares the Case
+record's tokens and shell. Its routes are hash routes; the Case record opens
+from any list as `pegasus_case_workspace_v26.html`, and that page's rail,
+workspace tabs, New case button and search box come back to the shell.
+
+| Route | Page |
+| --- | --- |
+| `#/` | Work Centre: five attention metrics, Needs attention list, Today pane with the next permitted action |
+| `#/inbox`, `#/inbox/{id}` | Inbox with scopes, mailbox / folder / queue filters, message preview; the message record with Message, Attachments, Thread and Case tabs and the Decision card |
+| `#/upload` | Upload with the live accepted-file line; `?sample=1` lands the six-outcome sample submission |
+| `#/cases` | Workflow rail (Workflow, Pre-Case work, Exceptions), scope list, Quick detail; Triage, Awaiting instruction, Held and Unidentified scopes |
+| `#/cases/new` | Create case with the live field set (Claim number, Claim Source, Mileage and unit, Inspection date) |
+| `#/triage/{id}`, `#/unidentified/{id}`, `#/images/{id}` | The three pre-Case records with their dialogs |
+| `#/search` | Case or reference, Registration, Claimant, Claim reference, Principal, State; More filters; Case results with the Vehicle column; Selected Case |
+| `#/operations` | AI Job List, Attention required, Active upload links, EVA handoffs |
+| `#/admin` | The hub with the live three groups; Staff accounts & roles (with the Glass's column and Manage login from the account), Contacts (principals, claim sources, repairers, storage, third party engineers, salvage agents), Workflow configuration, Mail settings (Default sender, mailboxes, categories), Valuation presets (Fixed valuation additions), Service health, Action logs, Reports (MI01–MI03), AI jobs, Automation & AI |
+| `#/signin`, `#/uploads/{token}` | The navless frames |
+
+**How it was built.** The pages are the EPIC-012 v2 prototype modules from the
+private pack, concatenated with the vendor name replaced by "AI", the Case
+route handed to the v26 file, and a recorded list of exact-string corrections so
+each page carries the labels, groupings and columns the live Razor pages have
+on `origin/dev` (12 September inventory of `Pages/*.cshtml` and the
+`OperatorLabels` constants). The corrections are one list, applied by the
+build, each asserted to match exactly once. Sources stay in the pack; the file
+is self-contained.
+
+**Where the mockup deliberately differs from live.** Case lists are tables,
+not row-buttons (denser; the earlier design choice). Operations keeps the
+Recipient, Created and Files columns on upload links. Staff accounts show a
+Glass's column so the whole picture is on one screen; live reaches the
+credential only from the account. Contacts fold Principals in as a type with
+the code, as live does, but principal settings still open the prototype's
+principal dialog.
+
+**Self-check.** `v26-shell-selfcheck.html` renders every route, opens and
+closes every dialog, and drives the main flows; run it the same way as the
+Case record's check. 12 September: `{"fail":[],"okCount":100}`, no console
+errors on any of the 29 rendered routes (`v26-shots/s*.png`).
+
 ## Decisions that need sign-off before Stage 2
 
 Everything in `v25-notes.md` A–F still stands. New:
@@ -101,6 +143,13 @@ Everything in `v25-notes.md` A–F still stands. New:
   per-section lease is not wanted.
 - **K. Evidence strip in Damage** is read-only here; tagging and crop stay in
   Files. Confirm, or ask for tags on the strip.
+- **L. Case lists as tables.** Live renders row-buttons; the mockup keeps the
+  table. Confirm the table for Stage 2, or keep the row-button list.
+- **M. Glass's column on Staff accounts.** An overview the live page does not
+  have. Confirm, or keep the credential behind the account only.
+- **N. Two files.** The shell and the Case record are separate files here; in
+  Stage 2 they are one application. Nothing to decide unless a page is
+  missing from the table above.
 
 ## Self-check
 

@@ -32,8 +32,10 @@ switches the Case's lifecycle state so each availability rule can be exercised.
 | `v25-notes.md` | Design decisions taken and their authority, and the list of items still needing operator sign-off before Stage 2 implementation begins. |
 | `discussion-log.md` | Chronological record of the request, the exploration, and each round of operator feedback that shaped the mockup. |
 | `v25-shots/` | Headless-Chromium screenshots taken across the v25 session's iterations, at 1580, 1440 and 760px. |
+| `pegasus_shell_v26.html` | Every other page in the rail (Work Centre, Inbox, Upload, Cases, Search, Operations, Administration and the pre-Case records) on the same shell; opens the Case record file from any list. |
+| `v26-shell-selfcheck.html` | Scripted check that renders every shell route, opens every dialog and drives the main flows; see `v26-notes.md` § Shell pages. |
 | `v26-selfcheck.html` | Scripted check that drives every v26 section, state and interaction in a headless browser; see `v26-notes.md` § Self-check. |
-| `v26-shots/` | Headless-Chromium screenshots of every v26 state (lifecycle, Glass's session, decisions, breakpoints). |
+| `v26-shots/` | Headless-Chromium screenshots of every v26 state (lifecycle, Glass's session, decisions, breakpoints) and, as `s*.png`, every shell route. |
 
 ## Status
 

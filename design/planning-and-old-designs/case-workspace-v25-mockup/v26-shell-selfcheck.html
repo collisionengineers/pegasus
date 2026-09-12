@@ -1,0 +1,41 @@
+<!DOCTYPE html><html><body>
+<iframe id="f" src="pegasus_shell_v26.html#/" style="width:1580px;height:1000px"></iframe>
+<pre id="out">PENDING</pre>
+<script>
+const log=[],ok=[];const f=document.getElementById('f');
+function check(name,cond){(cond?ok:log).push((cond?'OK ':'FAIL ')+name);}
+f.onload=()=>{
+  const w=f.contentWindow,d=f.contentDocument;
+  w.addEventListener('error',e=>log.push('ERR '+e.message+' @'+e.lineno));
+  const g=x=>w.eval('with(window.__pegasus){'+x+'}');
+  const $=id=>d.getElementById(id);
+  const has=t=>d.getElementById('app').textContent.includes(t);
+  const route=r=>{w.location.hash=r;g('render()');};
+  const dlgOpen=()=>!!d.querySelector('#dialog-root .dialog');
+  const dlgClose=()=>g('closeDialog()');
+  try{
+    const ROUTES=[['/', 'Work Centre'],['/inbox','Inbox'],['/inbox/m4','Enclosing Inspection Request'],['/upload','Upload'],['/cases','Workflow'],['/cases?tab=review','Review'],['/cases?tab=with-engineer','With Engineer'],['/cases?tab=complete','Completed'],['/cases?tab=triage','Triage'],['/cases?tab=awaiting','Awaiting instruction'],['/cases?tab=held','Held'],['/cases?tab=unidentified','Unidentified'],['/cases/new','Create case'],['/triage/t1','FA16VEX'],['/triage/t2','LX10XTJ'],['/triage/t3','KN22XKD'],['/unidentified/u1','U34'],['/unidentified/u2','U35'],['/unidentified/u4','U33'],['/images/ic1','WR68PBY-01'],['/images/ic2','A28LAM-01'],['/search','Search'],['/search?claimant=a','Case results'],['/operations','AI Job List'],['/admin','People and access'],['/admin/accounts','Staff accounts'],['/admin/contacts','Contacts'],['/admin/configuration','Labour-rate cards'],['/admin/mail','Default sender'],['/admin/valuation-presets','Fixed valuation additions'],['/admin/health','Service health'],['/admin/action-logs','Action logs'],['/admin/reports','Turnaround'],['/admin/ai-jobs','AI jobs'],['/admin/automation','AI settings'],['/signin','Sign in'],['/uploads/7Hq2','Secure file request'],['/nowhere','Record not found']];
+    for(const [r,t] of ROUTES){route(r);check('route '+r,has(t));}
+    check('no vendor name in copy',!/Claude/.test(d.getElementById('app').textContent));
+    // every dialog opens and closes without throwing
+    route('/admin/accounts');
+    const dialogArgs={'account-settings':{id:'s2'},'account-reset':{id:'s2'},'account-disable':{id:'s2'},'account-enable':{id:'s6'},'principal-settings':{id:'p1'},'principal-key':{id:'p1'},'principal-replace':{id:'p1'},'rate-card-disable':{id:'rc1'},'mailbox-settings':{id:'mb1'},'mailbox-folders':{id:'mb1'},'category-state':{id:'cat1'},'glass-credentials':{id:'gs2'},'glass-clear':{id:'gs2'},'contact-edit':{id:'k1'},'preset-edit':{id:'vp1'},'preset-remove':{id:'vp1'},'ai-cancel':{id:'ai1'},'withdraw-link':{case:'c99',link:'ul99'},'triage-finding':{id:'t2'},'triage-assign':{id:'t2'},'triage-cancel':{id:'t2'},'triage-reopen':{id:'t1'},'triage-link':{id:'t2'},'triage-note':{id:'t2'},'unidentified-resolve':{id:'u2'},'image-merge':{id:'ic1'},'image-close':{id:'ic1'},'mail-classify':{mail:'m4'},'mail-move':{mail:'m19'},'mail-delete':{mail:'m4'},'compose':{mode:'compose'},'mail-link':{mail:'m21'},'add-to-case':{file:'x'},'upload-request':{},'viewer':{name:'x.jpg'},'palette':{},'add':{},'notifications':{},'account':{},'default-sender':{},'token-remove':{},'automation-stop':{},'automation-start':{},'send-unidentified':{},'rate-card-create':{},'mailbox-add':{},'category-add':{},'account-create':{},'principal-create':{}};
+    for(const name of Object.keys(g('DIALOGS'))){try{g('openDialog')(name,dialogArgs[name]||{});check('dialog '+name,dlgOpen());dlgClose();}catch(e){log.push('EXC dialog '+name+': '+e.message);}}
+    // key flows
+    route('/');g("ACTIONS['select-work']({dataset:{id:'case-c99'}})");check('work centre selects QDOS26214',has('QDOS26214'));
+    route('/inbox');g("ACTIONS['inbox-scope']({dataset:{scope:'unread'}})");check('inbox unread scope',g("S.inbox.scope")==='unread');
+    g("ACTIONS['inbox-scope']({dataset:{scope:'all'}})");g("ACTIONS['select-mail']({dataset:{id:'m99'}})");check('inbox preview QDOS26214 mail',has('hire confirmation'));
+    route('/upload');g("ACTIONS['upload-sample']()");check('sample staged',g('S.upload.files.length')===6);g("ACTIONS['upload-submit']()");
+    route('/cases');g("ACTIONS['select-case']({dataset:{id:'c99'}},{target:document.body})");
+    route('/cases?tab=unidentified');g("ACTIONS['select-case']({dataset:{id:'u1'}},{target:document.body})");check('unidentified quick detail',has('No usable identification'));
+    route('/search?claimant=Carter');check('search finds QDOS26214',has('QDOS26214'));
+    route('/admin/contacts');g("S.contactFilter.type='Principal'");g('render()');check('contacts filter principals',!has('Copart Sandwich')&&has('QDOS'));g("S.contactFilter.type=''");
+    route('/admin/valuation-presets');const n0=g('DATA.valuationPresets.length');g("DATA.valuationPresets.push({id:'vpx',name:'Test',amount:1,state:'active'})");g('render()');check('preset added renders',has('Test'));g("DATA.valuationPresets.pop()");
+    route('/admin/accounts');g("openDialog('glass-credentials',{id:'gs4'})");check('glass dialog for unconfigured engineer',dlgOpen()&&!d.querySelector('#dialog-root').textContent.includes('Clear credential'));dlgClose();
+    g("ACTIONS['rail-toggle']()");check('rail collapsed',d.querySelector('.app-shell').classList.contains('rail-collapsed'));g("ACTIONS['rail-toggle']()");
+    check('case tab present',!!d.querySelector('.workspace-tab[href="#/cases/c99"]'));
+    check('case route hands off',typeof w.__pegasus.renderCase==='function'&&w.__pegasus.caseHref({section:'estimate'})==='pegasus_case_workspace_v26.html?layout=tabs&section=estimate');
+  }catch(e){log.push('EXC '+e.message+'\n'+e.stack);}
+  setTimeout(()=>{document.getElementById('out').textContent='RESULT '+JSON.stringify({fail:log,okCount:ok.length});},1500);
+};
+</script></body></html>

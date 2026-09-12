@@ -197,9 +197,24 @@ Alex: *"okay go for it."* v26 was built as the same single file (see `v26-notes.
 rendered across 22 states into `v26-shots/`, and committed on
 `task/case-workspace-v26-mockup` off `dev`.
 
+## 9. 12 September — every page mocked
+
+Alex: *"thats what i meant. i want everything mocked"*, after the self-check report had
+said the rail's other destinations were placeholder links.
+
+Two agents inventoried every routed Razor page on `origin/dev` (headings, controls,
+columns, chips, empty states, onward links, admin groups and role gates). The pack's
+EPIC-012 v2 prototype already had the same pages on the same tokens, so the shell was
+built from those modules with a recorded correction list against the inventories, the
+vendor name replaced, and the Case route handed to the v26 file. The administration
+hub, its three-group navigation, Contacts absorbing Principals, AI jobs, the three
+Reports panels, Default sender, Valuation presets and the Glass's login reached from
+the account were added to match live. `pegasus_shell_v26.html`, `v26-shell-selfcheck.html`
+and the `s*.png` shots were committed on the same branch.
+
 ## Outstanding
 
-Stage 1 is at v26; it has not yet been given final approval to proceed to Stage 2 (the
+Stage 1 is at v26 with every page mocked; it has not yet been given final approval to proceed to Stage 2 (the
 Razor implementation). Sign-off items A–F (`v25-notes.md`) and G–K (`v26-notes.md`)
 are open. This folder is temporary per `docs/index.md`'s carve-out — remove it once
 Stage 2 lands or the design is formally accepted or rejected.
