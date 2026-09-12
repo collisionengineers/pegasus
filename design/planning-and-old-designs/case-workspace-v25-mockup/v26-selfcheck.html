@@ -50,6 +50,11 @@ f.onload=()=>{
     w.stepViewer(1);check('viewer steps',$('vwName').textContent==='Rear straight');w.rotateViewer();check('viewer rotates',$('vwImg').style.transform.includes('rotate(90deg)'));w.zoomViewer();check('viewer zooms',$('vwStage').classList.contains('is-zoomed'));
     check('viewer include control while editing',!!d.querySelector('#vwTools input[type=checkbox]'));const inc=d.querySelector('#vwTools input');inc.checked=!inc.checked;fire(inc,'change');check('viewer include toggles report set',g("imgState")[1].on===inc.checked);inc.checked=!inc.checked;fire(inc,'change');
     check('viewer strip has every image',$('vwStrip').children.length===12);w.closeViewer();check('viewer closes',$('viewer').hidden);
+    d.querySelector('#thumbs3 .th').click();w.cropViewer();check('crop mode shows layer',!!$('vwCrop')&&$('vwStage').classList.contains('is-cropping'));
+    g('VW.sel={x:.2,y:.3,w:.5,h:.4}');w.applyCrop();check('crop applied to image',JSON.stringify(g('imgState')[0].crop)==='{"x":0.2,"y":0.3,"w":0.5,"h":0.4}'&&$('vwImg').style.clipPath.startsWith('inset('));
+    check('cropped thumb repositions',d.querySelector('#thumbs .th').style.backgroundSize!=='');
+    w.setTag(0,'Close-up');check('tag set from viewer',g('TAGS')[0]==='Close-up'&&$('vwTag').textContent==='Close-up'&&d.querySelector('#thumbs .th .tag').textContent==='Close-up');w.setTag(0,'Overview');
+    w.clearCrop();check('crop cleared',!g('imgState')[0].crop&&$('vwImg').style.clipPath==='');w.closeViewer();
     check('report thumbs carry photos',d.querySelector('#thumbs .th').style.backgroundImage.includes('data:image/svg'));
     // working set
     w.mockTabs(9);check('nine open shows six tabs and more',d.querySelectorAll('#tabs .workspace-tab').length===6&&d.querySelector('#tabs .tabs-more summary').textContent.includes('3 more'));

@@ -741,6 +741,23 @@ body[data-tabs-place="band"] .record,body[data-tabs-place="crumb"] .record,body[
 .mock .mrow .sep{width:1px;height:16px;background:#4a5157;margin:0 2px}
 .mock .mrow b.sub{min-width:0;margin-left:2px;color:#7d878c}
 
+/* ---- viewer crop and tag ---- */
+.viewer-stage{position:relative}
+.viewer-stage.is-cropping{cursor:crosshair}
+.viewer-stage.is-cropping img{transition:none}
+.crop-layer{position:absolute;cursor:crosshair;touch-action:none;z-index:2}
+.crop-sel{position:absolute;border:1px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.55);pointer-events:none}
+.crop-sel[hidden]{display:none}
+.crop-sel::after{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.35) 1px,transparent 1px);background-size:33.34% 33.34%}
+.viewer-hint{font-size:12px;color:#aab2b8;margin-right:6px}
+.viewer-tag{height:28px;font-size:12px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:3px;padding:0 6px}
+.viewer-tag option{color:#000}
+.gallery-item .tag{position:absolute;top:4px;left:5px;font:600 9px var(--font);padding:1px 6px;border-radius:999px;background:rgba(255,255,255,.92);color:var(--ink)}
+.gallery-item img{transform-origin:center center}
+.stack{grid-template-columns:minmax(0,1fr)}
+.definition dd{min-width:0;overflow-wrap:anywhere}
+.viewer-stage img{transform-origin:center center}
+
 </style>
 </head>
 <body>
@@ -2999,20 +3016,41 @@ const renderMockBase = renderMock;
 renderMock = function (path) { renderMockBase(path); const el = document.getElementById('mock'); if (!el) return; const n = S.openRecords.length;
   el.insertAdjacentHTML('beforeend', mockRow('Tabs', [0, 1, 4, 9].map(k => mockBtn(k === 0 ? 'None' : k + ' open', n === k, 'mock-tabs', { n: k })).join('')) + tabOptionRows(([k, v, label]) => { const on = (k === 'wc' || k === 'open') ? !!+TABOPT[k] : String(TABOPT[k]) === v; const val = (k === 'wc' || k === 'open') ? (on ? '0' : '1') : v; return mockBtn(label, on, 'mock-tabopt', { o: `${k}:${val}` }); })); };
 
-/* ---- v26: image viewer (real stage, navigation across the record's images) ---- */
+/* ---- v26: image viewer (real stage, navigation across the record's images, crop and tag) ---- */
 const PREVIEW_CACHE = {};
+const IMG_TAGS = ['Overview', 'Close-up', 'Supporting', 'Third party'];
+S.imageEdits = {};
 function previewFor(name, i) { return PREVIEW_CACHE[name] || (PREVIEW_CACHE[name] = previewSrc(name, i == null ? name.length : i)); }
-ACTIONS['preview-doc'] = el => { const g = el.closest('.gallery'); const list = g ? [...g.querySelectorAll('[data-name]')].map(b => b.dataset.name) : []; openDialog('viewer', { name: el.dataset.name, list, rot: 0, zoom: false }); };
+function imgEdit(name) { return S.imageEdits[name] || (S.imageEdits[name] = {}); }
+function cropFit(img, c, boxW, boxH) { if (!c) { img.style.clipPath = ''; return ''; } const W = img.clientWidth, H = img.clientHeight; if (!W || !H) return ''; const k = Math.min(boxW / (c.w * W), boxH / (c.h * H)); const tx = -k * (c.x + c.w / 2 - .5) * W, ty = -k * (c.y + c.h / 2 - .5) * H; img.style.clipPath = `inset(${c.y * 100}% ${(1 - c.x - c.w) * 100}% ${(1 - c.y - c.h) * 100}% ${c.x * 100}%)`; return `translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${k.toFixed(3)})`; }
+function cropBg(c) { if (!c) return ''; const S = 100 / Math.min(c.w, c.h); const p = (o, s) => S <= 100.0001 ? 50 : 100 * (50 - (o + s / 2) * S) / (100 - S); return `background-size:${S}% ${S}%;background-position:${p(c.x, c.w)}% ${p(c.y, c.h)}%`; }
+ACTIONS['preview-doc'] = el => { const g = el.closest('.gallery'); const list = g ? [...g.querySelectorAll('[data-name]')].map(b => b.dataset.name) : []; openDialog('viewer', { name: el.dataset.name, list, rot: 0, zoom: false, crop: false, sel: null }); };
 DIALOGS.viewer = d => {
-  const list = d.list && d.list.length ? d.list : [d.name || 'Evidence']; const i = Math.max(0, list.indexOf(d.name)); const name = list[i]; const isDoc = /\.(pdf|docx?|xlsx?|msg|eml|txt)$/i.test(name); const many = list.length > 1;
-  return { head: false, cls: 'dialog--viewer', foot: '', body: `<div class="viewer-top" tabindex="-1" autofocus><div class="viewer-title"><b>${esc(name)}</b>${many ? `<span class="viewer-n">${i + 1} of ${list.length}</span>` : ''}</div><div class="viewer-tools">${isDoc ? '' : `<button type="button" class="btn btn--small" data-action="viewer-rotate">${icon('rotate-cw')}<span>Rotate</span></button>`}<button type="button" class="btn btn--small" data-action="viewer-zoom">${icon('zoom-in')}<span>${d.zoom ? 'Fit' : 'Zoom'}</span></button><a class="btn btn--small" href="${previewFor(name, i)}" download="${attr(name)}">${icon('download')}<span>Download</span></a></div>${iconButton('x', 'dialog-close', 'Close')}</div>${many ? `<button type="button" class="viewer-nav prev" data-action="viewer-step" data-d="-1" aria-label="Previous">${icon('chevron-left')}</button>` : ''}<div class="viewer-stage${d.zoom ? ' is-zoomed' : ''}" data-action="viewer-zoom"><img src="${previewFor(name, i)}" alt="${attr(name)}" style="transform:rotate(${d.rot || 0}deg) scale(${d.zoom ? 2 : 1})"></div>${many ? `<button type="button" class="viewer-nav next" data-action="viewer-step" data-d="1" aria-label="Next">${icon('chevron-right')}</button><div class="viewer-strip">${list.map((n, k) => `<button type="button" class="${k === i ? 'on' : ''}" data-action="viewer-go" data-name="${attr(n)}" style="background-image:url('${previewFor(n, k)}')" aria-label="${attr(n)}" title="${attr(n)}"></button>`).join('')}</div>` : ''}` };
+  const list = d.list && d.list.length ? d.list : [d.name || 'Evidence']; const i = Math.max(0, list.indexOf(d.name)); const name = list[i]; const isDoc = /\.(pdf|docx?|xlsx?|msg|eml|txt)$/i.test(name); const many = list.length > 1; const ed = imgEdit(name);
+  const b = (action, ic, label, cls = '') => `<button type="button" class="btn btn--small ${cls}" data-action="${action}">${icon(ic)}<span>${label}</span></button>`;
+  const tools = d.crop ? `<span class="viewer-hint">Drag over the image</span>${d.sel ? b('viewer-crop-apply', 'check', 'Apply crop', 'btn--primary') : ''}${ed.crop ? b('viewer-crop-clear', 'x', 'Clear crop') : ''}${b('viewer-crop-cancel', 'chevron-left', 'Cancel')}`
+    : `${isDoc ? '' : b('viewer-rotate', 'rotate-cw', 'Rotate')}${b('viewer-zoom', 'zoom-in', d.zoom ? 'Fit' : 'Zoom')}${isDoc ? '' : b('viewer-crop', 'image', ed.crop ? 'Crop · set' : 'Crop')}<a class="btn btn--small" href="${previewFor(name, i)}" download="${attr(name)}">${icon('download')}<span>Download</span></a>${isDoc ? '' : `<select class="viewer-tag" aria-label="Tag" data-change="viewer-tag"><option value="">No tag</option>${IMG_TAGS.map(t => `<option${ed.tag === t ? ' selected' : ''}>${t}</option>`).join('')}</select>`}`;
+  return { head: false, cls: 'dialog--viewer', foot: '', body: `<div class="viewer-top" tabindex="-1" autofocus><div class="viewer-title"><b>${esc(name)}</b>${ed.tag ? `<span class="tag">${esc(ed.tag)}</span>` : ''}${many ? `<span class="viewer-n">${i + 1} of ${list.length}</span>` : ''}</div><div class="viewer-tools">${tools}</div>${iconButton('x', 'dialog-close', 'Close')}</div>${many ? `<button type="button" class="viewer-nav prev" data-action="viewer-step" data-d="-1" aria-label="Previous">${icon('chevron-left')}</button>` : ''}<div class="viewer-stage${d.zoom ? ' is-zoomed' : ''}${d.crop ? ' is-cropping' : ''}" id="vwStage" ${d.crop ? '' : 'data-action="viewer-zoom"'}><img id="vwImg" src="${previewFor(name, i)}" alt="${attr(name)}">${d.crop ? '<div class="crop-layer" id="vwCrop"><div class="crop-sel" id="vwSel" hidden></div></div>' : ''}</div>${many ? `<button type="button" class="viewer-nav next" data-action="viewer-step" data-d="1" aria-label="Next">${icon('chevron-right')}</button><div class="viewer-strip">${list.map((n, k) => `<button type="button" class="${k === i ? 'on' : ''}" data-action="viewer-go" data-name="${attr(n)}" style="background-image:url('${previewFor(n, k)}');${cropBg(imgEdit(n).crop)}" aria-label="${attr(n)}" title="${attr(n)}"></button>`).join('')}</div>` : ''}`,
+    mounted: root => { const img = root.querySelector('#vwImg'), st = root.querySelector('#vwStage'); const fit = () => { const c = d.crop ? null : ed.crop; const rotated = (d.rot || 0) % 180 !== 0; const boxW = (rotated ? st.clientHeight : st.clientWidth) - 28, boxH = (rotated ? st.clientWidth : st.clientHeight) - 28; if (rotated) { img.style.maxWidth = st.clientHeight + 'px'; img.style.maxHeight = st.clientWidth + 'px'; } const tr = cropFit(img, c, boxW, boxH); img.style.transform = `rotate(${d.rot || 0}deg) ${d.zoom ? 'scale(2)' : tr}`; const layer = root.querySelector('#vwCrop'); if (layer) { const r = img.getBoundingClientRect(), s = st.getBoundingClientRect(); Object.assign(layer.style, { left: (r.left - s.left) + 'px', top: (r.top - s.top) + 'px', width: r.width + 'px', height: r.height + 'px' }); } drawSel(root); };
+      img.onload = fit; fit(); requestAnimationFrame(fit); const layer = root.querySelector('#vwCrop'); if (layer) bindCrop(layer, root); } };
 };
-ACTIONS['viewer-step'] = el => { const d = S.dialog.data; const list = d.list; const i = list.indexOf(d.name); d.name = list[(i + Number(el.dataset.d) + list.length) % list.length]; d.rot = 0; d.zoom = false; renderDialog(); };
-ACTIONS['viewer-go'] = el => { const d = S.dialog.data; d.name = el.dataset.name; d.rot = 0; d.zoom = false; renderDialog(); };
+function drawSel(root) { const sel = root.querySelector('#vwSel'); if (!sel) return; const c = S.dialog.data.sel; sel.hidden = !c; if (!c) return; Object.assign(sel.style, { left: c.x * 100 + '%', top: c.y * 100 + '%', width: c.w * 100 + '%', height: c.h * 100 + '%' }); }
+function bindCrop(layer, root) { let start = null; const pt = e => { const r = layer.getBoundingClientRect(); return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))]; }; const d = S.dialog.data;
+  layer.addEventListener('pointerdown', e => { start = pt(e); layer.setPointerCapture(e.pointerId); d.sel = { x: start[0], y: start[1], w: 0, h: 0 }; drawSel(root); e.preventDefault(); });
+  layer.addEventListener('pointermove', e => { if (!start) return; const p = pt(e); d.sel = { x: Math.min(start[0], p[0]), y: Math.min(start[1], p[1]), w: Math.abs(p[0] - start[0]), h: Math.abs(p[1] - start[1]) }; drawSel(root); });
+  const end = () => { if (!start) return; start = null; if (d.sel && (d.sel.w < .02 || d.sel.h < .02)) d.sel = null; renderDialog(); };
+  layer.addEventListener('pointerup', end); layer.addEventListener('pointercancel', end); }
+ACTIONS['viewer-step'] = el => { const d = S.dialog.data; const list = d.list; const i = list.indexOf(d.name); d.name = list[(i + Number(el.dataset.d) + list.length) % list.length]; d.rot = 0; d.zoom = false; d.crop = false; d.sel = null; renderDialog(); };
+ACTIONS['viewer-go'] = el => { const d = S.dialog.data; d.name = el.dataset.name; d.rot = 0; d.zoom = false; d.crop = false; d.sel = null; renderDialog(); };
 ACTIONS['viewer-rotate'] = () => { const d = S.dialog.data; d.rot = ((d.rot || 0) + 90) % 360; renderDialog(); };
-ACTIONS['viewer-zoom'] = () => { const d = S.dialog.data; d.zoom = !d.zoom; renderDialog(); };
-document.addEventListener('keydown', e => { if (!S.dialog || S.dialog.type !== 'viewer') return; const d = S.dialog.data; const many = d.list && d.list.length > 1; if (e.key === 'ArrowRight' && many) ACTIONS['viewer-step']({ dataset: { d: 1 } }); else if (e.key === 'ArrowLeft' && many) ACTIONS['viewer-step']({ dataset: { d: -1 } }); else if (e.key === 'r' || e.key === 'R') ACTIONS['viewer-rotate'](); else if (e.key === 'z' || e.key === 'Z') ACTIONS['viewer-zoom'](); });
-AFTER_RENDER.push(() => { document.querySelectorAll('.gallery-item[data-name]').forEach((b, k) => { if (!b.querySelector('img')) b.insertAdjacentHTML('afterbegin', `<img src="${previewFor(b.dataset.name, k)}" alt="">`); }); });
+ACTIONS['viewer-zoom'] = () => { const d = S.dialog.data; if (d.crop) return; d.zoom = !d.zoom; renderDialog(); };
+ACTIONS['viewer-crop'] = () => { const d = S.dialog.data; d.crop = true; d.rot = 0; d.zoom = false; d.sel = imgEdit(d.name).crop || null; renderDialog(); };
+ACTIONS['viewer-crop-apply'] = () => { const d = S.dialog.data; if (d.sel && d.sel.w > .02 && d.sel.h > .02) imgEdit(d.name).crop = d.sel; d.crop = false; d.sel = null; renderDialog(); render(); };
+ACTIONS['viewer-crop-clear'] = () => { const d = S.dialog.data; delete imgEdit(d.name).crop; d.crop = false; d.sel = null; renderDialog(); render(); };
+ACTIONS['viewer-crop-cancel'] = () => { const d = S.dialog.data; d.crop = false; d.sel = null; renderDialog(); };
+CHANGES['viewer-tag'] = el => { const d = S.dialog.data; const ed = imgEdit(d.name); if (el.value) ed.tag = el.value; else delete ed.tag; renderDialog(); render(); };
+document.addEventListener('keydown', e => { if (!S.dialog || S.dialog.type !== 'viewer') return; const d = S.dialog.data; const many = d.list && d.list.length > 1; if (d.crop) { if (e.key === 'Escape') { e.stopImmediatePropagation(); ACTIONS['viewer-crop-cancel'](); } else if (e.key === 'Enter' && d.sel) { e.preventDefault(); ACTIONS['viewer-crop-apply'](); } return; } if (e.key === 'ArrowRight' && many) ACTIONS['viewer-step']({ dataset: { d: 1 } }); else if (e.key === 'ArrowLeft' && many) ACTIONS['viewer-step']({ dataset: { d: -1 } }); else if (e.key === 'r' || e.key === 'R') ACTIONS['viewer-rotate'](); else if (e.key === 'z' || e.key === 'Z') ACTIONS['viewer-zoom'](); else if (e.key === 'c' || e.key === 'C') ACTIONS['viewer-crop'](); }, true);
+AFTER_RENDER.push(() => { document.querySelectorAll('.gallery-item[data-name]').forEach((b, k) => { const ed = imgEdit(b.dataset.name); let img = b.querySelector('img'); if (!img) { b.insertAdjacentHTML('afterbegin', `<img src="${previewFor(b.dataset.name, k)}" alt="">`); img = b.querySelector('img'); } b.querySelector('.tag')?.remove(); if (ed.tag) b.insertAdjacentHTML('beforeend', `<span class="tag">${esc(ed.tag)}</span>`); const fit = () => { img.style.transform = cropFit(img, ed.crop, b.clientWidth, b.clientHeight); }; img.onload = fit; fit(); requestAnimationFrame(fit); }); });
 MOCK_DIALOG_ARGS.viewer = { name: DATA.triage[1].images[0], list: DATA.triage[1].images.slice(), rot: 0, zoom: false };
 
 

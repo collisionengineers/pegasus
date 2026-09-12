@@ -143,7 +143,7 @@ principal dialog.
 
 **Self-check.** `v26-shell-selfcheck.html` renders every route, opens and
 closes every dialog, and drives the main flows; run it the same way as the
-Case record's check. 12 September: `{"fail":[],"okCount":124}` including the strip, the working set (a Triage and a message joining and leaving it, the empty strip) and the viewer, no console
+Case record's check. 12 September: `{"fail":[],"okCount":129}` including the strip, the working set (a Triage and a message joining and leaving it, the empty strip) and the viewer, no console
 errors on any of the 33 rendered routes and states (`v26-shots/s*.png`).
 
 ## Working set — the tab strip, reworked
@@ -208,6 +208,16 @@ through the record's gallery, and a page preview for documents. Gallery tiles
 carry thumbnails. `?viewer=N` on the Case record and `?dialog=viewer` on a
 shell record open it. Shots `36`, `37`.
 
+**Crop and tag.** Crop enters a mode where dragging over the image draws the
+region; Apply keeps it, Clear removes it, Esc cancels, Enter applies. The
+crop is a stored rectangle, not a new file: the viewer, the filmstrip, the
+report and Files thumbnails and the shell gallery tiles all show the cropped
+region, and Download still returns the original. A Tag select (Overview,
+Close-up, Supporting, Third party) sits beside it; the tag shows in the
+viewer title and as the chip on the thumbnail. Both are present only while
+the Case is in an edit session; on pre-Case records they are always present.
+Shots `47` (selecting), `48` (applied, tagged), `49` and `50` (shell).
+
 The images are synthetic: there are no files behind this mockup, so each
 name renders a generated scene. Stage 2 uses the stored evidence.
 
@@ -266,8 +276,9 @@ Everything in `v25-notes.md` A–F still stands. New:
 - **P. Working set.** Open records only, fused into the record, six then a
   menu, persisted per browser. Every variable is on the strip; pick the
   combination for Stage 2 (see the table under § Working set).
-- **Q. Viewer tagging.** The viewer toggles report inclusion but not the tag;
-  tags stay in Files (K). Confirm, or add the tag control to the viewer.
+- **Q. Crop as a stored rectangle.** The viewer's crop is a region kept on
+  the image record, applied wherever the image is shown, with the original
+  retained. Confirm this over writing a derived file.
 
 ## Self-check
 
@@ -288,7 +299,7 @@ file access allowed and read the RESULT line:
   Select-String 'RESULT'
 ```
 
-12 September: `{"fail":[],"okCount":252}` with no console errors, on the
+12 September: `{"fail":[],"okCount":257}` with no console errors, on the
 Playwright Chromium 1228 build. The later checks switch through the three
 damage clickers, open the image viewer from the evidence strip (step, rotate,
 zoom, include, close), and seed nine open records to confirm six tabs plus a

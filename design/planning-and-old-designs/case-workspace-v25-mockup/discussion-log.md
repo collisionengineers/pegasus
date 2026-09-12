@@ -231,7 +231,10 @@ replaced by a real viewer on both files, with synthetic images since the mockup
 has no files behind it. "Actually put all the options in on the chooser
 widget" — layout (fused, band, rail list, breadcrumb), label, icons, density,
 visible count, glyphs, close behaviour, Work Centre and Open tabs became
-variables on the strip of both files.
+variables on the strip of both files. A screenshot showed the Cases Quick
+detail card escaping its pane (an unbreakable e-mail address widening the
+grid track) and no crop or tag on images: the pane was fixed and both viewers
+gained a stored-rectangle crop and a tag select.
 
 ## Outstanding
 

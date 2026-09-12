@@ -58,6 +58,11 @@ f.onload=()=>{
     g("ACTIONS['viewer-rotate']()");check('viewer rotates',d.querySelector('#dialog-root .viewer-stage img').style.transform.includes('rotate(90deg)'));
     g("ACTIONS['viewer-zoom']()");check('viewer zooms',!!d.querySelector('#dialog-root .viewer-stage.is-zoomed'));dlgClose();
     g("openDialog('viewer',{name:'report.pdf'})");check('document preview renders a page',!!d.querySelector('#dialog-root .viewer-stage img')&&!d.querySelector('#dialog-root .viewer-nav'));dlgClose();
+    route('/triage/t2');g("ACTIONS['preview-doc'](document.querySelector('.gallery-item[data-name]'))");g("ACTIONS['viewer-crop']()");check('shell crop mode',!!d.querySelector('#dialog-root .crop-layer'));
+    g("S.dialog.data.sel={x:.1,y:.2,w:.6,h:.5}");g("ACTIONS['viewer-crop-apply']()");check('shell crop applied',!!g("S.imageEdits[S.dialog.data.name].crop")&&d.querySelector('#dialog-root .viewer-stage img').style.clipPath.startsWith('inset('));
+    g("CHANGES['viewer-tag']({value:'Third party'})");check('shell tag set',g("S.imageEdits[S.dialog.data.name].tag")==='Third party'&&d.querySelector('#dialog-root .viewer-title .tag').textContent==='Third party');
+    dlgClose();check('gallery tile shows tag and crop',d.querySelector('.gallery-item .tag')?.textContent==='Third party'&&d.querySelector('.gallery-item img').style.clipPath.startsWith('inset('));
+    route('/cases?tab=awaiting');g("ACTIONS['select-case']({dataset:{id:'ic1'}},{target:document.body})");const qp=d.querySelector('[aria-labelledby="quick-h"]');check('quick detail stays inside its pane',qp.querySelector('.fact-grid').getBoundingClientRect().right<=qp.getBoundingClientRect().right+1);
     check('case route hands off',typeof w.__pegasus.renderCase==='function'&&w.__pegasus.caseHref({section:'estimate'})==='pegasus_case_workspace_v26.html?layout=tabs&section=estimate');
   }catch(e){log.push('EXC '+e.message+'\n'+e.stack);}
   setTimeout(()=>{document.getElementById('out').textContent='RESULT '+JSON.stringify({fail:log,okCount:ok.length});},1500);
