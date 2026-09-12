@@ -10,7 +10,8 @@ row below replaces it. Screenshots are in `v26-shots/` (headless Chromium at
 The dark strip at the bottom left is demo control, not product UI. It now has
 three rows: lifecycle state, Glass's session state, and an AI-proposal toggle.
 For screenshots the page also accepts query parameters (`state`, `layout`,
-`edit=1`, `section`, `glass`, `proposal=1`, `ev=1`, `closeopen=1`, `expand=1`);
+`edit=1`, `section`, `glass`, `proposal=1`, `ev=1`, `closeopen=1`, `expand=1`,
+`collapse=a,b`);
 they exist only so the states can be rendered without a click.
 
 ## Usability corrections
@@ -29,6 +30,8 @@ they exist only so the states can be rendered without a click.
 | Aside hidden below 1361px | Below 1441px the Figures and Next action cards fold into a two-up strip above the sections | `20` |
 | Ribbon height varied with content | Ribbon 56px, section row 40px; sticky block is measured, not assumed | all |
 | Notices could not be dismissed | Every notice and the stale bar carry a dismiss × | `09`, `18` |
+| No way to fold a section away | Every section head has a collapse chevron; the choice is remembered per browser | `23` |
+| Add line at the top of the grid, out of sight | Add line sits under the grid. In edit mode the grid always ends with one blank line; typing into it makes it real and a fresh blank line appears below. A line left blank is dropped on Save or Cancel, never stored | `05` |
 
 ## Glass's — mirrors `origin/dev` at 37d00f4c2
 

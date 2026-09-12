@@ -427,6 +427,16 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
 .dismiss:hover{opacity:1;background:rgba(0,0,0,.06)}
 .dismiss .icon{width:14px;height:14px}
 #staleBar .btn{margin-left:auto;margin-right:6px}
+.panel-head{position:relative}
+.case-section>.panel-head{padding-right:50px}
+.sec-collapse{position:absolute;right:8px;top:50%;transform:translateY(-50%);min-width:30px;min-height:30px}
+.sec-collapse .icon{transition:transform .15s}
+.case-section.is-collapsed .sec-collapse .icon{transform:rotate(-90deg)}
+.case-section.is-collapsed>.panel-body{display:none}
+.case-section.is-collapsed>.panel-head{border-bottom:0}
+body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
+.grid tr.phantom td{background:var(--surface-2)}
+.grid tr.phantom input::placeholder{color:var(--quiet)}
 .mock{flex-direction:column;align-items:stretch;gap:5px;max-width:560px}
 .mock .mrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .mock .mrow b{min-width:78px}
@@ -529,7 +539,7 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
 
         <!-- ===== Overview ===== -->
         <section class="case-section panel" id="section-overview" data-section="overview" data-avail="">
-          <div class="panel-head"><h2>Overview</h2><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span></div>
+          <div class="panel-head"><h2>Overview</h2><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button></div>
           <div class="panel-body">
             <ol class="stepper" id="stepper"></ol>
             <div class="sub blockers" id="blockers" hidden><h3>Outstanding requirements <span class="status status--amber" id="blockCount">1 outstanding</span></h3><ul class="blocker-list" id="blockerList"></ul></div>
@@ -571,7 +581,7 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
 
         <!-- ===== Inspection details ===== -->
         <section class="case-section panel" id="section-inspection" data-section="inspection" data-avail="">
-          <div class="panel-head"><h2>Inspection details</h2><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span></div>
+          <div class="panel-head"><h2>Inspection details</h2><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button></div>
           <div class="panel-body stack">
             <div class="fg g4">
               <div class="fc"><label for="f-insptype">Inspection type</label><div class="fv">Image based assessment</div><select id="f-insptype" class="fi"><option>Image based assessment</option><option>Physical inspection</option></select></div>
@@ -600,7 +610,7 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
 
         <!-- ===== Vehicle ===== -->
         <section class="case-section panel" id="section-vehicle" data-section="vehicle" data-avail="">
-          <div class="panel-head"><h2>Vehicle</h2><span class="muted">DVLA &amp; MOT looked up 27 Aug 09:02 · current</span><span class="spacer"></span><button class="btn btn--small calc-only"><svg class="icon"><use href="#icon-refresh-cw"/></svg><span>Look up DVLA &amp; MOT</span></button><span class="gated"><svg class="icon"><use href="#icon-lock"/></svg>Experian is not connected</span><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span></div>
+          <div class="panel-head"><h2>Vehicle</h2><span class="muted">DVLA &amp; MOT looked up 27 Aug 09:02 · current</span><span class="spacer"></span><button class="btn btn--small calc-only"><svg class="icon"><use href="#icon-refresh-cw"/></svg><span>Look up DVLA &amp; MOT</span></button><span class="gated"><svg class="icon"><use href="#icon-lock"/></svg>Experian is not connected</span><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button></div>
           <div class="panel-body stack">
             <div class="fg g4">
               <div class="fc ro idn"><span class="lbl">Registration<svg class="icon lk"><use href="#icon-lock"/></svg></span><div class="fv mono">MA59BDY</div></div>
@@ -633,7 +643,7 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
 
         <!-- ===== Damage ===== -->
         <section class="case-section panel" id="section-damage" data-section="damage" data-avail="With Engineer">
-          <div class="panel-head"><h2>Damage</h2><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span></div>
+          <div class="panel-head"><h2>Damage</h2><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button></div>
           <div class="panel-body">
             <div class="damage-workbench">
               <div>
@@ -675,7 +685,7 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
 
         <!-- ===== Valuation ===== -->
         <section class="case-section panel" id="section-valuation" data-section="valuation" data-avail="With Engineer">
-          <div class="panel-head"><h2>Valuation</h2><span class="muted" id="evHead">Engineer's Value —</span><span class="spacer"></span><button class="btn btn--small calc-only" onclick="alert('Add valuation dialog (existing).')"><svg class="icon"><use href="#icon-plus"/></svg><span>Add valuation</span></button><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span></div>
+          <div class="panel-head"><h2>Valuation</h2><span class="muted" id="evHead">Engineer's Value —</span><span class="spacer"></span><button class="btn btn--small calc-only" onclick="alert('Add valuation dialog (existing).')"><svg class="icon"><use href="#icon-plus"/></svg><span>Add valuation</span></button><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button></div>
           <div class="panel-body">
             <div class="guides" id="guides">
               <div class="valuation-card sel" data-g="Glass's" data-retail="2950" data-trade="2180" data-id="g1"><h3>Glass's<label class="pick"><input type="radio" name="basis" checked> Basis</label></h3><div class="figs"><div>Retail<b>£2,950.00</b></div><div>Trade<b>£2,180.00</b></div></div><div class="meta">Aug 2026 · 87,412 miles · 28 Aug 2026</div></div>
@@ -716,12 +726,12 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
               <button class="btn calc-only" onclick="closeMenus();toast('New draft estimate created');duplicateEst()"><svg class="icon"><use href="#icon-plus"/></svg><span>New estimate</span></button>
               <button class="btn" onclick="closeMenus();toast('Compare estimates dialog (existing): net, VAT, gross per estimate')"><svg class="icon"><use href="#icon-list"/></svg><span>Compare</span></button>
             </div></details>
-            <button class="btn btn--small btn--icon" id="estExpand" onclick="toggleExpand()" title="Expand" aria-label="Expand estimate"><svg class="icon"><use href="#icon-external-link"/></svg></button><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span></div>
+            <button class="btn btn--small btn--icon" id="estExpand" onclick="toggleExpand()" title="Expand" aria-label="Expand estimate"><svg class="icon"><use href="#icon-external-link"/></svg></button><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button></div>
           <div class="panel-body stack">
             <div class="notice" id="estNotice" hidden><svg class="icon"><use href="#icon-info"/></svg><span id="estNoticeText"></span></div>
             <div class="estimate-tabs" id="estTabs" role="tablist"></div>
             <div class="glass-session" id="glass" hidden></div>
-            <div class="cluster"><div class="est-actions calc-only" id="estActions"></div><span class="spacer" style="margin-left:auto"></span><button class="btn btn--small calc-only" onclick="addRow()"><svg class="icon"><use href="#icon-plus"/></svg><span>Add line</span></button></div>
+            <div class="cluster"><div class="est-actions calc-only" id="estActions"></div></div>
             <div class="est-head"><div class="est-head-read" id="estHeadRead"></div><div class="fg g4">
               <div class="fc"><label for="e-name">Estimate name</label><div class="fv" id="eNameRead">Audatex 88214-01</div><input id="e-name" class="fi" value="Audatex 88214-01"></div>
               <div class="fc"><label for="e-days">Repair days</label><div class="fv">4</div><input id="e-days" class="fi" type="number" value="4"></div>
@@ -739,6 +749,7 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
               <tbody id="gridBody"></tbody>
             </table>
             </div>
+            <div class="cluster calc-only" style="justify-content:flex-end"><button class="btn btn--small" onclick="addRow()"><svg class="icon"><use href="#icon-plus"/></svg><span>Add line</span></button></div>
             <div class="bar"><span class="bl">Discounts %</span>
               <span class="dsc"><label for="d_parts">Parts</label><input type="number" id="d_parts" min="0" max="100" step="0.5" placeholder="0"></span>
               <span class="dsc"><label for="d_paint">Materials</label><input type="number" id="d_paint" min="0" max="100" step="0.5" placeholder="0"></span>
@@ -767,7 +778,7 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
 
         <!-- ===== Settlement ===== -->
         <section class="case-section panel" id="section-settlement" data-section="settlement" data-avail="With Engineer">
-          <div class="panel-head"><h2>Settlement</h2><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span></div>
+          <div class="panel-head"><h2>Settlement</h2><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button></div>
           <div class="panel-body stack">
             <div class="metric-strip" id="settle"></div>
             <div class="decisions" id="decisions">
@@ -818,7 +829,7 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
               <button class="btn" id="btnFee" onclick="closeMenus();toast('Fee note generated as a separate document')"><svg class="icon"><use href="#icon-file-text"/></svg><span>Fee note only</span></button>
               <label class="choice" style="padding:0 12px;font-size:12px"><input type="checkbox" id="incFee" checked> Include fee note</label>
             </div></details>
-            <button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span>
+            <button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button>
           </div>
           <div class="panel-body stack">
             <div class="notice notice--warning" id="readyNotice"><svg class="icon"><use href="#icon-alert-triangle"/></svg><span id="readyText"></span></div>
@@ -845,7 +856,7 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
 
         <!-- ===== Files ===== -->
         <section class="case-section panel" id="section-files" data-section="files" data-avail="">
-          <div class="panel-head"><h2>Files</h2><span class="status status--green">Box · confirmed</span><span class="spacer"></span><button class="btn btn--small btn--primary"><svg class="icon"><use href="#icon-upload"/></svg><span>Add evidence</span></button><details class="actions-menu"><summary class="btn btn--small"><span>More</span><svg class="icon"><use href="#icon-chevron-down"/></svg></summary><div class="actions-menu-body"><button class="btn"><svg class="icon"><use href="#icon-external-link"/></svg><span>Open in Box</span></button><button class="btn"><svg class="icon"><use href="#icon-loader"/></svg><span>Open Operations</span></button><button class="btn"><svg class="icon"><use href="#icon-link"/></svg><span>Create upload request</span></button></div></details></div>
+          <div class="panel-head"><h2>Files</h2><span class="status status--green">Box · confirmed</span><span class="spacer"></span><button class="btn btn--small btn--primary"><svg class="icon"><use href="#icon-upload"/></svg><span>Add evidence</span></button><details class="actions-menu"><summary class="btn btn--small"><span>More</span><svg class="icon"><use href="#icon-chevron-down"/></svg></summary><div class="actions-menu-body"><button class="btn"><svg class="icon"><use href="#icon-external-link"/></svg><span>Open in Box</span></button><button class="btn"><svg class="icon"><use href="#icon-loader"/></svg><span>Open Operations</span></button><button class="btn"><svg class="icon"><use href="#icon-link"/></svg><span>Create upload request</span></button></div></details><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button></div>
           <div class="panel-body stack">
             <div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true" onclick="fileTab('docs',this)">Documents · 4</button><button class="tab" role="tab" aria-selected="false" onclick="fileTab('imgs',this)">Images · 12</button></div>
             <div id="fDocs" class="stack" style="gap:6px">
@@ -867,7 +878,7 @@ body:not(.is-editing) #addsHead.none,.case-section.is-locked #addsHead.none{disp
 
         <!-- ===== Notes ===== -->
         <section class="case-section panel" id="section-notes" data-section="notes" data-avail="">
-          <div class="panel-head"><h2>Notes</h2></div>
+          <div class="panel-head"><h2>Notes</h2><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button></div>
           <div class="panel-body">
             <div class="cluster" style="margin-bottom:8px;align-items:flex-end"><div class="fc" style="flex:1"><label for="noteIn" class="sr-only">Add note</label><input id="noteIn" placeholder="Add a note and press Enter" onkeydown="if(event.key==='Enter'){addNote(this.value);this.value='';}"></div><button class="btn" onclick="toast('Record chase dialog (existing): recipient, channel, content, outcome')"><svg class="icon"><use href="#icon-clock"/></svg><span>Record chase</span></button></div>
             <div id="noteTop"></div>
@@ -955,8 +966,8 @@ let SNAP=null;
 function snapshot(){const m={};document.querySelectorAll('.fi').forEach(i=>{if(!i.id)return;m[i.id]=i.type==='checkbox'?i.checked:i.value;});return m;}
 function anchor(){const line=$('sticky').getBoundingClientRect().bottom+8;let best=null;document.querySelectorAll('.case-section, .sub, .fc').forEach(el=>{const r=el.getBoundingClientRect();if(r.top<=line&&r.bottom>line&&(best===null||r.height<best.h)){best={el,h:r.height,off:r.top};}});return best;}
 function keep(a){if(!a)return;const r=a.el.getBoundingClientRect();window.scrollBy({top:r.top-a.off,behavior:'auto'});}
-function startEdit(){if(STATE==='complete'){toast('Return to Engineer is now available in the action row.');return;}const a=anchor();EDITING=true;SNAP=snapshot();document.body.classList.add('is-editing');keep(a);$('btnEdit').hidden=true;$('btnCancel').hidden=false;$('btnSave').hidden=false;measure();}
-function endEdit(){const a=anchor();EDITING=false;document.body.classList.remove('is-editing');keep(a);$('btnEdit').hidden=STATE==='colleague';$('btnCancel').hidden=true;$('btnSave').hidden=true;measure();}
+function startEdit(){if(STATE==='complete'){toast('Return to Engineer is now available in the action row.');return;}const a=anchor();EDITING=true;SNAP=snapshot();document.body.classList.add('is-editing');keep(a);$('btnEdit').hidden=true;$('btnCancel').hidden=false;$('btnSave').hidden=false;renderGrid();measure();}
+function endEdit(){const a=anchor();EDITING=false;document.body.classList.remove('is-editing');keep(a);$('btnEdit').hidden=STATE==='colleague';$('btnCancel').hidden=true;$('btnSave').hidden=true;pruneBlank();renderGrid();measure();}
 function cancelEdit(silent){if(SNAP){Object.entries(SNAP).forEach(([id,v])=>{const i=$(id);if(!i)return;if(i.type==='checkbox')i.checked=v;else i.value=v;});}syncReads();endEdit();if(!silent)toast('Changes discarded. You are where you were.');}
 function saveEdit(){const changed=[];Object.entries(snapshot()).forEach(([id,v])=>{if(SNAP&&SNAP[id]!==v){const l=document.querySelector(`label[for="${id}"]`);changed.push(l?l.textContent.trim():id);}});syncReads();endEdit();
   if(changed.length){logNote(`Case data saved by Alex Mercer — ${changed.join(', ')}.`);toast('Saved · '+changed.length+' field'+(changed.length>1?'s':'')+' changed');touchAfterSave();}else toast('No changes to save');}
@@ -1029,10 +1040,18 @@ function discardEst(){const i=ESTIMATES.indexOf(EST);ESTIMATES.splice(i,1);selec
 const TYPES=['New','Repair','R&R','Paint','Blend','Specialist'];const COLS={'New':{q:1,u:1,h:1,m:1},'Repair':{q:0,u:0,h:1,m:1},'R&R':{q:0,u:0,h:1,m:0},'Paint':{q:0,u:0,h:1,m:1},'Blend':{q:0,u:0,h:1,m:1},'Specialist':{q:1,u:1,h:1,m:1}};
 function estHeadRead(){const card=$('e-card').options[$('e-card').selectedIndex].text.split(' — ')[0];$('estHeadRead').innerHTML=`<span>Repair days <b>${val('e-days')||'—'}</b></span><span>Labour <b>${fmt(parseFloat(val('e-rate'))||0)}/h</b> · ${card}</span><span>Paint materials <b>${fmt(parseFloat(val('e-paint'))||0)}</b></span><span>Other <b>${fmt(parseFloat(val('e-other'))||0)}</b></span><span>VAT <b>${val('e-vat')||0} %</b></span><span>Repairer ${val('f-repvat')==='yes'?'VAT registered':'not VAT registered'}</span>`;}
 function renderGrid(){renderEstTabs();$('dropzone').hidden=ROWS.length>0;const b=$('gridBody');b.innerHTML='';ROWS.forEach((r,i)=>{const c=COLS[r.t];const cell=(k,shown)=>{const n=parseFloat(shown)||0;const meaningful=k==='q'?n>1:n>0;if(c[k])return`<td><input class="num" value="${shown}" onchange="cell(${i},'${k}',this.value)"></td>`;if(meaningful)return`<td class="viol"><input class="num" title="Outside the usual pattern for ${r.t}" value="${shown}" onchange="cell(${i},'${k}',this.value)"></td>`;return`<td class="na">—</td>`;};
-  b.insertAdjacentHTML('beforeend',`<tr><td><select onchange="cell(${i},'t',this.value)">${TYPES.map(t=>`<option${t===r.t?' selected':''}>${t}</option>`).join('')}</select></td><td><input value="${r.d}" onchange="cell(${i},'d',this.value)"></td><td><input class="mono" value="${r.pn||''}" placeholder="—" onchange="cell(${i},'pn',this.value)"></td>${cell('q',r.q||'')}${cell('u',r.u?r.u.toFixed(2):'')}${cell('h',r.h||'')}${cell('m',r.m?r.m.toFixed(2):'')}<td><span class="prov${r.p==='amended'?' prov--ai':''}" style="margin:0">${r.p}${r.p==='manual'?'':' · '+(r.src||'AX')}</span></td><td><button class="del" onclick="delRow(${i})">×</button></td></tr>`);});recalc();}
+  b.insertAdjacentHTML('beforeend',`<tr><td><select onchange="cell(${i},'t',this.value)">${TYPES.map(t=>`<option${t===r.t?' selected':''}>${t}</option>`).join('')}</select></td><td><input value="${r.d}" onchange="cell(${i},'d',this.value)"></td><td><input class="mono" value="${r.pn||''}" placeholder="—" onchange="cell(${i},'pn',this.value)"></td>${cell('q',r.q||'')}${cell('u',r.u?r.u.toFixed(2):'')}${cell('h',r.h||'')}${cell('m',r.m?r.m.toFixed(2):'')}<td><span class="prov${r.p==='amended'?' prov--ai':''}" style="margin:0">${r.p}${r.p==='manual'?'':' · '+(r.src||'AX')}</span></td><td><button class="del" onclick="delRow(${i})">×</button></td></tr>`);});if(canEditSec('estimate'))b.insertAdjacentHTML('beforeend',phantomRow());recalc();}
+const GRID_COL={t:0,d:1,pn:2,q:3,u:4,h:5,m:6};
+function phantomRow(){return `<tr class="phantom"><td><select onchange="phantom(this,'t')">${TYPES.map(t=>`<option>${t}</option>`).join('')}</select></td><td><input placeholder="Add a line" oninput="phantom(this,'d')"></td><td><input class="mono" oninput="phantom(this,'pn')"></td><td><input class="num" oninput="phantom(this,'q')"></td><td><input class="num" oninput="phantom(this,'u')"></td><td><input class="num" oninput="phantom(this,'h')"></td><td><input class="num" oninput="phantom(this,'m')"></td><td></td><td></td></tr>`;}
+function phantom(el,k){if(!canEditSec('estimate'))return;const tr=el.closest('tr'),ins=tr.querySelectorAll('input');const r={t:tr.querySelector('select').value,d:ins[0].value,pn:ins[1].value,q:parseFloat(ins[2].value)||0,u:parseFloat(ins[3].value)||0,h:parseFloat(ins[4].value)||0,m:parseFloat(ins[5].value)||0,p:'manual'};if(COLS[r.t].q&&!r.q&&k!=='q')r.q=1;ROWS.push(r);renderGrid();touch();focusCell(ROWS.length-1,k);}
+function focusCell(i,k){const tr=$('gridBody').rows[i];if(!tr)return;const el=tr.cells[GRID_COL[k]??1].querySelector('input,select');if(!el)return;el.focus();if(el.tagName==='INPUT'&&el.type!=='number'){const n=el.value.length;try{el.setSelectionRange(n,n);}catch(e){}}}
+function blankRow(r){return !(r.d||'').trim()&&!(r.pn||'').trim()&&!(r.u>0)&&!(r.h>0)&&!(r.m>0);}
+function pruneBlank(){ESTIMATES.forEach(e=>{e.rows=e.rows.filter(r=>!blankRow(r));});ROWS=EST.rows;}
+function toggleSection(b){const s=b.closest('.case-section');const on=s.classList.toggle('is-collapsed');b.title=on?'Expand':'Collapse';b.setAttribute('aria-label',on?'Expand section':'Collapse section');const set=new Set(JSON.parse(localStorage.getItem('v26.collapsed')||'[]'));on?set.add(s.dataset.section):set.delete(s.dataset.section);localStorage.setItem('v26.collapsed',JSON.stringify([...set]));measure();}
+(JSON.parse(localStorage.getItem('v26.collapsed')||'[]')).forEach(k=>{const s=$('section-'+k);if(s){s.classList.add('is-collapsed');const b=s.querySelector('.sec-collapse');if(b){b.title='Expand';b.setAttribute('aria-label','Expand section');}}});
 function cell(i,k,v){if(!canEditSec('estimate'))return renderGrid();if('quhm'.includes(k))v=parseFloat(v)||0;ROWS[i][k]=v;if(k==='t'&&COLS[v].q&&!ROWS[i].q)ROWS[i].q=1;if(ROWS[i].p==='imported')ROWS[i].p='amended';renderGrid();touch();}
 function delRow(i){ROWS.splice(i,1);renderGrid();touch();}
-function addRow(){ROWS.push({t:'New',d:'New item',q:1,u:0,h:0,m:0,p:'manual'});renderGrid();touch();}
+function addRow(){if(!canEditSec('estimate'))return;ROWS.push({t:'New',d:'',q:1,u:0,h:0,m:0,p:'manual'});renderGrid();focusCell(ROWS.length-1,'d');}
 let VATC={labour:true,parts:true,materials:true,specialist:true},VATMAN=false;
 function vatDefaults(){const reg=val('f-repvat')==='yes';$('eRepVat').innerHTML=(reg?'VAT registered':'Not VAT registered')+' <span class="prov">Inspection details</span>';VATC=reg?{labour:true,parts:true,materials:true,specialist:true}:{labour:false,parts:true,materials:true,specialist:false};VATMAN=false;vatPaint();}
 function vatPaint(){['labour','parts','materials','specialist'].forEach(k=>$('vc_'+k).checked=VATC[k]);$('vatManChip').hidden=!VATMAN;$('vatReset').hidden=!VATMAN;}
@@ -1100,7 +1119,7 @@ function decTouch(k){REVIEWED[k]=true;}
 function dismissable(){document.querySelectorAll('.notice,#staleBar').forEach(n=>{if(n.dataset.dismiss)return;n.dataset.dismiss='1';const b=document.createElement('button');b.type='button';b.className='dismiss';b.setAttribute('aria-label','Dismiss');b.innerHTML='<svg class="icon"><use href="#icon-x"/></svg>';b.onclick=()=>{n.hidden=true;n.classList.remove('show');measure();};n.appendChild(b);});}
 
 /* ================= query-string presets (screenshots only) ================= */
-function applyQuery(){const q=new URLSearchParams(location.search);if(q.get('state'))setState(q.get('state'));if(q.get('layout'))setLayout(q.get('layout'),true);if(q.get('edit')==='1')startEdit();if(q.get('ev')==='1')applyAdj();if(q.get('proposal')==='1')toggleProposal();if(q.get('glass')==='return')glassReturn();else if(q.get('glass'))setGlass(q.get('glass'));if(q.get('closeopen')==='1'){const c=$('glassClose');if(c)c.open=true;}if(q.get('expand')==='1')toggleExpand();if(q.get('section'))jumpTo(q.get('section'));}
+function applyQuery(){const q=new URLSearchParams(location.search);if(q.get('state'))setState(q.get('state'));if(q.get('layout'))setLayout(q.get('layout'),true);if(q.get('edit')==='1')startEdit();if(q.get('ev')==='1')applyAdj();if(q.get('proposal')==='1')toggleProposal();if(q.get('glass')==='return')glassReturn();else if(q.get('glass'))setGlass(q.get('glass'));if(q.get('closeopen')==='1'){const c=$('glassClose');if(c)c.open=true;}if(q.get('expand')==='1')toggleExpand();if(q.get('collapse'))q.get('collapse').split(',').forEach(k=>{const b=document.querySelector('#section-'+k+' .sec-collapse');if(b)toggleSection(b);});if(q.get('section'))jumpTo(q.get('section'));}
 
 /* ================= init ================= */
 buildNav();markNav('overview');buildCar();renderAdds();adjWork();vatDefaults();renderEstTabs();renderGrid();renderImgs();outcomeChange(true);renderReport();syncReads();setState('engineer');renderGlass();renderProposal();dismissable();applyQuery();measure();
