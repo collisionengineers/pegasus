@@ -1,0 +1,111 @@
+# Work Centre — how it works
+
+Read from the live source on 13 September 2026.
+
+## Governing documentation
+
+| Document | What it settles for this page |
+| --- | --- |
+| [FRD-12 § Work Centre](../../../../../docs/frd/frd-12-operator-experience.md#work-centre) | the five metrics, the needs-attention kinds, what a selected item shows, the single next permitted action |
+| [FRD-12 § Dashboard freshness and reconciliation](../../../../../docs/frd/frd-12-operator-experience.md#dashboard-freshness-and-reconciliation) | last-good values, never a false zero, manual refresh reruns the same query |
+| [FRD-12 § Administration](../../../../../docs/frd/frd-12-operator-experience.md#administration) | workflow configuration and the chase interval (1 to 365 calendar days, default 7) |
+| [FRD-01 Case identity and lifecycle](../../../../../docs/frd/frd-01-case-identity-and-lifecycle.md) | `Held`, `Review`, `Not ready`, due work, `Due by`, the missing-material chase schedule and what stops it |
+| [FRD-05 Documents, extraction and custody](../../../../../docs/frd/frd-05-documents-extraction-and-custody.md) | custody (Box) work, the external work behind Case file storage |
+| [FRD-06 Vehicle and engineering evidence](../../../../../docs/frd/frd-06-vehicle-and-engineering-evidence.md) | vehicle lookup as external work |
+| [ADR-0013 QDOS alpha implementation contract](../../../../../docs/adr/0013-qdos-alpha-implementation-contract.md) | the `New cases today` dashboard term and Europe/London day-boundary counting |
+| [CONTEXT.md](../../../../../CONTEXT.md) | reserved terms: Audit, Triage, Unidentified, Image Intake, Blocked intake |
+
+## Source
+
+| Layer | File | Owns |
+| --- | --- | --- |
+| Web | `src/Pegasus.Web/Pages/Index.cshtml`, `Index.cshtml.cs` | the page, the selected row, the unavailable state |
+| Web | `src/Pegasus.Web/Presentation/NeedsAttentionPresentation.cs` | row to words: record page, action label, title, reason, source |
+| Web | `src/Pegasus.Web/Presentation/OperatorLabels.cs` | chip words and tones (`NeedsAttentionPriority`, `NeedsAttentionPriorityTone`) |
+| Web | `src/Pegasus.Web/Presentation/RailCountsPageFilter.cs` | rail counts; skips this page because it shares the snapshot |
+| Core | `src/Pegasus.Core/Operations/OperationsSnapshot.cs` | `GetOperationsSnapshot`: the one query, the seven kinds, `DuePriority`, ordering, the 50 cut |
+| Core | `src/Pegasus.Core/Operations/DashboardCounts.cs` | `CaseStageCounts`, `NeedsAttentionKind`, `NeedsAttentionPriority`, `NeedsAttentionItem` |
+| Core | `src/Pegasus.Core/Tasks/CaseWorkScheduling.cs` | `CaseDueWork`, `CaseChaseSchedule.FirstChaseAt` and `NextChaseAt` |
+| Core | `src/Pegasus.Core/Tasks/RunDueChasers.cs` | the chase run that advances the next chase time |
+| Core | `src/Pegasus.Core/Workflow/CaseWorkflowContracts.cs` | `CaseWorkflowConfiguration.ChaseIntervalDays`, `PutCaseOnHoldRequest` |
+| Core | `src/Pegasus.Core/Custody/ExternalWorkProcessing.cs` | the six external work kinds and the image-custody retry policy |
+| Core | `src/Pegasus.Core/Operations/RequestOperations.cs` | request operations, `CanRetry` |
+| Core | `src/Pegasus.Core/LondonCalendar.cs` | day and week boundaries in Europe/London |
+| Infrastructure | `src/Pegasus.Infrastructure/Persistence/EfCaseWorkflowStore.cs` | `GetDueAsync`: scheduled, not archived, next chase at or before now |
+| Infrastructure | `src/Pegasus.Infrastructure/Persistence/CaseChaseState.cs` | stopping a chase schedule |
+
+### The page
+
+One snapshot query (`GetOperationsSnapshot`) taken when the page loads, stamped with its time. If that read fails the page shows an unavailable state rather than zeros. Three parts:
+
+1. **Metric strip** — five counts, each a link to the exact Cases tab: Not ready, Review, Held, Unidentified, Blocked. Blocked links to the Unidentified tab where blocked intake rows sit uncounted with their own chip.
+2. **Needs attention** — up to 50 rows, one chip each. The first row is selected unless the address names another.
+3. **Today** — the selected row: kind and reference, title, chip, "Why this needs attention" notice, Source, Owner, Last recorded outcome, Due, then the single next permitted action and Copy reference.
+
+### The seven kinds and where each comes from
+
+| Kind | Core query | Row title | Reason shown | Action |
+| --- | --- | --- | --- | --- |
+| Case | Due work: chase schedule `Scheduled`, next chase at or before now, not archived | the missing-material reason | chase state | Open Case |
+| Held decision | Cases in state Held | claimant | Held | Open Case |
+| Review Case | Cases in state Review that are not ready for engineer assignment | vehicle | Case needs review | Review Case |
+| Unassigned Engineer | Cases in Review with no engineer whose completeness satisfies policy | vehicle | Engineer assignment is required | Assign Engineer |
+| Mail | every open Unidentified item | file name or subject | the Unidentified reason code | Review source |
+| Triage | Triage records in Open or Awaiting information (no finding yet) | registration | triage state | Open Triage |
+| External work | request operations of kind External work that can be retried | the external kind | failure reason | Open Operations |
+
+Failed AI jobs are not a kind; they live on Operations.
+
+### What the chip means
+
+The chip is `NeedsAttentionPriority` with four values. It is computed from one date per row, never set by hand:
+
+| Chip | Rule |
+| --- | --- |
+| Overdue | the row's due instant is at or before now |
+| High | fixed for External work (a retryable failure) |
+| Today | the due instant is after now but before the end of the London day (midnight) |
+| Normal | no due instant, or due after today |
+
+Which date is "due":
+- Case: the next chase time; if none, the missing-material Due-by date at 00:00 UTC.
+- Held decision, Review Case, Unassigned Engineer: the Case's next chase time.
+- Mail and Triage: none, so always Normal.
+- External work: none, always High.
+
+Because the Case kind only lists schedules whose next chase is already at or before now, every Case row is Overdue by construction. Today and Normal can only appear on Held, Review and Unassigned rows.
+
+### What "External work" means
+
+External work is a job the Worker runs against a service outside Pegasus, queued durably with an attempt count. Six kinds exist (`src/Pegasus.Core/Custody/ExternalWorkProcessing.cs`):
+
+| Kind | What it does | Outside service |
+| --- | --- | --- |
+| Create case custody | creates the Case's file storage when a Case is created | Box |
+| Create audit reference custody | creates storage for an audit reference | Box |
+| Create image case custody | creates storage for an image-initiated Case | Box |
+| Merge image case custody | moves an image case's files into the Case it was merged with | Box |
+| Vehicle lookup | fetches vehicle data for a registration | vehicle data provider |
+| Intake OCR | reads text from a scanned received file | OCR provider |
+
+A failure retries itself first: dependency-shaped failures back off at 1, 5, 15 minutes, 1 hour, 6 hours, six attempts in all. Only when the failure is terminal, or the attempts run out, does it become a request operation in state Failed with a retry available. That is the row the Work Centre shows as High, titled by the kind and carrying the attempt count, with Open Operations as the action; Operations is where Retry lives.
+
+### Where the chase time comes from
+
+- First chase = the moment the Case entered Not ready plus the chase interval, same local time of day (London). Interval is a workflow configuration, default 7 days, 1 to 365.
+- Each chase run moves it forward by the interval from the previous chase.
+- Holding a Case pauses the schedule (held-at and remaining interval are kept); closing, archiving or replacing a Case stops it.
+- The interval is calendar days, not working days.
+
+### Order of the list
+
+Priority (Overdue, High, Today, Normal), then due date, then received date, then reference. Duplicate kind and id pairs collapse to one. Cut at 50; the shell notifications menu shows the first 10 of the same rows.
+
+### Things the FRD does not settle, for the new FRD
+
+- Why a Review Case or Held decision carries a chase date at all: the chase belongs to missing material, yet Held and Review rows reuse it as their due date.
+- Mail and Triage never age: an Unidentified item from three weeks ago is Normal forever.
+- High is a kind, not an urgency: it means "external failure", and it sorts above Today.
+- Calendar days versus working days for the interval, and midnight as the "today" boundary.
+- The 50-row cut is silent: nothing says more exist.
+

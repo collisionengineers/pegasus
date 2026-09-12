@@ -4,6 +4,8 @@
 - **Live source:** `src/Pegasus.Web/Pages/Cases/Details.cshtml + Shared/_Case*.cshtml`
 - **Dialogs:** [`dialogs/`](dialogs/README.md) · **States:** [`states/`](states/README.md) · **Panels:** [`panels/`](panels/README.md)
 
+- [**How it should work**](how-it-should-work.md) — decisions landing here from other pages.
+
 ## Screenshots
 
 - [01-read-tabs-overview.png](../../current/v26-shots/01-read-tabs-overview.png)

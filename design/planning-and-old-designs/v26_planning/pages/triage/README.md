@@ -4,6 +4,8 @@
 - **Live source:** `src/Pegasus.Web/Pages/Triage/Details.cshtml`
 - **Dialogs:** [`dialogs/`](dialogs/README.md) · **States:** [`states/`](states/README.md) · **Panels:** [`panels/`](panels/README.md)
 
+- [**How it should work**](how-it-should-work.md) — decisions landing here from other pages.
+
 ## Screenshots
 
 - [37-viewer-shell-triage.png](../../current/v26-shots/37-viewer-shell-triage.png)
