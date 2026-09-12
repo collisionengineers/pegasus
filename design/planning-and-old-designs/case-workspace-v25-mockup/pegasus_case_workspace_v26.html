@@ -235,23 +235,53 @@ body:not(.is-editing) .case-section .avail{display:none}
 
 /* ---- Damage ---- */
 .damage-workbench{display:grid;grid-template-columns:minmax(220px,300px) minmax(260px,1fr);gap:14px;align-items:start}
-.damage-diagram{inline-size:min(100%,300px);block-size:auto;margin:0 auto}
-.damage-diagram-label{fill:var(--quiet);font:650 8px/1 var(--font);letter-spacing:.08em}
-.damage-vehicle-body{fill:var(--surface);stroke:var(--line-strong);stroke-width:1.5}
-.damage-glass{fill:var(--surface-3);stroke:var(--line-strong);stroke-width:1}
-.damage-wheel{fill:var(--nav-2)}
-.damage-structural-path{fill:none;stroke:var(--line);stroke-width:1;pointer-events:none}
-.damage-structural-path--strong{stroke:var(--line-strong)}
-.damage-zones [data-damage-zone]{fill:transparent;stroke:transparent;cursor:pointer;transition:fill .15s ease,stroke .15s ease}
-.damage-zones [data-damage-zone]:hover{fill:color-mix(in srgb,var(--navy) 12%,transparent)}
-.damage-zones [data-damage-zone].is-damaged{fill:color-mix(in srgb,var(--red) 18%,var(--surface));stroke:var(--red);stroke-width:1.5}
-.damage-zones [data-damage-zone].is-selected{stroke:var(--navy);stroke-width:2.5}
-.damage-marker circle{fill:var(--red)}.damage-marker path{fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.damage-workbench:has(#carView[data-variant="side"]){grid-template-columns:minmax(280px,360px) minmax(260px,1fr)}
+.damage-workbench:has(#carView[data-variant="dial"]){grid-template-columns:minmax(260px,330px) minmax(260px,1fr)}
+.damage-view{margin:0 auto}
+.damage-diagram{display:block;inline-size:100%;block-size:auto;margin:0 auto;overflow:visible}
+.damage-diagram-label{fill:var(--quiet);font:650 8px/1 var(--font);letter-spacing:.1em}
+.dv-side-note{fill:var(--quiet);font:500 6.5px/1 var(--font);letter-spacing:.08em}
+.dv-body{fill:#fff;stroke:var(--line-strong);stroke-width:1.2;stroke-linejoin:round}
+.dv-glass{fill:#cfd8de;stroke:var(--line-strong);stroke-width:.6}
+.dv-seam{fill:none;stroke:#aeb8bd;stroke-width:.8;pointer-events:none}
+.dv-seam--soft{stroke:#d5dce0;stroke-width:.7}
+.dv-lamp{fill:#eef2f4;stroke:#aeb8bd;stroke-width:.6;pointer-events:none}
+.dv-lamp--rear{fill:#f3d4d6;stroke:#d39aa0}
+.dv-wheel,.dv-tyre{fill:#2f3538}
+.dv-rim{fill:#c7cdd1;stroke:#8d979c;stroke-width:1}
+.dv-mirror{fill:#dfe4e7;stroke:var(--line-strong);stroke-width:.8}
+.dv-tick{stroke:var(--line-strong);stroke-width:1.2}
+.dv-dial-outer{fill:none;stroke:var(--line);stroke-width:1}
+.dv-dial-inner{stroke:var(--line);stroke-width:1}
+#carView [data-damage-zone]{fill:transparent;stroke:transparent;cursor:pointer;transition:fill .15s ease,stroke .15s ease}
+#carView .dial-sector{fill:var(--surface-2);stroke:#fff;stroke-width:2;stroke-linejoin:round}
+#carView [data-damage-zone].is-hover{fill:color-mix(in srgb,var(--navy) 14%,#fff);stroke:var(--navy);stroke-width:1.2}
+#carView [data-damage-zone].is-damaged{stroke:var(--red);stroke-width:1.3}
+#carView .is-damaged[data-sev="light"]{fill:color-mix(in srgb,var(--red) 22%,#fff)}
+#carView .is-damaged[data-sev="light_to_moderate"]{fill:color-mix(in srgb,var(--red) 40%,#fff)}
+#carView .is-damaged[data-sev="moderate"]{fill:color-mix(in srgb,var(--red) 58%,#fff)}
+#carView .is-damaged[data-sev="moderate_to_heavy"]{fill:color-mix(in srgb,var(--red) 78%,#fff)}
+#carView .is-damaged[data-sev="heavy"]{fill:var(--red-dark)}
+#carView .dial-sector.is-damaged{stroke:#fff}
+#carView[data-variant="side"] .is-damaged[data-sev="light"]{fill:url(#hatch-light)}
+#carView[data-variant="side"] .is-damaged[data-sev="light_to_moderate"]{fill:url(#hatch-light_to_moderate)}
+#carView[data-variant="side"] .is-damaged[data-sev="moderate"]{fill:url(#hatch-moderate)}
+#carView[data-variant="side"] .is-damaged[data-sev="moderate_to_heavy"]{fill:url(#hatch-moderate_to_heavy)}
+#carView[data-variant="side"] .is-damaged[data-sev="heavy"]{fill:url(#hatch-heavy)}
+#carView [data-damage-zone].is-damaged.is-hover{stroke:var(--navy);stroke-width:1.6}
+.damage-marker{pointer-events:none}
+.damage-marker circle{fill:var(--ink);stroke:#fff;stroke-width:1.5}
+.damage-marker text{fill:#fff;font:700 9px/1 var(--font)}
 .damage-marker.is-hidden{display:none}
-body:not(.is-editing) .damage-zones [data-damage-zone],.case-section.is-locked .damage-zones [data-damage-zone]{cursor:default}
-body:not(.is-editing) .damage-zones [data-damage-zone]:not(.is-damaged):hover{fill:transparent}
+body:not(.is-editing) #carView [data-damage-zone],.case-section.is-locked #carView [data-damage-zone]{cursor:default}
+.dv-readout{min-height:18px;margin-top:6px;text-align:center;font-size:12px;font-weight:600;color:var(--navy)}
+.dv-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 10px;margin-top:4px;font-size:10px;color:var(--quiet);text-transform:uppercase;letter-spacing:.06em}
+.dv-legend span{display:inline-flex;align-items:center;gap:4px}
+.dv-legend i{width:10px;height:10px;border-radius:2px;border:1px solid var(--red)}
 .damage-extra{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:8px}
 .damage-extra .btn.is-damaged{border-color:var(--red);background:var(--red);color:#fff}
+.impact-row .zn{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;background:var(--ink);color:#fff;font:700 10px/1 var(--font);margin-right:6px;vertical-align:middle}
+.impact-row:hover{border-color:var(--navy)}
 .impact-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
 .impact-row{display:grid;grid-template-columns:1fr 150px 1fr 30px;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:var(--radius);background:#fff}
 .impact-row .zc{font:600 11px var(--mono);color:var(--ink)}
@@ -647,7 +677,9 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
           <div class="panel-body">
             <div class="damage-workbench">
               <div>
-                <svg class="damage-diagram" id="carSvg" viewBox="20 0 200 390" role="group" aria-label="Vehicle damage diagram"></svg>
+                <div class="damage-view" id="carView"></div>
+                <div class="dv-readout" id="dvName"></div>
+                <div class="dv-legend" id="dvLegend"></div>
                 <div class="damage-extra" id="extraZones"></div>
               </div>
               <div>
@@ -905,6 +937,7 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
   <div class="mrow"><b>Mockup state</b><button data-st="review" onclick="setState('review')">Review</button><button data-st="engineer" class="on" onclick="setState('engineer')">With Engineer</button><button data-st="complete" onclick="setState('complete')">Complete</button><button data-st="colleague" onclick="setState('colleague')">Colleague editing</button></div>
   <div class="mrow"><b>Glass's</b><button data-g="none" class="on" onclick="setGlass('none')">None</button><button data-g="open" onclick="setGlass('open')">Open</button><button data-g="waiting" onclick="setGlass('waiting')">Waiting</button><button data-g="failed" onclick="setGlass('failed')">Failed</button><button data-g="unknown" onclick="setGlass('unknown')">Unknown</button><button data-g="elsewhere" onclick="setGlass('elsewhere')">Elsewhere</button><button onclick="glassReturn()">Return →</button></div>
   <div class="mrow"><b>Decisions</b><button id="mockProp" onclick="toggleProposal()">AI proposal</button></div>
+  <div class="mrow"><b>Damage clicker</b><button data-dv="plan" onclick="setDamageVariant('plan')">Plan</button><button data-dv="side" onclick="setDamageVariant('side')">Elevations</button><button data-dv="dial" onclick="setDamageVariant('dial')">Dial</button></div>
 </div>
 <div class="toast-region" id="toasts"></div>
 
@@ -1007,15 +1040,127 @@ const SEV=[['light','Light'],['light_to_moderate','Light to moderate'],['moderat
 let impacts={rear_centre:{sev:'moderate',note:'Rear panel deformed; lamps inoperative'},tailgate:{sev:'moderate',note:'Tailgate closure compromised'}};
 function zoneLabel(c){return (ZONES.find(z=>z[0]===c)||WHEELS.find(w=>w[0]===c)||EXTRA.find(e=>e[0]===c))?.[1]||c;}
 function zoneLoc(c){return ZONES.find(z=>z[0]===c)?.[2]||(WHEELS.find(w=>w[0]===c)?'wheel':c);}
-function buildCar(){const s=$('carSvg');let o=`<text class="damage-diagram-label" x="120" y="14" text-anchor="middle">FRONT</text>`;WHEELS.forEach(w=>o+=`<rect class="damage-wheel" x="${w[2]-10}" y="${w[3]-22}" width="20" height="44" rx="6"/>`);o+=`<path class="damage-vehicle-body" d="${BODY}"/><path class="damage-glass" d="${FG}"/><path class="damage-glass" d="${RG}"/><path class="damage-structural-path damage-structural-path--strong" d="M92 150 V250 M148 150 V250"/><path class="damage-structural-path" d="M58 150 H182 M58 250 H182"/><g class="damage-zones">`;ZONES.forEach(z=>o+=`<path data-damage-zone="${z[0]}" d="${z[3]}"><title>${z[1]}</title></path>`);WHEELS.forEach(w=>o+=`<rect data-damage-zone="${w[0]}" x="${w[2]-10}" y="${w[3]-22}" width="20" height="44" rx="6"><title>${w[1]}</title></rect>`);o+=`</g><g class="damage-markers">`;[...ZONES.map(z=>[z[0],z[4],z[5]]),...WHEELS.map(w=>[w[0],w[2],w[3]])].forEach(m=>o+=`<g class="damage-marker is-hidden" data-m="${m[0]}" transform="translate(${m[1]-9} ${m[2]-9})"><circle cx="9" cy="9" r="9"/><path transform="translate(3 3) scale(.5)" d="M14.5 0 3 14h8l-1.5 10L21 9h-8z"/></g>`);o+=`</g><text class="damage-diagram-label" x="120" y="386" text-anchor="middle">REAR</text>`;s.innerHTML=o;
-  s.addEventListener('click',e=>{const z=e.target.closest('[data-damage-zone]');if(!z)return;toggleZone(z.dataset.damageZone);});
-  $('extraZones').innerHTML=EXTRA.map(x=>`<button class="btn btn--small" data-z="${x[0]}" onclick="toggleZone('${x[0]}')">${x[1]}</button>`).join('');paintZones();}
+/* ================= damage clicker (three selectable variants) ================= */
+let DV=localStorage.getItem('v26.damage')||'plan';
+const DV_NAMES={plan:'Plan',side:'Elevations',dial:'Dial'};
+function setDamageVariant(v){if(!DV_NAMES[v])return;DV=v;localStorage.setItem('v26.damage',v);document.querySelectorAll('.mock [data-dv]').forEach(b=>b.classList.toggle('on',b.dataset.dv===v));buildCar();}
+const SEV_FILL={light:'color-mix(in srgb,var(--red) 22%,#fff)',light_to_moderate:'color-mix(in srgb,var(--red) 40%,#fff)',moderate:'color-mix(in srgb,var(--red) 58%,#fff)',moderate_to_heavy:'color-mix(in srgb,var(--red) 78%,#fff)',heavy:'var(--red-dark)'};
+const marker=(id,x,y)=>`<g class="damage-marker is-hidden" data-m="${id}" transform="translate(${x} ${y})"><circle r="8"/><text y="3.2" text-anchor="middle">1</text></g>`;
+const zonePath=(id,d,cls='')=>`<path data-damage-zone="${id}" class="${cls}" d="${d}"><title>${zoneLabel(id)}</title></path>`;
+const mx=x=>240-x; // mirror across the plan-view centreline
+
+/* ---- Plan view: single top-down silhouette, panels as true panel shapes ---- */
+const PLAN_BODY="M72 30 C90 16 150 16 168 30 L190 60 C196 70 198 80 198 100 L198 330 C198 352 194 366 186 380 C170 410 70 410 54 380 C46 366 42 352 42 330 L42 100 C42 80 44 70 50 60 Z";
+const PLAN_ZONES=[
+ ['front_centre','M64 0 H176 V46 C150 34 90 34 64 46 Z',120,30],
+ ['front_right_corner','M176 0 H240 V100 H182 L176 46 Z',184,68],
+ ['front_left_corner','M64 0 H0 V100 H58 L64 46 Z',56,68],
+ ['bonnet','M64 46 C90 34 150 34 176 46 L182 118 H58 Z',120,84],
+ ['windscreen','M58 118 H182 L172 160 C150 154 90 154 68 160 Z',120,140],
+ ['right_front_wing','M182 100 H240 V160 H172 L182 118 Z',188,132],
+ ['left_front_wing','M58 100 H0 V160 H68 L58 118 Z',52,132],
+ ['right_front_door','M172 160 H240 V238 H172 Z',186,199],
+ ['left_front_door','M68 160 H0 V238 H68 Z',54,199],
+ ['right_rear_door','M172 238 H240 V300 H172 Z',186,269],
+ ['left_rear_door','M68 238 H0 V300 H68 Z',54,269],
+ ['roof','M68 160 C90 154 150 154 172 160 V300 C150 306 90 306 68 300 Z',120,232],
+ ['right_quarter','M172 300 H240 V366 H172 Z',186,334],
+ ['left_quarter','M68 300 H0 V366 H68 Z',54,334],
+ ['rear_screen','M68 300 C90 306 150 306 172 300 L168 334 H72 Z',120,318],
+ ['tailgate','M72 334 H168 L172 366 Q120 392 68 366 Z',120,356],
+ ['rear_right_corner','M172 366 H240 V430 H148 V382 Q166 378 172 366 Z',180,390],
+ ['rear_left_corner','M68 366 H0 V430 H92 V382 Q74 378 68 366 Z',60,390],
+ ['rear_centre','M92 380 Q120 390 148 380 V430 H92 Z',120,400]];
+const PLAN_WHEELS=[['wheel_left_front',36,112],['wheel_right_front',204,112],['wheel_left_rear',36,324],['wheel_right_rear',204,324]];
+const PLAN_CENTRE=['bonnet','windscreen','roof','rear_screen','tailgate'];
+function planCar(opt){opt=opt||{};const p=opt.prefix||'p';const zones=opt.centreOnly?PLAN_ZONES.filter(z=>PLAN_CENTRE.includes(z[0])):PLAN_ZONES;let o='';
+  o+=`<defs><clipPath id="${p}-clip"><path d="${PLAN_BODY}"/></clipPath><linearGradient id="${p}-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#eaeef0"/></linearGradient><linearGradient id="${p}-glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d7dfe4"/><stop offset="1" stop-color="#b9c5cc"/></linearGradient><filter id="${p}-shadow" x="-20%" y="-10%" width="140%" height="130%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#1a2a33" flood-opacity=".16"/></filter></defs>`;
+  // wheels, mirrors: under the body so only the shoulder shows
+  PLAN_WHEELS.forEach(w=>o+=`<rect class="dv-wheel" x="${w[1]-8}" y="${w[2]-24}" width="16" height="48" rx="5"/>`);
+  o+=`<rect class="dv-mirror" x="22" y="160" width="22" height="11" rx="4"/><rect class="dv-mirror" x="196" y="160" width="22" height="11" rx="4"/>`;
+  o+=`<path class="dv-body" d="${PLAN_BODY}" fill="url(#${p}-body)" filter="url(#${p}-shadow)"/>`;
+  // glass, seams, lamps
+  o+=`<path class="dv-glass" fill="url(#${p}-glass)" d="M58 118 H182 L172 160 C150 154 90 154 68 160 Z"/><path class="dv-glass" fill="url(#${p}-glass)" d="M68 300 C90 306 150 306 172 300 L168 334 H72 Z"/>`;
+  o+=`<path class="dv-seam" d="M64 46 C90 34 150 34 176 46 M64 46 L58 118 M176 46 L182 118 M176 46 L182 100 M64 46 L58 100 M58 100 H42 M182 100 H198 M68 160 V300 M172 160 V300 M42 160 H68 M172 160 H198 M42 238 H68 M172 238 H198 M42 300 H68 M172 300 H198 M42 366 H68 M172 366 H198 M72 334 H168 M68 366 Q120 392 172 366 M92 382 V402 M148 382 V402"/>`;
+  o+=`<path class="dv-seam dv-seam--soft" d="M102 54 L98 112 M138 54 L142 112"/>`;
+  o+=`<path class="dv-lamp" d="M74 34 Q86 27 100 28 L98 40 Q84 40 72 44 Z"/><path class="dv-lamp" d="M166 34 Q154 27 140 28 L142 40 Q156 40 168 44 Z"/><path class="dv-lamp dv-lamp--rear" d="M62 372 Q72 384 92 386 L92 396 Q70 392 58 380 Z"/><path class="dv-lamp dv-lamp--rear" d="M178 372 Q168 384 148 386 L148 396 Q170 392 182 380 Z"/>`;
+  o+=`<g class="damage-zones" clip-path="url(#${p}-clip)">`;zones.forEach(z=>o+=zonePath(z[0],z[1]));o+=`</g><g class="damage-zones">`;
+  PLAN_WHEELS.forEach(w=>o+=`<rect data-damage-zone="${w[0]}" x="${w[1]-8}" y="${w[2]-24}" width="16" height="48" rx="5"><title>${zoneLabel(w[0])}</title></rect>`);o+=`</g>`;
+  if(!opt.noMarkers){o+=`<g class="damage-markers">`;zones.forEach(z=>o+=marker(z[0],z[2],z[3]));PLAN_WHEELS.forEach(w=>o+=marker(w[0],w[1],w[2]));o+=`</g>`;}
+  return o;}
+function svgPlan(){return `<svg class="damage-diagram" viewBox="0 0 240 434" role="group" aria-label="Vehicle damage diagram, plan view"><text class="damage-diagram-label" x="120" y="8" text-anchor="middle">FRONT</text>${planCar({prefix:'plan'})}<text class="damage-diagram-label" x="120" y="431" text-anchor="middle">REAR</text></svg>`;}
+
+/* ---- Elevations: insurance-sheet layout, front, rear and both sides, hatched damage ---- */
+const SIDE_BODY="M12 66 L10 52 C10 44 14 40 22 38 L70 32 L104 12 C112 8 130 6 150 6 L196 6 C214 6 224 10 232 16 L252 36 L258 46 L260 58 C260 64 258 66 254 66 L236 66 A22 22 0 0 0 192 66 L84 66 A22 22 0 0 0 40 66 L12 66 Z";
+function sideView(near){ // near side (N/S): front at left; off side is the mirror image
+  const p=near?'ns':'os';const Z=id=>id.replace('SIDE',near?'left':'right');const front=near?'front_left_corner':'front_right_corner',rear=near?'rear_left_corner':'rear_right_corner';
+  let o=`<defs><clipPath id="${p}-clip"><path d="${SIDE_BODY}"/></clipPath></defs>`;
+  o+=`<circle class="dv-tyre" cx="62" cy="66" r="19"/><circle class="dv-rim" cx="62" cy="66" r="11"/><circle class="dv-tyre" cx="214" cy="66" r="19"/><circle class="dv-rim" cx="214" cy="66" r="11"/>`;
+  o+=`<path class="dv-body" d="${SIDE_BODY}"/>`;
+  o+=`<path class="dv-glass" d="M74 34 L106 14 L106 34 Z"/><path class="dv-glass" d="M110 13 L156 11 L156 33 L110 33 Z"/><path class="dv-glass" d="M162 11 L200 11 L204 33 L162 33 Z"/><path class="dv-glass" d="M208 12 C220 12 228 15 234 20 L248 36 L208 36 Z"/>`;
+  o+=`<path class="dv-seam" d="M104 34 V64 M160 34 V64 M216 34 V60 M30 44 L100 40 M22 38 L70 32 M104 34 H236 M12 58 H30 M240 44 L254 46"/><path class="dv-seam dv-seam--soft" d="M118 44 H136 M174 44 H190"/>`;
+  o+=`<path class="dv-lamp" d="M12 44 L26 41 L28 50 L13 52 Z"/><path class="dv-lamp dv-lamp--rear" d="M252 42 L258 50 L258 60 L250 60 Z"/>`;
+  o+=`<g class="damage-zones" clip-path="url(#${p}-clip)">`;
+  o+=zonePath(front,'M0 0 H34 V100 H0 Z')+zonePath('bonnet','M22 0 H104 V40 L30 44 Z')+zonePath(Z('SIDE_front_wing'),'M30 44 L100 40 V100 H34 Z')+zonePath('roof','M104 0 H240 V14 H104 Z')+zonePath('windscreen','M70 36 L106 10 L106 36 Z')+zonePath(Z('SIDE_front_door'),'M100 14 H160 V100 H100 Z')+zonePath(Z('SIDE_rear_door'),'M160 14 H216 V100 H160 Z')+zonePath('rear_screen','M226 12 L254 38 L226 38 Z')+zonePath(Z('SIDE_quarter'),'M216 14 H252 V100 H216 Z')+zonePath(rear,'M250 38 H300 V100 H250 Z');
+  o+=`</g><g class="damage-zones"><circle data-damage-zone="${Z('wheel_SIDE_front')}" cx="62" cy="66" r="19"><title>${zoneLabel(Z('wheel_SIDE_front'))}</title></circle><circle data-damage-zone="${Z('wheel_SIDE_rear')}" cx="214" cy="66" r="19"><title>${zoneLabel(Z('wheel_SIDE_rear'))}</title></circle></g>`;
+  return o;}
+function endView(isFront){ // front view: viewer's left is the O/S; rear view: viewer's left is the N/S
+  const p=isFront?'fv':'rv';const L=isFront?'right':'left',R=isFront?'left':'right';const body="M14 70 V44 C14 34 20 30 26 28 L34 14 C40 6 80 6 86 14 L94 28 C100 30 106 34 106 44 V70 Z";
+  let o=`<defs><clipPath id="${p}-clip"><path d="${body}"/></clipPath></defs>`;
+  o+=`<rect class="dv-tyre" x="16" y="62" width="16" height="18" rx="3"/><rect class="dv-tyre" x="88" y="62" width="16" height="18" rx="3"/>`;
+  o+=`<path class="dv-body" d="${body}"/>`;
+  o+=isFront?`<path class="dv-glass" d="M30 30 L36 14 C40 8 80 8 84 14 L90 30 Z"/><path class="dv-seam" d="M22 40 H98 M26 52 H94 M14 54 H24 M96 54 H106 M28 62 H92"/><path class="dv-lamp" d="M18 42 L34 40 L34 48 L18 50 Z"/><path class="dv-lamp" d="M102 42 L86 40 L86 48 L102 50 Z"/><path class="dv-seam dv-seam--soft" d="M48 58 H72 M44 66 H76"/>`
+              :`<path class="dv-glass" d="M28 32 L34 14 C40 8 80 8 86 14 L92 32 Z"/><path class="dv-seam" d="M24 36 H96 M26 54 H94 M14 54 H26 M94 54 H106 M40 44 H80"/><path class="dv-lamp dv-lamp--rear" d="M16 42 L32 42 L32 52 L16 52 Z"/><path class="dv-lamp dv-lamp--rear" d="M104 42 L88 42 L88 52 L104 52 Z"/>`;
+  o+=`<g class="damage-zones" clip-path="url(#${p}-clip)">`;
+  if(isFront)o+=zonePath('roof','M0 0 H120 V12 H0 Z')+zonePath('windscreen','M28 12 H92 L94 32 H26 Z')+zonePath('bonnet','M20 32 H100 V52 H20 Z')+zonePath(`${L}_front_wing`,'M0 30 H22 V52 H0 Z')+zonePath(`${R}_front_wing`,'M98 30 H120 V52 H98 Z')+zonePath(`front_${L}_corner`,'M0 52 H26 V100 H0 Z')+zonePath(`front_${R}_corner`,'M94 52 H120 V100 H94 Z')+zonePath('front_centre','M26 52 H94 V100 H26 Z');
+  else o+=zonePath('roof','M0 0 H120 V12 H0 Z')+zonePath('rear_screen','M26 12 H94 V34 H26 Z')+zonePath('tailgate','M24 34 H96 V54 H24 Z')+zonePath(`${L}_quarter`,'M0 30 H24 V54 H0 Z')+zonePath(`${R}_quarter`,'M96 30 H120 V54 H96 Z')+zonePath(`rear_${L}_corner`,'M0 54 H26 V100 H0 Z')+zonePath(`rear_${R}_corner`,'M94 54 H120 V100 H94 Z')+zonePath('rear_centre','M26 54 H94 V100 H26 Z');
+  o+=`</g>`;return o;}
+function svgSide(){let o=`<svg class="damage-diagram damage-diagram--sheet" viewBox="0 0 320 354" role="group" aria-label="Vehicle damage diagram, elevations">`;
+  const HATCH=[['light',1,.55],['light_to_moderate',1.4,.7],['moderate',1.8,.85],['moderate_to_heavy',2.4,1],['heavy',3.2,1]];
+  o+=`<defs>${HATCH.map(h=>`<pattern id="hatch-${h[0]}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" style="fill:color-mix(in srgb,var(--red) 12%,#fff)"/><line x1="0" y1="0" x2="0" y2="6" style="stroke:var(--red);stroke-width:${h[1]};opacity:${h[2]}"/></pattern>`).join('')}</defs>`;
+  const cap=(x,y,t)=>`<text class="damage-diagram-label" x="${x}" y="${y}">${t}</text>`;
+  o+=cap(8,12,'FRONT')+cap(168,12,'REAR')+`<text class="dv-side-note" x="152" y="12" text-anchor="end">O/S · N/S</text><text class="dv-side-note" x="312" y="12" text-anchor="end">N/S · O/S</text>`;
+  o+=`<g transform="translate(8 16) scale(1.2)">${endView(true)}</g><g transform="translate(168 16) scale(1.2)">${endView(false)}</g>`;
+  o+=cap(10,138,'NEAR SIDE')+`<g transform="translate(10 144)">${sideView(true)}</g>`;
+  o+=cap(10,244,'OFF SIDE')+`<g transform="translate(310 250) scale(-1 1)">${sideView(false)}</g>`;
+  // markers, one per zone, in the view where it reads best
+  o+=`<g class="damage-markers">`;
+  const M=[['front_centre',80,100],['bonnet',80,66],['windscreen',80,42],['roof',80,22],['rear_centre',240,100],['tailgate',240,69],['rear_screen',240,42],
+    ['front_left_corner',28,194],['left_front_wing',76,196],['left_front_door',140,196],['left_rear_door',198,196],['left_quarter',244,196],['rear_left_corner',288,196],['wheel_left_front',72,210],['wheel_left_rear',224,210],
+    ['front_right_corner',292,300],['right_front_wing',244,302],['right_front_door',180,302],['right_rear_door',122,302],['right_quarter',76,302],['rear_right_corner',32,302],['wheel_right_front',248,316],['wheel_right_rear',96,316]];
+  M.forEach(m=>o+=marker(m[0],m[1],m[2]));o+=`</g></svg>`;return o;}
+
+/* ---- Dial: point-of-impact ring around a plan-view core ---- */
+const DIAL_SECTORS=[['front_centre',-22,22],['front_right_corner',22,45],['right_front_wing',45,68],['right_front_door',68,91],['right_rear_door',91,114],['right_quarter',114,137],['rear_right_corner',137,160],['rear_centre',160,200],['rear_left_corner',200,223],['left_quarter',223,246],['left_rear_door',246,269],['left_front_door',269,292],['left_front_wing',292,315],['front_left_corner',315,338]];
+function svgDial(){const cx=170,cy=170,R=140,r=100;const pt=(rad,a)=>{const t=(a-90)*Math.PI/180;return `${(cx+rad*Math.cos(t)).toFixed(1)} ${(cy+rad*Math.sin(t)).toFixed(1)}`;};
+  let o=`<svg class="damage-diagram damage-diagram--dial" viewBox="0 0 340 340" role="group" aria-label="Vehicle damage diagram, point of impact dial">`;
+  o+=`<defs><radialGradient id="dial-bg" cx=".5" cy=".5" r=".5"><stop offset=".7" stop-color="#fff"/><stop offset="1" stop-color="#eef1f3"/></radialGradient></defs>`;
+  o+=`<circle cx="${cx}" cy="${cy}" r="${R+3}" class="dv-dial-outer"/><circle cx="${cx}" cy="${cy}" r="${r-3}" class="dv-dial-inner" fill="url(#dial-bg)"/>`;
+  o+=`<g class="damage-zones">`;DIAL_SECTORS.forEach(s=>{const d=`M${pt(R,s[1])} A${R} ${R} 0 0 1 ${pt(R,s[2])} L${pt(r,s[2])} A${r} ${r} 0 0 0 ${pt(r,s[1])} Z`;o+=zonePath(s[0],d,'dial-sector');});o+=`</g>`;
+  // compass ticks and captions
+  o+=`<path class="dv-tick" d="M${pt(R+3,0)} L${pt(R+9,0)} M${pt(R+3,90)} L${pt(R+9,90)} M${pt(R+3,180)} L${pt(R+9,180)} M${pt(R+3,270)} L${pt(R+9,270)}"/>`;
+  o+=`<text class="damage-diagram-label" x="${cx}" y="12" text-anchor="middle">FRONT</text><text class="damage-diagram-label" x="${cx}" y="336" text-anchor="middle">REAR</text><text class="damage-diagram-label" x="3" y="${cy+3}">N/S</text><text class="damage-diagram-label" x="337" y="${cy+3}" text-anchor="end">O/S</text>`;
+  // plan-view core: scaled 0.42, only the centre panels and wheels are live here
+  const k=.42,ox=cx-120*k,oy=cy-217*k;
+  o+=`<g transform="translate(${ox.toFixed(1)} ${oy.toFixed(1)}) scale(${k})">${planCar({prefix:'dial',centreOnly:true,noMarkers:true})}</g>`;
+  o+=`<g class="damage-markers">`;DIAL_SECTORS.forEach(s=>{const a=(s[1]+s[2])/2,[x,y]=pt((R+r)/2,a).split(' ');o+=marker(s[0],x,y);});
+  PLAN_ZONES.filter(z=>PLAN_CENTRE.includes(z[0])).forEach(z=>o+=marker(z[0],(ox+z[2]*k).toFixed(1),(oy+z[3]*k).toFixed(1)));PLAN_WHEELS.forEach(w=>o+=marker(w[0],(ox+w[1]*k).toFixed(1),(oy+w[2]*k).toFixed(1)));o+=`</g></svg>`;return o;}
+
+/* ---- shared: build, hover, paint ---- */
+function buildCar(){const host=$('carView');host.dataset.variant=DV;document.querySelectorAll('.mock [data-dv]').forEach(b=>b.classList.toggle('on',b.dataset.dv===DV));host.innerHTML=DV==='side'?svgSide():DV==='dial'?svgDial():svgPlan();
+  host.onclick=e=>{const z=e.target.closest('[data-damage-zone]');if(!z)return;toggleZone(z.dataset.damageZone);};
+  host.onmouseover=e=>{const z=e.target.closest('[data-damage-zone]');hoverZone(z?z.dataset.damageZone:null);};host.onmouseleave=()=>hoverZone(null);
+  $('extraZones').innerHTML=EXTRA.map(x=>`<button class="btn btn--small" data-z="${x[0]}" onclick="toggleZone('${x[0]}')">${x[1]}</button>`).join('');
+  $('dvLegend').innerHTML=SEV.map(s=>`<span><i style="background:${SEV_FILL[s[0]]}"></i>${s[1]}</span>`).join('');paintZones();}
+function hoverZone(c){$('dvName').textContent=c?zoneLabel(c):'';document.querySelectorAll('#carView [data-damage-zone]').forEach(el=>el.classList.toggle('is-hover',!!c&&el.dataset.damageZone===c));}
 function canEditSec(k){return EDITING&&!$('section-'+k).classList.contains('is-locked');}
 function toggleZone(c){if(!canEditSec('damage'))return;if(impacts[c])delete impacts[c];else impacts[c]={sev:'moderate',note:''};paintZones();touch();}
-function paintZones(){document.querySelectorAll('#carSvg [data-damage-zone]').forEach(el=>el.classList.toggle('is-damaged',!!impacts[el.dataset.damageZone]));document.querySelectorAll('#carSvg .damage-marker').forEach(m=>m.classList.toggle('is-hidden',!impacts[m.dataset.m]));document.querySelectorAll('#extraZones .btn').forEach(b=>b.classList.toggle('is-damaged',!!impacts[b.dataset.z]));
-  const ks=Object.keys(impacts);$('impacts').innerHTML=ks.length?ks.map(k=>`<li class="impact-row"><span class="zc">${zoneLabel(k)}</span><span class="fc" style="margin:0"><div class="fv">${SEV.find(s=>s[0]===impacts[k].sev)[1]}</div><select class="fi" onchange="impacts['${k}'].sev=this.value;paintZones();touch()">${SEV.map(s=>`<option value="${s[0]}"${s[0]===impacts[k].sev?' selected':''}>${s[1]}</option>`).join('')}</select></span><span class="fc" style="margin:0"><div class="fv ${impacts[k].note?'':'empty'}">${impacts[k].note||'No note'}</div><input class="fi" value="${impacts[k].note}" placeholder="Note" oninput="impacts['${k}'].note=this.value;touch()"></span><button class="del" title="Remove" onclick="delete impacts['${k}'];paintZones();touch()">×</button></li>`).join(''):'<li class="muted">No damage recorded.</li>';
+function paintZones(){const ks=Object.keys(impacts);const idx={};ks.forEach((k,i)=>idx[k]=i+1);
+  document.querySelectorAll('#carView [data-damage-zone]').forEach(el=>{const i=impacts[el.dataset.damageZone];el.classList.toggle('is-damaged',!!i);if(i)el.dataset.sev=i.sev;else el.removeAttribute('data-sev');});
+  document.querySelectorAll('#carView .damage-marker').forEach(m=>{const n=idx[m.dataset.m];m.classList.toggle('is-hidden',!n);if(n)m.querySelector('text').textContent=n;});
+  document.querySelectorAll('#extraZones .btn').forEach(b=>b.classList.toggle('is-damaged',!!impacts[b.dataset.z]));
+  $('impacts').innerHTML=ks.length?ks.map(k=>`<li class="impact-row" onmouseenter="hoverZone('${k}')" onmouseleave="hoverZone(null)"><span class="zc"><i class="zn">${idx[k]}</i>${zoneLabel(k)}</span><span class="fc" style="margin:0"><div class="fv">${SEV.find(s=>s[0]===impacts[k].sev)[1]}</div><select class="fi" onchange="impacts['${k}'].sev=this.value;paintZones();touch()">${SEV.map(s=>`<option value="${s[0]}"${s[0]===impacts[k].sev?' selected':''}>${s[1]}</option>`).join('')}</select></span><span class="fc" style="margin:0"><div class="fv ${impacts[k].note?'':'empty'}">${impacts[k].note||'No note'}</div><input class="fi" value="${impacts[k].note}" placeholder="Note" oninput="impacts['${k}'].note=this.value;touch()"></span><button class="del" title="Remove" onclick="delete impacts['${k}'];paintZones();touch()">×</button></li>`).join(''):'<li class="muted">No damage recorded.</li>';
   const locs=[...new Set(ks.map(zoneLoc))];$('dLoc').textContent=locs.length===0?'—':locs.length===1?LOC[locs[0]]:'Multiple · '+locs.map(l=>LOC[l]).join(', ');const ranks=ks.map(k=>SEV.findIndex(s=>s[0]===impacts[k].sev));$('dSev').textContent=ks.length?SEV[Math.max(...ranks)][1]:'—';$('dCount').textContent=ks.length;}
-
 /* ================= valuation ================= */
 let GUIDE={name:"Glass's",retail:2950,id:'g1'};
 const PRESETS=[{id:'tow',label:'Tow bar',sug:300},{id:'pco',label:'PCO plated',sug:1500},{id:'dec',label:'Decals',sug:500},{id:'camp',label:'Camper conversion',sug:0},{id:'tuit',label:'Driving tuition',sug:500},{id:'oth1',label:'',sug:0,other:true},{id:'oth2',label:'',sug:0,other:true}];
@@ -1120,7 +1265,7 @@ function decTouch(k){REVIEWED[k]=true;}
 function dismissable(){document.querySelectorAll('.notice,#staleBar').forEach(n=>{if(n.dataset.dismiss)return;n.dataset.dismiss='1';const b=document.createElement('button');b.type='button';b.className='dismiss';b.setAttribute('aria-label','Dismiss');b.innerHTML='<svg class="icon"><use href="#icon-x"/></svg>';b.onclick=()=>{n.hidden=true;n.classList.remove('show');measure();};n.appendChild(b);});}
 
 /* ================= query-string presets (screenshots only) ================= */
-function applyQuery(){const q=new URLSearchParams(location.search);if(q.get('state'))setState(q.get('state'));if(q.get('layout'))setLayout(q.get('layout'),true);if(q.get('edit')==='1')startEdit();if(q.get('ev')==='1')applyAdj();if(q.get('proposal')==='1')toggleProposal();if(q.get('glass')==='return')glassReturn();else if(q.get('glass'))setGlass(q.get('glass'));if(q.get('closeopen')==='1'){const c=$('glassClose');if(c)c.open=true;}if(q.get('expand')==='1')toggleExpand();if(q.get('collapse'))q.get('collapse').split(',').forEach(k=>{const b=document.querySelector('#section-'+k+' .sec-collapse');if(b)toggleSection(b);});if(q.get('section'))jumpTo(q.get('section'));}
+function applyQuery(){const q=new URLSearchParams(location.search);if(q.get('state'))setState(q.get('state'));if(q.get('layout'))setLayout(q.get('layout'),true);if(q.get('edit')==='1')startEdit();if(q.get('ev')==='1')applyAdj();if(q.get('proposal')==='1')toggleProposal();if(q.get('glass')==='return')glassReturn();else if(q.get('glass'))setGlass(q.get('glass'));if(q.get('closeopen')==='1'){const c=$('glassClose');if(c)c.open=true;}if(q.get('expand')==='1')toggleExpand();if(q.get('collapse'))q.get('collapse').split(',').forEach(k=>{const b=document.querySelector('#section-'+k+' .sec-collapse');if(b)toggleSection(b);});if(q.get('clicker'))setDamageVariant(q.get('clicker'));if(q.get('section'))jumpTo(q.get('section'));}
 
 function shellSearch(f){window.location.href='pegasus_shell_v26.html#/search?ref='+encodeURIComponent(f.querySelector('input').value);return false;}
 /* ================= init ================= */

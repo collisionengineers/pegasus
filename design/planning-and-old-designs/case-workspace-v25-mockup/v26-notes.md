@@ -146,6 +146,34 @@ closes every dialog, and drives the main flows; run it the same way as the
 Case record's check. 12 September: `{"fail":[],"okCount":110}` including the strip, no console
 errors on any of the 33 rendered routes and states (`v26-shots/s*.png`).
 
+## Damage clicker — three variants
+
+The Damage workbench carries three interchangeable vehicle clickers. The
+`Damage clicker` row on the mockup strip (or `?clicker=plan|side|dial`)
+switches between them; the choice is remembered per browser. All three drive
+the same zone model as the live diagram (19 panels, 4 wheels, and the
+Underside, Interior and Mechanical chips), so the recorded-zones list, the
+derived Impact location and Impact severity and the incident narrative do
+not change between them.
+
+| Variant | What it is | Shots |
+| --- | --- | --- |
+| Plan | One top-down silhouette drawn as the actual panels: bumper ends wrap to the corners, wings sit beside the bonnet, doors beside the glasshouse, quarters beside the rear screen. Panel seams, lamps, mirrors and a soft drop shadow. | `30` |
+| Elevations | The insurance-sheet layout: front, rear, near side and off side. Damage is hatched, and a zone that shows in two views (a corner, a wing) lights in both. The end views are captioned with which side is which. | `31`, `33` |
+| Dial | A point-of-impact ring of fourteen perimeter sectors around a plan-view core. Bonnet, screens, roof, tailgate and wheels are clicked on the core; everything on the outside is clicked on the ring. | `32` |
+
+Shared behaviour:
+
+- Severity is painted, not just marked: five graded fills from Light to Heavy,
+  with the legend under the diagram. Changing the severity in the list
+  repaints the zone.
+- Each recorded zone carries a number on the diagram and the same number in
+  the list, so "2" on the tailgate is row 2.
+- Hovering a zone names it under the diagram; hovering a list row lights its
+  zone. Both are absent, not disabled, outside an edit session (D21).
+- No explanatory copy on the workbench. Captions are FRONT, REAR, N/S, O/S and
+  the view names only.
+
 ## Decisions that need sign-off before Stage 2
 
 Everything in `v25-notes.md` A–F still stands. New:
@@ -168,6 +196,8 @@ Everything in `v25-notes.md` A–F still stands. New:
 - **N. Two files.** The shell and the Case record are separate files here; in
   Stage 2 they are one application. Nothing to decide unless a page is
   missing from the table above.
+- **O. Damage clicker.** Pick one of Plan, Elevations or Dial for Stage 2
+  (see § Damage clicker). Only one ships; the strip switch is mockup-only.
 
 ## Self-check
 
@@ -177,7 +207,8 @@ valuation apply, phantom estimate line, discounts, VAT override, Use estimate,
 Glass's launch, guarded close, every session state, Complete import, held
 elsewhere), the decisions strip, report generation and the stale bar,
 dismissals, save and cancel, collapse on every section, full-screen estimate,
-rail, Files tabs, notes, hold, menus and the colleague guard. Run it with
+rail, Files tabs, notes, hold, menus, the colleague guard and the three
+damage clickers. Run it with
 file access allowed and read the RESULT line:
 
 ```powershell
@@ -187,8 +218,10 @@ file access allowed and read the RESULT line:
   Select-String 'RESULT'
 ```
 
-12 September: `{"fail":[],"okCount":213}` with no console errors, on the
-Playwright Chromium 1228 build.
+12 September: `{"fail":[],"okCount":236}` with no console errors, on the
+Playwright Chromium 1228 build. The last 23 checks switch through the three
+damage clickers and confirm each covers every zone, paints and numbers the
+recorded damage, answers hover and click, and syncs the strip.
 
 ## Known limits
 

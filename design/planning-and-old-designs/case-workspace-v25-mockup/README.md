@@ -19,7 +19,8 @@ reason, and repeated facts across the ribbon, aside and body.
 
 Open the HTML file directly in any browser — no server, build or network access needed.
 The dark strip at the bottom left ("Mockup state") is a demo control, not product UI: it
-switches the Case's lifecycle state so each availability rule can be exercised.
+switches the Case's lifecycle state so each availability rule can be exercised, and on the
+Case record also picks between the three vehicle damage clickers (Plan, Elevations, Dial).
 
 ## Files
 
@@ -28,7 +29,7 @@ switches the Case's lifecycle state so each availability rule can be exercised.
 | `pegasus_case_dashboard_v24.html` | The operator's original private reference mockup that `pegasus_case_workspace_v25.html` was built from. |
 | `pegasus_case_workspace_v25.html` | The v25 interactive mockup (superseded by v26, kept for comparison). |
 | `pegasus_case_workspace_v26.html` | The current interactive mockup: v25 plus the 12 September usability pass, the live Glass's session rules, and the manager's decision review. |
-| `v26-notes.md` | What v26 changes and why, the Glass's rules it mirrors, and the new sign-off items G–K. |
+| `v26-notes.md` | What v26 changes and why, the Glass's rules it mirrors, the three damage clicker variants, and the new sign-off items G–O. |
 | `v25-notes.md` | Design decisions taken and their authority, and the list of items still needing operator sign-off before Stage 2 implementation begins. |
 | `discussion-log.md` | Chronological record of the request, the exploration, and each round of operator feedback that shaped the mockup. |
 | `v25-shots/` | Headless-Chromium screenshots taken across the v25 session's iterations, at 1580, 1440 and 760px. |

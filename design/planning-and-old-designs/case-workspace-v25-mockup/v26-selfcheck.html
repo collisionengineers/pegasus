@@ -34,6 +34,16 @@ f.onload=()=>{
     // damage
     const before=Object.keys(g("impacts")).length;w.toggleZone('bonnet');check('zone toggled',Object.keys(g("impacts")).length===before+1);
     check('impact row rendered',d.querySelectorAll('#impacts .impact-row').length===before+1);
+    check('impact rows numbered',[...d.querySelectorAll('#impacts .zn')].map(e=>e.textContent).join()==='1,2,3');
+    for(const v of ['plan','side','dial']){w.setDamageVariant(v);const zs=[...d.querySelectorAll('#carView [data-damage-zone]')].map(e=>e.dataset.damageZone);const all=[...g('ZONES').map(z=>z[0]),...g('WHEELS').map(x=>x[0])];
+      check('variant '+v+' renders',$('carView').dataset.variant===v&&!!d.querySelector('#carView svg'));
+      check('variant '+v+' covers every zone',all.every(z=>zs.includes(z)));
+      check('variant '+v+' paints damage',[...d.querySelectorAll('#carView .is-damaged')].map(e=>e.dataset.damageZone).includes('bonnet')&&d.querySelector('#carView .is-damaged[data-sev="moderate"]'));
+      check('variant '+v+' markers numbered',[...d.querySelectorAll('#carView .damage-marker:not(.is-hidden) text')].every(t=>/^[1-3]$/.test(t.textContent)));
+      check('variant '+v+' strip button on',d.querySelector('.mock [data-dv="'+v+'"]').classList.contains('on'));
+      w.hoverZone('bonnet');check('variant '+v+' hover readout',$('dvName').textContent==='Bonnet'&&!!d.querySelector('#carView [data-damage-zone="bonnet"].is-hover'));w.hoverZone(null);
+      const n=Object.keys(g('impacts')).length;d.querySelector('#carView [data-damage-zone="roof"]').dispatchEvent(new w.MouseEvent('click',{bubbles:true}));check('variant '+v+' click toggles',Object.keys(g('impacts')).length===n+1);w.toggleZone('roof');}
+    w.setDamageVariant('plan');check('legend rendered',d.querySelectorAll('#dvLegend span').length===5);
     // valuation
     $('inc_tow').checked=true;w.adjWork();check('preset row on',$('inc_tow').closest('.add').classList.contains('on'));
     $('f-ptl').value='10';w.adjWork();w.applyAdj();check('EV applied',g("S").ev>0);
