@@ -173,10 +173,33 @@ assumption that only the merged result was in scope. Alex asked for it to be inc
 ("that reference should be there too"), so it was moved into this folder in a follow-up
 commit alongside the others.
 
+## 8. 12 September — usability pass and v26
+
+Alex, on `dev`: *"examine the UI and its process in general… imagine you're a person
+trying to use it. whats good. whats bad. is it easy? whats awkward? We need to fold in
+the Glass's changes on our old UI, into this new one. we need solid layout. we need the
+management UI integrated enough to keep him happy (v24), whilst still maintaining some
+competency."*
+
+The pass found that v25's frame, one-geometry edit and availability labels hold, but:
+edit was only reachable from the ribbon; images sat ninth of ten sections; the Estimate
+head repeated the round-one button jumble; read mode rendered edit furniture (seven
+presets, eight header fields, a permanent drop zone); explanatory copy had crept back;
+and the Glass's line was a two-button toy that contradicted the six Glass's commits
+that landed on `origin/dev` on 11 September (own window, ten states, guarded Close,
+held-elsewhere, one outcome sentence per state, Complete import).
+
+Against v24, the manager's largest distinct element — the decision review — was the one
+thing v25 lacked that is worth adding; Core already has an AI suggestions page with
+Accept and Correct, so a proposal column can render only from a real reviewed proposal.
+
+Alex: *"okay go for it."* v26 was built as the same single file (see `v26-notes.md`),
+rendered across 22 states into `v26-shots/`, and committed on
+`task/case-workspace-v26-mockup` off `dev`.
+
 ## Outstanding
 
-Stage 1 (the mockup) is built and iterated three rounds; it has not yet been given final
-approval to proceed to Stage 2 (the Razor implementation). The six-plus items in
-`v25-notes.md`'s sign-off list are still open. This folder is temporary per
-`docs/index.md`'s carve-out — remove it once Stage 2 lands or the design is formally
-accepted or rejected.
+Stage 1 is at v26; it has not yet been given final approval to proceed to Stage 2 (the
+Razor implementation). Sign-off items A–F (`v25-notes.md`) and G–K (`v26-notes.md`)
+are open. This folder is temporary per `docs/index.md`'s carve-out — remove it once
+Stage 2 lands or the design is formally accepted or rejected.

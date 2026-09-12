@@ -26,12 +26,18 @@ switches the Case's lifecycle state so each availability rule can be exercised.
 | File | Purpose |
 | --- | --- |
 | `pegasus_case_dashboard_v24.html` | The operator's original private reference mockup that `pegasus_case_workspace_v25.html` was built from. |
-| `pegasus_case_workspace_v25.html` | The interactive mockup. |
+| `pegasus_case_workspace_v25.html` | The v25 interactive mockup (superseded by v26, kept for comparison). |
+| `pegasus_case_workspace_v26.html` | The current interactive mockup: v25 plus the 12 September usability pass, the live Glass's session rules, and the manager's decision review. |
+| `v26-notes.md` | What v26 changes and why, the Glass's rules it mirrors, and the new sign-off items G–K. |
 | `v25-notes.md` | Design decisions taken and their authority, and the list of items still needing operator sign-off before Stage 2 implementation begins. |
 | `discussion-log.md` | Chronological record of the request, the exploration, and each round of operator feedback that shaped the mockup. |
-| `v25-shots/` | Headless-Chromium screenshots taken across the session's iterations, at 1580, 1440 and 760px. |
+| `v25-shots/` | Headless-Chromium screenshots taken across the v25 session's iterations, at 1580, 1440 and 760px. |
+| `v26-shots/` | Headless-Chromium screenshots of every v26 state (lifecycle, Glass's session, decisions, breakpoints). |
 
 ## Status
 
-Built and iterated across three rounds of feedback. Not yet given final approval to
-proceed to Stage 2. See `v25-notes.md` for the specific decisions awaiting sign-off.
+v25 was built and iterated across three rounds of feedback. v26 (12 September)
+applies the usability review, folds in the Glass's behaviour on `origin/dev` and
+the manager's decision review. Not yet given final approval to proceed to
+Stage 2. See `v25-notes.md` (A–F) and `v26-notes.md` (G–K) for the decisions
+awaiting sign-off.
