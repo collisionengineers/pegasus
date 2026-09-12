@@ -87,7 +87,7 @@ strong{font-weight:650}
 .workspace-tab.is-active::before,.workspace-tab[aria-current="page"]::before{content:"";position:absolute;left:-1px;right:-1px;top:-1px;height:2px;background:var(--red);border-radius:4px 4px 0 0}
 .workspace-tab>.icon{width:14px;height:14px;flex:none;opacity:.75}
 .workspace-tab .ref{font-weight:600;overflow:hidden;text-overflow:ellipsis}
-.workspace-tab .sub{font:500 11px var(--mono);color:var(--quiet);overflow:hidden;text-overflow:ellipsis}
+.workspace-tab .reg{font:500 11px var(--mono);color:var(--quiet);overflow:hidden;text-overflow:ellipsis}
 .workspace-tab .st{flex:none}
 .workspace-tab .st--dirty{width:7px;height:7px;border-radius:50%;background:var(--amber)}
 .workspace-tab .st--glass{width:12px;height:12px;color:var(--amber);opacity:1}
@@ -137,6 +137,67 @@ body.has-viewer .mock{display:none}
 .th .th-view{position:absolute;top:4px;right:26px;width:17px;height:17px;border-radius:3px;border:0;background:rgba(255,255,255,.92);color:var(--ink);display:none;place-items:center;padding:0;cursor:pointer}
 .th .th-view .icon{width:11px;height:11px}
 body.is-editing #thumbs .th:hover .th-view{display:grid}
+
+/* ---- Tab strip options (mockup variables) ---- */
+.workspace-tabs[data-place="band"]{background:var(--surface-3);border-bottom:1px solid var(--line)}
+.workspace-tabs[data-place="band"] .workspace-tab{background:var(--surface-2);border-color:var(--line);color:var(--muted)}
+.workspace-tabs[data-place="band"] .workspace-tab.is-active,.workspace-tabs[data-place="band"] .workspace-tab[aria-current="page"]{background:var(--surface);border-top:2px solid var(--red);margin-bottom:0;height:33px}
+.workspace-tabs[data-place="band"] .workspace-tab.is-active::before,.workspace-tabs[data-place="band"] .workspace-tab[aria-current="page"]::before{display:none}
+body[data-tabs-place="band"] .app-main,body[data-tabs-place="crumb"] .app-main,body[data-tabs-place="rail"] .app-main{padding-top:var(--page-pad)}
+body[data-tabs-place="band"] .record,body[data-tabs-place="crumb"] .record,body[data-tabs-place="rail"] .record{border-top:1px solid #cbd2d5}
+.workspace-tabs[data-density="compact"]{padding-top:9px}
+.workspace-tabs[data-density="compact"] .workspace-tab{height:27px;font-size:12px;padding:0 4px 0 9px;gap:6px}
+.workspace-tabs[data-density="compact"] .workspace-tab.is-active,.workspace-tabs[data-density="compact"] .workspace-tab[aria-current="page"]{height:28px}
+.workspace-tabs[data-density="compact"] .workspace-tab .reg{font-size:10.5px}
+.workspace-tabs[data-close="always"] .workspace-tab .tab-close{visibility:visible}
+.workspace-tab--open{color:var(--quiet)}
+.rail-open{margin:0 8px 6px 14px;display:grid;gap:1px}
+.rail-open[hidden]{display:none}
+.rail-open a{display:grid;grid-template-columns:14px minmax(0,1fr) auto auto;column-gap:6px;align-items:center;padding:4px 6px 4px 8px;border-radius:var(--radius);color:var(--nav-muted);font-size:12px;border-left:2px solid transparent;min-width:0;line-height:1.25}
+.rail-open a>.icon{grid-column:1;grid-row:1/3}
+.rail-open .ref{grid-column:2;grid-row:1}
+.rail-open .reg{grid-column:2;grid-row:2;font-size:10.5px}
+.rail-open a>.st{grid-column:3;grid-row:1/3;margin-left:0}
+.rail-open .tab-close{grid-column:4;grid-row:1/3}
+.rail-open a:hover{background:rgba(255,255,255,.08);color:var(--nav-text);text-decoration:none}
+.rail-open a.is-active,.rail-open a[aria-current="page"]{color:var(--nav-text);background:rgba(255,255,255,.1);border-left-color:var(--red)}
+.rail-open .icon{width:12px;height:12px;opacity:.7;flex:none}
+.rail-open .ref{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rail-open .reg{font:500 10.5px var(--mono);opacity:.7;white-space:nowrap}
+.rail-open .st{margin-left:auto;flex:none}
+.rail-open .st--dirty{width:7px;height:7px;border-radius:50%;background:#e0a144}
+.rail-open .st--glass{color:#e0a144;opacity:1}
+.rail-open .st--held{opacity:.8}
+.rail-open .tab-close{display:grid;place-items:center;width:18px;height:18px;border:0;background:transparent;border-radius:2px;color:var(--nav-muted);padding:0;visibility:hidden;cursor:pointer;flex:none}
+.rail-open a:hover .tab-close,.rail-open a.is-active .tab-close,.rail-open a[aria-current="page"] .tab-close{visibility:visible}
+.rail-open .tab-close .icon{width:11px;height:11px;opacity:1}
+.rail-open .tab-close:hover{background:rgba(255,255,255,.15);color:#fff}
+.rail-collapsed .rail-open{display:none}
+.workspace-tabs[data-place="crumb"]{align-items:center;padding:0 var(--page-pad);background:var(--bg);border-bottom:1px solid var(--line)}
+.crumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.crumb>a{color:var(--muted)}
+.crumb>a:hover{color:var(--ink)}
+.crumb .sep{color:var(--quiet)}
+.crumb .count{font-size:11px;color:var(--quiet);margin-left:4px}
+.crumb-menu{position:relative}
+.crumb-menu summary{list-style:none;display:flex;align-items:center;gap:7px;cursor:pointer;color:var(--ink);padding:4px 8px;border-radius:var(--radius);border:1px solid transparent}
+.crumb-menu summary::-webkit-details-marker{display:none}
+.crumb-menu summary:hover,.crumb-menu[open] summary{border-color:var(--line);background:var(--surface)}
+.crumb-menu summary .ref{font-weight:600}
+.crumb-menu summary .reg{font:500 11px var(--mono);color:var(--quiet)}
+.crumb-menu summary>.icon{width:13px;height:13px;color:var(--quiet)}
+.crumb-menu summary .st--dirty{width:7px;height:7px;border-radius:50%;background:var(--amber);display:inline-block}
+.crumb-menu summary .st--glass{width:12px;height:12px;color:var(--amber)}
+.crumb-menu summary .st--held{width:12px;height:12px;color:var(--quiet)}
+.crumb-menu .menu{position:absolute;top:34px;left:0;min-width:260px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:4px;z-index:40}
+.crumb-menu .menu a,.tabs-more .menu a{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:var(--radius);color:var(--ink);font-size:12.5px;white-space:nowrap}
+.crumb-menu .menu a:hover{background:var(--surface-2);text-decoration:none}
+.crumb-menu .menu .icon,.tabs-more .menu .icon{width:14px;height:14px;color:var(--quiet)}
+.crumb-menu .menu .st,.tabs-more .menu .st{margin-left:auto}
+.crumb-menu .menu .st--dirty,.tabs-more .menu .st--dirty{width:7px;height:7px;border-radius:50%;background:var(--amber)}
+.crumb-menu .menu .st--glass,.tabs-more .menu .st--glass{color:var(--amber)}
+.mock .mrow .sep{width:1px;height:16px;background:#4a5157;margin:0 2px}
+.mock .mrow b.sub{min-width:0;margin-left:2px;color:#7d878c}
 .app-main{min-width:0;flex:1;padding:var(--page-pad);padding-bottom:50px}
 .content{width:min(100%,var(--content-max));margin-inline:auto;min-width:0}
 
@@ -990,6 +1051,9 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
   <div class="mrow"><b>Glass's</b><button data-g="none" class="on" onclick="setGlass('none')">None</button><button data-g="open" onclick="setGlass('open')">Open</button><button data-g="waiting" onclick="setGlass('waiting')">Waiting</button><button data-g="failed" onclick="setGlass('failed')">Failed</button><button data-g="unknown" onclick="setGlass('unknown')">Unknown</button><button data-g="elsewhere" onclick="setGlass('elsewhere')">Elsewhere</button><button onclick="glassReturn()">Return →</button></div>
   <div class="mrow"><b>Decisions</b><button id="mockProp" onclick="toggleProposal()">AI proposal</button></div>
   <div class="mrow"><b>Tabs</b><button data-tabs="1" onclick="mockTabs(1)">1 open</button><button data-tabs="4" onclick="mockTabs(4)">4 open</button><button data-tabs="9" onclick="mockTabs(9)">9 open</button></div>
+  <div class="mrow"><b>Tab layout</b><button data-o="place:fused" onclick="setTabOpt('place','fused')">Fused strip</button><button data-o="place:band" onclick="setTabOpt('place','band')">Grey band</button><button data-o="place:rail" onclick="setTabOpt('place','rail')">Rail list</button><button data-o="place:crumb" onclick="setTabOpt('place','crumb')">Breadcrumb</button></div>
+  <div class="mrow"><b>Tab label</b><button data-o="label:both" onclick="setTabOpt('label','both')">Ref + reg</button><button data-o="label:ref" onclick="setTabOpt('label','ref')">Ref only</button><button data-o="label:reg" onclick="setTabOpt('label','reg')">Reg only</button><span class="sep"></span><button data-o="icons:1" onclick="setTabOpt('icons','1')">Icons</button><button data-o="icons:0" onclick="setTabOpt('icons','0')">No icons</button><span class="sep"></span><button data-o="density:regular" onclick="setTabOpt('density','regular')">Regular</button><button data-o="density:compact" onclick="setTabOpt('density','compact')">Compact</button></div>
+  <div class="mrow"><b>Tab rules</b><button data-o="max:4" onclick="setTabOpt('max','4')">Max 4</button><button data-o="max:6" onclick="setTabOpt('max','6')">Max 6</button><button data-o="max:8" onclick="setTabOpt('max','8')">Max 8</button><button data-o="max:0" onclick="setTabOpt('max','0')">No limit</button><span class="sep"></span><button data-o="glyphs:1" onclick="setTabOpt('glyphs','1')">State glyphs</button><button data-o="glyphs:0" onclick="setTabOpt('glyphs','0')">No glyphs</button><span class="sep"></span><button data-o="close:hover" onclick="setTabOpt('close','hover')">× on hover</button><button data-o="close:always" onclick="setTabOpt('close','always')">× always</button><span class="sep"></span><button data-o="wc:1" onclick="setTabOpt('wc',+TABOPT.wc?0:1)">Work Centre tab</button><button data-o="open:1" onclick="setTabOpt('open',+TABOPT.open?0:1)">+ Open tab</button><span class="sep"></span><button onclick="resetTabOpt()">Reset</button></div>
   <div class="mrow"><b>Damage clicker</b><button data-dv="plan" onclick="setDamageVariant('plan')">Plan</button><button data-dv="side" onclick="setDamageVariant('side')">Elevations</button><button data-dv="dial" onclick="setDamageVariant('dial')">Dial</button></div>
 </div>
 <div class="viewer" id="viewer" hidden role="dialog" aria-modal="true" aria-label="Image viewer" tabindex="-1">
@@ -1325,7 +1389,7 @@ function decTouch(k){REVIEWED[k]=true;}
 function dismissable(){document.querySelectorAll('.notice,#staleBar').forEach(n=>{if(n.dataset.dismiss)return;n.dataset.dismiss='1';const b=document.createElement('button');b.type='button';b.className='dismiss';b.setAttribute('aria-label','Dismiss');b.innerHTML='<svg class="icon"><use href="#icon-x"/></svg>';b.onclick=()=>{n.hidden=true;n.classList.remove('show');measure();};n.appendChild(b);});}
 
 /* ================= query-string presets (screenshots only) ================= */
-function applyQuery(){const q=new URLSearchParams(location.search);if(q.get('state'))setState(q.get('state'));if(q.get('layout'))setLayout(q.get('layout'),true);if(q.get('edit')==='1')startEdit();if(q.get('ev')==='1')applyAdj();if(q.get('proposal')==='1')toggleProposal();if(q.get('glass')==='return')glassReturn();else if(q.get('glass'))setGlass(q.get('glass'));if(q.get('closeopen')==='1'){const c=$('glassClose');if(c)c.open=true;}if(q.get('expand')==='1')toggleExpand();if(q.get('collapse'))q.get('collapse').split(',').forEach(k=>{const b=document.querySelector('#section-'+k+' .sec-collapse');if(b)toggleSection(b);});if(q.get('tabs'))mockTabs(+q.get('tabs'));if(q.get('clicker'))setDamageVariant(q.get('clicker'));if(q.get('viewer'))openViewer(+q.get('viewer'));if(q.get('section'))jumpTo(q.get('section'));}
+function applyQuery(){const q=new URLSearchParams(location.search);if(q.get('state'))setState(q.get('state'));if(q.get('layout'))setLayout(q.get('layout'),true);if(q.get('edit')==='1')startEdit();if(q.get('ev')==='1')applyAdj();if(q.get('proposal')==='1')toggleProposal();if(q.get('glass')==='return')glassReturn();else if(q.get('glass'))setGlass(q.get('glass'));if(q.get('closeopen')==='1'){const c=$('glassClose');if(c)c.open=true;}if(q.get('expand')==='1')toggleExpand();if(q.get('collapse'))q.get('collapse').split(',').forEach(k=>{const b=document.querySelector('#section-'+k+' .sec-collapse');if(b)toggleSection(b);});if(q.get('tabs'))mockTabs(+q.get('tabs'));if(q.get('tabopt'))q.get('tabopt').split(',').forEach(kv=>{const [k,v]=kv.split(':');setTabOpt(k,v);});if(q.get('clicker'))setDamageVariant(q.get('clicker'));if(q.get('viewer'))openViewer(+q.get('viewer'));if(q.get('section'))jumpTo(q.get('section'));}
 
 function shellSearch(f){window.location.href='pegasus_shell_v26.html#/search?ref='+encodeURIComponent(f.querySelector('input').value);return false;}
 /* ---- synthetic evidence previews (mockup only: there are no real files) ---- */
@@ -1357,17 +1421,36 @@ $('viewer').addEventListener('click',e=>{if(e.target===$('viewer'))closeViewer()
 /* ================= working set (tabs) ================= */
 const SHELL_PAGE='pegasus_shell_v26.html';
 const ME={id:'c99',kind:'case',ref:'QDOS26214',sub:'MA59BDY',route:'/cases/c99'};
-const TAB_ICON={case:'folder-open',triage:'file-text',unidentified:'alert-circle',image:'image',message:'inbox'};
+const TAB_ICON={case:'folder-open',triage:'file-text',unidentified:'alert-circle',image:'image',message:'inbox',wc:'layout-dashboard',open:'plus'};
+const TABOPT_DEFAULT={place:'fused',label:'both',max:6,glyphs:1,close:'hover',wc:0,open:0,density:'regular',icons:1};
+let TABOPT=Object.assign({},TABOPT_DEFAULT);try{Object.assign(TABOPT,JSON.parse(localStorage.getItem('v26.tabopt')||'{}'));}catch{}
+function setTabOpt(k,v){TABOPT[k]=v;localStorage.setItem('v26.tabopt',JSON.stringify(TABOPT));renderTabs();}
+function resetTabOpt(){TABOPT=Object.assign({},TABOPT_DEFAULT);localStorage.removeItem('v26.tabopt');renderTabs();}
 function readOpen(){try{const a=JSON.parse(localStorage.getItem('v26.open')||'null');if(Array.isArray(a)&&a.length)return a;}catch{}return [ME];}
 function writeOpen(a){localStorage.setItem('v26.open',JSON.stringify(a));}
 function tabState(t){if(t.id!==ME.id)return t.state||'';if(STATE==='colleague')return 'held';if(EDITING)return 'dirty';if(GLASS.state==='open'||GLASS.state==='waiting')return 'glass';return '';}
-function renderTabs(){let a=readOpen();if(!a.some(t=>t.id===ME.id))a=[ME,...a];const max=6;const shown=a.slice(0,max),more=a.slice(max);
-  const st=t=>{const s=tabState(t);return s==='dirty'?'<i class="st st--dirty" title="Unsaved changes"></i>':s==='glass'?'<svg class="icon st st--glass"><title>Glass\'s open</title><use href="#icon-zap"/></svg>':s==='held'?'<svg class="icon st st--held"><title>Held elsewhere</title><use href="#icon-lock"/></svg>':'';};
-  const ic=t=>`<svg class="icon"><use href="#icon-${TAB_ICON[t.kind]||'folder'}"/></svg>`;
-  const tab=t=>`<a class="workspace-tab${t.id===ME.id?' is-active':''}" href="${t.id===ME.id?'#':SHELL_PAGE+'#'+t.route}" data-id="${t.id}"${t.id===ME.id?' aria-current="page"':''}>${ic(t)}<span class="ref">${t.ref}</span>${t.sub?`<span class="sub">${t.sub}</span>`:''}${st(t)}<button type="button" class="tab-close" onclick="closeTab('${t.id}',event)" aria-label="Close ${t.ref}"><svg class="icon"><use href="#icon-x"/></svg></button></a>`;
-  $('tabs').innerHTML=shown.map(tab).join('')+(more.length?`<details class="tabs-more"><summary>${more.length} more<svg class="icon"><use href="#icon-chevron-down"/></svg></summary><div class="menu">${more.map(t=>`<a href="${SHELL_PAGE}#${t.route}" data-id="${t.id}">${ic(t)}<span>${t.ref}${t.sub?' · '+t.sub:''}</span></a>`).join('')}</div></details>`:'');}
+function tabGlyph(t){if(!+TABOPT.glyphs)return '';const s=tabState(t);return s==='dirty'?'<i class="st st--dirty" title="Unsaved changes"></i>':s==='glass'?'<svg class="icon st st--glass"><title>Glass\'s open</title><use href="#icon-zap"/></svg>':s==='held'?'<svg class="icon st st--held"><title>Held elsewhere</title><use href="#icon-lock"/></svg>':'';}
+function tabIcon(t){return +TABOPT.icons?`<svg class="icon"><use href="#icon-${TAB_ICON[t.kind]||'folder'}"/></svg>`:'';}
+function tabText(t){const l=TABOPT.label;const ref=`<span class="ref">${t.ref}</span>`,sub=t.sub?`<span class="reg">${t.sub}</span>`:'';if(t.kind==='wc'||t.kind==='open')return ref;if(l==='ref')return ref;if(l==='reg')return t.sub?`<span class="ref">${t.sub}</span>`:ref;return ref+sub;}
+function tabHref(t){return t.id===ME.id?'#':SHELL_PAGE+'#'+t.route;}
+function renderTabs(){let a=readOpen();if(!a.some(t=>t.id===ME.id))a=[ME,...a];
+  const nav=$('tabs'),shell=document.querySelector('.app-shell');const place=TABOPT.place;
+  nav.dataset.place=place;nav.dataset.density=TABOPT.density;nav.dataset.close=TABOPT.close;document.body.dataset.tabsPlace=place;
+  shell.style.setProperty('--tabs-h',place==='rail'?'0px':'');nav.hidden=place==='rail';
+  let rail=$('railOpen');if(!rail){rail=document.createElement('div');rail.className='rail-open';rail.id='railOpen';const cases=document.querySelector('.app-rail .nav-link[href$="#/cases"]');if(cases)cases.insertAdjacentElement('afterend',rail);}
+  rail.hidden=place!=='rail';
+  const max=+TABOPT.max||Infinity;const shown=a.slice(0,max),more=a.slice(max);
+  const menuItems=list=>list.map(t=>`<a href="${tabHref(t)}" data-id="${t.id}">${tabIcon(t)}<span>${t.ref}${t.sub?' · '+t.sub:''}</span>${tabGlyph(t)}</a>`).join('');
+  if(place==='rail'){rail.innerHTML=a.map(t=>`<a class="${t.id===ME.id?'is-active':''}" href="${tabHref(t)}" data-id="${t.id}">${tabIcon(t)}${tabText(t)}${tabGlyph(t)}<button type="button" class="tab-close" onclick="closeTab('${t.id}',event)" aria-label="Close ${t.ref}"><svg class="icon"><use href="#icon-x"/></svg></button></a>`).join('');nav.innerHTML='';measureSafe();return;}
+  if(place==='crumb'){nav.innerHTML=`<div class="crumb"><a href="${SHELL_PAGE}#/cases">Cases</a><span class="sep">›</span><details class="crumb-menu"><summary>${tabIcon(ME)}${tabText(ME)}${tabGlyph(ME)}<svg class="icon"><use href="#icon-chevron-down"/></svg></summary><div class="menu">${menuItems(a)}</div></details>${a.length>1?`<span class="count">${a.length} open</span>`:''}</div>`;measureSafe();return;}
+  const wc=+TABOPT.wc?`<a class="workspace-tab" href="${SHELL_PAGE}#/" data-id="wc">${tabIcon({kind:'wc'})}<span class="ref">Work Centre</span></a>`:'';
+  const open=+TABOPT.open?`<a class="workspace-tab workspace-tab--open" href="${SHELL_PAGE}#/cases" data-id="open">${tabIcon({kind:'open'})}<span class="ref">Open</span></a>`:'';
+  const tab=t=>`<a class="workspace-tab${t.id===ME.id?' is-active':''}" href="${tabHref(t)}" data-id="${t.id}"${t.id===ME.id?' aria-current="page"':''}>${tabIcon(t)}${tabText(t)}${tabGlyph(t)}<button type="button" class="tab-close" onclick="closeTab('${t.id}',event)" aria-label="Close ${t.ref}"><svg class="icon"><use href="#icon-x"/></svg></button></a>`;
+  nav.innerHTML=wc+shown.map(tab).join('')+(more.length?`<details class="tabs-more"><summary>${more.length} more<svg class="icon"><use href="#icon-chevron-down"/></svg></summary><div class="menu">${menuItems(more)}</div></details>`:'')+open;
+  document.querySelectorAll('.mock [data-o]').forEach(b=>{const [k,v]=b.dataset.o.split(':');b.classList.toggle('on',String(TABOPT[k])===v);});measureSafe();}
+function measureSafe(){try{if(typeof measure==='function')measure();}catch{}}
 function closeTab(id,e){if(e){e.preventDefault();e.stopPropagation();}const a=readOpen().filter(t=>t.id!==id);writeOpen(a);if(id===ME.id){window.location.href=SHELL_PAGE+'#/';return;}renderTabs();}
-$('tabs').addEventListener('auxclick',e=>{if(e.button!==1)return;const t=e.target.closest('.workspace-tab');if(t)closeTab(t.dataset.id,e);});
+$('tabs').addEventListener('auxclick',e=>{if(e.button!==1)return;const t=e.target.closest('.workspace-tab[data-id]');if(t&&t.dataset.id!=='wc'&&t.dataset.id!=='open')closeTab(t.dataset.id,e);});
 const MOCK_TABS=[ME,{id:'c1',kind:'case',ref:'PCH26004',sub:'VN71ULZ',route:'/cases/c1',state:'glass'},{id:'t2',kind:'triage',ref:'Triage',sub:'LX10XTJ',route:'/triage/t2'},{id:'m4',kind:'message',ref:'Enclosing Inspection Request',sub:'',route:'/inbox/m4'},{id:'c5',kind:'case',ref:'PCH26001',sub:'HF26OMK',route:'/cases/c5',state:'held'},{id:'u1',kind:'unidentified',ref:'U34',sub:'',route:'/unidentified/u1'},{id:'ic1',kind:'image',ref:'WR68PBY-01',sub:'',route:'/images/ic1'},{id:'c3',kind:'case',ref:'QDOS261786',sub:'SD74CXS',route:'/cases/c3'},{id:'c7',kind:'case',ref:'QDOS26009',sub:'AC20 PER',route:'/cases/c7'}];
 function mockTabs(n){writeOpen(MOCK_TABS.slice(0,n));document.querySelectorAll('.mock [data-tabs]').forEach(b=>b.classList.toggle('on',+b.dataset.tabs===n));renderTabs();}
 ['startEdit','endEdit','setState','setGlass'].forEach(n=>{const f=window[n];window[n]=function(){const r=f.apply(this,arguments);renderTabs();return r;};});

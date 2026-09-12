@@ -634,7 +634,7 @@ code, .mono { font-family: var(--mono); font-size: .95em; }
 .workspace-tab[aria-current="page"]::before { content: ""; position: absolute; left: -1px; right: -1px; top: -1px; height: 2px; background: var(--red); border-radius: 4px 4px 0 0; }
 .workspace-tab > .icon { width: 14px; height: 14px; flex: none; opacity: .75; }
 .workspace-tab .ref { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
-.workspace-tab .sub { font: 500 11px var(--mono); color: var(--quiet); overflow: hidden; text-overflow: ellipsis; }
+.workspace-tab .reg { font: 500 11px var(--mono); color: var(--quiet); overflow: hidden; text-overflow: ellipsis; }
 .workspace-tab .st { flex: none; }
 .workspace-tab .st--dirty { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
 .workspace-tab .st--glass { width: 12px; height: 12px; color: var(--amber); opacity: 1; }
@@ -678,6 +678,68 @@ code, .mono { font-family: var(--mono); font-size: .95em; }
 .dialog--viewer .viewer-strip > button.on { opacity: 1; border-color: #fff; }
 .dialog--viewer .viewer-strip > button:hover { opacity: .9; }
 body:has(.dialog--viewer) .mock { display: none; }
+
+/* ---- Tab strip options (mockup variables) ---- */
+.workspace-tabs[data-place="band"]{background:var(--surface-3);border-bottom:1px solid var(--line)}
+.workspace-tabs[data-place="band"] .workspace-tab{background:var(--surface-2);border-color:var(--line);color:var(--muted)}
+.workspace-tabs[data-place="band"] .workspace-tab.is-active,.workspace-tabs[data-place="band"] .workspace-tab[aria-current="page"]{background:var(--surface);border-top:2px solid var(--red);margin-bottom:0;height:33px}
+.workspace-tabs[data-place="band"] .workspace-tab.is-active::before,.workspace-tabs[data-place="band"] .workspace-tab[aria-current="page"]::before{display:none}
+body[data-tabs-place="band"] .app-main,body[data-tabs-place="crumb"] .app-main,body[data-tabs-place="rail"] .app-main{padding-top:var(--page-pad)}
+body[data-tabs-place="band"] .record,body[data-tabs-place="crumb"] .record,body[data-tabs-place="rail"] .record{border-top:1px solid #cbd2d5}
+.workspace-tabs[data-density="compact"]{padding-top:9px}
+.workspace-tabs[data-density="compact"] .workspace-tab{height:27px;font-size:12px;padding:0 4px 0 9px;gap:6px}
+.workspace-tabs[data-density="compact"] .workspace-tab.is-active,.workspace-tabs[data-density="compact"] .workspace-tab[aria-current="page"]{height:28px}
+.workspace-tabs[data-density="compact"] .workspace-tab .reg{font-size:10.5px}
+.workspace-tabs[data-close="always"] .workspace-tab .tab-close{visibility:visible}
+.workspace-tab--open{color:var(--quiet)}
+.rail-open{margin:0 8px 6px 14px;display:grid;gap:1px}
+.rail-open[hidden]{display:none}
+.rail-open a{display:grid;grid-template-columns:14px minmax(0,1fr) auto auto;column-gap:6px;align-items:center;padding:4px 6px 4px 8px;border-radius:var(--radius);color:var(--nav-muted);font-size:12px;border-left:2px solid transparent;min-width:0;line-height:1.25}
+.rail-open a>.icon{grid-column:1;grid-row:1/3}
+.rail-open .ref{grid-column:2;grid-row:1}
+.rail-open .reg{grid-column:2;grid-row:2;font-size:10.5px}
+.rail-open a>.st{grid-column:3;grid-row:1/3;margin-left:0}
+.rail-open .tab-close{grid-column:4;grid-row:1/3}
+.rail-open a:hover{background:rgba(255,255,255,.08);color:var(--nav-text);text-decoration:none}
+.rail-open a.is-active,.rail-open a[aria-current="page"]{color:var(--nav-text);background:rgba(255,255,255,.1);border-left-color:var(--red)}
+.rail-open .icon{width:12px;height:12px;opacity:.7;flex:none}
+.rail-open .ref{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rail-open .reg{font:500 10.5px var(--mono);opacity:.7;white-space:nowrap}
+.rail-open .st{margin-left:auto;flex:none}
+.rail-open .st--dirty{width:7px;height:7px;border-radius:50%;background:#e0a144}
+.rail-open .st--glass{color:#e0a144;opacity:1}
+.rail-open .st--held{opacity:.8}
+.rail-open .tab-close{display:grid;place-items:center;width:18px;height:18px;border:0;background:transparent;border-radius:2px;color:var(--nav-muted);padding:0;visibility:hidden;cursor:pointer;flex:none}
+.rail-open a:hover .tab-close,.rail-open a.is-active .tab-close,.rail-open a[aria-current="page"] .tab-close{visibility:visible}
+.rail-open .tab-close .icon{width:11px;height:11px;opacity:1}
+.rail-open .tab-close:hover{background:rgba(255,255,255,.15);color:#fff}
+.rail-collapsed .rail-open{display:none}
+.app-shell[data-tabs-place="rail"] { --tabs-h: 0px; }
+.workspace-tabs[data-place="crumb"]{align-items:center;padding:0 var(--page-pad);background:var(--bg);border-bottom:1px solid var(--line)}
+.crumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.crumb>a{color:var(--muted)}
+.crumb>a:hover{color:var(--ink)}
+.crumb .sep{color:var(--quiet)}
+.crumb .count{font-size:11px;color:var(--quiet);margin-left:4px}
+.crumb-menu{position:relative}
+.crumb-menu summary{list-style:none;display:flex;align-items:center;gap:7px;cursor:pointer;color:var(--ink);padding:4px 8px;border-radius:var(--radius);border:1px solid transparent}
+.crumb-menu summary::-webkit-details-marker{display:none}
+.crumb-menu summary:hover,.crumb-menu[open] summary{border-color:var(--line);background:var(--surface)}
+.crumb-menu summary .ref{font-weight:600}
+.crumb-menu summary .reg{font:500 11px var(--mono);color:var(--quiet)}
+.crumb-menu summary>.icon{width:13px;height:13px;color:var(--quiet)}
+.crumb-menu summary .st--dirty{width:7px;height:7px;border-radius:50%;background:var(--amber);display:inline-block}
+.crumb-menu summary .st--glass{width:12px;height:12px;color:var(--amber)}
+.crumb-menu summary .st--held{width:12px;height:12px;color:var(--quiet)}
+.crumb-menu .menu{position:absolute;top:34px;left:0;min-width:260px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:4px;z-index:40}
+.crumb-menu .menu a,.tabs-more .menu a{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:var(--radius);color:var(--ink);font-size:12.5px;white-space:nowrap}
+.crumb-menu .menu a:hover{background:var(--surface-2);text-decoration:none}
+.crumb-menu .menu .icon,.tabs-more .menu .icon{width:14px;height:14px;color:var(--quiet)}
+.crumb-menu .menu .st,.tabs-more .menu .st{margin-left:auto}
+.crumb-menu .menu .st--dirty,.tabs-more .menu .st--dirty{width:7px;height:7px;border-radius:50%;background:var(--amber)}
+.crumb-menu .menu .st--glass,.tabs-more .menu .st--glass{color:var(--amber)}
+.mock .mrow .sep{width:1px;height:16px;background:#4a5157;margin:0 2px}
+.mock .mrow b.sub{min-width:0;margin-left:2px;color:#7d878c}
 
 </style>
 </head>
@@ -2879,7 +2941,9 @@ ICONS.image = ICONS.image || 'M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 
 ICONS.mail = ICONS.mail || 'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 7l-10 7L2 7';
 ICONS['zoom-in'] = ICONS['zoom-in'] || 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35M11 8v6M8 11h6';
 ICONS.download = ICONS.download || 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3';
-const TAB_ICON = { case: 'folder', triage: 'clipboard-list', unidentified: 'alert-circle', image: 'image', message: 'mail' };
+const TAB_ICON = { case: 'folder', triage: 'clipboard-list', unidentified: 'alert-circle', image: 'image', message: 'mail', wc: 'layout-dashboard', open: 'plus' };
+const TABOPT_DEFAULT = { place: 'fused', label: 'both', max: 6, glyphs: 1, close: 'hover', wc: 0, open: 0, density: 'regular', icons: 1 };
+let TABOPT = Object.assign({}, TABOPT_DEFAULT); try { Object.assign(TABOPT, JSON.parse(localStorage.getItem('v26.tabopt') || '{}')); } catch {}
 S.tabState = {};
 function tabEntry(id) {
   let e = null;
@@ -2895,21 +2959,45 @@ function persistOpen() { try { localStorage.setItem('v26.open', JSON.stringify(o
 openRecord = function (id) { if (!S.openRecords.includes(id)) S.openRecords = [...S.openRecords, id].slice(-12); persistOpen(); };
 try { const a = JSON.parse(localStorage.getItem('v26.open') || '[]'); if (Array.isArray(a) && a.length) { S.openRecords = a.map(t => t.id); a.forEach(t => { if (t.state) S.tabState[t.id] = t.state; }); } } catch {}
 { const a = renderTriage, b = renderUnidentified, c = renderImageRecord, d = renderMessage; renderTriage = id => { openRecord(id); return a(id); }; renderUnidentified = id => { openRecord(id); return b(id); }; renderImageRecord = id => { openRecord(id); return c(id); }; renderMessage = id => { openRecord(id); return d(id); }; }
+const tabGlyph = t => !+TABOPT.glyphs ? '' : t.state === 'dirty' ? '<i class="st st--dirty" title="Unsaved changes"></i>' : t.state === 'glass' ? icon('zap', 'icon st st--glass') : t.state === 'held' ? icon('lock', 'icon st st--held') : '';
+const tabIcon = t => +TABOPT.icons ? icon(TAB_ICON[t.kind] || 'folder') : '';
+function tabText(t) { const ref = `<span class="ref">${esc(t.ref)}</span>`, sub = t.sub ? `<span class="reg">${esc(t.sub)}</span>` : ''; if (TABOPT.label === 'ref') return ref; if (TABOPT.label === 'reg') return t.sub ? `<span class="ref">${esc(t.sub)}</span>` : ref; return ref + sub; }
+const menuItems = list => list.map(t => `<a href="#${t.route}" data-id="${t.id}">${tabIcon(t)}<span>${esc(t.ref)}${t.sub ? ' · ' + esc(t.sub) : ''}</span>${tabGlyph(t)}</a>`).join('');
 workspaceTabs = function (path) {
-  const all = openTabs(); if (!all.length) return '';
-  const max = 6, shown = all.slice(0, max), more = all.slice(max);
-  const st = t => t.state === 'dirty' ? '<i class="st st--dirty" title="Unsaved changes"></i>' : t.state === 'glass' ? icon('zap', 'icon st st--glass') : t.state === 'held' ? icon('lock', 'icon st st--held') : '';
-  const tab = t => `<a class="workspace-tab" href="#${t.route}" ${path === t.route ? 'aria-current="page"' : ''} data-id="${t.id}">${icon(TAB_ICON[t.kind])}<span class="ref">${esc(t.ref)}</span>${t.sub ? `<span class="sub">${esc(t.sub)}</span>` : ''}${st(t)}<button type="button" class="tab-close" data-action="close-record" data-id="${t.id}" aria-label="Close ${attr(t.ref)}">${icon('x')}</button></a>`;
-  return `<nav class="workspace-tabs" aria-label="Open records">${shown.map(tab).join('')}${more.length ? `<details class="tabs-more"><summary>${more.length} more${icon('chevron-down')}</summary><div class="menu">${more.map(t => `<a href="#${t.route}" data-id="${t.id}">${icon(TAB_ICON[t.kind])}<span>${esc(t.ref)}${t.sub ? ' · ' + esc(t.sub) : ''}</span></a>`).join('')}</div></details>` : ''}</nav>`;
+  const all = openTabs(); const place = TABOPT.place; const cur = all.find(t => t.route === path);
+  if (place === 'rail') return '';
+  if (place === 'crumb') { if (!all.length && !cur) return ''; return `<nav class="workspace-tabs" data-place="crumb" aria-label="Open records"><div class="crumb"><a href="#/cases">Cases</a>${cur ? `<span class="sep">›</span><details class="crumb-menu"><summary>${tabIcon(cur)}${tabText(cur)}${tabGlyph(cur)}${icon('chevron-down')}</summary><div class="menu">${menuItems(all)}</div></details>` : all.length ? `<details class="crumb-menu"><summary><span class="ref">${all.length} open</span>${icon('chevron-down')}</summary><div class="menu">${menuItems(all)}</div></details>` : ''}${cur && all.length > 1 ? `<span class="count">${all.length} open</span>` : ''}</div></nav>`; }
+  if (!all.length && !+TABOPT.wc && !+TABOPT.open) return '';
+  const max = +TABOPT.max || Infinity, shown = all.slice(0, max), more = all.slice(max);
+  const wc = +TABOPT.wc ? `<a class="workspace-tab" href="#/" ${path === '/' ? 'aria-current="page"' : ''} data-id="wc">${tabIcon({ kind: 'wc' })}<span class="ref">Work Centre</span></a>` : '';
+  const open = +TABOPT.open ? `<button type="button" class="workspace-tab workspace-tab--open" data-action="palette" data-id="open">${tabIcon({ kind: 'open' })}<span class="ref">Open</span></button>` : '';
+  const tab = t => `<a class="workspace-tab" href="#${t.route}" ${path === t.route ? 'aria-current="page"' : ''} data-id="${t.id}">${tabIcon(t)}${tabText(t)}${tabGlyph(t)}<button type="button" class="tab-close" data-action="close-record" data-id="${t.id}" aria-label="Close ${attr(t.ref)}">${icon('x')}</button></a>`;
+  return `<nav class="workspace-tabs" data-place="${place}" data-density="${TABOPT.density}" data-close="${TABOPT.close}" aria-label="Open records">${wc}${shown.map(tab).join('')}${more.length ? `<details class="tabs-more"><summary>${more.length} more${icon('chevron-down')}</summary><div class="menu">${menuItems(more)}</div></details>` : ''}${open}</nav>`;
 };
 const shellWithTabs = shell;
-shell = function (path, page, opts) { let h = shellWithTabs(path, page, opts); if (!openTabs().length) h = h.replace('<div class="app-shell', '<div class="no-tabs app-shell'); return h; };
+shell = function (path, page, opts) { let h = shellWithTabs(path, page, opts); const cls = (!openTabs().length || TABOPT.place === 'rail') ? 'no-tabs ' : ''; h = h.replace('<div class="app-shell', `<div data-tabs-place="${TABOPT.place}" class="${cls}app-shell`); return h; };
+AFTER_RENDER.push((path, params) => {
+  if (params && params.tabopt && S._tabopt !== params.tabopt) { S._tabopt = params.tabopt; params.tabopt.split(',').forEach(kv => { const [k, v] = kv.split(':'); if (k in TABOPT_DEFAULT) TABOPT[k] = v; }); setTimeout(render, 0); return; }
+  document.body.dataset.tabsPlace = TABOPT.place;
+  const cases = document.querySelector('.app-rail .nav-link[href="#/cases"]'); if (!cases || TABOPT.place !== 'rail') return;
+  const all = openTabs(); if (!all.length) return;
+  cases.insertAdjacentHTML('afterend', `<div class="rail-open" id="railOpen">${all.map(t => `<a href="#${t.route}" ${path === t.route ? 'aria-current="page"' : ''} data-id="${t.id}">${tabIcon(t)}${tabText(t)}${tabGlyph(t)}<button type="button" class="tab-close" data-action="close-record" data-id="${t.id}" aria-label="Close ${attr(t.ref)}">${icon('x')}</button></a>`).join('')}</div>`);
+});
 ACTIONS['close-record'] = (el, e) => { if (e) { e.preventDefault(); e.stopPropagation(); } const id = el.dataset.id; const ent = tabEntry(id); S.openRecords = S.openRecords.filter(x => x !== id); persistOpen(); const { path } = parseRoute(); if (ent && path === ent.route) go('/'); else render(); };
-document.addEventListener('auxclick', e => { if (e.button !== 1) return; const t = e.target.closest('.workspace-tab[data-id]'); if (!t) return; ACTIONS['close-record']({ dataset: { id: t.dataset.id } }, e); });
+document.addEventListener('auxclick', e => { if (e.button !== 1) return; const t = e.target.closest('.workspace-tab[data-id], .rail-open a[data-id]'); if (!t || t.dataset.id === 'wc' || t.dataset.id === 'open') return; ACTIONS['close-record']({ dataset: { id: t.dataset.id } }, e); });
 const MOCK_TABS = ['c99', 'c1', 't2', 'm4', 'c5', 'u1', 'ic1', 'c3', 'c7'];
 ACTIONS['mock-tabs'] = el => { const n = +el.dataset.n; S.openRecords = MOCK_TABS.slice(0, n); S.tabState = n > 1 ? { c1: 'glass', c5: 'held' } : {}; persistOpen(); render(); };
+ACTIONS['mock-tabopt'] = el => { const [k, v] = el.dataset.o.split(':'); TABOPT[k] = v; try { localStorage.setItem('v26.tabopt', JSON.stringify(TABOPT)); } catch {} render(); };
+ACTIONS['mock-tabopt-reset'] = () => { TABOPT = Object.assign({}, TABOPT_DEFAULT); try { localStorage.removeItem('v26.tabopt'); } catch {} render(); };
+const TAB_OPTION_ROWS = [
+  ['Tab layout', [['place', 'fused', 'Fused strip'], ['place', 'band', 'Grey band'], ['place', 'rail', 'Rail list'], ['place', 'crumb', 'Breadcrumb']]],
+  ['Tab label', [['label', 'both', 'Ref + reg'], ['label', 'ref', 'Ref only'], ['label', 'reg', 'Reg only'], null, ['icons', '1', 'Icons'], ['icons', '0', 'No icons'], null, ['density', 'regular', 'Regular'], ['density', 'compact', 'Compact']]],
+  ['Tab rules', [['max', '4', 'Max 4'], ['max', '6', 'Max 6'], ['max', '8', 'Max 8'], ['max', '0', 'No limit'], null, ['glyphs', '1', 'State glyphs'], ['glyphs', '0', 'No glyphs'], null, ['close', 'hover', '× on hover'], ['close', 'always', '× always'], null, ['wc', '1', 'Work Centre tab'], ['open', '1', '+ Open tab']]],
+];
+function tabOptionRows(mk) { return TAB_OPTION_ROWS.map(([label, items]) => mockRow(label, items.map(it => it ? mk(it) : '<span class="sep"></span>').join('') + (label === 'Tab rules' ? '<span class="sep"></span>' + mockBtn('Reset', false, 'mock-tabopt-reset') : ''))).join(''); }
 const renderMockBase = renderMock;
-renderMock = function (path) { renderMockBase(path); const el = document.getElementById('mock'); if (!el) return; const n = S.openRecords.length; el.insertAdjacentHTML('beforeend', mockRow('Tabs', [0, 1, 4, 9].map(k => mockBtn(k === 0 ? 'None' : k + ' open', n === k, 'mock-tabs', { n: k })).join(''))); };
+renderMock = function (path) { renderMockBase(path); const el = document.getElementById('mock'); if (!el) return; const n = S.openRecords.length;
+  el.insertAdjacentHTML('beforeend', mockRow('Tabs', [0, 1, 4, 9].map(k => mockBtn(k === 0 ? 'None' : k + ' open', n === k, 'mock-tabs', { n: k })).join('')) + tabOptionRows(([k, v, label]) => { const on = (k === 'wc' || k === 'open') ? !!+TABOPT[k] : String(TABOPT[k]) === v; const val = (k === 'wc' || k === 'open') ? (on ? '0' : '1') : v; return mockBtn(label, on, 'mock-tabopt', { o: `${k}:${val}` }); })); };
 
 /* ---- v26: image viewer (real stage, navigation across the record's images) ---- */
 const PREVIEW_CACHE = {};

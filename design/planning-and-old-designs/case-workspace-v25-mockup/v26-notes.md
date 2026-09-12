@@ -174,6 +174,25 @@ one thing with the record beneath it.
 Mockup strip row `Tabs` (or `?tabs=1|4|9`) seeds one, four or nine open
 records; the shell's row also offers None. Shots `34`, `35`, `38`, `39`.
 
+Every decision in the strip is a variable on the mockup strip, on both files,
+remembered per browser and shared between them (`?tabopt=key:value,...`):
+
+| Row | Variable | Options | Default |
+| --- | --- | --- | --- |
+| Tab layout | `place` | Fused strip · Grey band (the original band with bordered tabs, card keeps its edge) · Rail list (under Cases in the rail, no strip) · Breadcrumb (Cases › current ⌄ with the set in a menu) | Fused |
+| Tab label | `label` | Ref + reg · Ref only · Reg only | Ref + reg |
+| Tab label | `icons` | Icons · No icons | Icons |
+| Tab label | `density` | Regular (34px) · Compact (28px) | Regular |
+| Tab rules | `max` | Max 4 · 6 · 8 · No limit, rest in the "more" menu | 6 |
+| Tab rules | `glyphs` | State glyphs · No glyphs | On |
+| Tab rules | `close` | × on hover · × always | Hover |
+| Tab rules | `wc` | Work Centre tab on or off | Off |
+| Tab rules | `open` | "+ Open" tab on or off | Off |
+
+Reset returns to the defaults. Shots `40` (band with Work Centre and Open),
+`41` and `44` (rail list, both files), `42` and `45` (breadcrumb, both
+files), `43` (compact, reg only, no icons, × always, max 8), `46` (the strip).
+
 ## Image viewer
 
 Images now open in a viewer rather than a toast. On the Case record the viewer
@@ -245,7 +264,8 @@ Everything in `v25-notes.md` A–F still stands. New:
 - **O. Damage clicker.** Pick one of Plan, Elevations or Dial for Stage 2
   (see § Damage clicker). Only one ships; the strip switch is mockup-only.
 - **P. Working set.** Open records only, fused into the record, six then a
-  menu, persisted per browser. Confirm, or ask for the rail list instead.
+  menu, persisted per browser. Every variable is on the strip; pick the
+  combination for Stage 2 (see the table under § Working set).
 - **Q. Viewer tagging.** The viewer toggles report inclusion but not the tag;
   tags stay in Files (K). Confirm, or add the tag control to the viewer.
 

@@ -228,7 +228,10 @@ fake Open tab, with a rail list or a breadcrumb menu as cheaper alternatives.
 "Put your good ideas in" — the fused working set was built across both files
 and persisted between them. "Also make the image viewer work" — the toast was
 replaced by a real viewer on both files, with synthetic images since the mockup
-has no files behind it.
+has no files behind it. "Actually put all the options in on the chooser
+widget" — layout (fused, band, rail list, breadcrumb), label, icons, density,
+visible count, glyphs, close behaviour, Work Centre and Open tabs became
+variables on the strip of both files.
 
 ## Outstanding
 
