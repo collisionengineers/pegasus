@@ -46,3 +46,19 @@ FRD-09 owns the accepted principal route/profile set. This directory is a
 selective set of descriptive companions, not an activation inventory. An absent
 companion does not make an accepted route review-only, and corpus membership
 alone never activates one. Record actual evidence gaps without inventing rules.
+
+## Operator SOP guides
+
+`sop-guides/` holds the operator-supplied standard operating procedure
+documents as received. They are business evidence for review, not behaviour
+owners; the owning FRD, ADR, or Core policy still wins on any disagreement.
+
+| Guide | File |
+| --- | --- |
+| QDOS SOP | `sop-guides/qdos_sop_guide.docx` |
+| PCH SOP | `sop-guides/pch_sop_guide.docx` |
+| SBL SOP | `sop-guides/sbl_sop_guide.docx` |
+| Report sending SOP | `sop-guides/report_sending_sop_guide.docx` |
+| EVA setup guide | `sop-guides/eva_setup_guide.docx` |
+| AX salvage and salvage matrix | `sop-guides/ax_salvage.xlsx`, `sop-guides/ax_salvage_matrix.xlsx` |
+| Unidentified and re-work reasons | `sop-guides/un_rw_reasons_sop.xlsx` |
