@@ -33,6 +33,15 @@ f.onload=()=>{
     route('/admin/valuation-presets');const n0=g('DATA.valuationPresets.length');g("DATA.valuationPresets.push({id:'vpx',name:'Test',amount:1,state:'active'})");g('render()');check('preset added renders',has('Test'));g("DATA.valuationPresets.pop()");
     route('/admin/accounts');g("openDialog('glass-credentials',{id:'gs4'})");check('glass dialog for unconfigured engineer',dlgOpen()&&!d.querySelector('#dialog-root').textContent.includes('Clear credential'));dlgClose();
     g("ACTIONS['rail-toggle']()");check('rail collapsed',d.querySelector('.app-shell').classList.contains('rail-collapsed'));g("ACTIONS['rail-toggle']()");
+    // mockup strip
+    check('mock strip present',!!d.getElementById('mock')&&d.getElementById('mock').textContent.includes('Mockup state'));
+    route('/admin/accounts');g("ACTIONS['mock-role']({dataset:{role:'user'}})");check('user role denied admin',has('Administration is available to Administrators only'));g("ACTIONS['mock-role']({dataset:{role:'administrator'}})");
+    route('/');g("ACTIONS['mock-data']({dataset:{data:'empty'}})");check('empty data shows empty work centre',has('Nothing needs attention'));g("ACTIONS['mock-data']({dataset:{data:'fixtures'}})");check('fixtures restored',has('Report sent evidence outstanding'));
+    g("ACTIONS['mock-unavailable']()");check('unavailable notice',has('Work Centre is unavailable'));g("ACTIONS['mock-unavailable']()");check('available again',!has('Work Centre is unavailable'));
+    g("ACTIONS['mock-fresh']({dataset:{fresh:'partial'}})");check('freshness label',d.querySelector('.rail-health').textContent.includes('Partial'));g("ACTIONS['mock-fresh']({dataset:{fresh:'current'}})");
+    route('/triage/t2');g("ACTIONS['mock-triage']({dataset:{id:'t2',state:'completed'}})");check('triage completed via strip',has('Reopen'));g("ACTIONS['mock-triage']({dataset:{id:'t2',state:'open'}})");
+    route('/upload');g("ACTIONS['mock-upload']({dataset:{stage:'done'}})");check('upload decided via strip',has('files received'));g("ACTIONS['mock-upload']({dataset:{stage:'idle'}})");
+    route('/');g("CHANGES['mock-dialog']({value:'notifications'})");check('strip opens dialog',dlgOpen());dlgClose();
     check('case tab present',!!d.querySelector('.workspace-tab[href="#/cases/c99"]'));
     check('case route hands off',typeof w.__pegasus.renderCase==='function'&&w.__pegasus.caseHref({section:'estimate'})==='pegasus_case_workspace_v26.html?layout=tabs&section=estimate');
   }catch(e){log.push('EXC '+e.message+'\n'+e.stack);}

@@ -106,6 +106,24 @@ workspace tabs, New case button and search box come back to the shell.
 | `#/admin` | The hub with the live three groups; Staff accounts & roles (with the Glass's column and Manage login from the account), Contacts (principals, claim sources, repairers, storage, third party engineers, salvage agents), Workflow configuration, Mail settings (Default sender, mailboxes, categories), Valuation presets (Fixed valuation additions), Service health, Action logs, Reports (MI01–MI03), AI jobs, Automation & AI |
 | `#/signin`, `#/uploads/{token}` | The navless frames |
 
+**Mockup strip.** Every shell page carries the same dark control strip as the
+Case record, bottom left. Row one is global: role (Administrator, Engineer,
+User; User sees no Manage group and gets the live Access denied page),
+data (live fixtures or every list empty, for the empty states), freshness
+(Current, Partial, Stale, Unavailable on the rail and utility bar), the
+page-level Unavailable notice with the live wording, and the rail collapse.
+Row two follows the route: Work Centre kinds; Inbox scopes and sort; the
+message record's tabs, Reply, Forward and classification; Upload's Idle,
+Files chosen, Storing and Decided; the Cases scopes and the Missing filter;
+Create case manual or seeded from a received file; Search with no query,
+results or no results; the Operations partial-data notice; Administration's
+automation, AI and password-change states and the hub; Triage's five states
+and assignment; Unidentified open or resolved and the other items; the image
+record's three states. Row three opens any dialog by name, the sign-in and
+public upload frames, and the Case record. The same states are reachable by
+query string for screenshots (`role`, `data`, `fresh`, `unavailable=1`,
+`dialog`, `sample=1`).
+
 **How it was built.** The pages are the EPIC-012 v2 prototype modules from the
 private pack, concatenated with the vendor name replaced by "AI", the Case
 route handed to the v26 file, and a recorded list of exact-string corrections so
@@ -125,8 +143,8 @@ principal dialog.
 
 **Self-check.** `v26-shell-selfcheck.html` renders every route, opens and
 closes every dialog, and drives the main flows; run it the same way as the
-Case record's check. 12 September: `{"fail":[],"okCount":100}`, no console
-errors on any of the 29 rendered routes (`v26-shots/s*.png`).
+Case record's check. 12 September: `{"fail":[],"okCount":110}` including the strip, no console
+errors on any of the 33 rendered routes and states (`v26-shots/s*.png`).
 
 ## Decisions that need sign-off before Stage 2
 

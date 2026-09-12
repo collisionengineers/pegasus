@@ -615,6 +615,16 @@ code, .mono { font-family: var(--mono); font-size: .95em; }
 .mt-2 { margin-top: 8px; }
 .mb-2 { margin-bottom: 8px; }
 
+/* ---- Mockup control strip (as on the Case record) ---- */
+.mock { position: fixed; left: 14px; bottom: 14px; z-index: 900; background: #1c1f22; color: #e9ecef; border-radius: 6px; padding: 8px 10px; font-size: 11px; display: flex; flex-direction: column; align-items: stretch; gap: 5px; box-shadow: 0 8px 24px rgba(0,0,0,.35); max-width: min(720px, calc(100vw - 28px)); }
+.mock .mrow { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.mock .mrow b { min-width: 92px; font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: #9aa3a9; }
+.mock button { border: 1px solid #4a5157; background: #2b3035; color: #e9ecef; border-radius: 3px; padding: 3px 8px; font-size: 11px; cursor: pointer; }
+.mock button.on { background: #e9ecef; color: #1c1f22; border-color: #e9ecef; }
+.mock select { border: 1px solid #4a5157; background: #2b3035; color: #e9ecef; border-radius: 3px; padding: 3px 6px; font-size: 11px; height: 24px; }
+.mock .sep { width: 1px; height: 16px; background: #4a5157; margin: 0 2px; }
+@media (max-width: 760px) { .mock { left: 8px; right: 8px; } }
+
 </style>
 </head>
 <body>
@@ -1723,13 +1733,13 @@ function rail(path) {
       return `${manage}<a class="nav-link" href="#${n.route}" ${current ? 'aria-current="page"' : ''}>${icon(n.icon)}<span>${esc(n.label)}</span>${count ? `<span class="nav-count" aria-label="${count} outstanding">${count}</span>` : ''}</a>`;
     }).join('')}</nav>
     <div class="rail-spacer"></div>
-    <div class="rail-health"><span class="health-dot ${S.freshness === 'partial' ? 'partial' : S.freshness === 'failed' ? 'failed' : ''}"></span><span>${S.freshness === 'current' ? 'Current' : S.freshness === 'partial' ? 'Partial data' : 'Last-good data'} · ${S.freshnessTime}</span></div>
+    <div class="rail-health"><span class="health-dot ${freshDot()}"></span><span>${freshLabel()} · ${S.freshnessTime}</span></div>
     <div class="rail-user"><span class="avatar" aria-hidden="true">${initials(S.user.name)}</span><div><strong>${esc(S.user.name)}</strong><small>${esc(L.role[S.user.role])}</small></div>${iconButton('more-horizontal', 'account-menu', 'Account menu')}</div>
   </aside>`;
 }
 function utilityBar() {
   return `<div class="utility-bar">
-    <div class="utility-freshness"><span class="health-dot ${S.freshness === 'partial' ? 'partial' : ''}"></span><span>${S.freshness === 'current' ? 'Current' : 'Partial data'} · ${S.freshnessTime}</span></div>
+    <div class="utility-freshness"><span class="health-dot ${freshDot()}"></span><span>${freshLabel()} · ${S.freshnessTime}</span></div>
     <div class="utility-search">${icon('search')}<input type="search" id="global-search" placeholder="Search cases, references or people" aria-label="Search" data-keydown="global-search"><kbd>Ctrl K</kbd></div>
     <div class="utility-actions">${btn('New case', '', { href: '#/cases/new', kind: 'primary', icon: 'plus' })}${iconButton('bell', 'notifications', 'Notifications')}</div>
   </div>`;
@@ -2718,11 +2728,84 @@ renderAdmin = function (area, params = {}) {
   return pageHeader(a.label, 'Administration', `${primary}${btn('Refresh', 'refresh', { icon: 'refresh-cw' })}`) + `<div class="admin-layout">${adminNav(a.key)}<div class="admin-content">${content}</div></div>`;
 };
 
+// ---- Mockup control strip (demo control, not product UI; the Case record has the same) ----
+S.mock = { role: 'administrator', data: 'fixtures', fresh: 'current', unavailable: false };
+const FRESH_LABELS = { current: 'Current', partial: 'Partial', stale: 'Stale', unavailable: 'Unavailable', failed: 'Failed' };
+function freshLabel() { return FRESH_LABELS[S.freshness] || 'Current'; }
+function freshDot() { return S.freshness === 'partial' || S.freshness === 'stale' ? 'partial' : S.freshness === 'unavailable' || S.freshness === 'failed' ? 'failed' : ''; }
+const MOCK_DIALOG_ARGS = { 'account-settings': { id: 's2' }, 'account-reset': { id: 's2' }, 'account-disable': { id: 's2' }, 'account-enable': { id: 's6' }, 'principal-settings': { id: 'p1' }, 'principal-key': { id: 'p1' }, 'principal-replace': { id: 'p1' }, 'rate-card-disable': { id: 'rc1' }, 'mailbox-settings': { id: 'mb1' }, 'mailbox-folders': { id: 'mb1' }, 'category-state': { id: 'cat1' }, 'glass-credentials': { id: 'gs2' }, 'glass-clear': { id: 'gs2' }, 'contact-edit': { id: 'k1' }, 'preset-edit': { id: 'vp1' }, 'preset-remove': { id: 'vp1' }, 'ai-cancel': { id: 'ai1' }, 'withdraw-link': { case: 'c99', link: 'ul99' }, 'triage-finding': { id: 't2' }, 'triage-assign': { id: 't2' }, 'triage-cancel': { id: 't2' }, 'triage-reopen': { id: 't1' }, 'triage-link': { id: 't2' }, 'triage-note': { id: 't2' }, 'unidentified-resolve': { id: 'u2' }, 'image-merge': { id: 'ic1' }, 'image-close': { id: 'ic1' }, 'mail-classify': { mail: 'm4' }, 'mail-move': { mail: 'm19' }, 'mail-delete': { mail: 'm4' }, compose: { mode: 'compose' }, 'mail-link': { mail: 'm21' }, 'add-to-case': { file: 'x' }, viewer: { name: 'IMG_4418.jpg' } };
+const UNAVAILABLE_TEXT = { '/': 'Work Centre is unavailable. Refresh to run the live queues again.', '/inbox': 'Inbox is unavailable. Refresh to read the retained mail again.', '/cases': 'Cases are unavailable. Refresh to run the live queues again.', '/search': 'Cases are unavailable. The search could not be completed; try again.', '/operations': 'Operations is unavailable. Refresh to try again.', '/admin/health': 'Service health is unavailable. Refresh to try again.' };
+const EMPTY_LISTS = ['cases', 'mail', 'triage', 'unidentified', 'imageCases', 'aiJobs', 'externalWork', 'actionLogs', 'evaHandoffs', 'blocked', 'contacts', 'valuationPresets', 'health'];
+const renderBase = render;
+render = function () {
+  const path = parseRoute().path;
+  if (S.mock.data === 'empty') {
+    const saved = {}; for (const k of EMPTY_LISTS) { saved[k] = DATA[k]; DATA[k] = []; }
+    try { renderBase(); } finally { for (const k of EMPTY_LISTS) DATA[k] = saved[k]; }
+  } else renderBase();
+  if (S.mock.unavailable) {
+    const content = document.querySelector('#app .content');
+    if (content) { const head = content.querySelector('.page-header'); const title = head ? head.querySelector('h1').textContent : 'This page'; content.innerHTML = (head ? head.outerHTML : '') + notice(UNAVAILABLE_TEXT[path] || `${title} is unavailable. Refresh to try again.`, 'warning'); }
+  }
+  renderMock(path);
+};
+function mockBtn(label, on, action, data = {}) { return `<button type="button"${on ? ' class="on"' : ''} data-action="${action}"${Object.entries(data).map(([k, v]) => ` data-${k}="${attr(v)}"`).join('')}>${esc(label)}</button>`; }
+function mockRow(label, body) { return `<div class="mrow"><b>${esc(label)}</b>${body}</div>`; }
+function pageMockRow(path) {
+  const m = path.match(/^\/(triage|unidentified|images|inbox)\/([^/]+)$/);
+  if (path === '/upload') return mockRow('Upload', ['idle', 'ready', 'storing', 'done'].map(s => mockBtn({ idle: 'Idle', ready: 'Files chosen', storing: 'Storing', done: 'Decided' }[s], S.upload.stage === s, 'mock-upload', { stage: s })).join(''));
+  if (path === '/cases') return mockRow('Cases', QUEUE_TABS.map(t => mockBtn(t.label, S.queueTab === t.key, 'go', { route: `/cases?tab=${t.key}` })).join('') + mockBtn('Missing: images', S.queueMissing === 'images', 'mock-missing'));
+  if (path === '/cases/new') return mockRow('Create case', mockBtn('Manual', !S.newCase?.providerRef, 'mock-newcase', { mode: 'manual' }) + mockBtn('Seeded from a received file', !!S.newCase?.providerRef, 'mock-newcase', { mode: 'seed' }));
+  if (path === '/search') return mockRow('Search', mockBtn('No query', !Object.values(S.search.query).some(Boolean), 'mock-search', { q: '' }) + mockBtn('Results', S.search.query.claimant === 'a', 'mock-search', { q: 'a' }) + mockBtn('No results', S.search.query.claimant === 'zzz', 'mock-search', { q: 'zzz' }));
+  if (path === '/operations') { const partial = DATA.health.some(r => r.state === 'partial' || r.state === 'failed'); return mockRow('Operations', mockBtn('Partial data notice', partial, 'mock-partial')); }
+  if (path.startsWith('/admin')) { const a = DATA.automation; const patrick = DATA.staff.find(s => s.username === 'patrick'); return mockRow('Administration', mockBtn(a.enabled ? 'Automation: enabled' : 'Automation: stopped', a.enabled, 'mock-automation') + mockBtn(a.ai.enabled ? 'AI: enabled' : 'AI: stopped', a.ai.enabled, 'mock-ai') + mockBtn('Password change required', !!patrick.mustChange, 'mock-mustchange') + mockBtn('Hub', path === '/admin', 'go', { route: '/admin' })); }
+  if (m && m[1] === 'triage') { const t = byId(DATA.triage, m[2]); return mockRow('Triage', Object.keys(L.triage).map(k => mockBtn(L.triage[k].label, t.state === k, 'mock-triage', { id: t.id, state: k })).join('') + mockBtn(t.assignee ? 'Assigned' : 'Unassigned', !!t.assignee, 'mock-triage-assign', { id: t.id })); }
+  if (m && m[1] === 'unidentified') { const u = byId(DATA.unidentified, m[2]); return mockRow('Unidentified', mockBtn('Open', u.state === 'open', 'mock-unid', { id: u.id, state: 'open' }) + mockBtn('Resolved', u.state === 'resolved', 'mock-unid', { id: u.id, state: 'resolved' }) + DATA.unidentified.map(x => mockBtn(x.ref, x.id === u.id, 'go', { route: `/unidentified/${x.id}` })).join('')); }
+  if (m && m[1] === 'images') { const ic = byId(DATA.imageCases, m[2]); return mockRow('Image record', Object.keys(L.imageCase).map(k => mockBtn(L.imageCase[k].label, ic.state === k, 'mock-image', { id: ic.id, state: k })).join('')); }
+  if (m && m[1] === 'inbox') { const msg = getMail(m[2]); return mockRow('Message', ['message', 'attachments', 'thread', 'case'].map(k => mockBtn(k[0].toUpperCase() + k.slice(1), S.mailTab === k, 'mock-mailtab', { tab: k })).join('') + mockBtn('Reply', false, 'open-dialog', { dialog: 'compose', mode: 'reply', mail: msg.id }) + mockBtn('Forward', false, 'open-dialog', { dialog: 'compose', mode: 'forward', mail: msg.id }) + mockBtn(msg.classification === 'unidentified' ? 'Unclassified' : 'Classified', msg.classification !== 'unidentified', 'mock-mailclass', { mail: msg.id })); }
+  if (path === '/inbox') return mockRow('Inbox', Object.keys(L.mailScope).map(k => mockBtn(L.mailScope[k], S.inbox.scope === k, 'inbox-scope', { scope: k })).join('') + mockBtn(S.inbox.sort === 'desc' ? 'Newest first' : 'Oldest first', true, 'inbox-sort'));
+  if (path === '/') return mockRow('Work Centre', [...new Set(needsAttention().map(i => i.kind))].map(k => mockBtn(k, S.workKind === k, 'mock-workkind', { kind: k })).join('') + mockBtn('All kinds', !S.workKind, 'mock-workkind', { kind: '' }));
+  return '';
+}
+function renderMock(path) {
+  let el = document.getElementById('mock');
+  if (!el) { el = document.createElement('div'); el.id = 'mock'; el.className = 'mock'; document.body.appendChild(el); }
+  const dialogs = Object.keys(DIALOGS).sort();
+  el.innerHTML = mockRow('Mockup state', ['administrator', 'engineer', 'user'].map(r => mockBtn(L.role[r], S.mock.role === r, 'mock-role', { role: r })).join('') + '<span class="sep"></span>' + mockBtn('Live fixtures', S.mock.data === 'fixtures', 'mock-data', { data: 'fixtures' }) + mockBtn('Empty', S.mock.data === 'empty', 'mock-data', { data: 'empty' }) + '<span class="sep"></span>' + Object.entries(FRESH_LABELS).filter(([k]) => k !== 'failed').map(([k, l]) => mockBtn(l, S.freshness === k, 'mock-fresh', { fresh: k })).join('') + '<span class="sep"></span>' + mockBtn('Unavailable', S.mock.unavailable, 'mock-unavailable') + mockBtn(railCollapsed() ? 'Rail: collapsed' : 'Rail: open', railCollapsed(), 'rail-toggle')) +
+    pageMockRow(path) +
+    mockRow('Open', `<select data-change="mock-dialog"><option value="">Dialog…</option>${dialogs.map(k => `<option value="${k}">${k}</option>`).join('')}</select>` + mockBtn('Sign in', path === '/signin', 'go', { route: '/signin' }) + mockBtn('Public upload', path.startsWith('/uploads/'), 'go', { route: '/uploads/7Hq2' }) + mockBtn('Case record ↗', false, 'mock-case'));
+}
+ACTIONS['mock-role'] = el => { S.mock.role = el.dataset.role; S.user = DATA.staff.find(s => s.role === el.dataset.role && s.state === 'enabled') || DATA.staff.find(s => s.role === el.dataset.role) || DATA.staff[0]; render(); };
+ACTIONS['mock-data'] = el => { S.mock.data = el.dataset.data; render(); };
+ACTIONS['mock-fresh'] = el => { S.freshness = el.dataset.fresh; S.mock.fresh = el.dataset.fresh; render(); };
+ACTIONS['mock-unavailable'] = () => { S.mock.unavailable = !S.mock.unavailable; S.freshness = S.mock.unavailable ? 'unavailable' : S.mock.fresh; render(); };
+ACTIONS['mock-upload'] = el => { const st = el.dataset.stage; if (st === 'idle') S.upload = { stage: 'idle', files: [] }; else { if (S.upload.stage === 'idle' || S.upload.stage === 'done') ACTIONS['upload-sample'](); if (st === 'storing') { S.upload.stage = 'storing'; S.upload.files.forEach(f => { f.state = 'storing'; }); } else if (st === 'done') { S.upload.files.forEach((f, i) => Object.assign(f, decideFile(f, i, DATA.sampleUpload.find(s => s.name === f.name)))); S.upload.stage = 'done'; } else { S.upload.stage = 'ready'; S.upload.files.forEach(f => { f.state = 'ready'; f.outcome = null; }); } } render(); };
+ACTIONS['mock-missing'] = () => { S.queueMissing = S.queueMissing === 'images' ? '' : 'images'; go('/cases?tab=not-ready'); render(); };
+ACTIONS['mock-newcase'] = el => { S.newCase = el.dataset.mode === 'seed' ? { type: 'inspection', ...DATA.sampleUpload.find(s => s.seed).seed } : null; render(); };
+ACTIONS['mock-search'] = el => { S.search = { query: el.dataset.q ? { claimant: el.dataset.q } : {}, results: null, selected: null }; go(el.dataset.q ? `/search?claimant=${el.dataset.q}` : '/search'); render(); };
+ACTIONS['mock-partial'] = () => { const r = DATA.health.find(x => x.area === 'files'); const on = DATA.health.some(x => x.state === 'partial' || x.state === 'failed'); DATA.health.forEach(x => { if (x.state === 'partial' || x.state === 'failed') { x.state = 'current'; x.retry = false; } }); if (!on && r) { r.state = 'failed'; r.retry = true; } render(); };
+ACTIONS['mock-automation'] = () => { DATA.automation.enabled = !DATA.automation.enabled; render(); };
+ACTIONS['mock-ai'] = () => { DATA.automation.ai.enabled = !DATA.automation.ai.enabled; render(); };
+ACTIONS['mock-mustchange'] = () => { const p = DATA.staff.find(s => s.username === 'patrick'); p.mustChange = !p.mustChange; render(); };
+ACTIONS['mock-triage'] = el => { const t = byId(DATA.triage, el.dataset.id); t.state = el.dataset.state; if (t.state === 'finding' && !t.roadworthiness) { t.roadworthiness = 'Roadworthy'; t.assessment = 'Repairable'; } render(); };
+ACTIONS['mock-triage-assign'] = el => { const t = byId(DATA.triage, el.dataset.id); t.assignee = t.assignee ? null : 'A Patterson'; render(); };
+ACTIONS['mock-unid'] = el => { const u = byId(DATA.unidentified, el.dataset.id); u.state = el.dataset.state; if (u.state === 'resolved' && !u.resolution) u.resolution = 'Added to Case QDOS26214'; render(); };
+ACTIONS['mock-image'] = el => { const ic = byId(DATA.imageCases, el.dataset.id); ic.state = el.dataset.state; if (ic.state === 'merged' && !ic.mergedInto) ic.mergedInto = 'c99'; render(); };
+ACTIONS['mock-mailtab'] = el => { S.mailTab = el.dataset.tab; render(); };
+ACTIONS['mock-mailclass'] = el => { const msg = getMail(el.dataset.mail); msg.classification = msg.classification === 'unidentified' ? 'instruction' : 'unidentified'; render(); };
+ACTIONS['mock-workkind'] = el => { S.workKind = el.dataset.kind; render(); };
+ACTIONS['mock-case'] = () => { window.location.href = caseHref(); };
+CHANGES['mock-dialog'] = el => { const k = el.value; if (!k) return; el.value = ''; openDialog(k, MOCK_DIALOG_ARGS[k] || {}); };
+
 // ---- Self-check handle (the bundle runs in a strict closure) ----
-window.__pegasus = { S, DATA, L, ADMIN_AREAS, DIALOGS, ACTIONS, CHANGES, openDialog, closeDialog, renderDialog, caseHref, get render() { return render; }, get renderCase() { return renderCase; } };
+window.__pegasus = { S, DATA, L, ADMIN_AREAS, DIALOGS, ACTIONS, CHANGES, MOCK_DIALOG_ARGS, openDialog, closeDialog, renderDialog, caseHref, get render() { return render; }, get renderCase() { return renderCase; } };
 
 // ---- Screenshot presets (query string on the hash route) ----
 AFTER_RENDER.push((path, params) => {
+  if (params.role && S.mock.role !== params.role) { S.mock.role = params.role; S.user = DATA.staff.find(x => x.role === params.role && x.state === 'enabled') || DATA.staff.find(x => x.role === params.role) || DATA.staff[0]; setTimeout(render, 0); }
+  if (params.data && S.mock.data !== params.data) { S.mock.data = params.data; setTimeout(render, 0); }
+  if (params.fresh && S.freshness !== params.fresh) { S.freshness = params.fresh; S.mock.fresh = params.fresh; setTimeout(render, 0); }
+  if (params.unavailable === '1' && !S.mock.unavailable) { S.mock.unavailable = true; S.freshness = 'unavailable'; setTimeout(render, 0); }
   if (path === '/upload' && params.sample === '1' && S.upload.stage === 'idle') { ACTIONS['upload-sample'](); ACTIONS['upload-submit'](); }
   if (params.dialog && !S.dialog) openDialog(params.dialog, { ...params });
 });
