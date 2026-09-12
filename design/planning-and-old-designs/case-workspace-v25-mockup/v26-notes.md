@@ -143,7 +143,7 @@ principal dialog.
 
 **Self-check.** `v26-shell-selfcheck.html` renders every route, opens and
 closes every dialog, and drives the main flows; run it the same way as the
-Case record's check. 12 September: `{"fail":[],"okCount":129}` including the strip, the working set (a Triage and a message joining and leaving it, the empty strip) and the viewer, no console
+Case record's check. 13 September: `{"fail":[],"okCount":279}` including the strip, the working set (a Triage and a message joining and leaving it, the empty strip) and the viewer, no console
 errors on any of the 33 rendered routes and states (`v26-shots/s*.png`).
 
 ## Working set — the tab strip, reworked
@@ -249,6 +249,56 @@ Shared behaviour:
 - No explanatory copy on the workbench. Captions are FRONT, REAR, N/S, O/S and
   the view names only.
 
+## Replica pass — every live surface, 13 September
+
+A read-only audit of every Razor handler and panel against the two files
+produced a gap list; all of it is now mocked, with live labels read from the
+`.cshtml` sources. Highlights:
+
+- **Received-file record** (`#/intake/{id}`): allocation failure with Retry,
+  Block, Re-evaluate, Correct draft, retained instruction analysis,
+  registration readings with Dismiss, Register images, Open the Triage, Link
+  and Unlink selected Case with candidate search, instruction details,
+  inspection-address confirmation, scanned PDF pages, suggested fields,
+  decision evidence, Create a case. Seven strip states. Shot `52`.
+- **Image-initiated Case**: optional Principal (select with "Not known" as
+  the empty option) in the header, the Principal panel, the Awaiting
+  instruction table and its Quick detail. Fixtures with and without. `53`.
+- **Triage**: set principal, unassign, unlink case, response evidence link
+  and unlink, supersede finding and two-active reconciliation, chaser send
+  and reconcile, Take over, Post-send correction. `54`.
+- **Unidentified**: Link to Case search with candidates, Close with reason.
+- **Mail**: Reply all, AI query response, Move to recommended folder. The
+  mockup-only delete and flag are gone (no live handler).
+- **Search** gains the Vehicle images group with lifecycle chip. **Create
+  case** carries the full live field set and the "This item cannot become a
+  case" refusal with the inspection-address choice. `56`.
+- **AI suggestions review** (`#/cases/{id}/suggestions`) with live copy. `55`.
+- **Administration**: Force logout, Delete, Take over, Printed name and
+  Qualifications on accounts; Resolve folders and Set default sender on
+  mailboxes; Take over on the Glass's credential. **Connector consent**
+  (`#/connect/authorize`), Accept and Deny.
+- **Case record**: per-tile tag picker with colour chips and New tag on a
+  shared vocabulary; the live Crop dialog (Aspect, Rotate left and right,
+  Full frame, Reset, Save crop) sharing the viewer's crop; report image
+  preparation (Role, Order, Rotate, Reset, Crop); document removal with a
+  reason; custody placeholder tile; intake photographs per intake; the full
+  Report flow (gated Generate, artifacts Report / Report with fee note / Fee
+  note, generation state and stale notice, Reviewed recipients with Add To
+  and Cc, Prepare delivery, Send prepared report, Mark report sent, Unlink
+  report evidence); Lifecycle actions (Return to Review, Unlink report
+  evidence, Archive case), closure outcomes, replacement case after a
+  wrong-principal correction; EVA handoff with Download ZIP and gated Send
+  via API; Vehicle lookup states; inspection-address confirmation; edit
+  lease with Claim, Take over, Renew editing, Release and the expiry line;
+  Add Case note and Record chase; a Case tasks sub-panel marked Proposal.
+  `57` to `60`.
+
+Departures from live, kept deliberately: Take over on a colleague's lease
+(live renders no control) and the Case tasks panel (live has handlers but no
+page) are proposals; "Link report evidence" is not a live button, the bar's
+Mark report sent is the link.
+
 ## Decisions that need sign-off before Stage 2
 
 Everything in `v25-notes.md` A–F still stands. New:
@@ -276,6 +326,9 @@ Everything in `v25-notes.md` A–F still stands. New:
 - **P. Working set.** Open records only, fused into the record, six then a
   menu, persisted per browser. Every variable is on the strip; pick the
   combination for Stage 2 (see the table under § Working set).
+- **R. Proposals inside the replica.** Take over on a colleague's lease, the
+  Case tasks panel, and the working-set strip have no live counterpart.
+  Confirm each, or drop it before Stage 2.
 - **Q. Crop as a stored rectangle.** The viewer's crop is a region kept on
   the image record, applied wherever the image is shown, with the original
   retained. Confirm this over writing a derived file.
@@ -294,12 +347,12 @@ file access allowed and read the RESULT line:
 
 ```powershell
 & $chrome --headless=new --allow-file-access-from-files `
-  --virtual-time-budget=12000 --dump-dom `
+  --virtual-time-budget=30000 --dump-dom `
   design/planning-and-old-designs/case-workspace-v25-mockup/v26-selfcheck.html |
   Select-String 'RESULT'
 ```
 
-12 September: `{"fail":[],"okCount":257}` with no console errors, on the
+13 September: `{"fail":[],"okCount":371}` with no console errors, on the
 Playwright Chromium 1228 build. The later checks switch through the three
 damage clickers, open the image viewer from the evidence strip (step, rotate,
 zoom, include, close), and seed nine open records to confirm six tabs plus a

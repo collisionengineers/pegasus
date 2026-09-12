@@ -236,9 +236,17 @@ detail card escaping its pane (an unbreakable e-mail address widening the
 grid track) and no crop or tag on images: the pane was fixed and both viewers
 gained a stored-rectangle crop and a tag select.
 
+## 11. 13 September — full replica
+
+"This is meant to be a full replica of the current version, plus what we've
+added or changed; also image cases have an optional principal." The audit's
+gap list was built out in two lanes (shell pages, Case record) from the live
+Razor sources; every item is now mocked, the optional principal included.
+Self-checks: 371 and 279.
+
 ## Outstanding
 
 Stage 1 is at v26 with every page mocked; it has not yet been given final approval to proceed to Stage 2 (the
-Razor implementation). Sign-off items A–F (`v25-notes.md`) and G–Q (`v26-notes.md`)
+Razor implementation). Sign-off items A–F (`v25-notes.md`) and G–R (`v26-notes.md`)
 are open. This folder is temporary per `docs/index.md`'s carve-out — remove it once
 Stage 2 lands or the design is formally accepted or rejected.

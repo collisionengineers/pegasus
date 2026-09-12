@@ -367,6 +367,131 @@ body:not(.is-editing) .case-section .avail{display:none}
 
 .app-main{padding-top:0}
 .record{border-top:0}
+/* ---- v26 replica: dialogs, tag picker, crop dialog, report position, lifecycle, lease ---- */
+.dialog-backdrop{position:fixed;inset:0;z-index:950;background:rgba(20,24,28,.55);display:grid;place-items:center;padding:20px}
+.dialog-backdrop[hidden]{display:none}
+.dialog{background:#fff;border-radius:var(--radius-lg);width:min(560px,100%);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 18px 48px rgba(0,0,0,.35);border:1px solid var(--line)}
+.dialog--wide{width:min(1040px,100%)}
+.dialog--compact{width:min(460px,100%)}
+.dialog-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.dialog-head h2{font-size:15px;font-weight:700;margin:0;flex:1}
+.dialog-close{width:30px;height:30px;border:0;background:transparent;border-radius:var(--radius);display:grid;place-items:center;color:var(--muted);cursor:pointer}
+.dialog-close:hover{background:var(--surface-2);color:var(--ink)}
+.dialog-body{padding:14px 16px;overflow:auto;display:flex;flex-direction:column;gap:12px;font-size:13px}
+.dialog-foot{display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid var(--line)}
+.dialog .field{display:grid;gap:4px;min-width:0}
+.dialog .field label,.report-image .field label,.field .label{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
+.dialog input:not([type=checkbox]),.dialog select,.dialog textarea,.report-image input,.report-image select,.recip-form input{min-height:var(--control);padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;width:100%;background:#fff}
+.dialog textarea{min-height:72px;resize:vertical}
+.req::after{content:" *";color:var(--danger)}
+.dialog .grid-2,.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.definition-list{display:grid;gap:6px}
+.definition-list .definition,.detail-list>div{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px;font-size:12.5px;margin:0}
+.detail-list{display:grid;gap:4px;margin:0}
+.detail-list dt,.definition-list dt{color:var(--quiet);font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;align-self:center}
+.detail-list dd,.definition-list dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.button-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.dialog .button-row{justify-content:flex-end}
+.notice--danger{border-left-color:var(--danger);background:var(--danger-bg)}
+body.has-dialog{overflow:hidden}
+/* record bar additions */
+.bar-actions{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.bar-actions:empty{display:none}
+.presence{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--ink);padding:0 4px}
+.presence-dot{width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 3px var(--amber-bg)}
+.lease-line{font-size:11px;color:var(--muted);font-family:var(--mono);white-space:nowrap}
+.lease-line.is-expiring{color:var(--amber);font-weight:700}
+.btn--danger-solid{background:var(--danger);border-color:var(--danger);color:#fff}
+#menu[hidden],#btnClose[hidden],#btnRenew[hidden],#leaseLine[hidden]{display:none}
+/* tags */
+.image-tile{display:flex;flex-direction:column;gap:4px;min-width:0}
+.image-tile .th{width:100%}
+.tag-chips{display:flex;flex-wrap:wrap;gap:3px;min-height:16px}
+.tag-chip{display:inline-flex;align-items:center;font-size:9px;font-weight:700;padding:1px 6px;border-radius:999px;border:1px solid currentColor;background:#fff;line-height:1.4;white-space:nowrap}
+.tag-chip--blue{color:var(--blue);background:var(--blue-bg)}.tag-chip--green{color:var(--green);background:var(--green-bg)}.tag-chip--amber{color:var(--amber);background:var(--amber-bg)}.tag-chip--navy{color:var(--navy);background:var(--navy-bg)}.tag-chip--red{color:var(--danger);background:var(--danger-bg)}.tag-chip--grey{color:var(--muted);background:var(--surface-2)}
+.tag-chip--more{color:var(--muted);border-style:dashed}
+.image-tile-actions{display:none;gap:4px;align-items:center;position:relative}
+body.is-editing #section-files:not(.is-locked) .image-tile-actions{display:flex}
+.tag-picker{position:relative}
+.tag-picker>summary{list-style:none;cursor:pointer}
+.tag-picker>summary::-webkit-details-marker{display:none}
+.tag-picker-body{position:absolute;left:0;top:calc(100% + 4px);z-index:60;min-width:200px;padding:6px;border:1px solid var(--line);background:#fff;box-shadow:var(--shadow);border-radius:var(--radius-lg);display:grid;gap:2px}
+.tag-option{display:flex;align-items:center;gap:8px;width:100%;border:0;background:transparent;padding:5px 8px;border-radius:var(--radius);font-size:12px;text-align:left;cursor:pointer;color:var(--ink)}
+.tag-option:hover{background:var(--surface-2)}
+.tag-option[aria-pressed=true]{font-weight:700}
+.tag-option .icon{width:12px;height:12px;margin-left:auto;color:var(--green)}
+.tag-swatch{width:10px;height:10px;border-radius:50%;flex-shrink:0;border:1px solid rgba(0,0,0,.15)}
+.tag-swatch--blue{background:var(--blue)}.tag-swatch--green{background:var(--green)}.tag-swatch--amber{background:var(--amber)}.tag-swatch--navy{background:var(--navy)}.tag-swatch--red{background:var(--danger)}.tag-swatch--grey{background:#9aa3ad}
+.tag-picker-new{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:4px;border-top:1px solid var(--line);margin-top:4px;padding-top:6px}
+.tag-picker-new input,.tag-picker-new select{min-height:28px;border:1px solid var(--line-strong);border-radius:var(--radius);padding:2px 6px;font-size:11.5px;min-width:0}
+.th .rot{position:absolute;bottom:4px;right:5px;font:600 8.5px var(--font);padding:1px 5px;border-radius:999px;background:rgba(255,255,255,.92);color:var(--ink);text-shadow:none}
+/* custody placeholder tile */
+.gallery-item[data-gallery-placeholder]{display:flex;flex-direction:column;aspect-ratio:4/3;border:1px dashed var(--line-strong);border-radius:3px;background:repeating-linear-gradient(135deg,var(--surface-2) 0 6px,#fff 6px 12px);padding:5px;justify-content:flex-end;font-size:9.5px;color:var(--muted);min-width:0}
+.gallery-item[data-gallery-placeholder] .gallery-caption{display:grid;gap:1px;background:rgba(255,255,255,.9);padding:3px 5px;border-radius:3px}
+.gallery-item[data-gallery-placeholder] strong{font:600 9.5px var(--mono);color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* intake photographs */
+.intake-group{display:grid;gap:6px}
+.intake-head{display:flex;align-items:center;gap:10px;font-size:12px}
+.intake-head a{font-weight:700;color:var(--navy)}
+.image-tile-source{font-size:10.5px}
+.image-tile-source a{color:var(--navy);font-weight:600}
+a.th{color:#fff;text-decoration:none}
+/* crop dialog */
+.crop-dialog-body{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:14px}
+.crop-stage{position:relative;height:62vh;min-height:320px;background:#15181b;border-radius:var(--radius);display:grid;place-items:center;overflow:hidden;user-select:none}
+.crop-stage img{max-width:100%;max-height:100%;display:block;transform-origin:center center}
+.crop-layer{position:absolute;cursor:crosshair;touch-action:none;z-index:2}
+.crop-selection{position:absolute;border:1px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.55);cursor:move}
+.crop-selection.is-full{cursor:crosshair}
+.crop-selection::after{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.35) 1px,transparent 1px);background-size:33.34% 33.34%;pointer-events:none}
+.crop-handle{position:absolute;width:12px;height:12px;background:#fff;border:1px solid #333;z-index:3}
+.crop-handle--nw{left:-6px;top:-6px;cursor:nwse-resize}.crop-handle--se{right:-6px;bottom:-6px;cursor:nwse-resize}.crop-handle--ne{right:-6px;top:-6px;cursor:nesw-resize}.crop-handle--sw{left:-6px;bottom:-6px;cursor:nesw-resize}
+.crop-controls{display:flex;flex-direction:column;gap:10px}
+.crop-controls .button-row .btn{flex:1}
+.crop-preview{aspect-ratio:4/3;border:1px solid var(--line);border-radius:var(--radius);background:#15181b center/cover no-repeat;overflow:hidden}
+.crop-preview .ph{width:100%;height:100%;background-size:cover;background-position:center;transform-origin:center}
+.field-hint{font-size:11.5px;color:var(--muted);font-family:var(--mono);margin:0}
+.field-hint[hidden]{display:none}
+@media(max-width:900px){.crop-dialog-body{grid-template-columns:1fr}.crop-stage{height:48vh}}
+/* report position cards */
+.report-images{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.report-image{border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;display:grid;gap:8px;min-width:0;background:#fff}
+.report-image h3{font:600 11px var(--mono);margin:0;text-transform:none;letter-spacing:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.report-image-preview{aspect-ratio:4/3;border-radius:3px;overflow:hidden;background:#2b3035}
+.report-image-preview .ph{width:100%;height:100%;background-size:cover;background-position:center;transform-origin:center}
+.report-image .detail-list>div{grid-template-columns:72px minmax(0,1fr);font-size:11.5px}
+.report-image .form-grid,.report-image .button-row{display:none}
+body.is-editing #section-report:not(.is-locked) .report-image .form-grid{display:grid}
+body.is-editing #section-report:not(.is-locked) .report-image .button-row{display:flex}
+.report-image .button-row .btn{min-height:28px;padding:3px 8px;font-size:11px}
+@media(max-width:1100px){.report-images{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* report generation */
+#repGen:empty{display:none}
+#repGen{display:flex;flex-direction:column;gap:10px}
+.recip-form{display:grid;gap:8px;border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px}
+.recip-form legend,.recip-form .lg{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em;padding:0}
+.recip-form .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
+.recip-form .stack{gap:4px}
+.recip-form .btn{justify-self:start}
+.recip-read{display:flex;flex-wrap:wrap;gap:6px}
+/* overview additions */
+#lifecycle[hidden],#tasksPanel[hidden],#sentRow[hidden],#inspDefaultCell[hidden]{display:none}
+.task-row{display:grid;grid-template-columns:minmax(0,1fr) 140px auto auto;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.task-row:last-child{border-bottom:0}
+.task-row .cluster{gap:4px;justify-content:flex-end}
+.task-row .who{color:var(--muted);font-size:12px}
+body:not(.is-editing) .edit-only,.case-section.is-locked .edit-only{display:none}
+.address-lines{display:grid;gap:1px}
+/* notes form */
+#noteForm{display:grid;gap:6px;margin-bottom:10px}
+#noteForm textarea{min-height:64px;padding:6px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;resize:vertical}
+#noteForm .lbl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.06em}
+#noteForm[hidden]{display:none}
+/* gated button (live pattern: disabled control with its stated condition) */
+.gated .btn{min-height:26px;padding:2px 8px;opacity:.6;cursor:not-allowed}
+.mock .sep{width:1px;height:16px;background:#4a5157;margin:0 2px}
+/* mockup strip: many more rows in v26 */
+.mock{max-height:58vh;overflow:auto;scrollbar-width:thin}
 /* ---- Damage ---- */
 .damage-workbench{display:grid;grid-template-columns:minmax(220px,300px) minmax(260px,1fr);gap:14px;align-items:start}
 .damage-workbench:has(#carView[data-variant="side"]){grid-template-columns:minmax(280px,360px) minmax(260px,1fr)}
@@ -666,7 +791,7 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
           </div>
           <div class="v25-actions" id="actions">
             <span class="status status--navy" id="rbHolder" hidden><svg class="icon" style="width:12px;height:12px"><use href="#icon-lock"/></svg>E Mawdsley is editing</span>
-            <button class="btn btn--dark" id="btnEdit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit Case</span></button>
+            <span class="status status--red" id="rbArchived" hidden>Archived</span><span class="lease-line" id="leaseLine" hidden></span><button class="btn" id="btnRenew" hidden onclick="renewLease()"><svg class="icon"><use href="#icon-refresh-cw"/></svg><span>Renew editing</span></button><span class="bar-actions" id="barActions"></span><button class="btn btn--dark" id="btnEdit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit Case</span></button>
             <button class="btn" id="btnCancel" hidden onclick="cancelEdit()"><svg class="icon"><use href="#icon-x"/></svg><span>Cancel</span></button>
             <button class="btn btn--primary" id="btnSave" hidden onclick="saveEdit()"><svg class="icon"><use href="#icon-save"/></svg><span>Save</span></button>
             <details class="actions-menu" id="menu">
@@ -674,18 +799,18 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
               <div class="actions-menu-body">
                 <div id="menuProgress"></div>
                 <div class="menu-sep"></div>
-                <button class="btn" id="btnHold" onclick="toggleHold()"><svg class="icon"><use href="#icon-pause"/></svg><span>Place on Hold</span></button>
-                <button class="btn"><svg class="icon"><use href="#icon-link"/></svg><span>Create upload link</span></button>
-                <button class="btn"><svg class="icon"><use href="#icon-alert-triangle"/></svg><span>Correct principal</span></button>
+                <button class="btn" id="btnHold" onclick="closeMenus();openDlg(HELD?'releaseHold':'hold')"><svg class="icon"><use href="#icon-pause"/></svg><span>Place on Hold</span></button>
+                <button class="btn" onclick="createUploadLink()"><svg class="icon"><use href="#icon-link"/></svg><span>Create upload link</span></button>
+                <button class="btn" onclick="closeMenus();openDlg('correctPrincipal')"><svg class="icon"><use href="#icon-alert-triangle"/></svg><span>Correct principal</span></button>
                 <div class="menu-sep"></div>
-                <button class="btn btn--danger" id="btnClose"><svg class="icon"><use href="#icon-alert-triangle"/></svg><span>Close case</span></button>
+                <button class="btn btn--danger" id="btnClose" onclick="closeMenus();openDlg('close')"><svg class="icon"><use href="#icon-alert-triangle"/></svg><span>Close case</span></button>
               </div>
             </details>
           </div>
         </div>
         <div class="case-section-navigation">
           <nav class="section-nav" id="jump" aria-label="Case sections"></nav>
-          <button class="btn btn--icon btn--small" title="Refresh" aria-label="Refresh" style="align-self:center;margin-right:6px"><svg class="icon"><use href="#icon-refresh-cw"/></svg></button>
+          <button class="btn btn--icon btn--small" onclick="refreshRecord()" title="Refresh" aria-label="Refresh" style="align-self:center;margin-right:6px"><svg class="icon"><use href="#icon-refresh-cw"/></svg></button>
           <div class="case-layout-switch" role="group" aria-label="Case layout">
             <button type="button" data-layout="scroll" aria-pressed="true" onclick="setLayout('scroll',true)">Scroll</button>
             <button type="button" data-layout="tabs" aria-pressed="false" onclick="setLayout('tabs',true)">Tabs</button>
@@ -703,6 +828,8 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
           <div class="panel-body">
             <ol class="stepper" id="stepper"></ol>
             <div class="sub blockers" id="blockers" hidden><h3>Outstanding requirements <span class="status status--amber" id="blockCount">1 outstanding</span></h3><ul class="blocker-list" id="blockerList"></ul></div>
+            <div class="sub" id="lifecycle" hidden><h3>Lifecycle actions</h3><div class="button-row" id="lifecycleBtns"></div><div class="fc ro" id="sentRow" hidden><span class="lbl">Report sent</span><div class="fv" id="sentRead"></div></div></div>
+            <div class="sub" id="tasksPanel" hidden><h3>Case tasks <span class="rt">Proposal</span></h3><div id="taskList"></div><div class="button-row edit-only" style="margin-top:6px"><button type="button" class="btn btn--small" onclick="openDlg('taskCreate')"><svg class="icon"><use href="#icon-plus"/></svg><span>Create task</span></button></div></div>
             <div class="overview-grid">
               <div class="sub"><h3>Case</h3>
                 <div class="fg g2">
@@ -746,8 +873,9 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
             <div class="fg g4">
               <div class="fc"><label for="f-insptype">Inspection type</label><div class="fv">Image based assessment</div><select id="f-insptype" class="fi"><option>Image based assessment</option><option>Physical inspection</option></select></div>
               <div class="fc"><label for="f-inspdate">Inspection date</label><div class="fv">28 Aug 2026</div><input id="f-inspdate" class="fi" type="date" value="2026-08-28"></div>
-              <div class="fc"><label for="f-insploc">Inspect at</label><div class="fv">Image Based Assessment <span class="prov">Principal default</span></div><select id="f-insploc" class="fi"><option>Image Based Assessment</option><option>Claimant address</option><option>Repairer location</option><option>Storage location</option><option>Manual entry…</option></select></div>
-              <div class="fc ro"><span class="lbl">Principal default</span><div class="fv">Image Based Assessment</div></div>
+              <div class="fc"><label for="f-insploc">Inspect at</label><div class="fv">Image Based Assessment <span class="prov">Principal default</span></div><select id="f-insploc" class="fi" onchange="inspChoice()"><option value="ImageBasedAssessment">Image Based Assessment</option><option value="ClaimantAddress">Claimant address</option><option value="RepairerLocation">Repairer location</option><option value="StorageLocation">Storage location</option><option value="PreviousAddress">Previous address</option><option value="ManualEntry">Manual entry…</option></select></div>
+              <div class="fc"><label for="f-inspaddr">Inspection address</label><div class="fv" id="inspAtRead"></div><input id="f-inspaddr" class="fi" maxlength="500" oninput="inspRead();touch()"></div>
+              <div class="fc ro" id="inspDefaultCell"><span class="lbl">Principal default</span><div class="fv">Image Based Assessment</div></div>
             </div>
             <div class="sub"><h3>Repairer</h3>
               <div class="fg g4">
@@ -770,7 +898,7 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
 
         <!-- ===== Vehicle ===== -->
         <section class="case-section panel" id="section-vehicle" data-section="vehicle" data-avail="">
-          <div class="panel-head"><h2>Vehicle</h2><span class="muted">DVLA &amp; MOT looked up 27 Aug 09:02 · current</span><span class="spacer"></span><button class="btn btn--small calc-only"><svg class="icon"><use href="#icon-refresh-cw"/></svg><span>Look up DVLA &amp; MOT</span></button><span class="gated"><svg class="icon"><use href="#icon-lock"/></svg>Experian is not connected</span><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button></div>
+          <div class="panel-head"><h2>Vehicle</h2><span class="muted" id="lookupRead"></span><span class="spacer"></span><button class="btn btn--small calc-only" onclick="requestLookup()"><svg class="icon"><use href="#icon-refresh-cw"/></svg><span>Look up DVLA &amp; MOT</span></button><span class="gated"><svg class="icon"><use href="#icon-lock"/></svg>Experian is not connected</span><button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button></div>
           <div class="panel-body stack">
             <div class="fg g4">
               <div class="fc ro idn"><span class="lbl">Registration<svg class="icon lk"><use href="#icon-lock"/></svg></span><div class="fv mono">MA59BDY</div></div>
@@ -985,10 +1113,10 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
         <!-- ===== Report ===== -->
         <section class="case-section panel" id="section-report" data-section="report" data-avail="With Engineer">
           <div class="panel-head"><h2>Report</h2><span class="spacer"></span>
-            <button class="btn btn--small btn--primary" id="btnGenerate" onclick="genReport()"><svg class="icon"><use href="#icon-download"/></svg><span>Generate report</span></button>
-            <details class="actions-menu"><summary class="btn btn--small"><span>More</span><svg class="icon"><use href="#icon-chevron-down"/></svg></summary><div class="actions-menu-body">
+            <button class="btn btn--small btn--primary" id="btnGenerate" onclick="genReport()"><svg class="icon"><use href="#icon-download"/></svg><span>Generate report</span></button><span class="gated" id="genGate" hidden><svg class="icon"><use href="#icon-lock"/></svg><span id="genGateText"></span></span>
+            <details class="actions-menu" id="repMenu"><summary class="btn btn--small"><span>More</span><svg class="icon"><use href="#icon-chevron-down"/></svg></summary><div class="actions-menu-body">
               <button class="btn" id="btnPreview" onclick="closeMenus();genPreview()"><svg class="icon"><use href="#icon-eye"/></svg><span>Preview draft</span></button>
-              <button class="btn" id="btnFee" onclick="closeMenus();toast('Fee note generated as a separate document')"><svg class="icon"><use href="#icon-file-text"/></svg><span>Fee note only</span></button>
+              <button class="btn" id="btnFee" onclick="genFeeNote()"><svg class="icon"><use href="#icon-file-text"/></svg><span>Generate fee note</span></button>
               <label class="choice" style="padding:0 12px;font-size:12px"><input type="checkbox" id="incFee" checked> Include fee note</label>
             </div></details>
             <button type="button" class="btn btn--small sec-edit" onclick="startEdit()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Edit</span></button><span class="gated avail"><svg class="icon"><use href="#icon-lock"/></svg><span class="avail-text"></span></span><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button>
@@ -1000,6 +1128,7 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
               <div class="pv-meta"><div class="pt" id="pvTitle">Total Loss Report — MA59BDY</div><div class="ps" id="pvStatus">No generation yet.</div><div class="ps" id="pvFacts"></div></div>
               <div class="cluster" id="pvActions"></div>
             </div>
+            <div id="repGen"></div>
             <div class="fg g4">
               <div class="fc"><label for="f-signoff">Sign-off Engineer</label><div class="fv">A Patterson</div><select id="f-signoff" class="fi"><option>A Patterson</option><option>E Mawdsley</option><option>N O'Reilly</option></select></div>
               <div class="fc ro"><span class="lbl">Report date</span><div class="fv derived empty" id="repDate">—</div></div>
@@ -1012,7 +1141,8 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
               <div class="fc span4"><span class="lbl">Report content</span><div class="fv" id="swRead">Guide source not disclosed · no commentary</div><div class="fi chk switches"><label class="choice"><input type="checkbox" id="f-disclose" onchange="switchesRead();touch()"> Disclose guide source</label><label class="choice"><input type="checkbox" id="f-comm" onchange="switchesRead();touch()"> Valuation commentary</label><label class="choice"><input type="checkbox" id="f-unrelp" onchange="switchesRead();touch()"> Unrelated damage</label></div></div>
             </div>
             <div class="sub"><h3>Images in report <span class="rt"><span id="imgCount"></span></span></h3><div class="thumbs" id="thumbs"></div></div>
-            <div class="sub"><h3>Recipients</h3><div class="fg g2"><div class="fc ro"><span class="lbl">To</span><div class="fv"><span class="recip">claims@qdosclaims.co.uk</span><span class="recip sug">Original instruction sender · rapid.hire@rhsclaims.co.uk</span><span class="recip sug calc-only">+ Add To</span></div></div><div class="fc ro"><span class="lbl">Cc</span><div class="fv"><span class="recip sug calc-only">+ Add Cc</span></div></div></div></div>
+            <div class="sub" id="repPrepSub" hidden><h3>Report image preparation</h3><div class="report-images" id="repPrep"></div></div>
+            
           </div>
         </section>
 
@@ -1022,12 +1152,12 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
           <div class="panel-body stack">
             <div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true" onclick="fileTab('docs',this)">Documents · 4</button><button class="tab" role="tab" aria-selected="false" onclick="fileTab('imgs',this)">Images · 12</button></div>
             <div id="fDocs" class="stack" style="gap:6px">
-              <div class="doc-row"><svg class="icon"><use href="#icon-file-text"/></svg><div><b>Instruction — QDOS Q-88214-LC.pdf</b><br><small>E-mail · 21 Jul 2026 09:12 · 184 KB</small></div><span class="prov">Instruction</span><span class="cluster" style="gap:4px"><button class="btn btn--small">View</button><button class="btn btn--small btn--icon" title="Save as"><svg class="icon"><use href="#icon-download"/></svg></button><button class="btn btn--small btn--icon btn--danger calc-only" title="Remove"><svg class="icon"><use href="#icon-trash-2"/></svg></button></span></div>
-              <div class="doc-row"><svg class="icon"><use href="#icon-file-text"/></svg><div><b>Audatex estimate 88214-01.pdf</b><br><small>Upload · 28 Aug 2026 14:22 · 612 KB</small></div><span class="prov">Estimate</span><span class="cluster" style="gap:4px"><button class="btn btn--small">View</button><button class="btn btn--small btn--icon" title="Save as"><svg class="icon"><use href="#icon-download"/></svg></button><button class="btn btn--small btn--icon btn--danger calc-only" title="Remove"><svg class="icon"><use href="#icon-trash-2"/></svg></button></span></div>
-              <div class="doc-row"><svg class="icon"><use href="#icon-file-text"/></svg><div><b>Glass's estimate 88214.pdf</b><br><small>Upload · 29 Aug 2026 10:03 · 402 KB</small></div><span class="prov">Estimate</span><span class="cluster" style="gap:4px"><button class="btn btn--small">View</button><button class="btn btn--small btn--icon" title="Save as"><svg class="icon"><use href="#icon-download"/></svg></button><button class="btn btn--small btn--icon btn--danger calc-only" title="Remove"><svg class="icon"><use href="#icon-trash-2"/></svg></button></span></div>
-              <div class="doc-row"><svg class="icon"><use href="#icon-mail"/></svg><div><b>RE: MA59BDY — hire confirmation</b><br><small>E-mail · 27 Aug 2026 16:44</small></div><span class="prov">Correspondence</span><span class="cluster" style="gap:4px"><button class="btn btn--small">Open</button><button class="btn btn--small btn--icon" title="Save as"><svg class="icon"><use href="#icon-download"/></svg></button><button class="btn btn--small btn--icon btn--danger calc-only" title="Remove"><svg class="icon"><use href="#icon-trash-2"/></svg></button></span></div>
+              <div class="doc-row"><svg class="icon"><use href="#icon-file-text"/></svg><div><b>Instruction — QDOS Q-88214-LC.pdf</b><br><small>E-mail · 21 Jul 2026 09:12 · 184 KB</small></div><span class="prov">Instruction</span><span class="cluster" style="gap:4px"><button class="btn btn--small">View</button><button class="btn btn--small btn--icon" title="Save as"><svg class="icon"><use href="#icon-download"/></svg></button><button class="btn btn--small btn--icon btn--danger calc-only" title="Remove" onclick="removeDoc(this)"><svg class="icon"><use href="#icon-trash-2"/></svg></button></span></div>
+              <div class="doc-row"><svg class="icon"><use href="#icon-file-text"/></svg><div><b>Audatex estimate 88214-01.pdf</b><br><small>Upload · 28 Aug 2026 14:22 · 612 KB</small></div><span class="prov">Estimate</span><span class="cluster" style="gap:4px"><button class="btn btn--small">View</button><button class="btn btn--small btn--icon" title="Save as"><svg class="icon"><use href="#icon-download"/></svg></button><button class="btn btn--small btn--icon btn--danger calc-only" title="Remove" onclick="removeDoc(this)"><svg class="icon"><use href="#icon-trash-2"/></svg></button></span></div>
+              <div class="doc-row"><svg class="icon"><use href="#icon-file-text"/></svg><div><b>Glass's estimate 88214.pdf</b><br><small>Upload · 29 Aug 2026 10:03 · 402 KB</small></div><span class="prov">Estimate</span><span class="cluster" style="gap:4px"><button class="btn btn--small">View</button><button class="btn btn--small btn--icon" title="Save as"><svg class="icon"><use href="#icon-download"/></svg></button><button class="btn btn--small btn--icon btn--danger calc-only" title="Remove" onclick="removeDoc(this)"><svg class="icon"><use href="#icon-trash-2"/></svg></button></span></div>
+              <div class="doc-row"><svg class="icon"><use href="#icon-mail"/></svg><div><b>RE: MA59BDY — hire confirmation</b><br><small>E-mail · 27 Aug 2026 16:44</small></div><span class="prov">Correspondence</span><span class="cluster" style="gap:4px"><button class="btn btn--small">Open</button><button class="btn btn--small btn--icon" title="Save as"><svg class="icon"><use href="#icon-download"/></svg></button><button class="btn btn--small btn--icon btn--danger calc-only" title="Remove" onclick="removeDoc(this)"><svg class="icon"><use href="#icon-trash-2"/></svg></button></span></div>
             </div>
-            <div id="fImgs" hidden><div class="thumbs" id="thumbs2"></div></div>
+            <div id="fImgs" hidden class="stack"><div class="thumbs" id="thumbs2"></div><div class="sub"><h3>Image intake photographs</h3><div class="stack" id="intakeImgs"></div></div></div>
             <div class="sub"><h3>Public upload requests</h3>
               <table><thead><tr><th>Recipient</th><th>Reason</th><th>State</th><th>Created</th><th>Expires</th><th>Accepted</th><th></th></tr></thead>
               <tbody><tr><td>claimant@example.com</td><td>Further images of the boot floor</td><td><span class="status status--blue">Active</span></td><td>27 Aug</td><td>10 Sep</td><td>3 · 6.2 MB</td><td><button class="btn btn--small btn--danger calc-only">Withdraw</button></td></tr></tbody></table>
@@ -1042,7 +1172,7 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
         <section class="case-section panel" id="section-notes" data-section="notes" data-avail="">
           <div class="panel-head"><h2>Notes</h2><button type="button" class="btn btn--small btn--icon sec-collapse" onclick="toggleSection(this)" aria-label="Collapse section" title="Collapse"><svg class="icon"><use href="#icon-chevron-down"/></svg></button></div>
           <div class="panel-body">
-            <div class="cluster" style="margin-bottom:8px;align-items:flex-end"><div class="fc" style="flex:1"><label for="noteIn" class="sr-only">Add note</label><input id="noteIn" placeholder="Add a note and press Enter" onkeydown="if(event.key==='Enter'){addNote(this.value);this.value='';}"></div><button class="btn" onclick="toast('Record chase dialog (existing): recipient, channel, content, outcome')"><svg class="icon"><use href="#icon-clock"/></svg><span>Record chase</span></button></div>
+            <div id="noteForm"><label class="lbl" for="noteIn">Case note</label><textarea id="noteIn" rows="2" maxlength="4000" onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){addNoteForm();}"></textarea><div class="button-row"><button class="btn btn--primary" onclick="addNoteForm()"><svg class="icon"><use href="#icon-plus"/></svg><span>Add Case note</span></button><button class="btn" onclick="openDlg('chase')"><svg class="icon"><use href="#icon-clock"/></svg><span>Record chase</span></button></div></div>
             <div id="noteTop"></div>
             <div class="note sys"><div class="nw">28 Aug 09:14</div><div class="nb"><b>System</b> — AI pre-assessment completed. 5 suggestions ready for review.</div></div>
             <div class="note sys"><div class="nw">28 Aug 09:02</div><div class="nb"><b>System</b> — Case set up by E Mawdsley. Instruction + 24 images paired on registration.</div></div>
@@ -1067,6 +1197,13 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
   <div class="mrow"><b>Mockup state</b><button data-st="review" onclick="setState('review')">Review</button><button data-st="engineer" class="on" onclick="setState('engineer')">With Engineer</button><button data-st="complete" onclick="setState('complete')">Complete</button><button data-st="colleague" onclick="setState('colleague')">Colleague editing</button></div>
   <div class="mrow"><b>Glass's</b><button data-g="none" class="on" onclick="setGlass('none')">None</button><button data-g="open" onclick="setGlass('open')">Open</button><button data-g="waiting" onclick="setGlass('waiting')">Waiting</button><button data-g="failed" onclick="setGlass('failed')">Failed</button><button data-g="unknown" onclick="setGlass('unknown')">Unknown</button><button data-g="elsewhere" onclick="setGlass('elsewhere')">Elsewhere</button><button onclick="glassReturn()">Return →</button></div>
   <div class="mrow"><b>Decisions</b><button id="mockProp" onclick="toggleProposal()">AI proposal</button></div>
+  <div class="mrow"><b>Edit lease</b><button data-lease="available" onclick="setLease('available')">Available</button><button data-lease="mine" onclick="setLease('mine')">Claimed</button><button data-lease="expiring" onclick="setLease('expiring')">Expiring</button><button data-lease="elsewhere" onclick="setLease('elsewhere')">Another window</button><button data-lease="colleague" onclick="setLease('colleague')">Colleague editing</button></div>
+  <div class="mrow"><b>Lifecycle</b><button data-life="none" onclick="setLife('none')">Open</button><button data-life="held" onclick="setLife('held')">Held</button><button data-life="closed" onclick="setLife('closed')">Closed</button><button data-life="archived" onclick="setLife('archived')">Archived</button><span class="sep"></span><button data-link="none" onclick="setLink('none')">No link</button><button data-link="replacement" onclick="setLink('replacement')">Replacement case</button><button data-link="original" onclick="setLink('original')">Original case</button></div>
+  <div class="mrow"><b>Report</b><button data-rep="none" onclick="setReport('none')">Not generated</button><button data-rep="draft" onclick="setReport('draft')">Draft</button><button data-rep="generated" onclick="setReport('generated')">Generated</button><button data-rep="prepared" onclick="setReport('prepared')">Delivery prepared</button><button data-rep="sent" onclick="setReport('sent')">Sent</button></div>
+  <div class="mrow"><b>EVA</b><button data-eva="none" onclick="setEva('none')">Not sent</button><button data-eva="sent" onclick="setEva('sent')">Sent</button><button data-eva="failed" onclick="setEva('failed')">Refused</button><span class="sep"></span><button data-api="1" onclick="setEvaApi(!R.evaApi)">EVA API enabled</button><span class="sep"></span><button onclick="openDlg('eva')">Open EVA handoff</button></div>
+  <div class="mrow"><b>Vehicle lookup</b><button data-lookup="none" onclick="setLookup('none')">Not looked up</button><button data-lookup="pending" onclick="setLookup('pending')">Pending</button><button data-lookup="current" onclick="setLookup('current')">Current</button><button data-lookup="stale" onclick="setLookup('stale')">Stale</button><button data-lookup="notfound" onclick="setLookup('notfound')">Not found</button><button data-lookup="failed" onclick="setLookup('failed')">Failed</button></div>
+  <div class="mrow"><b>Image custody</b><button data-custody="confirmed" onclick="setCustody('confirmed')">Confirmed</button><button data-custody="pending" onclick="setCustody('pending')">Still arriving</button><button data-custody="failed" onclick="setCustody('failed')">Storage failed</button></div>
+  <div class="mrow"><b>Case tasks</b><button data-tasks="1" onclick="setTasks(1)">Proposal on</button><button data-tasks="0" onclick="setTasks(0)">Off</button></div>
   <div class="mrow"><b>Tabs</b><button data-tabs="1" onclick="mockTabs(1)">1 open</button><button data-tabs="4" onclick="mockTabs(4)">4 open</button><button data-tabs="9" onclick="mockTabs(9)">9 open</button></div>
   <div class="mrow"><b>Tab layout</b><button data-o="place:fused" onclick="setTabOpt('place','fused')">Fused strip</button><button data-o="place:band" onclick="setTabOpt('place','band')">Grey band</button><button data-o="place:rail" onclick="setTabOpt('place','rail')">Rail list</button><button data-o="place:crumb" onclick="setTabOpt('place','crumb')">Breadcrumb</button></div>
   <div class="mrow"><b>Tab label</b><button data-o="label:both" onclick="setTabOpt('label','both')">Ref + reg</button><button data-o="label:ref" onclick="setTabOpt('label','ref')">Ref only</button><button data-o="label:reg" onclick="setTabOpt('label','reg')">Reg only</button><span class="sep"></span><button data-o="icons:1" onclick="setTabOpt('icons','1')">Icons</button><button data-o="icons:0" onclick="setTabOpt('icons','0')">No icons</button><span class="sep"></span><button data-o="density:regular" onclick="setTabOpt('density','regular')">Regular</button><button data-o="density:compact" onclick="setTabOpt('density','compact')">Compact</button></div>
@@ -1079,6 +1216,23 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
   <div class="viewer-stage" id="vwStage" onclick="zoomViewer()"><img id="vwImg" alt=""></div>
   <button type="button" class="viewer-nav next" onclick="stepViewer(1)" aria-label="Next"><svg class="icon"><use href="#icon-chevron-right"/></svg></button>
   <div class="viewer-strip" id="vwStrip"></div>
+</div>
+<div id="dlgHost"></div>
+<div class="dialog-backdrop" id="cropDlg" hidden>
+  <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="cropTitle">
+    <div class="dialog-head"><h2 id="cropTitle">Crop image</h2><span class="muted" id="cropName"></span><button type="button" class="dialog-close" onclick="closeCropDialog()" aria-label="Close dialog"><svg class="icon"><use href="#icon-x"/></svg></button></div>
+    <div class="dialog-body crop-dialog-body">
+      <div class="crop-stage" id="cropStage"><img id="cropImg" alt=""><div class="crop-layer" id="cropLayer"><div class="crop-selection" id="cropSel"><span class="crop-handle crop-handle--nw" data-crop-handle="nw"></span><span class="crop-handle crop-handle--ne" data-crop-handle="ne"></span><span class="crop-handle crop-handle--sw" data-crop-handle="sw"></span><span class="crop-handle crop-handle--se" data-crop-handle="se"></span></div></div></div>
+      <div class="crop-controls">
+        <div class="field"><label for="cropAspect">Aspect</label><select id="cropAspect" onchange="cropAspect(this.value)"><option value="free">Free</option><option value="1">Square</option><option value="1.33333">4:3</option><option value="1.77778">16:9</option></select></div>
+        <div class="button-row"><button type="button" class="btn" onclick="cropRotate(-90)"><svg class="icon"><use href="#icon-refresh-cw"/></svg><span>Rotate left</span></button><button type="button" class="btn" onclick="cropRotate(90)"><svg class="icon"><use href="#icon-rotate-cw"/></svg><span>Rotate right</span></button></div>
+        <div class="button-row"><button type="button" class="btn" onclick="cropFull()">Full frame</button><button type="button" class="btn" onclick="cropReset()">Reset</button></div>
+        <div class="crop-preview"><div class="ph" id="cropPreviewPh"></div></div>
+        <p class="field-hint" id="cropStatus" hidden></p>
+      </div>
+    </div>
+    <div class="dialog-foot"><button type="button" class="btn" onclick="closeCropDialog()">Cancel</button><button type="button" class="btn btn--primary" onclick="saveCrop()"><svg class="icon"><use href="#icon-check"/></svg><span>Save crop</span></button></div>
+  </section>
 </div>
 <div class="toast-region" id="toasts"></div>
 
@@ -1406,7 +1560,7 @@ function decTouch(k){REVIEWED[k]=true;}
 function dismissable(){document.querySelectorAll('.notice,#staleBar').forEach(n=>{if(n.dataset.dismiss)return;n.dataset.dismiss='1';const b=document.createElement('button');b.type='button';b.className='dismiss';b.setAttribute('aria-label','Dismiss');b.innerHTML='<svg class="icon"><use href="#icon-x"/></svg>';b.onclick=()=>{n.hidden=true;n.classList.remove('show');measure();};n.appendChild(b);});}
 
 /* ================= query-string presets (screenshots only) ================= */
-function applyQuery(){const q=new URLSearchParams(location.search);if(q.get('state'))setState(q.get('state'));if(q.get('layout'))setLayout(q.get('layout'),true);if(q.get('edit')==='1')startEdit();if(q.get('ev')==='1')applyAdj();if(q.get('proposal')==='1')toggleProposal();if(q.get('glass')==='return')glassReturn();else if(q.get('glass'))setGlass(q.get('glass'));if(q.get('closeopen')==='1'){const c=$('glassClose');if(c)c.open=true;}if(q.get('expand')==='1')toggleExpand();if(q.get('collapse'))q.get('collapse').split(',').forEach(k=>{const b=document.querySelector('#section-'+k+' .sec-collapse');if(b)toggleSection(b);});if(q.get('tabs'))mockTabs(+q.get('tabs'));if(q.get('tabopt'))q.get('tabopt').split(',').forEach(kv=>{const [k,v]=kv.split(':');setTabOpt(k,v);});if(q.get('clicker'))setDamageVariant(q.get('clicker'));if(q.get('viewer'))openViewer(+q.get('viewer'));if(q.get('section'))jumpTo(q.get('section'));}
+function applyQuery(){const q=new URLSearchParams(location.search);if(q.get('state'))setState(q.get('state'));if(q.get('layout'))setLayout(q.get('layout'),true);if(q.get('edit')==='1')startEdit();if(q.get('ev')==='1')applyAdj();if(q.get('proposal')==='1')toggleProposal();if(q.get('glass')==='return')glassReturn();else if(q.get('glass'))setGlass(q.get('glass'));if(q.get('closeopen')==='1'){const c=$('glassClose');if(c)c.open=true;}if(q.get('expand')==='1')toggleExpand();if(q.get('collapse'))q.get('collapse').split(',').forEach(k=>{const b=document.querySelector('#section-'+k+' .sec-collapse');if(b)toggleSection(b);});if(q.get('tabs'))mockTabs(+q.get('tabs'));if(q.get('tabopt'))q.get('tabopt').split(',').forEach(kv=>{const [k,v]=kv.split(':');setTabOpt(k,v);});if(q.get('clicker'))setDamageVariant(q.get('clicker'));if(q.get('viewer'))openViewer(+q.get('viewer'));replicaQuery(q);if(q.get('section'))jumpTo(q.get('section'));}
 
 function shellSearch(f){window.location.href='pegasus_shell_v26.html#/search?ref='+encodeURIComponent(f.querySelector('input').value);return false;}
 /* ---- synthetic evidence previews (mockup only: there are no real files) ---- */
@@ -1446,7 +1600,7 @@ function renderViewer(){const i=VW.i,im=imgState[i];$('vwName').textContent=im.n
   img.onload=fitViewerImage;fitViewerImage();requestAnimationFrame(fitViewerImage);
   const edit=canEditSec('report');const b=(fn,ic,label,cls='')=>`<button type="button" class="btn btn--small ${cls}" onclick="${fn}"><svg class="icon"><use href="#icon-${ic}"/></svg><span>${label}</span></button>`;
   $('vwTools').innerHTML=VW.crop?`<span class="viewer-hint">Drag over the image</span>${VW.sel?b('applyCrop()','check','Apply crop','btn--primary'):''}${im.crop?b('clearCrop()','x','Clear crop'):''}${b('cancelCrop()','chevron-left','Cancel')}`
-    :`${b('rotateViewer()','rotate-cw','Rotate')}${b('zoomViewer()','search',VW.zoom?'Fit':'Zoom')}${edit?b('cropViewer()','image',im.crop?'Crop · set':'Crop'):''}<a class="btn btn--small" href="${photoOf(i)}" download="${im.n}.svg"><svg class="icon"><use href="#icon-download"/></svg><span>Download</span></a>${edit?`<select class="viewer-tag" aria-label="Tag" onchange="setTag(${i},this.value)"><option value="">No tag</option>${IMG_TAGS.map(t=>`<option${TAGS[i]===t?' selected':''}>${t}</option>`).join('')}</select><label class="viewer-inc"><input type="checkbox" ${im.on?'checked':''} onchange="imgState[${i}].on=this.checked;renderImgs();renderViewer();touch()"><span>In report</span></label>`:''}`;
+    :`${b('rotateViewer()','rotate-cw','Rotate')}${b('zoomViewer()','search',VW.zoom?'Fit':'Zoom')}${edit?b(`openCropDialog(${i})`,'image',im.crop?'Crop · set':'Crop'):''}<a class="btn btn--small" href="${photoOf(i)}" download="${im.n}.svg"><svg class="icon"><use href="#icon-download"/></svg><span>Download</span></a>${edit?`<select class="viewer-tag" aria-label="Tag" onchange="setTag(${i},this.value)"><option value="">No tag</option>${IMG_TAGS.map(t=>`<option${TAGS[i]===t?' selected':''}>${t}</option>`).join('')}</select><label class="viewer-inc"><input type="checkbox" ${im.on?'checked':''} onchange="imgState[${i}].on=this.checked;renderImgs();renderViewer();touch()"><span>In report</span></label>`:''}`;
   $('vwStrip').innerHTML=imgState.map((x,k)=>`<button type="button" class="${k===i?'on':''}${x.on?'':' off'}" onclick="goViewer(${k})" style="background-image:url('${photoOf(k)}');${cropBg(x.crop)}" aria-label="${x.n}" title="${x.n}"></button>`).join('');const strip=$('vwStrip'),on=strip.querySelector('.on');if(on)strip.scrollLeft=Math.max(0,on.offsetLeft-strip.clientWidth/2+42);}
 function bindCrop(layer){let start=null;const pt=e=>{const r=layer.getBoundingClientRect();return [Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))];};
   layer.addEventListener('pointerdown',e=>{start=pt(e);layer.setPointerCapture(e.pointerId);VW.sel={x:start[0],y:start[1],w:0,h:0};drawSel();e.preventDefault();});
@@ -1493,8 +1647,304 @@ $('tabs').addEventListener('auxclick',e=>{if(e.button!==1)return;const t=e.targe
 const MOCK_TABS=[ME,{id:'c1',kind:'case',ref:'PCH26004',sub:'VN71ULZ',route:'/cases/c1',state:'glass'},{id:'t2',kind:'triage',ref:'Triage',sub:'LX10XTJ',route:'/triage/t2'},{id:'m4',kind:'message',ref:'Enclosing Inspection Request',sub:'',route:'/inbox/m4'},{id:'c5',kind:'case',ref:'PCH26001',sub:'HF26OMK',route:'/cases/c5',state:'held'},{id:'u1',kind:'unidentified',ref:'U34',sub:'',route:'/unidentified/u1'},{id:'ic1',kind:'image',ref:'WR68PBY-01',sub:'',route:'/images/ic1'},{id:'c3',kind:'case',ref:'QDOS261786',sub:'SD74CXS',route:'/cases/c3'},{id:'c7',kind:'case',ref:'QDOS26009',sub:'AC20 PER',route:'/cases/c7'}];
 function mockTabs(n){writeOpen(MOCK_TABS.slice(0,n));document.querySelectorAll('.mock [data-tabs]').forEach(b=>b.classList.toggle('on',+b.dataset.tabs===n));renderTabs();}
 ['startEdit','endEdit','setState','setGlass'].forEach(n=>{const f=window[n];window[n]=function(){const r=f.apply(this,arguments);renderTabs();return r;};});
+/* ================= v26 replica of the live Case record (Details.cshtml + Cases/Shared partials) ================= */
+const R={report:'none',lease:'available',lookup:'current',custody:'confirmed',link:'none',eva:'none',evaApi:false,archived:false,closed:null,tasks:false,prepared:null,sentEvidence:null,evidence:false,draftAt:null,genAt:null};
+let RETURN_ON=false;
+const ME_NAME='Alex Mercer';
+const ENGINEERS=['A Patterson','E Mawdsley',"N O'Reilly"];
+function fmtDT(d){return d.toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
+function fmtDS(d){return d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
+function hm(d){return d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function mockOn(sel,v){document.querySelectorAll(sel).forEach(b=>b.classList.toggle('on',b.dataset[Object.keys(b.dataset)[0]]===String(v)));}
+
+/* ---------- dialogs (Shared/_ReasonDialog and the record's own dialogs) ---------- */
+let DLG=null;
+function openDlg(name,data){const d=DIALOGS[name];if(!d)return;const spec=d(data||{});DLG={name,spec,data};const host=$('dlgHost');
+  host.innerHTML=`<div class="dialog-backdrop" data-dialog="${name}"><section class="dialog${spec.cls?' '+spec.cls:''}" role="dialog" aria-modal="true" aria-labelledby="dlg-title"><div class="dialog-head"><h2 id="dlg-title" tabindex="-1">${spec.title}</h2><button type="button" class="dialog-close" onclick="closeDlg()" aria-label="Close dialog"><svg class="icon"><use href="#icon-x"/></svg></button></div><div class="dialog-body${spec.stack===false?'':' stack'}">${spec.body}</div>${spec.foot?`<div class="dialog-foot">${spec.foot}</div>`:''}</section></div>`;
+  document.body.classList.add('has-dialog');dismissable();const f=host.querySelector('[data-dialog-initial-focus]')||host.querySelector('input,select,textarea,button.btn--primary');if(f)f.focus();if(spec.mounted)spec.mounted(host);}
+function closeDlg(){$('dlgHost').innerHTML='';DLG=null;document.body.classList.remove('has-dialog');}
+function reasonField(id,label){return `<div class="field"><label class="req" for="${id||'dlg-reason'}">${label||'Reason for action'}</label><textarea id="${id||'dlg-reason'}" rows="3" required maxlength="500"></textarea></div>`;}
+function readReason(id){const el=$(id||'dlg-reason');const v=(el?el.value:'').trim();if(!v){toast('Reason for action is required',true);if(el)el.focus();return null;}return v;}
+function reasonFoot(label,action,kind){return `<button type="button" class="btn" onclick="closeDlg()">Cancel</button><button type="button" class="btn ${kind||'btn--primary'}" onclick="${action}">${label||'Confirm Action'}</button>`;}
+function reasonDialog(title,action,opts){opts=opts||{};return{title,cls:'dialog--compact',body:(opts.consequence?`<div class="notice notice--warning"><svg class="icon"><use href="#icon-alert-triangle"/></svg><span>${opts.consequence}</span></div>`:'')+(opts.before||'')+reasonField(),foot:reasonFoot(opts.label,action,opts.kind)};}
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!$('cropDlg').hidden){closeCropDialog();e.preventDefault();e.stopImmediatePropagation();return;}if(DLG){closeDlg();e.preventDefault();e.stopImmediatePropagation();}},true);
+document.addEventListener('click',e=>{document.querySelectorAll('details.tag-picker[open]').forEach(m=>{if(!m.contains(e.target))m.open=false;});});
+
+/* ---------- edit lease: claim / take over / renew / release + heartbeat (Details.cshtml:181-232, _EditHeartbeat) ---------- */
+const LEASE={since:null,expires:null,timer:null,expiring:false};
+const LEASE_LIFE=10*60*1000,HEARTBEAT=60;
+function leaseStart(){LEASE.since=new Date();LEASE.expires=new Date(Date.now()+LEASE_LIFE);LEASE.expiring=false;R.lease='mine';clearInterval(LEASE.timer);LEASE.timer=setInterval(leaseTick,1000);leaseTick();}
+function leaseStop(){clearInterval(LEASE.timer);LEASE.timer=null;LEASE.expiring=false;if(R.lease==='mine'||R.lease==='expiring')R.lease='available';renderBar();}
+function leaseTick(){const line=$('leaseLine');if(!LEASE.expires){line.hidden=true;return;}const left=LEASE.expires-Date.now();if(left<=0){leaseStop();if(EDITING)cancelEdit(true);if(RETURN_ON){RETURN_ON=false;}renderBar();renderLifecycle();toast('The edit lease expired. Changes were discarded.',true);return;}
+  const exp=LEASE.expiring||left<HEARTBEAT*1000;line.classList.toggle('is-expiring',exp);line.textContent=exp?`Lease expires in ${Math.floor(left/60000)}:${String(Math.floor(left/1000)%60).padStart(2,'0')}`:`Lease · renews every ${HEARTBEAT} s · expires ${hm(LEASE.expires)}`;$('btnRenew').hidden=!exp;}
+function renewLease(){LEASE.expires=new Date(Date.now()+LEASE_LIFE);LEASE.expiring=false;R.lease='mine';leaseTick();mockOn('.mock [data-lease]','mine');toast('Editing renewed.');}
+function takeOver(){const from=STATE==='colleague'?'E Mawdsley':'another window';if(STATE==='colleague')setState('engineer');R.lease='mine';renderBar();startEdit();logNote(`Edit lease taken over from ${from} by ${ME_NAME}.`);}
+function setLease(v){mockOn('.mock [data-lease]',v);
+  if(v==='colleague'){if(EDITING)cancelEdit(true);R.lease='colleague';setState('colleague');return;}
+  if(STATE==='colleague')setState('engineer');
+  if(v==='available'){if(EDITING)cancelEdit(true);if(RETURN_ON){RETURN_ON=false;}R.lease='available';renderBar();renderLifecycle();return;}
+  if(v==='elsewhere'){if(EDITING)cancelEdit(true);R.lease='elsewhere';renderBar();return;}
+  if(v==='mine'){R.lease='mine';if(!EDITING)startEdit();else{LEASE.expiring=false;LEASE.expires=new Date(Date.now()+LEASE_LIFE);leaseTick();}return;}
+  if(v==='expiring'){R.lease='expiring';if(!EDITING)startEdit();LEASE.expiring=true;LEASE.expires=new Date(Date.now()+45000);leaseTick();}}
+
+/* ---------- record bar (Details.cshtml:178-342) ---------- */
+function isTerminal(){return STATE==='complete'||!!R.closed;}
+function canSendToEva(){return !R.archived&&(STATE==='review'||STATE==='engineer'||STATE==='colleague')&&!R.closed;}
+function renderBar(){const ed=EDITING,term=isTerminal();let h='';
+  if(STATE==='colleague')h+=`<span class="presence"><span class="presence-dot"></span>E Mawdsley is editing this Case.</span><button type="button" class="btn" onclick="takeOver()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Take over</span></button>`;
+  if(R.lease==='elsewhere'&&!ed&&!RETURN_ON&&STATE!=='colleague')h+=`<span class="presence"><span class="presence-dot"></span>You are editing this Case in another window.</span><button type="button" class="btn" onclick="takeOver()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Take over</span></button>`;
+  if(ed||RETURN_ON)h+=`<span class="status status--navy case-edit-badge">Editing</span>`;
+  if(R.link==='replacement')h+=`<a class="btn" href="${SHELL_PAGE}#/cases/c3"><span>Replacement case</span></a>`;
+  if(R.link==='original')h+=`<a class="btn" href="${SHELL_PAGE}#/cases/c3"><span>Original case</span></a>`;
+  if(ed&&STATE==='review')h+=`<button type="button" class="btn btn--primary" onclick="openDlg('handoff')"><svg class="icon"><use href="#icon-arrow-right"/></svg><span>Hand to Engineer</span></button>`;
+  if(canSendToEva())h+=`<a class="btn" href="#" onclick="openDlg('eva');return false"><svg class="icon"><use href="#icon-download"/></svg><span>Send to EVA</span></a>`;
+  if(ed&&STATE==='engineer'&&R.report!=='sent'&&R.evidence)h+=`<button type="button" class="btn btn--primary" onclick="openDlg('reportSent')"><svg class="icon"><use href="#icon-send"/></svg><span>Mark report sent</span></button>`;
+  if(ed&&STATE==='engineer'&&R.report==='sent')h+=`<button type="button" class="btn btn--primary" onclick="openDlg('complete')"><svg class="icon"><use href="#icon-check"/></svg><span>Mark completed</span></button>`;
+  if(RETURN_ON&&isTerminal()&&!R.archived)h+=`<button type="button" class="btn" onclick="openDlg('returnEngineer')"><svg class="icon"><use href="#icon-chevron-left"/></svg><span>Return to Engineer</span></button>`;
+  $('barActions').innerHTML=h;
+  $('btnEdit').hidden=ed||RETURN_ON||STATE==='colleague'||R.archived||R.lease==='elsewhere';
+  $('btnEdit').querySelector('span').textContent=term?'Enable return':'Edit Case';
+  $('btnCancel').hidden=!(ed||RETURN_ON);
+  $('btnSave').hidden=!ed;
+  $('menu').hidden=!(ed&&!term);$('btnClose').hidden=!(ed&&!term);
+  $('leaseLine').hidden=!(ed||RETURN_ON);if(!(ed||RETURN_ON))$('btnRenew').hidden=true;
+  $('rbArchived').hidden=!R.archived;
+  if(R.closed){$('rbState').textContent=R.closed;$('rbState').className='status status--red';}
+  measureSafe();}
+function enableReturn(){if(R.archived){toast('The Case is archived and read-only.',true);return;}RETURN_ON=true;leaseStart();renderBar();renderLifecycle();}
+
+/* ---------- lifecycle actions panel (_CaseWorkflow.cshtml:236-280) ---------- */
+function renderLifecycle(){const may=EDITING||RETURN_ON;const items=[];
+  if(may&&STATE==='engineer')items.push(`<button type="button" class="btn btn--small" onclick="openDlg('returnReview')"><svg class="icon"><use href="#icon-chevron-left"/></svg><span>Return to Review</span></button>`);
+  if(may&&R.report==='sent'&&!HELD&&!isTerminal())items.push(`<button type="button" class="btn btn--small" onclick="openDlg('unlinkEvidence')"><svg class="icon"><use href="#icon-x"/></svg><span>Unlink report evidence</span></button>`);
+  if(may&&isTerminal()&&!R.archived)items.push(`<button type="button" class="btn btn--small" onclick="openDlg('archive')"><svg class="icon"><use href="#icon-folder"/></svg><span>Archive case</span></button>`);
+  $('lifecycle').hidden=!items.length;$('lifecycleBtns').innerHTML=items.join('');
+  const ev=R.sentEvidence;$('sentRow').hidden=!ev;if(ev)$('sentRead').textContent=ev.mailbox+' · '+ev.at;}
+function closeCase(outcome,reason){R.closed=outcome;if(EDITING)cancelEdit(true);setState('complete');logNote(`Case closed by ${ME_NAME} — ${outcome} — ${reason}.`);toast('The selected terminal outcome was recorded.');mockOn('.mock [data-life]','closed');}
+function setArchived(on){R.archived=!!on;if(on){if(EDITING)cancelEdit(true);RETURN_ON=false;if(!isTerminal())setState('complete');}renderBar();renderLifecycle();mockOn('.mock [data-life]',on?'archived':(R.closed?'closed':HELD?'held':'none'));}
+function setLife(v){if(v==='none'){R.closed=null;R.archived=false;RETURN_ON=false;if(HELD)toggleHold();setState(STATE==='colleague'?'colleague':'engineer');mockOn('.mock [data-life]','none');return;}
+  if(v==='held'){if(!HELD)toggleHold();mockOn('.mock [data-life]','held');return;}
+  if(v==='closed'){closeCase('Provider cancelled','Instruction withdrawn by the Principal.');return;}
+  if(v==='archived'){if(!isTerminal())setState('complete');setArchived(true);}}
+function setLink(v){R.link=v;mockOn('.mock [data-link]',v);if(v==='replacement'&&!R.closed){R.closed='Created in error';if(EDITING)cancelEdit(true);setState('complete');}renderBar();}
+
+/* ---------- vehicle lookup (_CaseVehicle.cshtml:47, Vehicle.cshtml.cs:19) ---------- */
+function lookupText(){const at=R.lookupAt?fmtDS(R.lookupAt):'27 Aug 2026 09:02';return{none:'Not yet looked up',pending:'Queued '+hm(R.lookupAt||new Date()),current:`Looked up ${at} · Current`,stale:`Looked up ${at} · Stale`,notfound:`Not found for MA59BDY (${at})`,failed:`Failed: Provider unavailable (${at})`}[R.lookup];}
+function renderLookup(){$('lookupRead').textContent=lookupText();$('lookupRead').classList.toggle('empty',R.lookup==='none');mockOn('.mock [data-lookup]',R.lookup);}
+function setLookup(v){R.lookup=v;R.lookupAt=v==='current'?null:new Date();renderLookup();}
+function requestLookup(){if(!canEditSec('vehicle'))return;R.lookup='pending';R.lookupAt=new Date();renderLookup();toast('The vehicle lookup was queued.');}
+function refreshRecord(){if(R.lookup==='pending'){R.lookup=R.lookupTarget||'current';R.lookupAt=new Date();renderLookup();}toast('Refreshed');}
+
+/* ---------- inspection address (_CaseInspectionAddress.cshtml) ---------- */
+const INSP_DEFAULT='Image Based Assessment';
+function inspAddressFor(kind){return{ImageBasedAssessment:INSP_DEFAULT,ClaimantAddress:val('f-clmaddr'),RepairerLocation:val('f-repaddr'),StorageLocation:val('f-stoaddr'),PreviousAddress:'22 Aigburth Road, Liverpool L17 4JQ'}[kind];}
+function inspChoice(){const kind=val('f-insploc');const inp=$('f-inspaddr');if(kind!=='ManualEntry'){inp.value=inspAddressFor(kind)||'';inp.readOnly=true;}else{inp.readOnly=false;inp.focus();}inspRead();touch();}
+function inspRead(){const kind=val('f-insploc');const recorded=val('f-inspaddr').trim();const physical=kind!=='ImageBasedAssessment';const mode=physical?'Physical address':'Image Based Assessment';const prov=recorded===INSP_DEFAULT?'Principal default':'Staff';
+  const lines=physical?recorded.split(/[,\n]/).map(s=>s.trim()).filter(Boolean):[recorded];
+  $('inspAtRead').innerHTML=(recorded?(physical?`<div class="address-lines">${lines.map(l=>`<div>${esc(l)}</div>`).join('')}</div>`:esc(recorded)):'<span class="empty">Not recorded</span>')+(recorded?`<span class="prov">${prov}</span>`:'')+(recorded&&mode!==recorded?`<span class="status status--navy">${mode}</span>`:'');
+  $('inspDefaultCell').hidden=recorded===INSP_DEFAULT;$('f-inspaddr').readOnly=kind!=='ManualEntry';}
+
+/* ---------- image tags (_CaseImageTagPicker.cshtml, Custody.cshtml.cs TagImage/UntagImage/CreateImageTag) ---------- */
+const TAG_VOCAB=[{name:'Overview',colour:'blue'},{name:'Close-up',colour:'green'},{name:'Supporting',colour:'grey'},{name:'Third party',colour:'red'},{name:'Reflection',colour:'amber'}];
+const TAG_COLOURS=[['Blue','blue'],['Green','green'],['Amber','amber'],['Navy','navy'],['Red','red'],['Grey','grey']];
+const IMGTAGS={};
+function syncVocab(){IMG_TAGS.splice(0,IMG_TAGS.length,...TAG_VOCAB.map(t=>t.name));}
+function syncTagFirst(i){const a=IMGTAGS[i]||[];if(a.length)TAGS[i]=a[0];else delete TAGS[i];}
+function tagColour(name){const t=TAG_VOCAB.find(x=>x.name===name);return t?t.colour:'grey';}
+function toggleTag(i,name){if(!canEditSec('files'))return;const a=IMGTAGS[i]||(IMGTAGS[i]=[]);const k=a.indexOf(name);if(k>=0){a.splice(k,1);toast('The tag was removed.');}else{a.push(name);toast('The tag was applied.');}syncTagFirst(i);renderImgs();if(VW.open)renderViewer();}
+function createTag(name,colour){name=(name||'').trim();if(!name){toast('Enter a tag name.',true);return false;}if(TAG_VOCAB.some(t=>t.name.toLowerCase()===name.toLowerCase())){toast('That tag name is already in use.',true);return false;}TAG_VOCAB.push({name,colour:colour||'grey'});syncVocab();renderImgs();if(VW.open)renderViewer();toast('The tag was created.');return true;}
+function createTagFrom(form){const inp=form.querySelector('input'),sel=form.querySelector('select');if(createTag(inp.value,sel.value)){inp.value='';}}
+setTag=function(i,v){const a=IMGTAGS[i]||(IMGTAGS[i]=[]);if(v){if(a.length)a[0]=v;else a.push(v);}else a.shift();syncTagFirst(i);renderImgs();renderViewer();touch();};
+function tagPicker(i){const a=IMGTAGS[i]||[];return `<details class="tag-picker"><summary class="btn btn--small">Tag</summary><div class="tag-picker-body">${TAG_VOCAB.map(t=>{const on=a.includes(t.name);return `<button type="button" class="tag-option" aria-pressed="${on}" onclick="toggleTag(${i},'${esc(t.name).replace(/'/g,"\\'")}')"><span class="tag-swatch tag-swatch--${t.colour}" aria-hidden="true"></span><span>${esc(t.name)}</span>${on?'<svg class="icon"><use href="#icon-check"/></svg>':''}</button>`;}).join('')}<form class="tag-picker-new" onsubmit="createTagFrom(this);return false"><label class="sr-only" for="tag-name-${i}">Name</label><input id="tag-name-${i}" maxlength="50" placeholder="New tag"><label class="sr-only" for="tag-colour-${i}">Colour</label><select id="tag-colour-${i}">${TAG_COLOURS.map(c=>`<option value="${c[1]}">${c[0]}</option>`).join('')}</select><button type="submit" class="btn btn--small">Create</button></form></div></details>`;}
+function tagChips(i){const a=IMGTAGS[i]||[];const vis=a.slice(0,3),more=a.length-vis.length;return `<span class="tag-chips">${vis.map(n=>`<span class="tag-chip tag-chip--${tagColour(n)}">${esc(n)}</span>`).join('')}${more>0?`<span class="tag-chip tag-chip--more">+${more}</span>`:''}</span>`;}
+
+/* ---------- images: Files › Images tiles, custody placeholder, intake photographs (_CaseImages.cshtml) ---------- */
+const CUSTODY_FILE={name:'IMG_4471.jpg'};
+const INTAKES=[{id:'ic1',ref:'WR68PBY-01',received:'26 Aug 2026 11:04',files:['IMG_2201.jpg','IMG_2202.jpg','IMG_2203.jpg']}];
+const INTAKE_PHOTO={};
+function intakePhoto(name,k){return INTAKE_PHOTO[name]||(INTAKE_PHOTO[name]=fakePhoto(name,20+k));}
+const ROLE_LABEL={NotUsed:'Not used',CloseUp:'Close-up',Overview:'Overview',Supporting:'Supporting'};
+const ROLE_ORDER={CloseUp:0,Overview:1,Supporting:2,NotUsed:3};
+function reconcileRoles(){imgState.forEach((im,i)=>{if(!im.role)im.role=im.on?(TAGS[i]==='Close-up'?'CloseUp':TAGS[i]==='Overview'?'Overview':'Supporting'):'NotUsed';if(im.on&&im.role==='NotUsed')im.role=im.prevRole||'Supporting';if(!im.on&&im.role!=='NotUsed'){im.prevRole=im.role;im.role='NotUsed';}});}
+function thumbHtml(im,i,id){const ev=id==='thumbs3';const st=`background:${IMGCOL[i]};background-image:url("${photoOf(i)}");${im.crop?cropBg(im.crop):''}`;
+  return `<div class="th${im.on||ev?'':' off'}" style='${st}' onclick="thumbClick(${i},'${id}')">${ev?'':`<span class="inc">${im.on?'✓':'–'}</span>`}${id==='thumbs'?`<button type="button" class="th-view" onclick="event.stopPropagation();openViewer(${i})" aria-label="View"><svg class="icon"><use href="#icon-eye"/></svg></button>`:''}${TAGS[i]?`<span class="tag">${esc(TAGS[i])}</span>`:''}${im.rot?`<span class="rot">${im.rot}°</span>`:''}${esc(im.n)}</div>`;}
+function thumbClick(i,id){const im=imgState[i];if(id==='thumbs3'||id==='thumbs2'||!canEditSec('report')){openViewer(i);return;}im.on=!im.on;renderImgs();touch();}
+renderImgs=function(){reconcileRoles();
+  ['thumbs','thumbs3'].forEach(id=>{$(id).innerHTML=imgState.map((im,i)=>thumbHtml(im,i,id)).join('');});
+  const files=$('thumbs2');files.innerHTML=imgState.map((im,i)=>`<div class="image-tile">${thumbHtml(im,i,'thumbs2')}${tagChips(i)}<div class="image-tile-actions">${tagPicker(i)}<button type="button" class="btn btn--small" onclick="openCropDialog(${i})">Crop</button></div></div>`).join('')
+    +(R.custody==='confirmed'?'':`<div class="image-tile"><span class="gallery-item" data-gallery-placeholder><span class="gallery-image"></span><span class="gallery-caption"><strong>${CUSTODY_FILE.name}</strong><small>${R.custody==='pending'?'Storing':'Storage failed'}</small></span></span></div>`);
+  $('intakeImgs').innerHTML=INTAKES.map(it=>`<div class="intake-group"><div class="intake-head"><a href="${SHELL_PAGE}#/images/${it.id}">Image intake ${it.ref}</a><span class="muted">${it.files.length} photographs · received ${it.received}</span></div><div class="thumbs">${it.files.map((n,k)=>`<div class="image-tile"><a class="th" href="${SHELL_PAGE}#/images/${it.id}" style='background-image:url("${intakePhoto(n,k)}")'>${esc(n)}</a><div class="image-tile-source"><a href="${SHELL_PAGE}#/images/${it.id}">${it.ref}</a></div></div>`).join('')}</div></div>`).join('');
+  $('imgCount').textContent=imgState.filter(x=>x.on).length+' of '+imgState.length+' in report';$('evCount').textContent=imgState.length+' · Files';
+  renderCustodyRow();renderPrep();};
+function renderCustodyRow(){let row=$('custodyRow');if(R.custody==='confirmed'){if(row)row.remove();return;}const label=R.custody==='pending'?'Storing':'Storage failed';const h=`<svg class="icon"><use href="#icon-image"/></svg><div><b>${CUSTODY_FILE.name}</b><br><small>Upload · ${fmtDS(new Date())} · 2.1 MB</small></div><span class="status ${R.custody==='pending'?'status--amber':'status--red'}">${label}</span><span class="cluster" style="gap:4px"><button class="btn btn--small btn--icon btn--danger calc-only" title="Remove" aria-label="Remove ${CUSTODY_FILE.name}" onclick="removeDoc(this)"><svg class="icon"><use href="#icon-trash-2"/></svg></button></span>`;
+  if(!row){row=document.createElement('div');row.className='doc-row';row.id='custodyRow';$('fDocs').appendChild(row);}row.innerHTML=h;}
+function setCustody(v){R.custody=v;mockOn('.mock [data-custody]',v);renderImgs();}
+
+/* ---------- documents: Remove opens the reason dialog (_CaseDocuments.cshtml:98) ---------- */
+function removeDoc(btn){if(!canEditSec('files'))return;const row=btn.closest('.doc-row');const name=row.querySelector('b').textContent;openDlg('removeDoc',{name,row});}
+
+/* ---------- crop dialog (_CaseCropDialog.cshtml): shares imgState[i].crop / .rot with the viewer and thumbnails ---------- */
+const CROP={i:null,sel:null,rot:0,aspect:'free',drag:null};
+function rotRect(r,rot){rot=((rot%360)+360)%360;if(rot===90)return{x:1-(r.y+r.h),y:r.x,w:r.h,h:r.w};if(rot===180)return{x:1-r.x-r.w,y:1-r.y-r.h,w:r.w,h:r.h};if(rot===270)return{x:r.y,y:1-(r.x+r.w),w:r.h,h:r.w};return{...r};}
+function unrotRect(d,rot){return rotRect(d,(360-rot)%360);}
+function cropLabel(c){return c?`Left ${Math.round(c.x*100)}% · Top ${Math.round(c.y*100)}% · Width ${Math.round(c.w*100)}% · Height ${Math.round(c.h*100)}%`:'Full frame';}
+function rotLabel(r){return r?r+'°':'None';}
+function openCropDialog(i){if(!canEditSec('files')&&!canEditSec('report')){toast('Available while editing',true);return;}const im=imgState[i];CROP.i=i;CROP.sel=im.crop?{...im.crop}:null;CROP.rot=im.rot||0;CROP.aspect='free';$('cropAspect').value='free';const img=$('cropImg');img.onload=renderCrop;img.src=photoOf(i);$('cropName').textContent=im.n;$('cropDlg').hidden=false;document.body.classList.add('has-dialog');renderCrop();requestAnimationFrame(renderCrop);}
+function closeCropDialog(){$('cropDlg').hidden=true;if(!DLG)document.body.classList.remove('has-dialog');}
+function renderCrop(){if(CROP.i===null)return;const img=$('cropImg'),st=$('cropStage'),layer=$('cropLayer');const rotated=CROP.rot%180!==0;if(rotated){img.style.maxWidth=st.clientHeight+'px';img.style.maxHeight=st.clientWidth+'px';}else{img.style.maxWidth='';img.style.maxHeight='';}img.style.transform=`rotate(${CROP.rot}deg)`;
+  const r=img.getBoundingClientRect(),s=st.getBoundingClientRect();Object.assign(layer.style,{left:(r.left-s.left)+'px',top:(r.top-s.top)+'px',width:r.width+'px',height:r.height+'px'});
+  const d=CROP.sel?rotRect(CROP.sel,CROP.rot):{x:0,y:0,w:1,h:1};const sel=$('cropSel');Object.assign(sel.style,{left:d.x*100+'%',top:d.y*100+'%',width:d.w*100+'%',height:d.h*100+'%'});sel.classList.toggle('is-full',!CROP.sel);
+  const pv=$('cropPreviewPh');pv.style.backgroundImage=`url("${photoOf(CROP.i)}")`;pv.style.backgroundSize='';pv.style.backgroundPosition='';if(CROP.sel)pv.style.cssText+=';'+cropBg(CROP.sel);pv.style.transform=`rotate(${CROP.rot}deg)`;
+  const status=$('cropStatus');status.hidden=false;status.textContent=`Rotation ${rotLabel(CROP.rot)} · Crop ${cropLabel(CROP.sel)}`;}
+function cropRotate(d){CROP.rot=((CROP.rot+d)%360+360)%360;renderCrop();}
+function cropFull(){CROP.sel=null;renderCrop();}
+function cropReset(){CROP.sel=null;CROP.rot=0;CROP.aspect='free';$('cropAspect').value='free';renderCrop();}
+function cropAspect(v){CROP.aspect=v;if(v!=='free'&&CROP.sel){const layer=$('cropLayer');const LW=layer.clientWidth||4,LH=layer.clientHeight||3;let d=rotRect(CROP.sel,CROP.rot);d.h=d.w*LW/(parseFloat(v)*LH);if(d.y+d.h>1){d.h=1-d.y;d.w=d.h*parseFloat(v)*LH/LW;}CROP.sel=unrotRect(d,CROP.rot);}renderCrop();}
+function saveCrop(){const im=imgState[CROP.i];if(CROP.sel&&CROP.sel.w>.02&&CROP.sel.h>.02)im.crop={x:+CROP.sel.x.toFixed(4),y:+CROP.sel.y.toFixed(4),w:+CROP.sel.w.toFixed(4),h:+CROP.sel.h.toFixed(4)};else delete im.crop;if(CROP.rot)im.rot=CROP.rot;else delete im.rot;
+  renderImgs();if(VW.open&&VW.i===CROP.i){VW.rot=im.rot||0;renderViewer();}touch();closeCropDialog();toast('The report image preparation was saved.');logNote(`Report image prepared by ${ME_NAME} — ${im.n} — ${rotLabel(im.rot||0)} · ${cropLabel(im.crop)}.`);}
+function bindCropDialog(){const layer=$('cropLayer');const pt=e=>{const r=layer.getBoundingClientRect();return[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))];};
+  const clamp=d=>{d.w=Math.min(d.w,1);d.h=Math.min(d.h,1);d.x=Math.min(Math.max(0,d.x),1-d.w);d.y=Math.min(Math.max(0,d.y),1-d.h);return d;};
+  const withAspect=(d,anchorX,anchorY)=>{if(CROP.aspect==='free')return d;const A=parseFloat(CROP.aspect);const LW=layer.clientWidth,LH=layer.clientHeight;let h=d.w*LW/(A*LH);if(anchorY!==undefined){if(anchorY&&d.y+d.h!==anchorY)d.y=anchorY-h;}d.h=h;return d;};
+  layer.addEventListener('pointerdown',e=>{const p=pt(e);const cur=CROP.sel?rotRect(CROP.sel,CROP.rot):null;const hd=e.target.dataset.cropHandle;layer.setPointerCapture(e.pointerId);
+    if(hd&&cur){const ax=hd.includes('w')?cur.x+cur.w:cur.x,ay=hd.includes('n')?cur.y+cur.h:cur.y;CROP.drag={mode:'resize',ax,ay};}
+    else if(cur&&p[0]>=cur.x&&p[0]<=cur.x+cur.w&&p[1]>=cur.y&&p[1]<=cur.y+cur.h){CROP.drag={mode:'move',ox:p[0]-cur.x,oy:p[1]-cur.y,w:cur.w,h:cur.h};}
+    else{CROP.drag={mode:'draw',sx:p[0],sy:p[1]};CROP.sel=null;}e.preventDefault();});
+  layer.addEventListener('pointermove',e=>{const g=CROP.drag;if(!g)return;const p=pt(e);let d;
+    if(g.mode==='move'){d={x:p[0]-g.ox,y:p[1]-g.oy,w:g.w,h:g.h};}
+    else{const ax=g.mode==='draw'?g.sx:g.ax,ay=g.mode==='draw'?g.sy:g.ay;d={x:Math.min(ax,p[0]),y:Math.min(ay,p[1]),w:Math.abs(p[0]-ax),h:Math.abs(p[1]-ay)};if(CROP.aspect!=='free'){const A=parseFloat(CROP.aspect),LW=layer.clientWidth,LH=layer.clientHeight;d.h=d.w*LW/(A*LH);if(p[1]<ay)d.y=ay-d.h;}}
+    CROP.sel=unrotRect(clamp(d),CROP.rot);renderCrop();});
+  const end=()=>{if(!CROP.drag)return;CROP.drag=null;if(CROP.sel&&(CROP.sel.w<.02||CROP.sel.h<.02))CROP.sel=null;renderCrop();};layer.addEventListener('pointerup',end);layer.addEventListener('pointercancel',end);
+  window.addEventListener('resize',()=>{if(!$('cropDlg').hidden)renderCrop();});}
+{const _ov=openViewer;openViewer=function(i){_ov(i);const r=imgState[i].rot||0;if(r){VW.rot=r;renderViewer();}};const _gv=goViewer;goViewer=function(i){_gv(i);const r=imgState[i].rot||0;if(r){VW.rot=r;renderViewer();}};}
+
+/* ---------- report image preparation (_CaseReportImagePreparation.cshtml) ---------- */
+function prepItems(){return imgState.map((im,i)=>({im,i})).filter(x=>x.im.role!=='NotUsed').sort((a,b)=>(ROLE_ORDER[a.im.role]-ROLE_ORDER[b.im.role])||((a.im.order||99)-(b.im.order||99))||(a.i-b.i));}
+function renderPrep(){const items=prepItems();$('repPrepSub').hidden=!items.length;
+  $('repPrep').innerHTML=items.map(({im,i})=>`<article class="report-image" data-i="${i}"><h3>${esc(im.n)}</h3><div class="report-image-preview"><div class="ph" style='background-image:url("${photoOf(i)}");${im.crop?cropBg(im.crop):''}transform:rotate(${im.rot||0}deg)'></div></div><dl class="detail-list"><div><dt>Role</dt><dd>${ROLE_LABEL[im.role]}</dd></div><div><dt>Rotation</dt><dd>${rotLabel(im.rot||0)}</dd></div><div><dt>Crop</dt><dd>${cropLabel(im.crop)}</dd></div></dl><div class="form-grid"><div class="field"><label for="rp-role-${i}">Role</label><select id="rp-role-${i}" onchange="prepRole(${i},this.value)">${Object.keys(ROLE_LABEL).map(k=>`<option value="${k}"${im.role===k?' selected':''}>${ROLE_LABEL[k]}</option>`).join('')}</select></div><div class="field"><label for="rp-order-${i}">Order</label><input id="rp-order-${i}" type="number" min="1" step="1" value="${im.order||''}" onchange="prepOrder(${i},this.value)"></div></div><div class="button-row"><button type="button" class="btn btn--primary" onclick="openCropDialog(${i})">Crop</button><button type="button" class="btn" onclick="prepRotate(${i},-90)">Rotate left</button><button type="button" class="btn" onclick="prepRotate(${i},90)">Rotate right</button><button type="button" class="btn" onclick="prepReset(${i})">Reset</button></div></article>`).join('');}
+function prepRole(i,role){if(!canEditSec('report'))return;const im=imgState[i];im.role=role;im.on=role!=='NotUsed';if(im.on)im.prevRole=role;renderImgs();touch();}
+function prepOrder(i,v){if(!canEditSec('report'))return;imgState[i].order=parseInt(v)||undefined;renderImgs();touch();}
+function prepRotate(i,d){if(!canEditSec('report'))return;const im=imgState[i];im.rot=(((im.rot||0)+d)%360+360)%360;if(!im.rot)delete im.rot;renderImgs();if(VW.open&&VW.i===i){VW.rot=im.rot||0;renderViewer();}touch();}
+function prepReset(i){if(!canEditSec('report'))return;const im=imgState[i];delete im.rot;delete im.crop;delete im.order;renderImgs();if(VW.open&&VW.i===i){VW.rot=0;renderViewer();}touch();toast('The report image preparation was reset.');}
+
+/* ---------- report generation, delivery and evidence (_CaseReport.cshtml, Details.cshtml:262,724) ---------- */
+const RECIP={to:['claims@qdosclaims.co.uk','rapid.hire@rhsclaims.co.uk'],cc:[]};
+function reportReady(){return ready().length===0;}
+function genDraft(){if(!reportReady())return;R.draftAt=new Date();if(R.report==='none')R.report='draft';closeMenus();logNote('Report draft generated by '+ME_NAME+'.');toast('The report draft was generated.');renderReport();renderBar();renderLifecycle();}
+{const _gen=genReport;genReport=function(){if(!reportReady())return;_gen();R.genAt=new Date();if(R.report==='none'||R.report==='draft')R.report='generated';R.evidence=true;R.prepared=null;mockOn('.mock [data-rep]',R.report);renderReport();renderBar();renderLifecycle();};}
+function genFeeNote(){closeMenus();if(!reportReady())return;toast('The fee note was generated.');logNote('Fee note generated by '+ME_NAME+'.');}
+function addRecipient(kind){const box=$('recip-'+kind);const inp=document.createElement('input');inp.type='email';inp.name=kind+'Recipients';inp.setAttribute('aria-label',kind==='to'?'Report recipient':'Report copy recipient');box.appendChild(inp);inp.focus();}
+function readRecipients(){const rd=k=>[...document.querySelectorAll('#recip-'+k+' input')].map(i=>i.value.trim()).filter(Boolean);return{to:rd('to'),cc:rd('cc')};}
+function prepareDelivery(){if(!canEditSec('report')||!S.generated||S.stale)return;const r=readRecipients();if(!r.to.length){toast('At least one To recipient is required',true);return;}RECIP.to=r.to;RECIP.cc=r.cc;R.prepared={...r,at:new Date()};R.report='prepared';mockOn('.mock [data-rep]','prepared');logNote(`Report delivery prepared by ${ME_NAME} — To ${r.to.join(', ')}${r.cc.length?' · Cc '+r.cc.join(', '):''}.`);toast('Delivery prepared.');renderReport();renderBar();renderLifecycle();}
+function sendPrepared(){if(!canEditSec('report')||!R.prepared)return;R.report='sent';R.sentEvidence={mailbox:'reports@collisionengineers.co.uk',at:fmtDS(new Date())};mockOn('.mock [data-rep]','sent');logNote(`Report sent by ${ME_NAME} to ${R.prepared.to.join(', ')}.`);toast('The report send was accepted.');renderReport();renderBar();renderLifecycle();}
+function confirmReportSent(){const reason=readReason();if(!reason)return;R.report='sent';R.sentEvidence={mailbox:'reports@collisionengineers.co.uk',at:'12 Sep 2026 14:38'};mockOn('.mock [data-rep]','sent');closeDlg();logNote(`Report-Sent evidence linked by ${ME_NAME} — ${reason}.`);toast('The exact retained report-Sent evidence was linked.');renderReport();renderBar();renderLifecycle();}
+function unlinkEvidence(){const reason=readReason();if(!reason)return;R.report=R.prepared?'prepared':'generated';R.sentEvidence=null;mockOn('.mock [data-rep]',R.report);closeDlg();logNote(`Report-Sent evidence unlinked by ${ME_NAME} — ${reason}.`);toast('The report-Sent evidence was unlinked; retained evidence and history were preserved.');renderReport();renderBar();renderLifecycle();}
+function setReport(s){mockOn('.mock [data-rep]',s);if(s==='none'){S.generated=false;S.stale=false;R.report='none';R.prepared=null;R.sentEvidence=null;R.evidence=false;R.draftAt=null;$('staleBar').classList.remove('show');$('repDate').textContent='—';$('pvStatus').textContent='No generation yet.';$('pvFacts').textContent='';renderReport();renderBar();renderLifecycle();return;}
+  if(!reportReady())applyAdj();
+  if(s==='draft'){S.generated=false;S.stale=false;R.report='none';genDraft();return;}
+  if(!S.generated)genReport();else{S.stale=false;$('staleBar').classList.remove('show');}
+  R.prepared=null;R.sentEvidence=null;R.report='generated';
+  if(s==='prepared'||s==='sent'){R.prepared={to:[...RECIP.to],cc:[...RECIP.cc],at:new Date()};R.report='prepared';}
+  if(s==='sent'){R.report='sent';R.sentEvidence={mailbox:'reports@collisionengineers.co.uk',at:fmtDS(new Date())};}
+  mockOn('.mock [data-rep]',R.report);renderReport();renderBar();renderLifecycle();}
+renderReport=function(){const r=ready();const notReady=r.length>0;$('readyNotice').hidden=!notReady;$('readyText').textContent='Report not ready: '+r.join('; ')+'.';
+  $('genGate').hidden=!notReady;$('genGateText').textContent=notReady?'Report not ready — '+r.join('; '):'';$('btnGenerate').hidden=notReady;$('btnGenerate').disabled=notReady;$('repMenu').hidden=notReady;$('btnPreview').disabled=notReady;
+  const o=$('f-outcome').options[$('f-outcome').selectedIndex].text;$('pvTitle').textContent=(o==='Total loss'?'Total Loss':o)+' Report — MA59BDY';$('pvActions').innerHTML='';
+  const edit=canEditSec('report');let h='';
+  if(R.report==='draft'&&R.draftAt&&!S.generated)h+=`<dl class="detail-list"><div><dt>Draft</dt><dd>${fmtDT(R.draftAt)}</dd></div></dl>`;
+  if(S.generated){const fee=$('incFee').checked;const state=S.stale?'Stale':'Confirmed';
+    h+=`<dl class="detail-list"><div><dt>Generated</dt><dd>${fmtDT(R.genAt||new Date())}</dd></div><div><dt>State</dt><dd>${state}</dd></div></dl>`;
+    h+=`<div class="button-row"><a class="btn btn--small" href="#" onclick="return false"><svg class="icon"><use href="#icon-download"/></svg><span>${fee?'Report with fee note':'Report'}</span></a>${fee?'':`<a class="btn btn--small" href="#" onclick="return false"><svg class="icon"><use href="#icon-download"/></svg><span>Fee note</span></a>`}</div>`;
+    if(S.stale)h+=`<div class="notice notice--warning" role="status"><svg class="icon"><use href="#icon-alert-triangle"/></svg><span>A newer fact changed after this generation. Generate again before delivery.</span></div>`;
+    if(!R.prepared&&!S.stale){if(edit){h+=`<div class="recip-form"><span class="lg">Reviewed recipients</span><span class="lbl">To</span><div id="recip-to" class="stack">${(RECIP.to.length?RECIP.to:['']).map(a=>`<input type="email" name="toRecipients" value="${esc(a)}" autocomplete="email" aria-label="Report recipient">`).join('')}</div><button type="button" class="btn btn--small" onclick="addRecipient('to')">Add To recipient</button><span class="lbl">Cc</span><div id="recip-cc" class="stack">${(RECIP.cc.length?RECIP.cc:['']).map(a=>`<input type="email" name="ccRecipients" value="${esc(a)}" autocomplete="email" aria-label="Report copy recipient">`).join('')}</div><button type="button" class="btn btn--small" onclick="addRecipient('cc')">Add Cc recipient</button><button type="button" class="btn btn--small btn--primary" onclick="prepareDelivery()"><svg class="icon"><use href="#icon-send"/></svg><span>Prepare delivery</span></button></div>`;}
+      else h+=`<dl class="detail-list"><div><dt>To</dt><dd><span class="recip-read">${RECIP.to.map(a=>`<span class="recip">${esc(a)}</span>`).join('')}</span></dd></div><div><dt>Cc</dt><dd>${RECIP.cc.length?`<span class="recip-read">${RECIP.cc.map(a=>`<span class="recip">${esc(a)}</span>`).join('')}</span>`:'—'}</dd></div></dl>`;}
+    if(R.prepared){h+=`<dl class="detail-list"><div><dt>Delivery prepared</dt><dd>${R.prepared.to.map(esc).join(', ')}</dd></div>${R.prepared.cc.length?`<div><dt>Cc</dt><dd>${R.prepared.cc.map(esc).join(', ')}</dd></div>`:''}</dl>`;
+      if(R.report==='prepared'&&edit)h+=`<div class="button-row"><button type="button" class="btn btn--small btn--primary" onclick="sendPrepared()"><svg class="icon"><use href="#icon-send"/></svg><span>Send prepared report</span></button></div>`;}
+    if(R.report==='sent'&&R.sentEvidence)h+=`<dl class="detail-list"><div><dt>Report sent</dt><dd>${R.sentEvidence.mailbox} · ${R.sentEvidence.at}</dd></div></dl>`;}
+  $('repGen').innerHTML=h;dismissable();updateNext();};
+{const _un=updateNext;updateNext=function(){_un();const r=ready();let t,k;
+  if(R.archived){t='None';k='notes';}else if(STATE==='review'){t='Hand to Engineer';k='overview';}else if(isTerminal()){t='None';k='notes';}else if(r.length){t=r.join(', ');k='valuation';}else if(!S.generated||S.stale){t='Generate report';k='report';}else if(R.report==='sent'){t='Mark completed';k='overview';}else if(R.report==='prepared'){t='Send prepared report';k='report';}else{t='Prepare delivery';k='report';}
+  $('nextText').textContent=t;$('nextBtn').textContent=SECTIONS.find(x=>x[0]===k)[1];$('nextBtn').onclick=()=>jumpTo(k);};}
+
+/* ---------- EVA handoff (_EvaHandoff.cshtml, Pages/Cases/Eva/Send.cshtml) ---------- */
+let SIGNOFF='A Patterson';
+function evaBody(){const ed=EDITING;let h='';
+  if(R.eva==='sent')h+=`<div class="definition-list"><dl class="definition"><dt>Sent to EVA</dt><dd>${R.evaAt||'12 Sep 2026 14:35'}</dd></dl><dl class="definition"><dt>File reference</dt><dd class="mono">${R.evaRef||'EVA-2026-08814'}</dd></dl></div>`;
+  else if(R.eva==='failed')h+=`<div class="definition-list"><dl class="definition"><dt>Last attempt</dt><dd>${R.evaAt||'12 Sep 2026 14:35'}</dd></dl><dl class="definition"><dt>Outcome</dt><dd><span class="status status--red">Refused by EVA</span></dd></dl></div>`;
+  h+=`<dl class="definition"><dt>Engineer</dt><dd>${$('rbEng').textContent}</dd></dl>`;
+  if(ed&&(STATE==='review'||STATE==='engineer'))h+=`<div class="stack" style="gap:8px"><div class="field"><label class="req" for="eva-sign-off-engineer">Sign-off Engineer</label><select id="eva-sign-off-engineer" required>${ENGINEERS.map(e=>`<option${e===SIGNOFF?' selected':''}>${e}</option>`).join('')}</select></div><div class="field"><label class="req" for="eva-sign-off-reason">Reason for action</label><input id="eva-sign-off-reason" required maxlength="500"></div><div class="button-row"><button type="button" class="btn btn--dark" onclick="setSignOff()">Set Sign-off Engineer</button></div></div>`;
+  else h+=`<dl class="definition"><dt>Sign-off Engineer</dt><dd>${SIGNOFF}</dd></dl>`;
+  h+=`<div class="cluster">${R.eva==='failed'?'<p>EVA delivery did not complete. Check EVA; if no case was created, retry.</p>':''}<button type="button" class="btn" onclick="evaExport()"><svg class="icon"><use href="#icon-download"/></svg><span>Download ZIP</span></button>${R.evaApi?`<button type="button" class="btn btn--primary" onclick="evaSend()"><svg class="icon"><use href="#icon-send"/></svg><span>Send via API</span></button>`:`<span class="gated" data-condition="EVA API submission is not enabled for this principal."><button type="button" class="btn btn--primary" disabled aria-disabled="true"><svg class="icon"><use href="#icon-send"/></svg><span>Send via API</span></button><span>EVA API submission is not enabled for this principal.</span></span>`}</div>`;
+  return h;}
+function setSignOff(){const r=($('eva-sign-off-reason').value||'').trim();if(!r){toast('Reason for action is required',true);return;}SIGNOFF=$('eva-sign-off-engineer').value;$('f-signoff').value=SIGNOFF;syncReads();logNote(`Sign-off Engineer set to ${SIGNOFF} by ${ME_NAME} — ${r}.`);toast('The Sign-off Engineer was set.');if(DLG&&DLG.name==='eva')openDlg('eva');}
+function evaExport(){logNote('EVA ZIP downloaded by '+ME_NAME+'.');toast('The EVA ZIP was downloaded.');}
+function evaSend(){R.eva='sent';R.evaAt=fmtDS(new Date());R.evaRef='EVA-2026-08814';mockOn('.mock [data-eva]','sent');logNote(`Case sent to EVA by ${ME_NAME}. File reference ${R.evaRef}.`);toast('Sent to EVA. File reference '+R.evaRef+'.');if(DLG&&DLG.name==='eva')openDlg('eva');}
+function setEva(v){R.eva=v;R.evaAt=v==='none'?null:fmtDS(new Date());mockOn('.mock [data-eva]',v);if(DLG&&DLG.name==='eva')openDlg('eva');}
+function setEvaApi(on){R.evaApi=!!on;document.querySelectorAll('.mock [data-api]').forEach(b=>b.classList.toggle('on',R.evaApi));if(DLG&&DLG.name==='eva')openDlg('eva');}
+
+/* ---------- history: Add Case note, Record chase (_CaseHistory.cshtml:62,81) ---------- */
+function addNoteForm(){const ta=$('noteIn');if(!ta.value.trim()){toast('Case note is required',true);ta.focus();return;}addNote(ta.value);ta.value='';}
+function recordChase(){const rec=$('chase-recipient').value.trim(),ch=$('chase-channel').value.trim(),ct=$('chase-content').value.trim(),oc=$('chase-outcome').value.trim();if(!rec||!ch||!oc){toast('Recipient, Channel and Outcome are required',true);return;}closeDlg();logNote(`Manual chase recorded by ${ME_NAME} — ${ch} to ${rec}${ct?' — '+ct:''} — ${oc}.`);toast('The manual chase was recorded and the next chase date was scheduled.');}
+function renderNotes(){$('noteForm').hidden=isTerminal()||R.archived;}
+
+/* ---------- Case tasks (Cases/Tasks.cshtml.cs) — proposal, no live Razor surface ---------- */
+const TASKS=[{id:'t1',desc:'Chase claimant for boot-floor images',who:'E Mawdsley',state:'Open'},{id:'t2',desc:'Confirm hire status with QDOS Rapid',who:'',state:'Open'}];
+function renderTasks(){$('tasksPanel').hidden=!R.tasks;if(!R.tasks)return;$('taskList').innerHTML=TASKS.map(t=>`<div class="task-row" data-task="${t.id}"><span>${esc(t.desc)}</span><span class="who">${t.who?esc(t.who):'Unassigned'}</span><span class="status ${t.state==='Open'?'status--blue':t.state==='Completed'?'status--green':'status--amber'}">${t.state}</span><span class="cluster calc-only">${t.state==='Open'?`<button type="button" class="btn btn--small" onclick="openDlg('taskAssign',{id:'${t.id}'})">Assign</button><button type="button" class="btn btn--small" onclick="openDlg('taskComplete',{id:'${t.id}'})">Complete</button><button type="button" class="btn btn--small btn--danger" onclick="openDlg('taskCancel',{id:'${t.id}'})">Cancel</button>`:''}</span></div>`).join('')||'<p class="muted">No tasks</p>';}
+function setTasks(on){R.tasks=!!on;document.querySelectorAll('.mock [data-tasks]').forEach(b=>b.classList.toggle('on',(b.dataset.tasks==='1')===R.tasks));renderTasks();}
+function taskById(id){return TASKS.find(t=>t.id===id);}
+function taskCreate(){const d=$('task-desc').value.trim(),who=$('task-who').value,reason=readReason();if(!d){toast('Description is required',true);return;}if(!reason)return;TASKS.push({id:'t'+(TASKS.length+1),desc:d,who,state:'Open'});closeDlg();renderTasks();logNote(`Case task created by ${ME_NAME} — ${d}${who?' · '+who:''} — ${reason}.`);toast('The case task was created.');}
+function taskAssign(id){const reason=readReason();if(!reason)return;const t=taskById(id);t.who=$('task-who').value;closeDlg();renderTasks();logNote(`Case task assigned by ${ME_NAME} — ${t.desc} · ${t.who||'Unassigned'} — ${reason}.`);toast('The case task assignment was updated.');}
+function taskComplete(id){const reason=readReason();if(!reason)return;const t=taskById(id);t.state='Completed';closeDlg();renderTasks();logNote(`Case task completed by ${ME_NAME} — ${t.desc} — ${reason}.`);toast('The case task was completed.');}
+function taskCancel(id){const reason=readReason();if(!reason)return;const t=taskById(id);t.state='Cancelled';closeDlg();renderTasks();logNote(`Case task cancelled by ${ME_NAME} — ${t.desc} — ${reason}.`);toast('The case task was cancelled.');}
+
+/* ---------- dialog catalogue ---------- */
+const DIALOGS={
+  removeDoc:d=>reasonDialog('Remove file',`removeDocConfirm()`,{before:`<dl class="definition"><dt>File</dt><dd>${esc(d.name)}</dd></dl>`}),
+  hold:()=>reasonDialog('Place on Hold','holdConfirm()'),
+  releaseHold:()=>reasonDialog('Release Hold','holdConfirm()'),
+  returnReview:()=>reasonDialog('Return to Review','returnReviewConfirm()'),
+  returnEngineer:()=>reasonDialog('Return to Engineer','returnEngineerConfirm()'),
+  archive:()=>reasonDialog('Archive case','archiveConfirm()'),
+  complete:()=>reasonDialog('Mark completed','completeConfirm()'),
+  unlinkEvidence:()=>reasonDialog('Unlink report evidence','unlinkEvidence()'),
+  saveReason:()=>({title:'Save Case changes',body:`<div class="field"><label class="req" for="case-save-reason">Reason for changes</label><textarea id="case-save-reason" rows="3" required maxlength="500"></textarea></div>`,foot:`<button type="button" class="btn" onclick="closeDlg()">Keep editing</button><button type="button" class="btn btn--primary" onclick="saveWithReason()">Save changes</button>`}),
+  correctPrincipal:()=>({title:'Correct principal',body:`<div class="notice notice--warning"><svg class="icon"><use href="#icon-alert-triangle"/></svg><span>Record Created in error and create the linked replacement case.</span></div><div class="field"><label class="req" for="case-replacement-principal">Replacement principal code</label><input id="case-replacement-principal" required maxlength="100"></div><div class="field"><label class="req" for="case-replacement-reason">Reason for action</label><textarea id="case-replacement-reason" rows="3" required maxlength="500"></textarea></div>`,foot:`<button type="button" class="btn btn--danger" onclick="correctPrincipalConfirm()">Create linked replacement</button>`}),
+  close:()=>({title:'Close case',cls:'dialog--compact',body:`<div class="field"><label class="req" for="case-close-outcome">Outcome</label><select id="case-close-outcome" required data-dialog-initial-focus><option value=""></option><option>Provider cancelled</option><option>Collision Engineers rejected</option></select></div>`+reasonField('case-close-reason'),foot:`<button type="button" class="btn" onclick="closeDlg()">Cancel</button><button type="button" class="btn btn--danger btn--danger-solid" onclick="closeCaseConfirm()">Close case</button>`}),
+  handoff:()=>({title:'Hand to Engineer',body:`<div class="field"><label class="req" for="case-handoff-engineer">Engineer</label><select id="case-handoff-engineer" required data-dialog-initial-focus><option value=""></option>${ENGINEERS.map(e=>`<option>${e}</option>`).join('')}</select></div><div class="button-row"><button type="button" class="btn btn--primary" onclick="handoffConfirm()">Hand to Engineer</button></div>`}),
+  eva:()=>({title:'EVA handoff',body:evaBody()}),
+  reportSent:()=>({title:'Mark report sent',body:`<div class="stack" style="gap:10px"><div class="definition-list"><dl class="definition"><dt>Mailbox</dt><dd>reports@collisionengineers.co.uk</dd></dl><dl class="definition"><dt>Sent</dt><dd>12 Sep 2026 14:38</dd></dl></div><div class="field"><label class="req" for="dlg-reason">Reason for action</label><input id="dlg-reason" required maxlength="500"></div><div class="button-row"><button type="button" class="btn btn--primary" onclick="confirmReportSent()">Confirm detected evidence</button></div></div>`}),
+  chase:()=>({title:'Record chase',body:`<div class="grid-2"><div class="field"><label class="req" for="chase-recipient">Recipient</label><input id="chase-recipient" required maxlength="500"></div><div class="field"><label class="req" for="chase-channel">Channel</label><input id="chase-channel" required maxlength="100"></div><div class="field"><label for="chase-content">Content</label><input id="chase-content" maxlength="1000"></div><div class="field"><label class="req" for="chase-outcome">Outcome</label><input id="chase-outcome" required maxlength="500"></div></div>`,foot:`<button type="button" class="btn" onclick="closeDlg()">Cancel</button><button type="button" class="btn btn--primary" onclick="recordChase()"><svg class="icon"><use href="#icon-send"/></svg><span>Record chase</span></button>`}),
+  taskCreate:()=>({title:'Create task',cls:'dialog--compact',body:`<div class="field"><label class="req" for="task-desc">Description</label><input id="task-desc" required maxlength="500"></div><div class="field"><label for="task-who">Assignee</label><select id="task-who"><option value="">Unassigned</option>${ENGINEERS.map(e=>`<option>${e}</option>`).join('')}</select></div>`+reasonField(),foot:reasonFoot('Create task','taskCreate()')}),
+  taskAssign:d=>({title:'Assign task',cls:'dialog--compact',body:`<dl class="definition"><dt>Task</dt><dd>${esc(taskById(d.id).desc)}</dd></dl><div class="field"><label for="task-who">Assignee</label><select id="task-who"><option value="">Unassigned</option>${ENGINEERS.map(e=>`<option${taskById(d.id).who===e?' selected':''}>${e}</option>`).join('')}</select></div>`+reasonField(),foot:reasonFoot('Assign task',`taskAssign('${d.id}')`)}),
+  taskComplete:d=>reasonDialog('Complete task',`taskComplete('${d.id}')`,{before:`<dl class="definition"><dt>Task</dt><dd>${esc(taskById(d.id).desc)}</dd></dl>`,label:'Complete task'}),
+  taskCancel:d=>reasonDialog('Cancel task',`taskCancel('${d.id}')`,{before:`<dl class="definition"><dt>Task</dt><dd>${esc(taskById(d.id).desc)}</dd></dl>`,label:'Cancel task',kind:'btn--danger'})
+};
+function removeDocConfirm(){const reason=readReason();if(!reason)return;const {name,row}=DLG.data;row.remove();closeDlg();logNote(`File removed by ${ME_NAME} — ${name} — ${reason}.`);toast('The document occurrence was logically removed; custody content and history were retained.');if(row.id==='custodyRow')R.custody='confirmed';}
+function holdConfirm(){const reason=readReason();if(!reason)return;closeDlg();toggleHold();logNote(`${HELD?'Case placed on Hold':'Hold released'} by ${ME_NAME} — ${reason}.`);toast(HELD?'The case was put on hold.':'The case hold was released.');renderLifecycle();}
+function returnReviewConfirm(){const reason=readReason();if(!reason)return;closeDlg();if(EDITING)cancelEdit(true);setState('review');logNote(`Case returned to Review by ${ME_NAME} — ${reason}.`);toast('The case returned to Review.');}
+function returnEngineerConfirm(){const reason=readReason();if(!reason)return;closeDlg();RETURN_ON=false;leaseStop();R.closed=null;setState('engineer');logNote(`Case returned to Engineer by ${ME_NAME} — ${reason}.`);toast('The case was returned to Engineer.');}
+function archiveConfirm(){const reason=readReason();if(!reason)return;closeDlg();leaseStop();setArchived(true);logNote(`Case archived by ${ME_NAME} — ${reason}.`);toast('The terminal case was archived and is now read-only.');}
+function completeConfirm(){const reason=readReason();if(!reason)return;closeDlg();if(EDITING)cancelEdit(true);setState('complete');logNote(`Case completed by ${ME_NAME} — ${reason}.`);toast('The case is now Completed.');}
+function saveWithReason(){const r=($('case-save-reason').value||'').trim();if(!r){toast('Reason for changes is required',true);$('case-save-reason').focus();return;}closeDlg();saveEdit(r);}
+function correctPrincipalConfirm(){const code=$('case-replacement-principal').value.trim(),reason=$('case-replacement-reason').value.trim();if(!code||!reason){toast('Replacement principal code and reason are required',true);return;}closeDlg();R.replacementPrincipal=code;logNote(`Created in error recorded by ${ME_NAME}; linked replacement created for ${code} — ${reason}.`);setLink('replacement');toast('The linked replacement case was created.');}
+function closeCaseConfirm(){const o=$('case-close-outcome').value;const reason=readReason('case-close-reason');if(!o){toast('Outcome is required',true);return;}if(!reason)return;closeDlg();closeCase(o,reason);}
+function handoffConfirm(){const e=$('case-handoff-engineer').value;if(!e){toast('Engineer is required',true);return;}closeDlg();$('rbEng').textContent=e;if(EDITING)cancelEdit(true);setState('engineer');logNote(`Case handed to ${e} by ${ME_NAME}.`);toast('The case was handed to the Engineer.');}
+function createUploadLink(){closeMenus();logNote('Upload link created by '+ME_NAME+'.');toast('The upload request expires at 26 Sep 2026 14:31. Copy its secret link now.');}
+
+/* ---------- wiring into the existing mockup functions ---------- */
+{const _ss=setState;setState=function(s){_ss(s);if(s!=='colleague'&&R.lease==='colleague')R.lease='available';if(s==='colleague')R.lease='colleague';if(s!=='complete'&&!R.closed){}if(s!=='complete'){RETURN_ON=false;}if(R.closed&&s!=='complete'&&s!=='colleague'){R.closed=null;}
+  restoreMock();renderBar();renderLifecycle();renderNotes();renderTasks();renderReport();};
+  const _se=startEdit;startEdit=function(){if(STATE==='complete'||R.closed){if(!RETURN_ON)enableReturn();return;}if(R.archived){toast('The Case is archived and read-only.',true);return;}_se();if(EDITING){if(!LEASE.timer||R.lease!=='expiring')leaseStart();mockOn('.mock [data-lease]',R.lease);renderBar();renderLifecycle();renderReport();renderImgs();}};
+  const _ee=endEdit;endEdit=function(){_ee();leaseStop();renderBar();renderLifecycle();renderReport();renderImgs();};
+  const _ce=cancelEdit;cancelEdit=function(silent){if(RETURN_ON&&!EDITING){RETURN_ON=false;leaseStop();renderBar();renderLifecycle();if(!silent)toast('Return cancelled.');return;}_ce(silent);};
+  const _sv=saveEdit;saveEdit=function(reason){_sv();if(reason)logNote(`Reason for changes — ${reason}.`);};
+  const _sy=syncReads;syncReads=function(){_sy();inspRead();};
+  const _th=toggleHold;toggleHold=function(){_th();mockOn('.mock [data-life]',HELD?'held':R.archived?'archived':R.closed?'closed':'none');renderLifecycle();};}
+function restoreMock(){mockOn('.mock [data-rep]',R.report);mockOn('.mock [data-lease]',STATE==='colleague'?'colleague':R.lease);mockOn('.mock [data-custody]',R.custody);mockOn('.mock [data-lookup]',R.lookup);mockOn('.mock [data-link]',R.link);mockOn('.mock [data-eva]',R.eva);mockOn('.mock [data-life]',R.archived?'archived':R.closed?'closed':HELD?'held':'none');document.querySelectorAll('.mock [data-tasks]').forEach(b=>b.classList.toggle('on',(b.dataset.tasks==='1')===R.tasks));document.querySelectorAll('.mock [data-api]').forEach(b=>b.classList.toggle('on',R.evaApi));}
+function replicaQuery(q){if(q.get('lease'))setLease(q.get('lease'));if(q.get('lookup'))setLookup(q.get('lookup'));if(q.get('custody'))setCustody(q.get('custody'));if(q.get('link'))setLink(q.get('link'));if(q.get('api')==='1')setEvaApi(true);if(q.get('eva'))setEva(q.get('eva'));if(q.get('tasks')==='1')setTasks(true);if(q.get('report'))setReport(q.get('report'));if(q.get('life'))setLife(q.get('life'));if(q.get('imgs')==='1')fileTab('imgs',document.querySelectorAll('#section-files .tab')[1]);if(q.get('crop')){if(!EDITING)startEdit();openCropDialog(+q.get('crop'));}if(q.get('dialog'))openDlg(q.get('dialog'),{id:'t1'});}
+function replicaInit(){syncVocab();imgState.forEach((im,i)=>{IMGTAGS[i]=TAGS[i]?[TAGS[i]]:[];});IMGTAGS[0]=['Overview','Reflection','Third party','Supporting'];syncTagFirst(0);bindCropDialog();$('f-inspaddr').value=INSP_DEFAULT;inspRead();renderLookup();renderImgs();renderBar();renderLifecycle();renderNotes();renderTasks();renderReport();restoreMock();}
 /* ================= init ================= */
-buildNav();markNav('overview');renderTabs();buildCar();renderAdds();adjWork();vatDefaults();renderEstTabs();renderGrid();renderImgs();outcomeChange(true);renderReport();syncReads();setState('engineer');renderGlass();renderProposal();dismissable();applyQuery();measure();
+buildNav();markNav('overview');renderTabs();buildCar();renderAdds();adjWork();vatDefaults();renderEstTabs();renderGrid();renderImgs();outcomeChange(true);renderReport();syncReads();setState('engineer');renderGlass();renderProposal();dismissable();replicaInit();applyQuery();measure();
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'&&EDITING){e.preventDefault();saveEdit();}});
 </script>
 </body>

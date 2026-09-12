@@ -3,7 +3,7 @@
 <pre id="out">PENDING</pre>
 <script>
 const log=[],ok=[];const f=document.getElementById('f');
-function check(name,cond){(cond?ok:log).push((cond?'OK ':'FAIL ')+name);}
+function check(name,cond){document.title=name;(cond?ok:log).push((cond?'OK ':'FAIL ')+name);}
 f.onload=()=>{
   const w=f.contentWindow,d=f.contentDocument;
   w.addEventListener('error',e=>log.push('ERR '+e.message+' @'+e.lineno));
@@ -131,6 +131,154 @@ f.onload=()=>{
     check('read shows est summary',vis($('estHeadRead')));
     // sticky height measured
     check('sticky var set',parseInt(d.documentElement.style.getPropertyValue('--sticky-h'))>50);
+    // ===== live Case record replica =====
+    const reason=v=>{const t=d.querySelector('#dlgHost textarea#dlg-reason,#dlgHost input#dlg-reason');if(t){t.value=v||'Because';}return !!t;};
+    const dlgText=()=>$('dlgHost').textContent;
+    w.setState('engineer');w.setReport('none');w.setLife('none');w.setLease('available');
+    check('replica: read mode hides the edit lease line',$('leaseLine').hidden);
+    // edit lease
+    w.setLease('mine');check('lease claimed starts the edit session',d.body.classList.contains('is-editing')&&!$('leaseLine').hidden&&$('leaseLine').textContent.includes('renews every 60'));
+    check('lease strip button on',d.querySelector('.mock [data-lease="mine"]').classList.contains('on'));
+    w.renewLease();check('renew extends the lease',g('LEASE').expires-Date.now()>9*60*1000);
+    w.setLease('expiring');check('expiring lease offers Renew',!$('btnRenew').hidden&&$('leaseLine').classList.contains('is-expiring')&&$('leaseLine').textContent.includes('expires in'));
+    w.setLease('elsewhere');check('editing elsewhere offers Take over',!d.body.classList.contains('is-editing')&&$('barActions').textContent.includes('Take over')&&$('barActions').textContent.includes('another window'));
+    w.takeOver();check('take over resumes editing here',d.body.classList.contains('is-editing'));
+    w.setLease('colleague');check('colleague editing state',g('STATE')==='colleague'&&$('barActions').textContent.includes('E Mawdsley is editing')&&$('barActions').textContent.includes('Take over'));
+    w.takeOver();check('take over from the colleague',g('STATE')==='engineer'&&d.body.classList.contains('is-editing'));
+    check('take over is recorded',$('noteTop').textContent.includes('Edit lease taken over'));
+    w.setLease('available');check('lease released ends the session',!d.body.classList.contains('is-editing')&&$('leaseLine').hidden);
+    // vehicle lookup
+    for(const p of [['none','Not yet looked up'],['pending','Queued'],['current','Current'],['stale','Stale'],['notfound','Not found for MA59BDY'],['failed','Failed: Provider unavailable']]){w.setLookup(p[0]);check('lookup state '+p[0],$('lookupRead').textContent.includes(p[1])&&d.querySelector('.mock [data-lookup="'+p[0]+'"]').classList.contains('on'));}
+    w.setLookup('current');w.startEdit();w.requestLookup();check('lookup request queues',g('R').lookup==='pending'&&$('lookupRead').textContent.indexOf('Queued')===0);
+    w.refreshRecord();check('refresh lands the lookup',g('R').lookup==='current');
+    // inspection address
+    $('f-insploc').value='ClaimantAddress';w.inspChoice();
+    check('inspect at claimant copies the address',$('f-inspaddr').value==='14 Grove Street, Liverpool L15 8HY'&&$('f-inspaddr').readOnly);
+    check('inspection address confirmation lines',$('inspAtRead').querySelectorAll('.address-lines div').length===2&&$('inspAtRead').textContent.includes('Physical address'));
+    $('f-insploc').value='ManualEntry';w.inspChoice();check('manual entry unlocks the address',!$('f-inspaddr').readOnly);
+    $('f-insploc').value='ImageBasedAssessment';w.inspChoice();check('image based assessment is the principal default',$('f-inspaddr').value==='Image Based Assessment'&&$('inspDefaultCell').hidden);
+    // image tags
+    w.toggleTag(3,'Close-up');check('tag applied from the tile picker',g('IMGTAGS')[3].includes('Close-up')&&d.querySelectorAll('#thumbs2 .image-tile')[3].textContent.includes('Close-up'));
+    w.toggleTag(3,'Close-up');check('tag removed',!(g('IMGTAGS')[3]||[]).includes('Close-up'));
+    check('tile picker offers every tag with a colour chip',d.querySelectorAll('#thumbs2 .image-tile .tag-picker .tag-option').length/12===g('TAG_VOCAB').length&&!!d.querySelector('#thumbs2 .tag-swatch--blue'));
+    check('more than three tags collapse to plus N',d.querySelector('#thumbs2 .tag-chip--more').textContent==='+1');
+    w.createTag('Salvage','red');check('new tag joins the vocabulary',g('TAG_VOCAB').some(t=>t.name==='Salvage')&&g('IMG_TAGS').includes('Salvage'));
+    d.querySelector('#thumbs3 .th').click();check('viewer tag select reads the shared vocabulary',[...d.querySelectorAll('#vwTools .viewer-tag option')].some(o=>o.textContent==='Salvage'));w.closeViewer();
+    w.createTag('Salvage','red');check('duplicate tag refused',g('TAG_VOCAB').filter(t=>t.name==='Salvage').length===1);
+    // crop dialog
+    w.openCropDialog(2);check('crop dialog opens from the tile',!$('cropDlg').hidden&&$('cropName').textContent==='Tailgate'&&$('cropImg').src.startsWith('data:image/svg'));
+    w.cropRotate(90);check('crop dialog rotates',g('CROP').rot===90&&$('cropStatus').textContent.includes('Rotation 90'));
+    g('CROP.sel={x:.1,y:.2,w:.5,h:.5}');w.renderCrop();check('crop read-out states the selection',$('cropStatus').textContent.includes('Left 10%')&&$('cropStatus').textContent.includes('Width 50%'));
+    w.cropFull();check('full frame clears the selection',!g('CROP').sel&&$('cropStatus').textContent.includes('Full frame'));
+    g('CROP.sel={x:.1,y:.2,w:.5,h:.5}');w.saveCrop();
+    check('save crop writes the shared crop',JSON.stringify(g('imgState')[2].crop)==='{"x":0.1,"y":0.2,"w":0.5,"h":0.5}'&&g('imgState')[2].rot===90&&$('cropDlg').hidden);
+    check('saved crop reaches the tile',d.querySelectorAll('#thumbs2 .th')[2].style.backgroundSize!==''&&d.querySelectorAll('#thumbs .th')[2].textContent.includes('90'));
+    w.openViewer(2);check('viewer opens at the saved rotation',g('VW').rot===90);
+    check('viewer Crop button opens the dialog',d.querySelector('#vwTools .btn[onclick*="openCropDialog"]').textContent.includes('Crop'));
+    w.closeViewer();w.openCropDialog(2);w.cropReset();w.saveCrop();check('crop reset clears crop and rotation',!g('imgState')[2].crop&&!g('imgState')[2].rot);
+    w.openCropDialog(2);d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));check('escape closes the crop dialog',$('cropDlg').hidden);
+    // report image preparation
+    check('preparation lists every image in the report',d.querySelectorAll('#repPrep .report-image').length===g('imgState').filter(x=>x.role!=='NotUsed').length);
+    w.prepRole(11,'CloseUp');check('role adds an image to the report',g('imgState')[11].on&&!!d.querySelector('#repPrep .report-image[data-i="11"]'));
+    w.prepRole(11,'NotUsed');check('not used removes it',!g('imgState')[11].on&&!d.querySelector('#repPrep .report-image[data-i="11"]'));
+    w.prepOrder(1,'2');check('order recorded',g('imgState')[1].order===2);
+    w.prepRotate(1,90);check('rotate right recorded',g('imgState')[1].rot===90&&d.querySelector('#repPrep .report-image[data-i="1"]').textContent.includes('90'));
+    w.prepRotate(1,-90);w.prepReset(1);check('preparation reset',!g('imgState')[1].rot&&!g('imgState')[1].order);
+    check('preparation reads out crop and rotation',d.querySelector('#repPrep .report-image .detail-list').textContent.includes('Full frame'));
+    // documents
+    const docs0=d.querySelectorAll('#fDocs .doc-row').length;
+    d.querySelector('#fDocs .btn--danger').click();check('remove opens the reason dialog',dlgText().includes('Remove file')&&dlgText().includes('Reason for action'));
+    w.removeDocConfirm();check('remove refused without a reason',d.querySelectorAll('#fDocs .doc-row').length===docs0);
+    reason('Duplicate upload');w.removeDocConfirm();check('remove with a reason',d.querySelectorAll('#fDocs .doc-row').length===docs0-1&&$('noteTop').textContent.includes('File removed'));
+    // custody placeholder
+    w.setCustody('pending');check('custody still arriving',!!$('custodyRow')&&$('custodyRow').textContent.includes('Storing')&&!!d.querySelector('#thumbs2 [data-gallery-placeholder]'));
+    w.setCustody('failed');check('custody storage failed',$('custodyRow').textContent.includes('Storage failed')&&d.querySelector('#thumbs2 [data-gallery-placeholder]').textContent.includes('Storage failed'));
+    w.setCustody('confirmed');check('custody confirmed clears the placeholder',!$('custodyRow')&&!d.querySelector('#thumbs2 [data-gallery-placeholder]'));
+    // image intake photographs
+    check('intake photographs grouped per intake',d.querySelectorAll('#intakeImgs .intake-group').length===1&&d.querySelectorAll('#intakeImgs .image-tile').length===3);
+    check('intake links to the image record',d.querySelector('#intakeImgs a').getAttribute('href')==='pegasus_shell_v26.html#/images/ic1');
+    // ===== report generation, delivery and evidence =====
+    w.setLease('mine');w.setReport('none');
+    check('report not generated has no artifacts',$('repGen').textContent===''&&d.querySelector('.mock [data-rep="none"]').classList.contains('on'));
+    w.setReport('draft');check('report draft state',g('R').report==='draft'&&$('repGen').textContent.includes('Draft')&&$('noteTop').textContent.includes('Report draft generated'));
+    w.setReport('generated');check('generated artifacts',$('repGen').textContent.includes('Report with fee note')&&$('repGen').textContent.includes('Generated')&&$('repGen').textContent.includes('Confirmed'));
+    $('incFee').checked=false;w.renderReport();check('fee note as a separate artifact',d.querySelectorAll('#repGen .button-row a').length===2&&$('repGen').textContent.includes('Fee note'));
+    $('incFee').checked=true;w.renderReport();
+    check('reviewed recipients offered before delivery',!!d.querySelector('#recip-to input')&&$('repGen').textContent.includes('Add To recipient')&&$('repGen').textContent.includes('Prepare delivery'));
+    w.addRecipient('cc');check('add Cc recipient',d.querySelectorAll('#recip-cc input').length===2);
+    w.touch();check('stale generation notices before delivery',$('repGen').textContent.includes('Generate again before delivery')&&!$('repGen').textContent.includes('Prepare delivery'));
+    w.prepareDelivery();check('stale generation refuses delivery',!g('R').prepared);
+    w.setReport('generated');d.querySelectorAll('#recip-to input').forEach(i=>i.value='');w.prepareDelivery();check('delivery needs a To recipient',!g('R').prepared);
+    d.querySelectorAll('#recip-to input')[0].value='claims@qdosclaims.co.uk';w.prepareDelivery();
+    check('delivery prepared',g('R').report==='prepared'&&$('repGen').textContent.includes('Delivery prepared')&&$('repGen').textContent.includes('Send prepared report'));
+    check('delivery prepared strip state',d.querySelector('.mock [data-rep="prepared"]').classList.contains('on'));
+    w.sendPrepared();check('send prepared report',g('R').report==='sent'&&$('repGen').textContent.includes('Report sent')&&$('sentRead').textContent.includes('reports@collisionengineers.co.uk'));
+    check('sent case offers Unlink report evidence',$('lifecycleBtns').textContent.includes('Unlink report evidence')&&!$('barActions').textContent.includes('Mark report sent'));
+    w.openDlg('unlinkEvidence');w.unlinkEvidence();check('unlink refused without a reason',g('R').report==='sent');
+    reason('Wrong evidence');w.unlinkEvidence();check('unlink restores the prepared state',g('R').report==='prepared'&&!g('R').sentEvidence&&$('noteTop').textContent.includes('evidence unlinked'));
+    w.openDlg('reportSent');check('mark report sent states the retained evidence',dlgText().includes('reports@collisionengineers.co.uk')&&dlgText().includes('Confirm detected evidence'));
+    w.confirmReportSent();check('link refused without a reason',g('R').report!=='sent');
+    reason('Matched the retained message');w.confirmReportSent();check('report evidence linked',g('R').report==='sent'&&$('sentRow').hidden===false);
+    check('sent case offers Mark completed',$('barActions').textContent.includes('Mark completed'));
+    w.setReport('generated');check('generated case offers Mark report sent',$('barActions').textContent.includes('Mark report sent')&&!$('lifecycleBtns').textContent.includes('Unlink'));
+    // gated generation
+    const ev=g('S').ev;g('S.ev=null');w.renderReport();
+    check('generation gated with its reason',$('btnGenerate').hidden&&!$('genGate').hidden&&$('genGate').textContent.includes("Report not ready — Engineer's Value")&&$('repMenu').hidden);
+    g('S.ev='+ev);w.renderReport();check('generation offered once ready',!$('btnGenerate').hidden&&$('genGate').hidden);
+    // ===== lifecycle =====
+    w.setReport('none');w.setState('engineer');w.startEdit();
+    w.openDlg('returnReview');w.returnReviewConfirm();check('return to Review needs a reason',g('STATE')==='engineer');
+    reason('Further instruction needed');w.returnReviewConfirm();check('returned to Review',g('STATE')==='review'&&$('noteTop').textContent.includes('returned to Review'));
+    w.setState('engineer');w.startEdit();w.openDlg('close');$('case-close-outcome').value='Provider cancelled';w.closeCaseConfirm();check('close case needs a reason',!g('R').closed);$('case-close-reason').value='Instruction withdrawn';w.closeCaseConfirm();
+    check('terminal outcome recorded',g('R').closed==='Provider cancelled'&&$('rbState').textContent==='Provider cancelled'&&g('STATE')==='complete');
+    check('terminal case offers Enable return',$('btnEdit').querySelector('span').textContent==='Enable return');
+    w.enableReturn();check('enable return opens the lifecycle actions',g('RETURN_ON')&&$('lifecycleBtns').textContent.includes('Archive case')&&$('barActions').textContent.includes('Return to Engineer'));
+    w.openDlg('archive');reason('Retention complete');w.archiveConfirm();
+    check('archived case is read-only',g('R').archived&&!$('rbArchived').hidden&&$('btnEdit').hidden&&!g('RETURN_ON'));
+    check('archived case hides the lifecycle actions',$('lifecycle').hidden&&$('noteForm').hidden);
+    w.setLife('none');check('lifecycle reset',!g('R').archived&&!g('R').closed&&g('STATE')==='engineer');
+    w.startEdit();w.openDlg('correctPrincipal');$('case-replacement-principal').value='PCH';$('case-replacement-reason').value='Wrong principal on instruction';w.correctPrincipalConfirm();
+    check('wrong-principal correction creates the replacement',g('R').link==='replacement'&&g('R').closed==='Created in error'&&$('barActions').textContent.includes('Replacement case'));
+    check('replacement link opens the linked case',d.querySelector('#barActions a').getAttribute('href')==='pegasus_shell_v26.html#/cases/c3');
+    w.setLink('original');check('original case link',$('barActions').textContent.includes('Original case'));
+    w.setLink('none');w.setLife('none');
+    // ===== EVA =====
+    w.setState('engineer');w.startEdit();check('EVA handoff offered',$('barActions').textContent.includes('Send to EVA'));
+    w.openDlg('eva');check('EVA export and gated API send',dlgText().includes('Download ZIP')&&dlgText().includes('EVA API submission is not enabled for this principal.')&&!!d.querySelector('#dlgHost .gated .btn[disabled]'));
+    $('eva-sign-off-engineer').value="N O'Reilly";$('eva-sign-off-reason').value='Signing engineer on leave';w.setSignOff();
+    check('sign-off engineer set',$('f-signoff').value==="N O'Reilly"&&$('noteTop').textContent.includes('Sign-off Engineer set'));
+    w.evaExport();check('EVA ZIP downloaded',$('noteTop').textContent.includes('EVA ZIP downloaded'));
+    w.setEvaApi(true);check('EVA API enabled offers Send',!d.querySelector('#dlgHost .gated .btn[disabled]')&&dlgText().includes('Send via API'));
+    w.evaSend();check('sent to EVA',g('R').eva==='sent'&&dlgText().includes('EVA-2026-08814')&&d.querySelector('.mock [data-eva="sent"]').classList.contains('on'));
+    w.setEva('failed');check('EVA refusal',dlgText().includes('Refused by EVA'));
+    w.setEva('none');w.closeDlg();check('dialog closes',$('dlgHost').innerHTML===''&&!d.body.classList.contains('has-dialog'));
+    // ===== history =====
+    const notes1=$('noteTop').children.length;$('noteIn').value='';w.addNoteForm();check('Case note required',$('noteTop').children.length===notes1);
+    $('noteIn').value='Chased the claimant for the boot-floor images.';w.addNoteForm();
+    check('Case note added',$('noteTop').children.length===notes1+1&&$('noteTop').textContent.includes('boot-floor images')&&$('noteIn').value==='');
+    w.openDlg('chase');check('chase dialog fields',['chase-recipient','chase-channel','chase-content','chase-outcome'].every(i=>!!$(i)));
+    w.recordChase();check('chase refused without recipient, channel and outcome',!!$('chase-recipient'));
+    $('chase-recipient').value='Ms L Carter';$('chase-channel').value='Telephone';$('chase-content').value='Boot floor images';$('chase-outcome').value='No answer';w.recordChase();
+    check('manual chase recorded',$('dlgHost').innerHTML===''&&$('noteTop').textContent.includes('Manual chase recorded')&&$('noteTop').textContent.includes('No answer'));
+    // ===== case tasks (proposal) =====
+    check('tasks hidden by default',$('tasksPanel').hidden);
+    w.setTasks(1);check('tasks proposal shown',!$('tasksPanel').hidden&&d.querySelectorAll('#taskList .task-row').length===2&&$('tasksPanel').textContent.includes('Proposal'));
+    w.openDlg('taskCreate');$('task-desc').value='Request the V5C';$('task-who').value='A Patterson';reason('Principal asked');w.taskCreate();
+    check('task created',d.querySelectorAll('#taskList .task-row').length===3&&$('taskList').textContent.includes('Request the V5C'));
+    w.openDlg('taskAssign',{id:'t2'});$('task-who').value='E Mawdsley';reason('Owner changed');w.taskAssign('t2');check('task assigned',g('TASKS').find(t=>t.id==='t2').who==='E Mawdsley');
+    w.openDlg('taskComplete',{id:'t1'});reason('Images received');w.taskComplete('t1');check('task completed',g('TASKS')[0].state==='Completed'&&$('taskList').textContent.includes('Completed'));
+    w.openDlg('taskCancel',{id:'t2'});reason('No longer needed');w.taskCancel('t2');check('task cancelled',g('TASKS')[1].state==='Cancelled');
+    w.setTasks(0);check('tasks proposal hidden again',$('tasksPanel').hidden);
+    // ===== query presets =====
+    w.setLife('none');w.setReport('none');w.setLease('available');w.setCustody('confirmed');w.setEva('none');
+    w.replicaQuery(new w.URLSearchParams('lease=mine&lookup=stale&custody=pending&report=generated&tasks=1&imgs=1'));
+    check('query preset: lease, lookup, custody, report, tasks, images',d.body.classList.contains('is-editing')&&g('R').lookup==='stale'&&g('R').custody==='pending'&&g('R').report==='generated'&&!$('tasksPanel').hidden&&!$('fImgs').hidden);
+    w.replicaQuery(new w.URLSearchParams('eva=sent&api=1&link=replacement&life=archived'));
+    check('query preset: EVA, link and lifecycle',g('R').eva==='sent'&&g('R').evaApi&&g('R').link==='replacement'&&g('R').archived);
+    w.setLife('none');w.setLink('none');w.setCustody('confirmed');w.setLookup('current');w.setTasks(0);w.setReport('none');w.setEva('none');
+    w.replicaQuery(new w.URLSearchParams('crop=4'));check('query preset: crop dialog',!$('cropDlg').hidden&&$('cropName').textContent==='Lamp O/S');w.closeCropDialog();
+    w.replicaQuery(new w.URLSearchParams('dialog=chase'));check('query preset: dialog',dlgText().includes('Record chase'));w.closeDlg();
+    check('replica notices carry a dismiss',[...d.querySelectorAll('.notice')].every(n=>n.querySelector('.dismiss')));
   }catch(e){log.push('EXC '+e.message+'\n'+e.stack);}
   setTimeout(()=>{document.getElementById('out').textContent='RESULT '+JSON.stringify({fail:log,okCount:ok.length});},1200);
 };
