@@ -1,0 +1,107 @@
+<!DOCTYPE html><html><body>
+<iframe id="f" src="pegasus_case_workspace_v26.html" style="width:1580px;height:1000px"></iframe>
+<pre id="out">PENDING</pre>
+<script>
+const log=[],ok=[];const f=document.getElementById('f');
+function check(name,cond){(cond?ok:log).push((cond?'OK ':'FAIL ')+name);}
+f.onload=()=>{
+  const w=f.contentWindow,d=f.contentDocument;
+  w.addEventListener('error',e=>log.push('ERR '+e.message+' @'+e.lineno));
+  const $=id=>d.getElementById(id);const g=x=>w.eval(x);
+  const vis=el=>!!el&&el.offsetParent!==null;
+  const fire=(el,t)=>el.dispatchEvent(new w.Event(t,{bubbles:true}));
+  try{
+    const SECS=['overview','inspection','vehicle','damage','valuation','estimate','settlement','report','files','notes'];
+    // 1. every state × layout × section
+    for(const st of ['review','engineer','complete','colleague']){w.setState(st);
+      for(const l of ['scroll','tabs']){w.setLayout(l,true);
+        for(const k of SECS){w.jumpTo(k);const s=$('section-'+k);check(`${st}/${l}/${k} visible`,vis(s));
+          if(l==='tabs')check(`${st}/tabs/${k} only active`,d.querySelectorAll('.case-section.is-active').length===1);}}
+      // edit entry per state
+      const locked=[...d.querySelectorAll('.case-section.is-locked')].map(s=>s.dataset.section);
+      if(st==='review')check('review locks engineering sections',['damage','valuation','estimate','settlement','report'].every(k=>locked.includes(k)));
+      if(st==='complete')check('complete locks all',locked.length===10);
+      if(st==='colleague'){check('colleague hides Edit',$('btnEdit').hidden);check('colleague chip',!$('rbHolder').hidden);}
+    }
+    // 2. engineer editing flow
+    w.setState('engineer');w.setLayout('scroll',true);
+    check('tabs default recorded as user choice',true);
+    w.startEdit();check('editing class',d.body.classList.contains('is-editing'));
+    check('sec-edit hidden while editing',[...d.querySelectorAll('.sec-edit')].every(b=>!vis(b)));
+    check('identity lock glyph shows',vis(d.querySelector('.fc.idn .lk')));
+    $('f-yourref').value='Q-TEST';fire($('f-yourref'),'input');
+    $('f-storate').value='30';fire($('f-storate'),'input');
+    // damage
+    const before=Object.keys(g("impacts")).length;w.toggleZone('bonnet');check('zone toggled',Object.keys(g("impacts")).length===before+1);
+    check('impact row rendered',d.querySelectorAll('#impacts .impact-row').length===before+1);
+    // valuation
+    $('inc_tow').checked=true;w.adjWork();check('preset row on',$('inc_tow').closest('.add').classList.contains('on'));
+    $('f-ptl').value='10';w.adjWork();w.applyAdj();check('EV applied',g("S").ev>0);
+    check('EV in decisions',$('evDec').textContent.includes('£'));
+    check('report ready after EV',w.ready().length===0);
+    // estimate: phantom row
+    const n0=g("ROWS").length;const ph=d.querySelector('#gridBody tr.phantom');check('phantom row present in edit',!!ph);
+    const inp=ph.querySelectorAll('input')[0];inp.value='Test line';fire(inp,'input');
+    check('phantom became real',g("ROWS").length===n0+1&&g("ROWS")[n0].d==='Test line'&&g("ROWS")[n0].q===1);
+    check('new phantom appended',!!d.querySelector('#gridBody tr.phantom'));
+    check('focus kept on new row',d.activeElement&&d.activeElement.closest('tr')===d.querySelectorAll('#gridBody tr')[n0]);
+    w.addRow();check('addRow adds blank',g("ROWS").length===n0+2&&g("ROWS")[n0+1].d==='');
+    w.cell(0,'u','300');check('cell edit marks amended',g("ROWS")[0].p==='amended'&&g("ROWS")[0].u===300);
+    $('d_parts').value='5';fire($('d_parts'),'input');check('discount applied',$('rollup').textContent.includes('Parts discount'));
+    $('vc_labour').checked=false;w.vatManual();check('vat manual chip',!$('vatManChip').hidden);
+    w.selectEst('e2');check('draft selected',g("EST").id==='e2');check('Use estimate offered',$('estActions').textContent.includes('Use estimate'));
+    w.setCurrentEst();check('draft became current',g("EST").state==='current'&&g("ESTIMATES")[0].state==='superseded');
+    w.selectEst('e1');
+    // glass in edit
+    check('glass button visible in edit',vis($('glassBtn'))&&$('glassBtn').textContent.trim()==="Glass's");
+    w.glassLaunch();check('glass launching',g("GLASS").state==='launching');
+    w.setGlass('open');check('resume label',$('glassBtn').textContent.trim()==='Resume');check('session line',vis($('glass')));
+    check('close disclosure present',!!$('glassClose'));
+    w.closeGlass();check('close refused without reason',g("GLASS").state==='open');
+    $('glass-reason').value='Finished';$('glass-ext').checked=true;w.closeGlass();check('close with reason',g("GLASS").state==='cancelled'&&$('estNoticeText').textContent.includes('closed'));
+    for(const g of ['prepared','launching','recording','waiting','unknown','failed','expired','elsewhere','none']){w.setGlass(g);check('glass state '+g,true);}
+    w.setGlass('waiting');check('complete import offered',$('glass').textContent.includes('Complete import'));const nE=g("ESTIMATES").length;w.completeImport();check('complete import lands draft',g("ESTIMATES").length===nE+1&&g("GLASS").state==='recorded');
+    w.setGlass('elsewhere');check('elsewhere hides button',$('glassBtn').hidden&&$('glass').textContent.includes('Open on'));
+    w.setGlass('none');
+    // decisions
+    w.toggleProposal();check('proposal column',$('decisions').classList.contains('has-proposal'));
+    $('f-cat').value='S';w.decTouch('cat');w.outcomeChange();check('corrected status',$('p-cat').textContent.includes('Corrected'));
+    w.acceptDec('cat');check('accept restores',$('f-cat').value==='N'&&$('p-cat').textContent.includes('Accepted'));
+    $('f-outcome').value='repairable';w.outcomeChange();check('salvage hidden when repairable',$('catCell').style.display==='none');
+    $('f-outcome').value='total_loss';w.outcomeChange();
+    // report
+    w.genReport();check('generated',g("S").generated);w.touch();check('stale bar',$('staleBar').classList.contains('show'));
+    d.querySelector('#staleBar .dismiss').click();check('stale dismissed',!$('staleBar').classList.contains('show'));
+    // images
+    const on0=g("imgState").filter(x=>x.on).length;d.querySelector('#thumbs .th').click();check('report image toggled',g("imgState").filter(x=>x.on).length===on0-1);
+    // save
+    const notes0=$('noteTop').children.length;w.saveEdit();check('edit ended',!d.body.classList.contains('is-editing'));
+    check('save wrote a note',$('noteTop').children.length>notes0);
+    check('blank row pruned',g("ROWS").every(r=>r.d!==''));
+    check('no phantom in read',!d.querySelector('#gridBody tr.phantom'));
+    check('read value synced',d.querySelector('#f-yourref').closest('.fc').querySelector('.fv').textContent.includes('Q-TEST'));
+    // cancel reverts
+    w.startEdit();$('f-clm').value='Nobody';fire($('f-clm'),'input');w.cancelEdit();check('cancel reverted',$('f-clm').value==='Ms L Carter');
+    // collapse
+    for(const k of SECS){const b=d.querySelector('#section-'+k+' .sec-collapse');check('collapse btn '+k,!!b);if(b){b.click();check('collapsed '+k,$('section-'+k).classList.contains('is-collapsed')&&!vis($('section-'+k).querySelector('.panel-body')));b.click();}}
+    check('collapse persisted key',w.localStorage.getItem('v26.collapsed')==='[]');
+    // expand estimate
+    w.toggleExpand();check('expanded',$('section-estimate').classList.contains('is-expanded'));w.toggleExpand();check('collapsed back',!$('section-estimate').classList.contains('is-expanded'));
+    // rail, files, notes, hold, menus
+    w.toggleRail();check('rail collapsed',d.querySelector('.app-shell').classList.contains('rail-collapsed'));w.toggleRail();
+    w.fileTab('imgs',d.querySelectorAll('#section-files .tab')[1]);check('images tab',!$('fImgs').hidden&&$('thumbs2').children.length===12);
+    w.addNote('Harness note');check('note added',$('noteTop').textContent.includes('Harness note'));
+    w.setState('colleague');w.startEdit();check('colleague cannot edit',!d.body.classList.contains('is-editing')&&$('btnImport').hidden);w.setState('engineer');w.toggleHold();check('held',$('rbState').textContent==='Held');w.toggleHold();
+    d.querySelectorAll('details.actions-menu').forEach(m=>{m.open=true;});w.closeMenus();check('menus close',[...d.querySelectorAll('details.actions-menu')].every(m=>!m.open));
+    // notices dismiss
+    w.estNotice('x');d.querySelector('#estNotice .dismiss').click();check('est notice dismissed',$('estNotice').hidden);
+    check('every notice has dismiss',[...d.querySelectorAll('.notice')].every(n=>n.querySelector('.dismiss')));
+    // read mode: edit-only things hidden
+    check('read hides drop zone',!vis($('dropzone')));check('read hides unapplied presets',!vis($('inc_pco').closest('.add')));
+    check('read shows est summary',vis($('estHeadRead')));
+    // sticky height measured
+    check('sticky var set',parseInt(d.documentElement.style.getPropertyValue('--sticky-h'))>50);
+  }catch(e){log.push('EXC '+e.message+'\n'+e.stack);}
+  setTimeout(()=>{document.getElementById('out').textContent='RESULT '+JSON.stringify({fail:log,okCount:ok.length});},1200);
+};
+</script></body></html>

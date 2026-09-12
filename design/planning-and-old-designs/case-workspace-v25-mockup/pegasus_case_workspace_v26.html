@@ -719,7 +719,7 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
         <!-- ===== Estimate ===== -->
         <section class="case-section panel" id="section-estimate" data-section="estimate" data-avail="With Engineer">
           <div class="panel-head"><h2>Estimate</h2><span class="muted" id="estMeta"></span><span class="spacer"></span>
-            <button class="btn btn--small" onclick="if(!EDITING)startEdit();toast('Import estimate dialog (existing): PDF, JSON, XML')"><svg class="icon"><use href="#icon-upload"/></svg><span>Import</span></button>
+            <button class="btn btn--small" id="btnImport" onclick="if(!EDITING)startEdit();if(EDITING)toast('Import estimate dialog (existing): PDF, JSON, XML')"><svg class="icon"><use href="#icon-upload"/></svg><span>Import</span></button>
             <button class="btn btn--small calc-only" id="glassBtn" onclick="glassLaunch()"><svg class="icon"><use href="#icon-external-link"/></svg><span>Glass's</span></button>
             <button class="btn btn--small btn--primary calc-only" onclick="toast('Send to AI dialog (existing): direction, target estimate %')"><svg class="icon"><use href="#icon-sparkles"/></svg><span>Send to AI</span></button>
             <details class="actions-menu"><summary class="btn btn--small"><span>More</span><svg class="icon"><use href="#icon-chevron-down"/></svg></summary><div class="actions-menu-body">
@@ -958,6 +958,7 @@ function setState(s){STATE=s;document.querySelectorAll('.mock button').forEach(b
     sec.classList.toggle('is-locked',locked);sec.querySelector('.avail-text')&&(sec.querySelector('.avail-text').textContent=why);
   });
   if(!LAYOUT_USER)setLayout((s==='engineer'||s==='colleague')?'tabs':'scroll');
+  $('btnImport').hidden=$('section-estimate').classList.contains('is-locked');
   renderGlass();updateNext();
 }
 
@@ -966,7 +967,7 @@ let SNAP=null;
 function snapshot(){const m={};document.querySelectorAll('.fi').forEach(i=>{if(!i.id)return;m[i.id]=i.type==='checkbox'?i.checked:i.value;});return m;}
 function anchor(){const line=$('sticky').getBoundingClientRect().bottom+8;let best=null;document.querySelectorAll('.case-section, .sub, .fc').forEach(el=>{const r=el.getBoundingClientRect();if(r.top<=line&&r.bottom>line&&(best===null||r.height<best.h)){best={el,h:r.height,off:r.top};}});return best;}
 function keep(a){if(!a)return;const r=a.el.getBoundingClientRect();window.scrollBy({top:r.top-a.off,behavior:'auto'});}
-function startEdit(){if(STATE==='complete'){toast('Return to Engineer is now available in the action row.');return;}const a=anchor();EDITING=true;SNAP=snapshot();document.body.classList.add('is-editing');keep(a);$('btnEdit').hidden=true;$('btnCancel').hidden=false;$('btnSave').hidden=false;renderGrid();measure();}
+function startEdit(){if(STATE==='colleague'){toast('E Mawdsley is editing this Case.',true);return;}if(STATE==='complete'){toast('Return to Engineer is now available in the action row.');return;}const a=anchor();EDITING=true;SNAP=snapshot();document.body.classList.add('is-editing');keep(a);$('btnEdit').hidden=true;$('btnCancel').hidden=false;$('btnSave').hidden=false;renderGrid();measure();}
 function endEdit(){const a=anchor();EDITING=false;document.body.classList.remove('is-editing');keep(a);$('btnEdit').hidden=STATE==='colleague';$('btnCancel').hidden=true;$('btnSave').hidden=true;pruneBlank();renderGrid();measure();}
 function cancelEdit(silent){if(SNAP){Object.entries(SNAP).forEach(([id,v])=>{const i=$(id);if(!i)return;if(i.type==='checkbox')i.checked=v;else i.value=v;});}syncReads();endEdit();if(!silent)toast('Changes discarded. You are where you were.');}
 function saveEdit(){const changed=[];Object.entries(snapshot()).forEach(([id,v])=>{if(SNAP&&SNAP[id]!==v){const l=document.querySelector(`label[for="${id}"]`);changed.push(l?l.textContent.trim():id);}});syncReads();endEdit();

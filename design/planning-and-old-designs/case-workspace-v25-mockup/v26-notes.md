@@ -102,6 +102,27 @@ Everything in `v25-notes.md` A–F still stands. New:
 - **K. Evidence strip in Damage** is read-only here; tagging and crop stay in
   Files. Confirm, or ask for tags on the strip.
 
+## Self-check
+
+`v26-selfcheck.html` loads the mockup in a frame and drives every section in
+every lifecycle state and layout, the edit session (change, damage zone,
+valuation apply, phantom estimate line, discounts, VAT override, Use estimate,
+Glass's launch, guarded close, every session state, Complete import, held
+elsewhere), the decisions strip, report generation and the stale bar,
+dismissals, save and cancel, collapse on every section, full-screen estimate,
+rail, Files tabs, notes, hold, menus and the colleague guard. Run it with
+file access allowed and read the RESULT line:
+
+```powershell
+& $chrome --headless=new --allow-file-access-from-files `
+  --virtual-time-budget=12000 --dump-dom `
+  design/planning-and-old-designs/case-workspace-v25-mockup/v26-selfcheck.html |
+  Select-String 'RESULT'
+```
+
+12 September: `{"fail":[],"okCount":213}` with no console errors, on the
+Playwright Chromium 1228 build.
+
 ## Known limits
 
 - The demo Return lands a fixed Glass's line set; the real return imports the
