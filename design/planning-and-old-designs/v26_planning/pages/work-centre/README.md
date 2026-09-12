@@ -10,6 +10,57 @@
 - [s29-work-centre-760.png](../../current/v26-shots/s29-work-centre-760.png)
 - [s33-work-centre-partial.png](../../current/v26-shots/s33-work-centre-partial.png)
 
+## How it should work (draft FRD basis, 13 September 2026)
+
+Decisions taken with the operator on 13 September. Each line is a rule the FRD can carry.
+
+### D1. External work leaves the Work Centre
+
+- Failed external work (custody, vehicle lookup, intake OCR) is never a Needs attention row. It lives on Operations only; the Operations rail badge carries the count.
+- Where a failure blocks a person's work, the record says so at the point of use in operator words: Vehicle shows "Lookup failed", Files shows "Storage not ready". If that failure blocks Case readiness, the Case appears as a Case row with that reason, not as a failure row.
+- The High priority is removed. It only ever meant "external failure".
+- Open: whether Operations stays open to Engineers and Users or becomes Administrator-only.
+
+### D2. The chip appears only when it changes what you do
+
+- Overdue (red) with how late: "2 days overdue".
+- Today (amber).
+- No chip otherwise. Normal is the absence of a chip. The Due value is plain text on the row, relative when near: "Due Fri", "Due 24 Sep".
+- With High gone, the list is ordered by due instant, earliest first, undated last, then by received, then by reference.
+
+### D3. Every kind has a due instant
+
+Each kind carries a target so it ages. The targets are **workflow settings** on the Administration › Configuration page (the same place as the chase interval), each with a default that is the standard:
+
+| Kind | Due instant | Setting | Default |
+| --- | --- | --- | --- |
+| Case chase | next chase time | Chase interval (existing) | 7 days |
+| Unidentified item | received + target | Unidentified target | 0 days (the day received) |
+| Triage without finding | opened + target | Triage target | 1 day |
+| Held decision | held + target | Held decision target | 7 days |
+| Review Case | entered Review + target | Review target | 1 day |
+| Unassigned Engineer | entered Review + target | Review target (shared) | 1 day |
+
+Fixed rules, not settings:
+
+- Targets and intervals are **calendar days**. Working days are not modelled.
+- The day boundary is **midnight Europe/London**. "Today" means due before the next midnight; "Overdue" means due at or before now.
+- A target of 0 days means due by midnight on the day it arrived.
+
+Validation: 0 to 365 days for targets, 1 to 365 for the chase interval, as now.
+
+### D4. The list is paged, never cut
+
+- Needs attention is a paged list, page size 50, "Page 1 of N · earliest due first", Previous and Next, the same paging as the Cases list. Nothing is silently dropped.
+- The metric strip counts everything regardless of paging.
+- The shell notifications menu keeps showing the first 10 rows of page 1.
+
+### Still open
+
+- Operations audience (D1).
+- Whether a Held decision should instead carry a review date chosen when the hold is placed, with the target as the fallback only.
+- The exact copy for the relative due text.
+
 ## How it works today (read from the live source, 13 September 2026)
 
 Sources: `src/Pegasus.Web/Pages/Index.cshtml(.cs)`, `src/Pegasus.Core/Operations/OperationsSnapshot.cs`, `DashboardCounts.cs`, `src/Pegasus.Core/Tasks/CaseWorkScheduling.cs`, `src/Pegasus.Infrastructure/Persistence/EfCaseWorkflowStore.cs`, `docs/frd/frd-12-operator-experience.md` § Work Centre.
