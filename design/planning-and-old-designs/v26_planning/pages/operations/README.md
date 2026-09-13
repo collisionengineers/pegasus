@@ -9,6 +9,7 @@
 ## Screenshots
 
 - [s14-operations.png](../../current/v26-shots/s14-operations.png)
+- [s50-operations-failed-intake.png](../../current/v26-shots/s50-operations-failed-intake.png)
 
 ## Notes
 

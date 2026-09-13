@@ -9,6 +9,7 @@
 ## Screenshots
 
 - [s20-admin-configuration.png](../../../current/v26-shots/s20-admin-configuration.png)
+- [s45-config-workflow-targets.png](../../../current/v26-shots/s45-config-workflow-targets.png)
 
 ## Notes
 

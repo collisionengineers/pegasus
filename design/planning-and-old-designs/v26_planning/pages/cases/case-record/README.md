@@ -76,6 +76,9 @@
 - [s18-admin-glass.png](../../../current/v26-shots/s18-admin-glass.png)
 - [s25-admin-reports.png](../../../current/v26-shots/s25-admin-reports.png)
 - [s32-cases-unavailable.png](../../../current/v26-shots/s32-cases-unavailable.png)
+- [76-case-ai-draft-held-review.png](../../../current/v26-shots/76-case-ai-draft-held-review.png)
+- [77-hold-review-on.png](../../../current/v26-shots/77-hold-review-on.png)
+- [78-assign-to-me.png](../../../current/v26-shots/78-assign-to-me.png)
 
 ## Notes
 

@@ -244,6 +244,10 @@ gap list was built out in two lanes (shell pages, Case record) from the live
 Razor sources; every item is now mocked, the optional principal included.
 Self-checks: 371 and 279.
 
+## 12. 13 September — page planning, then the decisions built in
+
+The operator moved the mockups and their documentation into `v26_planning/`, gave every page a folder, and planned the Work Centre, the received-file record, Inbox, Upload, AI jobs and notifications page by page into "how it works" and "how it should work" documents, with decisions propagated into the pages they affect. Building them into the mockup was held ("Just edit the document so far. Hang fire for now."). Later the same day: crop on the viewer stage, Create audit, Principal and Claim source notes, valuation month and one button per source, and the last placeholder dialogs were added on request. Asked what had been held back, the operator said "all of them": the Case record's share was built directly and the shell's in three parallel lanes, integrated and verified (§ The 13 September planning decisions, built in, in `v26-notes.md`).
+
 ## Outstanding
 
 Stage 1 is at v26 with every page mocked; it has not yet been given final approval to proceed to Stage 2 (the

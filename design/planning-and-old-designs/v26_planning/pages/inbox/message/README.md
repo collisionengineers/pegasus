@@ -10,6 +10,7 @@
 
 - [s03-message.png](../../../current/v26-shots/s03-message.png)
 - [s21-admin-mail.png](../../../current/v26-shots/s21-admin-mail.png)
+- [s51-message-attachments.png](../../../current/v26-shots/s51-message-attachments.png)
 
 ## Notes
 

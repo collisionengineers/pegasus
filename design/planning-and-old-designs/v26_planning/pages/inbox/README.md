@@ -10,6 +10,7 @@
 
 - [s02-inbox.png](../../current/v26-shots/s02-inbox.png)
 - [s31-inbox-empty.png](../../current/v26-shots/s31-inbox-empty.png)
+- [s52-inbox-category-dismissed.png](../../current/v26-shots/s52-inbox-category-dismissed.png)
 
 ## Notes
 

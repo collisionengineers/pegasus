@@ -10,6 +10,8 @@
 
 - [s04-upload.png](../../current/v26-shots/s04-upload.png)
 - [s05-upload-outcomes.png](../../current/v26-shots/s05-upload-outcomes.png)
+- [s53-upload-group-decision.png](../../current/v26-shots/s53-upload-group-decision.png)
+- [s54-upload-all-unreadable.png](../../current/v26-shots/s54-upload-all-unreadable.png)
 
 ## Notes
 

@@ -13,6 +13,8 @@
 - [s07-cases-triage.png](../../current/v26-shots/s07-cases-triage.png)
 - [s08-cases-unidentified.png](../../current/v26-shots/s08-cases-unidentified.png)
 - [s32-cases-unavailable.png](../../current/v26-shots/s32-cases-unavailable.png)
+- [s47-cases-unidentified-closed.png](../../current/v26-shots/s47-cases-unidentified-closed.png)
+- [s55-cases-held-review-date.png](../../current/v26-shots/s55-cases-held-review-date.png)
 
 ## Notes
 

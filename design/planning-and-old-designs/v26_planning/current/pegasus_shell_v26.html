@@ -836,6 +836,83 @@ body[data-tabs-place="band"] .record,body[data-tabs-place="crumb"] .record,body[
 .settings-line+.settings-line{border-top:1px solid var(--line)}
 .settings-line .meta{display:block;color:var(--quiet);font-size:12px}
 
+
+/* ---- lane_wc.css */
+/* ---- lane wc: Work Centre, notifications, workflow settings ---- */
+.wc-updated { font-size: 12px; color: var(--muted); margin-right: 4px; white-space: nowrap; }
+
+.wc-switch { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: var(--radius); padding: 2px; background: var(--surface); }
+.wc-switch button { height: 24px; padding: 0 10px; border: 0; background: transparent; border-radius: 2px; font-size: 11.5px; color: var(--muted); }
+.wc-switch button[aria-pressed="true"] { background: var(--nav-2); color: var(--nav-text); }
+
+.wc-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.wc-chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 11.5px; }
+.wc-chip:hover { border-color: var(--line-strong); color: var(--ink); }
+.wc-chip .n { font-family: var(--mono); font-size: 10.5px; color: var(--quiet); }
+.wc-chip.on { background: var(--nav-2); border-color: var(--nav-2); color: var(--nav-text); }
+.wc-chip.on .n { color: var(--nav-text); opacity: .8; }
+.wc-chip--clear { border-style: dashed; }
+
+.wc-group { position: sticky; top: 0; z-index: 1; padding: 6px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.wc-group h3 { font-size: 10.5px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--quiet); }
+.wc-none { padding: 10px 12px; font-size: 12px; color: var(--quiet); border-bottom: 1px solid var(--line); }
+
+.wc-due { font-weight: 600; color: var(--ink); }
+.wc-due--overdue { color: var(--red); }
+.wc-due--today { color: var(--amber-ink, var(--ink)); }
+.row-button .side .wc-due { font-size: 12px; }
+
+.wc-divider { display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.wc-divider span { font-size: 10.5px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--quiet); white-space: nowrap; }
+.wc-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+.wc-failed { font-size: 12px; color: var(--muted); margin-right: 8px; }
+.wc-range { font-size: 11px; color: var(--quiet); }
+
+.bell-wrap { position: relative; display: inline-flex; }
+.bell-count { position: absolute; top: -2px; right: -2px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px; background: var(--red); color: #fff; font: 600 9.5px/15px var(--font); text-align: center; pointer-events: none; }
+
+
+/* ---- lane_intake.css */
+/* ---- Lane intake ---- */
+
+/* The Intake log row detail is a drawer, not a page. */
+.dialog-backdrop:has(.dialog--drawer) { place-items: stretch end; padding: 0; }
+.dialog--drawer { width: min(560px, 100%); max-height: 100vh; height: 100vh; border-radius: 0; box-shadow: -12px 0 32px rgba(16, 24, 32, .18); }
+.dialog--drawer .dialog-form { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.dialog--drawer .dialog-body { flex: 1; min-height: 0; overflow: auto; align-content: start; }
+.dialog--drawer .dialog-foot { flex-wrap: wrap; gap: 6px; }
+
+/* Head-line counts on the Intake log */
+.metric-strip--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.intake-counts { margin-bottom: var(--gap); }
+.intake-counts .metric .value { font-size: 22px; }
+
+/* The Item column opens the retained original in the viewer */
+.link-button { background: none; border: 0; padding: 0; font: inherit; color: var(--link, var(--navy)); text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.link-button:hover { text-decoration: none; }
+
+/* Where a seeded value came from */
+.source-line { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); }
+
+/* The Unidentified record's registration readings sit as cards like the rest */
+.record-body > .panel + .panel { margin-top: var(--gap); }
+
+
+/* ---- lane_inbox.css */
+/* ---- lane inbox: message rows with Dismiss, upload group confirmation ---- */
+.mail-row { position: relative; }
+.mail-row .row-button { padding-right: 44px; }
+.mail-row-actions { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px; opacity: .45; }
+.mail-row:hover .mail-row-actions,
+.mail-row:focus-within .mail-row-actions { opacity: 1; }
+.mail-row--unread .row-button .title { font-weight: 700; }
+.mail-row--unread .row-button .sub { color: var(--ink); }
+
+.file-row--member { grid-template-columns: 24px 1fr 150px auto; }
+.upload-group { display: grid; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.upload-group .definition-list { margin: 0; }
+
 </style>
 </head>
 <body>
@@ -1663,16 +1740,16 @@ function queueItems(tabKey) {
   if (!tab) return [];
   if (tab.key === 'triage') return DATA.triage.filter(t => !['completed', 'cancelled'].includes(t.state));
   if (tab.key === 'awaiting') return DATA.imageCases.filter(i => i.state === 'awaiting');
-  if (tab.key === 'unidentified') return DATA.unidentified.filter(u => u.state === 'open');
+  if (tab.key === 'unidentified') return DATA.unidentified.filter(u => (S.unidView === 'closed' ? u.state !== 'open' : u.state === 'open'));
   return DATA.cases.filter(c => c.state === tab.state);
 }
-function queueCount(tabKey) { return queueItems(tabKey).length; }
+function queueCount(tabKey) { return tabKey === 'unidentified' ? DATA.unidentified.filter(u => u.state === 'open').length : queueItems(tabKey).length; }
 function railCounts() {
   return {
     inbox: DATA.mail.filter(m => !m.read && m.folder === 'Inbox').length,
     cases: QUEUE_TABS.filter(t => t.key !== 'complete').reduce((n, t) => n + queueCount(t.key), 0),
     awaiting: queueCount('awaiting'),
-    operations: DATA.aiJobs.filter(j => j.state === 'draft_ready').length + DATA.externalWork.filter(w => w.canRetry).length,
+    operations: DATA.externalWork.filter(w => w.canRetry).length,
   };
 }
 function blockedCount() { return DATA.blocked.length; }
@@ -2124,7 +2201,7 @@ function renderInbox(params) {
         <div class="filter-bar">
           ${field('Mailbox', select('inbox-mailbox', DATA.mailboxes.filter(m => m.state === 'approved').map(m => [m.address, m.address]), S.inbox.mailbox, { blank: 'All Mailboxes', data: { change: 'inbox-filter' }, name: 'mailbox' }), { id: 'inbox-mailbox' })}
           ${field('Folder', select('inbox-folder', [['Inbox', 'Inbox'], ['Sent Items', 'Sent Items'], ['Deleted Items', 'Deleted Items']], S.inbox.folder, { blank: null, data: { change: 'inbox-filter' }, name: 'folder' }), { id: 'inbox-folder' })}
-          ${field('Queue', select('inbox-queue', Object.entries(L.mailClass).map(([k, v]) => [k, v.label]), S.inbox.queue, { blank: 'All emails', data: { change: 'inbox-filter' }, name: 'queue' }), { id: 'inbox-queue' })}
+          ${field('Category', select('inbox-queue', Object.entries(L.mailClass).map(([k, v]) => [k, v.label]), S.inbox.queue, { blank: 'All categories', data: { change: 'inbox-filter' }, name: 'queue' }), { id: 'inbox-queue' })}
           <div class="field" style="flex:1;min-width:160px"><label for="inbox-search">Search</label><input id="inbox-search" type="search" value="${attr(S.inbox.search)}" data-keydown="inbox-search" placeholder="Subject, sender, reference"></div>
           ${btn('Search', 'inbox-search', { kind: 'dark' })}
         </div>
@@ -2323,7 +2400,7 @@ function renderCases(params) {
       <section class="pane" aria-label="Queues"><header class="pane-head"><h2>Workflow</h2></header><div class="scope-list">${groups.map(g => `<div class="scope-group">${esc(g)}</div>${QUEUE_TABS.filter(t => t.group === g).map(t => `<a class="scope-button" href="#/cases?tab=${t.key}" aria-current="${tab.key === t.key}">${icon(t.key === 'triage' ? 'file-text' : t.key === 'awaiting' ? 'image' : t.key === 'unidentified' ? 'alert-triangle' : t.key === 'held' ? 'pause' : t.key === 'complete' ? 'check' : t.key === 'review' ? 'check-circle' : t.key === 'with-engineer' ? 'user' : 'clock')}<span>${esc(t.label)}</span><span class="count">${queueCount(t.key)}</span></a>`).join('')}`).join('')}</div></section>
       <section class="pane" aria-labelledby="queue-h">
         ${isCase ? `<div class="filter-bar">${field('Principal', select('q-principal', DATA.principals.filter(p => p.state === 'active' && p.code).map(p => [p.code, p.name]), S.queuePrincipal, { blank: 'All principals', data: { change: 'queue-principal' } }), { id: 'q-principal' })}${tab.key === 'not-ready' ? field('Missing', select('q-missing', [['', 'All'], ['instructions', 'Instructions'], ['images', 'Images'], ['both', 'Both missing']], S.queueMissing, { blank: null, data: { change: 'queue-missing' } }), { id: 'q-missing' }) : ''}</div>` : ''}
-        <header class="pane-head"><h2 id="queue-h">${esc(tab.label)}</h2><span class="meta">${plural(items.length, tab.key === 'triage' ? 'item' : tab.key === 'unidentified' ? 'item' : 'case')}</span></header>
+        ${tab.key === 'unidentified' ? unidentifiedFilterBar() : ''}<header class="pane-head"><h2 id="queue-h">${esc(tab.label)}</h2><span class="meta">${plural(items.length, tab.key === 'triage' ? 'item' : tab.key === 'unidentified' ? 'item' : 'case')}</span></header>
         ${isCase ? caseTable(pageItems, tab) : tab.key === 'triage' ? triageTable(pageItems) : tab.key === 'awaiting' ? awaitingTable(pageItems) : unidentifiedTable(pageItems)}
         <div class="pagination"><span>Page ${S.queuePage} of ${pages} · newest first</span>${btn('Previous', 'queue-page', { small: true, data: { dir: -1 }, disabled: S.queuePage <= 1 })}${btn('Next', 'queue-page', { small: true, data: { dir: 1 }, disabled: S.queuePage >= pages })}</div>
       </section>
@@ -2577,7 +2654,7 @@ function renderOperations() {
   return pageHeader('Operations', '', btn('Refresh', 'refresh', { icon: 'refresh-cw' })) +
     (partial ? `<div class="notice notice--warning">${icon('alert-triangle')}<div><strong>Partial data</strong> Some figures may be behind. ${btn('Service health', 'go', { small: true, data: { route: '/admin/health' } })}</div></div>` : '') +
     panel('AI Job List', table([{ label: 'Job' }, { label: 'Record' }, { label: 'Started by' }, { label: 'Created' }, { label: 'State' }, { label: '' }], DATA.aiJobs.map(j => ({ cells: [`<strong>${esc(L.aiKind[j.kind])}</strong><br><small class="muted">${esc(j.detail)}</small>`, j.caseRef ? `<a class="mono" href="#/cases/${DATA.cases.find(c => c.ref === j.caseRef)?.id}">${esc(j.record)}</a>` : `<span class="mono">${esc(j.record)}</span>`, `<span class="mono">${esc(j.startedBy)}</span>`, esc(j.created), chipFor(L.aiState, j.state), `<div class="row-actions">${aiJobActions(j)}</div>`] }))), { meta: plural(DATA.aiJobs.length, 'job'), actions: btn('Send Unidentified to AI', 'open-dialog', { kind: 'dark', small: true, icon: 'sparkles', data: { dialog: 'send-unidentified' } }), tight: true }) +
-    panel('Attention required', table([{ label: 'Case' }, { label: 'Work' }, { label: 'Item' }, { label: 'Attempts' }, { label: 'Failure' }, { label: 'Last attempt' }, { label: '' }], DATA.externalWork.map(w => ({ cells: [w.caseRef ? `<a class="mono" href="#/cases/${DATA.cases.find(c => c.ref === w.caseRef)?.id}">${esc(w.caseRef)}</a>` : esc(w.ref), esc(w.work), esc(w.item), String(w.attempts), esc(w.failure), esc(w.last), w.canRetry ? btn('Retry this work', 'retry-work', { small: true, data: { id: w.id } }) : ''] })), { emptyText: 'Nothing waiting' }), { tight: true }) +
+    panel('Attention required', table([{ label: 'Case' }, { label: 'Work' }, { label: 'Item' }, { label: 'Attempts' }, { label: 'Failure' }, { label: 'Last attempt' }, { label: '' }], DATA.externalWork.map(w => ({ cells: [w.caseRef ? `<a class="mono" href="#/cases/${DATA.cases.find(c => c.ref === w.caseRef)?.id}">${esc(w.caseRef)}</a>` : esc(w.ref), esc(w.work), esc(w.item), String(w.attempts), esc(w.failure), esc(w.last), workAction(w)] })), { emptyText: 'Nothing waiting' }), { tight: true }) +
     panel('Active upload links', table([{ label: 'Case' }, { label: 'Recipient' }, { label: 'Created' }, { label: 'Last activity' }, { label: 'Files' }, { label: 'Expires' }, { label: 'State' }, { label: '' }], links.filter(l => l.state === 'active' || l.state === 'pending').map(l => ({ cells: [`<a class="mono" href="#/cases/${l.caseId}">${esc(l.caseRef)}</a>`, esc(l.recipient), fmtDate(l.created), esc(l.last || 'None'), String(l.accepted), fmtDate(l.expires), chipFor(L.linkState, l.state), btn('Withdraw link', 'open-dialog', { small: true, kind: 'danger', data: { dialog: 'withdraw-link', case: l.caseId, link: l.id } })] })), { emptyText: 'No active links' }), { tight: true }) +
     panel('EVA handoffs', table([{ label: 'Case' }, { label: 'Route' }, { label: 'Engineer' }, { label: 'When' }, { label: 'Result' }], DATA.evaHandoffs.map(x => ({ cells: [`<a class="mono" href="#/cases/${DATA.cases.find(c => c.ref === x.caseRef)?.id}">${esc(x.caseRef)}</a>`, esc(x.route), esc(x.engineer), esc(x.when), chip(x.state, x.state === 'Succeeded' || x.state === 'Downloaded' ? 'green' : x.state === 'Unknown' ? 'amber' : 'red')] }))), { tight: true });
 }
@@ -2935,7 +3012,7 @@ renderAdmin = function (area, params = {}) {
   if (S.user.role !== 'administrator') return pageHeader('Access denied', 'Administration') + panel('Administration', empty('Administration is available to Administrators only.'), { head: false });
   if (area === 'hub' || !ADMIN_AREAS.some(a => a.key === area)) { S.adminArea = 'hub'; return pageHeader('Administration', '') + `<div class="admin-layout">${adminNav('')}<div class="admin-content">${adminHub()}</div></div>`; }
   const a = ADMIN_AREAS.find(x => x.key === area); S.adminArea = a.key;
-  const content = ({ accounts: adminAccounts, contacts: adminContacts, configuration: adminConfiguration, mail: adminMail, 'valuation-presets': adminValuationPresets, health: adminServiceHealth, 'action-logs': adminActionLogs, reports: adminReports, 'ai-jobs': adminAiJobs, automation: adminAutomation })[a.key]();
+  const content = ({ accounts: adminAccounts, contacts: adminContacts, configuration: adminConfiguration, mail: adminMail, 'valuation-presets': adminValuationPresets, health: adminServiceHealth, logs: adminLogs, reports: adminReports, 'ai-jobs': adminAiJobs, automation: adminAutomation })[a.key]();
   const primary = ({ accounts: btn('Create staff account', 'open-dialog', { kind: 'primary', icon: 'plus', data: { dialog: 'account-create' } }) })[a.key] || '';
   return pageHeader(a.label, 'Administration', `${primary}${btn('Refresh', 'refresh', { icon: 'refresh-cw' })}`) + `<div class="admin-layout">${adminNav(a.key)}<div class="admin-content">${content}</div></div>`;
 };
@@ -3309,7 +3386,7 @@ renderImageRecord = function (id) {
   return pageHeader(ic.ref, 'Image-initiated Case', btn('Back to Cases', '', { href: awaiting ? '#/cases?tab=awaiting' : '#/cases', icon: 'arrow-right' }) + btn('Refresh', 'refresh', { small: true, icon: 'refresh-cw' })) +
     `<div class="record">
       <div class="record-ribbon">${ribbon([['Image reference', `<span class="mono">${esc(ic.ref)}</span>`], ['Registration', `<span class="mono">${esc(ic.reg)}</span>`], ['Registered', fmtDateTime(ic.received, ic.time)], ['Images', String(ic.images.length)], ['Principal', esc(ic.principal || NOT_KNOWN)], ['State', chipFor(L.imageCase, ic.state)]])}</div>
-      <div class="record-bar">${btn('View received item', 'go', { icon: 'folder-open', data: { route: `/intake/${ic.receiptId}` } })}${tri ? btn('Open Triage', 'go', { icon: 'arrow-right', data: { route: `/triage/${tri.id}` } }) : ''}${awaiting ? btn('Merge Case', 'go', { kind: 'primary', icon: 'arrow-right', data: { route: `/intake/${ic.receiptId}` } }) : ''}
+      <div class="record-bar">${ic.images.length ? openFileBtn(ic.images[0]) : ''}${openMessageBtn(receiptMailId(ic.receiptId))}${tri ? btn('Open Triage', 'go', { icon: 'arrow-right', data: { route: `/triage/${tri.id}` } }) : ''}${awaiting ? btn('Merge Case', 'open-dialog', { kind: 'primary', icon: 'arrow-right', data: { dialog: 'image-merge', id: ic.id } }) : ''}
         ${editBar('image', id, { label: 'Edit record', whileEditing: awaiting ? btn('Close with reason', 'open-dialog', { kind: 'danger', icon: 'archive', data: { dialog: 'image-close', id } }) : '' })}</div>
       <div class="record-body">
         <div class="grid-2">
@@ -3328,7 +3405,7 @@ ACTIONS['image-principal-save'] = (el, e, form) => { const ic = byId(DATA.imageC
 DIALOGS['image-close'] = ({ id }) => reasonDialog('Close Image-initiated Case', 'image-close-save', { id }, { kind: 'danger', primary: 'Close with reason', consequence: 'Use only when formal instructions will not arrive; the record becomes read-only.' });
 ACTIONS['image-close-save'] = el => { const ic = byId(DATA.imageCases, el.dataset.id); const reason = readReason(); if (!reason) return; ic.state = 'closed'; ic.closureReason = reason; delete S.editing.image; ic.history.unshift(h(TODAY, nowTime(), S.user.username, `Staff-closed · ${reason}`)); closeDialog(); render(); };
 awaitingTable = function (items) { return table([{ label: 'Image reference' }, { label: 'Registration' }, { label: 'Vehicle' }, { label: 'Principal' }, { label: 'Received' }, { label: 'Images' }, { label: 'Source' }], items.map(i => ({ cls: i.id === S.selectedCase ? 'selected' : '', attrs: ` data-action="select-case" data-id="${i.id}" tabindex="0" style="cursor:pointer"`, cells: [`<a href="#/images/${i.id}" class="mono"><strong>${esc(i.ref)}</strong></a>`, `<span class="mono">${esc(i.reg)}</span>`, esc(i.vehicle || '—'), esc(i.principal || NOT_KNOWN), `<span class="nowrap">${fmtDate(i.received)}</span>`, String(i.images.length), esc(i.source.split(' · ')[0])] })), { emptyText: 'No images awaiting an instruction' }); };
-awaitingQuick = function (i) { return `<div class="stack">${factGrid([fact('Image reference', `<span class="mono">${esc(i.ref)}</span>`), fact('Registration', `<span class="mono">${esc(i.reg)}</span>`), fact('Vehicle', esc(i.vehicle || '')), fact('Principal', esc(i.principal || NOT_KNOWN)), fact('State', chipFor(L.imageCase, i.state)), fact('Images', String(i.images.length)), fact('Received', fmtDateTime(i.received, i.time))])}${definitionList([['Source', esc(i.source)], ['Registration read', i.vrm.result === 'suggestion' ? esc(i.vrm.value) : 'No readable result']])}<div class="cluster">${btn('Merge Case', 'go', { small: true, kind: 'dark', data: { route: `/intake/${i.receiptId}` } })}${btn('View received item', 'go', { small: true, data: { route: `/intake/${i.receiptId}` } })}</div></div>`; };
+awaitingQuick = function (i) { return `<div class="stack">${factGrid([fact('Image reference', `<span class="mono">${esc(i.ref)}</span>`), fact('Registration', `<span class="mono">${esc(i.reg)}</span>`), fact('Vehicle', esc(i.vehicle || '')), fact('Principal', esc(i.principal || NOT_KNOWN)), fact('State', chipFor(L.imageCase, i.state)), fact('Images', String(i.images.length)), fact('Received', fmtDateTime(i.received, i.time))])}${definitionList([['Source', esc(i.source)], ['Registration read', i.vrm.result === 'suggestion' ? esc(i.vrm.value) : 'No readable result']])}<div class="cluster">${btn('Merge Case', 'go', { small: true, kind: 'dark', data: { route: `/images/${i.id}` } })}${i.images.length ? openFileBtn(i.images[0], { small: true }) : ''}${openMessageBtn(receiptMailId(i.receiptId), { small: true })}</div></div>`; };
 
 // ---- Triage record (Pages/Triage/Details) ----
 function triageRef(t) { return t.ref || t.reg; }
@@ -3354,7 +3431,7 @@ renderTriage = function (id) {
           ${panel(correction ? 'Post-send correction' : 'Determinations', `${findingForm}${mutable ? `<div class="cluster">${['open', 'finding'].includes(t.state) ? btn('Await information', 'open-dialog', { icon: 'clock', data: { dialog: 'triage-await', id } }) : ''}${canComplete ? btn('Complete Triage', 'open-dialog', { icon: 'check', data: { dialog: 'triage-complete', id } }) : btn('Complete Triage', '', { condition: 'Available once a finding is recorded' })}${btn('Cancel Triage', 'open-dialog', { kind: 'danger', icon: 'x', data: { dialog: 'triage-cancel', id } })}</div>` : `<div class="cluster">${btn('Reopen', 'open-dialog', { icon: 'play', data: { dialog: 'triage-reopen', id } })}</div>`}`)}
           ${panel('Source', `${definitionList([['Triage reference', esc(triageRef(t))], ['Registration', `<span class="mono">${esc(t.reg)}</span>`], ['Principal', esc(t.principal || NOT_KNOWN)], ['Material', L.channel[r?.channel || 'email']], ['Received', fmtDateTime(t.received, t.time)], ['Case link', linked ? `<a href="#/cases/${linked.id}">Open the case</a>` : 'None']])}
             ${unavailable ? notice(unavailable, 'warning') : mutable ? `<div class="cluster">${linked ? btn('Unlink case', 'open-dialog', { icon: 'x', data: { dialog: 'triage-unlink', id } }) : btn('Link case', 'open-dialog', { icon: 'link', data: { dialog: 'triage-link', id } })}</div>` : ''}
-            <div class="cluster">${btn(sourceIsEmail ? 'View email' : 'View file', 'go', { icon: 'eye', data: { route: `/intake/${t.receiptId}` } })}${btn('Set principal', 'open-dialog', { icon: 'shield', data: { dialog: 'triage-principal', id } })}</div>`)}
+            <div class="cluster">${sourceIsEmail ? openMessageBtn(receiptMailId(t.receiptId)) : openFileBtn((t.sources || [])[0] || '')}${btn('Set principal', 'open-dialog', { icon: 'shield', data: { dialog: 'triage-principal', id } })}</div>`)}
         </div>
         ${t.images.length ? panel('Vehicle images', galleryOf(t.images), { meta: plural(t.images.length, 'image') }) : ''}
         ${(t.responseEvidence.length || (mutable && t.responseCandidates.length)) ? panel('Exact response evidence', `${t.responseEvidence.length ? `${timeline(t.responseEvidence.map(ev => ({ title: esc(ev.at), text: esc(ev.reason) })))}${mutable ? `<div class="cluster">${btn('Unlink response', 'open-dialog', { icon: 'x', data: { dialog: 'triage-unlink-response', id, evidence: t.responseEvidence[0].id } })}</div>` : ''}` : ''}
@@ -3433,9 +3510,9 @@ renderMessage = function (id) {
   const tabs = [['message', 'Message'], ['attachments', `Attachments (${m.attachments.length})`], ['thread', 'Thread'], ['case', 'Case']];
   let body = '';
   if (tab === 'message') body = `<div class="panel-body"><p class="mail-preview">${esc(m.body || m.excerpt)}</p></div>`;
-  else if (tab === 'attachments') body = table([{ label: 'File' }, { label: 'Type' }, { label: 'Size' }, { label: 'Storage' }, { label: '' }], m.attachments.map(a => ({ cells: [`<strong>${esc(a.name)}</strong>`, esc(a.type), esc(a.size), chipFor(L.custody, a.custody || 'confirmed'), `<div class="row-actions">${btn('Preview', 'preview-doc', { small: true, data: { name: a.name } })}${btn('Save as', 'save-as', { small: true, data: { name: a.name } })}</div>`] })), { emptyText: 'No attachments' });
+  else if (tab === 'attachments') body = table([{ label: 'File' }, { label: 'Type' }, { label: 'Size' }, { label: 'Outcome' }, { label: 'Storage' }, { label: '' }], m.attachments.map(a => ({ cells: [`<strong>${esc(a.name)}</strong>`, esc(a.type), esc(a.size), attachmentOutcome(m, a), chipFor(L.custody, a.custody || 'confirmed'), `<div class="row-actions">${btn('Open file', 'preview-doc', { small: true, data: { name: a.name } })}${btn('Save as', 'save-as', { small: true, data: { name: a.name } })}</div>`] })), { emptyText: 'No attachments' });
   else if (tab === 'thread') { const thread = (m.thread || []).map(getMail).filter(Boolean); body = `<div class="panel-body">${thread.length ? thread.map(t => `<div class="thread-item"><strong>${esc(t.from.name)}</strong> <span class="muted">· ${fmtDateTime(t.date, t.time)} · ${esc(t.folder)}</span><p class="mail-preview">${esc(t.excerpt)}</p></div>`).join('') : empty('No other retained message in this conversation')}</div>`; }
-  else body = `<div class="panel-body">${c ? `<div class="stack"><h3 class="decision-head">Linked case</h3>${factGrid([fact('Case/PO', `<span class="mono">${esc(c.ref)}</span>`), fact('Registration', `<span class="mono">${esc(c.reg)}</span>`), fact('Claimant', esc(c.claimant.name)), fact('State', stateChip(c))])}<div class="cluster">${btn('Open Case', 'go', { kind: 'dark', data: { route: `/cases/${c.id}` } })}${btn('Confirm unlink', 'open-dialog', { data: { dialog: 'mail-unlink', mail: m.id } })}${r ? btn('View received item', 'go', { icon: 'folder-open', data: { route: `/intake/${r.id}` } }) : ''}</div></div>` : `<div class="stack">${empty('No Case linked')}<div class="cluster">${btn('Link to a Case', 'open-dialog', { data: { dialog: 'mail-link', mail: m.id }, kind: 'dark' })}${r ? btn('View received item', 'go', { icon: 'folder-open', data: { route: `/intake/${r.id}` } }) : ''}</div></div>`}</div>`;
+  else body = `<div class="panel-body">${c ? `<div class="stack"><h3 class="decision-head">Linked case</h3>${factGrid([fact('Case/PO', `<span class="mono">${esc(c.ref)}</span>`), fact('Registration', `<span class="mono">${esc(c.reg)}</span>`), fact('Claimant', esc(c.claimant.name)), fact('State', stateChip(c))])}<div class="cluster">${btn('Open Case', 'go', { kind: 'dark', data: { route: `/cases/${c.id}` } })}${btn('Confirm unlink', 'open-dialog', { data: { dialog: 'mail-unlink', mail: m.id } })}</div></div>` : `<div class="stack">${empty('No Case linked')}<div class="cluster">${btn('Link to a Case', 'open-dialog', { data: { dialog: 'mail-link', mail: m.id }, kind: 'dark' })}</div></div>`}</div>`;
   const decision = `<div class="decision-card"><h3 class="decision-head">Decision</h3><dl>${[['Classification', chipFor(L.mailClass, m.classification)], ['Destination', esc(m.destination || (c ? `Case ${c.ref}` : m.unidentifiedRef || 'None'))], ['Filed to', esc(m.filed || 'Inbox')], ['Decided', esc(m.decidedBy || 'Automatic')]].map(([k, v]) => `<div class="decision-row"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
     <div class="cluster">${btn('Correct classification', 'open-dialog', { small: true, kind: 'dark', data: { dialog: 'mail-classify', mail: m.id } })}${m.folderSuggestion && m.filed !== m.folderSuggestion ? btn(`Move to ${m.folderSuggestion}`, 'open-dialog', { small: true, data: { dialog: 'mail-move', mail: m.id } }) : ''}</div>
     ${m.corrections?.length ? `<div><h3 class="decision-head">Corrections</h3>${m.corrections.map(x => `<div class="thread-item" style="font-size:12.5px"><strong>${esc(x.who)}</strong> · ${esc(x.when)}<br>${esc(x.from)} → ${esc(x.to)} · ${esc(x.reason)}</div>`).join('')}</div>` : ''}</div>`;
@@ -3488,14 +3565,14 @@ renderNewCase = function (params) {
   const row = (label, value, word) => `<div class="definition"><dt>${esc(label)}</dt><dd class="${value ? '' : 'quiet'}">${value ? esc(value) : 'Not recorded'} <span class="prov" tabindex="0" role="img" aria-label="${word}" data-word="${word}">${icon(word === 'Extracted' ? 'file-text' : 'user')}</span></dd></div>`;
   const addr = r.address; const audit = r.decision === 'unidentified' && /audit/i.test(r.file);
   return pageHeader(`From ${r.file}`, 'New case', btn('Upload another', '', { href: '#/upload', icon: 'upload' })) +
-    (refusal ? panel('This item cannot become a case', `${notice(refusal, 'danger')}<div class="cluster">${btn('Open the received item', '', { href: `#/intake/${r.id}` })}</div>`)
+    (refusal ? panel('This item cannot become a case', `${notice(refusal, 'danger')}<div class="cluster">${openMessageBtn(r.mailId)}${openFileBtn(r.file)}${btn('Back to Cases', '', { href: '#/cases' })}</div>`)
     : `<form class="stack" data-form="new-case-seeded" novalidate>
-      ${panel('Details', `<dl class="definition-list">${row('Claimant', d.claimant, 'Extracted')}${row('Claim number', d.claimNumber, 'Extracted')}${row('Registration', d.reg, 'Extracted')}${row('Vehicle', [d.make, d.model].filter(Boolean).join(' '), 'Extracted')}${row('Incident date', d.incident ? fmtDate(d.incident) : '', 'Extracted')}${row('Instruction date', d.instruction ? fmtDate(d.instruction) : '', d.instruction ? 'Staff' : 'Extracted')}</dl><details><summary class="btn">Change a value</summary><div class="mt-2">${draftFields(d)}</div></details>`)}
+      ${panel('Details', `<p class="source-line">Suggested from ${esc(r.file)}, read ${fmtDateTime(r.received, r.time)}</p><dl class="definition-list">${row('Claimant', d.claimant, 'Extracted')}${row('Claim number', d.claimNumber, 'Extracted')}${row('Registration', d.reg, 'Extracted')}${row('Vehicle', [d.make, d.model].filter(Boolean).join(' '), 'Extracted')}${row('Incident date', d.incident ? fmtDate(d.incident) : '', 'Extracted')}${row('Instruction date', d.instruction ? fmtDate(d.instruction) : '', d.instruction ? 'Staff' : 'Extracted')}</dl><details><summary class="btn">Change a value</summary><div class="mt-2">${draftFields(d)}</div></details>`)}
       ${panel('Inspection address', r.providerIba ? notice('Image Based Assessment: the inspection address is recorded as “Image Based Assessment”.', 'warning')
         : addr?.resolved ? definitionList([['Inspection address', esc(addr.resolved)], ['Status', L.addressState[addr.state]]])
         : addr?.suggestion ? `${definitionList([['Address found in the document', esc(addr.suggestion.value)], ['Status', L.addressState[addr.state]], ...addr.suggestion.provenance.map(p => ['Extracted from', esc(p)])])}<fieldset class="field"><legend>Inspection address</legend><div class="radio-row"><label class="check"><input type="radio" name="addressChoice" value="found" checked><span>Use the address found</span></label><label class="check"><input type="radio" name="addressChoice" value="entered"><span>Use this address instead</span></label></div></fieldset>${field('Inspection address to use instead', textarea('inspectionAddress', '', { rows: 3 }), { id: 'inspectionAddress' })}`
         : `${notice('Nothing in this file said where the vehicle is.', 'warning')}${addr?.conflict ? definitionList(addr.conflict.map(e => [`Conflicting · ${e.source}`, esc(e.value)])) : ''}${field('Inspection address', textarea('inspectionAddress', '', { rows: 3, required: true }), { id: 'inspectionAddress', required: true })}`)}
-      ${panel('Case', `<div class="form-grid form-grid--2">${field('Confirmed principal code', input('principalCode', d.principal || '', { cls: 'mono' }), { id: 'principalCode' })}${field('Case type', select('caseType', [['inspection', 'Inspection'], ['inspection_audit', 'Inspection and Audit'], ...(audit ? [['audit', 'Audit']] : [])], 'inspection', { blank: null }), { id: 'caseType' })}</div><div class="cluster">${btn('Accept and create case', 'new-case-accept', { kind: 'primary', type: 'submit', data: { id: r.id } })}${btn('Reject proposal', '', { href: `#/intake/${r.id}` })}</div>`)}
+      ${panel('Case', `<div class="form-grid form-grid--2">${field('Confirmed principal code', input('principalCode', d.principal || '', { cls: 'mono' }), { id: 'principalCode' })}${field('Case type', select('caseType', [['inspection', 'Inspection'], ['inspection_audit', 'Inspection and Audit'], ...(audit ? [['audit', 'Audit']] : [])], 'inspection', { blank: null }), { id: 'caseType' })}</div><div class="cluster">${btn('Accept and create case', 'new-case-accept', { kind: 'primary', type: 'submit', data: { id: r.id } })}${btn('Cancel', '', { href: '#/cases' })}</div>`)}
     </form>`);
 };
 ACTIONS['new-case-create'] = (el, e, form) => {
@@ -3673,8 +3750,6 @@ ACTIONS['mock-newcase-receipt'] = el => { S.newCaseDraft = null; go(el.dataset.r
 
 const pageMockRowBase = pageMockRow;
 pageMockRow = function (path) {
-  const im = path.match(/^\/intake\/([^/]+)$/);
-  if (im) return mockRow('Received file', INTAKE_STRIP.map(([rid, label]) => mockBtn(label, rid === im[1], 'go', { route: `/intake/${rid}` })).join(''));
   const sm = path.match(/^\/cases\/([^/]+)\/suggestions$/);
   if (sm) { const st = S.suggest[sm[1]] || {}; const any = Object.keys(st).some(k => st[k] === 'accept' || st[k] === 'amend'); return mockRow('Suggestions', mockBtn('Nothing accepted', !any, 'mock-suggest', { id: sm[1], mode: 'none' }) + mockBtn('Three decided', any, 'mock-suggest', { id: sm[1], mode: 'some' })); }
   if (path === '/connect/authorize') { const k = DATA.connector; return mockRow('Consent', mockBtn('Undecided', !k.decided, 'mock-connect', { decision: '' }) + mockBtn('Authorised', k.decided === 'accept', 'mock-connect', { decision: 'accept' }) + mockBtn('Refused', k.decided === 'deny', 'mock-connect', { decision: 'deny' })); }
@@ -3693,9 +3768,1104 @@ const renderMockReplicaBase = renderMock;
 renderMock = function (path) {
   renderMockReplicaBase(path);
   const el = document.getElementById('mock'); if (!el) return;
-  el.insertAdjacentHTML('beforeend', mockRow('Replica routes', mockBtn('Received file', /^\/intake\//.test(path), 'go', { route: '/intake/r1' }) + mockBtn('Image record', /^\/images\//.test(path), 'go', { route: '/images/ic1' }) + mockBtn('AI suggestions', /suggestions$/.test(path), 'go', { route: '/cases/c99/suggestions' }) + mockBtn('Connector consent', path === '/connect/authorize', 'go', { route: '/connect/authorize' })));
+  el.insertAdjacentHTML('beforeend', mockRow('Replica routes', mockBtn('Image record', /^\/images\//.test(path), 'go', { route: '/images/ic1' }) + mockBtn('AI suggestions', /suggestions$/.test(path), 'go', { route: '/cases/c99/suggestions' }) + mockBtn('Connector consent', path === '/connect/authorize', 'go', { route: '/connect/authorize' })));
 };
 Object.assign(window.__pegasus, { get pageMockRow() { return pageMockRow; }, get renderIntake() { return renderIntake; }, get renderSuggestions() { return renderSuggestions; }, get renderAuthorize() { return renderAuthorize; }, INTAKE_STRIP, SUGGESTIONS, getReceipt, byId, go, toast, INPUTS, KEYDOWNS, AFTER_RENDER });
+
+
+// ---- lane_wc.js
+/* ================= lane wc: Work Centre, notifications, workflow settings =================
+   Work Centre D1-D10 (work-centre/how-it-should-work.md), the bell (dialogs/notifications),
+   and the due targets on Administration > Configuration. */
+
+// ---- The workflow settings the due instants are computed from (shared contract) ----
+DATA.workflow = Object.assign({ chaseIntervalDays: 7, unidentifiedTargetDays: 0, triageTargetDays: 1, heldTargetDays: 7, reviewTargetDays: 1, aiDraftTargetDays: 1 }, DATA.workflow || {});
+const WORKFLOW_SETTINGS = [
+  ['chaseIntervalDays', 'Chase interval', 1, 365],
+  ['unidentifiedTargetDays', 'Unidentified target', 0, 365],
+  ['triageTargetDays', 'Triage target', 0, 365],
+  ['heldTargetDays', 'Held decision target', 0, 365],
+  ['reviewTargetDays', 'Review target', 0, 365],
+  ['aiDraftTargetDays', 'AI draft target', 0, 365],
+];
+
+function wcRead(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch { return d; } }
+function wcWrite(k, v) { try { localStorage.setItem(k, v); } catch {} }
+
+// ---- Fixtures: chase points, arrival, held review dates, enough work that page 2 exists ----
+const WC_ARRIVALS = { manual: 'Manual', email: 'E-mail', api: 'Provider API', automation: 'Automation' };
+DATA.cases.forEach((c, i) => {
+  if (c.lastChase === undefined) c.lastChase = addDays(TODAY, -((i * 3) % 11));
+  if (c.heldOn === undefined && c.state === 'held') c.heldOn = addDays(c.received, 3);
+  if (c.arrival === undefined) c.arrival = c.origin === 'image' ? 'email' : ['manual', 'email', 'api', 'automation'][i % 4];
+  if (c.createdAt === undefined) c.createdAt = `${c.received} ${['08:12', '09:31', '11:48', '14:05', '16:22'][i % 5]}`;
+  if (c.reviewFrom === undefined && c.state === 'review') c.reviewFrom = addDays(TODAY, -1);
+});
+{
+  const names = ['Mr J Okafor', 'Mrs H Pritchard', 'Ms R Kaur', 'Mr D Whitfield', 'Miss S Enright', 'Mr T Bhatti', 'Mrs C Dolan', 'Mr P Nwachukwu', 'Ms K Iremonger', 'Mr A Sandhu'];
+  const regs = ['AB12 CDE', 'YD19 KLM', 'SN70 TRV', 'MK66 HGP', 'LV21 WZD', 'RE18 BNF', 'OU72 JCX', 'GT15 PDA', 'WB64 MSE', 'HN23 VKQ'];
+  const makes = ['Ford Focus', 'Vauxhall Corsa', 'BMW 320d', 'Kia Sportage', 'Audi A3', 'Nissan Qashqai', 'Volkswagen Golf', 'Toyota Yaris', 'Mercedes A180', 'Skoda Octavia'];
+  const eng = ['A Patterson', 'Ed Mawdsley', "Neil O'Reilly"];
+  for (let i = 0; i < 40; i++) {
+    const state = ['not_ready', 'review', 'review', 'held', 'with_engineer'][i % 5];
+    const p = ['QDOS', 'PCH', 'AX'][i % 3];
+    const received = addDays(TODAY, -(2 + (i % 19)));
+    const engineer = state === 'review' ? (i % 2 ? eng[i % 3] : null) : state === 'with_engineer' ? eng[i % 3] : null;
+    DATA.cases.push(newCaseRecord({
+      id: `cw${i}`, ref: `${p}262${String(20 + i).padStart(2, '0')}`, principal: p,
+      principalName: DATA.principals.find(x => x.code === p).name, providerRef: `${p}/47${100 + i}/1`,
+      reg: regs[i % 10],
+      claimant: { name: names[i % 10], phone: '', email: '', address: '' },
+      vehicle: { make: makes[i % 10].split(' ')[0], model: makes[i % 10].split(' ').slice(1).join(' ') },
+      state, received, instructionDate: received, due: addDays(TODAY, (i % 11) - 3), engineer, signoff: engineer,
+      lastChase: addDays(TODAY, -((i * 5) % 13)),
+      heldOn: state === 'held' ? addDays(TODAY, -(3 + (i % 9))) : undefined,
+      heldReason: state === 'held' ? ['Awaiting original Engineer report', 'Provider considering cancellation', 'Claimant unreachable'][i % 3] : null,
+      reviewFrom: state === 'review' ? addDays(TODAY, -(i % 4)) : undefined,
+      arrival: ['manual', 'email', 'api', 'automation'][i % 4],
+      createdAt: `${received} ${['08:12', '10:04', '13:26', '15:47'][i % 4]}`,
+      requirements: state === 'not_ready' ? { instructionComplete: i % 2 === 0, imagesComplete: i % 2 === 1, instructionReviewed: false, imagesReviewed: false } : { instructionComplete: true, imagesComplete: true, instructionReviewed: true, imagesReviewed: true },
+      blockers: state === 'not_ready' ? [{ name: i % 2 ? 'Vehicle images outstanding' : 'Instruction incomplete', source: 'Requirements', why: i % 2 ? 'No damage close-up is recorded' : 'No claimant contact is recorded', resolve: 'Open Case', section: 'overview' }] : [],
+      nextAction: state === 'review' ? 'Assign an Engineer' : '',
+    }));
+  }
+}
+// AI jobs: the office's unfinished work the AI jobs section shows.
+DATA.aiJobs.forEach(j => { if (j.leaseExpires === undefined) j.leaseExpires = null; });
+{ const f = byId(DATA.aiJobs, 'ai4'); if (f) Object.assign(f, { reason: 'The client returned no result before the lease expired', caseRef: '' }); }
+{ const a = byId(DATA.aiJobs, 'ai1'); if (a) a.draftAt = `${YESTERDAY} 13:12`; }
+{ const a = byId(DATA.aiJobs, 'ai2'); if (a) a.draftAt = `${YESTERDAY} 16:40`; }
+DATA.aiJobs.push(
+  { id: 'ai6', kind: 'estimate', record: 'QDOS26008', detail: 'MF25 VRE · Toyota RAV4 · rear quarter and tailgate', startedBy: 'e.mawdsley', created: `${TODAY} 14:05`, state: 'queued', caseRef: 'QDOS26008', leaseExpires: null },
+  { id: 'ai7', kind: 'query', record: 'QDOS261786', detail: 'SD74CXS · repair-method challenge', startedBy: 'a.patterson', created: `${TODAY} 13:55`, state: 'taken', caseRef: 'QDOS261786', leaseExpires: `${TODAY} 15:25` },
+  { id: 'ai8', kind: 'unidentified', record: 'U34', detail: 't12fog estimate · proposed destination', startedBy: 'alex.mercer', created: `${YESTERDAY} 10:20`, state: 'draft_ready', draftAt: `${YESTERDAY} 10:52`, caseRef: '', leaseExpires: null },
+  { id: 'ai9', kind: 'queue_pass', record: 'Unidentified queue', detail: '4 items examined', startedBy: 'SYSTEM', created: `${TODAY} 06:00`, state: 'draft_ready', draftAt: `${TODAY} 06:41`, caseRef: '', leaseExpires: null },
+  { id: 'ai10', kind: 'market', record: 'PCH26004', detail: 'VN71ULZ · comparable retail adverts', startedBy: 'a.patterson', created: `${TODAY} 09:10`, state: 'draft_ready', draftAt: `${TODAY} 09:44`, caseRef: 'PCH26004', leaseExpires: null },
+  { id: 'ai11', kind: 'estimate', record: 'QDOS26006', detail: 'PE69 YGD · nearside front', startedBy: 'n.oreilly', created: '2026-08-31 11:20', state: 'failed', reason: 'The client refused the job: the estimate lines could not be read', caseRef: 'QDOS26006', leaseExpires: null },
+);
+// Changes the Automation actor made to Cases that already existed (D8).
+DATA.automationChanges = [
+  { id: 'ac1', caseId: 'c3', what: 'Inspection address updated from the provider', when: `${TODAY} 11:12` },
+  { id: 'ac2', caseId: 'c99', what: 'Provider reference corrected', when: `${YESTERDAY} 15:30` },
+  { id: 'ac3', caseId: 'cw1', what: 'Repairer contact added from the instruction', when: `${YESTERDAY} 09:05` },
+];
+// Personal notifications (D10). Anything the Case record wrote is merged from localStorage.
+DATA.notifications = [
+  { id: 'n1', to: 'a.patterson', ref: 'PCH26004', reg: 'VN71ULZ', cause: 'Estimate draft ready', when: `${TODAY} 13:40`, read: false, route: '#/cases/c1?section=estimate' },
+  { id: 'n2', to: 'a.patterson', ref: 'QDOS26214', reg: 'MA59BDY', cause: 'E-mail received', when: `${TODAY} 11:05`, read: false, route: '#/inbox/m99' },
+  { id: 'n3', to: 'a.patterson', ref: 'QDOS261786', reg: 'SD74CXS', cause: 'Assigned to you', when: `${YESTERDAY} 16:02`, read: true, route: '#/cases/c3' },
+  { id: 'n4', to: 'e.mawdsley', ref: 'QDOS26012', reg: 'L100 YDR', cause: 'Query received', when: `${YESTERDAY} 16:40`, read: false, route: '#/cases/c12' },
+  { id: 'n5', to: 'e.mawdsley', ref: 'QDOS26008', reg: 'MF25 VRE', cause: 'Edited by A Patterson', when: '2026-08-31 09:20', read: true, route: '#/cases/c8' },
+  { id: 'n6', to: 'alex.mercer', ref: 'QDOS26214', reg: 'MA59BDY', cause: 'Assigned to you', when: `${TODAY} 08:55`, read: false, route: '#/cases/c99' },
+];
+
+// ---- Due instants (D3): calendar days, midnight Europe/London ----
+function wcDue(iso, days) { return iso ? addDays(String(iso).slice(0, 10), Number(days) || 0) : null; }
+function wcBand(due) { return !due ? 'later' : due < TODAY ? 'overdue' : due === TODAY ? 'today' : 'later'; }
+function wcDueText(due) {
+  if (!due) return 'No due date';
+  const n = daysBetween(due, TODAY);
+  if (n > 0) return n === 1 ? '1 day overdue' : `${n} days overdue`;
+  if (n === 0) return 'Due today';
+  if (n === -1) return 'Due tomorrow';
+  if (n > -7) return `Due ${DAYS[parseDate(due).getDay()].slice(0, 3)}`;
+  return `Due ${fmtDateShort(due)}`;
+}
+function wcReceivedText(iso) { const n = daysBetween(iso, TODAY); return n == null ? '' : n <= 0 ? 'Received today' : `Received ${n} d ago`; }
+
+const WC_KINDS = [['case', 'Case'], ['held', 'Held'], ['review', 'Review'], ['unassigned', 'Unassigned'], ['unidentified', 'Unidentified'], ['triage', 'Triage'], ['ai', 'AI draft']];
+const WC_KIND_LABEL = Object.fromEntries(WC_KINDS);
+
+function wcStaffName(u) { const s = staffByUsername(u); return s ? s.name : u === 'SYSTEM' ? 'Automation' : u; }
+function wcAiRoute(j) {
+  const c = DATA.cases.find(x => x.ref === j.caseRef);
+  if (j.kind === 'estimate') return c ? `/cases/${c.id}?section=estimate` : '/operations';
+  if (j.kind === 'query') return c ? `/cases/${c.id}?section=files` : '/operations';
+  const u = DATA.unidentified.find(x => x.ref === j.record);
+  return u ? `/unidentified/${u.id}` : '/operations';
+}
+function wcAiAction(j) { return j.kind === 'estimate' ? 'Review estimate' : j.kind === 'query' ? 'Open query' : 'Review'; }
+
+function wcItems() {
+  const w = DATA.workflow, items = [];
+  for (const c of DATA.cases) {
+    if (c.state === 'closed' || c.state === 'complete') continue;
+    const base = { ref: c.ref, reg: c.reg, claimant: c.claimant.name, received: c.received, caseId: c.id, owner: c.engineer || 'No Engineer' };
+    if (c.state === 'review') {
+      const due = wcDue(c.reviewFrom || c.received, w.reviewTargetDays);
+      if (c.engineer) items.push({ ...base, id: `rv-${c.id}`, kind: 'review', title: 'Review Case', due, action: { label: 'Review Case', act: 'go', data: { route: `/cases/${c.id}?section=review` } } });
+      else items.push({ ...base, id: `ue-${c.id}`, kind: 'unassigned', title: 'Assign Engineer', due, action: { label: 'Assign Engineer', act: 'open-dialog', data: { dialog: 'case-assign', id: c.id } }, takeable: 'case' });
+    } else if (c.state === 'held') {
+      const due = c.holdReviewOn || wcDue(c.heldOn || c.received, w.heldTargetDays);
+      items.push({ ...base, id: `hd-${c.id}`, kind: 'held', title: `Held · ${c.heldReason || 'decision required'}`, due, action: { label: 'Open Case', act: 'go', data: { route: `/cases/${c.id}` } } });
+    } else if (c.state === 'not_ready' && c.blockers.length) {
+      items.push({ ...base, id: `ca-${c.id}`, kind: 'case', title: c.blockers[0].name, due: wcDue(c.lastChase || c.received, w.chaseIntervalDays), action: { label: 'Open Case', act: 'go', data: { route: `/cases/${c.id}` } } });
+    } else if (c.state === 'with_engineer' && c.report && c.report.draftGenerated && !c.report.sent) {
+      items.push({ ...base, id: `ca-${c.id}`, kind: 'case', title: 'Report sent evidence outstanding', due: c.due, action: { label: 'Open Case', act: 'go', data: { route: `/cases/${c.id}?section=report` } } });
+    } else if (c.state === 'with_engineer') {
+      const late = c.due && c.due < TODAY;
+      items.push({ ...base, id: `ca-${c.id}`, kind: 'case', title: late ? 'Due date passed' : 'Chase due', due: late ? c.due : wcDue(c.lastChase || c.received, w.chaseIntervalDays), action: { label: 'Open Case', act: 'go', data: { route: `/cases/${c.id}` } } });
+    }
+  }
+  for (const u of DATA.unidentified.filter(x => x.state === 'open')) {
+    items.push({ id: `un-${u.id}`, kind: 'unidentified', title: L.unidentifiedReason[u.reason], ref: u.ref, reg: '', claimant: u.summary, received: u.received, owner: 'No owner', due: wcDue(u.received, w.unidentifiedTargetDays), action: { label: 'Review source', act: 'go', data: { route: `/unidentified/${u.id}` } } });
+  }
+  for (const t of DATA.triage.filter(x => x.state === 'open' || x.state === 'awaiting')) {
+    items.push({ id: `tr-${t.id}`, kind: 'triage', title: t.state === 'awaiting' ? 'Awaiting information' : 'Finding required', ref: t.reg, reg: t.reg, claimant: t.vehicle, received: t.received, owner: t.assignee || 'No Engineer', due: wcDue(t.received, w.triageTargetDays), action: { label: 'Open Triage', act: 'go', data: { route: `/triage/${t.id}` } }, takeable: t.assignee ? '' : 'triage', triageId: t.id });
+  }
+  for (const j of DATA.aiJobs.filter(x => x.state === 'draft_ready' && x.kind !== 'market')) {
+    const c = DATA.cases.find(x => x.ref === j.caseRef);
+    items.push({ id: `ai-${j.id}`, kind: 'ai', title: `${L.aiKind[j.kind]} draft ready`, ref: j.record, reg: c ? c.reg : '', claimant: j.detail, received: String(j.created).slice(0, 10), owner: c && c.engineer ? c.engineer : wcStaffName(j.startedBy), due: wcDue(j.draftAt || j.created, w.aiDraftTargetDays), action: { label: wcAiAction(j), act: 'go', data: { route: wcAiRoute(j) } }, caseId: c ? c.id : null });
+  }
+  return items.sort((a, b) => (a.due ? 0 : 1) - (b.due ? 0 : 1) || String(a.due || '').localeCompare(String(b.due || '')) || String(a.received || '').localeCompare(String(b.received || '')) || String(a.ref).localeCompare(String(b.ref)));
+}
+
+// ---- Office / Mine (P2) ----
+function wcView() { const v = wcRead('v26.wcView', ''); return v === 'mine' || v === 'office' ? v : S.user.role === 'engineer' ? 'mine' : 'office'; }
+function wcIsMine(i) { return i.owner === S.user.name || (!!i.takeable && S.user.role === 'engineer'); }
+function wcVisible() { const all = wcItems(); return wcView() === 'mine' ? all.filter(wcIsMine) : all; }
+function wcFiltered() { const v = wcVisible(); return S.wcKinds.length ? v.filter(i => S.wcKinds.includes(i.kind)) : v; }
+S.wcKinds = [];
+S.wcPage = 1;
+S.wcNewPage = 1;
+S.wcSeen = wcRead('v26.wcSeen', '2026-08-31 12:00');
+
+// ---- The page ----
+renderWorkCentre = function () {
+  const all = wcVisible(), items = wcFiltered();
+  const pages = Math.max(1, Math.ceil(items.length / 50));
+  S.wcPage = clamp(S.wcPage, 1, pages);
+  const page = items.slice((S.wcPage - 1) * 50, S.wcPage * 50);
+  if (!S.selectedWork || !items.find(i => i.id === S.selectedWork)) S.selectedWork = page[0] ? page[0].id : null;
+  const sel = items.find(i => i.id === S.selectedWork) || null;
+  const view = wcView();
+  const groups = [['overdue', 'Overdue', 'Nothing overdue'], ['today', 'Due today', 'Nothing due today'], ['later', 'Later', 'Nothing later']];
+  const list = items.length === 0 ? empty('Nothing needs attention') : groups.map(([k, label, none]) => {
+    const rows = page.filter(i => wcBand(i.due) === k);
+    const total = items.filter(i => wcBand(i.due) === k).length;
+    return `<div class="wc-group"><h3>${esc(label)} (${total})</h3></div>` + (rows.length ? rows.map(wcRow).join('') : `<div class="wc-none">${esc(none)}</div>`);
+  }).join('');
+  return pageHeader('Work Centre', 'Office-wide work', `<span class="wc-updated">Updated ${esc(S.freshnessTime)}</span>${btn('Create Case', '', { href: '#/cases/new', kind: 'primary', icon: 'plus' })}${btn('Refresh', 'refresh', { icon: 'refresh-cw' })}`) +
+    `<div class="metric-strip metric-strip--4">
+      ${metric('Not ready', queueCount('not-ready'), 'amber', '#/cases?tab=not-ready')}
+      ${metric('Review', queueCount('review'), 'navy', '#/cases?tab=review')}
+      ${metric('Held', queueCount('held'), 'amber', '#/cases?tab=held')}
+      ${metric('Unidentified', queueCount('unidentified'), 'amber', '#/cases?tab=unidentified')}
+    </div>
+    <div class="pane-layout pane-layout--2">
+      <section class="pane" aria-labelledby="attention-h">
+        <header class="pane-head"><h2 id="attention-h">Needs attention</h2><span class="meta">${plural(items.length, 'item')}</span>
+          <div class="wc-switch" role="group" aria-label="Scope"><button type="button" data-action="wc-view" data-view="office" aria-pressed="${view === 'office'}">Office</button><button type="button" data-action="wc-view" data-view="mine" aria-pressed="${view === 'mine'}">Mine</button></div>
+        </header>
+        <div class="wc-filters">${WC_KINDS.map(([k, label]) => `<button type="button" class="wc-chip${S.wcKinds.includes(k) ? ' on' : ''}" data-action="wc-kind" data-kind="${k}" aria-pressed="${S.wcKinds.includes(k)}">${esc(label)}<span class="n">${all.filter(i => i.kind === k).length}</span></button>`).join('')}${S.wcKinds.length ? `<button type="button" class="wc-chip wc-chip--clear" data-action="wc-kind" data-kind="">All kinds</button>` : ''}</div>
+        <div class="row-list pane-scroll" role="listbox" aria-label="Needs attention" data-keydown="row-list">${list}</div>
+        <div class="pagination"><span>Page ${S.wcPage} of ${pages} · earliest due first</span>${btn('Previous', 'wc-page', { small: true, data: { dir: -1 }, disabled: S.wcPage <= 1 })}${btn('Next', 'wc-page', { small: true, data: { dir: 1 }, disabled: S.wcPage >= pages })}</div>
+      </section>
+      <section class="pane" aria-labelledby="today-h">
+        <header class="pane-head"><h2 id="today-h">Today</h2><span class="meta">Selected work</span></header>
+        <div class="pane-body">${sel ? wcSelected(sel) : empty('Select an item')}</div>
+      </section>
+    </div>
+    ${wcNewCases()}
+    ${wcAiJobs()}`;
+};
+function wcRow(i) {
+  return `<button type="button" class="row-button" role="option" aria-selected="${i.id === S.selectedWork}" data-action="select-work" data-id="${attr(i.id)}">
+    <span class="title">${esc(i.title)}</span>
+    <span class="sub">${esc(WC_KIND_LABEL[i.kind])} · ${esc(i.ref)}${i.reg && i.reg !== i.ref ? ` · ${esc(i.reg)}` : ''} · ${esc(i.claimant || '')}</span>
+    <span class="side"><span class="wc-due wc-due--${wcBand(i.due)}">${esc(wcDueText(i.due))}</span><span>${esc(i.owner)} · ${esc(wcReceivedText(i.received))}</span></span>
+  </button>`;
+}
+function wcSelected(i) {
+  const band = wcBand(i.due);
+  const take = i.takeable && S.user.role === 'engineer'
+    ? btn('Assign to me', 'wc-assign-me', { data: i.takeable === 'triage' ? { triage: i.triageId } : { case: i.caseId } })
+    : '';
+  return `<div class="stack">
+    <div class="cluster cluster--between cluster--start">
+      <div><p class="eyebrow">${esc(WC_KIND_LABEL[i.kind])} · ${esc(i.ref)}</p><h3 style="font-size:16px">${esc(i.title)}</h3></div>
+      ${band === 'overdue' ? chip(wcDueText(i.due), 'red') : band === 'today' ? chip('Today', 'amber') : ''}
+    </div>
+    ${factGrid([fact('Reference', `<span class="mono">${esc(i.ref)}</span>`), fact('Registration', i.reg ? `<span class="mono">${esc(i.reg)}</span>` : ''), fact('Claimant', esc(i.claimant || '')), fact('Owner', esc(i.owner)), fact('Due', esc(wcDueText(i.due))), fact('Received', esc(wcReceivedText(i.received)))])}
+    <div class="cluster">${btn(i.action.label, i.action.act, { kind: 'dark', icon: 'arrow-right', data: i.action.data })}${take}</div>
+  </div>`;
+}
+ACTIONS['wc-view'] = el => { wcWrite('v26.wcView', el.dataset.view); S.wcPage = 1; render(); };
+ACTIONS['wc-kind'] = el => { const k = el.dataset.kind; S.wcKinds = !k ? [] : S.wcKinds.includes(k) ? S.wcKinds.filter(x => x !== k) : [...S.wcKinds, k]; S.wcPage = 1; render(); };
+ACTIONS['wc-page'] = el => { S.wcPage = clamp(S.wcPage + Number(el.dataset.dir), 1, 999); render(); };
+ACTIONS['wc-assign-me'] = el => {
+  if (el.dataset.triage) { const t = byId(DATA.triage, el.dataset.triage); t.assignee = S.user.name; triageLog(t, 'Assigned', S.user.name); closeDialog(); render(); toast('Assigned to you'); return; }
+  const c = getCase(el.dataset.case); c.engineer = S.user.name; addHistory(c, `Engineer assigned · ${S.user.name}`);
+  DATA.notifications.unshift({ id: uid('n'), to: S.user.username, ref: c.ref, reg: c.reg, cause: 'Assigned to you', when: `${TODAY} ${nowTime()}`, read: false, route: `#/cases/${c.id}` });
+  closeDialog(); render(); toast('Assigned to you');
+};
+
+// ---- New cases, whatever created them (D8) ----
+function wcNewCases() {
+  const from = addDays(TODAY, -7);
+  const rows = DATA.cases.filter(c => String(c.createdAt || '').slice(0, 10) >= from)
+    .map(c => ({ id: c.id, when: c.createdAt, ref: c.ref, reg: c.reg, claimant: c.claimant.name, principal: c.principal, arrival: c.arrival, route: `/cases/${c.id}` }))
+    .concat(DATA.automationChanges.filter(a => String(a.when).slice(0, 10) >= from).map(a => {
+      const c = getCase(a.caseId);
+      return c ? { id: a.id, when: a.when, ref: c.ref, reg: c.reg, claimant: c.claimant.name, principal: c.principal, arrival: 'automation', changed: a.what, route: `/cases/${c.id}` } : null;
+    }).filter(Boolean))
+    .sort((a, b) => String(b.when).localeCompare(String(a.when)));
+  const pages = Math.max(1, Math.ceil(rows.length / 50));
+  S.wcNewPage = clamp(S.wcNewPage, 1, pages);
+  const page = rows.slice((S.wcNewPage - 1) * 50, S.wcNewPage * 50);
+  const fresh = rows.filter(r => String(r.when) > S.wcSeen).length;
+  let divided = false;
+  const body = page.length ? page.map(r => {
+    const line = !divided && fresh && String(r.when) <= S.wcSeen ? (divided = true, '<div class="wc-divider"><span>Since you last looked</span></div>') : '';
+    return line + `<a class="row-button" href="#${attr(r.route)}">
+      <span class="title">${esc(r.ref)}${r.changed ? ' · Changed by automation' : ''}</span>
+      <span class="sub">${esc(r.reg)} · ${esc(r.claimant)} · ${esc(r.principal)}${r.changed ? ` · ${esc(r.changed)}` : ''}</span>
+      <span class="side">${chip(WC_ARRIVALS[r.arrival] || r.arrival, r.arrival === 'automation' ? 'blue' : r.arrival === 'api' ? 'navy' : 'neutral')}<span>${esc(r.when)}</span></span>
+    </a>`;
+  }).join('') : empty('No Case was created in the last 7 days');
+  return panel('New cases', `<div class="row-list">${body}</div><div class="pagination"><span>Page ${S.wcNewPage} of ${pages} · newest first</span>${btn('Previous', 'wc-new-page', { small: true, data: { dir: -1 }, disabled: S.wcNewPage <= 1 })}${btn('Next', 'wc-new-page', { small: true, data: { dir: 1 }, disabled: S.wcNewPage >= pages })}</div>`, { meta: `Last 7 days · ${plural(rows.length, 'row')}`, tight: true });
+}
+ACTIONS['wc-new-page'] = el => { S.wcNewPage = clamp(S.wcNewPage + Number(el.dataset.dir), 1, 999); render(); };
+
+// ---- AI jobs (D9) ----
+function wcAiJobs() {
+  const jobs = DATA.aiJobs.filter(j => ['queued', 'taken', 'draft_ready', 'failed'].includes(j.state) && j.kind !== 'market');
+  const rows = jobs.map(j => {
+    const c = DATA.cases.find(x => x.ref === j.caseRef);
+    const state = j.state === 'taken' && j.leaseExpires ? `${chipFor(L.aiState, j.state)}<br><small class="muted nowrap">Lease expires ${esc(j.leaseExpires)}</small>` : chipFor(L.aiState, j.state);
+    const action = j.state === 'draft_ready'
+      ? `${btn(wcAiAction(j), 'go', { small: true, kind: 'dark', data: { route: wcAiRoute(j) } })}${j.kind === 'query' || j.kind === 'queue_pass' ? btn('Complete job', 'ai-complete', { small: true, data: { id: j.id } }) : ''}`
+      : j.state === 'failed' ? `<span class="wc-failed">${esc(j.reason || 'No reason recorded')}</span>${c ? btn('Open Case', 'go', { small: true, data: { route: `/cases/${c.id}` } }) : ''}` : '';
+    return { cells: [`<strong>${esc(L.aiKind[j.kind])}</strong><br><small class="muted">${esc(j.detail)}</small>`, c ? `<a class="mono" href="#/cases/${c.id}">${esc(j.record)}</a>` : `<span class="mono">${esc(j.record)}</span>`, esc(wcStaffName(j.startedBy)), esc(j.created), state, `<div class="row-actions">${action}</div>`] };
+  });
+  return panel('AI jobs', table([{ label: 'Job' }, { label: 'Record' }, { label: 'Started by' }, { label: 'Created' }, { label: 'State' }, { label: '' }], rows, { emptyText: 'No AI job is waiting' }), { meta: `${jobs.filter(j => j.state === 'draft_ready').length} draft ready · ${jobs.filter(j => j.state === 'failed').length} failed`, tight: true });
+}
+
+// ---- The bell is personal notifications and nothing else (D10) ----
+function wcStored() { try { const v = JSON.parse(localStorage.getItem('v26.notif') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } }
+function wcNotifications() {
+  const kept = addDays(TODAY, -30); // notifications older than 30 days drop off (D10)
+  const mine = DATA.notifications.filter(n => n.to === S.user.username);
+  const ids = new Set(mine.map(n => n.id));
+  return [...mine, ...wcStored().filter(n => n && n.id && !ids.has(n.id))]
+    .filter(n => String(n.when).slice(0, 10) >= kept)
+    .sort((a, b) => String(b.when).localeCompare(String(a.when)));
+}
+function wcUnread() { return wcNotifications().filter(n => !n.read).length; }
+function wcMarkRead(id) {
+  const n = DATA.notifications.find(x => x.id === id);
+  if (n) { n.read = true; return; }
+  const stored = wcStored(); const s = stored.find(x => x && x.id === id);
+  if (s) { s.read = true; try { localStorage.setItem('v26.notif', JSON.stringify(stored)); } catch {} }
+}
+DIALOGS.notifications = () => {
+  const items = wcNotifications();
+  return {
+    title: 'Notifications',
+    body: items.length ? `<div class="row-list">${items.map(n => `<button type="button" class="row-button" data-action="notif-open" data-id="${attr(n.id)}" data-route="${attr(n.route || '')}">
+      <span class="title">${esc(n.cause)}</span>
+      <span class="sub">${esc(n.ref)}${n.reg ? ` · ${esc(n.reg)}` : ''}</span>
+      <span class="side">${n.read ? '' : chip('Unread', 'navy')}<span>${esc(n.when)}</span></span>
+    </button>`).join('')}</div>` : empty('No notifications'),
+    foot: `<div class="left">${items.some(n => !n.read) ? btn('Mark all read', 'notif-read-all') : ''}</div>${btn('Close', 'dialog-close', { kind: 'dark' })}`,
+  };
+};
+ACTIONS['notif-open'] = el => {
+  wcMarkRead(el.dataset.id); closeDialog();
+  const r = el.dataset.route || '';
+  if (!r) { render(); return; }
+  if (/^pegasus_case_workspace/.test(r)) { window.location.href = r; return; }
+  go(r.startsWith('#') ? r.slice(1) : r); render();
+};
+ACTIONS['notif-read-all'] = () => { wcNotifications().forEach(n => wcMarkRead(n.id)); renderDialog(); render(); };
+{
+  const utilityBarWcBase = utilityBar;
+  utilityBar = function () {
+    const n = wcUnread();
+    return utilityBarWcBase().replace(iconButton('bell', 'notifications', 'Notifications'),
+      `<span class="bell-wrap">${iconButton('bell', 'notifications', n ? `Notifications · ${n} unread` : 'Notifications')}${n ? `<span class="bell-count">${n}</span>` : ''}</span>`);
+  };
+}
+
+// ---- The Case's assignment dialog, opened from the Work Centre (P4, P8) ----
+DIALOGS['case-assign'] = ({ id }) => {
+  const c = getCase(id);
+  const engineers = DATA.staff.filter(s => s.role === 'engineer' && s.state === 'enabled').map(s => [s.name, s.name]);
+  return {
+    title: `Assign Engineer · ${c.ref}`, cls: 'dialog--compact',
+    body: `${factGrid([fact('Registration', `<span class="mono">${esc(c.reg)}</span>`), fact('Claimant', esc(c.claimant.name)), fact('Principal', esc(c.principal)), fact('Engineer', esc(c.engineer || ''))])}
+      ${field('Engineer', select('engineer', engineers, c.engineer || '', { blank: 'Choose an Engineer' }), { id: 'engineer', required: true })}
+      ${reasonField()}`,
+    foot: dialogFoot(c.engineer ? 'Reassign' : 'Assign', 'case-assign-save', { data: { id }, left: S.user.role === 'engineer' && c.engineer !== S.user.name ? btn('Assign to me', 'wc-assign-me', { data: { case: c.id } }) : '' }),
+  };
+};
+ACTIONS['case-assign-save'] = (el, e, form) => {
+  const c = getCase(el.dataset.id); const v = formValues(form); const reason = readReason(); if (!reason) return;
+  if (!v.engineer) { toast('Choose an Engineer', 'danger'); return; }
+  c.engineer = v.engineer; addHistory(c, `Engineer assigned · ${v.engineer} · ${reason}`);
+  const s = DATA.staff.find(x => x.name === v.engineer);
+  if (s) DATA.notifications.unshift({ id: uid('n'), to: s.username, ref: c.ref, reg: c.reg, cause: 'Assigned to you', when: `${TODAY} ${nowTime()}`, read: false, route: `#/cases/${c.id}` });
+  closeDialog(); render(); toast(`Assigned to ${v.engineer}`);
+};
+{ // P8 on Triage: the same take-it action on this record's Assign control
+  const triageAssignBase = DIALOGS['triage-assign'];
+  DIALOGS['triage-assign'] = d => {
+    const spec = triageAssignBase(d); const t = byId(DATA.triage, d.id);
+    if (S.user.role === 'engineer' && t.assignee !== S.user.name) spec.foot = `<div class="left">${btn('Assign to me', 'wc-assign-me', { data: { triage: t.id } })}</div>${spec.foot}`;
+    return spec;
+  };
+}
+
+// ---- Administration > Configuration: the six due targets ----
+adminConfiguration = function () {
+  const cfg = DATA.config, w = DATA.workflow, editing = S.editing.workflow === 'workflow';
+  const rules = (items, prefix) => items.map((it, i) => `<div class="rule-row"><span>${esc(it.label)}</span><div class="radio-row"><label class="check"><input type="radio" name="${prefix}-${i}" value="required"${it.required ? ' checked' : ''}><span>Required</span></label><label class="check"><input type="radio" name="${prefix}-${i}" value="optional"${!it.required ? ' checked' : ''}><span>Not required</span></label></div></div>`).join('');
+  const due = editing
+    ? `<form data-form="workflow-targets" novalidate><div class="form-grid form-grid--2">${WORKFLOW_SETTINGS.map(([k, label, min, max]) => field(`${label} (days)`, `<div class="input-suffix" data-suffix="days">${input(k, w[k], { type: 'number', min, max })}</div><span class="wc-range">${min} to ${max}</span>`, { id: k })).join('')}</div>
+        <div class="cluster mt-2" style="justify-content:flex-end">${btn('Cancel', 'edit-cancel', { data: { kind: 'workflow' } })}${btn('Save', 'workflow-save', { kind: 'primary', type: 'submit' })}</div></form>`
+    : definitionList(WORKFLOW_SETTINGS.map(([k, label]) => [label, plural(w[k], 'day')]));
+  return `<div class="stack">
+    ${panel('Case workflow', due, { meta: `Version ${cfg.version}`, actions: editing ? '' : (S.held.workflow === 'workflow' ? btn('Take over', 'edit-start', { kind: 'primary', data: { kind: 'workflow', id: 'workflow', takeover: 1 } }) : btn('Edit', 'edit-start', { kind: 'primary', data: { kind: 'workflow', id: 'workflow' } })) })}
+    <form data-form="config" novalidate class="stack">
+      <div class="config-grid">
+        ${panel('Required before Review · Instructions', rules(cfg.instructionItems, 'ii'))}
+        ${panel('Required before Review · Images', rules(cfg.imageItems, 'im'))}
+        ${panel('Review', `<div class="checks">${check('ri', 'Staff review the instruction before Review', cfg.reviewInstruction)}${check('rm', 'Staff review the images before Review', cfg.reviewImages)}</div>`)}
+      </div>
+      ${panel('Labour-rate cards', table([{ label: 'Name' }, { label: 'Panel and paint (£/hour)' }, { label: 'Enabled' }, { label: '' }], DATA.rateCards.map(r => ({ cells: [`<strong>${esc(r.name)}</strong>`, money(r.rate), r.state === 'active' ? 'Yes' : 'No', `<div class="row-actions">${r.state === 'active' ? btn('Disable', 'open-dialog', { small: true, kind: 'danger', data: { dialog: 'rate-card-disable', id: r.id } }) : ''}</div>`] }))), { actions: btn('Create card', 'open-dialog', { small: true, kind: 'dark', icon: 'plus', data: { dialog: 'rate-card-create' } }), tight: true })}
+      ${panel('Save configuration', `${reasonField()}<div class="cluster mt-2" style="justify-content:flex-end">${btn('Save configuration', 'config-save', { kind: 'primary', type: 'submit' })}</div>`, { head: false })}
+    </form>
+  </div>`;
+};
+ACTIONS['workflow-save'] = (el, e, form) => {
+  const v = formValues(form);
+  for (const [k, label, min, max] of WORKFLOW_SETTINGS) {
+    const n = Number(v[k]);
+    if (!Number.isInteger(n) || n < min || n > max) { toast(`${label} must be a whole number of days between ${min} and ${max}`, 'danger'); return; }
+  }
+  const changed = WORKFLOW_SETTINGS.filter(([k]) => Number(v[k]) !== DATA.workflow[k]).map(([k, label]) => `${label} ${v[k]}`);
+  WORKFLOW_SETTINGS.forEach(([k]) => { DATA.workflow[k] = Number(v[k]); });
+  DATA.config.version += 1; DATA.config.chaseDays = DATA.workflow.chaseIntervalDays;
+  delete S.editing.workflow;
+  DATA.actionLogs.unshift(logEntry('Administration', `Case workflow saved · ${changed.length ? changed.join(', ') : 'no change'}`, `v${DATA.config.version}`));
+  render(); toast('Case workflow saved');
+};
+
+// ---- Mockup strip rows for the Work Centre states ----
+{
+  const pageMockRowWcBase = pageMockRow;
+  pageMockRow = function (path) {
+    if (path !== '/') return pageMockRowWcBase(path);
+    const v = wcView();
+    return mockRow('Work Centre', mockBtn('Office', v === 'office', 'wc-view', { view: 'office' }) + mockBtn('Mine', v === 'mine', 'wc-view', { view: 'mine' }) + '<span class="sep"></span>' + WC_KINDS.map(([k, l]) => mockBtn(l, S.wcKinds.includes(k), 'wc-kind', { kind: k })).join('') + mockBtn('All kinds', !S.wcKinds.length, 'wc-kind', { kind: '' })) +
+      mockRow('New cases', mockBtn('Not looked today', S.wcSeen < TODAY, 'mock-wc-seen', { when: 'old' }) + mockBtn('All seen', S.wcSeen >= TODAY, 'mock-wc-seen', { when: 'now' })) +
+      mockRow('Notifications', mockBtn(`Bell: ${wcUnread()} unread`, wcUnread() > 0, 'mock-wc-notif') + mockBtn('Open bell', false, 'notifications'));
+  };
+}
+ACTIONS['mock-wc-seen'] = el => { S.wcSeen = el.dataset.when === 'now' ? `${TODAY} 23:59` : '2026-08-31 12:00'; wcWrite('v26.wcSeen', S.wcSeen); render(); };
+ACTIONS['mock-wc-notif'] = () => {
+  const items = wcNotifications();
+  if (items.some(n => !n.read)) items.forEach(n => wcMarkRead(n.id));
+  else DATA.notifications.filter(n => n.to === S.user.username).forEach(n => { n.read = false; });
+  render();
+};
+Object.assign(MOCK_DIALOG_ARGS, { 'case-assign': { id: 'c3' } });
+// "Since you last looked" only moves on when this person leaves the Work Centre.
+AFTER_RENDER.push(path => { if (path !== '/') wcWrite('v26.wcSeen', `${TODAY} ${nowTime()}`); });
+
+Object.assign(window.__pegasus, {
+  get wcItems() { return wcItems; }, get wcNotifications() { return wcNotifications; }, get wcUnread() { return wcUnread; },
+  get wcView() { return wcView; }, get wcDueText() { return wcDueText; }, get wcBand() { return wcBand; },
+  get wcVisible() { return wcVisible; }, WORKFLOW_SETTINGS, WC_KINDS,
+});
+
+// ---- The Case record's bell links here with ?notifications=1: open the bell once ----
+AFTER_RENDER.push((path, params) => {
+  if (params && params.notifications === '1' && !S.notifAutoOpened && !S.dialog) { S.notifAutoOpened = true; setTimeout(() => openDialog('notifications'), 0); }
+});
+
+
+// ---- lane_intake.js
+/* ================= Lane intake: the received-file page is gone =================
+   Unidentified widens and carries the material actions; the receipt's history lives
+   in Administration › Logs › Intake log; failed intake processing lives on Operations;
+   message attachments and the upload confirmation say what became of each file. */
+
+// ---- Vocabulary (no Blocked, no decision codes, no "origin receipt") ----
+L.unidentifiedReason.unreadable = 'Could not be read';
+L.unidentifiedReason.technical = 'Processing failed';
+delete L.intakeDecision.blocked;
+delete L.intakeRefusal.blocked;
+L.intakeRefusal.closed = 'This item was closed with its reason recorded, so there is nothing to create a case from.';
+L.intakeRefusal.unreadable = 'This file could not be read, so there is nothing to create a case from.';
+L.intakeRefusal.failed = 'This file failed while it was being processed, so there is nothing to create a case from.';
+L.intakeOutcome = { case_created: 'Case created', unidentified: 'Unidentified', triage: 'Triage', image_registered: 'Vehicle images', unreadable: 'Could not be read', failed: 'Processing failed', closed: 'Closed' };
+L.intakeSourceKind = { email: 'E-mail', upload: 'Upload', api: 'Provider API', automation: 'Automation' };
+
+// ---- Fixtures ----
+// The refused scan is now a closed Unidentified item, not a blocked receipt.
+{
+  const r6 = getReceipt('r6');
+  r6.decision = 'closed';
+  r6.reason = 'Closed with reason: the claim number in the scanned letter (577740) does not match the inspection request form (577704).';
+  r6.unidentifiedId = 'u6';
+  r6.attempts = { processing: 2, allocation: 1 };
+  const r2 = getReceipt('r2');
+  r2.attempts = { processing: 1, allocation: 3 };
+  const senders = { r2: 'rbartlett@qdosassist.co.uk', r4: 'jm@vehicleresolutions.co.uk', r9: 'jmoseley@qdosassist.co.uk', r10: 'jmoseley@qdosassist.co.uk', r11: 'jfleming@qdosassist.co.uk', r12: 'claimsadmin@qdosassist.co.uk' };
+  for (const [id, email] of Object.entries(senders)) { const r = getReceipt(id); if (r) r.sender = email; }
+}
+DATA.intake.push(
+  receipt({
+    id: 'r13', file: '57709_1_LtrtoEngineerIn.pdf', mediaType: 'application/pdf', channel: 'email', received: TODAY, time: '09:31',
+    decision: 'unreadable', reason: 'Could not be read: the pages are scanned images and no text could be read.',
+    unidentifiedId: 'u5', mailId: 'm8', canRegister: true, attempts: { processing: 2, allocation: 0 },
+    failure: { label: 'Could not be read', reason: 'The pages are scanned images and no text could be read.', kind: 'ocr' },
+    assets: [{ name: '57709_1_LtrtoEngineerIn.pdf', source: 'E-mail attachment', kind: 'Source', media: 'application/pdf' }],
+    evidence: [{ source: 'OCR', detail: 'Two attempts; the text layer was empty and recognition returned no characters' }, { source: 'Sender domain', detail: 'qdosassist.co.uk is recorded against Principal QDOS' }],
+  }),
+  receipt({
+    id: 'r14', file: '_EHR103193_Engineers Repair Images_08102724.pdf', mediaType: 'application/pdf', channel: 'email', received: TODAY, time: '11:41',
+    decision: 'failed', reason: 'Processing failed: the document service did not respond.', mailId: 'm4', attempts: { processing: 3, allocation: 0 },
+    failure: { label: 'Processing failed', reason: 'The document service did not respond.', kind: 'processing' },
+    assets: [{ name: '_EHR103193_Engineers Repair Images_08102724.pdf', source: 'E-mail attachment', kind: 'Source', media: 'application/pdf' }],
+    evidence: [{ source: 'Policy', detail: 'Decision taken under inspection-address policy ext18-address v3; v4 is current' }],
+  }),
+);
+DATA.unidentified.push(
+  {
+    id: 'u5', ref: 'U37', reason: 'unreadable', summary: '57709_1_LtrtoEngineerIn.pdf',
+    detail: 'A scanned instruction letter whose pages carry no text layer; recognition returned nothing.',
+    received: TODAY, time: '09:31', kind: 'File', source: { label: 'desk@ · nduncombe@qdosassist.co.uk', mailId: 'm8' },
+    state: 'open', attachments: ['57709_1_LtrtoEngineerIn.pdf'], receiptId: 'r13', canRegister: true, canRequestAgain: true,
+    unreadable: { kind: 'PDF', detail: 'The pages are scanned images and no text could be read.' },
+    history: [h(TODAY, '09:31', 'SYSTEM', 'Unidentified · could not be read · PDF')],
+  },
+  {
+    id: 'u6', ref: 'U38', reason: 'ambiguous', summary: 'Scanned instruction PCH 577740.pdf',
+    detail: 'The claim number in the scanned letter (577740) does not match the inspection request form (577704).',
+    received: '2026-09-10', time: '11:05', kind: 'File', source: { label: 'Manual upload · a.patterson' },
+    state: 'resolved', resolution: 'Closed · the claim numbers do not match; PCH asked to reissue the instruction',
+    attachments: ['Scanned instruction PCH 577740.pdf'], receiptId: 'r6', canRequestAgain: true,
+    history: [h('2026-09-10', '11:20', 'a.patterson', 'Closed with reason · the claim numbers do not match; PCH asked to reissue the instruction'), h('2026-09-10', '11:05', 'SYSTEM', 'Unidentified · conflicting claim numbers')],
+  },
+);
+byId(DATA.unidentified, 'u2').canRegister = true;
+byId(DATA.unidentified, 'u1').canRequestAgain = true;
+
+// What became of each retained attachment, in operator words.
+{
+  const set = (mid, name, o) => { const m = getMail(mid); const a = m && m.attachments.find(x => x.name === name); if (a) a.outcome = o; };
+  set('m4', '_EHR103193_Engineers Repair Images_08102724.pdf', { kind: 'failed' });
+  set('m18', 't12fog estimate.pdf', { kind: 'unidentified', id: 'u1' });
+  set('m8', '57709_1_LtrtoEngineerIn.pdf', { kind: 'unreadable', id: 'u5', reason: 'The pages are scanned images and no text could be read.' });
+  getMail('m8').attachments[0].custody = 'confirmed';
+  set('m10', '6_CLVFrontwithregjpeg-V1.jpeg', { kind: 'images', id: 'ic2' });
+}
+function attachmentOutcome(m, a) {
+  const o = a.outcome || (m.caseId ? { kind: 'case', id: m.caseId } : m.unidentifiedId ? { kind: 'unidentified', id: m.unidentifiedId } : null);
+  if (!o) return '<span class="quiet">Retained</span>';
+  if (o.kind === 'case') { const c = getCase(o.id); return c ? `Case created · <a class="mono" href="#/cases/${c.id}">${esc(c.ref)}</a>` : 'Case created'; }
+  if (o.kind === 'unidentified') { const u = byId(DATA.unidentified, o.id); return u ? `Unidentified · <a class="mono" href="#/unidentified/${u.id}">${esc(u.ref)}</a>` : 'Unidentified'; }
+  if (o.kind === 'images') { const ic = byId(DATA.imageCases, o.id); return ic ? `Vehicle images · <a class="mono" href="#/images/${ic.id}">${esc(ic.ref)}</a>` : 'Vehicle images'; }
+  if (o.kind === 'unreadable') { const u = byId(DATA.unidentified, o.id); return `${chip('Could not be read', 'amber')} ${esc(o.reason || '')}${u ? ` <a class="mono" href="#/unidentified/${u.id}">${esc(u.ref)}</a>` : ''}`; }
+  return chip('Processing failed', 'red');
+}
+
+// ---- Small shared builders ----
+function openFileBtn(name, opts = {}) { return btn('Open file', 'preview-doc', { icon: 'eye', ...opts, data: { name } }); }
+function openMessageBtn(mailId, opts = {}) { return mailId ? btn('Open message', 'go', { icon: 'mail', ...opts, data: { route: `/inbox/${mailId}` } }) : ''; }
+function receiptMailId(id) { const r = id ? getReceipt(id) : null; return r ? r.mailId : null; }
+function materialButtons(u) {
+  const first = (u.attachments && u.attachments[0]) || u.summary;
+  return `${first ? openFileBtn(first) : ''}${openMessageBtn(u.source.mailId)}`;
+}
+
+/* ================= Unidentified record ================= */
+renderUnidentified = function (id) {
+  const u = byId(DATA.unidentified, id); if (!u) return notFound();
+  const open = u.state === 'open';
+  const r = u.receiptId ? getReceipt(u.receiptId) : null;
+  const isEmail = u.kind === 'E-mail';
+  const files = u.attachments || [];
+  const readings = (r && r.vrmSuggestions) || [];
+  const ic = r && r.imageIntakeId ? byId(DATA.imageCases, r.imageIntakeId) : null;
+  const canCreate = open && !ic;
+  const canTriage = open && r && r.canOpenTriage;
+  const material = panel(isEmail ? 'Retained e-mail' : 'Retained files', `
+    ${u.unreadable ? notice(`Could not be read · ${u.unreadable.kind} — ${u.unreadable.detail}`, 'warning') : ''}
+    ${definitionList([['Reference', `<span class="mono">${esc(u.ref)}</span>`], ['Kind', esc(u.kind)], [isEmail ? 'E-mail' : 'Filename', esc(u.summary)], ['Received', fmtDateTime(u.received, u.time)], ['Source', esc(u.source.label)], ['Needs attention', esc(L.unidentifiedReason[u.reason])]])}
+    ${files.length && !isEmail ? galleryOf(files) : files.length ? `<div class="cluster">${files.map(a => `<span class="attachment-chip">${icon('paperclip')}${esc(a)}</span>`).join('')}</div>` : ''}
+    <div class="cluster">${materialButtons(u)}${open && u.canRequestAgain ? btn('Request again', 'unidentified-request-again', { icon: 'reply', data: { id: u.id } }) : ''}${open ? btn('Send to AI', 'unidentified-ai', { icon: 'sparkles', data: { id: u.id } }) : ''}</div>`);
+  const resolve = open
+    ? panel('Resolve', `<div class="cluster">
+        ${btn('Link to Case', 'open-dialog', { kind: 'primary', icon: 'link', data: { dialog: 'unidentified-resolve', id: u.id } })}
+        ${canCreate ? btn('Create case', 'go', { icon: 'plus', data: { route: r ? `/cases/new?receipt=${r.id}` : '/cases/new' } }) : ''}
+        ${u.canRegister ? btn('Register images', 'open-dialog', { icon: 'images', data: { dialog: 'unidentified-register', id: u.id } }) : ''}
+        ${canTriage ? btn('Open the Triage', 'open-dialog', { icon: 'clipboard-list', data: { dialog: 'unidentified-triage', id: u.id } }) : ''}
+        ${btn('Close with reason', 'open-dialog', { kind: 'danger', data: { dialog: 'unidentified-close', id: u.id } })}
+      </div>`)
+    : panel('Resolution', `${definitionList([['Outcome', esc(u.resolution || 'Resolved')]])}<div class="cluster">${btn('Reopen', 'open-dialog', { kind: 'primary', icon: 'refresh-cw', data: { dialog: 'unidentified-reopen', id: u.id } })}</div>`);
+  const readingPanel = readings.length ? panel('Registration readings', readings.map(s => `<div class="stack vrm-suggestion"><div class="decision-row"><span>${esc(s.at)}</span><strong>${s.outcome === 'suggested' ? esc(s.value) : esc(L.vrmOutcome[s.outcome])}</strong></div><div class="decision-row"><span>Reading</span><strong>${esc(s.disposition === 'dismissed' ? 'Dismissed' : s.disposition === 'accepted' ? 'Accepted' : 'Not decided')}</strong></div>${open && s.disposition === 'pending' && s.outcome === 'suggested' ? `<div class="cluster">${btn('Dismiss', 'open-dialog', { small: true, data: { dialog: 'unidentified-dismiss', id: u.id, suggestion: s.id } })}</div>` : ''}</div>`).join('')) : '';
+  return pageHeader(u.ref, 'Unidentified', btn('Back to Cases', '', { href: '#/cases?tab=unidentified', icon: 'arrow-right' }) + btn('Refresh', 'refresh', { small: true, icon: 'refresh-cw' })) +
+    `<div class="record">
+      <div class="record-ribbon">${ribbon([['Reference', `<span class="mono">${esc(u.ref)}</span>`], ['Received', fmtDateTime(u.received, u.time)], ['Kind', esc(u.kind)], ['Source', esc(u.source.label)], ['State', chip(open ? 'Open' : 'Resolved', open ? 'amber' : 'neutral')]])}</div>
+      <div class="record-body">
+        <div class="grid-2">${material}${resolve}</div>
+        ${readingPanel}
+        ${panel('History', timeline(u.history.map(x => ({ title: esc(x.text.split(' · ')[0]), meta: `${fmtDateTime(x.date, x.time)} · ${esc(x.who)}${x.text.includes(' · ') ? ' · ' + esc(x.text.split(' · ').slice(1).join(' · ')) : ''}` }))))}
+      </div>
+    </div>`;
+};
+
+// Link to Case: the message or the file is what is linked, never a receipt.
+DIALOGS['unidentified-resolve'] = ({ id, q }) => {
+  const u = byId(DATA.unidentified, id);
+  const query = q ?? S.resolveQuery ?? '';
+  const results = query ? findCases(query) : findCases(u.summary.split(' ')[0]);
+  return {
+    title: 'Link to Case', cls: 'dialog--wide',
+    body: `<p class="source-line">${esc(u.ref)} · ${esc(u.summary)}</p><form class="filter-bar" data-form="resolve-search" novalidate>${field('Case, registration or claimant', input('q', query), { id: 'q' })}${btn('Search', 'resolve-search', { type: 'submit' })}</form>
+      ${results.length ? `<div class="row-list">${results.map(c => `<button type="button" class="row-button row-button--case" data-action="unidentified-link-case" data-id="${attr(u.id)}" data-case="${attr(c.id)}"><strong>${esc(c.ref)}</strong><span>${esc(c.reg)} · ${esc(c.claimant.name)}</span></button>`).join('')}</div>` : query ? '<p class="muted">No cases found.</p>' : ''}`,
+    foot: btn('Cancel', 'dialog-close'),
+  };
+};
+ACTIONS['resolve-search'] = (el, e, form) => { const v = formValues(form); S.resolveQuery = v.q || ''; S.dialog.data.q = S.resolveQuery; renderDialog(); };
+ACTIONS['unidentified-link-case'] = el => {
+  const u = byId(DATA.unidentified, el.dataset.id); const c = getCase(el.dataset.case);
+  (u.attachments.length ? u.attachments : [u.summary]).forEach(n => c.documents.push(doc(n, 'other', '0.3 MB', 'intake', u.received)));
+  addHistory(c, `Evidence added from ${u.ref} · ${u.summary}`);
+  u.state = 'resolved'; u.resolution = `Added to Case ${c.ref}`;
+  u.history.unshift(h(TODAY, nowTime(), S.user.username, `Linked to Case ${c.ref}`));
+  if (u.receiptId) { const r = getReceipt(u.receiptId); r.caseId = c.id; }
+  DATA.actionLogs.unshift(logEntry('Unidentified', `Linked to Case ${c.ref}`, u.ref));
+  S.resolveQuery = ''; closeDialog(); render(); toast(`Added to ${c.ref}`);
+};
+DIALOGS['unidentified-close'] = ({ id }) => reasonDialog(`Close ${byId(DATA.unidentified, id).ref}`, 'unidentified-close-save', { id }, { primary: 'Close with reason', kind: 'danger' });
+ACTIONS['unidentified-close-save'] = el => {
+  const u = byId(DATA.unidentified, el.dataset.id); const reason = readReason(); if (!reason) return;
+  u.state = 'resolved'; u.resolution = `Closed · ${reason}`;
+  u.history.unshift(h(TODAY, nowTime(), S.user.username, `Closed with reason · ${reason}`));
+  if (u.receiptId) { const r = getReceipt(u.receiptId); r.decision = 'closed'; r.reason = `Closed with reason: ${reason}`; }
+  DATA.actionLogs.unshift(logEntry('Unidentified', 'Closed with reason', u.ref));
+  S.resolveQuery = ''; closeDialog(); render(); toast('Closed');
+};
+DIALOGS['unidentified-reopen'] = ({ id }) => reasonDialog(`Reopen ${byId(DATA.unidentified, id).ref}`, 'unidentified-reopen-save', { id }, { primary: 'Reopen' });
+ACTIONS['unidentified-reopen-save'] = el => {
+  const u = byId(DATA.unidentified, el.dataset.id); const reason = readReason(); if (!reason) return;
+  u.state = 'open'; u.resolution = '';
+  u.history.unshift(h(TODAY, nowTime(), S.user.username, `Resolved to Open · ${reason}`));
+  DATA.actionLogs.unshift(logEntry('Unidentified', 'Reopened', u.ref));
+  closeDialog(); render(); toast(`${u.ref} reopened`);
+};
+DIALOGS['unidentified-dismiss'] = ({ id, suggestion }) => reasonDialog('Dismiss reading', 'unidentified-dismiss-save', { id, suggestion }, { primary: 'Dismiss reading' });
+ACTIONS['unidentified-dismiss-save'] = el => {
+  const u = byId(DATA.unidentified, el.dataset.id); const reason = readReason(); if (!reason) return;
+  const r = getReceipt(u.receiptId); const s = byId(r.vrmSuggestions, el.dataset.suggestion); s.disposition = 'dismissed';
+  u.history.unshift(h(TODAY, nowTime(), S.user.username, `Registration reading ${s.value} dismissed · ${reason}`));
+  closeDialog(); render(); toast('Reading dismissed');
+};
+DIALOGS['unidentified-register'] = ({ id }) => {
+  const u = byId(DATA.unidentified, id); const r = u.receiptId ? getReceipt(u.receiptId) : null;
+  return { title: 'Register images', cls: 'dialog--compact', body: `${field('Vehicle registration', input('vrm', (r && r.registrationPrefill) || '', { cls: 'mono' }), { id: 'vrm', required: true })}${reasonField()}`, foot: dialogFoot('Register images', 'unidentified-register-save', { data: { id } }) };
+};
+ACTIONS['unidentified-register-save'] = (el, e, form) => {
+  const v = formValues(form); const reason = readReason(); if (!reason) return;
+  const vrm = (v.vrm || '').toUpperCase().replace(/\s/g, ''); if (!vrm) { toast('Vehicle registration is required', 'danger'); return; }
+  const u = byId(DATA.unidentified, el.dataset.id); const r = u.receiptId ? getReceipt(u.receiptId) : null;
+  const rec = { id: uid('ic'), ref: `${vrm}-01`, reg: vrm, vehicle: '', state: 'awaiting', received: TODAY, time: nowTime(), source: u.source.label, intermediary: '', principal: '', receiptId: u.receiptId || null, images: u.attachments.slice(), vrm: { result: 'suggestion', value: vrm, confirmedBy: S.user.username }, candidates: [], history: [h(TODAY, nowTime(), S.user.username, `Image-initiated Case registered · ${reason}`)] };
+  DATA.imageCases.push(rec);
+  if (r) { r.imageIntakeId = rec.id; r.decision = 'image_registered'; r.reason = `Registered as vehicle images ${rec.ref}.`; }
+  u.state = 'resolved'; u.resolution = `Registered as Image-initiated Case ${rec.ref}`;
+  u.history.unshift(h(TODAY, nowTime(), S.user.username, `${u.resolution} · ${reason}`));
+  closeDialog(); render(); toast(`Registered ${rec.ref}`);
+};
+DIALOGS['unidentified-triage'] = ({ id }) => {
+  const u = byId(DATA.unidentified, id); const r = u.receiptId ? getReceipt(u.receiptId) : null;
+  return { title: 'Open the Triage', cls: 'dialog--compact', body: field('Vehicle registration', input('vrm', (r && r.registrationPrefill) || '', { cls: 'mono' }), { id: 'vrm', required: true }), foot: dialogFoot('Open the Triage', 'unidentified-triage-save', { data: { id } }) };
+};
+ACTIONS['unidentified-triage-save'] = (el, e, form) => {
+  const v = formValues(form); const vrm = (v.vrm || '').toUpperCase().replace(/\s/g, ''); if (!vrm) { toast('Vehicle registration is required', 'danger'); return; }
+  const u = byId(DATA.unidentified, el.dataset.id); const r = u.receiptId ? getReceipt(u.receiptId) : null;
+  const t = { id: uid('t'), reg: vrm, vehicle: 'Not recorded', principal: '', ref: '', state: 'open', received: TODAY, time: nowTime(), assignee: null, question: '', roadworthiness: null, assessment: null, caseId: null, reply: null, sender: { name: u.source.label, email: '' }, circumstances: '', damage: '', sources: [u.summary], images: u.attachments.slice(), receiptId: u.receiptId || null, findings: [], responseEvidence: [], responseCandidates: [], chaser: { mailbox: 'desk@collisionengineers.co.uk', to: '', cc: '', subject: `RE: ${vrm}`, body: '', attachments: [], op: null }, history: [Object.assign(h(TODAY, nowTime(), S.user.username, `Triage opened from ${u.ref}`), { event: 'Triage created' })] };
+  DATA.triage.push(t); if (r) r.triageId = t.id;
+  u.state = 'resolved'; u.resolution = `Triage opened · ${vrm}`;
+  u.history.unshift(h(TODAY, nowTime(), S.user.username, u.resolution));
+  closeDialog(); go(`/triage/${t.id}`);
+};
+ACTIONS['unidentified-request-again'] = el => {
+  const u = byId(DATA.unidentified, el.dataset.id);
+  u.history.unshift(h(TODAY, nowTime(), S.user.username, 'Replacement requested from the sender'));
+  DATA.actionLogs.unshift(logEntry('Unidentified', 'Replacement requested', u.ref));
+  if (u.source.mailId) openDialog('compose', { mode: 'reply', mail: u.source.mailId });
+  else openDialog('upload-request', {});
+};
+
+// The receipt-page dialogs and actions that moved onto the records.
+for (const k of ['intake-link', 'intake-unlink', 'intake-block', 'intake-correct', 'intake-dismiss', 'intake-register', 'intake-triage']) { delete DIALOGS[k]; delete MOCK_DIALOG_ARGS[k]; }
+for (const k of ['intake-link-save', 'intake-unlink-save', 'intake-block-save', 'intake-correct-save', 'intake-dismiss-save', 'intake-register-save', 'intake-triage-save', 'intake-search', 'intake-claim', 'intake-clear-target', 'intake-analyse', 'resolve-mode']) delete ACTIONS[k];
+DIALOGS['intake-retry'] = ({ id }) => reasonDialog('Retry allocation', 'intake-retry-save', { id }, { primary: 'Retry allocation' });
+MOCK_DIALOG_ARGS['intake-retry'] = { id: 'r2' };
+MOCK_DIALOG_ARGS['intake-reevaluate'] = { id: 'r14' };
+MOCK_DIALOG_ARGS['intake-retry-ocr'] = { id: 'r13' };
+MOCK_DIALOG_ARGS['unidentified-close'] = { id: 'u2' };
+MOCK_DIALOG_ARGS['unidentified-reopen'] = { id: 'u4' };
+MOCK_DIALOG_ARGS['unidentified-register'] = { id: 'u2' };
+MOCK_DIALOG_ARGS['unidentified-triage'] = { id: 'u2' };
+MOCK_DIALOG_ARGS['unidentified-dismiss'] = { id: 'u2', suggestion: 'vs2' };
+MOCK_DIALOG_ARGS['intake-log-row'] = { id: 'r13' };
+DIALOGS['intake-retry-ocr'] = ({ id }) => reasonDialog('Retry OCR', 'intake-retry-ocr-save', { id }, { primary: 'Retry OCR' });
+ACTIONS['intake-retry-ocr-save'] = el => {
+  const reason = readReason(); if (!reason) return;
+  const r = getReceipt(el.dataset.id); r.attempts = { ...(r.attempts || { processing: 1, allocation: 0 }), processing: (r.attempts?.processing || 1) + 1 };
+  DATA.actionLogs.unshift(logEntry('Received', `Retry OCR · ${reason}`, r.file));
+  const w = DATA.externalWork.find(x => x.intake === r.id); if (w) { w.attempts += 1; w.last = `${TODAY} ${nowTime()}`; w.canRetry = false; w.failure = 'Retry queued'; }
+  closeDialog(); render(); toast('Retry queued');
+};
+
+/* ================= Cases › Unidentified tab ================= */
+S.unidView = 'open';
+function unidentifiedFilterBar() {
+  const closed = S.unidView === 'closed';
+  return `<div class="filter-bar">${field('Show', select('u-view', [['open', 'Open items'], ['closed', 'Closed items']], S.unidView, { blank: null, data: { change: 'unid-view' } }), { id: 'u-view' })}<span class="meta">${closed ? plural(DATA.unidentified.filter(u => u.state !== 'open').length, 'closed item') : plural(DATA.unidentified.filter(u => u.state === 'open').length, 'open item')}</span></div>`;
+}
+CHANGES['unid-view'] = el => { S.unidView = el.value; S.queuePage = 1; S.selectedCase = null; render(); };
+unidentifiedTable = function (items) {
+  const closed = S.unidView === 'closed';
+  const cols = [{ label: 'Reference' }, { label: 'Received' }, { label: 'Material' }, { label: closed ? 'Outcome' : 'Needs attention' }, { label: 'Source' }, { label: '' }];
+  return table(cols, items.map(u => ({
+    cls: u.id === S.selectedCase ? 'selected' : '', attrs: ` data-action="select-case" data-id="${u.id}" tabindex="0" style="cursor:pointer"`,
+    cells: [
+      `<a href="#/unidentified/${u.id}" class="mono"><strong>${esc(u.ref)}</strong></a>`,
+      `${fmtDate(u.received)}<br><small class="muted">${esc(u.time)}</small>`,
+      esc(u.kind),
+      closed ? esc(u.resolution || 'Resolved') : esc(L.unidentifiedReason[u.reason]),
+      esc(u.source.label),
+      closed ? btn('Reopen', 'open-dialog', { small: true, data: { dialog: 'unidentified-reopen', id: u.id } }) : '',
+    ],
+  })), { emptyText: closed ? 'No closed items' : 'Nothing Unidentified' });
+};
+
+unidentifiedQuick = function (u) {
+  const open = u.state === 'open';
+  return `<div class="stack">${open ? notice(L.unidentifiedReason[u.reason], 'warning') : notice(u.resolution || 'Resolved', 'success')}${factGrid([fact('Reference', `<span class="mono">${esc(u.ref)}</span>`), fact('Material', esc(u.kind)), fact('Received', fmtDateTime(u.received, u.time)), fact('Source', esc(u.source.label))])}<p>${esc(u.detail)}</p></div>`;
+};
+
+/* ================= Administration › Logs ================= */
+{ const a = ADMIN_AREAS.find(x => x.key === 'action-logs'); if (a) { a.key = 'logs'; a.label = 'Logs'; a.blurb = 'Search recorded actions and every received item.'; } }
+S.logsTab = 'action';
+S.intakeFilters = { outcome: '', source: '', principal: '', pending: '' };
+function intakeSource(r) {
+  const m = r.mailId ? getMail(r.mailId) : null;
+  if (r.channel === 'email') return `desk@collisionengineers.co.uk · ${m ? m.from.email : r.sender || 'sender not recorded'}`;
+  if (r.channel === 'link') return `Upload link · ${r.by || 'Ndugba'}`;
+  if (r.channel === 'upload') return `Manual upload · ${r.by || 'a.patterson'}`;
+  if (r.channel === 'api') return `Provider API · ${(r.draft && r.draft.principal) || 'Principal not recorded'}`;
+  return L.channel[r.channel] || 'Automation';
+}
+function intakeSourceKind(r) { return r.channel === 'email' ? 'email' : r.channel === 'api' ? 'api' : r.channel === 'automation' ? 'automation' : 'upload'; }
+function intakeOutcome(r) {
+  if (r.decision === 'closed') return { key: 'closed', label: 'Closed', tone: 'neutral' };
+  if (r.decision === 'unreadable' || r.decision === 'unsupported' || r.decision === 'ocr_required') return { key: 'unreadable', label: 'Could not be read', tone: 'amber' };
+  if (r.decision === 'failed' || r.decision === 'technical_failure') return { key: 'failed', label: 'Processing failed', tone: 'red' };
+  if (r.decision === 'image_registered') return { key: 'image_registered', label: 'Vehicle images', tone: 'green' };
+  if (r.triageId) return { key: 'triage', label: 'Triage', tone: 'green' };
+  if (r.decision === 'case_created') return r.caseId ? { key: 'case_created', label: 'Case created', tone: 'green' } : { key: 'failed', label: 'Processing failed', tone: 'red' };
+  return { key: 'unidentified', label: 'Unidentified', tone: 'amber' };
+}
+function intakeBecame(r) {
+  if (r.caseId && getCase(r.caseId)) return `<a class="mono" href="#/cases/${r.caseId}">${esc(getCase(r.caseId).ref)}</a>`;
+  if (r.imageIntakeId && byId(DATA.imageCases, r.imageIntakeId)) return `<a class="mono" href="#/images/${r.imageIntakeId}">${esc(byId(DATA.imageCases, r.imageIntakeId).ref)}</a>`;
+  if (r.triageId && byId(DATA.triage, r.triageId)) return `<a class="mono" href="#/triage/${r.triageId}">${esc(byId(DATA.triage, r.triageId).reg)}</a>`;
+  if (r.unidentifiedId && byId(DATA.unidentified, r.unidentifiedId)) return `<a class="mono" href="#/unidentified/${r.unidentifiedId}">${esc(byId(DATA.unidentified, r.unidentifiedId).ref)}</a>`;
+  return '—';
+}
+function intakeAttempts(r) { const a = r.attempts; if (!a) return '—'; const t = a.processing + a.allocation; return t > 1 ? `${a.processing} processing · ${a.allocation} allocation` : '—'; }
+function intakeFailed(r) { const k = intakeOutcome(r).key; return k === 'failed' || k === 'unreadable'; }
+function intakePending(r) { const u = r.unidentifiedId ? byId(DATA.unidentified, r.unidentifiedId) : null; return intakeFailed(r) || !!(u && u.state === 'open'); }
+function intakeRows() {
+  const f = S.logFilters, i = S.intakeFilters;
+  const text = (f.search || '').toLowerCase();
+  return DATA.intake.filter(r => {
+    const u = r.unidentifiedId ? byId(DATA.unidentified, r.unidentifiedId) : null;
+    const hay = [r.file, intakeSource(r), r.draft && r.draft.reg, r.draft && r.draft.claimNumber, u && u.ref, r.caseId && getCase(r.caseId) && getCase(r.caseId).ref].filter(Boolean).join(' ').toLowerCase();
+    if (text && !hay.includes(text)) return false;
+    if (i.outcome && intakeOutcome(r).key !== i.outcome) return false;
+    if (i.source && intakeSourceKind(r) !== i.source) return false;
+    if (i.principal && (!r.draft || r.draft.principal !== i.principal)) return false;
+    if (i.pending && !intakePending(r)) return false;
+    if (f.from && r.received < f.from) return false;
+    if (f.to && r.received > f.to) return false;
+    return true;
+  }).sort((a, b) => `${a.received} ${a.time}`.localeCompare(`${b.received} ${b.time}`) * (f.sort === 'desc' ? -1 : 1));
+}
+function intakeLog() {
+  const f = S.logFilters, i = S.intakeFilters;
+  const rows = intakeRows();
+  const failed = DATA.intake.filter(intakeFailed).length;
+  const pending = DATA.intake.filter(intakePending).sort((a, b) => a.received.localeCompare(b.received))[0];
+  const principals = [...new Set(DATA.intake.map(r => r.draft && r.draft.principal).filter(Boolean))];
+  return `<div class="metric-strip metric-strip--2 intake-counts">
+      ${metric('Failed intake', failed, 'red', '#/admin/logs?tab=intake&outcome=failed')}
+      ${metric('Oldest pending intake', pending ? fmtDate(pending.received) : '—', 'amber', '#/admin/logs?tab=intake&pending=1')}
+    </div>` +
+    `<form class="panel" data-form="intake-log" novalidate><div class="panel-body"><div class="log-filters">
+      ${field('Search', input('search', f.search, { type: 'search', placeholder: 'Reference, registration, claim number, sender or file name' }), { id: 'search' })}
+      ${field('Outcome', select('outcome', Object.entries(L.intakeOutcome), i.outcome, { blank: 'All outcomes' }), { id: 'outcome' })}
+      ${field('Source', select('source', Object.entries(L.intakeSourceKind), i.source, { blank: 'All sources' }), { id: 'source' })}
+      ${field('Principal', select('principal', principals.map(p => [p, p]), i.principal, { blank: 'All principals' }), { id: 'principal' })}
+      ${field('From', input('from', f.from, { type: 'date' }), { id: 'from' })}
+      ${field('To', input('to', f.to, { type: 'date' }), { id: 'to' })}
+      <div class="cluster">${btn('Apply', 'intake-log-apply', { kind: 'dark', type: 'submit' })}${btn('Clear', 'intake-log-clear')}</div>
+    </div></div></form>` +
+    panel('Intake log', table([{ label: 'Received' }, { label: 'Source' }, { label: 'Item' }, { label: 'Outcome' }, { label: 'Became' }, { label: 'Attempts' }, { label: '' }], rows.map(r => ({
+      cells: [
+        `${fmtDate(r.received)}<br><small class="muted">${esc(r.time)}</small>`,
+        esc(intakeSource(r)),
+        `<button type="button" class="link-button" data-action="preview-doc" data-name="${attr(r.file)}">${esc(r.file)}</button>`,
+        `${chip(intakeOutcome(r).label, intakeOutcome(r).tone)}${r.decision === 'closed' ? `<br><small class="muted">${esc((r.reason || '').replace(/^Closed with reason: /, ''))}</small>` : ''}`,
+        intakeBecame(r),
+        esc(intakeAttempts(r)),
+        btn('Open', 'open-dialog', { small: true, data: { dialog: 'intake-log-row', id: r.id } }),
+      ],
+    })), { emptyText: 'No received items match' }), { meta: plural(rows.length, 'item'), actions: btn(f.sort === 'desc' ? 'Newest first' : 'Oldest first', 'logs-sort', { small: true, kind: 'ghost' }), tight: true });
+}
+ACTIONS['intake-log-apply'] = (el, e, form) => { const v = formValues(form); Object.assign(S.logFilters, { search: v.search, from: v.from, to: v.to }); Object.assign(S.intakeFilters, { outcome: v.outcome, source: v.source, principal: v.principal }); render(); };
+ACTIONS['intake-log-clear'] = () => { Object.assign(S.logFilters, { search: '', from: '', to: '' }); S.intakeFilters = { outcome: '', source: '', principal: '', pending: '' }; render(); };
+ACTIONS['logs-tab'] = el => { S.logsTab = el.dataset.tab; render(); };
+DIALOGS['intake-log-row'] = ({ id }) => {
+  const r = getReceipt(id); const out = intakeOutcome(r);
+  const alloc = r.allocation;
+  const evidence = (r.evidence || []).concat((r.vrmSuggestions || []).map(s => ({ source: 'Registration reading', detail: `${s.at} · ${s.outcome === 'suggested' ? s.value : L.vrmOutcome[s.outcome]} · ${s.disposition}` })))
+    .concat(alloc ? [{ source: 'Allocation attempt', detail: `${alloc.at} · ${alloc.reason}` }] : [])
+    .concat(r.draft ? Object.entries({ Principal: r.draft.principal, Claimant: r.draft.claimant, 'Claim number': r.draft.claimNumber, Registration: r.draft.reg }).filter(([, v]) => v).map(([k, v]) => ({ source: `Suggested ${k.toLowerCase()}`, detail: String(v) })) : []);
+  return {
+    title: r.file, cls: 'dialog--drawer',
+    body: `${definitionList([['Received', fmtDateTime(r.received, r.time)], ['Source', esc(intakeSource(r))], ['Outcome', chip(out.label, out.tone)], ['Became', intakeBecame(r)], ['Attempts', esc(intakeAttempts(r))]])}
+      ${panel('Retained original', `<div class="cluster">${openFileBtn(r.file)}${openMessageBtn(r.mailId)}</div>`, { level: 'h3' })}
+      ${panel('Processing evidence', evidence.length ? `<ul class="blocker-list blocker-list--stack">${evidence.map(x => `<li class="blocker blocker--stack"><strong>${esc(x.source)}</strong><small>${esc(x.detail)}</small></li>`).join('')}</ul>` : empty('Nothing was recorded for this item'), { level: 'h3' })}`,
+    foot: `<div class="left">${btn('Re-evaluate with current policy', 'open-dialog', { small: true, data: { dialog: 'intake-reevaluate', id } })}${alloc && /^failed/.test(alloc.status) ? btn('Retry allocation', 'open-dialog', { small: true, data: { dialog: 'intake-retry', id } }) : ''}${r.failure && r.failure.kind === 'ocr' ? btn('Retry OCR', 'open-dialog', { small: true, data: { dialog: 'intake-retry-ocr', id } }) : ''}</div>${btn('Close', 'dialog-close')}`,
+  };
+};
+function adminLogs() {
+  const tabs = [['action', 'Action logs'], ['intake', 'Intake log']];
+  return `<div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="tab" aria-selected="${S.logsTab === k}" data-action="logs-tab" data-tab="${k}">${esc(l)}</button>`).join('')}</div>` +
+    (S.logsTab === 'intake' ? intakeLog() : adminActionLogs());
+}
+{
+  const _ra = renderAdmin;
+  renderAdmin = function (area, params = {}) {
+    if (area === 'logs') {
+      if (params.tab) S.logsTab = params.tab === 'intake' ? 'intake' : 'action';
+      if (params.outcome) { S.intakeFilters.outcome = params.outcome; S.intakeFilters.pending = ''; }
+      if (params.pending) { S.intakeFilters.pending = '1'; S.intakeFilters.outcome = ''; }
+    }
+    return _ra(area, params);
+  };
+}
+
+/* ================= Operations: failed intake processing ================= */
+DATA.externalWork.push(
+  { id: 'ew-i1', ref: '—', work: 'Case creation', item: 'QDOS instruction REB-47311-1.eml', attempts: 3, failure: 'No case reference was allocated: Principal QDOSL is not active', last: '2026-09-11 16:02', canRetry: true, intake: 'r2', intakeAction: 'allocation' },
+  { id: 'ew-i2', ref: '—', work: 'Document text', item: '57709_1_LtrtoEngineerIn.pdf', attempts: 2, failure: 'The pages are scanned images and no text could be read', last: `${TODAY} 09:31`, canRetry: true, intake: 'r13', intakeAction: 'ocr' },
+  { id: 'ew-i3', ref: '—', work: 'Intake processing', item: '_EHR103193_Engineers Repair Images_08102724.pdf', attempts: 3, failure: 'The document service did not respond', last: `${TODAY} 11:41`, canRetry: true, intake: 'r14', intakeAction: 'reevaluate' },
+);
+function workAction(w) {
+  if (!w.canRetry) return '';
+  if (w.intakeAction === 'allocation') return btn('Retry allocation', 'open-dialog', { small: true, data: { dialog: 'intake-retry', id: w.intake } });
+  if (w.intakeAction === 'ocr') return btn('Retry OCR', 'open-dialog', { small: true, data: { dialog: 'intake-retry-ocr', id: w.intake } });
+  if (w.intakeAction === 'reevaluate') return btn('Re-evaluate with current policy', 'open-dialog', { small: true, data: { dialog: 'intake-reevaluate', id: w.intake } });
+  return btn('Retry this work', 'retry-work', { small: true, data: { id: w.id } });
+}
+
+/* ================= Mockup strip ================= */
+ACTIONS['mock-unid-view'] = el => { S.unidView = el.dataset.view; S.queuePage = 1; S.selectedCase = null; render(); };
+ACTIONS['mock-logs-tab'] = el => { S.logsTab = el.dataset.tab; render(); };
+{
+  const base = pageMockRow;
+  pageMockRow = function (path) {
+    let out = base(path);
+    if (path === '/cases') out += mockRow('Unidentified tab', mockBtn('Open items', S.unidView === 'open', 'mock-unid-view', { view: 'open' }) + mockBtn('Closed items', S.unidView === 'closed', 'mock-unid-view', { view: 'closed' }));
+    if (path === '/admin/logs') out += mockRow('Logs', mockBtn('Action logs', S.logsTab !== 'intake', 'mock-logs-tab', { tab: 'action' }) + mockBtn('Intake log', S.logsTab === 'intake', 'mock-logs-tab', { tab: 'intake' }));
+    return out;
+  };
+}
+
+Object.assign(window.__pegasus, {
+  get renderUnidentified() { return renderUnidentified; },
+  get adminLogs() { return adminLogs; },
+  get intakeRows() { return intakeRows; },
+  get intakeOutcome() { return intakeOutcome; },
+  get attachmentOutcome() { return attachmentOutcome; },
+  get workAction() { return workAction; },
+  get railCounts() { return railCounts; },
+  routeExists: p => ROUTES.some(r => r.re.test(p)),
+  get queueCount() { return queueCount; },
+  getReceipt, byId,
+});
+
+
+// ---- lane_inbox.js
+/* ================= lane inbox: Inbox, Upload, Held review date ================= */
+
+// ---- Inbox scopes (inbox/how-it-should-work.md): no Unread, a Dismissed folder ----
+delete L.mailScope.unread;
+L.mailScope.dismissed = 'Dismissed';
+ICONS['corner-up-left'] = ICONS['corner-up-left'] || 'M9 14L4 9l5-5M4 9h11a5 5 0 0 1 5 5v6';
+
+inboxScopeItems = function () {
+  const inbox = DATA.mail.filter(m => m.folder === 'Inbox' && !m.dismissed);
+  return [
+    { key: 'all', icon: 'inbox', count: inbox.length },
+    { key: 'receiving', icon: 'download', count: inbox.filter(m => m.scope === 'receiving').length },
+    { key: 'updates', icon: 'reply', count: inbox.filter(m => m.scope === 'updates').length },
+    { key: 'pre', icon: 'clock', count: inbox.filter(m => m.scope === 'pre').length },
+    { key: 'unidentified', icon: 'search', count: inbox.filter(m => m.scope === 'unidentified').length },
+    { key: 'sent', icon: 'send', count: DATA.mail.filter(m => m.folder === 'Sent Items' && !m.dismissed).length },
+    { key: 'dismissed', icon: 'x', count: DATA.mail.filter(m => m.dismissed).length },
+  ];
+};
+inboxMessages = function () {
+  const f = S.inbox;
+  let list;
+  if (f.scope === 'dismissed') list = DATA.mail.filter(m => m.dismissed);
+  else {
+    list = DATA.mail.filter(m => !m.dismissed && (f.scope === 'sent' ? m.folder === 'Sent Items' : m.folder === (f.folder || 'Inbox')));
+    if (!['all', 'sent'].includes(f.scope)) list = list.filter(m => m.scope === f.scope);
+  }
+  if (f.mailbox) list = list.filter(m => m.mailbox === f.mailbox);
+  if (f.queue) list = list.filter(m => m.classification === f.queue);
+  if (f.search) { const q = f.search.toLowerCase(); list = list.filter(m => [m.subject, m.from.name, m.from.email, m.excerpt, m.caseRef].join(' ').toLowerCase().includes(q)); }
+  return [...list].sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time) * (f.sort === 'desc' ? -1 : 1));
+};
+// unread stays bold on the row; there is no Unread list
+mailRow = function (m) {
+  const c = m.caseId ? getCase(m.caseId) : null;
+  const side = [c ? esc(c.ref) : m.unidentifiedRef ? esc(m.unidentifiedRef) : '', m.attachments.length ? `${icon('paperclip')}${m.attachments.length}` : ''].filter(Boolean).join(' · ');
+  const rowAction = m.dismissed
+    ? iconButton('corner-up-left', 'mail-restore', `Restore ${m.subject}`, { mail: m.id })
+    : iconButton('x', 'mail-dismiss', `Dismiss ${m.subject}`, { mail: m.id });
+  return `<div class="mail-row${m.read ? '' : ' mail-row--unread'}"><button type="button" class="row-button" role="option" aria-selected="${m.id === S.selectedMail}" data-action="select-mail" data-id="${m.id}">
+    <span class="title">${esc(m.subject)}</span>
+    <span class="sub">${esc(m.from.name)} · ${esc(m.excerpt)}</span>
+    <span class="side"><span>${fmtDateShort(m.date)} · ${m.time}</span>${chipFor(L.mailClass, m.classification)}<span class="ref">${side}</span></span>
+  </button><span class="mail-row-actions">${rowAction}</span></div>`;
+};
+ACTIONS['inbox-scope'] = el => { const s = el.dataset.scope; if (!L.mailScope[s]) return; S.inbox.scope = s; S.inbox.page = 1; S.inbox.folder = s === 'sent' ? 'Sent Items' : 'Inbox'; render(); };
+ACTIONS['mail-dismiss'] = el => {
+  const m = getMail(el.dataset.mail); if (!m || m.dismissed) return;
+  m.dismissed = true; m.filedBefore = m.filed || m.folder; m.filed = 'Dismissed';
+  DATA.actionLogs.unshift(logEntry('Mail', 'Dismissed', m.subject));
+  if (S.selectedMail === m.id) S.selectedMail = null;
+  render(); toast('Dismissed');
+};
+ACTIONS['mail-restore'] = el => {
+  const m = getMail(el.dataset.mail); if (!m || !m.dismissed) return;
+  m.dismissed = false; m.filed = m.filedBefore || 'Inbox';
+  DATA.actionLogs.unshift(logEntry('Mail', 'Restored from Dismissed', m.subject));
+  render(); toast('Restored');
+};
+// the rail count never counts dismissed mail
+railCounts = function () {
+  return {
+    inbox: DATA.mail.filter(m => !m.read && m.folder === 'Inbox' && !m.dismissed).length,
+    cases: QUEUE_TABS.filter(t => t.key !== 'complete').reduce((n, t) => n + queueCount(t.key), 0),
+    awaiting: queueCount('awaiting'),
+    operations: DATA.externalWork.filter(w => w.canRetry).length,
+  };
+};
+
+// ---- Message record: Dismiss / Restore (inbox/message/how-it-should-work.md) ----
+{
+  const messageBase = renderMessage;
+  renderMessage = function (id) {
+    const html = messageBase(id); const m = getMail(id); if (!m) return html;
+    const b = m.dismissed ? btn('Restore', 'mail-restore', { icon: 'corner-up-left', data: { mail: m.id } }) : btn('Dismiss', 'mail-dismiss', { icon: 'x', data: { mail: m.id } });
+    return html.replace('<a class="btn" href="#/inbox">', () => b + '<a class="btn" href="#/inbox">');
+  };
+}
+
+// ---- Upload: one upload is one group (upload/how-it-should-work.md) ----
+const UPLOAD_SETS = {
+  case: ['57709_1_LtrtoEngineerIn.pdf', 'CLVREAR-V1.jpeg', '2_CLVDAMAGE-V1.jpeg', '10_CLVWalkaroundmp4-V1.mp4'],
+  images: ['CLVREAR-V1.jpeg', '2_CLVDAMAGE-V1.jpeg', '10_CLVWalkaroundmp4-V1.mp4'],
+  unidentified: ['Emailing - t12fog estimate.eml', '55894_1_LtrtoEngineerIn.pdf'],
+  unreadable: ['10_CLVWalkaroundmp4-V1.mp4'],
+};
+function readMember(f) {
+  const s = DATA.sampleUpload.find(x => x.name === f.name);
+  if (s) return s.outcome === 'failed' ? { readable: false, reason: s.detail } : { readable: true, detail: s.detail || '' };
+  if (/\.(mp4|mov)$/i.test(f.name)) return { readable: false, reason: 'Video is not accepted' };
+  if (/\.(eml|msg|pdf|docx?|jpe?g|png)$/i.test(f.name)) return { readable: true, detail: '' };
+  return { readable: false, reason: 'Unsupported file type' };
+}
+function nextUnidentifiedRef() {
+  let n = 37;
+  while (DATA.unidentified.some(u => u.ref === `U${n}`)) n += 1;
+  return `U${n}`;
+}
+function unreadableUnidentified(key, summary, detail, kind) {
+  const id = `u-up-${key.replace(/[^a-z0-9]+/gi, '').toLowerCase()}`;
+  let u = byId(DATA.unidentified, id);
+  if (u) return u;
+  u = { id, ref: nextUnidentifiedRef(), reason: 'unsupported', summary, detail, received: TODAY, time: nowTime(), kind, source: { label: `Manual upload · ${S.user.username}` }, state: 'open', attachments: [], history: [h(TODAY, nowTime(), 'SYSTEM', `Unidentified · could not be read · ${detail}`)] };
+  DATA.unidentified.push(u);
+  return u;
+}
+function groupDestination(members) {
+  for (const m of members) {
+    if (!m.readable) continue;
+    const s = DATA.sampleUpload.find(x => x.name === m.name);
+    if (s && s.caseRef) { const c = DATA.cases.find(x => x.ref === s.caseRef); if (c) return { kind: 'associated', caseId: c.id, caseRef: c.ref, read: `Claim reference read on ${m.name}` }; }
+    const reg = (m.name.match(/[A-Z]{2}\d{2}\s?[A-Z]{3}/i) || [])[0];
+    if (reg) { const c = DATA.cases.find(x => x.reg.replace(/\s/g, '').toUpperCase() === reg.replace(/\s/g, '').toUpperCase() && x.state !== 'closed'); if (c) return { kind: 'associated', caseId: c.id, caseRef: c.ref, read: `Registration ${reg.toUpperCase()} read on ${m.name}` }; }
+  }
+  const img = members.find(m => m.readable && /\.(jpe?g|png)$/i.test(m.name));
+  if (img) { const ic = DATA.imageCases[0]; return { kind: 'image_registered', imageId: ic.id, imageRef: ic.ref, reg: ic.reg, read: `Registration ${ic.reg} read on ${img.name}` }; }
+  const s = members.map(m => DATA.sampleUpload.find(x => x.name === m.name)).find(x => x && x.uRef);
+  const ux = s ? DATA.unidentified.find(x => x.ref === s.uRef) : null;
+  return { kind: 'unidentified', uId: ux ? ux.id : null, uRef: ux ? ux.ref : null, read: 'Nothing in this upload identified a vehicle or a Case' };
+}
+function decideUploadGroup() {
+  const u = S.upload;
+  if (!u.files.length) { u.group = null; return; }
+  u.files.forEach(f => {
+    const r = readMember(f);
+    f.readable = r.readable; f.reason = r.reason || ''; f.detail = r.detail || ''; f.state = r.readable ? 'stored' : 'failed'; f.outcome = null;
+    f.uRef = null; f.uId = null;
+  });
+  const readable = u.files.filter(f => f.readable);
+  if (!readable.length) {
+    const ux = unreadableUnidentified(u.files.map(f => f.name).join('|'), `Manual upload · ${plural(u.files.length, 'file')}`, u.files[0].reason, 'File');
+    u.files.forEach(f => { f.uId = ux.id; f.uRef = ux.ref; });
+    u.group = { kind: 'unidentified', uId: ux.id, uRef: ux.ref, read: 'No file in this upload could be read', allUnreadable: true };
+    return;
+  }
+  u.group = groupDestination(u.files);
+  // Received file Q3: an unreadable member still becomes its own Unidentified item
+  u.files.filter(f => !f.readable).forEach(f => { const ux = unreadableUnidentified(f.name, f.name, f.reason, 'File'); f.uId = ux.id; f.uRef = ux.ref; });
+}
+function uploadGroupLine(g) {
+  if (g.kind === 'associated') return `Attached to Case ${getCase(g.caseId).ref}`;
+  if (g.kind === 'image_registered') return `Registered as vehicle images under ${byId(DATA.imageCases, g.imageId).reg}`;
+  return g.uRef ? `Unidentified · ${g.uRef}` : 'Unidentified';
+}
+function uploadGroupActions(g) {
+  const override = btn('Attach to a different Case', 'open-dialog', { small: true, data: { dialog: 'add-to-case', file: S.upload.files[0].id, group: '1' } });
+  if (g.kind === 'associated') {
+    const c = getCase(g.caseId);
+    return btn(`Open ${c.ref}`, 'go', { small: true, kind: 'dark', data: { route: `/cases/${c.id}` } })
+      + btn('Open the Case files', '', { small: true, href: 'pegasus_case_workspace_v26.html?layout=tabs&section=files' })
+      + override;
+  }
+  if (g.kind === 'image_registered') {
+    const ic = byId(DATA.imageCases, g.imageId);
+    return btn(`Open ${ic.ref}`, 'go', { small: true, kind: 'dark', data: { route: `/images/${ic.id}` } }) + override;
+  }
+  return (g.uId ? btn(`Open ${g.uRef}`, 'go', { small: true, kind: 'dark', data: { route: `/unidentified/${g.uId}` } }) : '') + override;
+}
+fileRow = function (r) {
+  const state = r.state === 'storing' ? '<span class="spinner" aria-label="Storing"></span>'
+    : r.state === 'stored' ? `<span class="status status--green">${icon('check')} Read</span>`
+    : r.state === 'failed' ? chip('Could not be read', 'red') : chip('Ready', 'neutral');
+  const why = r.state === 'failed' ? esc(r.reason || '') : esc(r.detail || '');
+  const link = r.state === 'failed' && r.uId && !(S.upload.group && S.upload.group.allUnreadable)
+    ? btn(`Open ${r.uRef}`, 'go', { small: true, data: { route: `/unidentified/${r.uId}` } }) : '';
+  return `<div class="file-row file-row--member">${icon(/\.(jpe?g|png)$/i.test(r.name) ? 'image' : /\.(mp4|mov)$/i.test(r.name) ? 'play' : 'file-text')}<div><div class="name"><strong>${esc(r.name)}</strong></div><div class="sub">${esc(r.size)}${why ? ` · ${why}` : ''}</div></div><div>${state}</div><div class="row-actions">${link}</div></div>`;
+};
+renderUpload = function () {
+  const u = S.upload;
+  const rows = u.files;
+  const done = u.stage === 'done' && !!u.group;
+  const g = u.group;
+  const unread = rows.filter(f => f.state === 'failed').length;
+  const groupPanel = done ? `<div class="panel-section upload-group">
+      ${notice(uploadGroupLine(g), g.kind === 'associated' ? 'success' : 'warning')}
+      ${definitionList([['Files', plural(rows.length, 'file')], ['How it was decided', esc(g.read)], ...(unread ? [['Could not be read', plural(unread, 'file')]] : [])])}
+      <div class="cluster">${uploadGroupActions(g)}</div>
+    </div>` : '';
+  return pageHeader('Upload', '', btn('Refresh', 'refresh', { icon: 'refresh-cw' })) +
+    `<div class="dropzone" id="dropzone">${icon('upload')}<strong>Drag files here or choose files</strong><span>EML, MSG, PDF, DOC, DOCX, JPG, PNG, MP4 or MOV · up to 10.0 MB each · 20 files</span><div class="cluster">${btn('Choose files', 'upload-choose', { kind: 'dark' })}${btn('Try a sample submission', 'upload-sample', { kind: 'ghost' })}</div><input type="file" id="file-input" multiple class="sr-only" accept=".eml,.msg,.pdf,.doc,.docx,.jpg,.jpeg,.png,.mp4,.mov" data-change="upload-files"></div>
+    ${rows.length ? panel(done ? 'This upload' : 'Submission', `<div class="panel-body--tight">${groupPanel}<div>${rows.map(fileRow).join('')}</div></div>`, { meta: done ? 'One group' : u.stage === 'storing' ? 'Storing' : 'Ready', actions: done ? btn('Start another', 'upload-reset', { small: true }) : btn('Upload', 'upload-submit', { kind: 'primary', small: true }), tight: true }) : ''}`;
+};
+ACTIONS['upload-submit'] = () => {
+  const u = S.upload; u.stage = 'storing'; u.group = null; u.files.forEach(f => { f.state = 'storing'; }); render();
+  setTimeout(() => { if (S.upload !== u || u.stage !== 'storing') return; decideUploadGroup(); u.stage = 'done'; render(); }, 900);
+};
+ACTIONS['upload-reset'] = () => { S.upload = { stage: 'idle', files: [], group: null }; render(); };
+// the whole group moves when a person overrides the destination; the override is
+// recorded on the Case's Files, never on a receipt
+ACTIONS['add-to-case-confirm'] = el => {
+  const c = getCase(S.addToCasePick); const reason = readReason(); if (!reason) return; if (!c) { toast('Choose a case', 'danger'); return; }
+  const group = el.dataset.group === '1';
+  const files = group ? S.upload.files : S.upload.files.filter(x => x.id === el.dataset.file);
+  files.forEach(f => {
+    c.documents.push({ id: uid('d'), name: f.name, role: /\.(jpe?g|png)$/i.test(f.name) ? 'image' : 'other', size: f.size, source: 'staff_upload', custody: 'confirmed', date: TODAY });
+    addHistory(c, `${f.name} added · ${reason}`);
+  });
+  if (group) S.upload.group = { kind: 'associated', caseId: c.id, caseRef: c.ref, read: `Attached by ${S.user.username} · ${reason}`, override: true };
+  S.addToCasePick = null; S.addToCaseQuery = ''; closeDialog(); render(); toast(`Added to ${c.ref}`);
+};
+
+// ---- Cases > Held: the hold's Review on date in the State column ----
+{
+  const stateChipBase = stateChip;
+  stateChip = function (c) {
+    if (c && c.state === 'held' && c.holdReviewOn) return chip(`Held · review on ${fmtDateShort(c.holdReviewOn)}`, L.state.held.tone);
+    return stateChipBase(c);
+  };
+}
+getCase('c5').holdReviewOn = '2026-09-24';
+DATA.cases.push(newCaseRecord({
+  id: 'c101', ref: 'QDOS26021', principal: 'QDOS', principalName: 'QDOS Accident Assistance Limited', providerRef: 'AMA/ND/47188/1', reg: 'RK18YHT', type: 'inspection', state: 'held',
+  heldReason: 'Claimant asked for the inspection to wait until the vehicle is returned from the repairer',
+  claimant: { name: 'Mrs Teresa Okafor', phone: '07700 900412', email: '', address: '14 Marston Road, Coventry, CV3 6HB' }, sender: 'nduncombe@qdosassist.co.uk',
+  received: '2026-08-26', instructionDate: '2026-08-26', due: '2026-09-02', engineer: 'A Patterson',
+  vehicle: { reg: 'RK18YHT', make: 'Vauxhall', model: 'Insignia Sri Nav', year: '2018' },
+  incident: { date: '2026-08-19', circumstances: 'Third party reversed from a driveway into the nearside front wing of the claimant vehicle.' },
+  requirements: { instructionComplete: true, imagesComplete: true, instructionReviewed: true, imagesReviewed: true },
+  nextAction: 'Release Hold once the vehicle is available', imageSource: 'Principal',
+  history: [h('2026-08-27', '15:04', 'alex.mercer', 'Placed on Hold · claimant asked for the inspection to wait')],
+}));
+
+// ---- Mockup strip: the Upload row is the one group decision ----
+{
+  const pageMockRowInboxBase = pageMockRow;
+  pageMockRow = function (path) {
+    if (path === '/upload') {
+      const u = S.upload; const g = u.stage === 'done' ? u.group : null;
+      return mockRow('Upload', mockBtn('Idle', u.stage === 'idle', 'mock-upload', { stage: 'idle' })
+        + mockBtn('Files chosen', u.stage === 'ready', 'mock-upload', { stage: 'ready', set: 'case' })
+        + mockBtn('Storing', u.stage === 'storing', 'mock-upload', { stage: 'storing', set: 'case' })
+        + '<span class="sep"></span>'
+        + mockBtn('Attached to a Case', !!g && g.kind === 'associated', 'mock-upload', { stage: 'done', set: 'case' })
+        + mockBtn('Vehicle images', !!g && g.kind === 'image_registered', 'mock-upload', { stage: 'done', set: 'images' })
+        + mockBtn('Unidentified', !!g && g.kind === 'unidentified' && !g.allUnreadable, 'mock-upload', { stage: 'done', set: 'unidentified' })
+        + mockBtn('None could be read', !!g && !!g.allUnreadable, 'mock-upload', { stage: 'done', set: 'unreadable' }));
+    }
+    return pageMockRowInboxBase(path);
+  };
+}
+ACTIONS['mock-upload'] = el => {
+  const st = el.dataset.stage;
+  if (st === 'idle') { S.upload = { stage: 'idle', files: [], group: null }; render(); return; }
+  const set = el.dataset.set || 'case';
+  stageFiles(UPLOAD_SETS[set].map(n => { const s = DATA.sampleUpload.find(x => x.name === n); return { name: n, size: s.size }; }));
+  S.upload.set = set;
+  if (st === 'storing') { S.upload.stage = 'storing'; S.upload.files.forEach(f => { f.state = 'storing'; }); }
+  else if (st === 'done') { decideUploadGroup(); S.upload.stage = 'done'; }
+  render();
+};
+
+Object.assign(window.__pegasus, {
+  get inboxScopeItems() { return inboxScopeItems; },
+  get inboxMessages() { return inboxMessages; },
+  get mailRow() { return mailRow; },
+  get renderUpload() { return renderUpload; },
+  get decideUploadGroup() { return decideUploadGroup; },
+  get stateChip() { return stateChip; },
+  UPLOAD_SETS, getMail, getCase, byId, stageFiles, readMember,
+});
 
 
 // ---- 90-router.js
@@ -3716,7 +4886,6 @@ function setParams(params) {
 const ROUTES = [
   { re: /^\/signin$/, external: true, page: () => renderSignin(), title: 'Sign in' },
   { re: /^\/connect\/authorize$/, external: true, page: () => renderAuthorize(), title: 'Authorise an automation connector' },
-  { re: /^\/intake\/([^/]+)$/, page: (m, p) => renderIntake(m[1], p), title: 'Received file' },
   { re: /^\/cases\/([^/]+)\/suggestions$/, page: m => renderSuggestions(m[1]), title: 'Suggestions' },
   { re: /^\/uploads\/([^/]+)$/, external: true, page: m => renderPublicUpload(m[1]), title: 'Secure file request' },
   { re: /^\/$/, page: () => renderWorkCentre(), title: 'Work Centre' },

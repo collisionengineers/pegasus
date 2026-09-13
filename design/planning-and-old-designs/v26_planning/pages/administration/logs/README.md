@@ -9,6 +9,8 @@
 ## Screenshots
 
 - [s24-admin-logs.png](../../../current/v26-shots/s24-admin-logs.png)
+- [s48-logs-intake.png](../../../current/v26-shots/s48-logs-intake.png)
+- [s49-logs-intake-drawer.png](../../../current/v26-shots/s49-logs-intake-drawer.png)
 
 ## Notes
 

@@ -385,3 +385,21 @@ menu, the state glyphs, and that closing a tab persists.
 
 - Valuation, while editing: a **Valuation month** field (month and year) and one button per source, Glass's, Brego, Super CAP and AI market research, that runs the valuation for that month (pending card, then figures, guide month and a Notes line). **Add valuation** is the live manual dialog. Planning: `pages/cases/case-record/panels/valuation/`. Shots `69`–`71`.
 - The notes audit found six actions still opening alerts or toasts: Add valuation, Import, Send to AI, Compare, Preview draft and a dead Prepare delivery alert. All now open their dialogs on the live field sets (`72`–`75`); the self-check asserts that no "(existing)" placeholder remains. v25's "Known limits" first bullet no longer applies.
+
+## The 13 September planning decisions, built in
+
+Every decision in `../pages/*/how-it-should-work.md` that had been held back is now in the two mockups. Open questions are shown at their proposal.
+
+**Case record** (`76`–`78`): Place on Hold has an optional Review on date and the ribbon reads "Held · review on 24 Sep"; Vehicle reads "Lookup failed" and Files "Storage not ready"; an AI draft ready shows on Next action with its per-kind action (Review estimate, Open query, Review) and raises a personal notification; the assignment dialog has Assign to me; a Market research file sits in Files as tagged evidence stored in Box. Strip row `AI draft`; `?ai=estimate|query|unid`, `?review=YYYY-MM-DD`.
+
+**Work Centre** (`s40`–`s44`): four metrics, no Blocked and no High; Needs attention grouped Overdue / Due today / Later with empty states, relative due text and received age, no chip except in the Today pane; Office and Mine; kind chips with counts including AI draft; paged at 50; Updated and Refresh (no automatic refresh timer in the mockup); due instants computed from the workflow targets; actions act in place (Assign Engineer dialog, Review Case, Open Triage, Assign to me); New cases with arrival chips, a since-you-last-looked divider and Changed by automation rows; AI jobs with per-kind actions, Market research excluded. The bell is personal notifications only, merging those the Case record raised.
+
+**Configuration** (`s45`): the six workflow settings with ranges, read view and edit form.
+
+**Received file removed** (`s46`–`s51`): no `/intake` route and no link to one anywhere. Unidentified carries the unreadable item with all seven actions, Close with reason in free text, Reopen, registration readings; Cases › Unidentified has Open and Closed items; Administration › Logs has Action logs and Intake log tabs with the row drawer and Re-evaluate / Retry allocation / Retry OCR; Operations lists failed intake processing and its badge counts retryable failures only; message attachments state their outcome in operator words; Create case refusal offers Open message / Open file.
+
+**Inbox and Upload** (`s52`–`s55`): Category not Queue; scopes All incoming, Receiving work, Case updates, Pre-instructions, Unidentified, Sent Items, Dismissed; Dismiss on the row and the record, restorable; one upload is one group with one decision and per-member read status, an all-unreadable upload one Unidentified item; Cases › Held reads "Held · review on 24 Sep".
+
+**How it was built.** Three parallel lanes (`wc`, `intake`, `inbox`) each wrote only their own lane files, spliced by the shell build after the existing overrides. The shell self-check lost the checks for the removed received-file page and the Unread scope and gained each lane's checks. 13 September: Case record `{"fail":[],"okCount":410}`, shell `{"fail":[],"okCount":416}`.
+
+**Left for the next pass.** The removed received-file page's code is unreachable but still in the build inputs. Dismiss on a message with an open Unidentified item is allowed until that question is decided.
