@@ -1135,7 +1135,7 @@ internal static class ImageThumbnailRendering
             return null;
         }
         var origin = codec.EncodedOrigin;
-        var transposed = IsTransposed(origin);
+        var transposed = EncodedImageOrientation.IsTransposed(origin);
         // What the operator sees, which is what the longest edge bounds.
         var displayedWidth = transposed ? decoded.Height : decoded.Width;
         var displayedHeight = transposed ? decoded.Width : decoded.Height;
@@ -1162,68 +1162,11 @@ internal static class ImageThumbnailRendering
         using (var canvas = new SKCanvas(target))
         {
             canvas.Clear(SKColors.White);
-            ApplyDisplayOrientation(canvas, origin, targetWidth, targetHeight);
+            EncodedImageOrientation.Apply(canvas, origin, targetWidth, targetHeight);
             canvas.DrawBitmap(scaled, 0, 0);
         }
         using var image = SKImage.FromBitmap(target);
         using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, JpegQuality);
         return encoded?.ToArray();
-    }
-
-    /// <summary>
-    /// Whether the EXIF origin exchanges the image's width and height.
-    /// </summary>
-    private static bool IsTransposed(SKEncodedOrigin origin) =>
-        origin is SKEncodedOrigin.LeftTop
-            or SKEncodedOrigin.RightTop
-            or SKEncodedOrigin.RightBottom
-            or SKEncodedOrigin.LeftBottom;
-
-    /// <summary>
-    /// Turns the stored pixels into the displayed image on a canvas whose own
-    /// size — <paramref name="width"/> by <paramref name="height"/> — is
-    /// already the displayed one.
-    /// </summary>
-    private static void ApplyDisplayOrientation(
-        SKCanvas canvas,
-        SKEncodedOrigin origin,
-        int width,
-        int height)
-    {
-        switch (origin)
-        {
-            case SKEncodedOrigin.TopRight:
-                canvas.Translate(width, 0);
-                canvas.Scale(-1, 1);
-                break;
-            case SKEncodedOrigin.BottomRight:
-                canvas.Translate(width, height);
-                canvas.Scale(-1, -1);
-                break;
-            case SKEncodedOrigin.BottomLeft:
-                canvas.Translate(0, height);
-                canvas.Scale(1, -1);
-                break;
-            case SKEncodedOrigin.LeftTop:
-                canvas.RotateDegrees(90);
-                canvas.Scale(1, -1);
-                break;
-            case SKEncodedOrigin.RightTop:
-                canvas.Translate(width, 0);
-                canvas.RotateDegrees(90);
-                break;
-            case SKEncodedOrigin.RightBottom:
-                canvas.Translate(width, height);
-                canvas.Scale(-1, -1);
-                canvas.RotateDegrees(90);
-                canvas.Scale(1, -1);
-                break;
-            case SKEncodedOrigin.LeftBottom:
-                canvas.Translate(0, height);
-                canvas.RotateDegrees(-90);
-                break;
-            default:
-                break;
-        }
     }
 }
