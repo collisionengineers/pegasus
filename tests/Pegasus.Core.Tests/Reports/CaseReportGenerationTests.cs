@@ -230,6 +230,35 @@ public sealed class CaseReportGenerationTests
         AssertBlocked(result, CaseReportReadiness.ValuationCommentaryRequirement);
     }
 
+    /// <summary>
+    /// Phase 5b: the Engineer's written commentary satisfies the switch on its
+    /// own, and it is what the report prints ahead of the applied valuation's
+    /// reason; with neither there is nothing to print and no placeholder.
+    /// </summary>
+    [Fact]
+    public void WrittenValuationCommentarySatisfiesTheSwitchAndIsWhatPrints()
+    {
+        var input = ReadyInput();
+        var fields = input.Assessment.Fields
+            .Append(Field(AssessmentVocabulary.ReportValuationCommentary, "true"))
+            .Append(Field(AssessmentVocabulary.ReportValuationCommentaryText, "Low mileage for its age; the retail guide is adjusted up."))
+            .ToArray();
+        var assessment = input.Assessment with { Fields = fields };
+
+        var result = CaseReportReadiness.Evaluate(input with
+        {
+            Assessment = assessment,
+            AppliedValuation = Valuation() with { Reason = "  " },
+        });
+
+        Assert.DoesNotContain(result.Reasons, reason => reason.Requirement == CaseReportReadiness.ValuationCommentaryRequirement);
+        Assert.Equal(
+            "Low mileage for its age; the retail guide is adjusted up.",
+            AssessmentReportProjection.ValuationCommentaryOf(assessment, "Applied from Glass's"));
+        Assert.Equal("Applied from Glass's", AssessmentReportProjection.ValuationCommentaryOf(input.Assessment, "Applied from Glass's"));
+        Assert.Null(AssessmentReportProjection.ValuationCommentaryOf(input.Assessment, "  "));
+    }
+
     [Fact]
     public void UnrelatedDamageWithoutUnrelatedDamageBlocksGeneration()
     {

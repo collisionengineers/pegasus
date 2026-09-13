@@ -14,6 +14,7 @@
     var owner = Model.Page;
     var key = Model.Key;
     var availability = owner.SectionAvailability(key);
+    var collapsed = owner.CollapsedClass("case." + key) is not null;
 }
 @if (owner.SectionOffersEdit(key))
 {
@@ -36,7 +37,9 @@
     </span>
 }
 <button type="button" class="icon-button panel-collapse" data-collapse-toggle
-        aria-label="@CaseWorkspaceLabels.Frame.CollapseSection"
+        aria-expanded="@(collapsed ? "false" : "true")"
+        aria-label="@(collapsed ? CaseWorkspaceLabels.Frame.ExpandSection : CaseWorkspaceLabels.Frame.CollapseSection)"
+        data-label-collapse="@CaseWorkspaceLabels.Frame.CollapseSection"
         data-label-expand="@CaseWorkspaceLabels.Frame.ExpandSection"
         title="@CaseWorkspaceLabels.Frame.CollapseSection">
     <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg>

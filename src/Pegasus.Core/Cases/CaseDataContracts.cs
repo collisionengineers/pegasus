@@ -197,7 +197,8 @@ public sealed record CaseWorkspaceData(
     CaseOdometerUnit? VehicleMileageDisplayUnit,
     CaseWorkspaceRepairer? Repairer = null,
     string? PrincipalNotes = null,
-    string? ClaimSourceNotes = null);
+    string? ClaimSourceNotes = null,
+    string? ClientNotes = null);
 
 public sealed record CaseEditableData(
     string? ClaimantName = null,
@@ -266,7 +267,9 @@ public sealed record CaseEditableData(
     // Appended for the Overview notes band: this Case's own notes beside the
     // Principal and Claim source records' notes. Same rule as above.
     string? PrincipalNotes = null,
-    string? ClaimSourceNotes = null);
+    string? ClaimSourceNotes = null,
+    // Appended for the accident band's Notes from client. Same rule as above.
+    string? ClientNotes = null);
 
 public sealed record ConfirmCompletenessRequest(
     Guid CaseId,

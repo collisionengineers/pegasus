@@ -156,6 +156,30 @@ public sealed partial class AssessmentReportRendererTests
         Assert.True(artifact.PageCount >= 5);
     }
 
+    /// <summary>
+    /// Phase 5b: the valuation commentary text frozen into the snapshot prints
+    /// when the switch is on, and not when it is off.
+    /// </summary>
+    [Fact]
+    public async Task SelectedValuationCommentaryPrintsTheRecordedText()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var draft = new GenerateAssessmentReportDraft(renderer);
+        const string commentary = "Low mileage for its age; the retail guide is adjusted up.";
+        var ready = ReadySnapshot();
+
+        var selected = await draft.ExecuteAsync(
+            ready with { Content = ready.Content with { IncludeValuationCommentary = true }, ValuationCommentary = commentary },
+            CaseReportArtifactKind.AssessmentReport);
+        var unselected = await draft.ExecuteAsync(
+            ready with { Content = ready.Content with { IncludeValuationCommentary = false }, ValuationCommentary = commentary },
+            CaseReportArtifactKind.AssessmentReport);
+
+        Assert.Contains(commentary, string.Join(" ", PageTexts(selected.Pdf)), StringComparison.Ordinal);
+        Assert.DoesNotContain(commentary, string.Join(" ", PageTexts(unselected.Pdf)), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task AnInvalidSnapshotFailsClosedBeforeRendering()
     {

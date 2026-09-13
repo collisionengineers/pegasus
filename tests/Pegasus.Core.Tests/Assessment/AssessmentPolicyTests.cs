@@ -212,6 +212,8 @@ public sealed class AssessmentPolicyTests
         {
             var value = definition.Type switch
             {
+                // A VIN is validated as ISO 3779 (Phase 5b), so it round-trips a real one.
+                AssessmentFieldType.Text when definition.Path == AssessmentVocabulary.VehicleVin => "WVWZZZ1JZXW000001",
                 AssessmentFieldType.Text => "value",
                 AssessmentFieldType.Enumerated => definition.Codes![0],
                 AssessmentFieldType.WholeNumber => "1",

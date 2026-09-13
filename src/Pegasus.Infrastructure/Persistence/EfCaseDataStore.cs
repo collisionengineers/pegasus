@@ -464,7 +464,8 @@ public sealed class EfCaseDataStore(
                     : null,
             new(data.RepairerId, data.RepairerVersion, data.RepairerName),
             data.PrincipalNotes,
-            data.ClaimSourceNotes);
+            data.ClaimSourceNotes,
+            data.ClientNotes);
     }
 
     private static CaseField<string> TextField(
@@ -685,6 +686,7 @@ internal static class CaseDataFieldWriter
         Text(CaseDataFieldNames.InspectionNotes, data.InspectionNotes);
         Text(CaseDataFieldNames.PrincipalNotes, data.PrincipalNotes);
         Text(CaseDataFieldNames.ClaimSourceNotes, data.ClaimSourceNotes);
+        Text(CaseDataFieldNames.ClientNotes, data.ClientNotes);
     }
 
     public static CaseEditableData ReadEditable(CaseDataSnapshotEntity snapshot) => new(
@@ -740,7 +742,8 @@ internal static class CaseDataFieldWriter
         ConfirmedLong(snapshot, CaseDataFieldNames.RepairerVersion),
         ConfirmedText(snapshot, CaseDataFieldNames.VehicleYear),
         ConfirmedText(snapshot, CaseDataFieldNames.PrincipalNotes),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceNotes));
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceNotes),
+        ConfirmedText(snapshot, CaseDataFieldNames.ClientNotes));
 
     private static void SetConfirmed(
         PegasusDbContext context,

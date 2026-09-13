@@ -84,6 +84,7 @@ public sealed partial class DetailsModel(
     IPreviewValuationCalculation previewValuation,
     IApplyValuationCalculation applyValuation,
     IListAppliedValuations listAppliedValuations,
+    ICaseFieldProposalQueries fieldProposals,
     ILogger<DetailsModel> logger,
     ISubmitCaseToEva? submitCaseToEva = null,
     RequestUploadLimits? requestUploadLimits = null,
@@ -112,6 +113,37 @@ public sealed partial class DetailsModel(
     /// Loaded only while the record is being edited.
     /// </summary>
     public IReadOnlyList<ContactDirectoryRecord> RepairerChoices { get; private set; } = [];
+
+    /// <summary>
+    /// The active Claim source records the Overview's claim source select
+    /// offers while the record is being edited; each option carries the
+    /// record's notes and contact line so the notes band follows a change
+    /// without another request.
+    /// </summary>
+    public IReadOnlyList<ContactDirectoryRecord> ClaimSourceChoices { get; private set; } = [];
+
+    /// <summary>
+    /// The recorded AI proposals on the Settlement decision fields, one per
+    /// field, with their derived Awaiting / Accepted / Corrected status.
+    /// </summary>
+    public IReadOnlyList<CaseFieldProposal> Proposals { get; private set; } = [];
+
+    /// <summary>
+    /// "is-collapsed" when this browser folded the panel <paramref name="collapseKey"/>
+    /// (its <c>data-collapse</c> value), so the first paint is already folded.
+    /// </summary>
+    public string? CollapsedClass(string collapseKey) =>
+        Pegasus.Web.Presentation.ShellPreferences.PanelCollapsed(Request, collapseKey) ? "is-collapsed" : null;
+
+    /// <summary>
+    /// "is-active" on the addressed section when this browser's layout is
+    /// Tabs, so a Tabs first paint shows that section rather than none.
+    /// </summary>
+    public string? ActiveTabClass(string sectionKey) =>
+        Pegasus.Web.Presentation.ShellPreferences.CaseLayout(Request) == "tabs"
+        && string.Equals(sectionKey, Section, StringComparison.Ordinal)
+            ? "is-active"
+            : null;
 
     public IReadOnlyList<ImageIntakeSummary> ImageIntakes { get; private set; } = [];
 
@@ -672,6 +704,15 @@ public sealed partial class DetailsModel(
                 // Only this page renders a manual renew control, so only it needs that key.
                 RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
             }
+            if (CanEditCaseData)
+            {
+                ClaimSourceChoices = await contactDirectory.ListByRoleAsync(
+                    actor, ContactRole.ClaimSource, cancellationToken);
+            }
+            if (!SectionIsDeferred("settlement"))
+            {
+                Proposals = await fieldProposals.ListForCaseAsync(id, cancellationToken);
+            }
             if (!SectionIsDeferred("inspection"))
             {
                 var choices = await inspectionAddressChoicesQueries.GetAsync(id, cancellationToken);
@@ -1117,6 +1158,8 @@ public sealed partial class DetailsModel(
         Guid? repairerDirectoryId,
         string? principalNotes,
         string? claimSourceNotes,
+        string? clientNotes,
+        Guid? claimSourceId,
         string? section,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
@@ -1139,13 +1182,17 @@ public sealed partial class DetailsModel(
                 var damageFields = assessmentFields.Where(field => EditorLabels.Damage.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 var damageSubmitted = Posted(nameof(damageImpacts)) || damageFields.Count > 0;
+                // The vehicle's identity (VIN, type, body) is edited wherever the
+                // Vehicle section edits, like its registration — not an Engineer field.
+                var vehicleIdentityFields = assessmentFields.Where(field => EditorLabels.Vehicle.ContainsKey(field.Key))
+                    .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 // D4/FRD-12: an image preparation is not an engineering field.
                 // Cropping, rotating and ordering the Case's own photographs is
                 // offered wherever the Case edit lease is held, so it is gated
                 // on the record being editable at all rather than on assessment
                 // access — the gate that showed no Crop on a Review-state Case
                 // and refused the one taken from the Report section.
-                var engineeringSubmitted = assessmentFields.Count > 0
+                var engineeringSubmitted = assessmentFields.Count > vehicleIdentityFields.Count
                     || Posted(nameof(storagePerDay)) || Posted(nameof(recoveryCharge))
                     || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate))
                     || damageSubmitted;
@@ -1199,14 +1246,41 @@ public sealed partial class DetailsModel(
                 originalUnit = mileageValue is null ? null : originalUnit ?? CaseOdometerUnit.Miles;
                 var reportFields = assessmentFields.Where(field => EditorLabels.Report.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
-                var settlementFields = assessmentFields.Where(field => EditorLabels.Settlement.ContainsKey(field.Key))
+                // An AI proposal awaiting review leaves its control empty (the
+                // control shows confirmed values only). Posting that empty
+                // control is "not decided yet", never a clear of the proposal.
+                var settlementFields = assessmentFields
+                    .Where(field => EditorLabels.Settlement.ContainsKey(field.Key)
+                        && !(string.IsNullOrWhiteSpace(field.Value)
+                            && assessment?.Field(field.Key) is { RecordedByKind: ActorKind.Automation, IsConfirmed: false }))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
                 var reportSubmitted = reportFields.Count > 0 || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate));
                 var overviewSubmitted = new[] { nameof(claimantName), nameof(claimantContactNumber), nameof(claimantAddress),
                     nameof(claimNumber), nameof(contactName), nameof(contactEmailAddress), nameof(contactPhoneNumber),
                     nameof(incidentDate), nameof(accidentCircumstances), nameof(instructionDate), nameof(vatStatus),
                     nameof(repairerName), nameof(repairerAddress), nameof(repairerDirectoryId),
-                    nameof(principalNotes), nameof(claimSourceNotes) }.Any(Posted);
+                    nameof(principalNotes), nameof(claimSourceNotes), nameof(clientNotes), nameof(claimSourceId) }.Any(Posted);
+                // The claim source is a choice from the active Claim source
+                // records, copied onto the Case as its snapshot. An unposted
+                // select keeps the recorded source; an empty one records none;
+                // the same record keeps the snapshot it already has.
+                var claimSource = persisted?.ClaimSource;
+                if (overviewSubmitted && Posted(nameof(claimSourceId)))
+                {
+                    if (claimSourceId is not { } sourceId)
+                    {
+                        claimSource = null;
+                    }
+                    else if (sourceId != persisted?.ClaimSource?.ClaimSourceId)
+                    {
+                        var chosen = (await contactDirectory.ListByRoleAsync(actor, ContactRole.ClaimSource, cancellationToken))
+                            .SingleOrDefault(item => item.OrganizationId == sourceId)
+                            ?? throw new InvalidOperationException("The selected claim source is not an active Claim source record.");
+                        claimSource = new CaseWorkspaceClaimSource(
+                            chosen.OrganizationId, chosen.Version, chosen.Name,
+                            chosen.ContactPerson, chosen.Telephone, chosen.Email);
+                    }
+                }
                 // INTK-058: a linked directory organisation is copied onto the
                 // Case — its identity, its version and its own name and
                 // address — so a later directory edit never rewrites this
@@ -1232,7 +1306,12 @@ public sealed partial class DetailsModel(
                 var vehicleSubmitted = new[] { nameof(vehicleRegistration), nameof(vehicleMake), nameof(vehicleModel),
                     nameof(vehicleYear), nameof(vehicleMileage), nameof(vehicleMileageUnit),
                     nameof(vehicleMileageSource) }.Any(Posted)
-                    || assessmentFields.ContainsKey(AssessmentVocabulary.HistoryCheck);
+                    || assessmentFields.ContainsKey(AssessmentVocabulary.HistoryCheck)
+                    || vehicleIdentityFields.Count > 0;
+                if (assessmentFields.TryGetValue(AssessmentVocabulary.HistoryCheck, out var historyCheck))
+                {
+                    vehicleIdentityFields[AssessmentVocabulary.HistoryCheck] = historyCheck;
+                }
                 var impacts = !Posted(nameof(damageImpacts))
                     ? null
                     : AssessmentPolicy.ParseImpacts(damageImpacts);
@@ -1255,10 +1334,11 @@ public sealed partial class DetailsModel(
                         linkedRepairer?.Address
                             ?? Submitted(nameof(repairerAddress), repairerAddress,
                                 Accepted(data.Inspection.RepairerAddress)?.Value),
-                        persisted?.ClaimSource,
+                        claimSource,
                         repairer,
                         Submitted(nameof(principalNotes), principalNotes, persisted?.PrincipalNotes),
-                        Submitted(nameof(claimSourceNotes), claimSourceNotes, persisted?.ClaimSourceNotes)),
+                        Submitted(nameof(claimSourceNotes), claimSourceNotes, persisted?.ClaimSourceNotes),
+                        Submitted(nameof(clientNotes), clientNotes, persisted?.ClientNotes)),
                     Inspection = !inspectionSubmitted ? null : new(treatment, address, persisted?.InspectionLocationProvenance,
                         Submitted(nameof(storageLocation), storageLocation, Accepted(data.Inspection.StorageLocation)?.Value),
                         persisted?.StorageBusiness,
@@ -1278,8 +1358,7 @@ public sealed partial class DetailsModel(
                             Submitted(nameof(vehicleMileageSource), vehicleMileageSource,
                                 Recorded(AssessmentVocabulary.VehicleMileageSource)),
                             persisted?.VehicleMileageDisplayUnit),
-                        assessmentFields.TryGetValue(AssessmentVocabulary.HistoryCheck, out var history)
-                            ? new Dictionary<string, string?> { [AssessmentVocabulary.HistoryCheck] = history } : null,
+                        vehicleIdentityFields.Count > 0 ? vehicleIdentityFields : null,
                         Submitted(nameof(vehicleYear), vehicleYear, Accepted(data.Vehicle.Year)?.Value)),
                     Damage = !damageSubmitted ? null : new(impacts, damageFields),
                     ImagePreparation = !preparationSubmitted ? null : new(

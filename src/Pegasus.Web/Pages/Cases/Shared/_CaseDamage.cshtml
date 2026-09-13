@@ -87,7 +87,7 @@
         .ToArray();
 }
 
-<section class="record-section panel case-damage @(Model.IsEditing && !editable ? "is-locked" : null)" id="section-damage" data-section="damage" data-collapse="case.damage" aria-labelledby="section-damage-title"
+<section class="record-section panel @Model.CollapsedClass("case.damage") @Model.ActiveTabClass("damage") case-damage @(Model.IsEditing && !editable ? "is-locked" : null)" id="section-damage" data-section="damage" data-collapse="case.damage" aria-labelledby="section-damage-title"
          data-damage-editor data-damage-editable="@(editable ? "true" : "false")" data-damage-impacts="@rawImpacts"
          data-damage-zones="@zoneTable" data-damage-severities="@severityTable" data-damage-multiple="@DamageLabels.Multiple"
          data-damage-absent="@OperatorLabels.CaseWorkspace.AbsentValue" data-damage-none="@DamageLabels.NoDamageRecorded"
