@@ -375,7 +375,7 @@ menu, the state glyphs, and that closing a tab persists.
 ## Create audit (13 September)
 
 - Case type (Inspection, Audit, Inspection + Audit) on the mock strip and as a ribbon chip; `?kind=`.
-- On an Inspection + Audit Case the bar offers **Create audit**: a new duplicate Case with `a.`/`ap.{Case/PO}` derived from the Settlement outcome (asks when the outcome is neither). The bars link the two; the Audit Case joins the working set and the shell's lists (`#/cases/ca1`, opened as `?audit=1`). Planning: `pages/cases/case-record/dialogs/create-audit/`. Shots `61`–`64`.
+- On an Inspection + Audit Case the Actions menu offers **Create audit** (with Send to EVA; neither sits in the record bar, and the menu shows outside an edit session when either is available): a new duplicate Case with `a.`/`ap.{Case/PO}` derived from the Settlement outcome (asks when the outcome is neither). The bars link the two; the Audit Case joins the working set and the shell's lists (`#/cases/ca1`, opened as `?audit=1`). Planning: `pages/cases/case-record/dialogs/create-audit/`. Shots `61`–`64`.
 
 ## Record notes (13 September, from v24)
 

@@ -4,7 +4,7 @@ Decided with the operator on 13 September 2026.
 
 ## The action
 
-- An **Inspection + Audit** Case offers **Create audit** in the record bar. It is absent on Inspection and Audit Cases, once the Audit exists, and on a Case recorded Created in error or archived.
+- An **Inspection + Audit** Case offers **Create audit** in the Actions menu (decided 13 September: the record bar keeps only Edit, Save and Cancel; Create audit and Send to EVA are menu items). It is absent on Inspection and Audit Cases, once the Audit exists, and on a Case recorded Created in error or archived.
 - Create audit creates a **new Case**: a duplicate of the original with the same Principal, claimant and parties, vehicle, incident, inspection details, Figures, Files and estimate. It is a Case in its own right, of type Audit, and starts in Review.
 - Its reference is derived from the Inspection's recorded outcome: **Repairable → `a.{Case/PO}`**, **Total loss → `ap.{Case/PO}`**. When the outcome is neither (Cash in lieu, Contract repair), the dialog asks the person to state Repairable or Total loss before creating.
 - The two Cases link both ways: the original's bar shows **Audit case ap.QDOS26214**, the Audit's bar shows **Original case QDOS26214**. Neither identity changes and the original keeps its own lifecycle.
@@ -20,7 +20,7 @@ Compact. Facts: Original case, Outcome, Audit reference. When the outcome is nei
 
 | Page | Entry |
 | --- | --- |
-| Case record | Create audit in the record bar; Audit case / Original case links; the Case type chip in the ribbon; Case type in Overview |
+| Case record | Create audit in the Actions menu; Audit case / Original case links; the Case type chip in the ribbon; Case type in Overview |
 | Cases list | the Audit Case is listed with its `a.`/`ap.` reference, type Audit, in Review |
 | Work Centre | a new Case (D8), Review target applies (D3) |
 

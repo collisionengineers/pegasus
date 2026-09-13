@@ -513,6 +513,8 @@ body:not(.is-editing) .edit-only,.case-section.is-locked .edit-only{display:none
 .bell-count{position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--red);color:#fff;font:700 10px var(--font);display:grid;place-items:center}
 .icon-button[aria-label="Notifications"]{position:relative}
 .next-row.ai-next{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px}
+/* Actions menu: Send to EVA and Create audit */
+#menuCase{display:contents}
 /* ---- Damage ---- */
 .damage-workbench{display:grid;grid-template-columns:minmax(220px,300px) minmax(260px,1fr);gap:14px;align-items:start}
 .damage-workbench:has(#carView[data-variant="side"]){grid-template-columns:minmax(280px,360px) minmax(260px,1fr)}
@@ -2053,6 +2055,22 @@ function renderMarketResearch(){if(document.querySelector('.doc-row[data-mr]'))r
 
 {const _ri=replicaInit;replicaInit=function(){_ri();renderMarketResearch();renderBellCount();renderAiNext();};}
 {const _rq=replicaQuery;replicaQuery=function(q){_rq(q);if(q.get('ai'))setAiDraft(q.get('ai'));if(q.get('review'))setHoldReview(q.get('review'));};}
+
+/* ---------- Operator, 13 Sep: Send to EVA and Create audit live in the Actions menu, not the record bar ---------- */
+function renderCaseMenuItems(){const menu=$('menu');if(!menu)return;const body=menu.querySelector('.actions-menu-body');let box=$('menuCase');
+  if(!box){box=document.createElement('div');box.id='menuCase';body.prepend(box);}
+  const items=[];
+  if(canSendToEva())items.push(`<button class="btn" onclick="closeMenus();openDlg('eva')"><svg class="icon"><use href="#icon-download"/></svg><span>Send to EVA</span></button>`);
+  if(canCreateAudit())items.push(`<button class="btn" onclick="closeMenus();openDlg('createAudit')"><svg class="icon"><use href="#icon-plus"/></svg><span>Create audit</span></button>`);
+  box.innerHTML=items.join('');
+  const editItems=EDITING&&!isTerminal();
+  [...body.children].forEach(el=>{if(el!==box)el.hidden=!editItems;});
+  if(editItems&&items.length){box.insertAdjacentHTML('beforeend','<div class="menu-sep"></div>');}
+  menu.hidden=!(editItems||items.length);}
+{const _rb=renderBar;renderBar=function(){_rb();const bar=$('barActions');
+  [...bar.querySelectorAll('a,button')].forEach(el=>{const t=el.textContent.trim();if(t==='Send to EVA'||t==='Create audit')el.remove();});
+  renderCaseMenuItems();};}
+{const _rm=renderMenu;renderMenu=function(s){_rm(s);[...$('menuProgress').querySelectorAll('.btn')].forEach(b=>{if(b.textContent.trim()==='Send to EVA')b.remove();});renderCaseMenuItems();};}
 /* ================= init ================= */
 buildNav();markNav('overview');renderTabs();buildCar();renderAdds();adjWork();vatDefaults();renderEstTabs();renderGrid();renderImgs();outcomeChange(true);renderReport();syncReads();setState('engineer');renderGlass();renderProposal();dismissable();replicaInit();applyQuery();measure();
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'&&EDITING){e.preventDefault();saveEdit();}});

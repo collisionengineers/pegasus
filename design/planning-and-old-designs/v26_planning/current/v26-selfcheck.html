@@ -281,15 +281,16 @@ f.onload=()=>{
     $('rbEng').textContent='A Patterson';w.localStorage.removeItem('v26.notif');w.renderBellCount();
     // case type and Create audit
     check('case type chip absent for Inspection',$('rbKind').hidden&&!$('barActions').textContent.includes('Create audit'));
-    w.setKind('inspection_audit');check('Inspection + Audit shows the chip and Create audit',!$('rbKind').hidden&&$('rbKind').textContent==='Inspection + Audit'&&!!d.querySelector('#barActions .btn[onclick*="createAudit"]'));
+    w.setKind('inspection_audit');check('Inspection + Audit shows the chip and Create audit in the Actions menu',!$('rbKind').hidden&&$('rbKind').textContent==='Inspection + Audit'&&!!d.querySelector('#menuCase .btn[onclick*="createAudit"]')&&!$('menu').hidden);
+    check('the record bar holds neither Create audit nor Send to EVA',![...d.querySelectorAll('#barActions a,#barActions button')].some(b=>['Create audit','Send to EVA'].includes(b.textContent.trim())));
     w.openDlg('createAudit');check('create audit derives ap. from Total loss',dlgText().includes('ap.QDOS26214')&&!d.querySelector('input[name=audit-verdict]'));w.closeDlg();
     $('f-outcome').value='cash_in_lieu';w.openDlg('createAudit');check('an outcome that is neither asks for the verdict',!!d.querySelector('input[name=audit-verdict]'));w.closeDlg();$('f-outcome').value='total_loss';
-    w.openDlg('createAudit');w.createAuditConfirm();check('audit case created and linked from the bar',g('R').audit.ref==='ap.QDOS26214'&&$('barActions').textContent.includes('Audit case ap.QDOS26214')&&!d.querySelector('#barActions .btn[onclick*="createAudit"]'));
+    w.openDlg('createAudit');w.createAuditConfirm();check('audit case created and linked from the bar',g('R').audit.ref==='ap.QDOS26214'&&$('barActions').textContent.includes('Audit case ap.QDOS26214')&&!d.querySelector('#menuCase .btn[onclick*="createAudit"]'));
     check('audit case joins the working set',w.readOpen().some(t=>t.id==='ca1'&&t.ref==='ap.QDOS26214')&&w.localStorage.getItem('v26.audit')==='ap.QDOS26214');
-    w.setKind('audit');check('Audit type shows its chip',$('rbKind').textContent==='Audit'&&!d.querySelector('#barActions .btn[onclick*="createAudit"]'));
+    w.setKind('audit');check('Audit type shows its chip',$('rbKind').textContent==='Audit'&&!d.querySelector('#menuCase .btn[onclick*="createAudit"]'));
     w.clearAudit();w.setKind('inspection');check('audit cleared',!g('R').audit&&!w.localStorage.getItem('v26.audit')&&!w.readOpen().some(t=>t.id==='ca1'));
     // ===== EVA =====
-    w.setState('engineer');w.startEdit();check('EVA handoff offered',$('barActions').textContent.includes('Send to EVA'));
+    w.setState('engineer');w.startEdit();check('EVA handoff offered in the Actions menu',!!d.querySelector('#menuCase .btn[onclick*=eva]')&&!$('barActions').textContent.includes('Send to EVA'));
     w.openDlg('eva');check('EVA export and gated API send',dlgText().includes('Download ZIP')&&dlgText().includes('EVA API submission is not enabled for this principal.')&&!!d.querySelector('#dlgHost .gated .btn[disabled]'));
     $('eva-sign-off-engineer').value="N O'Reilly";$('eva-sign-off-reason').value='Signing engineer on leave';w.setSignOff();
     check('sign-off engineer set',$('f-signoff').value==="N O'Reilly"&&$('noteTop').textContent.includes('Sign-off Engineer set'));
