@@ -12,3 +12,4 @@ Decisions that land on the Case record from other pages' planning. The Case reco
 | Work Centre D9 | an AI Draft ready job on this Case shows on the Next action panel in the right column with its per-kind action (Review estimate, Open query, Review) | Next action |
 | Work Centre D9 | Market research files attach to Files as evidence, stored in Box like any other evidence, with the tag Market research; no review step and no use as a value | Files |
 | Work Centre D10 | assignment, edits by someone else, received e-mail and queries on this Case raise the engineer's notification | header, Notes, Files |
+| Operator, 13 Sep | Create audit on an Inspection + Audit Case creates the linked Audit Case `a.`/`ap.{Case/PO}` as a duplicate; the bars link the two; Case type shows as a ribbon chip | [`dialogs/create-audit/how-it-should-work.md`](dialogs/create-audit/how-it-should-work.md) |

@@ -5,6 +5,7 @@
 - `close`
 - `complete`
 - `correctPrincipal`
+- [`createAudit`](create-audit/README.md)
 - `eva`
 - `handoff`
 - `hold / release`

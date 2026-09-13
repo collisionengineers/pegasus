@@ -1,7 +1,7 @@
 # v26 mockups (current version)
 
 A temporary design review artifact, created at explicit operator request per
-[`docs/index.md`](../../../docs/index.md)'s carve-out for such material. It is not
+[`docs/index.md`](../../../../docs/index.md)'s carve-out for such material. It is not
 application code, not design authority, and not implementation evidence. **Remove this
 folder once Stage 2 (the Razor implementation) lands, or once the design here is formally
 accepted or rejected.**

@@ -2768,6 +2768,7 @@ const CASE_PAGE = 'pegasus_case_workspace_v26.html';
 function caseHref(params = {}) {
   const q = new URLSearchParams({ layout: 'tabs' });
   if (params.section) q.set('section', params.section);
+  if (params.audit) q.set('audit', '1');
   return `${CASE_PAGE}?${q}`;
 }
 function markDirty() {}
@@ -2775,7 +2776,7 @@ ACTIONS['case-save'] = () => {};
 function renderCase(id, params = {}) {
   const c = getCase(id);
   if (c) openRecord(c.id);
-  setTimeout(() => { window.location.href = caseHref(params); }, 0);
+  setTimeout(() => { window.location.href = caseHref(id === 'ca1' ? { ...params, audit: 1 } : params); }, 0);
   return pageHeader(c ? `${c.ref} · ${c.reg}` : 'Case', 'Opening the Case record');
 }
 DIALOGS.viewer = ({ name }) => ({ title: name || 'Evidence', body: `<div class="viewer-stage"><span style="color:#9aa3a9">${esc(name || '')}</span></div>`, foot: btn('Close', 'dialog-close', { kind: 'dark' }) });
@@ -3614,6 +3615,9 @@ DIALOGS['default-sender'] = () => { const eligible = DATA.mailboxes.filter(m => 
 ACTIONS['default-sender-save'] = (el, e, form) => { const v = formValues(form); const m = byId(DATA.mailboxes, v.mb); if (!m) { toast('Select an eligible staff-send mailbox', 'danger'); return; } DATA.mailboxes.forEach(x => { x.isDefault = x === m; }); delete S.editing.sender; DATA.actionLogs.unshift(logEntry('Administration', 'Default sender changed', m.address)); closeDialog(); render(); toast('Default sender saved'); };
 DIALOGS['mailbox-add'] = () => ({ title: 'Add mailbox', cls: 'dialog--compact', body: `${field('Approved address', input('address', '', { type: 'email', placeholder: 'name@collisionengineers.co.uk' }), { id: 'address', required: true })}<fieldset class="field"><legend>Route scope</legend><div class="checks">${check('incoming', L.routeScope.incoming, true)}${check('sent', L.routeScope.sent, false)}${check('staff', L.routeScope.staff, false)}</div></fieldset>${field('Verified encoded-message size limit (bytes)', input('sizeLimit', 26214400, { type: 'number', min: 1, step: 1 }), { id: 'sizeLimit' })}${field('State', select('state', [['approved', 'Approved'], ['disabled', 'Disabled']], 'approved', { blank: null }), { id: 'state' })}`, foot: dialogFoot('Add mailbox', 'mailbox-add-save') });
 ACTIONS['mailbox-add-save'] = (el, e, form) => { const v = formValues(form); if (!v.address) { toast('An approved address is required', 'danger'); return; } DATA.mailboxes.push({ id: uid('mb'), address: v.address, uses: [v.incoming ? 'incoming' : '', v.sent ? 'sent' : '', v.staff ? 'staff' : ''].filter(Boolean), lastChecked: null, state: v.state === 'disabled' ? 'disabled' : 'waiting', folders: [], isDefault: false, identityBound: false, sizeLimit: Number(v.sizeLimit) || 26214400, activated: null, subscription: 'None.', lastSuccess: null, freshness: 'Not yet polled', lastError: 'None' }); DATA.actionLogs.unshift(logEntry('Administration', 'Mailbox added', v.address)); closeDialog(); render(); toast('Mailbox added'); };
+// ---- The Audit Case created from QDOS26214 by Create audit (exists once the Case page has created it) ----
+{ const auditRef = localStorage.getItem('v26.audit'); const o = auditRef && getCase('c99');
+  if (o && !getCase('ca1')) { const a = JSON.parse(JSON.stringify(o)); Object.assign(a, { id: 'ca1', ref: auditRef, type: 'audit', state: 'review', engineer: null, signoff: null, received: '2026-09-13', instructionDate: '2026-09-13', due: '2026-09-20', originalRef: o.ref, history: [] }); DATA.cases.unshift(a); } }
 
 /* ================= v26 replica: mockup strip rows, dialog fixtures, self-check handles ================= */
 delete MOCK_DIALOG_ARGS['mail-delete'];
