@@ -117,6 +117,49 @@ public sealed class UploadGroupStatusModel(
 
     public bool OfferGroupRegistration { get; private set; }
 
+    /// <summary>
+    /// The one decision for the upload (Upload planning, 13 September): attached to a
+    /// Case, registered as vehicle images, or Unidentified. Null while any member is
+    /// still moving or the members do not share one destination (the open decision
+    /// card then owns the choice).
+    /// </summary>
+    public sealed record SubmissionDecision(string Label, string Tone, string Message, UploadOutcomeAction? Action);
+
+    public SubmissionDecision? Decision { get; private set; }
+
+    /// <summary>Members processing could not read; each travels with the group to its destination.</summary>
+    public int CouldNotBeReadCount => Group.Members.Count(member => member.CouldNotBeRead == true);
+
+    /// <summary>Every member could not be read, so the group is one Unidentified item.</summary>
+    public bool NoMemberCouldBeRead => Group.Members.Count > 0 && Group.Members.All(member => member.CouldNotBeRead == true);
+
+    private static SubmissionDecision? DecideSubmission(UploadOutcomeView?[] outcomes)
+    {
+        if (outcomes.Length == 0 || outcomes.Any(outcome => outcome is null || outcome.IsStillWorking))
+        {
+            return null;
+        }
+
+        var settled = outcomes.Select(outcome => outcome!).ToArray();
+        var first = settled[0];
+        var oneDestination = settled.Select(outcome => outcome.PrimaryAction?.Url).Distinct().Count() == 1;
+        if (!oneDestination)
+        {
+            return null;
+        }
+
+        return settled switch
+        {
+            _ when settled.All(outcome => outcome.Kind == UploadOutcomeKind.Attached) =>
+                new(OperatorLabels.UploadDecision.Attached, "green", first.Message, first.PrimaryAction),
+            _ when settled.All(outcome => outcome.Kind == UploadOutcomeKind.ImageCaseRegistered) =>
+                new(OperatorLabels.UploadDecision.VehicleImages, "green", first.Message, first.PrimaryAction),
+            _ when settled.All(outcome => outcome.Kind is UploadOutcomeKind.NeedsReview or UploadOutcomeKind.Resolved) =>
+                new(OperatorLabels.UploadDecision.Unidentified, "amber", first.Message, first.PrimaryAction),
+            _ => null
+        };
+    }
+
     private Guid _firstOpenImageReceiptId;
     private bool _groupReadyForAttachment;
 
@@ -381,6 +424,7 @@ public sealed class UploadGroupStatusModel(
         Statuses = memberResults.ToDictionary(result => result.StagedReceiptId, result => result.status);
         Outcomes = memberResults.ToDictionary(result => result.StagedReceiptId, result => result.outcome);
         var outcomes = memberResults.Select(result => result.outcome).ToArray();
+        Decision = DecideSubmission(outcomes);
         if (outcomes.Length > 1
             && outcomes.All(outcome => outcome is { Kind: UploadOutcomeKind.ImageCaseRegistered })
             && outcomes.Select(outcome => outcome!.PrimaryAction?.Url).Distinct().Count() == 1)

@@ -37,10 +37,13 @@
             <div class="panel-body">
                 @if (!workflowEditing)
                 {
-                    <dl class="definition-list definition-list--compact">
+                    <dl class="definition-list definition-list--compact" data-workflow-settings>
                         <div class="definition"><dt>Instructions</dt><dd>@(Model.Configuration.RequireInstructions ? "Required" : "Not required")</dd></div>
                         <div class="definition"><dt>Images</dt><dd>@(Model.Configuration.RequireImages ? "Required" : "Not required")</dd></div>
-                        <div class="definition"><dt>Chase interval</dt><dd>@Model.Configuration.ChaseIntervalDays days</dd></div>
+                        @foreach (var setting in Model.WorkflowSettings)
+                        {
+                            <div class="definition" data-workflow-setting="@setting.Field"><dt>@setting.Label</dt><dd>@ConfigurationModel.Days(setting.Current)</dd></div>
+                        }
                     </dl>
                 }
                 else
@@ -50,11 +53,19 @@
                         <div class="form-grid form-grid--2">
                             <label class="choice"><input form="configuration-edit" type="checkbox" name="RequireInstructions" value="true" checked="@Model.RequireInstructions" /> Instructions</label>
                             <label class="choice"><input form="configuration-edit" type="checkbox" name="RequireImages" value="true" checked="@Model.RequireImages" /> Images</label>
-                            <div class="field"><label for="chase-days">Chase interval (days)</label>
-                                <input form="configuration-edit" id="chase-days" name="ChaseIntervalDays" type="number" min="1" max="365" value="@Model.ChaseIntervalDays" required class="chase-interval-input" />
-                            </div>
                         </div>
-                        <p class="muted">Applies to new schedules. Existing chase dates stay as scheduled.</p>
+                        <div class="form-grid form-grid--3" data-workflow-settings-edit>
+                            @foreach (var setting in Model.WorkflowSettings)
+                            {
+                                var inputId = $"setting-{setting.Field}";
+                                <div class="field">
+                                    <label for="@inputId">@setting.Label (days)</label>
+                                    <input form="configuration-edit" id="@inputId" name="@setting.Field" type="number" min="@setting.Minimum" max="@setting.Maximum" step="1" value="@setting.Posted" required class="@(setting.Field == nameof(ConfigurationModel.ChaseIntervalDays) ? "chase-interval-input" : null)" />
+                                    <span class="field-hint">@setting.Minimum to @setting.Maximum</span>
+                                    <span asp-validation-for="@setting.Field" class="field-error"></span>
+                                </div>
+                            }
+                        </div>
                     </fieldset>
                 }
             </div>

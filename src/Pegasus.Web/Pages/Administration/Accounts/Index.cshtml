@@ -36,7 +36,7 @@
                 <div class="table-wrap no-border">
                     <table>
                         <caption class="sr-only">Staff accounts</caption>
-                        <thead><tr><th scope="col">Username</th><th scope="col">Role</th><th scope="col">Sign-off</th><th scope="col">State</th><th scope="col"><span class="sr-only">Settings</span></th></tr></thead>
+                        <thead><tr><th scope="col">Username</th><th scope="col">Role</th><th scope="col">Sign-off</th><th scope="col">Glass's</th><th scope="col">State</th><th scope="col"><span class="sr-only">Settings</span></th></tr></thead>
                         <tbody>
                         @foreach (var row in Model.Rows)
                         {
@@ -45,6 +45,12 @@
                                 <td class="mono">@account.UserName</td>
                                 <td>@OperatorLabels.Humanise(account.Role.ToString())</td>
                                 <td>@OperatorLabels.StaffAccounts.SignOffState(account)</td>
+                                <td data-account-glass="@account.Id">
+                                    <span class="cluster">
+                                        <span class="@(row.Glass is { Configured: true } ? "mono" : "muted")">@row.GlassLabel</span>
+                                        <a class="link-button" asp-page="/Administration/Glass/Index" asp-route-staffId="@account.Id">Manage login</a>
+                                    </span>
+                                </td>
                                 <td>
                                     <partial name="Shared/_StatusChip" model="@OperatorLabels.StaffAccounts.State(account.IsEnabled)" />
                                     @if (account.MustChangePassword)

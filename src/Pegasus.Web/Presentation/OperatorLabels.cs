@@ -2167,4 +2167,93 @@ public static class OperatorLabels
                 .Replace("Dvsa", "DVSA", StringComparison.Ordinal)
                 .Replace("dvsa", "DVSA", StringComparison.Ordinal);
     }
+
+    // Phase 6 Lane B (Inbox, Upload, Search, Operations, Administration) start
+
+    /// <summary>Administration › Logs › Intake log (13 September): the outcome words and what a receipt became.</summary>
+    public static class IntakeLog
+    {
+        public const string Logs = "Logs";
+        public const string ActionLogsTab = "Action logs";
+        public const string IntakeLogTab = "Intake log";
+        public const string FailedIntake = "Failed intake";
+        public const string OldestPendingIntake = "Oldest pending intake";
+        public const string Reevaluate = "Re-evaluate with current policy";
+        public const string RetryAllocation = "Retry allocation";
+        public const string RetryOcr = "Retry OCR";
+        public const string OpenFile = "Open file";
+        public const string OpenMessage = "Open message";
+
+        public static string Outcome(IntakeLogOutcome outcome) => outcome switch
+        {
+            IntakeLogOutcome.CaseCreated => "Case created",
+            IntakeLogOutcome.Unidentified => "Unidentified",
+            IntakeLogOutcome.Triage => "Triage",
+            IntakeLogOutcome.VehicleImages => "Vehicle images",
+            IntakeLogOutcome.CouldNotBeRead => "Could not be read",
+            IntakeLogOutcome.ProcessingFailed => "Processing failed",
+            IntakeLogOutcome.Closed => "Closed",
+            _ => Humanise(outcome.ToString())
+        };
+
+        /// <summary>The chip tone for an outcome: green when it became work, amber when a person must act, red when processing failed.</summary>
+        public static string OutcomeTone(IntakeLogOutcome outcome) => outcome switch
+        {
+            IntakeLogOutcome.CaseCreated or IntakeLogOutcome.VehicleImages or IntakeLogOutcome.Triage => "green",
+            IntakeLogOutcome.ProcessingFailed => "red",
+            IntakeLogOutcome.Closed => "neutral",
+            _ => "amber"
+        };
+
+        /// <summary>The page a produced record opens.</summary>
+        public static string BecameHref(IntakeLogBecame became) => became.Kind switch
+        {
+            IntakeLogBecameKind.Case => $"/Cases/{became.Id:D}",
+            IntakeLogBecameKind.Unidentified => $"/Unidentified/{became.Id:D}",
+            IntakeLogBecameKind.Triage => $"/Triage/{became.Id:D}",
+            IntakeLogBecameKind.ImageIntake => $"/VehicleImages/{became.Id:D}",
+            _ => "/"
+        };
+
+        public static string Source(IntakeLogSource source) =>
+            string.Join(" · ", new[] { SourceChannel(source.Channel), source.Address, source.Detail }
+                .Where(part => !string.IsNullOrWhiteSpace(part))
+                .Distinct(StringComparer.OrdinalIgnoreCase));
+
+        /// <summary>"2 processing · 1 allocation", or null when neither ran more than once.</summary>
+        public static string? Attempts(IntakeLogRow row) =>
+            row.ProcessingAttempts > 1 || row.AllocationAttempts > 1
+                ? $"{row.ProcessingAttempts} processing · {row.AllocationAttempts} allocation"
+                : null;
+    }
+
+    /// <summary>Inbox and the message record (Inbox, 13 September): Category, no Unread scope, Dismiss and Restore.</summary>
+    public static class Inbox
+    {
+        public const string Category = "Category";
+        public const string AllCategories = "All categories";
+        public const string DestinationGroup = "Destinations";
+        public const string CategoryGroup = "Categories";
+        public const string DismissedScope = "Dismissed";
+        public const string Dismiss = "Dismiss";
+        public const string Restore = "Restore";
+        public const string DismissedNotice = "Dismissed";
+        public const string RestoredNotice = "Restored";
+        public const string OpenFile = "Open file";
+    }
+
+    /// <summary>Upload: one upload is one group with one decision (Upload, 13 September).</summary>
+    public static class UploadDecision
+    {
+        public const string ThisUpload = "This upload";
+        public const string OneGroup = "One group";
+        public const string Attached = "Attached to a Case";
+        public const string VehicleImages = "Registered as vehicle images";
+        public const string Unidentified = "Unidentified";
+        public const string Files = "Files";
+        public const string CouldNotBeRead = "Could not be read";
+        public const string NoFileCouldBeRead = "No file in this upload could be read";
+    }
+
+    // Phase 6 Lane B end
 }

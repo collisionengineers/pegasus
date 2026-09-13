@@ -1,0 +1,355 @@
+@page
+@model Pegasus.Web.Pages.Administration.LogsModel
+@using Pegasus.Core.Intake
+@using Pegasus.Core.Operations
+@{
+    ViewData["Title"] = OperatorLabels.IntakeLog.Logs;
+    ViewData["Eyebrow"] = OperatorLabels.Nav.Administration;
+    ViewData["AdminArea"] = "logs";
+    var detail = Model.IntakeDetail;
+}
+@* _Layout renders no Styles section (and is outside this lane), so the page's own sheet is linked in the body. *@
+<link rel="stylesheet" href="~/css/logs.css" asp-append-version="true" />
+<partial name="Shared/_PageHeader" />
+<partial name="Shared/_ErrorSummary" />
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
+        <nav class="tabs logs-tabs" aria-label="@OperatorLabels.IntakeLog.Logs">
+            <a class="tab" href="/Administration/Logs" aria-current="@(Model.IsIntakeTab ? null : "page")">@OperatorLabels.IntakeLog.ActionLogsTab</a>
+            <a class="tab" href="/Administration/Logs?tab=intake" aria-current="@(Model.IsIntakeTab ? "page" : null)" data-logs-tab="intake">@OperatorLabels.IntakeLog.IntakeLogTab</a>
+        </nav>
+        @if (Model.LogsError is { } logsError)
+        {
+            <div class="notice notice--danger" role="alert"><span>@logsError</span></div>
+        }
+
+        @if (Model.IsIntakeTab)
+        {
+            @if (Model.IntakeCounts is { } counts)
+            {
+                <div class="figures logs-figures" data-intake-counts>
+                    <a class="figure logs-figure" href="@Model.IntakeUrl(page: 1, outcome: IntakeLogOutcome.ProcessingFailed)">
+                        <span class="label">@OperatorLabels.IntakeLog.FailedIntake</span>
+                        <span class="value" data-failed-intake>@counts.FailedIntake</span>
+                    </a>
+                    <div class="figure logs-figure logs-figure--pending">
+                        <span class="label">@OperatorLabels.IntakeLog.OldestPendingIntake</span>
+                        <span class="value" data-oldest-pending-intake>@(counts.OldestPendingIntakeDueAtUtc is { } due ? OperatorLabels.OfficeDate(due) : "None")</span>
+                    </div>
+                </div>
+            }
+
+            <form method="get" class="panel logs-filter" aria-label="Filter the intake log">
+                <input type="hidden" name="tab" value="intake" />
+                <div class="panel-body logs-filter__fields">
+                    <div class="field logs-filter__search"><label for="intake-text">Search</label><input id="intake-text" name="IntakeText" value="@Model.IntakeText" maxlength="@IntakeLogPolicy.MaximumTextLength" placeholder="Reference, registration, claim number, sender, file name" /></div>
+                    <div class="field">
+                        <label for="intake-outcome">Outcome</label>
+                        <select id="intake-outcome" name="IntakeOutcome">
+                            <option value="">All outcomes</option>
+                            @foreach (var outcome in Enum.GetValues<IntakeLogOutcome>())
+                            {
+                                <option value="@outcome" selected="@(Model.IntakeOutcome == outcome)">@OperatorLabels.IntakeLog.Outcome(outcome)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="intake-source">Source</label>
+                        <select id="intake-source" name="IntakeSource">
+                            <option value="">All sources</option>
+                            @foreach (var channel in Enum.GetValues<IntakeSourceChannel>())
+                            {
+                                <option value="@channel" selected="@(Model.IntakeSource == channel)">@OperatorLabels.SourceChannel(channel)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field"><label for="intake-principal">Principal</label><input id="intake-principal" name="IntakePrincipal" value="@Model.IntakePrincipal" maxlength="20" autocomplete="off" /></div>
+                    <div class="field"><label for="intake-from">From</label><input id="intake-from" name="IntakeFrom" type="date" value="@Model.IntakeFrom?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" /></div>
+                    <div class="field"><label for="intake-to">To</label><input id="intake-to" name="IntakeTo" type="date" value="@Model.IntakeTo?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" /></div>
+                    <div class="button-row">
+                        <button class="btn btn--dark" type="submit">Apply</button>
+                        <a class="btn" href="/Administration/Logs?tab=intake">Clear</a>
+                    </div>
+                </div>
+            </form>
+
+            <section class="panel" aria-labelledby="intake-log-title">
+                <div class="panel-head">
+                    <h2 id="intake-log-title">@OperatorLabels.IntakeLog.IntakeLogTab</h2>
+                    <span class="meta">@Model.IntakeLog.TotalCount item@(Model.IntakeLog.TotalCount == 1 ? string.Empty : "s") · Newest first</span>
+                </div>
+                @if (Model.IntakeLog.Items.Count == 0)
+                {
+                    <div class="empty"><p>No received items match these filters.</p></div>
+                }
+                else
+                {
+                    <div class="table-wrap no-border">
+                        <table class="table table--compact" data-intake-log>
+                            <caption class="sr-only">@OperatorLabels.IntakeLog.IntakeLogTab</caption>
+                            <thead><tr><th scope="col">Received</th><th scope="col">Source</th><th scope="col">Item</th><th scope="col">Outcome</th><th scope="col">Became</th><th scope="col">Attempts</th><th scope="col"><span class="sr-only">Open</span></th></tr></thead>
+                            <tbody>
+                            @foreach (var row in Model.IntakeLog.Items)
+                            {
+                                <tr data-intake-row="@row.ReceiptId" aria-selected="@(detail?.Row.ReceiptId == row.ReceiptId ? "true" : null)">
+                                    <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.ReceivedAtUtc)</time></td>
+                                    <td>@OperatorLabels.IntakeLog.Source(row.Source)</td>
+                                    <td class="logs-item"><a href="/Received/@row.ReceiptId.ToString("D")/Source" target="_blank" rel="noopener">@row.Item</a></td>
+                                    <td>
+                                        <partial name="Shared/_StatusChip" model="@OperatorLabels.IntakeLog.Outcome(row.Outcome)"
+                                                 view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.IntakeLog.OutcomeTone(row.Outcome) }' />
+                                        @if (!string.IsNullOrWhiteSpace(row.OutcomeReason) && row.Outcome is IntakeLogOutcome.Closed or IntakeLogOutcome.CouldNotBeRead or IntakeLogOutcome.ProcessingFailed)
+                                        {
+                                            <span class="logs-reason">@row.OutcomeReason</span>
+                                        }
+                                    </td>
+                                    <td class="mono">
+                                        @if (row.Became is { } became)
+                                        {
+                                            <a href="@OperatorLabels.IntakeLog.BecameHref(became)">@became.Reference</a>
+                                        }
+                                        else
+                                        {
+                                            <span class="muted">—</span>
+                                        }
+                                    </td>
+                                    <td>@(OperatorLabels.IntakeLog.Attempts(row) ?? "—")</td>
+                                    <td class="row-actions"><a class="btn btn--small" href="@Model.IntakeUrl(receipt: row.ReceiptId)">Open</a></td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                    @if (Model.IntakeLog.TotalPages > 1)
+                    {
+                        <nav class="pagination" aria-label="Intake log pages">
+                            @if (Model.IntakeLog.Page > 1) { <a class="btn btn--small" href="@Model.IntakeUrl(page: Model.IntakeLog.Page - 1)">Previous</a> }
+                            <span>Page @Model.IntakeLog.Page of @Model.IntakeLog.TotalPages</span>
+                            @if (Model.IntakeLog.Page < Model.IntakeLog.TotalPages) { <a class="btn btn--small" href="@Model.IntakeUrl(page: Model.IntakeLog.Page + 1)">Next</a> }
+                        </nav>
+                    }
+                }
+            </section>
+
+            @if (detail is not null)
+            {
+                var returnUrl = Model.IntakeUrl(receipt: detail.Row.ReceiptId);
+                <aside class="logs-drawer" role="dialog" aria-modal="false" aria-labelledby="intake-drawer-title" data-intake-drawer="@detail.Row.ReceiptId">
+                    <div class="logs-drawer__head">
+                        <h2 id="intake-drawer-title">@detail.Row.Item</h2>
+                        <a class="icon-button" href="@Model.IntakeUrl()" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></a>
+                    </div>
+                    <div class="logs-drawer__body">
+                        <dl class="logs-facts">
+                            <dt>Received</dt><dd>@OperatorLabels.OfficeTime(detail.Row.ReceivedAtUtc)</dd>
+                            <dt>Source</dt><dd>@OperatorLabels.IntakeLog.Source(detail.Row.Source)</dd>
+                            <dt>Outcome</dt><dd><partial name="Shared/_StatusChip" model="@OperatorLabels.IntakeLog.Outcome(detail.Row.Outcome)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.IntakeLog.OutcomeTone(detail.Row.Outcome) }' /></dd>
+                            <dt>Became</dt><dd class="mono">@if (detail.Row.Became is { } drawerBecame) { <a href="@OperatorLabels.IntakeLog.BecameHref(drawerBecame)">@drawerBecame.Reference</a> } else { <span class="muted">—</span> }</dd>
+                            <dt>Attempts</dt><dd>@detail.Row.ProcessingAttempts processing · @detail.Row.AllocationAttempts allocation</dd>
+                        </dl>
+                        <section class="panel">
+                            <div class="panel-head"><h3>Retained original</h3></div>
+                            <div class="panel-body button-row">
+                                <a class="btn" href="/Received/@detail.Row.ReceiptId.ToString("D")/Source" target="_blank" rel="noopener" data-intake-open-file>
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>@OperatorLabels.IntakeLog.OpenFile</span>
+                                </a>
+                            </div>
+                        </section>
+                        <section class="panel">
+                            <div class="panel-head"><h3>Processing evidence</h3></div>
+                            <ul class="logs-evidence">
+                                @if (!string.IsNullOrWhiteSpace(detail.Receipt.DecisionReason))
+                                {
+                                    <li><strong>Decision</strong><span>@detail.Receipt.DecisionReason</span></li>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(detail.Receipt.FailureReason))
+                                {
+                                    <li><strong>Failure</strong><span>@detail.Receipt.FailureReason</span></li>
+                                }
+                                @foreach (var reading in detail.RegistrationReadings)
+                                {
+                                    <li><strong>Registration reading</strong><span class="mono">@(reading.SuggestedRegistration ?? "No registration read")</span></li>
+                                }
+                                @foreach (var field in detail.Receipt.Fields.Where(field => !string.IsNullOrWhiteSpace(field.SuggestedValue)))
+                                {
+                                    <li><strong>@OperatorLabels.Humanise(field.Name)</strong><span>@field.SuggestedValue</span></li>
+                                }
+                                @foreach (var evidence in detail.Receipt.Evidence)
+                                {
+                                    <li><strong>@OperatorLabels.Humanise(evidence.Signal)</strong><span>@evidence.Detail</span></li>
+                                }
+                                @foreach (var attempt in detail.AllocationAttempts)
+                                {
+                                    <li><strong>Allocation @OperatorLabels.OfficeTime(attempt.OccurredAtUtc)</strong><span>@OperatorLabels.Humanise(attempt.Status.ToString())@(attempt.SafeReason is { } safeReason ? $" · {safeReason}" : null)</span></li>
+                                }
+                            </ul>
+                        </section>
+                    </div>
+                    <div class="logs-drawer__foot">
+                        @if (detail.Actions.CanReevaluate)
+                        {
+                            <form method="post" asp-page-handler="ReevaluateIntake" class="logs-action" data-intake-action="reevaluate">
+                                <input type="hidden" name="receiptId" value="@detail.Row.ReceiptId" />
+                                <input type="hidden" name="expectedVersion" value="@detail.Receipt.Version" />
+                                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                <label class="sr-only" for="reevaluate-reason">Reason</label>
+                                <input id="reevaluate-reason" name="reason" maxlength="500" required placeholder="Reason" />
+                                <button class="btn" type="submit">@OperatorLabels.IntakeLog.Reevaluate</button>
+                            </form>
+                        }
+                        @if (detail.Actions.CanRetryAllocation && detail.AllocationAttempts.LastOrDefault() is { } lastAttempt)
+                        {
+                            <form method="post" asp-page-handler="RetryIntakeAllocation" class="logs-action" data-intake-action="retry-allocation">
+                                <input type="hidden" name="receiptId" value="@detail.Row.ReceiptId" />
+                                <input type="hidden" name="expectedVersion" value="@detail.Receipt.Version" />
+                                <input type="hidden" name="expectedAttemptId" value="@lastAttempt.AttemptId" />
+                                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                <label class="sr-only" for="retry-allocation-reason">Reason</label>
+                                <input id="retry-allocation-reason" name="reason" maxlength="500" required placeholder="Reason" />
+                                <button class="btn" type="submit">@OperatorLabels.IntakeLog.RetryAllocation</button>
+                            </form>
+                        }
+                        @if (detail.Actions.CanRetryOcr)
+                        {
+                            <form method="post" asp-page-handler="RetryIntakeOcr" class="logs-action" data-intake-action="retry-ocr">
+                                <input type="hidden" name="receiptId" value="@detail.Row.ReceiptId" />
+                                <input type="hidden" name="expectedVersion" value="@detail.Receipt.Version" />
+                                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                <button class="btn" type="submit">@OperatorLabels.IntakeLog.RetryOcr</button>
+                            </form>
+                        }
+                        <a class="btn" href="@Model.IntakeUrl()">Close</a>
+                    </div>
+                </aside>
+            }
+        }
+        else
+        {
+        <section class="panel">
+            <div class="panel-head"><h2>@OperatorLabels.IntakeLog.ActionLogsTab</h2></div>
+            <div class="panel-body panel-body--compact">
+                <form method="get" class="compact-log-filter">
+                    <div class="field"><label for="search">Keywords</label><input id="search" asp-for="Search" /></div>
+                    <div class="field"><label for="operation">Activity</label><input id="operation" asp-for="Operation" /></div>
+                    <div class="field">
+                        <label for="actor">Person</label>
+                        <select id="actor" asp-for="Actor">
+                            <option value="">All people</option>
+                            @foreach (var person in Model.People)
+                            {
+                                <option value="@person.Id">@person.UserName</option>
+                            }
+                            @if (Model.AutomationActorSubjectId is { Length: > 0 } automationActor)
+                            {
+                                <option value="@automationActor">@Model.AutomationActorLabel</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="actor-type">Actor type</label>
+                        <select id="actor-type" asp-for="ActorType">
+                            <option value="">All actors</option>
+                            @foreach (var actorType in OperatorLabels.ActionLogActorTypes)
+                            {
+                                <option value="@actorType.Value">@actorType.Label</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field"><label for="record">Case/reference</label><input id="record" asp-for="Record" /></div>
+                    <div class="field"><label for="result">Outcome</label><input id="result" name="Result" value="@Model.ResultFilter" /></div>
+                    @* Minutes are the smallest unit an operator filters by; without an
+                       explicit format the tag helper writes seconds and milliseconds
+                       into the value and the picker shows them. Storage precision is
+                       untouched. *@
+                    <div class="field"><label for="from">From</label><input id="from" asp-for="From" asp-format="{0:yyyy-MM-ddTHH:mm}" type="datetime-local" step="60" /></div>
+                    <div class="field"><label for="to">To</label><input id="to" asp-for="To" asp-format="{0:yyyy-MM-ddTHH:mm}" type="datetime-local" step="60" /></div>
+                    <div class="button-row">
+                        <button class="btn btn--primary" type="submit">Apply</button>
+                        <a class="btn" asp-page="/Administration/Logs">Clear</a>
+                    </div>
+                </form>
+                @if (Model.Result.Rows.Count > 0)
+                {
+                    <div class="table-wrap">
+                        <table class="table table--compact">
+                            <thead><tr><th><a href="@Model.SortUrl">Time @(Model.OldestFirst ? "↑" : "↓")</a></th><th>Actor</th><th>Area</th><th>Action</th><th>Reference</th><th>Result</th></tr></thead>
+                            <tbody>
+                            @foreach (var row in Model.Result.Rows)
+                            {
+                                <tr>
+                                    <td><time datetime="@row.OccurredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.OccurredAtUtc)</time></td>
+                                    <td>
+                                        @if (Model.IsAiActor(row))
+                                        {
+                                            <span class="status-chip status-chip--neutral">AI</span>
+                                        }
+                                        @Model.ActorLabel(row)
+                                    </td>
+                                    <td>@Model.AreaLabel(row)</td>
+                                    <td>@row.Operation</td>
+                                    <td>
+                                        @if (Model.AiJobRecordLink(row) is { } aiJobRecord)
+                                        {
+                                            <a asp-page="@aiJobRecord.Page" asp-route-id="@aiJobRecord.SubjectId">@aiJobRecord.Reference</a>
+                                        }
+                                        else
+                                        {
+                                            @(Model.ReferenceLabel(row) ?? "—")
+                                        }
+                                    </td>
+                                    <td>@row.Result</td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                @if (Model.CurrentPage > 1 || Model.Result.HasMore)
+                {
+                    <nav class="pagination" aria-label="Action log pages">
+                        @if (Model.CurrentPage > 1)
+                        {
+                            <a class="btn btn--small" href="@Model.PreviousPageUrl">Previous</a>
+                        }
+                        <span>Page @Model.CurrentPage</span>
+                        @if (Model.Result.HasMore)
+                        {
+                            <a class="btn btn--small" href="@Model.NextPageUrl">Next</a>
+                        }
+                    </nav>
+                }
+                @if (Model.Result.Rows.Count == 0)
+                {
+                    <p class="muted section-gap" role="status">No actions match these filters.</p>
+                }
+            </div>
+        </section>
+        @if (Model.Metrics is { } metrics)
+        {
+            @* Failed intake and Oldest pending intake moved to the Intake log tab's head-line counts. *@
+            <details class="panel">
+                <summary class="panel-head">Recorded counts and processing times</summary>
+                <div class="panel-body grid grid-3">
+                    <dl><dt class="muted">Mailbox failures</dt><dd>@metrics.MailboxFailures</dd></dl>
+                    <dl><dt class="muted">Mailbox freshness</dt><dd>@metrics.MailboxFreshness.State (@OperatorLabels.OfficeTime(metrics.MailboxFreshness.LastSuccessfulUpdateAtUtc, ""))</dd></dl>
+                    <dl><dt class="muted">Oldest pending Box upload</dt><dd>@OperatorLabels.OfficeTime(metrics.OldestPendingCustodyCreatedAtUtc, "")</dd></dl>
+                    <dl><dt class="muted">Poisoned inbox messages</dt><dd>@metrics.PoisonedInboxMessages</dd></dl>
+                    <dl><dt class="muted">Unknown sends</dt><dd>@metrics.UnknownSends</dd></dl>
+                    <dl><dt class="muted">Oldest pending AI job</dt><dd>@OperatorLabels.OfficeTime(metrics.OldestPendingAiJobCreatedAtUtc, "")</dd></dl>
+                    <dl><dt class="muted">Cache entries</dt><dd>@metrics.CacheEntries</dd></dl>
+                    <dl><dt class="muted">Cache bytes</dt><dd>@metrics.CacheBytes</dd></dl>
+                    <dl><dt class="muted">Next cache expiry</dt><dd>@OperatorLabels.OfficeTime(metrics.NextCacheExpiryAtUtc, "")</dd></dl>
+                    <dl><dt class="muted">Active cache reads</dt><dd>@metrics.ActiveCacheReadLeases</dd></dl>
+                    <dl><dt class="muted">Cache cleanup failures</dt><dd>@metrics.CacheCleanupFailures</dd></dl>
+                    <dl><dt class="muted">Cache hits since Web start</dt><dd>@metrics.CacheHitsSinceStart</dd></dl>
+                    <dl><dt class="muted">Cache misses since Web start</dt><dd>@metrics.CacheMissesSinceStart</dd></dl>
+                </div>
+            </details>
+        }
+        }
+    </div>
+</div>

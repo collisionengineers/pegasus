@@ -35,6 +35,39 @@ public sealed class GroupedIntakeWebTests
         Assert.Equal(2, group.Members.Select(item => item.StagedReceiptId).Distinct().Count());
     }
 
+    /// <summary>
+    /// Upload (13 September): one upload is one group with at most one decision
+    /// panel; no member row links to a receipt.
+    /// </summary>
+    [Fact]
+    public async Task TheGroupStatusShowsAtMostOneDecisionAndNoReceiptLink()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.jpg", "image/jpeg", [1, 2, 3]),
+                ("damage-close-up.jpg", "image/jpeg", [4, 5, 6])
+            ]);
+        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+
+        using var response = await client.GetAsync(upload.Location!.OriginalString);
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.True(
+            System.Text.RegularExpressions.Regex.Count(html, "data-upload-decision=") <= 1,
+            "An upload shows one decision for the whole group, never one per file.");
+        Assert.Contains("overview.jpg", html, StringComparison.Ordinal);
+        Assert.Contains("damage-close-up.jpg", html, StringComparison.Ordinal);
+        Assert.DoesNotMatch("href=\"/Received/[0-9a-fA-F-]{36}\"", html);
+        Assert.DoesNotContain("Review this file", html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task EveryMemberResolvesToItsGroupByItsOwnSourceIdentity()
     {
