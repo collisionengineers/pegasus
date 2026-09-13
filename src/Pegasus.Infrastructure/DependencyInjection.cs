@@ -677,7 +677,12 @@ public static class DependencyInjection
 
     public static IServiceCollection AddPegasusReportRendering(this IServiceCollection services)
     {
-        services.AddSingleton<IAssessmentReportRenderer, PlaywrightAssessmentReportRenderer>();
+        // ADR-0050: the report engine is a library in this process. Its
+        // Community licence is declared once here, at composition, and the
+        // renderer registers its own embedded faces, so no host font is read.
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+        QuestPDF.Settings.UseEnvironmentFonts = false;
+        services.AddSingleton<IAssessmentReportRenderer, QuestPdfAssessmentReportRenderer>();
         services.AddScoped<GenerateAssessmentReportDraft>();
         services.AddScoped<EfAssessmentReportProjectionSource>();
         services.AddScoped<IAssessmentReportProjectionSource>(provider =>

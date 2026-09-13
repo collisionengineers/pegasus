@@ -331,7 +331,7 @@ public sealed record RecordCaseReportArtifactOutcomeRequest(
 
 /// <summary>
 /// The persistence boundary for report generation. Every write is a short
-/// serializable transaction; no browser, Box or HTTP work ever happens inside
+/// serializable transaction; no rendering, Box or HTTP work ever happens inside
 /// one (H7 — <c>EvaSubmissionStore</c>'s shape, not
 /// <c>EfMarketResearchAiJobCompletionStore</c>'s).
 /// </summary>

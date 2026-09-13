@@ -20,7 +20,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <remarks>
 /// <para>
 /// Every write is a short serializable transaction and none of them holds a
-/// lock through Chromium or Box: the freeze writes the snapshot and one
+/// lock through the renderer or Box: the freeze writes the snapshot and one
 /// Pending artifact row, rendering and custody happen outside, and a second
 /// short transaction records what custody actually did. This is
 /// <c>EvaSubmissionStore</c>'s shape, deliberately not

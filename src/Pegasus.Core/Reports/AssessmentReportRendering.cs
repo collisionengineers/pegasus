@@ -195,7 +195,7 @@ public static class AssessmentReportRenderPolicy
     /// <summary>The most images one rendered report will embed.</summary>
     public const int MaximumImages = 24;
 
-    /// <summary>The wall-clock budget for one browser render.</summary>
+    /// <summary>The wall-clock budget for one render.</summary>
     public static readonly TimeSpan RenderTimeout = TimeSpan.FromMinutes(2);
 
     /// <summary>
@@ -531,7 +531,7 @@ public interface IAssessmentReportRenderer
 {
     /// <summary>
     /// The rendering engine's own version, known without rendering, so a
-    /// generation can freeze it before the browser runs.
+    /// generation can freeze it before the renderer runs.
     /// </summary>
     string EngineVersion { get; }
 

@@ -283,8 +283,8 @@ public sealed class CaseReportGenerationPersistenceTests
         await using var harness = await Harness.CreateAsync();
         var custody = new RecordingCustody(harness);
         var renderer = new RecordingRenderer(harness);
-        // The freeze must be committed and lock-free by the time Chromium and
-        // Box would run: the renderer reads the artifact row on its own
+        // The freeze must be committed and lock-free by the time the renderer
+        // and Box would run: the renderer reads the artifact row on its own
         // connection, which would block if the freeze still held its lock.
         renderer.Before = async () =>
         {
@@ -1562,7 +1562,7 @@ public sealed class CaseReportGenerationPersistenceTests
 
         public string Sha256 => Convert.ToHexStringLower(SHA256.HashData(Pdf));
 
-        public string EngineVersion => "Fake/1.0; Chromium";
+        public string EngineVersion => "Fake/1.0";
 
         public List<CaseReportArtifactKind> Kinds { get; } = [];
 
@@ -1588,7 +1588,7 @@ public sealed class CaseReportGenerationPersistenceTests
     /// <summary>A renderer a restart-safe retry must never reach.</summary>
     private sealed class RefusingRenderer : IAssessmentReportRenderer
     {
-        public string EngineVersion => "Fake/1.0; Chromium";
+        public string EngineVersion => "Fake/1.0";
 
         public Task<RenderedReportArtifact> RenderAsync(
             AssessmentReportSnapshot snapshot,

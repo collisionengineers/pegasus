@@ -1519,7 +1519,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 SnapshotHash = new string('1', 64),
                 SnapshotJson = "{\"operationKey\":\"seed-generation-superseded\"}",
                 TemplateVersion = "assessment-report/v1",
-                RendererVersion = "playwright/v1",
+                RendererVersion = "renderer/v1",
                 State = nameof(CaseReportGenerationState.Confirmed),
                 GeneratedAtUtc = new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero),
                 Version = 1
@@ -1532,7 +1532,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 SnapshotHash = new string('2', 64),
                 SnapshotJson = "{\"operationKey\":\"seed-generation-current\"}",
                 TemplateVersion = "assessment-report/v1",
-                RendererVersion = "playwright/v1",
+                RendererVersion = "renderer/v1",
                 State = nameof(CaseReportGenerationState.Confirmed),
                 GeneratedAtUtc = new DateTimeOffset(2031, 5, 6, 10, 0, 0, TimeSpan.Zero),
                 Version = 1

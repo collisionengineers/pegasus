@@ -4,7 +4,7 @@
 ## Reports, correspondence, and reviewed proposals
 
 Reports are produced from accepted case facts and source-labelled evidence
-through the integrated renderer boundary defined by ADR-0025 and ADR-0028.
+through the integrated renderer boundary defined by ADR-0025 and ADR-0050.
 The current source owner is Infrastructure; the retired imports are not callers.
 
 ### Assessment-report outcomes
@@ -70,7 +70,7 @@ there is no caller-selectable template or density setting. Core accepts an
 immutable, source-labelled snapshot, validates readiness and the supplied
 sign-off tuple, computes the figures once, and selects one of the four
 outcomes. Infrastructure renders only that selection with the governed
-template, stylesheet, logo, and supplied signature image.
+layout, embedded fonts, logo, and supplied signature image.
 
 The report snapshot receives the Case's sign-off tuple — printed name,
 qualifications and signature image — read from the Sign-off Engineer account

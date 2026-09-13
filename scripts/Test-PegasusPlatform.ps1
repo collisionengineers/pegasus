@@ -103,10 +103,10 @@ try {
     $webArchiveSource = Join-Path $fixtureRoot 'web-archive'
     $workerArchiveSource = Join-Path $fixtureRoot 'worker-archive'
     $missingRootSource = Join-Path $fixtureRoot 'missing-root-archive'
-    New-Item -ItemType Directory -Path (Join-Path $webArchiveSource '.playwright') -Force | Out-Null
+    New-Item -ItemType Directory -Path $webArchiveSource -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $workerArchiveSource '.azurefunctions') -Force | Out-Null
     New-Item -ItemType Directory -Path $missingRootSource -Force | Out-Null
-    Set-Content -LiteralPath (Join-Path $webArchiveSource '.playwright/fixture.txt') -Value 'fixture' -Encoding utf8NoBOM
+    Set-Content -LiteralPath (Join-Path $webArchiveSource 'fixture.txt') -Value 'fixture' -Encoding utf8NoBOM
     Set-Content -LiteralPath (Join-Path $workerArchiveSource '.azurefunctions/fixture.txt') -Value 'fixture' -Encoding utf8NoBOM
     Set-Content -LiteralPath (Join-Path $missingRootSource 'fixture.txt') -Value 'fixture' -Encoding utf8NoBOM
     $webZipPath = Join-Path $fixtureRoot 'web.zip'
@@ -158,13 +158,6 @@ try {
     New-ZipFixture -Source $workerArchiveSource -Archive $workerZipPath
     $manifest.artifacts[2].sizeBytes = (Get-Item -LiteralPath $workerZipPath).Length
     $manifest.artifacts[2].sha256 = (Get-FileHash -LiteralPath $workerZipPath -Algorithm SHA256).Hash
-    New-ZipFixture -Source $missingRootSource -Archive $webZipPath
-    $manifest.artifacts[0].sizeBytes = (Get-Item -LiteralPath $webZipPath).Length
-    $manifest.artifacts[0].sha256 = (Get-FileHash -LiteralPath $webZipPath -Algorithm SHA256).Hash
-    Assert-Manifest -ExpectedError 'web.zip must contain .playwright/'
-    New-ZipFixture -Source $webArchiveSource -Archive $webZipPath
-    $manifest.artifacts[0].sizeBytes = (Get-Item -LiteralPath $webZipPath).Length
-    $manifest.artifacts[0].sha256 = (Get-FileHash -LiteralPath $webZipPath -Algorithm SHA256).Hash
     foreach ($wrongName in @('../efbundle', 'wrong.exe')) {
         $manifest.migrationBundleName = $wrongName
         Assert-Manifest -ExpectedError 'for this workstation'
