@@ -18,14 +18,16 @@ Decisions landing on Unidentified from other pages' planning. Unidentified's own
 
 Decided 13 September: an attachment or upload that processing could not read becomes an Unidentified item with the reason "Could not be read" and the file kind, so it lands in the work list and ages like any other. What the person can do with it:
 
-| Action | When | What it does |
-| --- | --- | --- |
-| Open file | always | opens the original in the viewer; a scan the OCR could not read is often perfectly readable by a person |
-| Open message | it came by e-mail | the Inbox message, with Reply |
-| Request again | it came by e-mail or a public upload link | composes a reply to the sender, or issues a new upload link, asking for the file again; the item stays open until the replacement arrives |
-| Link to Case | the person can tell which Case it belongs to | attaches the original to that Case's Files as evidence, even though nothing was extracted from it; resolves the item |
-| Create case | the person can read an instruction in it | Create case seeded with whatever was read, the rest typed; resolves the item |
-| Register images | it is a photograph set | as now |
-| Close with reason | none of the above | resolves the item with the free-text reason; reopenable |
+| Action | Today | When | What it does |
+| --- | --- | --- | --- |
+| Open file | present (gallery and "View" on the item) | always | opens the original in the viewer; a scan the OCR could not read is often perfectly readable by a person |
+| Open message | proposed link (the message exists in the Inbox but the item does not link to it) | it came by e-mail | the Inbox message, with Reply |
+| Request again | proposed (built from the existing Reply and public upload link) | it came by e-mail or a public upload link | composes a reply to the sender, or issues a new upload link, asking for the file again; the item stays open until the replacement arrives |
+| Link to Case | present (the primary action, with candidate search); today the candidate row routes through the received-file page, which goes | the person can tell which Case it belongs to | attaches the original to that Case's Files as evidence, even though nothing was extracted from it; resolves the item |
+| Create case | present ("Create Case" opens Case creation seeded from the item) | the person can read an instruction in it | Create case seeded with whatever was read, the rest typed; resolves the item |
+| Register images | present, but today it sends you to the received-file page's panel; moves onto the item | it is a photograph set with no readable registration | the person types the registration (and a reason); the photographs become an Image-initiated Case record under that registration, awaiting the instruction that will claim them (FRD-02); resolves the item |
+| Close with reason | present ("Close" in the resolve dialog, reason required) | none of the above | resolves the item with the free-text reason; reopenable |
+
+Proposed, not present today: an item that could not be read becoming an Unidentified item at all. Today unreadable material is Unsupported or Technical failure on the receipt and reaches no work list.
 
 Retry processing is not offered here: it is a technical action on Operations and the Intake log. If a retry succeeds the item is resolved automatically with "Processed on retry" and the outcome it produced.
