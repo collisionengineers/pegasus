@@ -193,6 +193,7 @@ public sealed class EfAiJobStore(
                 entity.ResultReference = transition.Result.Reference?.Trim();
                 entity.ResultText = transition.Result.Text?.Trim();
                 entity.LeaseExpiresAtUtc = null;
+                entity.DraftReadyAtUtc = now;
                 eventKind = "ai_job_draft_ready";
                 break;
             default:
@@ -409,7 +410,10 @@ public sealed class EfAiJobStore(
         entity.ResultText,
         entity.ClosedAtUtc,
         entity.ClosureReason,
-        entity.Version);
+        entity.Version)
+    {
+        DraftReadyAtUtc = entity.DraftReadyAtUtc
+    };
 
     private static TEnum Parse<TEnum>(string value) where TEnum : struct, Enum =>
         Enum.TryParse<TEnum>(value, out var parsed) && Enum.IsDefined(parsed)

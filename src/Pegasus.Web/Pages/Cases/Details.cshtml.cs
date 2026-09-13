@@ -1058,7 +1058,7 @@ public sealed partial class DetailsModel(
         Guid id,
         long expectedVersion,
         string operationKey,
-        string reason,
+        string? reason,
         string editLeaseToken,
         string? claimantName,
         string? claimNumber,
@@ -1093,6 +1093,8 @@ public sealed partial class DetailsModel(
         string? repairerName,
         string? repairerAddress,
         Guid? repairerDirectoryId,
+        string? principalNotes,
+        string? claimSourceNotes,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
             id,
@@ -1180,7 +1182,8 @@ public sealed partial class DetailsModel(
                 var overviewSubmitted = new[] { nameof(claimantName), nameof(claimantContactNumber), nameof(claimantAddress),
                     nameof(claimNumber), nameof(contactName), nameof(contactEmailAddress), nameof(contactPhoneNumber),
                     nameof(incidentDate), nameof(accidentCircumstances), nameof(instructionDate), nameof(vatStatus),
-                    nameof(repairerName), nameof(repairerAddress), nameof(repairerDirectoryId) }.Any(Posted);
+                    nameof(repairerName), nameof(repairerAddress), nameof(repairerDirectoryId),
+                    nameof(principalNotes), nameof(claimSourceNotes) }.Any(Posted);
                 // INTK-058: a linked directory organisation is copied onto the
                 // Case — its identity, its version and its own name and
                 // address — so a later directory edit never rewrites this
@@ -1230,7 +1233,9 @@ public sealed partial class DetailsModel(
                             ?? Submitted(nameof(repairerAddress), repairerAddress,
                                 Accepted(data.Inspection.RepairerAddress)?.Value),
                         persisted?.ClaimSource,
-                        repairer),
+                        repairer,
+                        Submitted(nameof(principalNotes), principalNotes, persisted?.PrincipalNotes),
+                        Submitted(nameof(claimSourceNotes), claimSourceNotes, persisted?.ClaimSourceNotes)),
                     Inspection = !inspectionSubmitted ? null : new(treatment, address, persisted?.InspectionLocationProvenance,
                         Submitted(nameof(storageLocation), storageLocation, Accepted(data.Inspection.StorageLocation)?.Value),
                         persisted?.StorageBusiness,

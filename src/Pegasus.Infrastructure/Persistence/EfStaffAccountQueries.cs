@@ -200,6 +200,7 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
             role)
         {
             Version = user.Version,
+            WorkCentreLastSeenUtc = user.WorkCentreLastSeenUtc,
             SignOff = new(
                 user.IsSignOffEngineer,
                 user.SignOffPrintedName,

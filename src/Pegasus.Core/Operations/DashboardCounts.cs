@@ -44,42 +44,43 @@ public interface IDashboardQueries
 }
 
 /// <summary>
-/// The Work Centre's actionable kinds (FRD-12 § Work Centre). Each is
-/// derived from one existing Core query; there is no placeholder row.
+/// The Work Centre's actionable kinds (Work Centre D1–D3, D9). Each is derived
+/// from one existing Core query and carries a due instant from the workflow
+/// targets; there is no placeholder row. Failed external work is not a kind: it
+/// lives on Operations only (D1).
 /// </summary>
 public enum NeedsAttentionKind
 {
-    /// <summary>A Case whose missing-material chase is due (its readiness blocker).</summary>
-    Case,
+    /// <summary>A Case whose missing-material chase is due (its readiness blocker); due at the next chase time.</summary>
+    CaseChase,
 
-    /// <summary>A Case on hold, waiting for a decision.</summary>
-    HeldDecision,
+    /// <summary>An open Unidentified item; due received + Unidentified target.</summary>
+    Unidentified,
 
-    /// <summary>An open Unidentified item.</summary>
-    Mail,
-
-    /// <summary>A Triage record with no finding recorded yet.</summary>
+    /// <summary>A Triage record with no finding recorded yet; due opened + Triage target.</summary>
     Triage,
 
-    /// <summary>External work that failed and can be retried.</summary>
-    ExternalWork,
+    /// <summary>A Case on hold, waiting for a decision; due on its review date, else held + Held decision target.</summary>
+    HeldDecision,
 
-    /// <summary>A Case that is ready for the required Review decision.</summary>
+    /// <summary>A Case that is ready for the required Review decision; due entered Review + Review target.</summary>
     ReviewCase,
 
-    /// <summary>A ready Case that has no Engineer assigned.</summary>
-    UnassignedEngineer
+    /// <summary>A ready Case that has no Engineer assigned; due entered Review + Review target.</summary>
+    UnassignedEngineer,
+
+    /// <summary>An AI job in Draft ready waiting for a person; due draft written + AI draft target.</summary>
+    AiDraft
 }
 
 /// <summary>
-/// The work-item priority chip. Declaration order is the list order: an
-/// overdue chase and a retryable failure come first, then work due within
-/// the office day, then the rest.
+/// Where a row sits against its due instant (Work Centre D2): Overdue is due at
+/// or before now, Today is due before the next midnight Europe/London, Normal is
+/// later or undated. Declaration order is the list order.
 /// </summary>
 public enum NeedsAttentionPriority
 {
     Overdue,
-    High,
     Today,
     Normal
 }
@@ -106,4 +107,16 @@ public sealed record NeedsAttentionItem(
     string? LastOutcome,
     string? Source,
     int? Attempts,
-    DateTimeOffset? Received = null);
+    DateTimeOffset? Received = null)
+{
+    /// <summary>The due instant the row ages against (Work Centre D3); null only when the kind has none yet.</summary>
+    public DateTimeOffset? DueAtUtc => Due;
+
+    public DateTimeOffset? ReceivedAtUtc => Received;
+
+    /// <summary>The staff member the row belongs to — the Case's engineer or the Triage assignee; null when unowned.</summary>
+    public Guid? OwnerStaffId { get; init; }
+
+    /// <summary>The relative application path the row's action opens (Work Centre P4).</summary>
+    public string Route { get; init; } = string.Empty;
+}

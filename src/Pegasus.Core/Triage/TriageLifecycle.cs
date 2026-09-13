@@ -608,6 +608,21 @@ public static class TriageLifecycleRules
         }
     }
 
+    /// <summary>"Assign to me" is offered on an open Triage that nobody holds yet.</summary>
+    public static bool CanAssignToSelf(TriageRecord triage) =>
+        triage.AssigneeId is null && triage.State is not (TriageState.Completed or TriageState.Cancelled);
+
+    public static void RequireCanAssignToSelf(TriageRecord triage)
+    {
+        ArgumentNullException.ThrowIfNull(triage);
+        if (triage.AssigneeId is not null)
+        {
+            throw new InvalidOperationException("The triage already has an assignee.");
+        }
+
+        RequireMutable(triage, "assign");
+    }
+
     internal static bool HasActiveFinding(TriageDetail triage) =>
         triage.Findings.Any(finding => IsUnsupersededFinding(triage, finding.Id));
 
@@ -763,5 +778,37 @@ public static class TriageLifecycleRules
         {
             throw new ArgumentOutOfRangeException(parameterName, $"The value cannot exceed {maximumLength} characters.");
         }
+    }
+}
+
+public sealed class AssignTriageToMe(
+    ITriageQueries queries,
+    IAssignTriage assign) : IAssignTriageToMe
+{
+    public const string Reason = "Assigned to me.";
+
+    private readonly ITriageQueries _queries = queries ?? throw new ArgumentNullException(nameof(queries));
+    private readonly IAssignTriage _assign = assign ?? throw new ArgumentNullException(nameof(assign));
+
+    public async Task<TriageRecord> ExecuteAsync(
+        AssignTriageToMeRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var engineerId = Lifecycle.CaseLifecycleRules.RequireSelfAssigningEngineer(request.Actor);
+        var current = await TriageLifecycleRules.GetRequiredAsync(_queries, request.TriageId, cancellationToken);
+        TriageLifecycleRules.RequireCanAssignToSelf(current.Record);
+        return await _assign.ExecuteAsync(
+            new AssignTriageRequest(
+                request.TriageId,
+                request.ExpectedVersion,
+                engineerId,
+                request.Actor,
+                request.OperationKey,
+                Reason)
+            {
+                EditLeaseToken = request.EditLeaseToken
+            },
+            cancellationToken);
     }
 }

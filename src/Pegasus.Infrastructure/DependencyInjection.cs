@@ -16,6 +16,7 @@ using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Triage;
@@ -105,6 +106,9 @@ public static class DependencyInjection
         services.AddScoped<IRetainedMailFolderMoveStore>(provider =>
             provider.GetRequiredService<EfRetainedMailFolderMoveStore>());
         services.AddScoped<MoveRetainedMailFolder>();
+        services.AddScoped<IRetainedMailDismissalStore, EfRetainedMailDismissalStore>();
+        services.AddScoped<IDismissRetainedMail, DismissRetainedMail>();
+        services.AddScoped<IRestoreRetainedMail, RestoreRetainedMail>();
         services.AddScoped<GetRetainedMailFreshness>();
         services.TryAddSingleton<IDeletedMailSearchSource, UnavailableDeletedMailSearchSource>();
         services.AddScoped<SearchDeletedMail>();
@@ -137,6 +141,8 @@ public static class DependencyInjection
         services.AddScoped<IListUnidentifiedQueueByCursor, ListUnidentifiedQueueByCursor>();
         services.AddScoped<IRegisterUnidentified, RegisterUnidentified>();
         services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
+        services.AddScoped<ICloseUnidentified, CloseUnidentified>();
+        services.AddScoped<IGetUnidentifiedItemContext, GetUnidentifiedItemContext>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
         services.AddScoped<EfTriageStore>();
         services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());
@@ -149,6 +155,7 @@ public static class DependencyInjection
         services.AddScoped<ICreateTriageFromIntake, CreateTriageFromIntake>();
         services.AddScoped<ITriageCasePairing, TriageCasePairing>();
         services.AddScoped<IAssignTriage, AssignTriage>();
+        services.AddScoped<IAssignTriageToMe, AssignTriageToMe>();
         services.AddScoped<ISetTriagePrincipal, SetTriagePrincipal>();
         services.AddScoped<IAddTriageNote, AddTriageNote>();
         services.AddScoped<IUnassignTriage, UnassignTriage>();
@@ -346,6 +353,12 @@ public static class DependencyInjection
             provider.GetRequiredService<GetOperationsSnapshot>());
         services.AddScoped<IGetAttentionRows>(provider =>
             provider.GetRequiredService<GetOperationsSnapshot>());
+        services.AddScoped<IGetOperationsBadge, GetOperationsBadge>();
+        services.AddScoped<IRecentCaseQueries, EfRecentCaseQueries>();
+        services.AddScoped<IWorkCentreVisitStore, EfWorkCentreVisitStore>();
+        services.AddScoped<IListRecentCases, ListRecentCases>();
+        services.AddScoped<IIntakeLogQueries, EfIntakeLogQueries>();
+        services.AddScoped<IListIntakeLog, ListIntakeLog>();
         services.AddScoped<IServiceHealthQueries, EfServiceHealthQueries>();
         services.AddScoped<IEngineerActivityQueries, EfEngineerActivityQueries>();
         services.AddScoped<GetEngineerActivityReport>();
@@ -389,6 +402,11 @@ public static class DependencyInjection
         services.AddScoped<IAutoLinkReportEvidenceStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseWorkflowQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<IStaffNotificationStore, EfStaffNotificationStore>();
+        services.AddScoped<IRaiseStaffNotification, RaiseStaffNotification>();
+        services.AddScoped<ICaseStaffNotifier, CaseStaffNotifier>();
+        services.AddScoped<IMyStaffNotifications, MyStaffNotifications>();
+        services.AddScoped<PurgeStaffNotifications>();
         services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseArchiveStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
@@ -495,7 +513,10 @@ public static class DependencyInjection
         services.AddScoped<IAiJobStore>(provider => provider.GetRequiredService<EfAiJobStore>());
         services.AddScoped<IAiJobQueries>(provider => provider.GetRequiredService<EfAiJobStore>());
         services.AddScoped<ICreateAiJob, CreateAiJob>();
+        services.AddScoped<IMarketResearchQueries, MarketResearchQueries>();
+        services.AddScoped<IStartMarketResearch, StartMarketResearch>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
+        services.AddScoped<IAiDraftQueries, AiDraftQueries>();
         services.AddScoped<ICancelAiJob, CancelAiJob>();
         services.AddScoped<IConfirmAiJob, ConfirmAiJob>();
         services.AddScoped<EfCaseTaskStore>();
@@ -525,12 +546,18 @@ public static class DependencyInjection
         services.AddScoped<ILinkedCaseReplacementStore>(
             provider => provider.GetRequiredService<EfLinkedCaseReplacementStore>());
         services.AddScoped<ICreateLinkedReplacement, CreateLinkedReplacement>();
+        services.AddScoped<EfCreateAuditCaseStore>();
+        services.AddScoped<ICreateAuditCaseStore>(provider => provider.GetRequiredService<EfCreateAuditCaseStore>());
+        services.AddScoped<ICaseAuditLinkQueries>(provider => provider.GetRequiredService<EfCreateAuditCaseStore>());
+        services.AddScoped<ICaseReportGeneratedQueries>(provider => provider.GetRequiredService<EfCreateAuditCaseStore>());
+        services.AddScoped<ICreateAuditCase, CreateAuditCase>();
         services.AddScoped<IRecordEngineerFinding, EfRecordEngineerFinding>();
         services.AddScoped<IPutCaseOnHold, PutCaseOnHold>();
         services.AddScoped<IReleaseCaseHold, ReleaseCaseHold>();
         services.AddScoped<IReturnCaseToReview, ReturnCaseToReview>();
         services.AddScoped<ICaseEngineerEligibility, EfCaseEngineerEligibility>();
         services.AddScoped<IAssignCaseEngineer, AssignCaseEngineer>();
+        services.AddScoped<IAssignCaseToMe, AssignCaseToMe>();
         services.AddScoped<ISetCaseSignOffEngineer, SetCaseSignOffEngineer>();
         services.AddScoped<IStartCaseWork, StartCaseWork>();
         services.AddScoped<IHoldCase, HoldCase>();

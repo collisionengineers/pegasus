@@ -487,13 +487,27 @@ public sealed class EfIntakeSubmissionGroupStore(
         var staged = await context.IntakeStagedReceipts
             .AsNoTracking()
             .SingleAsync(item => item.Id == entity.StagedReceiptId, cancellationToken);
+        // The member's own read status, from the receipt its processing produced:
+        // a file that could not be read is flagged on its row, never split off.
+        var processed = await (
+                from work in context.IntakeWorkItems.AsNoTracking()
+                join receipt in context.IntakeReceipts.AsNoTracking() on work.ProcessedReceiptId equals receipt.Id
+                where work.StagedReceiptId == entity.StagedReceiptId
+                select new { receipt.Id, receipt.Decision })
+            .FirstOrDefaultAsync(cancellationToken);
         return new(
             entity.GroupId,
             entity.Ordinal,
             entity.StagedReceiptId,
             staged.SourceFileName,
             staged.SourceHash,
-            isDuplicate);
+            isDuplicate)
+        {
+            ProcessedReceiptId = processed?.Id,
+            CouldNotBeRead = processed is null
+                ? null
+                : IntakeDecisionPolicy.CouldNotBeRead(EfIntakeReceiptStore.ParseDecision(processed.Decision))
+        };
     }
 
     private static string ToCode(IntakeSourceChannel channel) => channel switch

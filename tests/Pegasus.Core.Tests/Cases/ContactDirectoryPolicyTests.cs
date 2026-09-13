@@ -61,3 +61,41 @@ public sealed class ContactDirectoryPolicyTests
         OperationKey: "telephone-policy-test",
         EditLeaseToken: string.Empty);
 }
+
+public sealed class ContactNotesOnEveryCaseTests
+{
+    private static readonly ActionActor Administrator =
+        ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+    [Fact]
+    public void AClaimSourceKeepsItsNotesAndOtherContactTypesDoNot()
+    {
+        var claimSource = ContactDirectoryPolicy.Normalize(Request([ContactRole.ClaimSource], "  Ask for the policy number.  "));
+        var repairer = ContactDirectoryPolicy.Normalize(Request([ContactRole.Repairer], "Ask for the policy number."));
+
+        Assert.Equal("Ask for the policy number.", claimSource.NotesOnEveryCase);
+        Assert.Null(repairer.NotesOnEveryCase);
+        Assert.Null(ContactDirectoryPolicy.Normalize(Request([ContactRole.ClaimSource], " ")).NotesOnEveryCase);
+        Assert.ThrowsAny<ArgumentException>(() =>
+            ContactDirectoryPolicy.Normalize(Request([ContactRole.ClaimSource], new string('x', 2001))));
+    }
+
+    private static SaveContactRequest Request(IReadOnlyList<ContactRole> roles, string? notes) => new(
+        Administrator,
+        Guid.NewGuid(),
+        ExpectedVersion: 0,
+        Name: "Acme Claims",
+        ContactPerson: null,
+        Email: null,
+        Telephone: null,
+        Address: null,
+        Postcode: null,
+        Active: true,
+        Roles: roles,
+        PrincipalCode: null,
+        PrincipalInspectionMode: CaseInspectionMode.PhysicalAddress,
+        PrincipalAssociations: [],
+        OperationKey: "notes-policy-test",
+        EditLeaseToken: string.Empty,
+        NotesOnEveryCase: notes);
+}

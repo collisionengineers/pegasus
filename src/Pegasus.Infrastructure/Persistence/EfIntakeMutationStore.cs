@@ -428,7 +428,7 @@ internal sealed class EfIntakeMutationStore(
                 // case alone.
                 if (await AcceptedCaseIdAsync(context, receipt.Id, token) == request.CaseId)
                 {
-                    await CancelOnSourceUnlinkAsync(context, @case, token);
+                    await CancelOnSourceUnlinkAsync(context, @case, occurredAtUtc, token);
                 }
             },
             occurredAtUtc,
@@ -446,6 +446,7 @@ internal sealed class EfIntakeMutationStore(
     private static async Task CancelOnSourceUnlinkAsync(
         PegasusDbContext context,
         CaseEntity? @case,
+        DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken)
     {
         if (@case is null)
@@ -462,6 +463,7 @@ internal sealed class EfIntakeMutationStore(
             .Include(item => item.DueWork)
             .SingleAsync(item => item.CaseId == @case.Id, cancellationToken);
         workflow.State = nameof(CaseLifecycleState.SourceEmailUnlinked);
+        workflow.StateEnteredAtUtc = occurredAtUtc;
         workflow.ClosureOutcome = nameof(CaseClosureOutcome.SourceEmailUnlinked);
         CaseChaseState.Stop(workflow);
     }

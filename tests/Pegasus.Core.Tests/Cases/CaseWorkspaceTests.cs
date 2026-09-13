@@ -44,6 +44,42 @@ public sealed class CaseWorkspaceTests
             CaseWorkspacePolicy.ValidateAndNormalize(Request()));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ASaveNeedsNoReason(string? reason)
+    {
+        var request = Request(request => new SaveCaseWorkspaceRequest(
+            request.CaseId, request.ExpectedVersion, request.Actor, request.OperationKey, reason, request.EditLeaseToken)
+        {
+            Overview = new(
+                "A Claimant", null, null, null, null, null, null, null, null, null, null, null, null)
+        });
+
+        var normalized = CaseWorkspacePolicy.ValidateAndNormalize(request);
+
+        Assert.NotNull(normalized);
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CaseWorkspacePolicy.ValidateAndNormalize(request with { Reason = new string('x', 501) }));
+    }
+
+    [Fact]
+    public void TheHistoryLineNamesWhatChanged()
+    {
+        var before = new CaseEditableData(ClaimantName: "A Claimant", VehicleRegistration: "AB12CDE");
+        var after = before with { VehicleRegistration = "CD34EFG", IncidentDate = new DateOnly(2026, 9, 1) };
+        var beforeFields = new Dictionary<string, object?> { ["assessment.outcome"] = "repairable" };
+        var afterFields = new Dictionary<string, object?> { ["assessment.outcome"] = "total_loss", ["valuation.retail"] = "4500" };
+
+        var summary = CaseWorkspaceChangeSummary.Describe(before, after, beforeFields, afterFields, estimateChanged: true, imagesPrepared: 2, reason: null);
+
+        Assert.Equal("Vehicle registration, Incident date, Outcome, Retail, Estimate, 2 images prepared", summary);
+        Assert.Equal(
+            "No field changed · Checked with the repairer",
+            CaseWorkspaceChangeSummary.Describe(before, before, beforeFields, beforeFields, false, 0, "  Checked with the repairer "));
+    }
+
     [Fact]
     public void TheWorkspaceRefusesTheAcceptedEngineerValuePath()
     {

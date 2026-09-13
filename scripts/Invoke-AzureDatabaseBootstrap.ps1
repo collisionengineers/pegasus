@@ -467,6 +467,17 @@ function Get-MigrationPermissionMatrix {
         $expected.Add("pegasus_worker_runtime_role|D|UPDATE|$table")
         $expected.Add("pegasus_worker_runtime_role|D|DELETE|$table")
     }
+    # 20260913092038_StaffNotifications: personal notifications (Work Centre D10).
+    # Web raises assignment, edit, staff-link and AI-draft rows and marks them
+    # read; the Worker raises the rows for e-mail it links to a Case and alone
+    # purges rows past the 30-day retention.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|StaffNotifications")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|StaffNotifications')
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE', 'DELETE')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|StaffNotifications")
+    }
     return @($expected | Sort-Object -Unique)
 }
 

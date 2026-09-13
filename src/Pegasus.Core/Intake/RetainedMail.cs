@@ -20,7 +20,8 @@ public enum MailFolderScope
 /// Which slice of retained mail the operator is looking at. A null
 /// <paramref name="MailboxId"/> is the default all-mailboxes view.
 /// <paramref name="UnreadOnly"/> is the Unread scope; <paramref name="OldestFirst"/>
-/// is the list's sort toggle (newest first by default).
+/// is the list's sort toggle (newest first by default). <paramref name="DismissedOnly"/>
+/// is the Dismissed scope: dismissed messages appear there and nowhere else.
 /// </summary>
 public sealed record MailWorkspaceScope(
     Guid? MailboxId,
@@ -29,7 +30,8 @@ public sealed record MailWorkspaceScope(
     MailOperationalDestination? Destination = null,
     MailCategory? DetailedClassification = null,
     bool UnreadOnly = false,
-    bool OldestFirst = false);
+    bool OldestFirst = false,
+    bool DismissedOnly = false);
 
 public enum MailSearchMatchKind
 {
@@ -67,6 +69,9 @@ public sealed record RetainedMailSummary(
     MailOperationalDestinationResult? OperationalDestination = null)
 {
     public IReadOnlyList<RetainedMailSearchMatch> Matches => SearchMatches ?? [];
+
+    /// <summary>When the message was dismissed from the incoming scopes; null while it is not.</summary>
+    public DateTimeOffset? DismissedAtUtc { get; init; }
 }
 
 /// <summary>

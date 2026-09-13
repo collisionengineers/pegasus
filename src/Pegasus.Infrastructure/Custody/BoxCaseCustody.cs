@@ -1096,6 +1096,30 @@ internal sealed class BoxCaseCustody(
         return new(caseId, folder.Id, caseReference);
     }
 
+    public async Task<CaseCustodyRoot> CreateLinkedAuditCaseRootAsync(
+        Guid auditCaseId,
+        string auditReference,
+        Guid originalCaseId,
+        string originalReference,
+        string creationOwnerToken,
+        string operationKey,
+        CustodyEffectLeaseGuard? leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        ValidateCase(auditCaseId, auditReference);
+        ValidateOperation(operationKey);
+        // The original's folder is resolved the way every case root is; the Audit
+        // Case's folder is its a./ap. child, owned by this creation like any root.
+        var original = await GetExistingCaseRootAsync(originalCaseId, originalReference, cancellationToken);
+        var folder = await GetOrCreateOwnedFolderAsync(
+            original.RemoteId,
+            CaseFolderName(auditReference),
+            creationOwnerToken,
+            leaseGuard,
+            cancellationToken);
+        return new(auditCaseId, folder.Id, auditReference);
+    }
+
     public async Task<CaseCustodyRoot> GetExistingCaseRootAsync(
         Guid caseId,
         string caseReference,

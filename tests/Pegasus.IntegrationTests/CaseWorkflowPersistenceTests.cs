@@ -1317,7 +1317,7 @@ public sealed class CaseWorkflowPersistenceTests
         var reportHoldLease = await harness.Store.ClaimAsync(
             new(harness.CaseId, reportPreparation.Version, actor, "claim-report-hold"),
             default);
-        var reportHeld = await new PutCaseOnHold(harness.Store).ExecuteAsync(
+        var reportHeld = await new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
             new(
                 harness.CaseId,
                 reportPreparation.Version,
@@ -1347,7 +1347,7 @@ public sealed class CaseWorkflowPersistenceTests
         var chaseHoldLease = await harness.Store.ClaimAsync(
             new(harness.NotReadyCaseId, 0, actor, "claim-chase-hold"),
             default);
-        var chaseHeld = await new PutCaseOnHold(harness.Store).ExecuteAsync(
+        var chaseHeld = await new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
             new(
                 harness.NotReadyCaseId,
                 0,
@@ -1944,7 +1944,7 @@ public sealed class CaseWorkflowPersistenceTests
             default);
         await harness.Store.HeartbeatAsync(new(harness.CaseId, actor, lease.Token), default);
 
-        await new PutCaseOnHold(harness.Store).ExecuteAsync(
+        await new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
             new(harness.CaseId, 0, actor, "hold-ends-edit-mode", "Waiting", lease.Token),
             default);
 
@@ -1986,7 +1986,7 @@ public sealed class CaseWorkflowPersistenceTests
             default);
         Assert.Equal(harness.TimeProvider.GetUtcNow().AddMinutes(5), beaten.ExpiresAtUtc);
 
-        await new PutCaseOnHold(harness.Store).ExecuteAsync(
+        await new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
             new(harness.CaseId, 0, automation, "automation-saves", "Waiting", lease.Token),
             default);
 
@@ -2093,7 +2093,7 @@ public sealed class CaseWorkflowPersistenceTests
                 new(harness.CaseId, 0, competitor, $"{operationKeyPrefix}-claim"),
                 default));
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
-            new PutCaseOnHold(harness.Store).ExecuteAsync(
+            new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
                 new(harness.CaseId, 0, competitor, $"{operationKeyPrefix}-write", "Waiting", holdersToken),
                 default));
         await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
@@ -2137,7 +2137,7 @@ public sealed class CaseWorkflowPersistenceTests
             reacquired.ExpiresAtUtc);
 
         var abandonedHold = await Assert.ThrowsAsync<CaseEditLeaseConflictException>(() =>
-            new PutCaseOnHold(harness.Store).ExecuteAsync(
+            new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
                 new(
                     harness.CaseId,
                     0,
@@ -2149,7 +2149,7 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.Equal(harness.CaseId, abandonedHold.CaseId);
         Assert.Equal(0, abandonedHold.CaseVersion);
 
-        var held = await new PutCaseOnHold(harness.Store).ExecuteAsync(
+        var held = await new PutCaseOnHold(harness.Store, harness.TimeProvider).ExecuteAsync(
             new(
                 harness.CaseId,
                 0,
@@ -2173,7 +2173,7 @@ public sealed class CaseWorkflowPersistenceTests
             harness.Store.ClaimAsync(new(harness.CaseId, 0, secondActor, "claim-2"), default));
 
         var lease = await harness.Store.ClaimAsync(new(harness.SecondCaseId, 0, secondActor, "claim-3"), default);
-        var hold = new PutCaseOnHold(harness.Store);
+        var hold = new PutCaseOnHold(harness.Store, harness.TimeProvider);
         _ = await hold.ExecuteAsync(
             new(
                 harness.SecondCaseId,

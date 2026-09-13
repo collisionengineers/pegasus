@@ -153,7 +153,17 @@ public sealed class CaseWorkflowMigrationTests
                 "20260910110000_SecurityEventActingPrincipal",
                 "20260910111500_DocumentContentCacheVariants",
                 "20260910120000_CaseImageTags",
-                "20260911100000_PromoteVehicleLookupSuggestionsToFacts"
+                "20260911100000_PromoteVehicleLookupSuggestionsToFacts",
+                "20260913082540_WorkflowDueTargets",
+                "20260913083338_CaseHoldReviewDate",
+                "20260913090000_MarketResearchImageTag",
+                "20260913090111_OrganizationNotesOnEveryCase",
+                "20260913091041_RetainedMailDismissal",
+                "20260913092038_StaffNotifications",
+                "20260913092816_AiJobDraftReadyAt",
+                "20260913094324_WorkCentreLastSeen",
+                "20260913095127_UnidentifiedCouldNotBeRead",
+                "20260913101413_LinkedAuditCase"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }
