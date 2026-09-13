@@ -71,7 +71,7 @@
                            asp-route-id="@NeedsAttentionPresentation.RecordRouteId(row)">
                             <span class="work-item-head">
                                 <span>
-                                    <span class="row-meta">@OperatorLabels.NeedsAttentionKind(row.Kind) · @row.Reference</span>
+                                    <span class="row-meta">@OperatorLabels.NeedsAttentionKind(row.Kind) · @NeedsAttentionPresentation.ReferenceLabel(row)</span>
                                     <h3>@NeedsAttentionPresentation.TitleLabel(row)</h3>
                                 </span>
                             </span>
