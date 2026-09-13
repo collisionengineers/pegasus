@@ -25,10 +25,14 @@ Apps Consumption because the subscription's aggregate App Service quota in UK
 South was zero. ADR-0028 then made the Web container load-bearing by placing the
 Chromium report renderer inside its image.
 
-On 2026-09-13 a read-only `Microsoft.Web/validate` dry run for Linux `B1`,
-`P0v3` and `P1v3` plans in `uksouth` returned success for this subscription and
-`az appservice list-locations` lists UK South for each, so the quota block no
-longer applies. ADR-0050 replaces Chromium with a pure .NET renderer, so no
+On 2026-09-13 the read-only Quota API (`Microsoft.Quota` under
+`Microsoft.Web/locations/uksouth`) still reports 0 for every classic App
+Service SKU in UK South (`B1` included) and 30 only for the Premium v4 family,
+while `ukwest` and `westeurope` carry an aggregate quota of 30. The block is
+therefore a subscription quota, not a regional gap: the operator either
+requests the UK South quota or places the Web plan alone in UK West through
+the `webLocation` parameter, with SQL, storage, Key Vault and the Worker
+staying in UK South. ADR-0050 replaces Chromium with a pure .NET renderer, so no
 native browser dependency remains in the Web boundary. The operator has asked
 to leave container hosting: the OCI build, ORAS upload, registry and revision
 mechanics are the largest part of the release procedure and exist only to carry
