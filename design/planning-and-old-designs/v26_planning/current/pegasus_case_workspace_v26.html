@@ -509,6 +509,10 @@ body:not(.is-editing) .edit-only,.case-section.is-locked .edit-only{display:none
 .cmp-table .num{text-align:right}
 .draft-page{background:#15181b;padding:16px;display:grid;place-items:center;max-height:70vh;overflow:auto}
 .draft-page img{max-width:100%;box-shadow:0 12px 30px rgba(0,0,0,.5);background:#fff}
+/* decisions */
+.bell-count{position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--red);color:#fff;font:700 10px var(--font);display:grid;place-items:center}
+.icon-button[aria-label="Notifications"]{position:relative}
+.next-row.ai-next{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px}
 /* ---- Damage ---- */
 .damage-workbench{display:grid;grid-template-columns:minmax(220px,300px) minmax(260px,1fr);gap:14px;align-items:start}
 .damage-workbench:has(#carView[data-variant="side"]){grid-template-columns:minmax(280px,360px) minmax(260px,1fr)}
@@ -1221,11 +1225,12 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
   <div class="mrow"><b>Decisions</b><button id="mockProp" onclick="toggleProposal()">AI proposal</button></div>
   <div class="mrow"><b>Edit lease</b><button data-lease="available" onclick="setLease('available')">Available</button><button data-lease="mine" onclick="setLease('mine')">Claimed</button><button data-lease="expiring" onclick="setLease('expiring')">Expiring</button><button data-lease="elsewhere" onclick="setLease('elsewhere')">Another window</button><button data-lease="colleague" onclick="setLease('colleague')">Colleague editing</button></div>
   <div class="mrow"><b>Case type</b><button data-kind="inspection" class="on" onclick="setKind('inspection')">Inspection</button><button data-kind="audit" onclick="setKind('audit')">Audit</button><button data-kind="inspection_audit" onclick="setKind('inspection_audit')">Inspection + Audit</button><button onclick="clearAudit()">Clear audit</button></div>
+  <div class="mrow"><b>AI draft</b><button data-ai="none" class="on" onclick="setAiDraft(null)">None</button><button data-ai="estimate" onclick="setAiDraft('estimate')">Estimate</button><button data-ai="query" onclick="setAiDraft('query')">Query response</button><button data-ai="unid" onclick="setAiDraft('unid')">Unidentified resolution</button></div>
   <div class="mrow"><b>Lifecycle</b><button data-life="none" onclick="setLife('none')">Open</button><button data-life="held" onclick="setLife('held')">Held</button><button data-life="closed" onclick="setLife('closed')">Closed</button><button data-life="archived" onclick="setLife('archived')">Archived</button><span class="sep"></span><button data-link="none" onclick="setLink('none')">No link</button><button data-link="replacement" onclick="setLink('replacement')">Replacement case</button><button data-link="original" onclick="setLink('original')">Original case</button></div>
   <div class="mrow"><b>Report</b><button data-rep="none" onclick="setReport('none')">Not generated</button><button data-rep="draft" onclick="setReport('draft')">Draft</button><button data-rep="generated" onclick="setReport('generated')">Generated</button><button data-rep="prepared" onclick="setReport('prepared')">Delivery prepared</button><button data-rep="sent" onclick="setReport('sent')">Sent</button></div>
   <div class="mrow"><b>EVA</b><button data-eva="none" onclick="setEva('none')">Not sent</button><button data-eva="sent" onclick="setEva('sent')">Sent</button><button data-eva="failed" onclick="setEva('failed')">Refused</button><span class="sep"></span><button data-api="1" onclick="setEvaApi(!R.evaApi)">EVA API enabled</button><span class="sep"></span><button onclick="openDlg('eva')">Open EVA handoff</button></div>
   <div class="mrow"><b>Vehicle lookup</b><button data-lookup="none" onclick="setLookup('none')">Not looked up</button><button data-lookup="pending" onclick="setLookup('pending')">Pending</button><button data-lookup="current" onclick="setLookup('current')">Current</button><button data-lookup="stale" onclick="setLookup('stale')">Stale</button><button data-lookup="notfound" onclick="setLookup('notfound')">Not found</button><button data-lookup="failed" onclick="setLookup('failed')">Failed</button></div>
-  <div class="mrow"><b>Image custody</b><button data-custody="confirmed" onclick="setCustody('confirmed')">Confirmed</button><button data-custody="pending" onclick="setCustody('pending')">Still arriving</button><button data-custody="failed" onclick="setCustody('failed')">Storage failed</button></div>
+  <div class="mrow"><b>Image custody</b><button data-custody="confirmed" onclick="setCustody('confirmed')">Confirmed</button><button data-custody="pending" onclick="setCustody('pending')">Still arriving</button><button data-custody="failed" onclick="setCustody('failed')">Storage not ready</button></div>
   <div class="mrow"><b>Case tasks</b><button data-tasks="1" onclick="setTasks(1)">Proposal on</button><button data-tasks="0" onclick="setTasks(0)">Off</button></div>
   <div class="mrow"><b>Tabs</b><button data-tabs="1" onclick="mockTabs(1)">1 open</button><button data-tabs="4" onclick="mockTabs(4)">4 open</button><button data-tabs="9" onclick="mockTabs(9)">9 open</button></div>
   <div class="mrow"><b>Tab layout</b><button data-o="place:fused" onclick="setTabOpt('place','fused')">Fused strip</button><button data-o="place:band" onclick="setTabOpt('place','band')">Grey band</button><button data-o="place:rail" onclick="setTabOpt('place','rail')">Rail list</button><button data-o="place:crumb" onclick="setTabOpt('place','crumb')">Breadcrumb</button></div>
@@ -1780,11 +1785,11 @@ function thumbClick(i,id){const im=imgState[i];if(id==='thumbs3'||id==='thumbs2'
 renderImgs=function(){reconcileRoles();
   ['thumbs','thumbs3'].forEach(id=>{$(id).innerHTML=imgState.map((im,i)=>thumbHtml(im,i,id)).join('');});
   const files=$('thumbs2');files.innerHTML=imgState.map((im,i)=>`<div class="image-tile">${thumbHtml(im,i,'thumbs2')}${tagChips(i)}<div class="image-tile-actions">${tagPicker(i)}<button type="button" class="btn btn--small" onclick="openCrop(${i})">Crop</button></div></div>`).join('')
-    +(R.custody==='confirmed'?'':`<div class="image-tile"><span class="gallery-item" data-gallery-placeholder><span class="gallery-image"></span><span class="gallery-caption"><strong>${CUSTODY_FILE.name}</strong><small>${R.custody==='pending'?'Storing':'Storage failed'}</small></span></span></div>`);
+    +(R.custody==='confirmed'?'':`<div class="image-tile"><span class="gallery-item" data-gallery-placeholder><span class="gallery-image"></span><span class="gallery-caption"><strong>${CUSTODY_FILE.name}</strong><small>${R.custody==='pending'?'Storing':'Storage not ready'}</small></span></span></div>`);
   $('intakeImgs').innerHTML=INTAKES.map(it=>`<div class="intake-group"><div class="intake-head"><a href="${SHELL_PAGE}#/images/${it.id}">Image intake ${it.ref}</a><span class="muted">${it.files.length} photographs · received ${it.received}</span></div><div class="thumbs">${it.files.map((n,k)=>`<div class="image-tile"><a class="th" href="${SHELL_PAGE}#/images/${it.id}" style='background-image:url("${intakePhoto(n,k)}")'>${esc(n)}</a><div class="image-tile-source"><a href="${SHELL_PAGE}#/images/${it.id}">${it.ref}</a></div></div>`).join('')}</div></div>`).join('');
   $('imgCount').textContent=imgState.filter(x=>x.on).length+' of '+imgState.length+' in report';$('evCount').textContent=imgState.length+' · Files';
   renderCustodyRow();renderPrep();};
-function renderCustodyRow(){let row=$('custodyRow');if(R.custody==='confirmed'){if(row)row.remove();return;}const label=R.custody==='pending'?'Storing':'Storage failed';const h=`<svg class="icon"><use href="#icon-image"/></svg><div><b>${CUSTODY_FILE.name}</b><br><small>Upload · ${fmtDS(new Date())} · 2.1 MB</small></div><span class="status ${R.custody==='pending'?'status--amber':'status--red'}">${label}</span><span class="cluster" style="gap:4px"><button class="btn btn--small btn--icon btn--danger calc-only" title="Remove" aria-label="Remove ${CUSTODY_FILE.name}" onclick="removeDoc(this)"><svg class="icon"><use href="#icon-trash-2"/></svg></button></span>`;
+function renderCustodyRow(){let row=$('custodyRow');if(R.custody==='confirmed'){if(row)row.remove();return;}const label=R.custody==='pending'?'Storing':'Storage not ready';const h=`<svg class="icon"><use href="#icon-image"/></svg><div><b>${CUSTODY_FILE.name}</b><br><small>Upload · ${fmtDS(new Date())} · 2.1 MB</small></div><span class="status ${R.custody==='pending'?'status--amber':'status--red'}">${label}</span><span class="cluster" style="gap:4px"><button class="btn btn--small btn--icon btn--danger calc-only" title="Remove" aria-label="Remove ${CUSTODY_FILE.name}" onclick="removeDoc(this)"><svg class="icon"><use href="#icon-trash-2"/></svg></button></span>`;
   if(!row){row=document.createElement('div');row.className='doc-row';row.id='custodyRow';$('fDocs').appendChild(row);}row.innerHTML=h;}
 function setCustody(v){R.custody=v;mockOn('.mock [data-custody]',v);renderImgs();}
 
@@ -2009,6 +2014,45 @@ function sendToAiConfirm(){const pct=$('ai-target').value,dir=$('ai-direction').
 DIALOGS.compareEstimates=()=>({title:'Compare estimates',body:`<div class="table-wrap"><table class="cmp-table"><thead><tr><th>Estimate</th><th>State</th><th class="num">Net</th><th class="num">VAT</th><th class="num">Gross</th></tr></thead><tbody>${ESTIMATES.map(e=>{const n=estNet(e),v=n*.2;return`<tr><td>${esc(e.name)}<br><small class="muted">${esc(e.src)} · ${esc(e.when)}</small></td><td>${e.state==='current'?'<span class="status status--green">Current</span>':e.state==='draft'?'<span class="status">Draft</span>':esc(e.state)}</td><td class="num mono">${fmt(n)}</td><td class="num mono">${fmt(v)}</td><td class="num mono">${fmt(n+v)}</td></tr>`;}).join('')}</tbody></table></div>`,foot:''});
 genPreview=function(){if(!S.ev){toast("Engineer's Value is required before a draft",true);return;}S.previewed=true;openDlg('previewDraft');};
 DIALOGS.previewDraft=()=>{const o=$('f-outcome').options[$('f-outcome').selectedIndex].text;const name=(o==='Total loss'?'Total Loss':o)+' Report — MA59BDY (draft).pdf';return{title:'Report draft',cls:'dialog--wide',body:`<div class="draft-page"><img src="${fakeDoc(name)}" alt="${esc(name)}"></div>`,foot:`<a class="btn" href="${fakeDoc(name)}" download="${esc(name.replace('.pdf','.svg'))}"><svg class="icon"><use href="#icon-download"/></svg><span>Download draft</span></a>`};};
+
+/* ---------- 13 September planning decisions landing on the Case record (Work Centre D1, D5, D9, D10, P4, P8; Received file D2) ---------- */
+function fmtRD(d){return new Date(d+'T00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'});}
+/* D5: Place on Hold carries an optional Review on date */
+R.holdReviewOn=null;
+DIALOGS.hold=()=>({title:'Place on Hold',cls:'dialog--compact',body:reasonField()+`<div class="field"><label for="hold-review">Review on</label><input id="hold-review" type="date" min="${new Date().toISOString().slice(0,10)}"></div>`,foot:reasonFoot('Place on Hold','holdConfirm()')});
+function renderHeld(){const s=$('rbState');if(HELD)s.textContent=R.holdReviewOn?'Held · review on '+fmtRD(R.holdReviewOn):'Held';}
+{const _hc=holdConfirm;holdConfirm=function(){const el=$('hold-review');const d=el&&el.value?el.value:null;const was=HELD;_hc();if(!was&&HELD){R.holdReviewOn=d;if(d)logNote(`Review on ${fmtRD(d)}.`);}if(!HELD)R.holdReviewOn=null;renderHeld();};}
+{const _th=toggleHold;toggleHold=function(){_th();if(!HELD)R.holdReviewOn=null;renderHeld();};}
+function setHoldReview(d){R.holdReviewOn=d||null;if(d&&!HELD)toggleHold();renderHeld();}
+
+/* D1: a blocking external failure reads in operator words at the point of use */
+{const _lt=lookupText;lookupText=function(){const t=_lt();return R.lookup==='failed'?t.replace(/^Failed: /,'Lookup failed · '):t;};}
+
+/* D9: an AI draft ready on this Case shows on Next action and raises a notification */
+const AI_DRAFT={estimate:{label:'Estimate draft ready',action:'Review estimate',k:'estimate'},query:{label:'Query response draft ready',action:'Open query',k:'notes'},unid:{label:'Unidentified resolution draft ready',action:'Review',k:'files'}};
+R.aiDraft=null;
+function renderAiNext(){let row=$('aiNextRow');const d=R.aiDraft&&AI_DRAFT[R.aiDraft];if(!d||isTerminal()){if(row)row.remove();return;}if(!row){row=document.createElement('div');row.className='next-row ai-next';row.id='aiNextRow';$('nextText').closest('.panel-body').prepend(row);}
+  row.innerHTML=`<span><span class="prov prov--ai" style="margin:0 6px 0 0">AI</span>${d.label}</span><button class="btn btn--small btn--primary" onclick="jumpTo('${d.k}')">${d.action}</button>`;}
+function setAiDraft(v){const prev=R.aiDraft;R.aiDraft=v||null;mockOn('.mock [data-ai]',v||'none');renderAiNext();if(v&&v!==prev){const d=AI_DRAFT[v];logNote(`${d.label} — AI job for ${ME_NAME}.`);pushNotif(d.label,`pegasus_case_workspace_v26.html?layout=tabs&section=${d.k}`);}}
+{const _un=updateNext;updateNext=function(){_un();renderAiNext();};}
+
+/* D10: notifications this Case raises for the signed-in person (read by the shell's bell) */
+function readNotif(){try{return JSON.parse(localStorage.getItem('v26.notif')||'[]');}catch{return [];}}
+function pushNotif(cause,route){const list=readNotif();list.unshift({id:'n'+Date.now(),ref:CASE_REF,reg:'MA59BDY',cause,when:new Date().toISOString(),read:false,route});localStorage.setItem('v26.notif',JSON.stringify(list.slice(0,50)));renderBellCount();}
+function renderBellCount(){const b=document.querySelector('.icon-button[aria-label="Notifications"]');if(!b)return;const n=readNotif().filter(x=>!x.read).length;let c=b.querySelector('.bell-count');if(!n){if(c)c.remove();return;}if(!c){c=document.createElement('span');c.className='bell-count';b.appendChild(c);}c.textContent=n;}
+{const b=document.querySelector('.icon-button[aria-label="Notifications"]');if(b){b.onclick=()=>{location.href=SHELL_PAGE+'#/?notifications=1';};}}
+window.addEventListener('storage',e=>{if(e.key==='v26.notif')renderBellCount();});
+
+/* P4, P8: the assignment dialog, with Assign to me */
+DIALOGS.handoff=()=>({title:'Hand to Engineer',body:`<div class="field"><label class="req" for="case-handoff-engineer">Engineer</label><select id="case-handoff-engineer" required data-dialog-initial-focus><option value=""></option>${ENGINEERS.map(e=>`<option>${e}</option>`).join('')}</select></div><div class="button-row"><button type="button" class="btn" onclick="assignToMe()"><svg class="icon"><use href="#icon-user"/></svg><span>Assign to me</span></button><button type="button" class="btn btn--primary" onclick="handoffConfirm()">Hand to Engineer</button></div>`});
+function assignToMe(){const s=$('case-handoff-engineer');if(![...s.options].some(o=>o.value===ME_NAME))s.add(new Option(ME_NAME,ME_NAME));s.value=ME_NAME;handoffConfirm();}
+{const _ho=handoffConfirm;handoffConfirm=function(){const e=$('case-handoff-engineer')&&$('case-handoff-engineer').value;_ho();if(e===ME_NAME&&STATE==='engineer')pushNotif('Assigned to you','pegasus_case_workspace_v26.html?layout=tabs');};}
+
+/* D9: Market research files are evidence in Files, tagged, stored in Box */
+function renderMarketResearch(){if(document.querySelector('.doc-row[data-mr]'))return;const first=document.querySelector('.doc-row');if(!first)return;const row=document.createElement('div');row.className='doc-row';row.dataset.mr='1';row.innerHTML=`<svg class="icon"><use href="#icon-file-text"/></svg><div><b>Market research — MA59BDY listings.pdf</b><br><small>AI market research · 28 Aug 2026 09:14 · 412 KB · Box</small></div><span class="prov prov--ai">Market research</span><span class="cluster" style="gap:4px"><button class="btn btn--small" onclick="openDlg('previewDraft')">View</button><button class="btn btn--small btn--icon" title="Save as"><svg class="icon"><use href="#icon-download"/></svg></button><button class="btn btn--small btn--icon btn--danger calc-only" title="Remove" onclick="removeDoc(this)"><svg class="icon"><use href="#icon-trash-2"/></svg></button></span>`;first.parentElement.appendChild(row);}
+
+{const _ri=replicaInit;replicaInit=function(){_ri();renderMarketResearch();renderBellCount();renderAiNext();};}
+{const _rq=replicaQuery;replicaQuery=function(q){_rq(q);if(q.get('ai'))setAiDraft(q.get('ai'));if(q.get('review'))setHoldReview(q.get('review'));};}
 /* ================= init ================= */
 buildNav();markNav('overview');renderTabs();buildCar();renderAdds();adjWork();vatDefaults();renderEstTabs();renderGrid();renderImgs();outcomeChange(true);renderReport();syncReads();setState('engineer');renderGlass();renderProposal();dismissable();replicaInit();applyQuery();measure();
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'&&EDITING){e.preventDefault();saveEdit();}});

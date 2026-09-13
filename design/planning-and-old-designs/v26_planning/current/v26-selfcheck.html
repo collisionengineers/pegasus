@@ -148,7 +148,7 @@ f.onload=()=>{
     check('take over is recorded',$('noteTop').textContent.includes('Edit lease taken over'));
     w.setLease('available');check('lease released ends the session',!d.body.classList.contains('is-editing')&&$('leaseLine').hidden);
     // vehicle lookup
-    for(const p of [['none','Not yet looked up'],['pending','Queued'],['current','Current'],['stale','Stale'],['notfound','Not found for MA59BDY'],['failed','Failed: Provider unavailable']]){w.setLookup(p[0]);check('lookup state '+p[0],$('lookupRead').textContent.includes(p[1])&&d.querySelector('.mock [data-lookup="'+p[0]+'"]').classList.contains('on'));}
+    for(const p of [['none','Not yet looked up'],['pending','Queued'],['current','Current'],['stale','Stale'],['notfound','Not found for MA59BDY'],['failed','Lookup failed · Provider unavailable']]){w.setLookup(p[0]);check('lookup state '+p[0],$('lookupRead').textContent.includes(p[1])&&d.querySelector('.mock [data-lookup="'+p[0]+'"]').classList.contains('on'));}
     w.setLookup('current');w.startEdit();w.requestLookup();check('lookup request queues',g('R').lookup==='pending'&&$('lookupRead').textContent.indexOf('Queued')===0);
     w.refreshRecord();check('refresh lands the lookup',g('R').lookup==='current');
     // inspection address
@@ -197,7 +197,7 @@ f.onload=()=>{
     reason('Duplicate upload');w.removeDocConfirm();check('remove with a reason',d.querySelectorAll('#fDocs .doc-row').length===docs0-1&&$('noteTop').textContent.includes('File removed'));
     // custody placeholder
     w.setCustody('pending');check('custody still arriving',!!$('custodyRow')&&$('custodyRow').textContent.includes('Storing')&&!!d.querySelector('#thumbs2 [data-gallery-placeholder]'));
-    w.setCustody('failed');check('custody storage failed',$('custodyRow').textContent.includes('Storage failed')&&d.querySelector('#thumbs2 [data-gallery-placeholder]').textContent.includes('Storage failed'));
+    w.setCustody('failed');check('custody storage failed',$('custodyRow').textContent.includes('Storage not ready')&&d.querySelector('#thumbs2 [data-gallery-placeholder]').textContent.includes('Storage not ready'));
     w.setCustody('confirmed');check('custody confirmed clears the placeholder',!$('custodyRow')&&!d.querySelector('#thumbs2 [data-gallery-placeholder]'));
     // image intake photographs
     check('intake photographs grouped per intake',d.querySelectorAll('#intakeImgs .intake-group').length===1&&d.querySelectorAll('#intakeImgs .image-tile').length===3);
@@ -265,6 +265,20 @@ f.onload=()=>{
     g('S.ev=S.ev||2900');w.genPreview();check('preview opens the draft',dlgText().includes('Report draft')&&!!d.querySelector('#dlgHost .draft-page img'));w.closeDlg();
     check('no placeholder actions remain',!d.body.innerHTML.includes('(existing)'));
     if(!wasEd)w.cancelEdit(true);}
+    // 13 September decisions on the Case record
+    w.localStorage.removeItem('v26.notif');
+    w.openDlg('hold');check('hold dialog has an optional Review on date',!!$('hold-review')&&$('hold-review').type==='date'&&!$('hold-review').required);
+    $('dlg-reason').value='Awaiting hire confirmation';$('hold-review').value='2026-09-24';w.holdConfirm();check('hold carries a review date',g('HELD')&&g('R').holdReviewOn==='2026-09-24'&&$('rbState').textContent==='Held · review on 24 Sept'.replace('Sept','Sep')||$('rbState').textContent.startsWith('Held · review on 24 Sep'));
+    w.setLife('none');check('release clears the review date',!g('HELD')&&!g('R').holdReviewOn);
+    w.setLookup('failed');check('vehicle lookup failure reads in operator words',$('lookupRead').textContent.startsWith('Lookup failed'));w.setLookup('current');
+    w.setCustody('failed');check('storage failure reads Storage not ready',$('custodyRow').textContent.includes('Storage not ready'));w.setCustody('confirmed');
+    w.setAiDraft('estimate');check('AI draft shows on Next action with its per-kind action',!!$('aiNextRow')&&$('aiNextRow').textContent.includes('Estimate draft ready')&&$('aiNextRow').querySelector('.btn').textContent==='Review estimate');
+    check('AI draft raised a notification',JSON.parse(w.localStorage.getItem('v26.notif')||'[]').some(n=>n.cause==='Estimate draft ready'&&!n.read)&&!!d.querySelector('.bell-count'));
+    w.setAiDraft(null);check('AI draft row absent when none',!$('aiNextRow'));
+    check('market research file is evidence in Files with its tag',!!d.querySelector('.doc-row[data-mr] .prov')&&d.querySelector('.doc-row[data-mr]').textContent.includes('Box'));
+    w.setState('review');w.openDlg('handoff');check('assignment dialog offers Assign to me',!!d.querySelector('#dlgHost .btn[onclick="assignToMe()"]'));
+    w.assignToMe();check('assign to me hands the Case to me and notifies me',g('STATE')==='engineer'&&$('rbEng').textContent==='Alex Mercer'&&JSON.parse(w.localStorage.getItem('v26.notif')).some(n=>n.cause==='Assigned to you'));
+    $('rbEng').textContent='A Patterson';w.localStorage.removeItem('v26.notif');w.renderBellCount();
     // case type and Create audit
     check('case type chip absent for Inspection',$('rbKind').hidden&&!$('barActions').textContent.includes('Create audit'));
     w.setKind('inspection_audit');check('Inspection + Audit shows the chip and Create audit',!$('rbKind').hidden&&$('rbKind').textContent==='Inspection + Audit'&&!!d.querySelector('#barActions .btn[onclick*="createAudit"]'));
