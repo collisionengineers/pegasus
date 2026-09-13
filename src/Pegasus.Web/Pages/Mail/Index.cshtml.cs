@@ -12,20 +12,27 @@ namespace Pegasus.Web.Pages.Mail;
 /// mailbox by default.
 /// </summary>
 /// <remarks>
-/// A viewer and nothing else. It renders no form that mutates anything, and the
-/// read state it shows is the retained one — opening a message here does not
-/// mark it read in the mailbox.
+/// Reading never mutates anything: the read state it shows is the retained one,
+/// and opening a message here does not mark it read in the mailbox. The one
+/// write on the list is Dismiss (and Restore under the Dismissed scope), which
+/// moves the retained message to the Dismissed logical folder without
+/// classifying or linking it and never reaches Outlook (Inbox, 13 September).
 /// </remarks>
 public sealed class IndexModel(
     ListRetainedMail listRetainedMail,
     GetRetainedMail getRetainedMail,
     GetRetainedMailFreshness getFreshness,
     SearchDeletedMail searchDeletedMail,
+    IDismissRetainedMail dismissRetainedMail,
+    IRestoreRetainedMail restoreRetainedMail,
     IStaffMailSend? staffMailSend = null) : StaffPageModel
 {
     public bool StaffMailAvailable => staffMailSend is not null
         && staffMailSend is not UnavailableStaffMailSend;
     internal const int PageSize = 25;
+
+    /// <summary>The folder route value of the Dismissed scope.</summary>
+    public const string DismissedFolderCode = "dismissed";
 
     /// <summary>
     /// The active scope lives in the query string and nowhere else. Requirements
@@ -50,12 +57,9 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "search")]
     public string? SearchTerm { get; set; }
 
+    /// <summary>The Category filter (the mail category vocabulary); the route key stays <c>queue</c>.</summary>
     [BindProperty(SupportsGet = true, Name = "queue")]
     public string? QueueFilter { get; set; }
-
-    /// <summary>The Unread scope; only the Inbox scopes carry it.</summary>
-    [BindProperty(SupportsGet = true, Name = "unread")]
-    public string? UnreadFilter { get; set; }
 
     /// <summary>The list's sort toggle: <c>oldest</c>, or absent for newest.</summary>
     [BindProperty(SupportsGet = true, Name = "sort")]
@@ -71,7 +75,8 @@ public sealed class IndexModel(
 
     public MailFolderScope Folder { get; private set; } = MailFolderScope.Inbox;
 
-    public bool UnreadOnly { get; private set; }
+    /// <summary>The Dismissed scope: dismissed messages appear there and nowhere else.</summary>
+    public bool Dismissed { get; private set; }
 
     public bool OldestFirst { get; private set; }
 
@@ -104,35 +109,11 @@ public sealed class IndexModel(
             return Forbid();
         }
 
-        if (!TryParseFolder(FolderFilter, out var folder))
+        if (!TryParseListContext())
         {
             return NotFound();
         }
 
-        if (!TryParseSort(SortOrder, out var oldestFirst))
-        {
-            return NotFound();
-        }
-
-        Folder = folder;
-        if (!TryParseQueue(
-                QueueFilter,
-                out var normalizedQueue,
-                out var destination,
-                out var detailedClassification)
-            || (folder == MailFolderScope.DeletedItems && normalizedQueue is not null))
-        {
-            return NotFound();
-        }
-        if (!TryParseUnread(UnreadFilter, folder, out var unreadOnly))
-        {
-            return NotFound();
-        }
-        QueueFilter = normalizedQueue;
-        DestinationFilter = destination;
-        DetailedClassificationFilter = detailedClassification;
-        UnreadOnly = unreadOnly;
-        OldestFirst = oldestFirst;
         var mailbox = Guid.TryParse(MailboxFilter, out var mailboxId) && mailboxId != Guid.Empty
             ? mailboxId
             : (Guid?)null;
@@ -156,11 +137,11 @@ public sealed class IndexModel(
 
         try
         {
-            Mailboxes = folder == MailFolderScope.DeletedItems
+            Mailboxes = Folder == MailFolderScope.DeletedItems
                 ? await searchDeletedMail.ListMailboxesAsync(actor, cancellationToken)
                 : await listRetainedMail.ListMailboxesAsync(actor, cancellationToken);
             if (SearchValidationMessage is null
-                && folder == MailFolderScope.DeletedItems
+                && Folder == MailFolderScope.DeletedItems
                 && SearchTerm is not null)
             {
                 DeletedResults = await searchDeletedMail.ExecuteAsync(
@@ -177,12 +158,13 @@ public sealed class IndexModel(
                     actor,
                     new(
                         mailbox,
-                        folder,
+                        Folder,
                         SearchTerm,
                         DestinationFilter,
                         DetailedClassificationFilter,
-                        UnreadOnly,
-                        OldestFirst),
+                        UnreadOnly: false,
+                        OldestFirst,
+                        DismissedOnly: Dismissed),
                     page,
                     PageSize,
                     cancellationToken);
@@ -204,6 +186,115 @@ public sealed class IndexModel(
         }
 
         return Page();
+    }
+
+    /// <summary>Dismiss from the row: the message leaves every incoming scope; nothing is classified, linked or deleted.</summary>
+    public async Task<IActionResult> OnPostDismissAsync(
+        Guid id,
+        string? operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!TryParseListContext())
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var result = await dismissRetainedMail.ExecuteAsync(
+                new(id, actor, string.IsNullOrWhiteSpace(operationKey) ? NewOperationKey() : operationKey),
+                cancellationToken);
+            if (result is null)
+            {
+                return NotFound();
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException)
+        {
+            return NotFound();
+        }
+
+        TempData["Confirmation"] = OperatorLabels.Inbox.DismissedNotice;
+        return RedirectToList();
+    }
+
+    /// <summary>Restore from the Dismissed scope: the message returns to the incoming scopes it belongs to.</summary>
+    public async Task<IActionResult> OnPostRestoreAsync(
+        Guid id,
+        string? operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!TryParseListContext())
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var result = await restoreRetainedMail.ExecuteAsync(
+                new(id, actor, string.IsNullOrWhiteSpace(operationKey) ? NewOperationKey() : operationKey),
+                cancellationToken);
+            if (result is null)
+            {
+                return NotFound();
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException)
+        {
+            return NotFound();
+        }
+
+        TempData["Confirmation"] = OperatorLabels.Inbox.RestoredNotice;
+        return RedirectToList();
+    }
+
+    private RedirectToPageResult RedirectToList() => RedirectToPage(new
+    {
+        mailbox = MailboxFilter,
+        folder = FolderRouteValue,
+        search = SearchTerm,
+        queue = QueueFilter,
+        sort = OldestFirst ? "oldest" : null,
+        pageNumber = PageNumber is > 1 ? PageNumber : null
+    });
+
+    private bool TryParseListContext()
+    {
+        if (!TryParseFolder(FolderFilter, out var folder, out var dismissed)
+            || !TryParseSort(SortOrder, out var oldestFirst)
+            || !TryParseQueue(
+                QueueFilter,
+                out var normalizedQueue,
+                out var destination,
+                out var detailedClassification)
+            || (folder == MailFolderScope.DeletedItems && normalizedQueue is not null))
+        {
+            return false;
+        }
+
+        Folder = folder;
+        Dismissed = dismissed;
+        OldestFirst = oldestFirst;
+        QueueFilter = normalizedQueue;
+        DestinationFilter = destination;
+        DetailedClassificationFilter = detailedClassification;
+        return true;
     }
 
     public async Task<IActionResult> OnGetPreviewAsync(
@@ -290,11 +381,12 @@ public sealed class IndexModel(
                     SearchTerm,
                     definition.Destination,
                     null,
-                    definition.UnreadOnly),
+                    UnreadOnly: false,
+                    DismissedOnly: definition.Dismissed),
                 cancellationToken);
             options.Add(new(
                 definition,
-                definition.Matches(Folder, QueueFilter, UnreadOnly),
+                definition.Matches(Folder, QueueFilter, Dismissed),
                 count,
                 mailbox,
                 SearchTerm));
@@ -337,7 +429,11 @@ public sealed class IndexModel(
     public static string SubjectLine(RetainedMailSummary item) =>
         string.IsNullOrWhiteSpace(item.Subject) ? "No subject" : item.Subject;
 
-    public string? FolderRouteValue => Folder == MailFolderScope.Inbox ? null : FolderCode(Folder);
+    public string? FolderRouteValue => ListFolderCode(Folder, Dismissed);
+
+    /// <summary>The folder route value for a list context: absent for Inbox, <c>dismissed</c> for the Dismissed scope.</summary>
+    public static string? ListFolderCode(MailFolderScope folder, bool dismissed) =>
+        dismissed ? DismissedFolderCode : folder == MailFolderScope.Inbox ? null : FolderCode(folder);
 
     public static string FolderCode(MailFolderScope folder) => folder switch
     {
@@ -373,7 +469,6 @@ public sealed class IndexModel(
         ["folder"] = FolderRouteValue,
         ["search"] = SearchTerm,
         ["queue"] = QueueFilter,
-        ["unread"] = UnreadOnly ? "true" : null,
         ["sort"] = OldestFirst ? "oldest" : null,
         ["selected"] = SelectedDetail is { } detail ? detail.Summary.Id.ToString("D") : null,
         ["pageNumber"] = Results.Page > 1
@@ -402,9 +497,9 @@ public sealed class IndexModel(
             get
             {
                 var fields = new Dictionary<string, string>();
-                if (Definition.Folder != MailFolderScope.Inbox)
+                if (ListFolderCode(Definition.Folder, Definition.Dismissed) is { } folder)
                 {
-                    fields["folder"] = FolderCode(Definition.Folder);
+                    fields["folder"] = folder;
                 }
                 if (MailboxId is { } mailboxId)
                 {
@@ -418,10 +513,6 @@ public sealed class IndexModel(
                 {
                     fields["queue"] = DestinationKey(destination);
                 }
-                if (Definition.UnreadOnly)
-                {
-                    fields["unread"] = "true";
-                }
                 return fields;
             }
         }
@@ -432,14 +523,14 @@ public sealed class IndexModel(
         string IconId,
         MailFolderScope Folder,
         MailOperationalDestination? Destination = null,
-        bool UnreadOnly = false)
+        bool Dismissed = false)
     {
         public bool Matches(
             MailFolderScope folder,
             string? queueFilter,
-            bool unreadOnly) =>
+            bool dismissed) =>
             folder == Folder
-            && unreadOnly == UnreadOnly
+            && dismissed == Dismissed
             && string.Equals(
                 queueFilter,
                 Destination is { } destination ? DestinationKey(destination) : null,
@@ -447,14 +538,13 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// The scope rail, in the drawn order. The aggregate scopes reuse the queue
-    /// keys the filter bar's Queue select already binds — one vocabulary, two
-    /// entry points.
+    /// The scope rail, in the planned order (Inbox, 13 September): no Unread scope —
+    /// read state is not a queue; unread rows are bold — and a Dismissed scope last.
+    /// The aggregate scopes reuse the keys the Category select already binds.
     /// </summary>
     public static readonly IReadOnlyList<MailScopeDefinition> ScopeDefinitions =
     [
         new("All incoming", "inbox", MailFolderScope.Inbox),
-        new("Unread", "mail", MailFolderScope.Inbox, UnreadOnly: true),
         new(
             "Receiving work",
             "download",
@@ -467,7 +557,8 @@ public sealed class IndexModel(
             "search",
             MailFolderScope.Inbox,
             MailOperationalDestination.Unidentified),
-        new("Sent Items", "send", MailFolderScope.Sent)
+        new("Sent Items", "send", MailFolderScope.Sent),
+        new(OperatorLabels.Inbox.DismissedScope, "x", MailFolderScope.Inbox, Dismissed: true)
     ];
 
     public sealed record MailViewOption(
@@ -602,13 +693,25 @@ public sealed class IndexModel(
         };
     }
 
-    internal static bool TryParseFolder(string? value, out MailFolderScope folder)
+    internal static bool TryParseFolder(string? value, out MailFolderScope folder) =>
+        TryParseFolder(value, out folder, out _);
+
+    /// <summary>
+    /// The list folder address: Inbox (absent or <c>inbox</c>), <c>sent</c>,
+    /// <c>deleted</c>, or <c>dismissed</c> — the Dismissed scope, which reads the
+    /// retained Inbox mail that has been dismissed.
+    /// </summary>
+    internal static bool TryParseFolder(string? value, out MailFolderScope folder, out bool dismissed)
     {
         folder = MailFolderScope.Inbox;
+        dismissed = false;
         switch (value)
         {
             case null or "":
             case "inbox":
+                return true;
+            case DismissedFolderCode:
+                dismissed = true;
                 return true;
             case "sent":
                 folder = MailFolderScope.Sent;
@@ -634,25 +737,6 @@ public sealed class IndexModel(
                 return true;
             case "oldest":
                 oldestFirst = true;
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    /// <summary>
-    /// Only the Inbox scopes carry the unread flag, so it is refused everywhere
-    /// else rather than silently dropped.
-    /// </summary>
-    internal static bool TryParseUnread(string? value, MailFolderScope folder, out bool unreadOnly)
-    {
-        unreadOnly = false;
-        switch (value)
-        {
-            case null or "":
-                return true;
-            case "true" when folder == MailFolderScope.Inbox:
-                unreadOnly = true;
                 return true;
             default:
                 return false;

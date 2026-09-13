@@ -62,6 +62,72 @@ public sealed partial class WorkflowConfigurationWebTests
         Assert.Contains("12 days", await GetPageAsync(client), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Configuration (13 September): the read view lists the six workflow settings
+    /// as "Chase interval · 7 days" and the five due targets; the edit form has six
+    /// number inputs with their ranges, and a value outside a range is refused
+    /// against its own input with the range named.
+    /// </summary>
+    [Fact]
+    public async Task TheSixWorkflowSettingsReadEditAndNameTheirRanges()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var html = await GetPageAsync(client);
+        foreach (var (field, label, days) in new[]
+                 {
+                     ("ChaseIntervalDays", "Chase interval", "7 days"),
+                     ("UnidentifiedTargetDays", "Unidentified target", "0 days"),
+                     ("TriageTargetDays", "Triage target", "1 day"),
+                     ("HeldTargetDays", "Held decision target", "7 days"),
+                     ("ReviewTargetDays", "Review target", "1 day"),
+                     ("AiDraftTargetDays", "AI draft target", "1 day")
+                 })
+        {
+            Assert.Matches(
+                $"data-workflow-setting=\"{field}\"><dt>{Regex.Escape(label)}</dt><dd>{days}</dd>",
+                html);
+        }
+
+        var id = Pegasus.Core.Workflow.GetWorkflowConfiguration.RecordId.ToString("D");
+        using var edit = await client.PostAsync(Route + "?handler=Edit", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["recordId"] = id, ["__RequestVerificationToken"] = Field(html, "__RequestVerificationToken")
+        }));
+        var editor = await edit.Content.ReadAsStringAsync();
+        Assert.Matches("name=\"ChaseIntervalDays\"[^>]*min=\"1\"[^>]*max=\"365\"", editor);
+        foreach (var field in new[] { "UnidentifiedTargetDays", "TriageTargetDays", "HeldTargetDays", "ReviewTargetDays", "AiDraftTargetDays" })
+        {
+            Assert.Matches($"name=\"{field}\"[^>]*min=\"0\"[^>]*max=\"365\"", editor);
+        }
+
+        using var refused = await client.PostAsync(Route + "?handler=Save", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["EditingId"] = id, ["ExpectedVersion"] = Field(editor, "ExpectedVersion"),
+            ["LeaseToken"] = Field(editor, "LeaseToken"), ["OperationKey"] = Field(editor, "OperationKey"),
+            ["__RequestVerificationToken"] = Field(editor, "__RequestVerificationToken"),
+            ["RequireInstructions"] = "true", ["ChaseIntervalDays"] = "7",
+            ["UnidentifiedTargetDays"] = "0", ["TriageTargetDays"] = "400", ["HeldTargetDays"] = "7",
+            ["ReviewTargetDays"] = "1", ["AiDraftTargetDays"] = "1"
+        }));
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains("Triage target must be between 0 and 365 days.", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
+        using var saved = await client.PostAsync(Route + "?handler=Save", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["EditingId"] = id, ["ExpectedVersion"] = Field(editor, "ExpectedVersion"),
+            ["LeaseToken"] = Field(editor, "LeaseToken"), ["OperationKey"] = Field(editor, "OperationKey"),
+            ["__RequestVerificationToken"] = Field(editor, "__RequestVerificationToken"),
+            ["RequireInstructions"] = "true", ["ChaseIntervalDays"] = "7",
+            ["UnidentifiedTargetDays"] = "2", ["TriageTargetDays"] = "3", ["HeldTargetDays"] = "4",
+            ["ReviewTargetDays"] = "5", ["AiDraftTargetDays"] = "6"
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        var after = await GetPageAsync(client);
+        Assert.Contains("data-workflow-setting=\"TriageTargetDays\"><dt>Triage target</dt><dd>3 days</dd>", after, StringComparison.Ordinal);
+        Assert.Contains("data-workflow-setting=\"AiDraftTargetDays\"><dt>AI draft target</dt><dd>6 days</dd>", after, StringComparison.Ordinal);
+    }
+
     private static string Field(string html, string name)
     {
         var tag = Regex.Match(html, "<input[^>]*name=\"" + Regex.Escape(name) + "\"[^>]*>");

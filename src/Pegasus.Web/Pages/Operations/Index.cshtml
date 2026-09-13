@@ -201,13 +201,82 @@
         <div class="panel-head">
             <h2 id="attention-title">Attention required</h2>
         </div>
-        @if (externalWork.Length == 0)
+        @if (externalWork.Length == 0 && Model.FailedIntake.Count == 0)
         {
             <div class="empty">
                 <h2>Nothing needs attention</h2>
             </div>
         }
-        else
+        @if (Model.FailedIntake.Count > 0)
+        {
+            <div class="table-wrap no-border">
+                <table class="table table--compact" data-failed-intake>
+                    <caption class="sr-only">Failed intake processing</caption>
+                    <thead><tr><th scope="col">Work</th><th scope="col">Item</th><th scope="col">Source</th><th scope="col">Attempts</th><th scope="col">Failure</th><th scope="col">Received</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+                    <tbody>
+                    @foreach (var intake in Model.FailedIntake)
+                    {
+                        var logUrl = $"/Administration/Logs?tab=intake&Receipt={intake.Row.ReceiptId:D}";
+                        <tr data-failed-intake-row="@intake.Row.ReceiptId">
+                            <td>@OperatorLabels.IntakeLog.Outcome(intake.Row.Outcome)</td>
+                            <td><a href="@logUrl">@intake.Row.Item</a></td>
+                            <td>@OperatorLabels.IntakeLog.Source(intake.Row.Source)</td>
+                            <td class="tabular">@intake.Row.ProcessingAttempts</td>
+                            <td>@(intake.Row.OutcomeReason ?? "—")</td>
+                            <td><time datetime="@intake.Row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(intake.Row.ReceivedAtUtc)</time></td>
+                            <td class="row-actions">
+                                @if (intake.Actions.CanRetryAllocation && intake.AllocationAttempts.LastOrDefault() is { } lastAttempt)
+                                {
+                                    <details>
+                                        <summary class="btn btn--small">@OperatorLabels.IntakeLog.RetryAllocation</summary>
+                                        <form method="post" action="/Administration/Logs?handler=RetryIntakeAllocation" class="row-confirm">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="receiptId" value="@intake.Row.ReceiptId" />
+                                            <input type="hidden" name="expectedVersion" value="@intake.Receipt.Version" />
+                                            <input type="hidden" name="expectedAttemptId" value="@lastAttempt.AttemptId" />
+                                            <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                            <input type="hidden" name="returnUrl" value="/Operations" />
+                                            <label for="retry-allocation-reason-@intake.Row.ReceiptId">Reason</label>
+                                            <input id="retry-allocation-reason-@intake.Row.ReceiptId" name="reason" maxlength="500" required />
+                                            <button class="btn btn--dark" type="submit">@OperatorLabels.IntakeLog.RetryAllocation</button>
+                                        </form>
+                                    </details>
+                                }
+                                @if (intake.Actions.CanRetryOcr)
+                                {
+                                    <form method="post" action="/Administration/Logs?handler=RetryIntakeOcr">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="receiptId" value="@intake.Row.ReceiptId" />
+                                        <input type="hidden" name="expectedVersion" value="@intake.Receipt.Version" />
+                                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                        <input type="hidden" name="returnUrl" value="/Operations" />
+                                        <button class="btn btn--small" type="submit">@OperatorLabels.IntakeLog.RetryOcr</button>
+                                    </form>
+                                }
+                                @if (intake.Actions.CanReevaluate)
+                                {
+                                    <details>
+                                        <summary class="btn btn--small">Re-evaluate</summary>
+                                        <form method="post" action="/Administration/Logs?handler=ReevaluateIntake" class="row-confirm">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="receiptId" value="@intake.Row.ReceiptId" />
+                                            <input type="hidden" name="expectedVersion" value="@intake.Receipt.Version" />
+                                            <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                            <input type="hidden" name="returnUrl" value="/Operations" />
+                                            <label for="reevaluate-reason-@intake.Row.ReceiptId">Reason</label>
+                                            <input id="reevaluate-reason-@intake.Row.ReceiptId" name="reason" maxlength="500" required />
+                                            <button class="btn btn--dark" type="submit">@OperatorLabels.IntakeLog.Reevaluate</button>
+                                        </form>
+                                    </details>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+        @if (externalWork.Length > 0)
         {
             <div class="table-wrap no-border">
                 <table>
@@ -255,23 +324,23 @@
             <div class="table-wrap no-border">
                 <table>
                     <caption class="sr-only">Active Pegasus upload links</caption>
-                    <thead><tr><th scope="col">Case</th><th scope="col">Last activity</th><th scope="col">Accepted</th><th scope="col">Expires</th><th scope="col">State</th><th scope="col">Action</th></tr></thead>
+                    <thead><tr><th scope="col">Case</th><th scope="col">Files</th><th scope="col">Last activity</th><th scope="col">Expires</th><th scope="col">State</th><th scope="col">Action</th></tr></thead>
                     <tbody>
                     @foreach (var item in uploadLinks)
                     {
                         <tr>
                             <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.CaseReference</a></td>
-                            <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.LastActivityAtUtc)</time></td>
                             <td>
-                                @if (item.MaximumByteCount is { } maximumBytes)
-                                {
-                                    <span>@OperatorLabels.FileSize(item.AcceptedByteCount ?? 0) of @OperatorLabels.FileSize(maximumBytes)</span>
-                                }
                                 @if (item.MaximumFileCount is { } maximumFiles)
                                 {
-                                    <span> · @item.AcceptedFileCount of @maximumFiles files</span>
+                                    <span>@item.AcceptedFileCount of @maximumFiles files</span>
+                                }
+                                @if (item.MaximumByteCount is { } maximumBytes)
+                                {
+                                    <span> · @OperatorLabels.FileSize(item.AcceptedByteCount ?? 0) of @OperatorLabels.FileSize(maximumBytes)</span>
                                 }
                             </td>
+                            <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.LastActivityAtUtc)</time></td>
                             <td>@if (item.ExpiresAtUtc is { } expiry) { <time datetime="@expiry.ToString("O")">@OperatorLabels.OfficeTime(expiry)</time> }</td>
                             <td><partial name="Shared/_StatusChip" model="@IndexModel.StateLabel(item.State)" /></td>
                             <td>

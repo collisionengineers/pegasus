@@ -45,13 +45,20 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Contains("/Administration/Mailboxes", administrationHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("/Administration/MailCategories", administrationHtml, StringComparison.Ordinal);
 
-        // PLAT-026 consolidated Mail categories into the Mail settings area, so the
-        // old route is a permanent redirect rather than a rendered page.
+        // Mail categories live in Mail settings; the redirect stub is deleted, so the
+        // old route no longer exists (Phase 6).
         using var retiredCategories = await client.GetAsync("/Administration/MailCategories");
-        Assert.Equal(HttpStatusCode.MovedPermanently, retiredCategories.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, retiredCategories.StatusCode);
+
+        // The Action logs card is now Logs, and the old Action logs route redirects
+        // to it with its filters intact.
+        Assert.Contains("href=\"/Administration/Logs\"", administrationHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("href=\"/Administration/ActionLogs\"", administrationHtml, StringComparison.Ordinal);
+        using var retiredActionLogs = await client.GetAsync("/Administration/ActionLogs?Area=Security");
+        Assert.Equal(HttpStatusCode.MovedPermanently, retiredActionLogs.StatusCode);
         Assert.Equal(
-            "/Administration/Mailboxes",
-            retiredCategories.Headers.Location?.OriginalString ?? string.Empty);
+            "/Administration/Logs?Area=Security",
+            retiredActionLogs.Headers.Location?.OriginalString ?? string.Empty);
 
         using var shell = await client.GetAsync("/");
         var shellHtml = await shell.Content.ReadAsStringAsync();
@@ -143,7 +150,7 @@ public sealed class AdministrationSearchAccountWebTests
                  {
                      "/Administration/Configuration",
                      "/Administration/Mailboxes",
-                     "/Administration/MailCategories"
+                     "/Administration/Logs"
                  })
         {
             using var response = await client.GetAsync(route);
@@ -160,10 +167,8 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Equal(
             StaffRoleNames.Administrator,
             typeof(MailboxesModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
-        Assert.Equal(
-            StaffRoleNames.Administrator,
-            typeof(MailCategoriesModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
         Assert.Equal(StaffRoleNames.Administrator, typeof(HealthModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+        Assert.Equal(StaffRoleNames.Administrator, typeof(LogsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
         Assert.Equal(StaffRoleNames.Administrator, typeof(ActionLogsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
         Assert.Equal(StaffRoleNames.Administrator, typeof(AiJobsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
         Assert.Equal(StaffRoleNames.Administrator, typeof(ReportsModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
@@ -172,6 +177,8 @@ public sealed class AdministrationSearchAccountWebTests
     [Theory]
     [InlineData("/Administration/Health")]
     [InlineData("/Administration/ActionLogs")]
+    [InlineData("/Administration/Logs")]
+    [InlineData("/Administration/Logs?tab=intake")]
     [InlineData("/Administration/AiJobs")]
     [InlineData("/Administration/Reports")]
     public async Task NewAdministrationRoutesForbidNonAdministrators(string route)
@@ -245,7 +252,7 @@ public sealed class AdministrationSearchAccountWebTests
         var actor = DevelopmentOfflineIdentity.AdministratorId.ToString("D");
 
         var html = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}");
+            $"/Administration/Logs?From={from}&To={to}&Actor={actor}");
 
         Assert.Contains($"value=\"{actor}\"", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(DevelopmentOfflineIdentity.UserName, html, StringComparison.Ordinal);
@@ -291,7 +298,7 @@ public sealed class AdministrationSearchAccountWebTests
         var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
 
         var html = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&Area=ai_job");
+            $"/Administration/Logs?From={from}&To={to}&Area=ai_job");
 
         // An AI job's recorded aggregate is the job, so the Reference column
         // alone would print a bare identifier. It resolves to the record the
@@ -331,18 +338,18 @@ public sealed class AdministrationSearchAccountWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
         var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
-        var first = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}");
+        var first = await client.GetStringAsync($"/Administration/Logs?From={from}&To={to}&Actor={actor}");
         Assert.Contains("Page 1", first, StringComparison.Ordinal);
         Assert.Contains("page=2", first, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Actor=pager-actor", first, StringComparison.OrdinalIgnoreCase);
 
-        var second = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}&page=2");
+        var second = await client.GetStringAsync($"/Administration/Logs?From={from}&To={to}&Actor={actor}&page=2");
         Assert.Contains("Page 2", second, StringComparison.Ordinal);
         Assert.Contains("page=1", second, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("page=3", second, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Actor=pager-actor", second, StringComparison.OrdinalIgnoreCase);
 
-        var third = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}&page=3");
+        var third = await client.GetStringAsync($"/Administration/Logs?From={from}&To={to}&Actor={actor}&page=3");
         Assert.Contains("Page 3", third, StringComparison.Ordinal);
         Assert.Contains("page=2", third, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("action-100", third, StringComparison.Ordinal);
@@ -355,7 +362,7 @@ public sealed class AdministrationSearchAccountWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var html = await client.GetStringAsync("/Administration/ActionLogs?page=0");
+        var html = await client.GetStringAsync("/Administration/Logs?page=0");
 
         Assert.Contains("Choose a valid page.", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Choose a valid UTC period.", html, StringComparison.Ordinal);
@@ -401,19 +408,19 @@ public sealed class AdministrationSearchAccountWebTests
         var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
 
         var security = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&Area=Security&Record=security-subject");
+            $"/Administration/Logs?From={from}&To={to}&Area=Security&Record=security-subject");
         Assert.Contains("SignInFailed", security, StringComparison.Ordinal);
         Assert.Contains("security-subject", security, StringComparison.Ordinal);
         Assert.DoesNotContain("case-reference", security, StringComparison.Ordinal);
 
         var action = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&Record=case-reference");
+            $"/Administration/Logs?From={from}&To={to}&Record=case-reference");
         Assert.Contains("case_saved", action, StringComparison.Ordinal);
         Assert.Contains("case-reference", action, StringComparison.Ordinal);
         Assert.DoesNotContain("security-subject", action, StringComparison.Ordinal);
 
         var oldest = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&Sort=oldest");
+            $"/Administration/Logs?From={from}&To={to}&Sort=oldest");
         Assert.True(
             oldest.IndexOf("case-reference", StringComparison.Ordinal)
             < oldest.IndexOf("security-subject", StringComparison.Ordinal));
@@ -455,7 +462,7 @@ public sealed class AdministrationSearchAccountWebTests
         var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
 
         var html = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&Area=Security");
+            $"/Administration/Logs?From={from}&To={to}&Area=Security");
         var row = ActionLogRow(html, "SecurityStampChanged");
 
         Assert.Contains(DevelopmentOfflineIdentity.UserName, row, StringComparison.Ordinal);
@@ -468,10 +475,10 @@ public sealed class AdministrationSearchAccountWebTests
         // The person filter still finds the row by the account it was about,
         // and now also by the operator who acted.
         var byActor = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&Actor={DevelopmentOfflineIdentity.AdministratorId:D}");
+            $"/Administration/Logs?From={from}&To={to}&Actor={DevelopmentOfflineIdentity.AdministratorId:D}");
         Assert.Contains("SecurityStampChanged", byActor, StringComparison.Ordinal);
         var bySubject = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&Actor={targetAccount:D}");
+            $"/Administration/Logs?From={from}&To={to}&Actor={targetAccount:D}");
         Assert.Contains("SecurityStampChanged", bySubject, StringComparison.Ordinal);
     }
 
@@ -507,7 +514,7 @@ public sealed class AdministrationSearchAccountWebTests
         var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
 
         var html = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&Area=Security");
+            $"/Administration/Logs?From={from}&To={to}&Area=Security");
         // The reason code is not a column; the recorded event type is.
         var row = ActionLogRow(html, "SignIn");
 
@@ -541,7 +548,7 @@ public sealed class AdministrationSearchAccountWebTests
         var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
         var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
 
-        var html = await client.GetStringAsync($"/Administration/ActionLogs?From={from}&To={to}");
+        var html = await client.GetStringAsync($"/Administration/Logs?From={from}&To={to}");
 
         var aiRow = ActionLogRow(html, "ai_job_taken");
         Assert.Contains(">AI<", aiRow, StringComparison.Ordinal);
@@ -594,27 +601,27 @@ public sealed class AdministrationSearchAccountWebTests
         var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
 
         var ai = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&ActorType=Automation");
+            $"/Administration/Logs?From={from}&To={to}&ActorType=Automation");
         Assert.Contains("kind-filter-ai", ai, StringComparison.Ordinal);
         Assert.DoesNotContain("kind-filter-staff", ai, StringComparison.Ordinal);
         Assert.DoesNotContain("kind-filter-system", ai, StringComparison.Ordinal);
         Assert.DoesNotContain("PasswordChanged", ai, StringComparison.Ordinal);
 
         var staff = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&ActorType=Staff");
+            $"/Administration/Logs?From={from}&To={to}&ActorType=Staff");
         Assert.Contains("kind-filter-staff", staff, StringComparison.Ordinal);
         Assert.Contains("PasswordChanged", staff, StringComparison.Ordinal);
         Assert.DoesNotContain("kind-filter-ai", staff, StringComparison.Ordinal);
 
         var system = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&ActorType=SystemWorker");
+            $"/Administration/Logs?From={from}&To={to}&ActorType=SystemWorker");
         Assert.Contains("kind-filter-system", system, StringComparison.Ordinal);
         Assert.DoesNotContain("kind-filter-ai", system, StringComparison.Ordinal);
 
         // A value that is not an actor kind carries no meaning, so it is dropped
         // rather than turned into a refused request.
         var unrecognised = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&ActorType=not-a-kind");
+            $"/Administration/Logs?From={from}&To={to}&ActorType=not-a-kind");
         Assert.Contains("kind-filter-ai", unrecognised, StringComparison.Ordinal);
         Assert.Contains("kind-filter-staff", unrecognised, StringComparison.Ordinal);
     }
@@ -644,7 +651,7 @@ public sealed class AdministrationSearchAccountWebTests
         // the host's zone: the window has to hold the row on a UTC host and on a
         // British-summer-time one alike.
         var html = await client.GetStringAsync(
-            "/Administration/ActionLogs?From=2026-09-10T00%3A00&To=2026-09-11T00%3A00");
+            "/Administration/Logs?From=2026-09-10T00%3A00&To=2026-09-11T00%3A00");
 
         Assert.Contains("\"2026-09-10T00:00\"", html, StringComparison.Ordinal);
         Assert.Contains("\"2026-09-11T00:00\"", html, StringComparison.Ordinal);
@@ -737,7 +744,7 @@ public sealed class AdministrationSearchAccountWebTests
         var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
         var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
         var page = await client.GetStringAsync(
-            $"/Administration/ActionLogs?From={from}&To={to}&Actor={actor}&page=3");
+            $"/Administration/Logs?From={from}&To={to}&Actor={actor}&page=3");
 
         Assert.Contains("combined-action-050", page, StringComparison.Ordinal);
         Assert.Contains("SignInFailed050", page, StringComparison.Ordinal);
@@ -771,7 +778,7 @@ public sealed class AdministrationSearchAccountWebTests
         }
 
         using var client = IntakeWebDriver.CreateClient(factory);
-        var first = await client.GetStringAsync($"/Administration/ActionLogs?Actor={actor}");
+        var first = await client.GetStringAsync($"/Administration/Logs?Actor={actor}");
         var next = Regex.Match(first, "href=\"([^\"]*page=2[^\"]*)\"").Groups[1].Value
             .Replace("&amp;", "&", StringComparison.Ordinal);
         Assert.NotEmpty(next);
