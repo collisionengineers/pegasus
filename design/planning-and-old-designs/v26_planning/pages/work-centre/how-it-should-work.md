@@ -69,7 +69,9 @@ Today a Case created from the provider API, by the e-mail route, or by the Autom
 
 ### D9. AI jobs have their own section
 
-The Work Centre gains an **AI jobs** section for the office's jobs that are not finished: Queued, Taken (running), Draft ready, Failed. Draft ready is the actionable state and its row action is Review suggestions, opening the Case's suggestions review. Failed shows the failure in operator words with Open Case; Retry stays on Operations. Completed, Cancelled and Expired jobs are not shown here. Whether Draft ready should also be a Needs attention kind, so it ages under D3, is open.
+An AI job (FRD-11 § reviewed proposals) is a named piece of work an outside AI client picks up through the Automation actor and hands back as a draft for a person to confirm. Pegasus never runs it and never applies its result. Five kinds: Estimate (a proposed repair estimate for a Case), Unidentified resolution (a proposed destination for a U reference), Query response (a draft reply to a post-report query), Unidentified-queue pass (one proposal per item examined), Market research (research files attached to the Case). "Draft ready" means the client has written its result and the job is waiting for a person.
+
+The Work Centre gains an **AI jobs** section for the office's unfinished jobs: Queued, Taken (running, with the lease expiry), Draft ready, Failed. Each row: kind and detail, record, started by, created, state, and the action FRD-11 already defines per kind for Draft ready: **Review estimate** (opens the Case's Estimate section), **Open query** (opens the message), **Review** (opens the Unidentified item), **Complete job** for a Query response or queue pass. Failed shows the reason with Open Case; Cancel and Retry stay on Operations. Completed, Cancelled and Expired jobs are not shown here. Whether Draft ready should also be a Needs attention kind, so it ages under D3, is open.
 
 ### Still open
 
