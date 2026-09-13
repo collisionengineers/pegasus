@@ -4,6 +4,8 @@
 - **Live source:** `src/Pegasus.Web/Pages/Administration`
 - **Dialogs:** [`dialogs/`](dialogs/README.md) · **States:** [`states/`](states/README.md) · **Panels:** [`panels/`](panels/README.md)
 
+- [**How it should work**](how-it-should-work.md) — decisions landing here from other pages.
+
 ## Screenshots
 
 - [s15-admin-hub.png](../../current/v26-shots/s15-admin-hub.png)

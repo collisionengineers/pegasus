@@ -40,7 +40,31 @@ Unidentified becomes everything a person has to sort, including material that is
 
 The MCP intake tools keep reading and writing receipt decisions on the record. Nothing operator-facing depends on the decision vocabulary any more, so the record can keep it.
 
-## Open
+## Where these decisions land
 
-- Whether Unidentified › Close with reason needs a reason vocabulary (Duplicate, Not for us, Spam, Refused) or stays free text.
-- Whether Engineers may open the Intake log read-only. Default: Administrators only.
+| Page | Entry |
+| --- | --- |
+| Work Centre | D7: Blocked metric removed, strip of four; Mail kind unchanged |
+| Cases list | Blocked rows leave the Unidentified tab; Closed filter for closed Unidentified items |
+| Unidentified | Close with reason absorbs Block; registration readings, Register images, Open the Triage; Open message / Open file; definition widens |
+| Create case | the only place a draft is corrected; refusal offers Open message / Open file |
+| Message | attachment outcomes in operator words; attachments open in the viewer |
+| Upload | "Could not be read" on the confirmation; override and reversal on the Case's Files |
+| Case record | Files › Add evidence and Remove with reason take the link and reversal |
+| Triage, Image-initiated Case | Open message / Open file instead of View received item |
+| Operations | failed intake processing rows with Retry allocation, Retry OCR, Re-evaluate |
+| Administration hub, Logs | Logs card; Action logs + Intake log tabs |
+
+## Documentation impact when the FRD is written
+
+- CONTEXT.md: remove "Blocked intake"; widen "Unidentified".
+- FRD-02: replace "Blocked intake records a reason and visible warning, offers reasoned resolve and retry actions" with Unidentified › Close with reason; the four received-file outcomes on the surface become message and upload outcomes.
+- FRD-12: Work Centre strip of four; Cases › Unidentified tab lists Unidentified only; Administration › Logs with two tabs; `/Intake/Details` removed from the route table.
+
+## Open questions
+
+1. **Close with reason vocabulary.** Fixed reasons (Duplicate, Not for us, Spam, Refused, Other with text) or free text only.
+2. **Intake log audience.** Administrators only (default), or Engineers read-only.
+3. **Unreadable e-mail attachments.** When an e-mail's attachment cannot be read and nothing else came of the e-mail, is the "Could not be read" badge on the Inbox message enough, or does it need an Unidentified item so it appears in a work list? Today such material is invisible.
+4. **Closed Unidentified items.** How long the Closed filter keeps them, and whether a closed item can be reopened (Unidentified's own planning).
+5. **Operations audience.** Deferred to the Operations page.

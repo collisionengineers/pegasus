@@ -4,6 +4,8 @@
 - **Live source:** `src/Pegasus.Web/Pages/Cases/Index.cshtml`
 - **Dialogs:** [`dialogs/`](dialogs/README.md) · **States:** [`states/`](states/README.md) · **Panels:** [`panels/`](panels/README.md)
 
+- [**How it works**](how-it-works.md) · [**How it should work**](how-it-should-work.md)
+
 ## Screenshots
 
 - [51-quick-detail-fixed.png](../../current/v26-shots/51-quick-detail-fixed.png)

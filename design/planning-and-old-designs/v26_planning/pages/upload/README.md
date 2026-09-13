@@ -4,6 +4,8 @@
 - **Live source:** `src/Pegasus.Web/Pages/Upload`
 - **Dialogs:** [`dialogs/`](dialogs/README.md) · **States:** [`states/`](states/README.md) · **Panels:** [`panels/`](panels/README.md)
 
+- [**How it works**](how-it-works.md) · [**How it should work**](how-it-should-work.md)
+
 ## Screenshots
 
 - [s04-upload.png](../../current/v26-shots/s04-upload.png)

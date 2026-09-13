@@ -61,6 +61,8 @@ P1 to P6, P8 and P9 are adopted as decisions. P7 (Blocked) was not adopted on 13
 
 Blocked stops being an operator concept ([`../received-file/how-it-should-work.md`](../received-file/how-it-should-work.md)): refused material is a closed Unidentified item, unreadable material shows on its message, failed processing shows on Operations. The metric strip drops to four: Not ready, Review, Held, Unidentified.
 
+The Mail kind (open Unidentified items) is unchanged by Unidentified widening: closed Unidentified items never appear here.
+
 ### Still open
 
 - Operations audience (D1): deferred until the Operations page is planned, see [`../operations/how-it-should-work.md`](../operations/how-it-should-work.md).
