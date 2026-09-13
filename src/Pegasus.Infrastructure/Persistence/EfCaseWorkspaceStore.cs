@@ -531,9 +531,23 @@ internal static class CaseGuidance
             return [];
         }
 
+        // A changed claim source must still be an active Claim source record
+        // when the save commits: a form rendered before the record was
+        // deactivated, or an id that never held the role, fails closed.
         var organization = await context.Organizations
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == organizationId, cancellationToken);
+        if (before.ClaimSourceId != organizationId
+            && (organization is null
+                || !organization.Active
+                || !await context.Organizations.AsNoTracking().AnyAsync(
+                    item => item.Id == organizationId
+                        && item.ContactRoles.Any(role => role.Role == "claim_source"),
+                    cancellationToken)))
+        {
+            throw new InvalidOperationException("The selected claim source is not an active Claim source record.");
+        }
+
         if (organization is null
             || string.IsNullOrWhiteSpace(organization.GuidanceTemplate)
             || organization.GuidanceTemplateVersion < 1)

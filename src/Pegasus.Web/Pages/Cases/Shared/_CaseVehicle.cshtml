@@ -64,22 +64,27 @@
     string Value(string? text) => string.IsNullOrWhiteSpace(text) ? OperatorLabels.CaseWorkspace.AbsentValue : text;
     string ValueClass(string? text) => string.IsNullOrWhiteSpace(text) ? "fv empty" : "fv";
 
+    (string Path, string Label)[] identityRows =
+    [
+        (AssessmentVocabulary.VehicleVin, VehicleLabels.Vin),
+        (AssessmentVocabulary.VehicleType, VehicleLabels.VehicleType),
+        (AssessmentVocabulary.VehicleBody, VehicleLabels.BodyType)
+    ];
+
     // The read-only provenance rows: a lookup's own facts, absent when the
     // assessment holds nothing for them.
     (string Path, string Label)[] provenanceRows =
     [
-        (AssessmentVocabulary.VehicleVin, VehicleLabels.Vin),
         (AssessmentVocabulary.VehicleEngineCc, VehicleLabels.EngineCc),
         (AssessmentVocabulary.VehicleFuel, VehicleLabels.Fuel),
         (AssessmentVocabulary.VehicleColour, VehicleLabels.Colour),
         (AssessmentVocabulary.VehicleTransmission, VehicleLabels.Transmission),
-        (AssessmentVocabulary.VehicleBody, VehicleLabels.Body),
         (AssessmentVocabulary.VehicleTaxExpiry, VehicleLabels.TaxExpiry),
         (AssessmentVocabulary.VehicleMotExpiry, VehicleLabels.MotExpiry)
     ];
 }
 
-<section class="record-section panel @(Model.IsEditing && !Model.SectionIsEditable("vehicle") ? "is-locked" : null)" id="section-vehicle" data-section="vehicle" data-collapse="case.vehicle" aria-labelledby="section-vehicle-title">
+<section class="record-section panel @Model.CollapsedClass("case.vehicle") @Model.ActiveTabClass("vehicle") @(Model.IsEditing && !Model.SectionIsEditable("vehicle") ? "is-locked" : null)" id="section-vehicle" data-section="vehicle" data-collapse="case.vehicle" aria-labelledby="section-vehicle-title">
     <div class="panel-head">
         <h2 id="section-vehicle-title">@OperatorLabels.CaseWorkspace.VehicleFactsPanel</h2>
         <span class="meta @(observation is null ? "empty" : null)" data-vehicle-lookup-line>@lookupLine</span>
@@ -140,6 +145,36 @@
                     <input id="edit-year" class="fi" name="vehicleYear" form="case-edit-form" maxlength="10" inputmode="numeric" value="@yearValue?.Value" />
                 }
             </div>
+            @* The vehicle's identity beside the registration: edited wherever the
+               registration is, each value tagged when the Automation actor
+               recorded it. A staff save re-stamps the value as staff's. *@
+            @foreach (var (path, label) in identityRows)
+            {
+                var recorded = Model.Assessment?.Field(path);
+                var raw = recorded?.Value;
+                var definition = AssessmentVocabulary.Definitions[path];
+                var controlId = "edit-" + path.Replace('.', '-').Replace('_', '-');
+                <div class="fc" data-vehicle-identity="@path">
+                    @{ Lbl(editFields, controlId, label); }
+                    <div class="@ValueClass(raw) @(path == AssessmentVocabulary.VehicleVin ? "mono" : null)">@(string.IsNullOrWhiteSpace(raw) ? OperatorLabels.CaseWorkspace.AbsentValue : VehicleLabels.AssessmentValue(path, raw))@if (recorded?.RecordedByKind == Pegasus.Core.Identity.ActorKind.Automation && !string.IsNullOrWhiteSpace(raw)){<span class="src-tag src-tag--lookup">@VehicleLabels.LookupWord</span>}</div>
+                    @if (editFields && definition.Type == AssessmentFieldType.Enumerated)
+                    {
+                        <select id="@controlId" class="fi" name="@CaseWorkspaceLabels.Editors.FormName(path)" form="case-edit-form">
+                            <option value="" selected="@(raw is null)"></option>
+                            @foreach (var code in definition.Codes ?? [])
+                            {
+                                <option value="@code" selected="@(raw == code)">@OperatorLabels.Humanise(code)</option>
+                            }
+                        </select>
+                    }
+                    else if (editFields)
+                    {
+                        <input id="@controlId" class="fi @(path == AssessmentVocabulary.VehicleVin ? "mono" : null)" name="@CaseWorkspaceLabels.Editors.FormName(path)" form="case-edit-form"
+                               maxlength="@(path == AssessmentVocabulary.VehicleVin ? 17 : definition.MaximumLength)"
+                               pattern="@(path == AssessmentVocabulary.VehicleVin ? "[A-HJ-NPR-Za-hj-npr-z0-9]{17}" : null)" value="@raw" />
+                    }
+                </div>
+            }
             @foreach (var row in provenanceRows)
             {
                 var recorded = Model.Assessment?.Field(row.Path);

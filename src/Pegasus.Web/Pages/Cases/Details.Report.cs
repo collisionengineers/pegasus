@@ -77,20 +77,51 @@ public sealed partial class DetailsModel
     public static string FormatPounds(decimal value) => "£" + value.ToString("N2", Pounds);
 
     /// <summary>
-    /// The AI's proposal for a decision field: the current value when the
-    /// Automation actor wrote it and no member of staff has confirmed it
-    /// (the only proposal data the projection holds). Null otherwise.
+    /// The AI's proposal for a decision field with its derived status: the
+    /// recorded proposal row when there is one; otherwise, for a value the
+    /// Automation actor wrote before proposals were recorded and no member of
+    /// staff has confirmed, that value as Awaiting. Null when nothing was
+    /// proposed.
     /// </summary>
-    public string? ProposedDecision(string path) =>
-        Assessment?.Field(path) is { RecordedByKind: ActorKind.Automation, IsConfirmed: false } field
-            ? field.Value
+    public CaseFieldProposal? ProposalFor(string path)
+    {
+        if (Proposals.FirstOrDefault(proposal => string.Equals(proposal.FieldPath, path, StringComparison.Ordinal)) is { } recorded)
+        {
+            return recorded;
+        }
+
+        return Assessment?.Field(path) is { RecordedByKind: ActorKind.Automation, IsConfirmed: false } field
+            ? new CaseFieldProposal(path, field.Value, field.RecordedBy, field.RecordedAtUtc, CaseFieldProposalStatus.Awaiting, null, null)
             : null;
+    }
 
-    /// <summary>Whether any decision row carries a proposal, which is what draws the Proposed column.</summary>
-    public bool HasProposedDecisions => DecisionPaths.Any(path => ProposedDecision(path) is not null);
+    /// <summary>The proposed value while it still awaits a person's decision, else null.</summary>
+    public string? ProposedDecision(string path) =>
+        ProposalFor(path) is { Status: CaseFieldProposalStatus.Awaiting } proposal ? proposal.ProposedValue : null;
 
-    /// <summary>The rows still awaiting a person's decision (a proposal with nothing confirmed).</summary>
-    public int AwaitingDecisionCount => DecisionPaths.Count(path => ProposedDecision(path) is not null);
+    /// <summary>Whether any decision row carries a proposal in any status, which is what draws the Proposed column.</summary>
+    public bool HasProposedDecisions => DecisionPaths.Append(AssessmentVocabulary.UnroadworthyReason)
+        .Any(path => ProposalFor(path) is not null);
+
+    /// <summary>The rows still awaiting a person's decision.</summary>
+    public int AwaitingDecisionCount => DecisionPaths.Append(AssessmentVocabulary.UnroadworthyReason)
+        .Count(path => ProposedDecision(path) is not null);
+
+    /// <summary>The status word a proposal reads with.</summary>
+    public static string ProposalStatusWord(CaseFieldProposalStatus status) => status switch
+    {
+        CaseFieldProposalStatus.Accepted => CaseWorkspaceLabels.Settlement.Accepted,
+        CaseFieldProposalStatus.Corrected => CaseWorkspaceLabels.Settlement.Corrected,
+        _ => CaseWorkspaceLabels.Settlement.Awaiting
+    };
+
+    /// <summary>The status chip's colour: amber waits, green accepted, blue corrected.</summary>
+    public static string ProposalStatusClass(CaseFieldProposalStatus status) => status switch
+    {
+        CaseFieldProposalStatus.Accepted => "status--green",
+        CaseFieldProposalStatus.Corrected => "status--blue",
+        _ => "status--amber"
+    };
 
     /// <summary>The recorded outcome code, confirmed or proposed, else null.</summary>
     public string? RecordedOutcome => Assessment?.Field(AssessmentVocabulary.Outcome)?.Value;

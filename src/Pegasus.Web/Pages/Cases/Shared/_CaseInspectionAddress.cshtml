@@ -79,7 +79,7 @@
     };
 }
 
-<section class="record-section panel @(Model.IsEditing && !Model.SectionIsEditable("inspection") ? "is-locked" : null)" id="section-inspection" data-section="inspection" data-collapse="case.inspection" aria-labelledby="section-inspection-title">
+<section class="record-section panel @Model.CollapsedClass("case.inspection") @Model.ActiveTabClass("inspection") @(Model.IsEditing && !Model.SectionIsEditable("inspection") ? "is-locked" : null)" id="section-inspection" data-section="inspection" data-collapse="case.inspection" aria-labelledby="section-inspection-title">
     <div class="panel-head">
         <h2 id="section-inspection-title">@InspectionLabels.SectionTitle</h2>
         <div class="panel-actions">
