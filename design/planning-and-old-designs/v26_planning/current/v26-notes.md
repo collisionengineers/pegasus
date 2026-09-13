@@ -279,8 +279,10 @@ produced a gap list; all of it is now mocked, with live labels read from the
   mailboxes; Take over on the Glass's credential. **Connector consent**
   (`#/connect/authorize`), Accept and Deny.
 - **Case record**: per-tile tag picker with colour chips and New tag on a
-  shared vocabulary; the live Crop dialog (Aspect, Rotate left and right,
-  Full frame, Reset, Save crop) sharing the viewer's crop; report image
+  shared vocabulary; crop on the viewer stage itself (Aspect, Rotate left
+  and right, Full frame, Reset, Save crop, with move and resize handles) in
+  place of the live Crop dialog, so viewing and cropping are one screen;
+  report image
   preparation (Role, Order, Rotate, Reset, Crop); document removal with a
   reason; custody placeholder tile; intake photographs per intake; the full
   Report flow (gated Generate, artifacts Report / Report with fee note / Fee

@@ -51,7 +51,7 @@ f.onload=()=>{
     check('viewer include control while editing',!!d.querySelector('#vwTools input[type=checkbox]'));const inc=d.querySelector('#vwTools input');inc.checked=!inc.checked;fire(inc,'change');check('viewer include toggles report set',g("imgState")[1].on===inc.checked);inc.checked=!inc.checked;fire(inc,'change');
     check('viewer strip has every image',$('vwStrip').children.length===12);w.closeViewer();check('viewer closes',$('viewer').hidden);
     d.querySelector('#thumbs3 .th').click();w.cropViewer();check('crop mode shows layer',!!$('vwCrop')&&$('vwStage').classList.contains('is-cropping'));
-    g('VW.sel={x:.2,y:.3,w:.5,h:.4}');w.applyCrop();check('crop applied to image',JSON.stringify(g('imgState')[0].crop)==='{"x":0.2,"y":0.3,"w":0.5,"h":0.4}'&&$('vwImg').style.clipPath.startsWith('inset('));
+    g('CROP.sel={x:.2,y:.3,w:.5,h:.4}');w.syncSel();w.applyCrop();check('crop applied to image',JSON.stringify(g('imgState')[0].crop)==='{"x":0.2,"y":0.3,"w":0.5,"h":0.4}'&&$('vwImg').style.clipPath.startsWith('inset('));
     check('cropped thumb repositions',d.querySelector('#thumbs .th').style.backgroundSize!=='');
     w.setTag(0,'Close-up');check('tag set from viewer',g('TAGS')[0]==='Close-up'&&$('vwTag').textContent==='Close-up'&&d.querySelector('#thumbs .th .tag').textContent==='Close-up');w.setTag(0,'Overview');
     w.clearCrop();check('crop cleared',!g('imgState')[0].crop&&$('vwImg').style.clipPath==='');w.closeViewer();
@@ -166,17 +166,22 @@ f.onload=()=>{
     d.querySelector('#thumbs3 .th').click();check('viewer tag select reads the shared vocabulary',[...d.querySelectorAll('#vwTools .viewer-tag option')].some(o=>o.textContent==='Salvage'));w.closeViewer();
     w.createTag('Salvage','red');check('duplicate tag refused',g('TAG_VOCAB').filter(t=>t.name==='Salvage').length===1);
     // crop dialog
-    w.openCropDialog(2);check('crop dialog opens from the tile',!$('cropDlg').hidden&&$('cropName').textContent==='Tailgate'&&$('cropImg').src.startsWith('data:image/svg'));
-    w.cropRotate(90);check('crop dialog rotates',g('CROP').rot===90&&$('cropStatus').textContent.includes('Rotation 90'));
-    g('CROP.sel={x:.1,y:.2,w:.5,h:.5}');w.renderCrop();check('crop read-out states the selection',$('cropStatus').textContent.includes('Left 10%')&&$('cropStatus').textContent.includes('Width 50%'));
-    w.cropFull();check('full frame clears the selection',!g('CROP').sel&&$('cropStatus').textContent.includes('Full frame'));
+    w.openCrop(2);check('crop opens in the viewer from the tile',!$('viewer').hidden&&g('VW').crop&&$('vwName').textContent==='Tailgate'&&!!$('vwCrop')&&!!d.querySelector('#vwTools .btn--primary'));
+    check('no separate crop dialog',!$('cropDlg')&&!d.querySelector('.crop-dialog-body'));
+    check('crop tools sit in the viewer bar',[...d.querySelectorAll('#vwTools .btn span')].map(s=>s.textContent).join('|')==='Rotate left|Rotate right|Full frame|Reset|Save crop|Cancel'&&!!d.querySelector('#vwTools select[aria-label="Aspect"]'));
+    w.cropRotate(90);check('crop rotates the viewer image',g('CROP').rot===90&&g('VW').rot===90&&$('vwImg').style.transform.includes('rotate(90deg)')&&$('vwCropStatus').textContent.includes('Rotation 90'));
+    g('CROP.sel={x:.1,y:.2,w:.5,h:.5}');w.syncSel();check('crop read-out states the selection',$('vwCropStatus').textContent.includes('Left 10%')&&$('vwCropStatus').textContent.includes('Width 50%')&&!$('vwSel').classList.contains('is-full'));
+    check('selection carries handles',$('vwSel').querySelectorAll('.crop-handle').length===4);
+    w.cropFull();check('full frame clears the selection',!g('CROP').sel&&$('vwCropStatus').textContent.includes('Full frame')&&$('vwSel').classList.contains('is-full'));
     g('CROP.sel={x:.1,y:.2,w:.5,h:.5}');w.saveCrop();
-    check('save crop writes the shared crop',JSON.stringify(g('imgState')[2].crop)==='{"x":0.1,"y":0.2,"w":0.5,"h":0.5}'&&g('imgState')[2].rot===90&&$('cropDlg').hidden);
+    check('save crop writes the shared crop and leaves crop mode',JSON.stringify(g('imgState')[2].crop)==='{"x":0.1,"y":0.2,"w":0.5,"h":0.5}'&&g('imgState')[2].rot===90&&!g('VW').crop&&!$('viewer').hidden&&!$('vwCrop'));
     check('saved crop reaches the tile',d.querySelectorAll('#thumbs2 .th')[2].style.backgroundSize!==''&&d.querySelectorAll('#thumbs .th')[2].textContent.includes('90'));
-    w.openViewer(2);check('viewer opens at the saved rotation',g('VW').rot===90);
-    check('viewer Crop button opens the dialog',d.querySelector('#vwTools .btn[onclick*="openCropDialog"]').textContent.includes('Crop'));
-    w.closeViewer();w.openCropDialog(2);w.cropReset();w.saveCrop();check('crop reset clears crop and rotation',!g('imgState')[2].crop&&!g('imgState')[2].rot);
-    w.openCropDialog(2);d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));check('escape closes the crop dialog',$('cropDlg').hidden);
+    check('viewer shows the saved rotation',g('VW').rot===90&&$('vwImg').style.clipPath.startsWith('inset'));
+    check('viewer Crop button starts crop mode',d.querySelector('#vwTools .btn[onclick="cropViewer()"]').textContent.includes('Crop · set'));
+    w.closeViewer();w.openViewer(2);check('viewer opens at the saved rotation',g('VW').rot===90);
+    w.openCrop(2);w.cropReset();w.saveCrop();check('crop reset clears crop and rotation',!g('imgState')[2].crop&&!g('imgState')[2].rot);
+    w.cropViewer();d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));check('escape leaves crop mode and keeps the viewer',!g('VW').crop&&!$('viewer').hidden);
+    d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));check('second escape closes the viewer',$('viewer').hidden);
     // report image preparation
     check('preparation lists every image in the report',d.querySelectorAll('#repPrep .report-image').length===g('imgState').filter(x=>x.role!=='NotUsed').length);
     w.prepRole(11,'CloseUp');check('role adds an image to the report',g('imgState')[11].on&&!!d.querySelector('#repPrep .report-image[data-i="11"]'));
@@ -276,7 +281,7 @@ f.onload=()=>{
     w.replicaQuery(new w.URLSearchParams('eva=sent&api=1&link=replacement&life=archived'));
     check('query preset: EVA, link and lifecycle',g('R').eva==='sent'&&g('R').evaApi&&g('R').link==='replacement'&&g('R').archived);
     w.setLife('none');w.setLink('none');w.setCustody('confirmed');w.setLookup('current');w.setTasks(0);w.setReport('none');w.setEva('none');
-    w.replicaQuery(new w.URLSearchParams('crop=4'));check('query preset: crop dialog',!$('cropDlg').hidden&&$('cropName').textContent==='Lamp O/S');w.closeCropDialog();
+    w.replicaQuery(new w.URLSearchParams('crop=4'));check('query preset: crop in the viewer',!$('viewer').hidden&&g('VW').crop&&$('vwName').textContent==='Lamp O/S');w.cancelCrop();w.closeViewer();
     w.replicaQuery(new w.URLSearchParams('dialog=chase'));check('query preset: dialog',dlgText().includes('Record chase'));w.closeDlg();
     check('replica notices carry a dismiss',[...d.querySelectorAll('.notice')].every(n=>n.querySelector('.dismiss')));
   }catch(e){log.push('EXC '+e.message+'\n'+e.stack);}

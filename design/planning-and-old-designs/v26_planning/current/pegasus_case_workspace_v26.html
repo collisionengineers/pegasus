@@ -436,23 +436,16 @@ body.is-editing #section-files:not(.is-locked) .image-tile-actions{display:flex}
 .image-tile-source{font-size:10.5px}
 .image-tile-source a{color:var(--navy);font-weight:600}
 a.th{color:#fff;text-decoration:none}
-/* crop dialog */
-.crop-dialog-body{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:14px}
-.crop-stage{position:relative;height:62vh;min-height:320px;background:#15181b;border-radius:var(--radius);display:grid;place-items:center;overflow:hidden;user-select:none}
-.crop-stage img{max-width:100%;max-height:100%;display:block;transform-origin:center center}
-.crop-layer{position:absolute;cursor:crosshair;touch-action:none;z-index:2}
-.crop-selection{position:absolute;border:1px solid #fff;box-shadow:0 0 0 9999px rgba(0,0,0,.55);cursor:move}
-.crop-selection.is-full{cursor:crosshair}
-.crop-selection::after{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.35) 1px,transparent 1px);background-size:33.34% 33.34%;pointer-events:none}
-.crop-handle{position:absolute;width:12px;height:12px;background:#fff;border:1px solid #333;z-index:3}
+/* crop in the viewer */
+.viewer .crop-sel{pointer-events:auto;cursor:move}
+.viewer .crop-sel.is-full{cursor:crosshair}
+.viewer .crop-sel::after{pointer-events:none}
+.viewer .crop-sel.is-full .crop-handle{display:none}
+.crop-handle{position:absolute;width:12px;height:12px;background:#fff;border:1px solid #333;z-index:3;pointer-events:auto}
 .crop-handle--nw{left:-6px;top:-6px;cursor:nwse-resize}.crop-handle--se{right:-6px;bottom:-6px;cursor:nwse-resize}.crop-handle--ne{right:-6px;top:-6px;cursor:nesw-resize}.crop-handle--sw{left:-6px;bottom:-6px;cursor:nesw-resize}
-.crop-controls{display:flex;flex-direction:column;gap:10px}
-.crop-controls .button-row .btn{flex:1}
-.crop-preview{aspect-ratio:4/3;border:1px solid var(--line);border-radius:var(--radius);background:#15181b center/cover no-repeat;overflow:hidden}
-.crop-preview .ph{width:100%;height:100%;background-size:cover;background-position:center;transform-origin:center}
+#vwCropStatus{margin-right:4px}
 .field-hint{font-size:11.5px;color:var(--muted);font-family:var(--mono);margin:0}
 .field-hint[hidden]{display:none}
-@media(max-width:900px){.crop-dialog-body{grid-template-columns:1fr}.crop-stage{height:48vh}}
 /* report position cards */
 .report-images{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 .report-image{border:1px solid var(--line);border-radius:var(--radius);padding:8px 10px;display:grid;gap:8px;min-width:0;background:#fff}
@@ -1218,22 +1211,6 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
   <div class="viewer-strip" id="vwStrip"></div>
 </div>
 <div id="dlgHost"></div>
-<div class="dialog-backdrop" id="cropDlg" hidden>
-  <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="cropTitle">
-    <div class="dialog-head"><h2 id="cropTitle">Crop image</h2><span class="muted" id="cropName"></span><button type="button" class="dialog-close" onclick="closeCropDialog()" aria-label="Close dialog"><svg class="icon"><use href="#icon-x"/></svg></button></div>
-    <div class="dialog-body crop-dialog-body">
-      <div class="crop-stage" id="cropStage"><img id="cropImg" alt=""><div class="crop-layer" id="cropLayer"><div class="crop-selection" id="cropSel"><span class="crop-handle crop-handle--nw" data-crop-handle="nw"></span><span class="crop-handle crop-handle--ne" data-crop-handle="ne"></span><span class="crop-handle crop-handle--sw" data-crop-handle="sw"></span><span class="crop-handle crop-handle--se" data-crop-handle="se"></span></div></div></div>
-      <div class="crop-controls">
-        <div class="field"><label for="cropAspect">Aspect</label><select id="cropAspect" onchange="cropAspect(this.value)"><option value="free">Free</option><option value="1">Square</option><option value="1.33333">4:3</option><option value="1.77778">16:9</option></select></div>
-        <div class="button-row"><button type="button" class="btn" onclick="cropRotate(-90)"><svg class="icon"><use href="#icon-refresh-cw"/></svg><span>Rotate left</span></button><button type="button" class="btn" onclick="cropRotate(90)"><svg class="icon"><use href="#icon-rotate-cw"/></svg><span>Rotate right</span></button></div>
-        <div class="button-row"><button type="button" class="btn" onclick="cropFull()">Full frame</button><button type="button" class="btn" onclick="cropReset()">Reset</button></div>
-        <div class="crop-preview"><div class="ph" id="cropPreviewPh"></div></div>
-        <p class="field-hint" id="cropStatus" hidden></p>
-      </div>
-    </div>
-    <div class="dialog-foot"><button type="button" class="btn" onclick="closeCropDialog()">Cancel</button><button type="button" class="btn btn--primary" onclick="saveCrop()"><svg class="icon"><use href="#icon-check"/></svg><span>Save crop</span></button></div>
-  </section>
-</div>
 <div class="toast-region" id="toasts"></div>
 
 <script>
@@ -1600,7 +1577,7 @@ function renderViewer(){const i=VW.i,im=imgState[i];$('vwName').textContent=im.n
   img.onload=fitViewerImage;fitViewerImage();requestAnimationFrame(fitViewerImage);
   const edit=canEditSec('report');const b=(fn,ic,label,cls='')=>`<button type="button" class="btn btn--small ${cls}" onclick="${fn}"><svg class="icon"><use href="#icon-${ic}"/></svg><span>${label}</span></button>`;
   $('vwTools').innerHTML=VW.crop?`<span class="viewer-hint">Drag over the image</span>${VW.sel?b('applyCrop()','check','Apply crop','btn--primary'):''}${im.crop?b('clearCrop()','x','Clear crop'):''}${b('cancelCrop()','chevron-left','Cancel')}`
-    :`${b('rotateViewer()','rotate-cw','Rotate')}${b('zoomViewer()','search',VW.zoom?'Fit':'Zoom')}${edit?b(`openCropDialog(${i})`,'image',im.crop?'Crop · set':'Crop'):''}<a class="btn btn--small" href="${photoOf(i)}" download="${im.n}.svg"><svg class="icon"><use href="#icon-download"/></svg><span>Download</span></a>${edit?`<select class="viewer-tag" aria-label="Tag" onchange="setTag(${i},this.value)"><option value="">No tag</option>${IMG_TAGS.map(t=>`<option${TAGS[i]===t?' selected':''}>${t}</option>`).join('')}</select><label class="viewer-inc"><input type="checkbox" ${im.on?'checked':''} onchange="imgState[${i}].on=this.checked;renderImgs();renderViewer();touch()"><span>In report</span></label>`:''}`;
+    :`${b('rotateViewer()','rotate-cw','Rotate')}${b('zoomViewer()','search',VW.zoom?'Fit':'Zoom')}${edit?b('cropViewer()','image',im.crop?'Crop · set':'Crop'):''}<a class="btn btn--small" href="${photoOf(i)}" download="${im.n}.svg"><svg class="icon"><use href="#icon-download"/></svg><span>Download</span></a>${edit?`<select class="viewer-tag" aria-label="Tag" onchange="setTag(${i},this.value)"><option value="">No tag</option>${IMG_TAGS.map(t=>`<option${TAGS[i]===t?' selected':''}>${t}</option>`).join('')}</select><label class="viewer-inc"><input type="checkbox" ${im.on?'checked':''} onchange="imgState[${i}].on=this.checked;renderImgs();renderViewer();touch()"><span>In report</span></label>`:''}`;
   $('vwStrip').innerHTML=imgState.map((x,k)=>`<button type="button" class="${k===i?'on':''}${x.on?'':' off'}" onclick="goViewer(${k})" style="background-image:url('${photoOf(k)}');${cropBg(x.crop)}" aria-label="${x.n}" title="${x.n}"></button>`).join('');const strip=$('vwStrip'),on=strip.querySelector('.on');if(on)strip.scrollLeft=Math.max(0,on.offsetLeft-strip.clientWidth/2+42);}
 function bindCrop(layer){let start=null;const pt=e=>{const r=layer.getBoundingClientRect();return [Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))];};
   layer.addEventListener('pointerdown',e=>{start=pt(e);layer.setPointerCapture(e.pointerId);VW.sel={x:start[0],y:start[1],w:0,h:0};drawSel();e.preventDefault();});
@@ -1668,7 +1645,7 @@ function reasonField(id,label){return `<div class="field"><label class="req" for
 function readReason(id){const el=$(id||'dlg-reason');const v=(el?el.value:'').trim();if(!v){toast('Reason for action is required',true);if(el)el.focus();return null;}return v;}
 function reasonFoot(label,action,kind){return `<button type="button" class="btn" onclick="closeDlg()">Cancel</button><button type="button" class="btn ${kind||'btn--primary'}" onclick="${action}">${label||'Confirm Action'}</button>`;}
 function reasonDialog(title,action,opts){opts=opts||{};return{title,cls:'dialog--compact',body:(opts.consequence?`<div class="notice notice--warning"><svg class="icon"><use href="#icon-alert-triangle"/></svg><span>${opts.consequence}</span></div>`:'')+(opts.before||'')+reasonField(),foot:reasonFoot(opts.label,action,opts.kind)};}
-document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(!$('cropDlg').hidden){closeCropDialog();e.preventDefault();e.stopImmediatePropagation();return;}if(DLG){closeDlg();e.preventDefault();e.stopImmediatePropagation();}},true);
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if(DLG){closeDlg();e.preventDefault();e.stopImmediatePropagation();}},true);
 document.addEventListener('click',e=>{document.querySelectorAll('details.tag-picker[open]').forEach(m=>{if(!m.contains(e.target))m.open=false;});});
 
 /* ---------- edit lease: claim / take over / renew / release + heartbeat (Details.cshtml:181-232, _EditHeartbeat) ---------- */
@@ -1772,7 +1749,7 @@ function thumbHtml(im,i,id){const ev=id==='thumbs3';const st=`background:${IMGCO
 function thumbClick(i,id){const im=imgState[i];if(id==='thumbs3'||id==='thumbs2'||!canEditSec('report')){openViewer(i);return;}im.on=!im.on;renderImgs();touch();}
 renderImgs=function(){reconcileRoles();
   ['thumbs','thumbs3'].forEach(id=>{$(id).innerHTML=imgState.map((im,i)=>thumbHtml(im,i,id)).join('');});
-  const files=$('thumbs2');files.innerHTML=imgState.map((im,i)=>`<div class="image-tile">${thumbHtml(im,i,'thumbs2')}${tagChips(i)}<div class="image-tile-actions">${tagPicker(i)}<button type="button" class="btn btn--small" onclick="openCropDialog(${i})">Crop</button></div></div>`).join('')
+  const files=$('thumbs2');files.innerHTML=imgState.map((im,i)=>`<div class="image-tile">${thumbHtml(im,i,'thumbs2')}${tagChips(i)}<div class="image-tile-actions">${tagPicker(i)}<button type="button" class="btn btn--small" onclick="openCrop(${i})">Crop</button></div></div>`).join('')
     +(R.custody==='confirmed'?'':`<div class="image-tile"><span class="gallery-item" data-gallery-placeholder><span class="gallery-image"></span><span class="gallery-caption"><strong>${CUSTODY_FILE.name}</strong><small>${R.custody==='pending'?'Storing':'Storage failed'}</small></span></span></div>`);
   $('intakeImgs').innerHTML=INTAKES.map(it=>`<div class="intake-group"><div class="intake-head"><a href="${SHELL_PAGE}#/images/${it.id}">Image intake ${it.ref}</a><span class="muted">${it.files.length} photographs · received ${it.received}</span></div><div class="thumbs">${it.files.map((n,k)=>`<div class="image-tile"><a class="th" href="${SHELL_PAGE}#/images/${it.id}" style='background-image:url("${intakePhoto(n,k)}")'>${esc(n)}</a><div class="image-tile-source"><a href="${SHELL_PAGE}#/images/${it.id}">${it.ref}</a></div></div>`).join('')}</div></div>`).join('');
   $('imgCount').textContent=imgState.filter(x=>x.on).length+' of '+imgState.length+' in report';$('evCount').textContent=imgState.length+' · Files';
@@ -1784,44 +1761,49 @@ function setCustody(v){R.custody=v;mockOn('.mock [data-custody]',v);renderImgs()
 /* ---------- documents: Remove opens the reason dialog (_CaseDocuments.cshtml:98) ---------- */
 function removeDoc(btn){if(!canEditSec('files'))return;const row=btn.closest('.doc-row');const name=row.querySelector('b').textContent;openDlg('removeDoc',{name,row});}
 
-/* ---------- crop dialog (_CaseCropDialog.cshtml): shares imgState[i].crop / .rot with the viewer and thumbnails ---------- */
+/* ---------- crop in the viewer (the live _CaseCropDialog.cshtml folded into the viewer): shares imgState[i].crop / .rot with the thumbnails ---------- */
 const CROP={i:null,sel:null,rot:0,aspect:'free',drag:null};
 function rotRect(r,rot){rot=((rot%360)+360)%360;if(rot===90)return{x:1-(r.y+r.h),y:r.x,w:r.h,h:r.w};if(rot===180)return{x:1-r.x-r.w,y:1-r.y-r.h,w:r.w,h:r.h};if(rot===270)return{x:r.y,y:1-(r.x+r.w),w:r.h,h:r.w};return{...r};}
 function unrotRect(d,rot){return rotRect(d,(360-rot)%360);}
 function cropLabel(c){return c?`Left ${Math.round(c.x*100)}% · Top ${Math.round(c.y*100)}% · Width ${Math.round(c.w*100)}% · Height ${Math.round(c.h*100)}%`:'Full frame';}
 function rotLabel(r){return r?r+'°':'None';}
-function openCropDialog(i){if(!canEditSec('files')&&!canEditSec('report')){toast('Available while editing',true);return;}const im=imgState[i];CROP.i=i;CROP.sel=im.crop?{...im.crop}:null;CROP.rot=im.rot||0;CROP.aspect='free';$('cropAspect').value='free';const img=$('cropImg');img.onload=renderCrop;img.src=photoOf(i);$('cropName').textContent=im.n;$('cropDlg').hidden=false;document.body.classList.add('has-dialog');renderCrop();requestAnimationFrame(renderCrop);}
-function closeCropDialog(){$('cropDlg').hidden=true;if(!DLG)document.body.classList.remove('has-dialog');}
-function renderCrop(){if(CROP.i===null)return;const img=$('cropImg'),st=$('cropStage'),layer=$('cropLayer');const rotated=CROP.rot%180!==0;if(rotated){img.style.maxWidth=st.clientHeight+'px';img.style.maxHeight=st.clientWidth+'px';}else{img.style.maxWidth='';img.style.maxHeight='';}img.style.transform=`rotate(${CROP.rot}deg)`;
-  const r=img.getBoundingClientRect(),s=st.getBoundingClientRect();Object.assign(layer.style,{left:(r.left-s.left)+'px',top:(r.top-s.top)+'px',width:r.width+'px',height:r.height+'px'});
-  const d=CROP.sel?rotRect(CROP.sel,CROP.rot):{x:0,y:0,w:1,h:1};const sel=$('cropSel');Object.assign(sel.style,{left:d.x*100+'%',top:d.y*100+'%',width:d.w*100+'%',height:d.h*100+'%'});sel.classList.toggle('is-full',!CROP.sel);
-  const pv=$('cropPreviewPh');pv.style.backgroundImage=`url("${photoOf(CROP.i)}")`;pv.style.backgroundSize='';pv.style.backgroundPosition='';if(CROP.sel)pv.style.cssText+=';'+cropBg(CROP.sel);pv.style.transform=`rotate(${CROP.rot}deg)`;
-  const status=$('cropStatus');status.hidden=false;status.textContent=`Rotation ${rotLabel(CROP.rot)} · Crop ${cropLabel(CROP.sel)}`;}
-function cropRotate(d){CROP.rot=((CROP.rot+d)%360+360)%360;renderCrop();}
-function cropFull(){CROP.sel=null;renderCrop();}
-function cropReset(){CROP.sel=null;CROP.rot=0;CROP.aspect='free';$('cropAspect').value='free';renderCrop();}
-function cropAspect(v){CROP.aspect=v;if(v!=='free'&&CROP.sel){const layer=$('cropLayer');const LW=layer.clientWidth||4,LH=layer.clientHeight||3;let d=rotRect(CROP.sel,CROP.rot);d.h=d.w*LW/(parseFloat(v)*LH);if(d.y+d.h>1){d.h=1-d.y;d.w=d.h*parseFloat(v)*LH/LW;}CROP.sel=unrotRect(d,CROP.rot);}renderCrop();}
+function canCrop(){return canEditSec('files')||canEditSec('report');}
+function openCrop(i){if(!canCrop()){toast('Available while editing',true);return;}if(!VW.open||VW.i!==i)openViewer(i);cropViewer();}
+cropViewer=function(){if(!canCrop())return;const im=imgState[VW.i];CROP.i=VW.i;CROP.sel=im.crop?{...im.crop}:null;CROP.rot=im.rot||0;CROP.aspect='free';CROP.drag=null;VW.crop=true;VW.zoom=false;VW.rot=CROP.rot;VW.sel=CROP.sel;renderViewer();};
+cancelCrop=function(){if(!VW.crop)return;const im=imgState[VW.i];VW.crop=false;VW.sel=null;CROP.drag=null;VW.rot=im.rot||0;renderViewer();};
+function cropRotate(d){CROP.rot=((CROP.rot+d)%360+360)%360;VW.rot=CROP.rot;renderViewer();}
+function cropFull(){CROP.sel=null;syncSel();}
+function cropReset(){CROP.sel=null;CROP.rot=0;CROP.aspect='free';VW.rot=0;renderViewer();}
+function cropAspect(v){CROP.aspect=v;if(v!=='free'&&CROP.sel){const layer=$('vwCrop');const LW=layer.clientWidth||4,LH=layer.clientHeight||3;let d=rotRect(CROP.sel,CROP.rot);d.h=d.w*LW/(parseFloat(v)*LH);if(d.y+d.h>1){d.h=1-d.y;d.w=d.h*parseFloat(v)*LH/LW;}CROP.sel=unrotRect(d,CROP.rot);}syncSel();}
+function syncSel(){VW.sel=CROP.sel;drawSel();}
 function saveCrop(){const im=imgState[CROP.i];if(CROP.sel&&CROP.sel.w>.02&&CROP.sel.h>.02)im.crop={x:+CROP.sel.x.toFixed(4),y:+CROP.sel.y.toFixed(4),w:+CROP.sel.w.toFixed(4),h:+CROP.sel.h.toFixed(4)};else delete im.crop;if(CROP.rot)im.rot=CROP.rot;else delete im.rot;
-  renderImgs();if(VW.open&&VW.i===CROP.i){VW.rot=im.rot||0;renderViewer();}touch();closeCropDialog();toast('The report image preparation was saved.');logNote(`Report image prepared by ${ME_NAME} — ${im.n} — ${rotLabel(im.rot||0)} · ${cropLabel(im.crop)}.`);}
-function bindCropDialog(){const layer=$('cropLayer');const pt=e=>{const r=layer.getBoundingClientRect();return[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))];};
+  VW.crop=false;VW.sel=null;CROP.drag=null;VW.rot=im.rot||0;renderImgs();renderViewer();touch();toast('The report image preparation was saved.');logNote(`Report image prepared by ${ME_NAME} — ${im.n} — ${rotLabel(im.rot||0)} · ${cropLabel(im.crop)}.`);}
+applyCrop=saveCrop;clearCrop=function(){cropReset();saveCrop();};
+drawSel=function(){const sel=$('vwSel');if(!sel)return;if(!sel.querySelector('.crop-handle'))sel.innerHTML=['nw','ne','sw','se'].map(h=>`<span class="crop-handle crop-handle--${h}" data-crop-handle="${h}"></span>`).join('');
+  const d=CROP.sel?rotRect(CROP.sel,CROP.rot):{x:0,y:0,w:1,h:1};sel.hidden=false;Object.assign(sel.style,{left:d.x*100+'%',top:d.y*100+'%',width:d.w*100+'%',height:d.h*100+'%'});sel.classList.toggle('is-full',!CROP.sel);
+  const s=$('vwCropStatus');if(s)s.textContent=`Rotation ${rotLabel(CROP.rot)} · Crop ${cropLabel(CROP.sel)}`;
+  const on=$('vwStrip').querySelector('.on');if(on)on.style.cssText=`background-image:url('${photoOf(CROP.i)}');${cropBg(CROP.sel)}`;};
+function cropTools(){const b=(fn,ic,label,cls='')=>`<button type="button" class="btn btn--small ${cls}" onclick="${fn}"><svg class="icon"><use href="#icon-${ic}"/></svg><span>${label}</span></button>`;
+  $('vwTools').innerHTML=`<span class="viewer-n" id="vwCropStatus"></span><select class="viewer-tag" aria-label="Aspect" onchange="cropAspect(this.value)">${[['free','Free'],['1','Square'],['1.33333','4:3'],['1.77778','16:9']].map(([v,l])=>`<option value="${v}"${CROP.aspect===v?' selected':''}>${l}</option>`).join('')}</select>${b('cropRotate(-90)','refresh-cw','Rotate left')}${b('cropRotate(90)','rotate-cw','Rotate right')}${b('cropFull()','image','Full frame')}${b('cropReset()','history','Reset')}${b('saveCrop()','check','Save crop','btn--primary')}${b('cancelCrop()','x','Cancel')}`;}
+{const _rv=renderViewer;renderViewer=function(){_rv();if(VW.crop){cropTools();drawSel();}};}
+bindCrop=function(layer){const pt=e=>{const r=layer.getBoundingClientRect();return[Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)),Math.min(1,Math.max(0,(e.clientY-r.top)/r.height))];};
   const clamp=d=>{d.w=Math.min(d.w,1);d.h=Math.min(d.h,1);d.x=Math.min(Math.max(0,d.x),1-d.w);d.y=Math.min(Math.max(0,d.y),1-d.h);return d;};
-  const withAspect=(d,anchorX,anchorY)=>{if(CROP.aspect==='free')return d;const A=parseFloat(CROP.aspect);const LW=layer.clientWidth,LH=layer.clientHeight;let h=d.w*LW/(A*LH);if(anchorY!==undefined){if(anchorY&&d.y+d.h!==anchorY)d.y=anchorY-h;}d.h=h;return d;};
   layer.addEventListener('pointerdown',e=>{const p=pt(e);const cur=CROP.sel?rotRect(CROP.sel,CROP.rot):null;const hd=e.target.dataset.cropHandle;layer.setPointerCapture(e.pointerId);
     if(hd&&cur){const ax=hd.includes('w')?cur.x+cur.w:cur.x,ay=hd.includes('n')?cur.y+cur.h:cur.y;CROP.drag={mode:'resize',ax,ay};}
     else if(cur&&p[0]>=cur.x&&p[0]<=cur.x+cur.w&&p[1]>=cur.y&&p[1]<=cur.y+cur.h){CROP.drag={mode:'move',ox:p[0]-cur.x,oy:p[1]-cur.y,w:cur.w,h:cur.h};}
-    else{CROP.drag={mode:'draw',sx:p[0],sy:p[1]};CROP.sel=null;}e.preventDefault();});
+    else{CROP.drag={mode:'draw',sx:p[0],sy:p[1]};CROP.sel=null;}e.preventDefault();e.stopPropagation();});
   layer.addEventListener('pointermove',e=>{const g=CROP.drag;if(!g)return;const p=pt(e);let d;
     if(g.mode==='move'){d={x:p[0]-g.ox,y:p[1]-g.oy,w:g.w,h:g.h};}
     else{const ax=g.mode==='draw'?g.sx:g.ax,ay=g.mode==='draw'?g.sy:g.ay;d={x:Math.min(ax,p[0]),y:Math.min(ay,p[1]),w:Math.abs(p[0]-ax),h:Math.abs(p[1]-ay)};if(CROP.aspect!=='free'){const A=parseFloat(CROP.aspect),LW=layer.clientWidth,LH=layer.clientHeight;d.h=d.w*LW/(A*LH);if(p[1]<ay)d.y=ay-d.h;}}
-    CROP.sel=unrotRect(clamp(d),CROP.rot);renderCrop();});
-  const end=()=>{if(!CROP.drag)return;CROP.drag=null;if(CROP.sel&&(CROP.sel.w<.02||CROP.sel.h<.02))CROP.sel=null;renderCrop();};layer.addEventListener('pointerup',end);layer.addEventListener('pointercancel',end);
-  window.addEventListener('resize',()=>{if(!$('cropDlg').hidden)renderCrop();});}
+    CROP.sel=unrotRect(clamp(d),CROP.rot);syncSel();});
+  const end=()=>{if(!CROP.drag)return;CROP.drag=null;if(CROP.sel&&(CROP.sel.w<.02||CROP.sel.h<.02))CROP.sel=null;syncSel();};layer.addEventListener('pointerup',end);layer.addEventListener('pointercancel',end);
+  layer.addEventListener('click',e=>e.stopPropagation());};
 {const _ov=openViewer;openViewer=function(i){_ov(i);const r=imgState[i].rot||0;if(r){VW.rot=r;renderViewer();}};const _gv=goViewer;goViewer=function(i){_gv(i);const r=imgState[i].rot||0;if(r){VW.rot=r;renderViewer();}};}
 
 /* ---------- report image preparation (_CaseReportImagePreparation.cshtml) ---------- */
 function prepItems(){return imgState.map((im,i)=>({im,i})).filter(x=>x.im.role!=='NotUsed').sort((a,b)=>(ROLE_ORDER[a.im.role]-ROLE_ORDER[b.im.role])||((a.im.order||99)-(b.im.order||99))||(a.i-b.i));}
 function renderPrep(){const items=prepItems();$('repPrepSub').hidden=!items.length;
-  $('repPrep').innerHTML=items.map(({im,i})=>`<article class="report-image" data-i="${i}"><h3>${esc(im.n)}</h3><div class="report-image-preview"><div class="ph" style='background-image:url("${photoOf(i)}");${im.crop?cropBg(im.crop):''}transform:rotate(${im.rot||0}deg)'></div></div><dl class="detail-list"><div><dt>Role</dt><dd>${ROLE_LABEL[im.role]}</dd></div><div><dt>Rotation</dt><dd>${rotLabel(im.rot||0)}</dd></div><div><dt>Crop</dt><dd>${cropLabel(im.crop)}</dd></div></dl><div class="form-grid"><div class="field"><label for="rp-role-${i}">Role</label><select id="rp-role-${i}" onchange="prepRole(${i},this.value)">${Object.keys(ROLE_LABEL).map(k=>`<option value="${k}"${im.role===k?' selected':''}>${ROLE_LABEL[k]}</option>`).join('')}</select></div><div class="field"><label for="rp-order-${i}">Order</label><input id="rp-order-${i}" type="number" min="1" step="1" value="${im.order||''}" onchange="prepOrder(${i},this.value)"></div></div><div class="button-row"><button type="button" class="btn btn--primary" onclick="openCropDialog(${i})">Crop</button><button type="button" class="btn" onclick="prepRotate(${i},-90)">Rotate left</button><button type="button" class="btn" onclick="prepRotate(${i},90)">Rotate right</button><button type="button" class="btn" onclick="prepReset(${i})">Reset</button></div></article>`).join('');}
+  $('repPrep').innerHTML=items.map(({im,i})=>`<article class="report-image" data-i="${i}"><h3>${esc(im.n)}</h3><div class="report-image-preview"><div class="ph" style='background-image:url("${photoOf(i)}");${im.crop?cropBg(im.crop):''}transform:rotate(${im.rot||0}deg)'></div></div><dl class="detail-list"><div><dt>Role</dt><dd>${ROLE_LABEL[im.role]}</dd></div><div><dt>Rotation</dt><dd>${rotLabel(im.rot||0)}</dd></div><div><dt>Crop</dt><dd>${cropLabel(im.crop)}</dd></div></dl><div class="form-grid"><div class="field"><label for="rp-role-${i}">Role</label><select id="rp-role-${i}" onchange="prepRole(${i},this.value)">${Object.keys(ROLE_LABEL).map(k=>`<option value="${k}"${im.role===k?' selected':''}>${ROLE_LABEL[k]}</option>`).join('')}</select></div><div class="field"><label for="rp-order-${i}">Order</label><input id="rp-order-${i}" type="number" min="1" step="1" value="${im.order||''}" onchange="prepOrder(${i},this.value)"></div></div><div class="button-row"><button type="button" class="btn btn--primary" onclick="openCrop(${i})">Crop</button><button type="button" class="btn" onclick="prepRotate(${i},-90)">Rotate left</button><button type="button" class="btn" onclick="prepRotate(${i},90)">Rotate right</button><button type="button" class="btn" onclick="prepReset(${i})">Reset</button></div></article>`).join('');}
 function prepRole(i,role){if(!canEditSec('report'))return;const im=imgState[i];im.role=role;im.on=role!=='NotUsed';if(im.on)im.prevRole=role;renderImgs();touch();}
 function prepOrder(i,v){if(!canEditSec('report'))return;imgState[i].order=parseInt(v)||undefined;renderImgs();touch();}
 function prepRotate(i,d){if(!canEditSec('report'))return;const im=imgState[i];im.rot=(((im.rot||0)+d)%360+360)%360;if(!im.rot)delete im.rot;renderImgs();if(VW.open&&VW.i===i){VW.rot=im.rot||0;renderViewer();}touch();}
@@ -1941,8 +1923,8 @@ function createUploadLink(){closeMenus();logNote('Upload link created by '+ME_NA
   const _sy=syncReads;syncReads=function(){_sy();inspRead();};
   const _th=toggleHold;toggleHold=function(){_th();mockOn('.mock [data-life]',HELD?'held':R.archived?'archived':R.closed?'closed':'none');renderLifecycle();};}
 function restoreMock(){mockOn('.mock [data-rep]',R.report);mockOn('.mock [data-lease]',STATE==='colleague'?'colleague':R.lease);mockOn('.mock [data-custody]',R.custody);mockOn('.mock [data-lookup]',R.lookup);mockOn('.mock [data-link]',R.link);mockOn('.mock [data-eva]',R.eva);mockOn('.mock [data-life]',R.archived?'archived':R.closed?'closed':HELD?'held':'none');document.querySelectorAll('.mock [data-tasks]').forEach(b=>b.classList.toggle('on',(b.dataset.tasks==='1')===R.tasks));document.querySelectorAll('.mock [data-api]').forEach(b=>b.classList.toggle('on',R.evaApi));}
-function replicaQuery(q){if(q.get('lease'))setLease(q.get('lease'));if(q.get('lookup'))setLookup(q.get('lookup'));if(q.get('custody'))setCustody(q.get('custody'));if(q.get('link'))setLink(q.get('link'));if(q.get('api')==='1')setEvaApi(true);if(q.get('eva'))setEva(q.get('eva'));if(q.get('tasks')==='1')setTasks(true);if(q.get('report'))setReport(q.get('report'));if(q.get('life'))setLife(q.get('life'));if(q.get('imgs')==='1')fileTab('imgs',document.querySelectorAll('#section-files .tab')[1]);if(q.get('crop')){if(!EDITING)startEdit();openCropDialog(+q.get('crop'));}if(q.get('dialog'))openDlg(q.get('dialog'),{id:'t1'});}
-function replicaInit(){syncVocab();imgState.forEach((im,i)=>{IMGTAGS[i]=TAGS[i]?[TAGS[i]]:[];});IMGTAGS[0]=['Overview','Reflection','Third party','Supporting'];syncTagFirst(0);bindCropDialog();$('f-inspaddr').value=INSP_DEFAULT;inspRead();renderLookup();renderImgs();renderBar();renderLifecycle();renderNotes();renderTasks();renderReport();restoreMock();}
+function replicaQuery(q){if(q.get('lease'))setLease(q.get('lease'));if(q.get('lookup'))setLookup(q.get('lookup'));if(q.get('custody'))setCustody(q.get('custody'));if(q.get('link'))setLink(q.get('link'));if(q.get('api')==='1')setEvaApi(true);if(q.get('eva'))setEva(q.get('eva'));if(q.get('tasks')==='1')setTasks(true);if(q.get('report'))setReport(q.get('report'));if(q.get('life'))setLife(q.get('life'));if(q.get('imgs')==='1')fileTab('imgs',document.querySelectorAll('#section-files .tab')[1]);if(q.get('crop')){if(!EDITING)startEdit();openCrop(+q.get('crop'));}if(q.get('dialog'))openDlg(q.get('dialog'),{id:'t1'});}
+function replicaInit(){syncVocab();imgState.forEach((im,i)=>{IMGTAGS[i]=TAGS[i]?[TAGS[i]]:[];});IMGTAGS[0]=['Overview','Reflection','Third party','Supporting'];syncTagFirst(0);$('f-inspaddr').value=INSP_DEFAULT;inspRead();renderLookup();renderImgs();renderBar();renderLifecycle();renderNotes();renderTasks();renderReport();restoreMock();}
 /* ================= init ================= */
 buildNav();markNav('overview');renderTabs();buildCar();renderAdds();adjWork();vatDefaults();renderEstTabs();renderGrid();renderImgs();outcomeChange(true);renderReport();syncReads();setState('engineer');renderGlass();renderProposal();dismissable();replicaInit();applyQuery();measure();
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'&&EDITING){e.preventDefault();saveEdit();}});
