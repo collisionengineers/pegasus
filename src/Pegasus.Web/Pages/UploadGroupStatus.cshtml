@@ -30,6 +30,33 @@
 }
 
 <div class="stack">
+    @* While the submission's decision is still open, the decision card below owns it. *@
+    @if (!Model.OpenGroupDecision && Model.Decision is { } decision)
+    {
+        @* One upload, one decision; member read status sits underneath. *@
+        <section class="panel" aria-labelledby="upload-decision-title" data-upload-decision="@decision.Label">
+            <div class="panel-head">
+                <h2 id="upload-decision-title">@OperatorLabels.UploadDecision.ThisUpload</h2>
+                <span class="meta">@OperatorLabels.UploadDecision.OneGroup</span>
+            </div>
+            <div class="panel-body stack">
+                <div class="notice @(decision.Tone == "green" ? "notice--success" : "notice--warning")" role="status">
+                    <span><strong>@decision.Label</strong> · @decision.Message</span>
+                </div>
+                <dl class="definition-list definition-list--compact">
+                    <div class="definition"><dt>@OperatorLabels.UploadDecision.Files</dt><dd>@Model.Group.Members.Count</dd></div>
+                    @if (Model.CouldNotBeReadCount > 0)
+                    {
+                        <div class="definition" data-could-not-be-read-count><dt>@OperatorLabels.UploadDecision.CouldNotBeRead</dt><dd>@(Model.NoMemberCouldBeRead ? OperatorLabels.UploadDecision.NoFileCouldBeRead : $"{Model.CouldNotBeReadCount} of {Model.Group.Members.Count}")</dd></div>
+                    }
+                </dl>
+                @if (decision.Action is { } decisionAction)
+                {
+                    <div class="button-row"><a class="btn btn--dark" href="@decisionAction.Url">@decisionAction.Label</a></div>
+                }
+            </div>
+        </section>
+    }
     @if (Model.Group.Discard is { } discard)
     {
         <section class="panel" aria-labelledby="group-discarded-title">
@@ -242,17 +269,18 @@
                                         {
                                             <a class="btn btn--small" href="@primaryAction.Url">@primaryAction.Label</a>
                                         }
-                                        @if (memberOutcome.Attach is { } attach)
-                                        {
-                                            var receiptId = Model.Statuses[member.StagedReceiptId]?.ProcessedReceiptId
-                                                ?? member.StagedReceiptId;
-                                            <a class="btn btn--small" href="/Received/@receiptId">Review this file</a>
-                                        }
                                     </div>
                                 }
                             }
                         </span>
                         <span>
+                            @if (member.CouldNotBeRead == true)
+                            {
+                                <span data-member-could-not-be-read>
+                                    <partial name="Shared/_StatusChip" model="@OperatorLabels.UploadDecision.CouldNotBeRead"
+                                             view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = "red" }' />
+                                </span>
+                            }
                             @* Still moving, so the queue state is the only
                                honest thing to show. *@
                             @if (!reported)

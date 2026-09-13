@@ -156,6 +156,28 @@ public sealed partial class OrganizationDirectoryWebTests
         }
     }
 
+    /// <summary>
+    /// Record notes (Contacts, 13 September): a Principal (and a Claim source) carries
+    /// one "Notes on every Case" text, edited on its contact with the Case guidance.
+    /// </summary>
+    [Fact]
+    public async Task APrincipalContactEditsItsNotesOnEveryCase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var principalId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT Id FROM Principals WHERE Code = 'QDOS';");
+        var contactId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT OrganizationId FROM Principals WHERE Id = '" + principalId + "';");
+        var path = $"/Administration/Contacts/Edit/{contactId:D}";
+
+        var editor = await EditContactAsync(client, path);
+
+        Assert.Matches(
+            """<div class="field" data-notes-on-every-case><label for="NotesOnEveryCase">Notes on every Case</label><textarea[^>]*name="NotesOnEveryCase"[^>]*>""",
+            editor);
+    }
+
     [Fact]
     public async Task YmlSettingsShowTheExactMailboxNotASharedDomain()
     {

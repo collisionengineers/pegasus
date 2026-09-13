@@ -37,6 +37,39 @@ public sealed class ConfigurationModel(
     [BindProperty] public string? Reason { get; set; }
     public bool IsEditing => EditingId != Guid.Empty;
 
+    /// <summary>One workflow setting: its posted field, label, range, the saved value and the value the form carries.</summary>
+    public sealed record WorkflowSetting(string Field, string Label, int Minimum, int Maximum, int Current, int Posted);
+
+    /// <summary>
+    /// The six workflow settings in the planned order (Configuration, 13 September):
+    /// the chase interval and the five Work Centre due targets.
+    /// </summary>
+    public IReadOnlyList<WorkflowSetting> WorkflowSettings => Configuration is null ? [] :
+    [
+        new(nameof(ChaseIntervalDays), "Chase interval", 1, 365, Configuration.ChaseIntervalDays, ChaseIntervalDays),
+        new(nameof(UnidentifiedTargetDays), "Unidentified target", CaseWorkflowConfiguration.MinimumTargetDays, CaseWorkflowConfiguration.MaximumTargetDays, Configuration.UnidentifiedTargetDays, UnidentifiedTargetDays),
+        new(nameof(TriageTargetDays), "Triage target", CaseWorkflowConfiguration.MinimumTargetDays, CaseWorkflowConfiguration.MaximumTargetDays, Configuration.TriageTargetDays, TriageTargetDays),
+        new(nameof(HeldTargetDays), "Held decision target", CaseWorkflowConfiguration.MinimumTargetDays, CaseWorkflowConfiguration.MaximumTargetDays, Configuration.HeldTargetDays, HeldTargetDays),
+        new(nameof(ReviewTargetDays), "Review target", CaseWorkflowConfiguration.MinimumTargetDays, CaseWorkflowConfiguration.MaximumTargetDays, Configuration.ReviewTargetDays, ReviewTargetDays),
+        new(nameof(AiDraftTargetDays), "AI draft target", CaseWorkflowConfiguration.MinimumTargetDays, CaseWorkflowConfiguration.MaximumTargetDays, Configuration.AiDraftTargetDays, AiDraftTargetDays)
+    ];
+
+    public static string Days(int days) => days == 1 ? "1 day" : $"{days} days";
+
+    /// <summary>Each setting outside its range is refused against its own input, naming the range.</summary>
+    private void ValidateWorkflowRanges()
+    {
+        foreach (var setting in WorkflowSettings)
+        {
+            if (setting.Posted < setting.Minimum || setting.Posted > setting.Maximum)
+            {
+                ModelState.AddModelError(
+                    setting.Field,
+                    $"{setting.Label} must be between {setting.Minimum} and {setting.Maximum} days.");
+            }
+        }
+    }
+
     private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
 
     /// <summary>
@@ -65,6 +98,9 @@ public sealed class ConfigurationModel(
     {
         if (!TryGetActor(out var actor)) return Forbid();
         await LoadAsync(actor, cancellationToken);
+        // Edit posts only the record id: the editor's bound fields are filled below,
+        // so their missing-value binding errors are not the operator's.
+        ModelState.Clear();
         EditingId = recordId;
         if (recordId == GetWorkflowConfiguration.RecordId)
         {
@@ -147,6 +183,11 @@ public sealed class ConfigurationModel(
         {
             if (EditingId == GetWorkflowConfiguration.RecordId && (ExpectedVersion < 1 || ExpectedVersion > int.MaxValue))
                 ModelState.AddModelError(string.Empty, "The settings version is invalid. Reload to try again.");
+            if (EditingId == GetWorkflowConfiguration.RecordId)
+            {
+                Configuration = await getWorkflowConfiguration.ExecuteAsync(actor, cancellationToken);
+                ValidateWorkflowRanges();
+            }
             if (ModelState.IsValid)
             {
                 if (EditingId == GetWorkflowConfiguration.RecordId)

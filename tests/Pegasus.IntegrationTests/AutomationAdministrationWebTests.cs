@@ -347,7 +347,7 @@ public sealed partial class AutomationAdministrationWebTests
         var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
         var html = await GetHtmlAsync(
             client,
-            $"/Administration/ActionLogs?From={from}&To={to}");
+            $"/Administration/Logs?From={from}&To={to}");
 
         var automationRow = TableRow(html, "pegasus_case_get");
         Assert.Contains(caseReference, automationRow, StringComparison.Ordinal);

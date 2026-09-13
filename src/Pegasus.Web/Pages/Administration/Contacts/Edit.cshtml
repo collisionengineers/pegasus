@@ -34,7 +34,9 @@
             </section>
             <section class="contact-section" data-case-guidance hidden="@(!(Model.Roles.Contains(ContactRole.Principal) || Model.Roles.Contains(ContactRole.ClaimSource)))" aria-labelledby="case-guidance-title">
                 <h3 id="case-guidance-title">Case guidance</h3>
-                <div class="field"><label asp-for="GuidanceTemplate">Guidance for new Cases</label><textarea asp-for="GuidanceTemplate" rows="4"></textarea><p class="hint">Applied once to new or reassigned Cases for this contact.</p><span asp-validation-for="GuidanceTemplate"></span></div>
+                <div class="field"><label asp-for="GuidanceTemplate">Guidance for new Cases</label><textarea asp-for="GuidanceTemplate" rows="4"></textarea><span asp-validation-for="GuidanceTemplate"></span></div>
+                @* Record notes (13 September): stored once on the organisation, shown read-only on every Case of this Principal or from this Claim source. *@
+                <div class="field" data-notes-on-every-case><label asp-for="NotesOnEveryCase">Notes on every Case</label><textarea asp-for="NotesOnEveryCase" rows="4" maxlength="@ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength"></textarea><span asp-validation-for="NotesOnEveryCase"></span></div>
             </section>
             <section class="contact-section" aria-labelledby="linked-principals-title">
                 <h3 id="linked-principals-title">Linked principals</h3><p class="hint">Choose the role this contact has for each principal. Principal contacts cannot link to themselves.</p>

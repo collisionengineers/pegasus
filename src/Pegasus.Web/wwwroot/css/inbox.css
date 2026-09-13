@@ -1,0 +1,31 @@
+/* Inbox and message record (Phase 6 Lane B). Page-specific; shared tokens only. */
+.inbox-layout.pane-layout--2 { grid-template-columns: 220px minmax(0, 1fr); }
+.inbox-layout.pane-layout--3 { grid-template-columns: 220px minmax(0, 1fr) minmax(0, 470px); }
+.inbox-filter {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  gap: 8px 12px;
+  align-items: end;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line, #d2d8db);
+}
+.inbox-row { position: relative; padding-right: 44px; }
+.inbox-row.unread .row-title { font-weight: 700; }
+.inbox-row-action {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  margin: 0;
+}
+.message-attachments .attachment-outcome { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.message-attachments .attachment-reason { color: var(--muted, #626b70); font-size: 12px; }
+@media (max-width: 1180px) {
+  .inbox-filter { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inbox-filter__search { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .inbox-layout.pane-layout--2,
+  .inbox-layout.pane-layout--3 { grid-template-columns: minmax(0, 1fr); }
+  .inbox-filter { grid-template-columns: minmax(0, 1fr); }
+}

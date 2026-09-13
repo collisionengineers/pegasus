@@ -9,7 +9,7 @@
     string? Current(string key) => area == key
         || page == (key switch
         {
-            "action-logs" => "/Administration/ActionLogs",
+            "logs" => "/Administration/Logs",
             "ai-jobs" => "/Administration/AiJobs",
             "reports" => "/Administration/Reports",
             "health" => "/Administration/Health",
@@ -53,9 +53,9 @@
             <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
             <span>@OperatorLabels.Admin.Health</span>
         </a>
-        <a asp-page="/Administration/ActionLogs" aria-current="@Current("action-logs")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
-            <span>@OperatorLabels.Admin.ActionLogs</span>
+        <a asp-page="/Administration/Logs" aria-current="@Current("logs")">
+            <svg class="icon" aria-hidden="true"><use href="#icon-scroll-text" /></svg>
+            <span>@OperatorLabels.IntakeLog.Logs</span>
         </a>
         <a asp-page="/Administration/Reports" aria-current="@Current("reports")">
             <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
