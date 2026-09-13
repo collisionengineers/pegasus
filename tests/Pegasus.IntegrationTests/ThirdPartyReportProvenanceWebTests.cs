@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -187,69 +187,6 @@ public sealed class ThirdPartyReportProvenanceWebTests
             report.Estimates,
             estimate => estimate.Role == ThirdPartyEstimateRole.Assessed);
         Assert.Equal("1582.20", assessed.LabourAmount!.Source.NormalizedValue);
-    }
-
-    [ReferencePackFact]
-    public async Task TheReceivedScreenShowsTheReportValuesWithTheirSourceLocators()
-    {
-        var (bytes, _) = ReadOriginal(ReportName);
-        using var factory = new IntakeWebApplicationFactory();
-        using var host = WithSourceCandidates(factory);
-        using var client = host.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost:7139")
-        });
-
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(
-            host,
-            client,
-            ReportName,
-            "application/pdf",
-            bytes,
-            Guid.NewGuid().ToString("N"));
-        var receiptId = IntakeWebDriver.ReceiptId(upload);
-
-        var page = await client.GetAsync(new Uri($"/Received/{receiptId:D}", UriKind.Relative));
-        page.EnsureSuccessStatusCode();
-        var html = await page.Content.ReadAsStringAsync();
-
-        // The existing provenance projection renders them: the field, the
-        // printed value, the disposition in the operator's words, and the
-        // source label with its page.
-        Assert.Contains(ThirdPartyReportFields.LabourAmount, html, StringComparison.Ordinal);
-        Assert.Contains("1,582.20", html, StringComparison.Ordinal);
-        Assert.Contains("Usable", html, StringComparison.Ordinal);
-        Assert.Contains("page 2", html, StringComparison.Ordinal);
-
-        // A field the document does not state is shown as unstated rather than
-        // being filled in or hidden.
-        Assert.Contains("Not stated in the document", html, StringComparison.Ordinal);
-
-        // The finding is on the screen too, in the operator's words and beside
-        // the printed values it compares. Its namespaced field name is what
-        // distinguishes it from a printed value on the row list.
-        Assert.Contains(
-            ThirdPartyReportFields.Finding(ThirdPartyFindingCodes.LabourHoursRateMismatch),
-            html,
-            StringComparison.Ordinal);
-        Assert.Contains("26.2 hours at 90", html, StringComparison.Ordinal);
-        Assert.Contains("not the printed labour 1582.2", html, StringComparison.Ordinal);
-        Assert.Contains("Conflicting statements", html, StringComparison.Ordinal);
-
-        // The reconciliations that hold are shown as well: the screen shows the
-        // whole reconciliation, not only its failures.
-        Assert.Contains(
-            ThirdPartyReportFields.Finding(ThirdPartyFindingCodes.ComponentSumReconciles),
-            html,
-            StringComparison.Ordinal);
-
-        // The panel is composed, so the screen is showing candidates rather
-        // than the "not available in this environment" notice.
-        Assert.DoesNotContain(
-            "The retained-instruction analysis is not available",
-            html,
-            StringComparison.Ordinal);
     }
 
     /// <summary>

@@ -136,7 +136,7 @@ public sealed class TriageQueuesWebTests
         // Not ready now contains formal Cases only.
         Assert.Contains(instructionCaseReference, notReadyHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(imageIntake.ImageIntakeReference, notReadyHtml, StringComparison.Ordinal);
-        Assert.Equal(1, Regex.Count(notReadyHtml, "class=\"row-button\""));
+        Assert.Equal(1, Regex.Count(notReadyHtml, "data-cases-row=\""));
         Assert.Equal(1, railCount);
 
         using var awaiting = await client.GetAsync("/Cases?tab=awaiting");
@@ -144,7 +144,7 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(HttpStatusCode.OK, awaiting.StatusCode);
         Assert.DoesNotContain(instructionCaseReference, awaitingHtml, StringComparison.Ordinal);
         Assert.Contains(imageIntake.ImageIntakeReference, awaitingHtml, StringComparison.Ordinal);
-        Assert.Equal(1, Regex.Count(awaitingHtml, "class=\"row-button\""));
+        Assert.Equal(1, Regex.Count(awaitingHtml, "data-cases-row=\""));
         var awaitingCount = Regex.Match(
             awaitingHtml,
             "scope-button[\\s\\S]*?<span>Awaiting instruction</span>\\s*<span>(\\d+)</span>");
@@ -285,10 +285,9 @@ public sealed class TriageQueuesWebTests
         Assert.Contains(triageReference, html, StringComparison.Ordinal);
         Assert.Contains(registration, html, StringComparison.Ordinal);
         Assert.Contains(provider, html, StringComparison.Ordinal);
-        Assert.Contains(
-            $"{provider} · {DevelopmentOfflineIdentity.UserName}",
-            WebUtility.HtmlDecode(html),
-            StringComparison.Ordinal);
+        // The table gives Provider and Assignee their own cells.
+        Assert.Contains($"<td>{provider}</td>", html, StringComparison.Ordinal);
+        Assert.Contains($"<td>{DevelopmentOfflineIdentity.UserName}</td>", WebUtility.HtmlDecode(html), StringComparison.Ordinal);
         // The claim number is retained on the summary as its own member, and
         // is no longer what the row calls the reference.
         var summary = Assert.Single(
@@ -371,7 +370,7 @@ public sealed class TriageQueuesWebTests
         // before scanning so only visible text is checked.
         var visibleOnly = Regex.Replace(
             html,
-            "<input[^>]*type=\"hidden\"[^>]*>|\\s(href|asp-route-\\w+)=\"[^\"]*\"",
+            "<input[^>]*type=\"hidden\"[^>]*>|\\s(href|asp-route-\\w+|data-[\\w-]+)=\"[^\"]*\"",
             "");
         Assert.False(
             Regex.IsMatch(visibleOnly, @"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"),
@@ -379,12 +378,13 @@ public sealed class TriageQueuesWebTests
     }
 
     /// <summary>
-    /// D14: Blocked intake receipts are listed inside the Unidentified scope
-    /// with their own chip, but the scope's count stays the Unidentified
-    /// items' own — the two meanings stay distinct.
+    /// v26 (received file D1, D2): a Blocked receipt is not an operator
+    /// concept. The Unidentified tab lists open Unidentified items only — no
+    /// Blocked row, no link to a received item — and its count stays the open
+    /// items' own.
     /// </summary>
     [Fact]
-    public async Task UnidentifiedTabListsBlockedIntakeRowsUncounted()
+    public async Task UnidentifiedTabListsNoBlockedRowAndNoReceivedItemLink()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -422,12 +422,12 @@ public sealed class TriageQueuesWebTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("blocked-file.msg", html, StringComparison.Ordinal);
-        Assert.Contains("Blocked intake", html, StringComparison.Ordinal);
-        Assert.Contains($"/Received/{blocked.Id:D}", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("blocked-file.msg", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Blocked intake", html, StringComparison.Ordinal);
+        Assert.DoesNotContain($"/Received/{blocked.Id:D}", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open received item", html, StringComparison.Ordinal);
 
-        // One Blocked intake row, zero Unidentified items: the scope count
-        // must read zero, not one — the row is listed but never counted.
+        // Zero open Unidentified items: the scope count reads zero.
         var countMatch = Regex.Match(
             html,
             "scope-button[\\s\\S]*?<span>Unidentified</span>\\s*<span>(\\d+)</span>");
@@ -464,8 +464,8 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(instructionCaseReference, html, StringComparison.Ordinal);
         Assert.DoesNotContain(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
-        // Rows remain links, not tables.
-        Assert.DoesNotContain("<table", html, StringComparison.Ordinal);
+        // v26 decision L: the scope lists its rows as a table.
+        Assert.Contains("<table", html, StringComparison.Ordinal);
         Assert.DoesNotContain("subtabs", html, StringComparison.Ordinal);
         // The rail groups the workflow; the filters are selects.
         Assert.DoesNotContain(">Case workflow<", html, StringComparison.Ordinal);
@@ -586,7 +586,7 @@ public sealed class TriageQueuesWebTests
             html,
             "scope-button[\\s\\S]*?<span>Awaiting instruction</span>\\s*<span>(\\d+)</span>");
         Assert.True(count.Success);
-        Assert.Equal(Regex.Count(html, "class=\"row-button\""), int.Parse(count.Groups[1].Value, CultureInfo.InvariantCulture));
+        Assert.Equal(Regex.Count(html, "data-cases-row=\""), int.Parse(count.Groups[1].Value, CultureInfo.InvariantCulture));
     }
 
     /// <summary>
@@ -621,8 +621,8 @@ public sealed class TriageQueuesWebTests
         var html = await response.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(
-            html.IndexOf($">{newerReference}</span>", StringComparison.Ordinal)
-                < html.IndexOf($">{olderReference}</span>", StringComparison.Ordinal),
+            html.IndexOf($">{newerReference}</a>", StringComparison.Ordinal)
+                < html.IndexOf($">{olderReference}</a>", StringComparison.Ordinal),
             "The row order must put the newest received case first.");
     }
 

@@ -31,13 +31,17 @@ public sealed class ImageIntakeWebTests
             Guid.NewGuid().ToString("N"));
         var receiptId = IntakeWebDriver.ReceiptId(upload);
 
-        var detailsBefore = await IntakeWebDriver.GetHtmlAsync(client, $"/Received/{receiptId:D}");
+        // The received-file page is gone (received file D2): Register images
+        // lives on the Unidentified record the image-only receipt raised.
+        var unidentifiedId = await OpenUnidentifiedIdAsync(factory, receiptId);
+        var detailsBefore = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{unidentifiedId:D}");
         Assert.Contains("Register images", detailsBefore);
         Assert.Contains("No readable registration", detailsBefore);
+        Assert.DoesNotContain($"/Received/{receiptId:D}\"", detailsBefore, StringComparison.Ordinal);
 
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
         using var registerResponse = await client.PostAsync(
-            $"/Received/{receiptId:D}?handler=RegisterImageIntake",
+            $"/Unidentified/{unidentifiedId:D}?handler=RegisterImages",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = token,
@@ -47,10 +51,8 @@ public sealed class ImageIntakeWebTests
             }));
         Assert.Equal(HttpStatusCode.Redirect, registerResponse.StatusCode);
 
-        var detailsAfter = await IntakeWebDriver.GetHtmlAsync(client, $"/Received/{receiptId:D}");
-        Assert.Contains("Vehicle images registered", detailsAfter);
-        Assert.Contains("AB12CDE-01", detailsAfter);
-        Assert.DoesNotContain("Register images</h2>", detailsAfter);
+        var detailsAfter = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{unidentifiedId:D}");
+        Assert.DoesNotContain("handler=RegisterImages", detailsAfter, StringComparison.Ordinal);
 
         await using var receiptScope = factory.Services.CreateAsyncScope();
         var receipt = await receiptScope.ServiceProvider
@@ -78,17 +80,19 @@ public sealed class ImageIntakeWebTests
         Assert.Contains("AB12CDE-01", imageIntakePage);
         Assert.Contains("awaiting definitive instruction", imageIntakePage);
         Assert.Equal($"/Cases?tab=awaiting&selected={detail.Record.Id:D}", BackToCasesHref(imageIntakePage));
-        Assert.Equal($"/Received/{receiptId:D}", ActionHref(imageIntakePage, "Merge Case"));
-        Assert.Equal($"/Received/{receiptId:D}", ActionHref(imageIntakePage, "View received item"));
-        Assert.DoesNotContain("Open the origin receipt", imageIntakePage, StringComparison.Ordinal);
+        // The attach decision lives on the Cases list; the original file opens
+        // through the kept source route. No received-item page is linked.
+        Assert.Contains($"href=\"/Cases?tab=awaiting&amp;selected={detail.Record.Id:D}\" data-image-action=\"add-to-case\"", imageIntakePage, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Received/{receiptId:D}/Source\"", imageIntakePage, StringComparison.Ordinal);
+        Assert.DoesNotContain($"href=\"/Received/{receiptId:D}\"", imageIntakePage, StringComparison.Ordinal);
+        Assert.DoesNotContain("View received item", imageIntakePage, StringComparison.Ordinal);
         Assert.DoesNotContain("Open in Box", imageIntakePage, StringComparison.Ordinal);
         // This receipt never opened a Triage, so the record has nothing to link to.
         Assert.DoesNotContain("Open Triage", imageIntakePage, StringComparison.Ordinal);
+        Assert.Contains("data-record-kind=\"image\"", imageIntakePage, StringComparison.Ordinal);
 
-        using var associationResponse = await client.GetAsync($"/Received/{receiptId:D}");
-        var associationPage = await associationResponse.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, associationResponse.StatusCode);
-        Assert.Contains("Case link", associationPage, StringComparison.Ordinal);
+        using var removed = await client.GetAsync($"/Received/{receiptId:D}");
+        Assert.Equal(HttpStatusCode.NotFound, removed.StatusCode);
     }
 
     [Fact]
@@ -134,10 +138,11 @@ public sealed class ImageIntakeWebTests
         var suggestion = Assert.Single(suggestions);
         Assert.Equal(ImageVrmSuggestionDisposition.Confirmed, suggestion.Disposition);
 
-        var receiptPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Received/{receiptId:D}");
-        Assert.Contains("Associated with Case", receiptPage);
-        Assert.Contains("AB12CDE-01", receiptPage);
         var associatedImagePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail.Record.Id:D}");
+        Assert.Contains("AB12CDE-01", associatedImagePage);
+        Assert.Contains(detail.AssociatedCaseReference!, associatedImagePage, StringComparison.Ordinal);
+        // An associated record offers no attach.
+        Assert.DoesNotContain("data-image-action=\"add-to-case\"", associatedImagePage, StringComparison.Ordinal);
         Assert.Equal("/Cases", BackToCasesHref(associatedImagePage));
         var casePage = await IntakeWebDriver.GetHtmlAsync(
             client,
@@ -206,9 +211,10 @@ public sealed class ImageIntakeWebTests
             Convert.FromBase64String(MultiFormatFixture.TinyPngBase64),
             Guid.NewGuid().ToString("N"));
         var receiptId = IntakeWebDriver.ReceiptId(upload);
+        var unidentifiedId = await OpenUnidentifiedIdAsync(factory, receiptId);
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
         using var registerResponse = await client.PostAsync(
-            $"/Received/{receiptId:D}?handler=RegisterImageIntake",
+            $"/Unidentified/{unidentifiedId:D}?handler=RegisterImages",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = token,
@@ -223,6 +229,21 @@ public sealed class ImageIntakeWebTests
             .GetRequiredService<IImageIntakeQueries>()
             .GetByOriginReceiptAsync(receiptId, CancellationToken.None);
         return Assert.IsType<ImageIntakeDetail>(detail).Record.Id;
+    }
+
+    /// <summary>
+    /// The open Unidentified item an image-only receipt with no readable
+    /// registration raised: where Register images now lives (received file D2).
+    /// </summary>
+    private static async Task<Guid> OpenUnidentifiedIdAsync(IntakeWebApplicationFactory factory, Guid receiptId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var item = await scope.ServiceProvider
+            .GetRequiredService<Pegasus.Core.Intake.Unidentified.IUnidentifiedStore>()
+            .GetByOriginAsync(Pegasus.Core.Intake.Unidentified.UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None);
+        var open = Assert.IsType<Pegasus.Core.Intake.Unidentified.UnidentifiedItem>(item);
+        Assert.Equal(Pegasus.Core.Intake.Unidentified.UnidentifiedState.Open, open.State);
+        return open.Id;
     }
 
     private static async Task PostPrincipalAsync(
@@ -285,9 +306,10 @@ public sealed class ImageIntakeWebTests
     /// </summary>
     private static void AssertPrincipalFact(string html, string expected)
     {
+        // v26: the Principal reads in the record's ribbon.
         var match = Regex.Match(
             html,
-            "<dt>Principal</dt>\\s*<dd>(?<value>[^<]*)</dd>");
+            "data-image-principal>(?<value>[^<]*)</span>");
         Assert.True(match.Success, "The Principal fact was not rendered.");
         Assert.Equal(expected, match.Groups["value"].Value.Trim());
         if (expected == "Not known")

@@ -52,8 +52,19 @@ public sealed partial class CreateModel(
     IProviderInspectionModeStore providerInspectionModeStore,
     ICreateManualCase createManualCase,
     IContactDirectoryQueries contacts,
-    ILogger<CreateModel> logger) : StaffPageModel
+    ILogger<CreateModel> logger,
+    GetRetainedMail? getRetainedMail = null) : StaffPageModel
 {
+    /// <summary>The Inbox message the file came in, when it came by e-mail (Open message).</summary>
+    public Guid? SourceMessageId { get; private set; }
+
+    /// <summary>Open file: the retained original through the kept source route, never a receipt page.</summary>
+    public string OpenFileHref => $"/Received/{Receipt.Id:D}/Source";
+
+    /// <summary>A refused acceptance lands back here with its reason.</summary>
+    [TempData(Key = "CreateCaseError")]
+    public string? CreateError { get; set; }
+
     /// <summary>
     /// How the inspection address on this screen is being settled.
     /// </summary>
@@ -414,9 +425,9 @@ public sealed partial class CreateModel(
                 {
                     return committed;
                 }
-                TempData["IntakeDetailsError"] = allocation.State.SafeReason
-                    ?? "The case could not be created. Reload the received item before trying again.";
-                return RedirectToPage("/Intake/Details", new { id = Receipt.Id });
+                CreateError = allocation.State.SafeReason
+                    ?? "The case could not be created. No reference was allocated. Reload and try again.";
+                return RedirectToPage("/Cases/Create", new { receiptId = Receipt.Id });
             }
 
             TempData["CaseDetailsStatus"] =
@@ -794,6 +805,11 @@ public sealed partial class CreateModel(
 
         Receipt = receipt;
         ReceiptId = receipt.Id;
+        if (getRetainedMail is not null && receipt.SourceIdentity.Channel == IntakeSourceChannel.Mailbox)
+        {
+            SourceMessageId = (await getRetainedMail.ExecuteByOriginReceiptAsync(actor, receipt.Id, cancellationToken))?.Summary.Id;
+        }
+
         var auditEvidence = await standaloneAuditEvidenceQueries.GetForReceiptAsync(
             receipt.Id, cancellationToken);
         StandaloneAuditEvidenceId = auditEvidence is { IntakeReceiptId: var evidenceReceiptId }

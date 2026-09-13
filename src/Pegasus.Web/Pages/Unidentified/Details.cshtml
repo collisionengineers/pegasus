@@ -1,13 +1,15 @@
 @page "/Unidentified/{id:guid}"
 @model Pegasus.Web.Pages.Unidentified.DetailsModel
 @using Pegasus.Core.ImageIntake
-@using Pegasus.Core.Intake
 @using Pegasus.Core.Intake.Unidentified
 @using Pegasus.Web.Presentation
+@using Record = Pegasus.Web.Pages.Unidentified.DetailsModel
 @{
     ViewData["Title"] = Model.Item.Reference;
-    var isOpen = Model.Item.State == UnidentifiedState.Open;
+    string OnLoad(string dialog) => string.Equals(Model.OpenDialog, dialog, StringComparison.Ordinal) ? "true" : "false";
 }
+
+<link rel="stylesheet" href="~/css/unidentified.css" asp-append-version="true" />
 
 <header class="page-header">
     <div class="page-title">
@@ -15,102 +17,236 @@
         <h1>@Model.Item.Reference</h1>
     </div>
     <div class="page-actions">
-        <a class="btn" asp-page="/Cases/Index" asp-route-tab="unidentified">
+        <a class="btn" asp-page="/Cases/Index" asp-route-tab="unidentified" asp-route-show="@(Model.IsOpen ? null : "closed")">
             <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
             <span>Back to Cases</span>
         </a>
-        <form method="get" data-refresh-form>
-            <button type="submit" class="btn btn--small" title="Refresh">
-                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+        <form method="get">
+            <button type="submit" class="btn btn--small">
+                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
                 <span>Refresh</span>
             </button>
         </form>
     </div>
 </header>
 
-<div asp-validation-summary="All" class="validation-summary" role="alert"></div>
-
-<article class="record">
-    <div class="record-ribbon unidentified-ribbon" aria-label="Unidentified material identity">
-        <div class="ribbon-item ribbon-ref"><div class="ribbon-label">Reference</div><div class="ribbon-value">@Model.Item.Reference</div></div>
-        <div class="ribbon-item"><div class="ribbon-label">Kind</div><div class="ribbon-value">@Model.MediaKindLabel</div></div>
-        <div class="ribbon-item"><div class="ribbon-label">Received</div><div class="ribbon-value">@OperatorLabels.OfficeTime(Model.Item.CreatedAtUtc)</div></div>
-        <div class="ribbon-item"><div class="ribbon-label">State</div><div class="ribbon-value"><partial name="Shared/_StatusChip" model="@OperatorLabels.UnidentifiedState(Model.Item.State)" /></div></div>
+@if (Model.StatusMessage is { } status)
+{
+    <div class="notice notice--success" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+        <span>@status</span>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
     </div>
-    <div class="record-accent"></div>
+}
+@if (Model.ErrorMessage is { } error)
+{
+    <div class="notice notice--danger" role="alert">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>@error</span>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+}
 
-    <div class="record-body">
-        <div class="grid grid-2 unidentified-workspace">
-        <section class="panel unidentified-source-panel" aria-labelledby="unidentified-source-title">
-            <div class="panel-head"><h2 id="unidentified-source-title">@Model.SourceSectionTitle</h2></div>
-            <div class="panel-body stack">
-                <div class="definition-list">
-                    <dl class="definition"><dt>Reference</dt><dd>@Model.Item.Reference</dd></dl>
-                    <dl class="definition"><dt>Kind</dt><dd>@Model.MediaKindLabel</dd></dl>
-                    <dl class="definition"><dt>@(Model.MediaKind == UnidentifiedMediaKind.Email ? "Email" : "Filename")</dt><dd>@Model.Handle</dd></dl>
-                    <dl class="definition"><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Item.CreatedAtUtc)</dd></dl>
-                    <dl class="definition">
-                        <dt>Source</dt>
-                        <dd>@(Model.SourceReceipt is { } receipt
-                            ? OperatorLabels.SourceChannel(receipt.SourceIdentity.Channel)
-                            : Model.SourceSubmissionGroup is { } sourceGroup
-                                ? OperatorLabels.SourceChannel(sourceGroup.Channel)
-                                : "Not available")</dd>
-                    </dl>
-                    <dl class="definition"><dt>Needs attention</dt><dd>@Model.ReasonLabel</dd></dl>
-                </div>
-                @if (Model.SourceSubmissionGroup is { } retainedGroup)
-                {
-                    <ul aria-label="Retained files">
-                        @foreach (var member in retainedGroup.Members.OrderBy(member => member.Ordinal))
-                        {
-                            <li>@member.SourceFileName</li>
-                        }
-                    </ul>
-                    <a class="btn" asp-page="/UploadGroupStatus" asp-route-id="@retainedGroup.Id">View files</a>
-                }
-                @if (Model.SourceReceipt is { } imageReceipt
-                    && imageReceipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-                {
-                    var href = $"/Received/{imageReceipt.Id:D}/Image";
-                    <partial name="Shared/_ImageGallery" model="@new[] { new GalleryImage(
-                        href, href, imageReceipt.SourceFileName, imageReceipt.MediaType) }" />
-                }
-                <div class="button-row">
-                    @if (Model.SourceReceipt is { } viewableReceipt)
+<article class="record unidentified-record" data-unidentified-record data-unidentified-state="@(Model.IsOpen ? "open" : Model.Item.IsClosed ? "closed" : "resolved")">
+    <div class="ribbon" aria-label="Unidentified material">
+        <div class="ribbon-facts">
+            <div class="ribbon-item ribbon-ref"><span class="ribbon-label">Reference</span><span class="ribbon-value mono">@Model.Item.Reference</span></div>
+            <div class="ribbon-item"><span class="ribbon-label">Received</span><span class="ribbon-value">@OperatorLabels.OfficeTime(Model.Item.CreatedAtUtc)</span></div>
+            <div class="ribbon-item"><span class="ribbon-label">Kind</span><span class="ribbon-value">@Model.MaterialLabel</span></div>
+            <div class="ribbon-item"><span class="ribbon-label">Source</span><span class="ribbon-value">@Model.Handle</span></div>
+        </div>
+        <div class="ribbon-chips">
+            @if (Model.IsOpen)
+            {
+                <span class="status status--amber">Open</span>
+            }
+            else if (Model.Item.IsClosed)
+            {
+                <span class="status status--neutral" data-unidentified-closed>Closed</span>
+            }
+            else
+            {
+                <span class="status status--neutral">Resolved</span>
+            }
+        </div>
+    </div>
+
+    <div class="unidentified-body">
+        <div class="unidentified-grid">
+            <section class="panel" aria-labelledby="unidentified-material-title">
+                <div class="panel-head"><h2 id="unidentified-material-title">@(Model.IsEmail ? "Retained e-mail" : "Retained files")</h2></div>
+                <div class="panel-section stack">
+                    @if (Model.CouldNotBeRead is { } unreadable)
                     {
-                        <a class="btn" asp-page="/Intake/Details" asp-route-id="@viewableReceipt.Id">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
-                            <span>@Model.ViewSourceLabel</span>
-                        </a>
+                        <div class="notice notice--warning" data-unidentified-unreadable>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>@unreadable@(string.IsNullOrWhiteSpace(Model.Item.SafeDetail) ? null : " — " + Model.Item.SafeDetail)</span>
+                        </div>
                     }
-                </div>
-            </div>
-        </section>
-
-        @if (isOpen)
-        {
-            @* Where this material belongs is the question, and the answer is
-               almost always an existing Case: the primary action says so.
-               Creating a Case, registering images and closing stay available
-               as named alternatives inside the same dialog. *@
-            <section class="panel unidentified-resolution-panel" aria-labelledby="unidentified-link-case-title">
-                <div class="panel-head"><h2 id="unidentified-link-case-title">Case</h2></div>
-                <div class="panel-body button-row">
-                    <button type="button" class="btn btn--primary" data-dialog-open="unidentified-resolve-dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
-                        <span>Link to Case</span>
-                    </button>
+                    <dl class="fact-grid unidentified-facts">
+                        <div class="fact"><dt>Reference</dt><dd class="mono">@Model.Item.Reference</dd></div>
+                        <div class="fact"><dt>Kind</dt><dd>@Model.MaterialLabel</dd></div>
+                        <div class="fact"><dt>@(Model.IsEmail ? "E-mail" : "Filename")</dt><dd>@Model.Handle</dd></div>
+                        <div class="fact"><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Item.CreatedAtUtc)</dd></div>
+                        <div class="fact"><dt>Source</dt><dd>@Model.SourceLabel</dd></div>
+                        <div class="fact"><dt>Needs attention</dt><dd>@OperatorLabels.UnidentifiedReason(Model.Item.ReasonCode)</dd></div>
+                    </dl>
+                    @if (Model.SubmissionGroup is { } group)
+                    {
+                        <ul class="unidentified-files" aria-label="Retained files">
+                            @foreach (var member in group.Members.OrderBy(member => member.Ordinal))
+                            {
+                                <li>@member.SourceFileName</li>
+                            }
+                        </ul>
+                    }
+                    @if (Model.Receipt is { } imageReceipt && imageReceipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var href = $"/Received/{imageReceipt.Id:D}/Image";
+                        <partial name="Shared/_ImageGallery" model="@new[] { new GalleryImage(href, href, imageReceipt.SourceFileName, imageReceipt.MediaType) }" />
+                    }
+                    <div class="button-row" data-unidentified-material-actions>
+                        @if (Model.OpenFileHref is { } fileHref)
+                        {
+                            <a class="btn" href="@fileHref" target="_blank" rel="noopener" data-unidentified-action="open-file">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>Open file</span>
+                            </a>
+                        }
+                        @if (Model.OpenMessageHref is { } messageHref)
+                        {
+                            <a class="btn" href="@messageHref" data-unidentified-action="open-message">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg><span>Open message</span>
+                            </a>
+                        }
+                        @if (Model.RequestAgainHref is { } requestHref)
+                        {
+                            <a class="btn" href="@requestHref" data-unidentified-action="request-again">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg><span>Request again</span>
+                            </a>
+                        }
+                        @if (Model.IsUploadGroup && Model.SubmissionGroup is { } openGroup)
+                        {
+                            <a class="btn" asp-page="/UploadGroupStatus" asp-route-id="@openGroup.Id">View files</a>
+                        }
+                    </div>
                 </div>
             </section>
-        }
+
+            @if (Model.IsOpen)
+            {
+                <section class="panel" aria-labelledby="unidentified-resolve-title" data-unidentified-resolve>
+                    <div class="panel-head"><h2 id="unidentified-resolve-title">Resolve</h2></div>
+                    <div class="panel-section">
+                        <div class="button-row">
+                            @if (Model.CanLinkCase)
+                            {
+                                <a class="btn btn--primary" href="?dialog=@Record.LinkDialog" data-dialog-open="unidentified-link-dialog" data-unidentified-action="link">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg><span>Link to Case</span>
+                                </a>
+                            }
+                            else if (Model.IsUploadGroup && Model.SubmissionGroup is { } linkGroup)
+                            {
+                                <a class="btn btn--primary" asp-page="/UploadGroupStatus" asp-route-id="@linkGroup.Id" data-unidentified-action="link">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg><span>Link to Case</span>
+                                </a>
+                            }
+                            @if (Model.CanCreateCase && Model.Receipt is { } createReceipt)
+                            {
+                                <a class="btn" asp-page="/Cases/Create" asp-route-receiptId="@createReceipt.Id" data-unidentified-action="create">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>Create case</span>
+                                </a>
+                            }
+                            @if (Model.CanRegisterImages)
+                            {
+                                <a class="btn" href="?dialog=@Record.RegisterDialog" data-dialog-open="unidentified-register-dialog" data-unidentified-action="register">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg><span>Register images</span>
+                                </a>
+                            }
+                            else if (Model.IsUploadGroup && Model.SubmissionGroup is { } registerGroup)
+                            {
+                                <a class="btn" asp-page="/UploadGroupStatus" asp-route-id="@registerGroup.Id" data-unidentified-action="register">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg><span>Register images</span>
+                                </a>
+                            }
+                            @if (Model.CanOpenTriage)
+                            {
+                                <a class="btn" href="?dialog=@Record.TriageDialog" data-dialog-open="unidentified-triage-dialog" data-unidentified-action="triage">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-clipboard-list" /></svg><span>Open the Triage</span>
+                                </a>
+                            }
+                            <a class="btn btn--danger" href="?dialog=@Record.CloseDialog" data-dialog-open="unidentified-close-dialog" data-unidentified-action="close">Close with reason</a>
+                        </div>
+                    </div>
+                </section>
+            }
+            else
+            {
+                <section class="panel" aria-labelledby="unidentified-resolution-title" data-unidentified-resolution>
+                    <div class="panel-head"><h2 id="unidentified-resolution-title">Resolution</h2></div>
+                    <div class="panel-section stack">
+                        <dl class="fact-grid unidentified-facts">
+                            <div class="fact"><dt>Outcome</dt><dd data-unidentified-outcome>@(Model.ClosedOutcome ?? Model.Item.ResolutionTargetReference ?? "Resolved")</dd></div>
+                            @if (Model.Item.ResolvedAtUtc is { } resolvedAt)
+                            {
+                                <div class="fact"><dt>Resolved</dt><dd>@OperatorLabels.OfficeTime(resolvedAt)</dd></div>
+                            }
+                        </dl>
+                        @if (Model.Context.Triage is { } triage)
+                        {
+                            <div class="button-row">
+                                <a class="btn" asp-page="/Triage/Details" asp-route-id="@triage.Id">Open the Triage</a>
+                            </div>
+                        }
+                        <div class="button-row">
+                            <a class="btn btn--primary" href="?dialog=@Record.ReopenDialog" data-dialog-open="unidentified-reopen-dialog" data-unidentified-action="reopen">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Reopen</span>
+                            </a>
+                        </div>
+                    </div>
+                </section>
+            }
         </div>
+
+        @if (Model.Context.RegistrationReadings.Count > 0)
+        {
+            <section class="panel" aria-labelledby="unidentified-readings-title" data-unidentified-readings>
+                <div class="panel-head"><h2 id="unidentified-readings-title">Registration readings</h2></div>
+                <table class="table table--compact">
+                    <thead><tr><th scope="col">Read</th><th scope="col">Reading</th><th scope="col">Decision</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var reading in Model.Context.RegistrationReadings)
+                        {
+                            <tr data-unidentified-reading="@reading.Id">
+                                <td class="nowrap">@OperatorLabels.OfficeTime(reading.OccurredAtUtc)</td>
+                                <td class="@(reading.Outcome == VrmRecognitionOutcomeKind.Suggested ? "mono" : null)">@Record.ReadingLabel(reading)</td>
+                                <td>@Record.DispositionLabel(reading.Disposition)</td>
+                                <td>
+                                    @if (Model.IsOpen && reading.Disposition == ImageVrmSuggestionDisposition.Pending && reading.Outcome == VrmRecognitionOutcomeKind.Suggested)
+                                    {
+                                        <details class="unidentified-dismiss">
+                                            <summary class="btn btn--small">Dismiss</summary>
+                                            <form method="post" asp-page-handler="DismissReading" asp-route-id="@Model.Item.Id" class="stack">
+                                                <input type="hidden" name="suggestionId" value="@reading.Id" />
+                                                <input type="hidden" name="operationKey" value="@Record.NewOperationKey()" />
+                                                <label class="req" for="dismiss-reason-@reading.Id">Reason</label>
+                                                <input id="dismiss-reason-@reading.Id" name="reason" maxlength="500" required />
+                                                <button type="submit" class="btn btn--small btn--dark">Dismiss reading</button>
+                                            </form>
+                                        </details>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </section>
+        }
 
         @if (Model.History.Count > 0)
         {
-            <section class="panel section-gap" aria-labelledby="unidentified-history-title">
+            <section class="panel" aria-labelledby="unidentified-history-title">
                 <div class="panel-head"><h2 id="unidentified-history-title">History</h2></div>
-                <div class="panel-body">
+                <div class="panel-section">
                     <div class="timeline">
                         @foreach (var entry in Model.History.OrderByDescending(history => history.OccurredAtUtc))
                         {
@@ -122,9 +258,7 @@
                                         @:· @OperatorLabels.UnidentifiedResolutionTarget(targetKind)
                                     }
                                 </div>
-                                <div class="timeline-meta">
-                                    @OperatorLabels.OfficeTime(entry.OccurredAtUtc) · @entry.Reason
-                                </div>
+                                <div class="timeline-meta">@OperatorLabels.OfficeTime(entry.OccurredAtUtc) · @entry.Reason</div>
                             </div>
                         }
                     </div>
@@ -134,83 +268,151 @@
     </div>
 </article>
 
-@if (isOpen)
+@if (Model.CanLinkCase)
 {
-    <div class="dialog-backdrop" data-dialog="unidentified-resolve-dialog"
-         data-dialog-open-on-load="@(Model.OpenResolutionDialog ? "true" : "false")" hidden>
-        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="unidentified-resolve-dialog-title">
+    <div id="unidentified-link-dialog" class="dialog-backdrop" data-dialog="unidentified-link-dialog" data-dialog-open-on-load="@OnLoad(Record.LinkDialog)" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="unidentified-link-title">
             <div class="dialog-head">
-                <h2 id="unidentified-resolve-dialog-title" tabindex="-1">@Model.Item.Reference</h2>
+                <h2 id="unidentified-link-title" tabindex="-1">Link to Case</h2>
                 <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
             </div>
             <div class="dialog-body stack">
-                <partial name="Shared/_ErrorSummary" />
-                <div class="button-row">
-                    <a class="btn btn--small" asp-route-id="@Model.Item.Id" asp-route-action="@Pegasus.Web.Pages.Unidentified.DetailsModel.AddExistingCaseAction">Link to Case</a>
-                    @if (Model.CanCreateCase) { <a class="btn btn--small" asp-route-id="@Model.Item.Id" asp-route-action="@Pegasus.Web.Pages.Unidentified.DetailsModel.CreateCaseAction">Create Case</a> }
-                    @if (Model.CanRegisterImage || Model.CanReviewGroupRegistration) { <a class="btn btn--small" asp-route-id="@Model.Item.Id" asp-route-action="@Pegasus.Web.Pages.Unidentified.DetailsModel.RegisterImageAction">Register images</a> }
-                    <a class="btn btn--small btn--danger" asp-route-id="@Model.Item.Id" asp-route-action="@Pegasus.Web.Pages.Unidentified.DetailsModel.CloseAction">Close</a>
+                <p class="muted">@Model.Item.Reference · @Model.Handle</p>
+                <form method="get" class="filter-bar">
+                    <input type="hidden" name="dialog" value="@Record.LinkDialog" />
+                    <div class="field">
+                        <label for="unidentified-case-search">Case, registration or claimant</label>
+                        <input id="unidentified-case-search" name="caseQuery" value="@Model.CaseQuery" maxlength="300" data-dialog-initial-focus />
+                    </div>
+                    <button type="submit" class="btn">Search</button>
+                </form>
+                @if (Model.CaseResults.Count == 0)
+                {
+                    <p class="muted">No cases found.</p>
+                }
+                else
+                {
+                    <table class="table table--compact" data-unidentified-candidates>
+                        <thead><tr><th scope="col">Case/PO</th><th scope="col">Registration</th><th scope="col">Claimant</th><th scope="col">State</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+                        <tbody>
+                            @foreach (var candidate in Model.CaseResults)
+                            {
+                                <tr data-unidentified-candidate="@candidate.CaseId">
+                                    <td class="mono">@candidate.Reference</td>
+                                    <td class="mono">@(candidate.Registration ?? "—")</td>
+                                    <td>@(candidate.Claimant ?? "—")</td>
+                                    <td><partial name="Shared/_StatusChip" model="@OperatorLabels.CaseStage(candidate.State)" /></td>
+                                    <td>
+                                        <form method="post" asp-page-handler="LinkCase" asp-route-id="@Model.Item.Id">
+                                            <input type="hidden" name="caseId" value="@candidate.CaseId" />
+                                            <input type="hidden" name="operationKey" value="@Record.NewOperationKey()" />
+                                            <input type="hidden" name="caseQuery" value="@Model.CaseQuery" />
+                                            <button type="submit" class="btn btn--small btn--dark">Link</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+            <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button></div>
+        </section>
+    </div>
+}
+
+@if (Model.CanRegisterImages)
+{
+    <div id="unidentified-register-dialog" class="dialog-backdrop" data-dialog="unidentified-register-dialog" data-dialog-open-on-load="@OnLoad(Record.RegisterDialog)" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="unidentified-register-title">
+            <div class="dialog-head">
+                <h2 id="unidentified-register-title" tabindex="-1">Register images</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+            </div>
+            <form method="post" asp-page-handler="RegisterImages" asp-route-id="@Model.Item.Id" id="unidentified-register-form" class="dialog-body stack">
+                <input type="hidden" name="operationKey" value="@Record.NewOperationKey()" />
+                <div class="field">
+                    <label class="req" for="unidentified-register-vrm">Vehicle registration</label>
+                    <input id="unidentified-register-vrm" class="mono" name="vehicleRegistration" value="@Model.Context.SuggestedRegistration" maxlength="20" required data-dialog-initial-focus />
                 </div>
-                @if (Model.ResolutionAction is null or Pegasus.Web.Pages.Unidentified.DetailsModel.AddExistingCaseAction)
-                {
-                    <h3>Link to Case</h3>
-                    @if (Model.SourceReceipt is { } associationReceipt)
-                    {
-                        <form method="get" asp-route-id="@Model.Item.Id" class="filter-bar">
-                            <input type="hidden" name="action" value="@Pegasus.Web.Pages.Unidentified.DetailsModel.AddExistingCaseAction" />
-                            <div class="field"><label for="unidentified-case-search">Case, registration or claimant</label><input id="unidentified-case-search" name="CaseQuery" value="@Model.CaseQuery" maxlength="300" data-dialog-initial-focus /></div>
-                            <button type="submit" class="btn">Search</button>
-                        </form>
-                        @foreach (var candidate in Model.CaseResults)
-                        {
-                            <a class="row-button" asp-page="/Intake/Details" asp-route-id="@associationReceipt.Id" asp-route-targetCaseId="@candidate.CaseId" asp-route-caseQuery="@Model.CaseQuery">
-                                <strong>@candidate.Reference</strong><span>@candidate.Registration · @candidate.Claimant</span>
-                            </a>
-                        }
-                        @if (Model.CaseResults.Count == 0) { <p class="muted">No cases found.</p> }
-                    }
-                    else if (Model.SourceSubmissionGroup?.Channel == IntakeSourceChannel.ManualUpload)
-                    {
-                        <a class="btn btn--primary" asp-page="/UploadGroupStatus" asp-route-id="@Model.Item.Origin.Id">Select a Case for these files</a>
-                    }
-                    else if (Model.SourceImageIntake is { } imageIntake)
-                    {
-                        @if (imageIntake.Record.State == Pegasus.Core.ImageIntake.ImageInitiatedCaseState.AwaitingInstruction)
-                        {
-                            <a class="btn btn--primary" asp-page="/ImageIntake/Details" asp-route-id="@imageIntake.Record.Id">Merge Case</a>
-                        }
-                        else
-                        {
-                            <p>This image record has already been merged or closed.</p>
-                        }
-                    }
-                    else { <p>This item cannot currently be linked to a Case.</p> }
-                }
-                else if (Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.CreateCaseAction)
-                {
-                    @if (Model.CanCreateCase && Model.SourceReceipt is { } createReceipt) { <a class="btn btn--primary" asp-page="/Cases/Create" asp-route-receiptId="@createReceipt.Id">Open Case creation</a> } else { <p>This retained source cannot create a Case.</p> }
-                }
-                else if (Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.RegisterImageAction)
-                {
-                    @if (Model.CanRegisterImage && Model.SourceReceipt is { } registrationReceipt)
-                    {
-                        <a class="btn btn--primary" asp-page="/Intake/Details" asp-route-id="@registrationReceipt.Id">Open image registration</a>
-                    }
-                    else if (Model.CanReviewGroupRegistration && Model.SourceSubmissionGroup is { } registrationGroup)
-                    {
-                        <p>Review the retained files and their processing results before registering this submission.</p>
-                        <a class="btn btn--primary" asp-page="/UploadGroupStatus" asp-route-id="@registrationGroup.Id">Review image registration</a>
-                    }
-                    else { <p>This retained source cannot register an Image-initiated Case.</p> }
-                }
-                else if (Model.ResolutionAction == Pegasus.Web.Pages.Unidentified.DetailsModel.CloseAction)
-                {
-                    <form method="post" asp-page-handler="Resolve" asp-route-id="@Model.Item.Id" class="stack">
-                        <input type="hidden" asp-for="ExpectedVersion" /><input type="hidden" asp-for="OperationKey" /><input type="hidden" name="action" value="@Pegasus.Web.Pages.Unidentified.DetailsModel.CloseAction" />
-                        <div class="field"><label class="req" for="unidentified-resolution-reason">Reason</label><textarea id="unidentified-resolution-reason" asp-for="ResolutionReason" maxlength="500" rows="3" required></textarea></div>
-                        <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Close with reason</button></div>
-                    </form>
-                }
+                <div class="field">
+                    <label class="req" for="unidentified-register-reason">Reason</label>
+                    <textarea id="unidentified-register-reason" name="reason" maxlength="500" rows="3" required></textarea>
+                </div>
+            </form>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close>Cancel</button>
+                <button type="submit" form="unidentified-register-form" class="btn btn--primary">Register images</button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (Model.CanOpenTriage)
+{
+    <div id="unidentified-triage-dialog" class="dialog-backdrop" data-dialog="unidentified-triage-dialog" data-dialog-open-on-load="@OnLoad(Record.TriageDialog)" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="unidentified-triage-title">
+            <div class="dialog-head">
+                <h2 id="unidentified-triage-title" tabindex="-1">Open the Triage</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+            </div>
+            <form method="post" asp-page-handler="OpenTriage" asp-route-id="@Model.Item.Id" id="unidentified-triage-form" class="dialog-body stack">
+                <input type="hidden" name="operationKey" value="@Record.NewOperationKey()" />
+                <div class="field">
+                    <label class="req" for="unidentified-triage-vrm">Vehicle registration</label>
+                    <input id="unidentified-triage-vrm" class="mono" name="vehicleRegistration" value="@Model.Context.SuggestedRegistration" maxlength="20" required data-dialog-initial-focus />
+                </div>
+            </form>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close>Cancel</button>
+                <button type="submit" form="unidentified-triage-form" class="btn btn--primary">Open the Triage</button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (Model.IsOpen)
+{
+    <div id="unidentified-close-dialog" class="dialog-backdrop" data-dialog="unidentified-close-dialog" data-dialog-open-on-load="@OnLoad(Record.CloseDialog)" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="unidentified-close-title">
+            <div class="dialog-head">
+                <h2 id="unidentified-close-title" tabindex="-1">Close @Model.Item.Reference</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+            </div>
+            <form method="post" asp-page-handler="Close" asp-route-id="@Model.Item.Id" id="unidentified-close-form" class="dialog-body stack">
+                <input type="hidden" name="expectedVersion" value="@Model.Item.Version" />
+                <input type="hidden" name="operationKey" value="@Record.NewOperationKey()" />
+                <div class="field">
+                    <label class="req" for="unidentified-close-reason">Reason</label>
+                    <textarea id="unidentified-close-reason" name="reason" maxlength="500" rows="3" required data-dialog-initial-focus></textarea>
+                </div>
+            </form>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close>Cancel</button>
+                <button type="submit" form="unidentified-close-form" class="btn btn--danger-solid">Close with reason</button>
+            </div>
+        </section>
+    </div>
+}
+else
+{
+    <div id="unidentified-reopen-dialog" class="dialog-backdrop" data-dialog="unidentified-reopen-dialog" data-dialog-open-on-load="@OnLoad(Record.ReopenDialog)" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="unidentified-reopen-title">
+            <div class="dialog-head">
+                <h2 id="unidentified-reopen-title" tabindex="-1">Reopen @Model.Item.Reference</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+            </div>
+            <form method="post" asp-page-handler="Reopen" asp-route-id="@Model.Item.Id" id="unidentified-reopen-form" class="dialog-body stack">
+                <input type="hidden" name="expectedVersion" value="@Model.Item.Version" />
+                <input type="hidden" name="operationKey" value="@Record.NewOperationKey()" />
+                <div class="field">
+                    <label class="req" for="unidentified-reopen-reason">Reason</label>
+                    <textarea id="unidentified-reopen-reason" name="reason" maxlength="500" rows="3" required data-dialog-initial-focus></textarea>
+                </div>
+            </form>
+            <div class="dialog-foot">
+                <button type="button" class="btn" data-dialog-close>Cancel</button>
+                <button type="submit" form="unidentified-reopen-form" class="btn btn--primary">Reopen</button>
             </div>
         </section>
     </div>
