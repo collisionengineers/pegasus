@@ -89,7 +89,7 @@ else
                    aria-selected="@(Model.Selected?.Id == item.Id ? "true" : "false")">
                     <span class="work-item-head">
                         <span>
-                            <span class="row-meta">@OperatorLabels.NeedsAttentionKind(item.Kind) · @item.Reference</span>
+                            <span class="row-meta">@OperatorLabels.NeedsAttentionKind(item.Kind) · @NeedsAttentionPresentation.ReferenceLabel(item)</span>
                             <h3>@NeedsAttentionPresentation.TitleLabel(item)</h3>
                         </span>
                         @{
@@ -137,7 +137,7 @@ else
                 <article class="work-detail">
                     <div class="cluster cluster--between cluster--start">
                         <div>
-                            <p class="eyebrow">@OperatorLabels.NeedsAttentionKind(selected.Kind) · <span id="selected-reference">@selected.Reference</span></p>
+                            <p class="eyebrow">@OperatorLabels.NeedsAttentionKind(selected.Kind) · <span id="selected-reference">@NeedsAttentionPresentation.ReferenceLabel(selected)</span></p>
                             <h2>@NeedsAttentionPresentation.TitleLabel(selected)</h2>
                             @if (NeedsAttentionPresentation.DetailLabel(selected) is { } lead)
                             {
