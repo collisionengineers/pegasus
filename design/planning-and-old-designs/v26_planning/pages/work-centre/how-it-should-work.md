@@ -20,7 +20,7 @@ Decisions taken with the operator on 13 September. Each line is a rule the FRD c
 
 ### D3. Every kind has a due instant
 
-Each kind carries a target so it ages. The targets are workflow settings on Administration › Configuration; the settings themselves, their defaults and validation are specified in [`../configuration/how-it-should-work.md`](../configuration/how-it-should-work.md). This page consumes them:
+Each kind carries a target so it ages. The targets are workflow settings on Administration › Configuration; the settings themselves, their defaults and validation are specified in [`../configuration/how-it-should-work.md`](../administration/configuration/how-it-should-work.md). This page consumes them:
 
 | Kind | Due instant |
 | --- | --- |
@@ -41,7 +41,7 @@ Fixed rules, not settings: calendar days; midnight Europe/London as the day boun
 
 ### D5. Hold carries an optional review date
 
-Place on Hold gains an optional "Review on" date. When given it is the held Case's due instant here; otherwise the Held decision target applies from the moment the hold was placed. The dialog and record change are specified in [`../case-record/dialogs/hold-release/how-it-should-work.md`](../case-record/dialogs/hold-release/how-it-should-work.md).
+Place on Hold gains an optional "Review on" date. When given it is the held Case's due instant here; otherwise the Held decision target applies from the moment the hold was placed. The dialog and record change are specified in [`../case-record/dialogs/hold-release/how-it-should-work.md`](../cases/case-record/dialogs/hold-release/how-it-should-work.md).
 
 ### D6. Adopted improvements (13 September)
 
@@ -50,16 +50,16 @@ P1 to P6, P8 and P9 are adopted as decisions. P7 (Blocked) was not adopted on 13
 - **P1. Group the list by due day** instead of a chip per row: headings "Overdue (3)", "Due today (5)", "Later (12)", each row keeping its relative due text. The D2 chips then only appear in the Today pane and the notifications menu.
 - **P2. Office and Mine.** A two-way switch above the list: Office (everything, as now) or Mine (rows whose owner is me, plus unowned rows of kinds I can take). Engineers open on Mine, Administrators and Users on Office. Remembered per person.
 - **P3. Kind filter** as chips across the top of the list: Case, Held, Review, Unassigned, Unidentified, Triage. Multi-select, counts on each.
-- **P4. The next action does the action.** Assign Engineer opens the Case's assignment dialog on the spot (see [`../case-record/how-it-should-work.md`](../case-record/how-it-should-work.md)); Review Case opens the Case at its Review decision; Open Triage opens the Triage. "Open full record" and the action button are the same link today, so one of them goes.
+- **P4. The next action does the action.** Assign Engineer opens the Case's assignment dialog on the spot (see [`../case-record/how-it-should-work.md`](../cases/case-record/how-it-should-work.md)); Review Case opens the Case at its Review decision; Open Triage opens the Triage. "Open full record" and the action button are the same link today, so one of them goes.
 - **P5. Freshness.** The snapshot is taken on load and never refreshed. Show "Updated 14:22", refresh when the tab regains focus and every five minutes, and a Refresh button. The mockup's rail already has the freshness indicator.
 - **P6. Received age on the row**: "Received 3 d ago" beside the owner, so a long-waiting item reads as such even before it is overdue.
 - **P7. Blocked opens Blocked** — superseded by D7.
-- **P8. Take it.** An "Assign to me" action on Unassigned Engineer rows for Engineers, and on Triage rows without an assignee, straight from the Today pane. The Case side is in [`../case-record/how-it-should-work.md`](../case-record/how-it-should-work.md), the Triage side in [`../triage/how-it-should-work.md`](../triage/how-it-should-work.md).
+- **P8. Take it.** An "Assign to me" action on Unassigned Engineer rows for Engineers, and on Triage rows without an assignee, straight from the Today pane. The Case side is in [`../case-record/how-it-should-work.md`](../cases/case-record/how-it-should-work.md), the Triage side in [`../triage/how-it-should-work.md`](../cases/triage/how-it-should-work.md).
 - **P9. Empty states per group**, so "Nothing overdue" is visible good news rather than an absent heading.
 
 ### D7. The Blocked metric is removed
 
-Blocked stops being an operator concept ([`../received-file/how-it-should-work.md`](../received-file/how-it-should-work.md)): refused material is a closed Unidentified item, unreadable material shows on its message, failed processing shows on Operations. The metric strip drops to four: Not ready, Review, Held, Unidentified.
+Blocked stops being an operator concept ([`../received-file/how-it-should-work.md`](../cases/received-file/how-it-should-work.md)): refused material is a closed Unidentified item, unreadable material shows on its message, failed processing shows on Operations. The metric strip drops to four: Not ready, Review, Held, Unidentified.
 
 The Mail kind (open Unidentified items) is unchanged by Unidentified widening: closed Unidentified items never appear here.
 
@@ -73,7 +73,7 @@ An AI job (FRD-11 § reviewed proposals) is a named piece of work an outside AI 
 
 The Work Centre gains an **AI jobs** section for the office's unfinished jobs: Queued, Taken (running, with the lease expiry), Draft ready, Failed. Each row: kind and detail, record, started by, created, state, and the action FRD-11 already defines per kind for Draft ready: **Review estimate** (opens the Case's Estimate section), **Open query** (opens the message), **Review** (opens the Unidentified item), **Complete job** for a Query response or queue pass. Failed shows the reason with Open Case; Cancel and Retry stay on Operations. Completed, Cancelled and Expired jobs are not shown here.
 
-Decided 13 September: **Draft ready is also a Needs attention kind** ("AI draft"), so it ages under D3 with its own target (AI draft target, default 1 day, a workflow setting: [`../configuration/how-it-should-work.md`](../configuration/how-it-should-work.md)). Its row action is the per-kind action above. It also appears on the Case record's Next action panel and raises a notification (D10). **Market research is excluded**: it never waits for a person, completes when its files are attached, and those files simply appear in the Case's Files as evidence, stored in Box like any other evidence ([`../case-record/how-it-should-work.md`](../case-record/how-it-should-work.md)).
+Decided 13 September: **Draft ready is also a Needs attention kind** ("AI draft"), so it ages under D3 with its own target (AI draft target, default 1 day, a workflow setting: [`../configuration/how-it-should-work.md`](../administration/configuration/how-it-should-work.md)). Its row action is the per-kind action above. It also appears on the Case record's Next action panel and raises a notification (D10). **Market research is excluded**: it never waits for a person, completes when its files are attached, and those files simply appear in the Case's Files as evidence, stored in Box like any other evidence ([`../case-record/how-it-should-work.md`](../cases/case-record/how-it-should-work.md)).
 
 ### D10. Notifications have a defined use
 

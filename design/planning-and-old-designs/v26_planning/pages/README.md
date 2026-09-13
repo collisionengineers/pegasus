@@ -1,35 +1,33 @@
 # v26 planning — pages
 
-One folder per page of the application as mocked in `../current/`. Each page folder holds `dialogs/`, `states/` and `panels/` for the pieces that belong to it. Drop notes, sketches and decisions for a page into its folder.
+One folder per page of the application as mocked in `../current/`. A page that is reached from another page is a subfolder of it (the Case record under Cases, the message under Inbox, every administration area under Administration). Each page folder holds `dialogs/`, `states/` and `panels/` for its own pieces, plus `how-it-works.md` and `how-it-should-work.md` once written.
 
-| Page | Mockup route | Live source |
-| --- | --- | --- |
-| [Sign in](sign-in/README.md) | `pegasus_shell_v26.html#/signin` | `src/Pegasus.Web/Pages/Account/Login.cshtml` |
-| [Connector consent](connector-consent/README.md) | `pegasus_shell_v26.html#/connect/authorize` | `src/Pegasus.Web/Pages/Connect/Authorize.cshtml` |
-| [Secure file request](public-upload/README.md) | `pegasus_shell_v26.html#/uploads/{token}` | `src/Pegasus.Web/Pages/Uploads` |
-| [Work Centre](work-centre/README.md) | `pegasus_shell_v26.html#/` | `src/Pegasus.Web/Pages/Index.cshtml` |
-| [Inbox](inbox/README.md) | `pegasus_shell_v26.html#/inbox` | `src/Pegasus.Web/Pages/Mail/Index.cshtml` |
-| [Message](message/README.md) | `pegasus_shell_v26.html#/inbox/{id}` | `src/Pegasus.Web/Pages/Mail/Message.cshtml` |
-| [Upload](upload/README.md) | `pegasus_shell_v26.html#/upload` | `src/Pegasus.Web/Pages/Upload` |
-| [Cases](cases/README.md) | `pegasus_shell_v26.html#/cases` | `src/Pegasus.Web/Pages/Cases/Index.cshtml` |
-| [Create case](create-case/README.md) | `pegasus_shell_v26.html#/cases/new` | `src/Pegasus.Web/Pages/Cases/Create.cshtml` |
-| [Case record](case-record/README.md) | `pegasus_case_workspace_v26.html` | `src/Pegasus.Web/Pages/Cases/Details.cshtml + Shared/_Case*.cshtml` |
-| [AI suggestions review](ai-suggestions/README.md) | `pegasus_shell_v26.html#/cases/{id}/suggestions` | `src/Pegasus.Web/Pages/Cases/Assessment/Suggestions.cshtml` |
-| [Triage](triage/README.md) | `pegasus_shell_v26.html#/triage/{id}` | `src/Pegasus.Web/Pages/Triage/Details.cshtml` |
-| [Unidentified](unidentified/README.md) | `pegasus_shell_v26.html#/unidentified/{id}` | `src/Pegasus.Web/Pages/Unidentified/Details.cshtml` |
-| [Image-initiated Case](image-initiated-case/README.md) | `pegasus_shell_v26.html#/images/{id}` | `src/Pegasus.Web/Pages/ImageIntake/Details.cshtml` |
-| [Received file](received-file/README.md) | `pegasus_shell_v26.html#/intake/{id}` | `src/Pegasus.Web/Pages/Intake/Details.cshtml` |
-| [Search](search/README.md) | `pegasus_shell_v26.html#/search` | `src/Pegasus.Web/Pages/Search/Index.cshtml` |
-| [Operations](operations/README.md) | `pegasus_shell_v26.html#/operations` | `src/Pegasus.Web/Pages/Operations` |
-| [Administration hub](administration/README.md) | `pegasus_shell_v26.html#/admin` | `src/Pegasus.Web/Pages/Administration` |
-| [Staff accounts](staff-accounts/README.md) | `pegasus_shell_v26.html#/admin/accounts` | `src/Pegasus.Web/Pages/Administration/Accounts` |
-| [Contacts](contacts/README.md) | `pegasus_shell_v26.html#/admin/contacts` | `src/Pegasus.Web/Pages/Administration/Principals + Contacts` |
-| [Configuration](configuration/README.md) | `pegasus_shell_v26.html#/admin/configuration` | `src/Pegasus.Web/Pages/Administration (rate cards, mailboxes, categories)` |
-| [Mail](mail-settings/README.md) | `pegasus_shell_v26.html#/admin/mail` | `src/Pegasus.Web/Pages/Administration/Mailboxes.cshtml` |
-| [Valuation presets](valuation-presets/README.md) | `pegasus_shell_v26.html#/admin/valuation-presets` | `src/Pegasus.Web/Pages/Administration/ValuationPresets` |
-| [Service health](service-health/README.md) | `pegasus_shell_v26.html#/admin/health` | `src/Pegasus.Web/Pages/Administration/Health` |
-| [Action logs](action-logs/README.md) | `pegasus_shell_v26.html#/admin/action-logs` | `src/Pegasus.Web/Pages/Administration/ActionLogs` |
-| [Reports](reports/README.md) | `pegasus_shell_v26.html#/admin/reports` | `src/Pegasus.Web/Pages/Administration/Reports` |
-| [AI jobs](ai-jobs/README.md) | `pegasus_shell_v26.html#/admin/ai-jobs` | `src/Pegasus.Web/Pages/Administration/AiJobs` |
-| [Automation](automation/README.md) | `pegasus_shell_v26.html#/admin/automation` | `src/Pegasus.Web/Pages/Administration/Automation` |
-| [Glass's credential](glass-credential/README.md) | `pegasus_shell_v26.html#/admin/accounts (Manage login)` | `src/Pegasus.Web/Pages/Administration/Glass/Index.cshtml` |
+- [Administration hub](administration/README.md) — [how it should work](administration/how-it-should-work.md)
+  - [AI jobs](administration/ai-jobs/README.md)
+  - [Automation](administration/automation/README.md)
+  - [Configuration](administration/configuration/README.md) — [how it works](administration/configuration/how-it-works.md) · [how it should work](administration/configuration/how-it-should-work.md)
+  - [Contacts](administration/contacts/README.md)
+  - [Action logs](administration/logs/README.md) — [how it should work](administration/logs/how-it-should-work.md)
+  - [Mail](administration/mail-settings/README.md)
+  - [Reports](administration/reports/README.md)
+  - [Service health](administration/service-health/README.md)
+  - [Staff accounts](administration/staff-accounts/README.md)
+    - [Glass's credential](administration/staff-accounts/glass-credential/README.md)
+  - [Valuation presets](administration/valuation-presets/README.md)
+- [Cases](cases/README.md) — [how it works](cases/how-it-works.md) · [how it should work](cases/how-it-should-work.md)
+  - [Case record](cases/case-record/README.md) — [how it should work](cases/case-record/how-it-should-work.md)
+    - [AI suggestions review](cases/case-record/ai-suggestions/README.md)
+  - [Create case](cases/create-case/README.md) — [how it should work](cases/create-case/how-it-should-work.md)
+  - [Image-initiated Case](cases/image-initiated-case/README.md) — [how it should work](cases/image-initiated-case/how-it-should-work.md)
+  - [Received file](cases/received-file/README.md) — [how it works](cases/received-file/how-it-works.md) · [how it should work](cases/received-file/how-it-should-work.md)
+  - [Triage](cases/triage/README.md) — [how it should work](cases/triage/how-it-should-work.md)
+  - [Unidentified](cases/unidentified/README.md) — [how it should work](cases/unidentified/how-it-should-work.md)
+- [Inbox](inbox/README.md) — [how it should work](inbox/how-it-should-work.md)
+  - [Message](inbox/message/README.md) — [how it should work](inbox/message/how-it-should-work.md)
+- [Operations](operations/README.md) — [how it works](operations/how-it-works.md) · [how it should work](operations/how-it-should-work.md)
+- [Search](search/README.md)
+- [Sign in](sign-in/README.md)
+  - [Connector consent](sign-in/connector-consent/README.md)
+- [Upload](upload/README.md) — [how it works](upload/how-it-works.md) · [how it should work](upload/how-it-should-work.md)
+  - [Secure file request](upload/public-upload/README.md)
+- [Work Centre](work-centre/README.md) — [how it works](work-centre/how-it-works.md) · [how it should work](work-centre/how-it-should-work.md)
