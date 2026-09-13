@@ -44,6 +44,15 @@ public static class NeedsAttentionPresentation
     };
 
     /// <summary>
+    /// The row's reference. A queue pass names no record, so its Core subject
+    /// token is printed as the operator's words for the queue.
+    /// </summary>
+    public static string ReferenceLabel(NeedsAttentionItem item) =>
+        item.Reference == Pegasus.Core.AiWork.AiJobPolicy.QueueSubjectReference
+            ? OperatorLabels.AiJobs.QueueRecord
+            : item.Reference;
+
+    /// <summary>
     /// The row's title. External work records its kind as the persisted
     /// snake_case code, so it is labelled through the same helper the
     /// Operations table's Work column already uses; every other kind's title
