@@ -4,9 +4,8 @@ metadata:
 services:
   web:
     project: ./src/Pegasus.Web
-    host: containerapp
+    host: appservice
     language: csharp
-    remoteBuild: true
   worker:
     project: ./src/Pegasus.Worker
     host: function

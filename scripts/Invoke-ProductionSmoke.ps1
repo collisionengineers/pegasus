@@ -11,6 +11,13 @@ param(
     [Parameter(Mandatory, ParameterSetName = 'WebAndWorker')]
     [string] $ExpectedVersion,
 
+    # SHA-256 of the approved web.zip from the release manifest. When the
+    # deployed package can be read back through Kudu it is compared; when it
+    # cannot, the script says so rather than claiming byte verification.
+    [Parameter(ParameterSetName = 'WebAndWorker')]
+    [ValidatePattern('^[0-9a-fA-F]{64}$')]
+    [string] $ExpectedWebPackageSha256,
+
     [Parameter(Mandatory)]
     [ValidatePattern('^rg-pegasus-prod$')]
     [string] $ResourceGroupName,
@@ -36,6 +43,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'PegasusPlatform.ps1')
 $expectedWorkerSettings = @(Get-PegasusWorkerDisabledSettingNames)
 $workerAppName = 'pegasus-prod-worker-252ow37gij'
+$webAppName = 'pegasus-prod-web-252ow37gij'
 
 $settingsJson = (& az functionapp config appsettings list `
     --subscription $SubscriptionId `
@@ -120,6 +128,122 @@ if (-not $ActivationOnly) {
 
 if ($WorkerOnly) {
     return
+}
+
+# ADR-0049: Web is a code-deployed App Service Web App. Read the site back
+# (read-only) and bind the smoke target to it before touching any endpoint.
+$webSiteJson = (& az webapp show `
+    --subscription $SubscriptionId `
+    --resource-group $ResourceGroupName `
+    --name $webAppName `
+    --query '{state:state,stack:siteConfig.linuxFxVersion,defaultHostName:defaultHostName,hostNames:hostNames,enabledHostNames:enabledHostNames,httpsOnly:httpsOnly}' `
+    --output json) -join "`n"
+if ($LASTEXITCODE -ne 0) {
+    throw "Unable to read the Web App $ResourceGroupName/$webAppName."
+}
+try { $webSite = $webSiteJson | ConvertFrom-Json }
+catch { throw 'The Web App read-back was not valid JSON.' }
+if ([string]$webSite.state -cne 'Running') {
+    throw "The Web App state is '$($webSite.state)', not Running."
+}
+if ([string]$webSite.stack -cne 'DOTNETCORE|10.0') {
+    throw "The Web App stack is '$($webSite.stack)', not DOTNETCORE|10.0."
+}
+if ($webSite.httpsOnly -ne $true) {
+    throw 'The Web App is not HTTPS only.'
+}
+$acceptedHosts = @(@($webSite.hostNames) + @($webSite.defaultHostName) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+if (@($acceptedHosts | Where-Object { [string]$_ -ieq $BaseUri.Host }).Count -eq 0) {
+    throw "The smoke target host '$($BaseUri.Host)' is not a hostname of the Web App ($($acceptedHosts -join ', '))."
+}
+Write-Output "Web App read-back passed: $webAppName is Running on $($webSite.stack) at $($webSite.defaultHostName)."
+
+$runFromPackage = (& az webapp config appsettings list `
+    --subscription $SubscriptionId `
+    --resource-group $ResourceGroupName `
+    --name $webAppName `
+    --query "[?name == 'WEBSITE_RUN_FROM_PACKAGE'].value | [0]" `
+    --output tsv) -join "`n"
+if ($LASTEXITCODE -ne 0 -or $runFromPackage.Trim() -cne '1') {
+    throw 'The Web App is not configured to run from the deployed package (WEBSITE_RUN_FROM_PACKAGE=1).'
+}
+
+# Deployment record (read-only ARM view of the Kudu deployment log). Status 4
+# is Kudu's Success. The record binds the site to the last zip deployment; it
+# does not carry the zip hash.
+$deploymentsJson = (& az rest --method get `
+    --url "https://management.azure.com/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.Web/sites/$webAppName/deployments?api-version=2024-04-01" `
+    --output json) -join "`n"
+if ($LASTEXITCODE -ne 0) {
+    throw "Unable to read the Web App deployment records for $webAppName."
+}
+$activeDeployment = $null
+try {
+    $deploymentRecords = @(($deploymentsJson | ConvertFrom-Json).value)
+    $activeDeployment = @($deploymentRecords | Where-Object { $_.properties.active -eq $true } | Select-Object -First 1)
+}
+catch { throw 'The Web App deployment record read-back was not valid JSON.' }
+if ($activeDeployment.Count -eq 1) {
+    $record = $activeDeployment[0]
+    if ([int]$record.properties.status -ne 4) {
+        throw "The active Web App deployment $($record.name) has status $($record.properties.status), not Success (4)."
+    }
+    Write-Output "Web App deployment record: $($record.name) succeeded at $($record.properties.end_time) ($($record.properties.deployer))."
+}
+else {
+    Write-Output 'Web App deployment record: none marked active was returned; the running bytes are proved only by /diagnostics/version below.'
+}
+
+# Deployed package bytes. Run-from-package keeps the uploaded zip under
+# /home/data/SitePackages and names the active one in packagename.txt. Kudu
+# accepts the caller's Entra token (basic publishing credentials are off).
+# Nothing else read-only exposes the zip hash, so this is best effort and says
+# which outcome occurred.
+if (-not [string]::IsNullOrWhiteSpace($ExpectedWebPackageSha256)) {
+    $scmHost = @($webSite.enabledHostNames | Where-Object { [string]$_ -like '*.scm.azurewebsites.net' } | Select-Object -First 1)
+    $packageVerified = $false
+    $packageDetail = 'no SCM hostname was reported for the Web App'
+    if ($scmHost.Count -eq 1) {
+        $packageName = (& az rest --method get `
+            --resource 'https://management.azure.com/' `
+            --url "https://$($scmHost[0])/api/vfs/data/SitePackages/packagename.txt" 2>$null) -join ''
+        if ($LASTEXITCODE -eq 0 -and $packageName.Trim() -match '^[A-Za-z0-9._-]+\.zip$') {
+            $packageName = $packageName.Trim()
+            $downloadPath = Join-Path ([IO.Path]::GetTempPath()) ("pegasus-deployed-web-" + [guid]::NewGuid().ToString('N') + '.zip')
+            try {
+                & az rest --method get `
+                    --resource 'https://management.azure.com/' `
+                    --url "https://$($scmHost[0])/api/vfs/data/SitePackages/$packageName" `
+                    --output-file $downloadPath 2>$null | Out-Null
+                if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $downloadPath -PathType Leaf)) {
+                    $deployedHash = (Get-FileHash -LiteralPath $downloadPath -Algorithm SHA256).Hash
+                    if (-not $deployedHash.Equals($ExpectedWebPackageSha256, [StringComparison]::OrdinalIgnoreCase)) {
+                        throw "The deployed package $packageName has SHA-256 $deployedHash; the approved web.zip is $($ExpectedWebPackageSha256.ToUpperInvariant())."
+                    }
+                    $packageVerified = $true
+                    $packageDetail = "$packageName SHA-256 equals the approved web.zip"
+                }
+                else {
+                    $packageDetail = "the active package $packageName could not be downloaded through Kudu"
+                }
+            }
+            finally {
+                Remove-Item -LiteralPath $downloadPath -Force -ErrorAction SilentlyContinue
+            }
+        }
+        else {
+            $packageDetail = 'Kudu did not return packagename.txt (token, permission or path)'
+        }
+    }
+    if ($packageVerified) {
+        Write-Output "Deployed Web package bytes verified: $packageDetail."
+    }
+    else {
+        Write-Output "Deployed Web package bytes NOT verified: $packageDetail. The running bytes are proved only by /diagnostics/version below."
+    }
+}
+else {
+    Write-Output 'Deployed Web package bytes NOT verified: no -ExpectedWebPackageSha256 was supplied. The running bytes are proved only by /diagnostics/version below.'
 }
 
 # Inbox intake liveness (MAIL-019). Releases 33 and 34 passed every gate above

@@ -1,9 +1,9 @@
 ---
 id: ADR-0015
-status: accepted
+status: superseded
 date: 2026-08-01
 supersedes: [ADR-0002, ADR-0007]
-superseded_by: []
+superseded_by: [ADR-0049]
 related_capabilities: []
 related_frd: []
 tags: [hosting, containerapps]

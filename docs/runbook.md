@@ -34,12 +34,14 @@ checkout, or evidence record.
 
 Release operations support an authorised Windows x64 or Linux x64 terminal
 with PowerShell 7 and native tools/storage throughout the run. The same script
-builds Web and Worker for Linux x64 and the OCI image for linux/amd64 from one
-exact clean release SHA. The self-contained migration bundle runs on the
+builds `web.zip` and `worker.zip` for Linux x64 from one exact clean release
+SHA; Web is deployed as that package to a Linux App Service Web App on the
+platform `DOTNETCORE|10.0` stack (ADR-0049) and the Worker to its Flex
+Consumption Function App. The self-contained migration bundle runs on the
 workstation: `win-x64`/`efbundle.exe` on Windows or `linux-x64`/`efbundle` on
 Linux. ADR-0039 owns that choice; ADR-0007 retains the direct-terminal order
-and approval boundaries. No Windows container or Docker daemon is needed to
-publish the Linux OCI archive.
+and approval boundaries. No container image, registry or image tooling is part
+of the release.
 
 Hosted workflow runner choices and their evidence limits are owned by
 [the executable CI workflow](../.github/workflows/ci.yml). Linux development
@@ -594,11 +596,12 @@ these live mailbox, tenant, permission or send operations.
 
 For a destructive migration, [ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md)
 requires more than disabled Functions: the old Worker must read back `Stopped`
-and the exact old Web revision must read back inactive with zero replicas before
-SQL. The release procedure stages only approved new Worker bytes while the old
-schema remains intact, then explicitly activates the compatible new Web and
-Worker after migration, grants and migration-head verification. A failed final
-activation is an unfinished outage, not a successful release.
+and the Web App must read back `Stopped` and unserved before SQL. The release
+procedure stages only approved new Worker bytes while the old schema remains
+intact, deploys the new Web package to the stopped Web App after migration,
+then explicitly starts the compatible new Web and Worker after grants and
+migration-head verification. A failed final activation is an unfinished
+outage, not a successful release.
 
 ## Automation OAuth certificate operation
 
@@ -623,10 +626,10 @@ The approved release operator supplies these deployment inputs:
 | `GLASS_REPAIR_PROFILE_ID` | Numeric MVA repair-estimate profile the account starts a new estimate against; `4063` for the current account. No default. |
 
 Bicep supplies the configured vault origin and indexed certificate URI settings
-to the Web container, and derives `Glass__CallbackBaseUri` from the Web ingress
-itself. These are references, never PFX bytes or passwords in the repository.
+to the Web App, and derives `Glass__CallbackBaseUri` from the Web App's own
+hostname. These are references, never PFX bytes or passwords in the repository.
 The Web host lists the four `Glass:*` keys among its Production required
-settings, so a revision deployed without them stops at startup naming the key;
+settings, so a Web App deployed without them stops at startup naming the key;
 the migration host is built the same way and must be handed the same values.
 Initial certificate creation is a separately authorized operator action; no
 secret is seeded. Each Engineer's own Glass's account name and password are
@@ -691,7 +694,7 @@ compatible artifact rollback from an authorized reset or roll-forward.
 
 After a destructive migration begins, [ADR-0046](adr/0046-destructive-migration-runtime-shutdown.md)
 requires forward-only recovery. Do not use the previous-artifact route to revive
-an old Web revision or old Worker package against the changed or unknown schema.
+an old Web package or old Worker package against the changed or unknown schema.
 The canonical [release procedure](../.agents/skills/pegasus-release/SKILL.md)
 owns the exact containment, migration, reactivation and smoke commands.
 
@@ -700,23 +703,24 @@ owns the exact containment, migration, reactivation and smoke commands.
 Rolling production back to the previous release's artifacts is a production
 mutation under the live-operation approval matrix: obtain exact-target
 approval first. Select the retained previous release manifest and its verified
-artifacts from the release workstation; match its hashes, image digest, source
-revision and version to the [retained release evidence](operations.md#retained-evidence-and-recovery-basis).
+artifacts from the release workstation; match its hashes, source revision and
+version to the [retained release evidence](operations.md#retained-evidence-and-recovery-basis).
 Read the current target and Worker activation before choosing any mutation.
 
-1. Web: set `PEGASUS_WEB_IMAGE_DIGEST` to the retained manifest's digest and
-   `PEGASUS_WEB_REVISION_SUFFIX` to a valid **unused 12-character suffix** in
-   the selected azd environment. Inventory existing revisions to confirm it
-   is unused; do not reuse the previous release's suffix. Run
-   `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision
+1. Web: run `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision
    -Environment <environment> -ManifestPath <retained-manifest>
    -WorkerActivation <desired-activation>
    -ExpectedLiveWorkerActivation <observed-activation>` and require exit 0.
    Activation values come from the approved recovery plan and live readback,
    not a copied example. Preview with `azd provision -e <environment>
    --preview --no-prompt`; stop if changes exceed the approved recovery scope.
-   Then provision once with `azd provision -e <environment> --no-prompt` and
-   verify the active digest, revision and traffic against the retained artifact.
+   Provision once with `azd provision -e <environment> --no-prompt` only when
+   the retained release's template or settings differ from the deployed ones.
+   Then deploy the retained package: `az webapp deploy --resource-group
+   rg-pegasus-prod --name pegasus-prod-web-252ow37gij --src-path
+   ./artifacts/releases/release-<n>-<sha>/web.zip --type zip --clean true
+   --restart true`, and verify `/diagnostics/version` reports the retained
+   source revision and version.
 2. Worker: `az functionapp deployment source config-zip --resource-group
    rg-pegasus-prod --name pegasus-prod-worker-252ow37gij --src
    ./artifacts/releases/release-<n>-<sha>/worker.zip`.
