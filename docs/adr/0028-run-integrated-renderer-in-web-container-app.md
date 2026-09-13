@@ -1,9 +1,9 @@
 ---
 id: ADR-0028
-status: accepted
+status: superseded
 date: 2026-08-19
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0049, ADR-0050]
 related_capabilities: [EXT-08, RPT-01, RPT-02]
 related_frd: [frd-11]
 tags: [architecture, renderer, chromium, container-apps, hosting]

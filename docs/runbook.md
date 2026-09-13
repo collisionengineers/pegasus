@@ -57,7 +57,6 @@ What Linux gives this project that Windows does not:
 | Runtime parity with production | Web and Worker deploy to Linux, so a Linux workstation runs the same runtime as the deployed application. |
 | A container runtime without Docker Desktop | The local database needs containers. |
 | `poppler-utils` (`pdftoppm`) | Available for optional local PDF raster inspection. |
-| `fonts-liberation` and `fonts-dejavu-core` | The exact fonts the renderer's container image installs, so local PDF glyph metrics match the deployed container. |
 | `perf` and `lldb` beside `dotnet-trace`, `dotnet-counters`, `dotnet-dump` and `dotnet-gcdump` | Deeper diagnosis for the `Performance` evidence profile. |
 | No long-path constraint | The repository's longest tracked relative path (about 122 characters) needs no configuration. |
 
@@ -112,11 +111,10 @@ No configuration is required. The path limit is 4096 characters, so the tracked 
 Pegasus supports a reproducible `Offline` profile on Windows or Linux with
 PowerShell 7.6.3 or later, .NET SDK 10.0.302, Python 3.11+, Node 24/npm 11, the
 repository-pinned Azurite 3.36.0, Functions Core Tools 4.12.1, the platform's
-supported SQL Server, a Development HTTPS certificate, and the package-pinned
-Playwright Chromium required by report rendering. It requires no Azure, Graph,
-Box, DVLA/DVSA, EVA, Infisical, cloud login, or vendor authentication. Package
-and renderer-dependency restoration may use package feeds; an initialized run's
-Start and Smoke paths do not.
+supported SQL Server, and a Development HTTPS certificate. It requires no
+Azure, Graph, Box, DVLA/DVSA, EVA, Infisical, cloud login, or vendor
+authentication. Package restoration may use package feeds; an initialized
+run's Start and Smoke paths do not.
 
 **Platform delta.** *Windows:* the database is SQL Server Express LocalDB, and
 the profile needs no container runtime. *Linux:* the database is a per-run SQL
@@ -175,9 +173,8 @@ pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Reset
 Doctor checks only its selected profile. It never installs software, trusts a
 certificate, signs in, calls a cloud/vendor endpoint, or creates resources; a
 failed check prints its exact repair command. Initialization restores the
-committed tool/package locks, installs the Playwright Chromium binary from the
-Infrastructure build output selected by the pinned package, checks the Offline
-profile, starts LocalDB, and creates only ignored local state.
+committed tool/package locks, checks the Offline profile, starts LocalDB, and
+creates only ignored local state.
 
 `Cloud` is a separate static prerequisite profile for an already-approved live
 operation. `pwsh ./scripts/Invoke-Doctor.ps1 -Profile Cloud` checks the pinned
@@ -185,9 +182,8 @@ CLI/module versions only; passing it neither signs in nor authorizes a read,
 write, deployment, or SQL bootstrap.
 
 Python creates no virtual environment and installs no package. The integrated
-report renderer requires package-pinned Playwright Chromium and its fonts at
-application runtime; the Web SDK container base supplies them. The local
-lifecycle installs Chromium from `src/Pegasus.Infrastructure/bin`.
+report renderer is a .NET library with its fonts embedded (ADR-0050); it needs
+no browser, system font, or separate install on any supported platform.
 
 ## Local setup and run
 
