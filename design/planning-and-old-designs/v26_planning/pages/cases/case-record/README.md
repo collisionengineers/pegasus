@@ -60,6 +60,8 @@
 - [62-create-audit-dialog.png](../../../current/v26-shots/62-create-audit-dialog.png)
 - [63-create-audit-linked.png](../../../current/v26-shots/63-create-audit-linked.png)
 - [64-audit-case.png](../../../current/v26-shots/64-audit-case.png)
+- [65-overview-record-notes.png](../../../current/v26-shots/65-overview-record-notes.png)
+- [66-overview-record-notes-edit.png](../../../current/v26-shots/66-overview-record-notes-edit.png)
 - [s06-cases.png](../../../current/v26-shots/s06-cases.png)
 - [s07-cases-triage.png](../../../current/v26-shots/s07-cases-triage.png)
 - [s08-cases-unidentified.png](../../../current/v26-shots/s08-cases-unidentified.png)

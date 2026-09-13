@@ -491,6 +491,8 @@ body:not(.is-editing) .edit-only,.case-section.is-locked .edit-only{display:none
 .audit-facts{display:grid;grid-template-columns:auto 1fr;gap:8px 18px;margin:0 0 12px;align-items:baseline}
 .audit-facts dt{font:600 10.5px var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
 .audit-facts dd{margin:0;font-size:13px}
+/* record notes */
+.rec-notes .fv.multi{background:var(--surface-2);border-left:2px solid var(--line-strong);padding:6px 8px;border-radius:2px}
 /* ---- Damage ---- */
 .damage-workbench{display:grid;grid-template-columns:minmax(220px,300px) minmax(260px,1fr);gap:14px;align-items:start}
 .damage-workbench:has(#carView[data-variant="side"]){grid-template-columns:minmax(280px,360px) minmax(260px,1fr)}
@@ -843,8 +845,12 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
               <div class="sub"><h3>Principal</h3>
                 <div class="fg">
                   <div class="fc ro idn"><span class="lbl">Principal<svg class="icon lk"><use href="#icon-lock"/></svg></span><div class="fv">QDOS Claims</div></div>
-                  <div class="fc"><label for="f-src">Claim source</label><div class="fv">Rapid Hire Solutions</div><select id="f-src" class="fi"><option>Rapid Hire Solutions</option><option>Direct</option><option>Other…</option></select></div>
+                  <div class="fc ro idn rec-notes" id="pNotesRec"><span class="lbl">Principal notes<svg class="icon lk"><use href="#icon-lock"/></svg></span><div class="fv multi">In hire via QDOS Rapid — check hire status at Triage. CC all reports to claims@qdosclaims.co.uk.</div></div>
+                  <div class="fc"><label for="f-pnotes">Principal notes · this Case</label><div class="fv multi">Triage 22 Jul: vehicle confirmed in hire since 21 Jul — expedite.</div><textarea id="f-pnotes" class="fi">Triage 22 Jul: vehicle confirmed in hire since 21 Jul — expedite.</textarea></div>
+                  <div class="fc"><label for="f-src">Claim source</label><div class="fv">Rapid Hire Solutions</div><select id="f-src" class="fi" onchange="srcNotes()"><option>Rapid Hire Solutions</option><option>Direct</option><option>Other…</option></select></div>
                   <div class="fc ro"><span class="lbl">Claim source contact</span><div class="fv">0151 496 0102 · claims@rapidhire.co.uk</div></div>
+                  <div class="fc ro idn rec-notes" id="sNotesRec"><span class="lbl">Claim source notes<svg class="icon lk"><use href="#icon-lock"/></svg></span><div class="fv multi">Prefer total loss. CC report to rhs-claims@outlook.com. WhatsApp group RHS.</div></div>
+                  <div class="fc"><label for="f-snotes">Claim source notes · this Case</label><div class="fv multi">Source advised in hire.</div><textarea id="f-snotes" class="fi">Source advised in hire.</textarea></div>
                 </div>
               </div>
               <div class="sub"><h3>Claimant</h3>
@@ -1951,6 +1957,10 @@ function clearAudit(){R.audit=null;localStorage.removeItem('v26.audit');writeOpe
 function showAsAudit(){R.asAudit=true;R.kind='audit';const ref=localStorage.getItem('v26.audit')||'ap.'+CASE_REF;document.querySelector('.ribbon-value').textContent=ref;document.title=ref+' · Pegasus — Case workspace v26 (mockup)';document.querySelectorAll('.fv.mono').forEach(e=>{if(e.textContent===CASE_REF)e.textContent=ref;});ME.id='ca1';ME.ref=ref;ME.route='/cases/ca1';setState('review');mockOn('.mock [data-kind]','audit');renderKind();renderBar();renderTabs();}
 {const _rb=renderBar;renderBar=function(){_rb();const bar=$('barActions');if(R.asAudit)bar.insertAdjacentHTML('afterbegin',`<a class="btn" href="${SHELL_PAGE}#/cases/c99"><span>Original case ${CASE_REF}</span></a>`);else if(R.audit)bar.insertAdjacentHTML('afterbegin',`<a class="btn" href="${SHELL_PAGE}#/cases/ca1"><span>Audit case ${R.audit.ref}</span></a>`);else if(canCreateAudit())bar.insertAdjacentHTML('afterbegin',`<button type="button" class="btn" onclick="openDlg('createAudit')"><svg class="icon"><use href="#icon-plus"/></svg><span>Create audit</span></button>`);};}
 {const _ri=replicaInit;replicaInit=function(){_ri();const saved=localStorage.getItem('v26.audit');if(saved&&!new URLSearchParams(location.search).get('audit')){R.kind='inspection_audit';R.audit={id:'ca1',ref:saved};mockOn('.mock [data-kind]','inspection_audit');}renderKind();renderBar();};}
+
+/* ---------- record notes: the Claim source record's notes follow the chosen source; absent when the source has none ---------- */
+const SRC_NOTES={'Rapid Hire Solutions':'Prefer total loss. CC report to rhs-claims@outlook.com. WhatsApp group RHS.'};
+function srcNotes(){const v=val('f-src');const row=$('sNotesRec');const n=SRC_NOTES[v]||'';row.hidden=!n;if(n)row.querySelector('.fv').textContent=n;}
 /* ================= init ================= */
 buildNav();markNav('overview');renderTabs();buildCar();renderAdds();adjWork();vatDefaults();renderEstTabs();renderGrid();renderImgs();outcomeChange(true);renderReport();syncReads();setState('engineer');renderGlass();renderProposal();dismissable();replicaInit();applyQuery();measure();
 document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'&&EDITING){e.preventDefault();saveEdit();}});

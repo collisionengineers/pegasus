@@ -31,6 +31,8 @@ f.onload=()=>{
     route('/cases');g("ACTIONS['select-case']({dataset:{id:'c99'}},{target:document.body})");
     route('/cases?tab=unidentified');g("ACTIONS['select-case']({dataset:{id:'u1'}},{target:document.body})");check('unidentified quick detail',has('No usable identification'));
     route('/search?claimant=Carter');check('search finds QDOS26214',has('QDOS26214'));
+    route('/admin/contacts');g("openDialog('contact-edit',{id:'k3'})");check('claim source contact carries notes on every Case',dlgOpen()&&d.querySelector('#dialog-root textarea#notes').value.includes('Prefer total loss'));dlgClose();
+    g("openDialog('principal-settings',{id:'p1'})");check('principal settings carry notes on every Case',dlgOpen()&&d.querySelector('#dialog-root textarea#notes').value.includes('check hire status'));dlgClose();
     route('/admin/contacts');g("S.contactFilter.type='Principal'");g('render()');check('contacts filter principals',!has('Copart Sandwich')&&has('QDOS'));g("S.contactFilter.type=''");
     route('/admin/valuation-presets');const n0=g('DATA.valuationPresets.length');g("DATA.valuationPresets.push({id:'vpx',name:'Test',amount:1,state:'active'})");g('render()');check('preset added renders',has('Test'));g("DATA.valuationPresets.pop()");
     route('/admin/accounts');g("openDialog('glass-credentials',{id:'gs4'})");check('glass dialog for unconfigured engineer',dlgOpen()&&!d.querySelector('#dialog-root').textContent.includes('Clear credential'));dlgClose();

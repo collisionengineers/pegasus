@@ -247,6 +247,11 @@ f.onload=()=>{
     check('replacement link opens the linked case',d.querySelector('#barActions a').getAttribute('href')==='pegasus_shell_v26.html#/cases/c3');
     w.setLink('original');check('original case link',$('barActions').textContent.includes('Original case'));
     w.setLink('none');w.setLife('none');
+    // record notes and Case notes (v24)
+    check('Principal record notes read-only with lock',!!d.querySelector('#pNotesRec .lk')&&$('pNotesRec').textContent.includes('check hire status'));
+    check('Claim source record notes read-only with lock',!!d.querySelector('#sNotesRec .lk')&&$('sNotesRec').textContent.includes('Prefer total loss'));
+    check('Case notes for principal and claim source are fields',!!$('f-pnotes')&&$('f-pnotes').tagName==='TEXTAREA'&&!!$('f-snotes')&&$('f-snotes').closest('.fc').querySelector('label').textContent.includes('this Case'));
+    $('f-src').value='Direct';w.srcNotes();check('a source without record notes shows none',$('sNotesRec').hidden);$('f-src').value='Rapid Hire Solutions';w.srcNotes();check('record notes return with the source',!$('sNotesRec').hidden);
     // case type and Create audit
     check('case type chip absent for Inspection',$('rbKind').hidden&&!$('barActions').textContent.includes('Create audit'));
     w.setKind('inspection_audit');check('Inspection + Audit shows the chip and Create audit',!$('rbKind').hidden&&$('rbKind').textContent==='Inspection + Audit'&&!!d.querySelector('#barActions .btn[onclick*="createAudit"]'));
