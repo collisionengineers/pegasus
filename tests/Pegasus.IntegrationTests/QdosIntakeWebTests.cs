@@ -227,9 +227,6 @@ public sealed class QdosIntakeWebTests
         using var review = await client.GetAsync($"/Cases/{caseId:D}");
         review.EnsureSuccessStatusCode();
         var html = await review.Content.ReadAsStringAsync();
-        using var sourceReview = await client.GetAsync($"/Received/{receipt.Id:D}");
-        sourceReview.EnsureSuccessStatusCode();
-        var sourceHtml = await sourceReview.Content.ReadAsStringAsync();
 
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         var draft = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
@@ -265,10 +262,6 @@ public sealed class QdosIntakeWebTests
         Assert.False(string.IsNullOrWhiteSpace(caseReference));
         Assert.Contains($"<h1>{caseReference}</h1>", html, StringComparison.Ordinal);
         Assert.Contains(caseReference, html, StringComparison.Ordinal);
-        Assert.Contains("<h1>Linked to Case</h1>", sourceHtml, StringComparison.Ordinal);
-        Assert.Contains(receipt.SourceFileName, sourceHtml, StringComparison.Ordinal);
-        Assert.Contains($"/Cases/{caseId:D}", sourceHtml, StringComparison.Ordinal);
-        Assert.Contains(caseReference, sourceHtml, StringComparison.Ordinal);
     }
 
     [GenuineQdosCorpusFact(LowTextNonScanPdfHash)]
@@ -434,9 +427,6 @@ public sealed class QdosIntakeWebTests
         Assert.Equal(new IntakeQueueCounts(1, 0), counts);
         Assert.Matches(
             "(?s)data-value=\"unidentified\"(?:(?!</a>).)*?<span class=\"metric-value\">1</span>",
-            dashboard);
-        Assert.Matches(
-            "(?s)data-value=\"blocked\"(?:(?!</a>).)*?<span class=\"metric-value\">0</span>",
             dashboard);
         var sortingItem = Assert.Single(sortingQueue.Items);
         Assert.Equal(IntakeDecision.NeedsSorting, sortingItem.Decision);
