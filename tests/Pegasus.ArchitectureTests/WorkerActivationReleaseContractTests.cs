@@ -143,7 +143,7 @@ public sealed class WorkerActivationReleaseContractTests
         Assert.Matches(@"dependsOn:\s*\[[^\]]*\bworkerDocumentIntelligenceUser\b", worker);
         Assert.Single(Regex.Matches(platformBicep, "name: 'DocumentIntelligence__Endpoint'"));
         var web = Regex.Match(
-            platformBicep, @"(?ms)^resource webContainerApp .*?^\}", RegexOptions.CultureInvariant).Value;
+            platformBicep, @"(?ms)^resource webApp .*?^\}", RegexOptions.CultureInvariant).Value;
         Assert.NotEmpty(web);
         Assert.DoesNotContain("DocumentIntelligence", web, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("output documentIntelligenceAccountId string = documentIntelligence.id", platformBicep);
@@ -524,9 +524,50 @@ public sealed class WorkerActivationReleaseContractTests
         var result = RunPreProvisionValidation(ValidPreProvisionEnvironment());
 
         Assert.Equal(0, result.ExitCode);
+        Assert.Contains("App Service quota pre-flight passed: B1 in uksouth has limit 1", result.Diagnostic, StringComparison.Ordinal);
         Assert.Contains("Azure deployment plan validation passed (PreProvision", result.Diagnostic, StringComparison.Ordinal);
+        Assert.Contains("Microsoft.Web/locations/uksouth/providers/Microsoft.Quota/quotas", result.AzureArguments, StringComparison.Ordinal);
         Assert.Contains("functionapp config appsettings list", result.AzureArguments, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void PreProvisionReadsTheQuotaOfTheChosenWebRegion()
+    {
+        var environment = ValidPreProvisionEnvironment();
+        environment["PEGASUS_WEB_LOCATION"] = "ukwest";
+
+        var result = RunPreProvisionValidation(environment, QuotaDocument(("*", 30)));
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("App Service quota pre-flight passed: B1 in ukwest has limit 30 (* row)", result.Diagnostic, StringComparison.Ordinal);
+        Assert.Contains("Microsoft.Web/locations/ukwest/providers/Microsoft.Quota/quotas", result.AzureArguments, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PreProvisionRejectsZeroAppServiceQuotaBeforeSmoke()
+    {
+        // ADR-0049: the 2026-09-13 read of the platform region showed every
+        // SKU at 0; a B1 row at 0 must stop provision even when v4 rows have
+        // quota, and the aggregate row must not rescue a present SKU row.
+        var result = RunPreProvisionValidation(
+            ValidPreProvisionEnvironment(),
+            QuotaDocument(("B1", 0), ("P0v4", 30), ("*", 0)));
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("App Service B1 quota in uksouth is 0 (B1 row)", result.Diagnostic, StringComparison.Ordinal);
+        Assert.Contains("P0v4=30", result.Diagnostic, StringComparison.Ordinal);
+        Assert.DoesNotContain("functionapp config appsettings list", result.AzureArguments, StringComparison.Ordinal);
+    }
+
+    private static string QuotaDocument(params (string Name, int Limit)[] rows) =>
+        JsonSerializer.Serialize(new
+        {
+            value = rows.Select(row => new
+            {
+                name = row.Name,
+                properties = new { limit = new { value = row.Limit }, name = new { value = row.Name }, unit = "Instances" }
+            })
+        });
 
     private static void AssertCensusRejected(
         IReadOnlyCollection<WorkerSetting> settings,
@@ -566,7 +607,8 @@ public sealed class WorkerActivationReleaseContractTests
     };
 
     private static PreProvisionResult RunPreProvisionValidation(
-        IReadOnlyDictionary<string, string> environment)
+        IReadOnlyDictionary<string, string> environment,
+        string? quotaDocument = null)
     {
         var repositoryRoot = FindRepositoryRoot();
         var testRoot = Path.Combine(Path.GetTempPath(), $"pegasus-preprovision-{Guid.NewGuid():N}");
@@ -577,10 +619,12 @@ public sealed class WorkerActivationReleaseContractTests
             var environmentPath = Path.Combine(testRoot, "environment.txt");
             var settingsPath = Path.Combine(testRoot, "worker-settings.json");
             var compiledTemplatePath = Path.Combine(testRoot, "compiled-template.json");
+            var quotaPath = Path.Combine(testRoot, "app-service-quota.json");
             var azureArgumentsPath = Path.Combine(testRoot, "azure-arguments.txt");
             File.WriteAllLines(environmentPath, environment.Select(item => $"{item.Key}={item.Value}"));
             File.WriteAllText(settingsPath, JsonSerializer.Serialize(ExactSettings("true")));
             File.WriteAllText(compiledTemplatePath, CompiledWorkerTemplate());
+            File.WriteAllText(quotaPath, quotaDocument ?? QuotaDocument(("B1", 1), ("*", 1)));
             WriteFakePreProvisionCommands(testRoot);
 
             var startInfo = new ProcessStartInfo
@@ -608,6 +652,7 @@ public sealed class WorkerActivationReleaseContractTests
             startInfo.Environment["PEGASUS_TEST_AZD_VALUES_PATH"] = environmentPath;
             startInfo.Environment["PEGASUS_TEST_AZ_SETTINGS_PATH"] = settingsPath;
             startInfo.Environment["PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH"] = compiledTemplatePath;
+            startInfo.Environment["PEGASUS_TEST_AZ_QUOTA_PATH"] = quotaPath;
             startInfo.Environment["PEGASUS_TEST_AZ_ARGUMENTS_PATH"] = azureArgumentsPath;
 
             using var process = Process.Start(startInfo)
@@ -651,6 +696,7 @@ public sealed class WorkerActivationReleaseContractTests
                 "@echo off\r\n" +
                 ">> \"%PEGASUS_TEST_AZ_ARGUMENTS_PATH%\" echo %*\r\n" +
                 "echo %* | findstr /c:\"bicep build\" >nul && (type \"%PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH%\" & exit /b 0)\r\n" +
+                "echo %* | findstr /c:\"Microsoft.Quota\" >nul && (type \"%PEGASUS_TEST_AZ_QUOTA_PATH%\" & exit /b 0)\r\n" +
                 "type \"%PEGASUS_TEST_AZ_SETTINGS_PATH%\"\r\n");
             File.WriteAllText(
                 Path.Combine(testRoot, "azd.cmd"),
@@ -664,7 +710,7 @@ public sealed class WorkerActivationReleaseContractTests
             azPath,
             "#!/bin/sh\n" +
             "printf '%s\\n' \"$*\" >> \"$PEGASUS_TEST_AZ_ARGUMENTS_PATH\"\n" +
-            "case \"$*\" in *'bicep build'*) cat \"$PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH\";; *) cat \"$PEGASUS_TEST_AZ_SETTINGS_PATH\";; esac\n");
+            "case \"$*\" in *'bicep build'*) cat \"$PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH\";; *'Microsoft.Quota'*) cat \"$PEGASUS_TEST_AZ_QUOTA_PATH\";; *) cat \"$PEGASUS_TEST_AZ_SETTINGS_PATH\";; esac\n");
         File.SetUnixFileMode(azPath, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         var azdPath = Path.Combine(testRoot, "azd");
         File.WriteAllText(azdPath, "#!/bin/sh\ncat \"$PEGASUS_TEST_AZD_VALUES_PATH\"\n");
