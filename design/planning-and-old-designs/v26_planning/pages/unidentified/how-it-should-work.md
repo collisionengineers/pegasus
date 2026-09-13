@@ -10,4 +10,6 @@ Decisions landing on Unidentified from other pages' planning. Unidentified's own
 | Received file D2 | Link to Case links the message or file, never a receipt | Link to Case |
 | Work Centre D3 | an Unidentified item is due received + Unidentified target (default 0 days) | the Work Centre row; no change here |
 
+**Definition change (Received file D5).** Unidentified is everything a person has to sort: material whose identity, meaning, ownership or destination cannot be established, *and* readable material that must not become a Case. Close with reason is the one refusal in the system. This is a glossary change for CONTEXT.md and FRD-02 when the FRD is written.
+
 Open: a reason vocabulary for Close with reason (Duplicate, Not for us, Spam, Refused) or free text.

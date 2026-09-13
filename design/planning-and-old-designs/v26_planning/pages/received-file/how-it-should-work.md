@@ -17,7 +17,7 @@ Decided with the operator on 13 September 2026.
 | Create a case from this item | Create case | as now |
 | Link / Unlink selected Case | Unidentified › Link to Case; Case › Files › Add evidence | the receipt is never the thing being linked, the message or file is |
 | Registration reading results, Dismiss suggestion, Register images, Open the Triage | Unidentified record and the image record | see [`../unidentified/how-it-should-work.md`](../unidentified/how-it-should-work.md) |
-| Retry allocation, Re-evaluate with current policy, Retry OCR | Administration › Logs › Intake log, on the row | technical, Administrator-only |
+| Retry allocation, Re-evaluate with current policy, Retry OCR | Operations, as failed processing with the action on the row (Work Centre D1); the same actions on the Intake log row, which also holds the history | technical; Operations is where a failure is noticed, the Intake log is where its past is read |
 | Inspection-address confirmation, instruction details, suggested fields, decision evidence | Create case (seeded) shows the suggested values; the evidence is in the Intake log | no operator needs the evidence panel to do their job |
 | Scanned PDF pages, assets | the file viewer, opened from the message or the Case | the original, not the receipt |
 | "View received item" links on Triage, Unidentified and image records | "Open message" or "Open file": the Inbox message, or the original in the viewer | never the receipt |
@@ -31,6 +31,14 @@ Decided with the operator on 13 September 2026.
 ## D4. The Work Centre's Blocked metric goes
 
 With Blocked gone as an operator concept the metric is removed. Refused material is a closed Unidentified item and is counted nowhere; unreadable material shows on its message; failed processing shows on Operations. The Work Centre decision that kept the metric unchanged (P7, not adopted) is superseded; see [`../work-centre/how-it-should-work.md`](../work-centre/how-it-should-work.md).
+
+## D5. Unidentified widens
+
+Unidentified becomes everything a person has to sort, including material that is readable but must not become a Case. Its Close with reason is the one "no" in the system. The glossary entry ("cannot be established") widens accordingly and "Blocked intake" leaves CONTEXT.md; see [`../unidentified/how-it-should-work.md`](../unidentified/how-it-should-work.md).
+
+## D6. Automation is unchanged
+
+The MCP intake tools keep reading and writing receipt decisions on the record. Nothing operator-facing depends on the decision vocabulary any more, so the record can keep it.
 
 ## Open
 
