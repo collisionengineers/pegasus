@@ -1,108 +1,90 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Documents
+@using Pegasus.Web.Pages.Cases
 @using Pegasus.Web.Presentation
+@using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
     var leaseToken = Model.RenderLeaseToken;
     var mayEdit = Model.CanEditCaseData;
-    // Every current file, whatever its custody has reached. The row already
-    // carries the custody chip, so a file that is still being stored or whose
-    // storage failed says so here instead of being left off the tab entirely.
-    var files = CaseFiles.Current(details.Documents);
-    // U5a: an image is croppable whenever this browser holds the Case edit
-    // lease, not only in report preparation. The Review-state case that showed
-    // no Crop anywhere was this gate reading CanEditEngineering.
-    var mayPrepareImages = mayEdit && details.Data is not null;
-    var preparableOccurrences = Model.AssetPreparations
-        .Select(preparation => preparation.OccurrenceId)
-        .ToHashSet();
+    // Every current non-image file, whatever its custody has reached. The row
+    // carries the custody chip, so a file still being stored or whose storage
+    // failed says so here instead of being left off the tab (DOCS-012).
+    var files = Model.CaseDocumentFiles;
 }
 
-@* The Files section's Documents tab: every live file as a row. The panel, its
-   header actions and the tab strip are the enclosing _CaseFiles's. *@
-@if (files.Count > 0)
+@* The Files section's Documents tab: every live file as a row (v26 `.doc-row`).
+   View opens the viewer for a file the browser renders (image, PDF, admitted
+   video); Save as is the audited download; Remove asks for a reason. *@
+@if (files.Count == 0)
 {
-    <div class="panel-body">
-        <div class="document-list" data-evidence-set>
-            @foreach (var entry in files)
-            {
-                var occurrence = entry.Occurrence;
-                var version = entry.Version;
-                var previewHref = Url.Page(
-                    "/Cases/Documents/Download",
-                    new
+    <p class="muted" data-documents-empty>@FilesLabels.NoDocuments</p>
+}
+else
+{
+    <div class="doc-list stack" data-evidence-set data-document-list>
+        @foreach (var entry in files)
+        {
+            var occurrence = entry.Occurrence;
+            var version = entry.Version;
+            var mayRead = version.CustodyStatus == DocumentCustodyStatus.Confirmed;
+            var viewable = mayRead && Pegasus.Web.Pages.Cases.DetailsModel.IsViewable(version.MediaType);
+            var isMarketResearch = occurrence.Tags.Any(tag => tag.TagId == ImageTagVocabulary.MarketResearchId)
+                || occurrence.SourceOccurrenceIdentity.StartsWith("market-research:", StringComparison.Ordinal);
+            var isMail = occurrence.SemanticRole == DocumentSemanticRole.Correspondence
+                || occurrence.Source == DocumentSource.ExternalCorrespondence;
+            <div class="doc-row" data-document-row="@occurrence.Id">
+                <svg class="icon" aria-hidden="true"><use href="#@(isMail ? "icon-mail" : "icon-file-text")" /></svg>
+                <div class="doc-row-name">
+                    <b>@version.FileName</b>
+                    <small>@OperatorLabels.DocumentOrigin(occurrence.Source) · @OperatorLabels.OfficeTime(occurrence.RecordedAtUtc) · @OperatorLabels.FileSize(version.ContentLength)</small>
+                </div>
+                <span class="doc-row-tags">
+                    @if (isMarketResearch)
                     {
-                        caseId = workflow.CaseId,
-                        occurrenceId = occurrence.Id,
-                        versionId = version.Id,
-                        inline = true
-                    })!;
-                var downloadHref = Url.Page(
-                    "/Cases/Documents/Download",
-                    new
+                        <span class="src-tag src-tag--ai" data-market-research>@ImageTagVocabulary.MarketResearchName</span>
+                    }
+                    else
                     {
-                        caseId = workflow.CaseId,
-                        occurrenceId = occurrence.Id,
-                        versionId = version.Id
-                    })!;
-                // Neither read can be served before the bytes are durably
-                // held, so an unstored row shows its state and its removal
-                // rather than two links that answer 503.
-                var mayRead = version.CustodyStatus == DocumentCustodyStatus.Confirmed;
-                var mayCrop = mayPrepareImages
-                    && occurrence.SemanticRole == DocumentSemanticRole.Image
-                    && preparableOccurrences.Contains(occurrence.Id)
-                    && (version.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
-                        || version.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase));
-                <div class="document-row">
-                    <span class="document-icon">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
-                    </span>
-                    <div>
-                        <strong>@version.FileName</strong>
-                        <small>
-                            @OperatorLabels.DocumentRole(occurrence.SemanticRole)
-                            · @OperatorLabels.FileSize(version.ContentLength)
-                            · @OperatorLabels.DocumentOrigin(occurrence.Source)
-                            · @OperatorLabels.OfficeTime(occurrence.RecordedAtUtc)
-                        </small>
-                    </div>
-                    <span class="cluster">
-                        <partial name="Shared/_StatusChip" model="@OperatorLabels.CustodyState(version.CustodyStatus)" />
-                    </span>
-                    <span class="cluster">
-                        @* DOCS-011: the same authorised route displays or
-                           saves depending on the flag, so preview and save
-                           are two URLs, not two capabilities. The preview
-                           link is the viewer's trigger. *@
-                        @if (mayRead)
+                        <span class="src-tag">@OperatorLabels.DocumentRole(occurrence.SemanticRole)</span>
+                    }
+                    @if (!mayRead)
+                    {
+                        <span class="status @(version.CustodyStatus == DocumentCustodyStatus.Failed ? "status--red" : "status--amber") status--plain">@(version.CustodyStatus == DocumentCustodyStatus.Failed ? FilesLabels.StorageNotReady : OperatorLabels.CustodyState(version.CustodyStatus))</span>
+                    }
+                </span>
+                <span class="doc-row-actions">
+                    @if (mayRead)
+                    {
+                        @* DOCS-011: the same authorised route displays or saves
+                           depending on the flag; the preview link is the
+                           viewer's trigger and stays a real link without script. *@
+                        @if (viewable)
                         {
                             <a class="btn btn--small"
-                               href="@previewHref"
+                               href="@Model.PreviewUrl(entry)"
                                data-evidence-item
-                               data-download-href="@downloadHref"
+                               data-download-href="@Model.DownloadUrl(entry)"
                                data-media-type="@version.MediaType"
-                               data-file-name="@version.FileName"
-                               data-evidence-preparation-occurrence="@(mayCrop ? occurrence.Id.ToString() : null)">
+                               data-file-name="@version.FileName">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
-                                <span>@OperatorLabels.CaseWorkspace.Preview</span>
-                            </a>
-                            <a class="btn btn--small" href="@downloadHref" download>
-                                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                                <span>@OperatorLabels.CaseWorkspace.SaveAs</span>
+                                <span>@FilesLabels.View</span>
                             </a>
                         }
-                        @if (mayEdit)
-                        {
-                            <button type="button" class="btn btn--small btn--danger" data-dialog-open="remove-doc-@occurrence.Id" aria-label="Remove @version.FileName">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
-                            </button>
-                        }
-                    </span>
-                </div>
-            }
-        </div>
+                        <a class="btn btn--small btn--icon" href="@Model.DownloadUrl(entry)" download title="@OperatorLabels.CaseWorkspace.SaveAs" aria-label="@OperatorLabels.CaseWorkspace.SaveAs @version.FileName">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                        </a>
+                    }
+                    @if (mayEdit)
+                    {
+                        <button type="button" class="btn btn--small btn--icon btn--danger" data-dialog-open="remove-doc-@occurrence.Id" title="@FilesLabels.Remove" aria-label="@FilesLabels.Remove @version.FileName">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
+                        </button>
+                    }
+                </span>
+            </div>
+        }
     </div>
 
     @if (mayEdit)
@@ -110,18 +92,17 @@
         @foreach (var entry in files)
         {
             var occurrence = entry.Occurrence;
-            var version = entry.Version;
             <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
             {
                 ["DialogId"] = $"remove-doc-{occurrence.Id}",
-                ["DialogTitle"] = "Remove file",
+                ["DialogTitle"] = FilesLabels.RemoveFile,
                 ["DialogActionUrl"] = Url.Page("/Cases/Custody", "RemoveDocument", new { id = workflow.CaseId }),
                 ["DialogHiddenFields"] = new Dictionary<string, string?>
                 {
                     ["id"] = workflow.CaseId.ToString(),
                     ["occurrenceId"] = occurrence.Id.ToString(),
                     ["expectedVersion"] = workflow.Version.ToString(),
-                    ["operationKey"] = Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey(),
+                    ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
                     ["editLeaseToken"] = leaseToken
                 }
             })" />

@@ -46,6 +46,12 @@ public sealed partial class CaseDetailsWebTests
         var save = Assert.Single(valuations.Saves);
         AssertLeasedMutation(workspace, save, operationKey, "Valuation recorded.");
         Assert.Equal(store.CaseVersion, save.ExpectedVersion);
+        // v25 decision F: the valuation is an immediate post inside the
+        // session, so the record re-acquires the lease the store's mutation
+        // cleared and the editor stays editing.
+        Assert.Equal(2, store.Claims.Count);
+        Assert.All(store.Claims, claim => Assert.Equal(store.Claims[0].Actor.SubjectId, claim.Actor.SubjectId));
+        Assert.Equal(store.LeaseToken, InputValue(await workspace.GetWorkspaceAsync(), "editLeaseToken"));
         Assert.Equal(
             new ValuationDetails(
                 ValuationSource.Glasses,

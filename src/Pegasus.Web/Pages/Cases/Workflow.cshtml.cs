@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Cases;
@@ -19,6 +20,7 @@ public sealed class WorkflowModel(
     IReleaseCase releaseCase,
     ITransitionCase transitionCase,
     IAssignCaseEngineer assignEngineer,
+    IAssignCaseToMe assignToMe,
     ISetCaseSignOffEngineer setSignOffEngineer,
     IRecordEngineerFinding recordEngineerFinding,
     ICreateLinkedReplacement createLinkedReplacement,
@@ -122,6 +124,25 @@ public sealed class WorkflowModel(
                         evidenceReference)),
                 cancellationToken),
             "The case was handed to the Engineer.");
+
+    /// <summary>
+    /// "Assign to me" (P8): the ordinary assignment with the actor as the
+    /// Engineer, from the assignment dialog. Core decides eligibility.
+    /// </summary>
+    public Task<IActionResult> OnPostAssignToMeAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandAsync(
+            id,
+            editLeaseToken,
+            "assign_to_me",
+            actor => assignToMe.ExecuteAsync(
+                new(id, expectedVersion, actor, operationKey, editLeaseToken),
+                cancellationToken),
+            "The case was assigned to you.");
 
     public Task<IActionResult> OnPostSetSignOffEngineerAsync(
         Guid id,

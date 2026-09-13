@@ -225,12 +225,23 @@ public sealed class GlassRepairEstimateCallbackWebTests
     {
         await using var workspace = await Workspace.CreateAsync();
         await workspace.ClaimLeaseAsync();
-        using (var first = await workspace.LaunchAsync())
+        // v26 G: the head carries one Glass's slot, which reads Resume while a
+        // session holds the account — so the second launch is the form the
+        // page rendered before the first, posted again as its own action.
+        var launchForm = await workspace.LaunchFormAsync();
+        using (var first = await workspace.PostAsync("LaunchGlass", launchForm))
         {
             Assert.Equal(HttpStatusCode.Found, first.StatusCode);
         }
+        var liveHtml = await workspace.CaseHtmlAsync();
+        Assert.DoesNotContain("handler=LaunchGlass", liveHtml, StringComparison.Ordinal);
+        Assert.Contains("data-glass-slot=\"resume\"", liveHtml, StringComparison.Ordinal);
 
-        using var second = await workspace.PostAsync("LaunchGlass", await workspace.LaunchFormAsync());
+        var secondForm = new Dictionary<string, string>(launchForm, StringComparer.Ordinal)
+        {
+            ["operationKey"] = Guid.NewGuid().ToString("N"),
+        };
+        using var second = await workspace.PostAsync("LaunchGlass", secondForm);
 
         // Back to the Estimate section, not out to the provider.
         await AssertHandsBackToTheEstimateSectionAsync(second, workspace.CaseId);

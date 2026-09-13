@@ -301,52 +301,56 @@ public sealed partial class CaseDetailsWebTests
     ];
 
     /// <summary>
-    /// The Report section states the same prepared set in the report's own
-    /// order — Close-up, Overview, then Supporting by order — and omits the
-    /// images the report does not use.
+    /// The Report section states the prepared set in the report's own order —
+    /// Close-up, Overview, then Supporting by order — and omits the images the
+    /// report does not use. v26: that set is the preparation cards, shown
+    /// inside the edit session; the "Images in report" strip above them names
+    /// every readable image, the unused one switched off, in both modes.
     /// </summary>
     [Fact]
     public async Task TheReportSectionStatesThePreparedSetInReportOrderAndOmitsUnusedImages()
     {
         var fixture = new PreparedImages();
         var store = fixture.Store();
-        using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                Substitute<IGetCase>(services, store);
-                Substitute<ICaseAssetPreparationQueries>(services, store);
-            }));
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
         {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
+            Substitute<ICaseAssetPreparationQueries>(services, store);
         });
 
-        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=report");
+        var html = await workspace.GetWorkspaceAsync();
         var panel = Section(html, "section-report-title");
+        var cards = ReportImageCards(panel);
 
         var order = new[]
         {
             CloseUpFileName, OverviewFileName, FirstSupportingFileName, SecondSupportingFileName
         }
-            .Select(fileName => panel.IndexOf(fileName, StringComparison.Ordinal))
+            .Select(fileName => cards.IndexOf(fileName, StringComparison.Ordinal))
             .ToArray();
         Assert.All(order, position => Assert.True(position >= 0, "Every prepared image is named on the report cards."));
         Assert.Equal(order.OrderBy(position => position), order);
-        Assert.DoesNotContain(UnusedFileName, panel, StringComparison.Ordinal);
-        Assert.DoesNotContain(ReportImageLabels.RoleLabel(CaseAssetReportRole.NotUsed), panel, StringComparison.Ordinal);
+        Assert.DoesNotContain(UnusedFileName, cards, StringComparison.Ordinal);
 
-        var visible = WebUtility.HtmlDecode(VisibleText(panel));
+        var visible = WebUtility.HtmlDecode(VisibleText(cards));
         Assert.Contains(ReportImageLabels.RotationLabel(CaseAssetRotation.Clockwise90), visible, StringComparison.Ordinal);
         Assert.Contains(ReportImageLabels.CropLabel(fixture.OverviewCrop), visible, StringComparison.Ordinal);
         Assert.Contains(ReportImageLabels.FullFrame, visible, StringComparison.Ordinal);
+
+        // The strip: every image, four of them in the report, the unused one off.
+        var strip = ReportImageStrip(panel);
+        Assert.Contains(UnusedFileName, strip, StringComparison.Ordinal);
+        Assert.Contains(
+            $"data-report-image=\"{fixture.UnusedOccurrenceId:D}\" data-report-image-role=\"{CaseAssetReportRole.NotUsed}\"",
+            strip,
+            StringComparison.Ordinal);
+        Assert.Contains("data-report-image-count>4 of 5 ", panel, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// B08: the read-only Report cards state the prepared values and nothing
-    /// that could change one — no control and no drag hook — while this
-    /// browser holds no edit lease.
+    /// B08 / v26: while this browser holds no edit lease the Report section
+    /// draws no preparation card at all, and the "Images in report" strip
+    /// names the images with nothing that could change one — no control, no
+    /// toggle hook and no drag hook.
     /// </summary>
     [Fact]
     public async Task TheReportCardsCarryNoControlWithoutTheLease()
@@ -367,16 +371,20 @@ public sealed partial class CaseDetailsWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=report");
-        var cards = ReportImageCards(Section(html, "section-report-title"));
+        var panel = Section(html, "section-report-title");
+        var strip = ReportImageStrip(panel);
 
-        Assert.Contains(CloseUpFileName, cards, StringComparison.Ordinal);
-        Assert.Contains(FirstSupportingFileName, cards, StringComparison.Ordinal);
-        Assert.DoesNotContain("<form", cards, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<button", cards, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<select", cards, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<input", cards, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("draggable", cards, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("data-preparation-version", cards, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-preparation", panel, StringComparison.Ordinal);
+        Assert.Empty(ReportImageCards(panel));
+        Assert.Contains(CloseUpFileName, strip, StringComparison.Ordinal);
+        Assert.Contains(FirstSupportingFileName, strip, StringComparison.Ordinal);
+        Assert.DoesNotContain("<form", strip, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<button", strip, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<select", strip, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<input", strip, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("draggable", strip, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-report-image-toggle", strip, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-preparation-", panel, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -514,6 +522,17 @@ public sealed partial class CaseDetailsWebTests
         }
     }
 
+    /// <summary>The Report section's "Images in report" strip (v26) and nothing around it.</summary>
+    private static string ReportImageStrip(string panel)
+    {
+        var marker = panel.IndexOf("data-report-images-strip", StringComparison.Ordinal);
+        Assert.True(marker >= 0, "The Images in report strip is not rendered.");
+        var start = panel.LastIndexOf("<div", marker, StringComparison.Ordinal);
+        var end = panel.IndexOf("</div>", marker, StringComparison.Ordinal);
+        Assert.True(end > start, "The Images in report strip is not closed.");
+        return panel[start..end];
+    }
+
     /// <summary>
     /// The Files section's image grid and nothing around it, so an assertion
     /// about the tiles is never answered by the document rows or the upload
@@ -521,8 +540,9 @@ public sealed partial class CaseDetailsWebTests
     /// </summary>
     private static string ImageGrid(string html)
     {
-        var start = html.IndexOf("<ul class=\"gallery image-grid\"", StringComparison.Ordinal);
-        Assert.True(start >= 0, "The Images tab grid is not rendered.");
+        var marker = html.IndexOf("data-image-grid>", StringComparison.Ordinal);
+        Assert.True(marker >= 0, "The Images tab grid is not rendered.");
+        var start = html.LastIndexOf("<ul", marker, StringComparison.Ordinal);
         var end = html.IndexOf("</ul>", start, StringComparison.Ordinal);
         Assert.True(end > start, "The Images tab grid is not closed.");
         return html[start..end];

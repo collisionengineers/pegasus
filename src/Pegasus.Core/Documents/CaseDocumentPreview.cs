@@ -65,7 +65,17 @@ public sealed record CaseDocumentThumbnailRequest(
     Guid VersionId,
     string Sha256,
     long ContentLength,
-    string MediaType);
+    string MediaType,
+    CaseAssetRotation Rotation = CaseAssetRotation.None,
+    CaseAssetCrop? Crop = null)
+{
+    /// <summary>
+    /// The prepared region the tile shows (v26 § Crop and tag): the occurrence's
+    /// whole-turn rotation and the crop as fractions of the rotated source, or
+    /// the whole image when nothing is prepared. Download keeps the original.
+    /// </summary>
+    public bool IsPrepared => Rotation != CaseAssetRotation.None || Crop is { IsFull: false };
+}
 
 public sealed record CaseDocumentThumbnail(
     Stream Content,
@@ -112,6 +122,25 @@ public static class CaseDocumentThumbnails
 
     /// <summary>The request value that asks for the derived rendering.</summary>
     public const string ThumbSizeToken = "thumb";
+
+    /// <summary>
+    /// The variant one rendering is cached and validated under: the plain
+    /// gallery rendering, or the prepared region of the rotated source. A
+    /// changed crop is a different variant, so a tile can never be served an
+    /// earlier crop from the cache.
+    /// </summary>
+    public static string VariantToken(CaseAssetRotation rotation, CaseAssetCrop? crop)
+    {
+        var region = crop ?? CaseAssetCrop.Full;
+        if (rotation == CaseAssetRotation.None && region.IsFull)
+        {
+            return $"thumb-{LongestEdge}";
+        }
+
+        return string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"thumb-{LongestEdge}-r{(int)rotation}-c{region.Left:0.#######}-{region.Top:0.#######}-{region.Width:0.#######}-{region.Height:0.#######}");
+    }
 
     /// <summary>
     /// Whether this media type has a derived thumbnail. SVG is excluded for the

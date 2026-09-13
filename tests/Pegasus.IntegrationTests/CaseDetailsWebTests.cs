@@ -279,10 +279,12 @@ public sealed partial class CaseDetailsWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
-        var queries = Section(html, "case-queries-title");
+        // v26: the retained query mail is the Files section's Correspondence
+        // tab, counted on its tab and listed as a plain table.
+        Assert.Contains("data-file-tab=\"correspondence\">Correspondence · 2<", html, StringComparison.Ordinal);
+        var queries = Correspondence(html);
         var visible = WebUtility.HtmlDecode(VisibleText(queries));
 
-        Assert.Contains("Queries", visible, StringComparison.Ordinal);
         foreach (var heading in new[] { "Received", "Sender", "Subject", "Classification" })
         {
             Assert.Contains(heading, visible, StringComparison.Ordinal);
@@ -322,8 +324,9 @@ public sealed partial class CaseDetailsWebTests
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
 
-        Assert.DoesNotContain("case-queries-title", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">Queries<", html, StringComparison.Ordinal);
+        Assert.Contains("data-file-tab=\"correspondence\">Correspondence · 0<", html, StringComparison.Ordinal);
+        Assert.Contains("data-correspondence-empty", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-correspondence-row", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Raise a query", html, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -372,7 +375,7 @@ public sealed partial class CaseDetailsWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
-        var panel = Section(html, "case-upload-requests-title");
+        var panel = UploadRequests(html);
         var visible = WebUtility.HtmlDecode(VisibleText(panel));
 
         foreach (var heading in new[] { "Recipient", "Reason", "State", "Created", "Expires", "Accepted" })
@@ -398,8 +401,11 @@ public sealed partial class CaseDetailsWebTests
             Substitute<ICreateRequestUploadLink>(services, store));
 
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=files");
+        // v26: the create dialog is a div-backdrop dialog opened from the
+        // Files section's More menu; its form is what the test reads.
+        Assert.Contains("data-dialog-open=\"create-upload-request\"", html, StringComparison.Ordinal);
         var dialog = html[html.IndexOf("id=\"create-upload-request\"", StringComparison.Ordinal)..];
-        dialog = dialog[..dialog.IndexOf("</dialog>", StringComparison.Ordinal)];
+        dialog = dialog[..dialog.IndexOf("</form>", StringComparison.Ordinal)];
 
         Assert.Contains($"/Cases/{store.CaseId:D}/Custody?handler=CreateRequestUploadLink", dialog, StringComparison.Ordinal);
         Assert.Matches("<input[^>]*name=\"recipient\"[^>]*required", dialog);
@@ -587,14 +593,14 @@ public sealed partial class CaseDetailsWebTests
         // The Inspection section's control is the record form's entry for the
         // address, wherever it renders on the page.
         Assert.Contains(
-            "id=\"inspection-address\" name=\"inspectionAddress\" form=\"case-edit-form\"",
+            "id=\"inspection-address\" class=\"fi\" name=\"inspectionAddress\" form=\"case-edit-form\"",
             html,
             StringComparison.Ordinal);
         // WP6: the vehicle's own identity is edited in the Vehicle section,
         // between that section's host and the next one, and still posts
         // through the record's one form.
         Assert.Contains(
-            "id=\"edit-registration\" name=\"vehicleRegistration\" form=\"case-edit-form\"",
+            "id=\"edit-registration\" class=\"fi mono\" name=\"vehicleRegistration\" form=\"case-edit-form\"",
             html,
             StringComparison.Ordinal);
         foreach (var control in new[] { "edit-registration", "edit-make", "edit-model" })
@@ -622,37 +628,44 @@ public sealed partial class CaseDetailsWebTests
 
         Assert.DoesNotContain("page-header", html, StringComparison.Ordinal);
         Assert.DoesNotContain("edit-bar", html, StringComparison.Ordinal);
-        Assert.Equal(1, Occurrences(html, "data-case-sticky"));
+        // v26: one measured sticky block — the 56px ribbon and the 40px
+        // section row — and nothing else travels with the record.
+        Assert.Equal(1, Occurrences(html, "data-sticky-block"));
+        Assert.Equal(1, Occurrences(html, "class=\"ribbon\""));
+        Assert.Equal(1, Occurrences(html, "class=\"section-row\""));
 
-        // The identity row: the eyebrow the page header used to carry, the
-        // reference as the page's one heading, and the two frame controls.
+        // The identity row: the eyebrow with the registration, the reference
+        // as the page's one heading, Claimant, Principal, Engineer, the
+        // state chip and the record's two controls. Back to Cases and the
+        // presence strip are gone (v25 decisions 1 and C).
         Assert.Contains(
             "<div class=\"ribbon-label\">Case workspace · AB12CDE</div>",
             html,
             StringComparison.Ordinal);
         Assert.Equal(1, Occurrences(html, "<h1 class=\"ribbon-value\">"));
-        Assert.Equal(1, Occurrences(html, "case-identity-tools"));
-        Assert.Contains("aria-label=\"Back to Cases\"", html, StringComparison.Ordinal);
-        Assert.Contains(
-            "<span class=\"sr-only\">Back to Cases</span>",
-            html,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("Back to Cases", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("presence-strip", html, StringComparison.Ordinal);
         var refresh = RefreshForm(html);
         Assert.Contains("name=\"section\"", refresh, StringComparison.Ordinal);
         Assert.Contains("aria-label=\"Refresh\"", refresh, StringComparison.Ordinal);
 
-        // The action row: Cancel and Save live with the actions, and nothing
-        // else claims to be a row of the frame.
+        // The ribbon's actions: Cancel and Save beside the Editing badge and
+        // the one Actions menu; no reason dialog stands between Save and the
+        // record (v25 decision A).
         var actions = StickyActionRow(html);
         Assert.Contains("form=\"case-finish-editing-form\"", actions, StringComparison.Ordinal);
-        Assert.Contains("data-case-save-reason", actions, StringComparison.Ordinal);
+        Assert.Contains("data-case-cancel-form", actions, StringComparison.Ordinal);
+        Assert.Contains("form=\"case-edit-form\"", actions, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-case-save-reason", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("case-save-reason-dialog", html, StringComparison.Ordinal);
         Assert.Equal(1, Occurrences(actions, ">Cancel</span>"));
         Assert.Equal(1, Occurrences(actions, ">Save</span>"));
         Assert.Contains("case-edit-badge", actions, StringComparison.Ordinal);
+        Assert.Equal(1, Occurrences(actions, "data-case-actions"));
         Assert.DoesNotContain("You are editing this case", html, StringComparison.Ordinal);
 
-        // The third row is the section nav, still with its Scroll/Tabs switch.
-        Assert.Equal(1, Occurrences(html, "case-section-navigation"));
+        // The second row is the section nav, with its Scroll/Tabs switch.
+        Assert.Equal(1, Occurrences(html, "data-section-nav"));
         Assert.Equal(1, Occurrences(html, "data-case-layout-switch"));
     }
 
@@ -668,35 +681,57 @@ public sealed partial class CaseDetailsWebTests
         var store = new RecordingCaseDetailsStore();
         var panel = InspectionPanel(await ReadCaseAsync(store));
 
+        // v26: one geometry of labelled cells — the address, then the Repairer
+        // and Storage sub-panels (storage money moved here from Settlement).
         Assert.Contains("1 Depot Road", panel, StringComparison.Ordinal);
-        Assert.Contains("<dt>Storage location</dt>", panel, StringComparison.Ordinal);
+        Assert.Contains(">Storage location<", panel, StringComparison.Ordinal);
         Assert.Contains("14 Storage Lane", panel, StringComparison.Ordinal);
-        Assert.Contains("<dt>Repairer</dt>", panel, StringComparison.Ordinal);
-        Assert.Contains("<dt>Repairer location</dt>", panel, StringComparison.Ordinal);
-        Assert.DoesNotContain("<dt>Source</dt>", panel, StringComparison.Ordinal);
-        Assert.DoesNotContain("<dt>Inspection</dt>", panel, StringComparison.Ordinal);
-        Assert.DoesNotContain("Principal default", panel, StringComparison.Ordinal);
-        Assert.DoesNotContain("Provider default", panel, StringComparison.Ordinal);
+        Assert.Contains("data-inspection-repairer", panel, StringComparison.Ordinal);
+        Assert.Contains(">Repairer<", panel, StringComparison.Ordinal);
+        Assert.Contains("data-inspection-storage", panel, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Inspection.StoragePerDay, panel, StringComparison.Ordinal);
+        // Read mode: the storage money reads; its control joins only the edit session.
+        Assert.DoesNotContain("name=\"storagePerDay\"", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Source<", panel, StringComparison.Ordinal);
+        // The Principal's default is its own cell only where the Case holds
+        // something else; here the Case holds a physical address of its own.
+        Assert.Contains("data-inspection-provider-default hidden", panel, StringComparison.Ordinal);
         // A physical address says something the address itself does not, so
         // the mode still rides beside it.
         Assert.Contains("Physical address", panel, StringComparison.Ordinal);
 
-        // The Principal's own setting, recorded on the Case unchanged: one
-        // printing, no default row, and no mode chip repeating the value.
+        // The Principal's own setting, recorded on the Case unchanged: the
+        // value carries its provenance word, no default cell is shown, and no
+        // mode chip repeats the value.
         var imageBased = new RecordingCaseDetailsStore();
         imageBased.DataOverride = await InspectionOverrideAsync(imageBased, null);
         var imagePanel = InspectionPanel(await ReadCaseAsync(imageBased));
-        Assert.Equal(1, Occurrences(imagePanel, "Image Based Assessment"));
-        Assert.DoesNotContain("Principal default", imagePanel, StringComparison.Ordinal);
+        var addressCell = AddressCell(imagePanel);
+        Assert.Equal(1, Occurrences(addressCell, "Image Based Assessment"));
+        Assert.Contains("data-provenance-word=\"Principal\"", addressCell, StringComparison.Ordinal);
+        Assert.DoesNotContain("status--navy", addressCell, StringComparison.Ordinal);
+        Assert.Contains("data-inspection-provider-default hidden", imagePanel, StringComparison.Ordinal);
 
         // The same Principal setting where staff recorded somewhere else: the
         // default is a fact the operator cannot read off the value.
         var corrected = new RecordingCaseDetailsStore();
         corrected.DataOverride = await InspectionOverrideAsync(corrected, "9 Other Road");
         var correctedPanel = InspectionPanel(await ReadCaseAsync(corrected));
+        Assert.DoesNotContain("data-inspection-provider-default hidden", correctedPanel, StringComparison.Ordinal);
+        Assert.Contains("data-inspection-provider-default", correctedPanel, StringComparison.Ordinal);
         Assert.Contains("Principal default", correctedPanel, StringComparison.Ordinal);
-        Assert.Contains("9 Other Road", correctedPanel, StringComparison.Ordinal);
+        Assert.Contains("9 Other Road", AddressCell(correctedPanel), StringComparison.Ordinal);
         Assert.Contains("Image Based Assessment", correctedPanel, StringComparison.Ordinal);
+    }
+
+    /// <summary>The Inspection section's recorded-address cell (v26 `[data-inspection-address]`).</summary>
+    private static string AddressCell(string panel)
+    {
+        var start = panel.IndexOf("data-inspection-address>", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The inspection address cell must render.");
+        var end = panel.IndexOf("data-inspection-provider-default", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The inspection address cell must end before the default cell.");
+        return panel[start..end];
     }
 
     /// <summary>The Case as an operator who holds no edit lease reads it.</summary>
@@ -757,20 +792,13 @@ public sealed partial class CaseDetailsWebTests
         return html[start..end];
     }
 
-    /// <summary>The frame's one action row, between the ribbon and the nav.</summary>
-    private static string StickyActionRow(string html)
-    {
-        var start = html.IndexOf("class=\"record-bar\"", StringComparison.Ordinal);
-        Assert.True(start >= 0, "The action row is not rendered.");
-        var end = html.IndexOf("case-section-navigation", start, StringComparison.Ordinal);
-        Assert.True(end > start, "The action row must end before the section nav.");
-        return html[start..end];
-    }
+    /// <summary>The ribbon's actions cluster (v26), before the section row.</summary>
+    private static string StickyActionRow(string html) => RecordBar(html);
 
     /// <summary>The record's Refresh control, with the section it reruns.</summary>
     private static string RefreshForm(string html)
     {
-        var start = html.IndexOf("<form method=\"get\" data-refresh-form>", StringComparison.Ordinal);
+        var start = html.IndexOf("<form method=\"get\" data-refresh-form", StringComparison.Ordinal);
         Assert.True(start >= 0, "The record must offer Refresh.");
         var end = html.IndexOf("</form>", start, StringComparison.Ordinal);
         Assert.True(end > start, "The Refresh form must close.");
@@ -1162,10 +1190,11 @@ public sealed partial class CaseDetailsWebTests
                }))
         {
             var recoveryHtml = await GetHtmlAsync(recoveryClient, $"/Cases/{store.CaseId:D}");
-            // The holder returning to their own case gets the ordinary control:
-            // the claim replays their retained lease, so there is nothing for
-            // them to "recover" and no second button saying so.
-            Assert.Contains("Edit Case", recoveryHtml, StringComparison.Ordinal);
+            // The holder returning to their own case in a second window gets
+            // the one control, reading Take over (v26 § R): the claim replays
+            // their retained lease, so nothing is "recovered".
+            Assert.Contains("Take over", RecordBar(recoveryHtml), StringComparison.Ordinal);
+            Assert.Contains("data-case-edit", RecordBar(recoveryHtml), StringComparison.Ordinal);
             Assert.Equal(claimOperationKey, InputValue(recoveryHtml, "operationKey"));
             using var recoveryResponse = await recoveryClient.PostAsync(
                 $"/Cases/{store.CaseId:D}?handler=ClaimLease",
@@ -1352,7 +1381,7 @@ public sealed partial class CaseDetailsWebTests
         store.LeaseHolder = otherStaffId;
         var wrongHolderHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         Assert.Contains(
-            "Case locked - another member of staff is editing",
+            "Another member of staff is editing",
             wrongHolderHtml,
             StringComparison.Ordinal);
         Assert.DoesNotContain(otherStaffId, wrongHolderHtml, StringComparison.OrdinalIgnoreCase);
@@ -1360,9 +1389,9 @@ public sealed partial class CaseDetailsWebTests
 
         store.LeaseHolder = claimant;
         var recoveryHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        // The ordinary control, not a second one: the claim replays this
-        // holder's retained lease.
-        Assert.Contains("Edit Case", recoveryHtml, StringComparison.Ordinal);
+        // The one control, reading Take over for the holder's own other
+        // window (v26 § R): the claim replays this holder's retained lease.
+        Assert.Contains("Take over", RecordBar(recoveryHtml), StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", recoveryHtml, StringComparison.Ordinal);
         Assert.Equal(claimOperationKey, InputValue(recoveryHtml, "operationKey"));
     }
@@ -1723,8 +1752,10 @@ public sealed partial class CaseDetailsWebTests
 
         // The authority is still this editor's on the server, so recovery is offered rather than
         // the case being handed to anyone else — but no edit form is live until it is retaken.
+        // v26 names that one control Take over (the holder's own lease, not this browser's).
         Assert.DoesNotContain("name=\"editLeaseToken\"", refusedHtml, StringComparison.Ordinal);
-        Assert.Contains("Edit Case", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("Take over", RecordBar(refusedHtml), StringComparison.Ordinal);
+        Assert.Contains("handler=ClaimLease", refusedHtml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1881,7 +1912,7 @@ public sealed partial class CaseDetailsWebTests
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         var note = EditAuthorityNote(html);
 
-        Assert.Contains("Case locked - r.hughes is editing", note, StringComparison.Ordinal);
+        Assert.Contains("r.hughes is editing", note, StringComparison.Ordinal);
         // CASE-024: an open editor keeps its own lease alive, so no moment when editing
         // becomes available is knowable here, and naming one would be a broken promise.
         Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
@@ -1915,7 +1946,7 @@ public sealed partial class CaseDetailsWebTests
         var note = EditAuthorityNote(html);
 
         Assert.Contains(
-            "Case locked - another member of staff is editing",
+            "Another member of staff is editing",
             note,
             StringComparison.Ordinal);
         // CASE-024: an open editor keeps its own lease alive, so no moment when editing
@@ -1956,7 +1987,7 @@ public sealed partial class CaseDetailsWebTests
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         var note = EditAuthorityNote(html);
 
-        Assert.Contains("Case locked - AI is editing", note, StringComparison.Ordinal);
+        Assert.Contains("AI is editing", note, StringComparison.Ordinal);
         // CASE-024: an open editor keeps its own lease alive, so no moment when editing
         // becomes available is knowable here, and naming one would be a broken promise.
         Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
@@ -2027,7 +2058,7 @@ public sealed partial class CaseDetailsWebTests
         }))
         {
             var recoverHtml = await GetHtmlAsync(recoveryClient, $"/Cases/{store.CaseId:D}");
-            Assert.Contains("Edit Case", RecordBar(recoverHtml), StringComparison.Ordinal);
+            Assert.Contains("Take over", RecordBar(recoverHtml), StringComparison.Ordinal);
             AssertNoBannedVocabulary(RecordBar(recoverHtml));
         }
 
@@ -2041,7 +2072,7 @@ public sealed partial class CaseDetailsWebTests
         {
             var nonHolderHtml = await GetHtmlAsync(otherClient, $"/Cases/{store.CaseId:D}");
             Assert.Contains(
-                "Case locked - ",
+                "r.hughes is editing",
                 EditAuthorityNote(nonHolderHtml),
                 StringComparison.Ordinal);
             AssertNoBannedVocabulary(EditAuthorityNote(nonHolderHtml));
@@ -2071,16 +2102,18 @@ public sealed partial class CaseDetailsWebTests
 
     private const string DetailsModelOperationKey = "3f2504e04f8911d39a0c0305e82c3301";
 
+    /// <summary>
+    /// v26: the record's actions live in the ribbon's own actions cluster —
+    /// the primary (Edit Case / Cancel + Save) and the one Actions menu —
+    /// which the section row closes. Nothing below the sticky block is an
+    /// action of the record itself.
+    /// </summary>
     private static string RecordBar(string html)
     {
-        var start = html.IndexOf("class=\"record-bar\"", StringComparison.Ordinal);
+        var start = html.IndexOf("data-case-ribbon-actions", StringComparison.Ordinal);
         Assert.True(start >= 0, "The record bar is not rendered.");
-        // CASE-012 round 2: the workspace side nav is no longer a <nav>, so
-        // the record's own closing tag bounds the bar and everything under
-        // it (workspace and context column). StickyActionRow bounds the row
-        // itself where a test needs only the actions.
-        var end = html.IndexOf("</article>", start, StringComparison.Ordinal);
-        Assert.True(end > start, "The record bar is not closed before the record ends.");
+        var end = html.IndexOf("class=\"section-row\"", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The record bar is not closed before the section row.");
         return html[start..end];
     }
 
@@ -2130,7 +2163,7 @@ public sealed partial class CaseDetailsWebTests
         html.Split(value, StringSplitOptions.None).Length - 1;
 
     [GeneratedRegex(
-        "<section class=\"case-section[^\"]*\" id=\"section-([a-z-]+)\"",
+        "<section class=\"record-section[^\"]*\" id=\"section-([a-z-]+)\"",
         RegexOptions.CultureInvariant)]
     private static partial Regex SectionHostRegex();
 
@@ -2158,8 +2191,38 @@ public sealed partial class CaseDetailsWebTests
         return html[start..end];
     }
 
-    private static string ProposedValuesPanel(string html) =>
-        Section(html, "case-proposed-values-title");
+    /// <summary>
+    /// v26: the refused editor's proposed values are a sub-panel of Overview
+    /// (`[data-proposed-values]`) rather than a section of their own.
+    /// </summary>
+    private static string ProposedValuesPanel(string html)
+    {
+        var start = html.IndexOf("data-proposed-values", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The proposed-values panel is not rendered.");
+        var end = html.IndexOf("</table>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The proposed-values panel is not closed.");
+        return html[start..end];
+    }
+
+    /// <summary>The Files section's upload-requests sub-panel (v26): the table of links.</summary>
+    private static string UploadRequests(string html)
+    {
+        var start = html.IndexOf("data-upload-requests", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The upload requests panel is not rendered.");
+        var end = html.IndexOf("</table>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The upload requests table is not rendered.");
+        return html[start..end];
+    }
+
+    /// <summary>The Files section's Correspondence tab body (v26): the table of retained query mail.</summary>
+    private static string Correspondence(string html)
+    {
+        var start = html.IndexOf("data-correspondence>", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Correspondence tab is not rendered.");
+        var end = html.IndexOf("</table>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The Correspondence table is not rendered.");
+        return html[start..end];
+    }
 
     private static string Section(string html, string labelledBy)
     {
@@ -2214,7 +2277,7 @@ public sealed partial class CaseDetailsWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("Case locked - AI is editing", EditAuthorityNote(html), StringComparison.Ordinal);
+        Assert.Contains("AI is editing", EditAuthorityNote(html), StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Edit case<", html, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
@@ -2235,7 +2298,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(ActorKind.Automation, store.LeaseHolderKind);
         var afterRefusal = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         Assert.Contains("This case is already being edited.", afterRefusal, StringComparison.Ordinal);
-        Assert.Contains("Case locked - AI is editing", EditAuthorityNote(afterRefusal), StringComparison.Ordinal);
+        Assert.Contains("AI is editing", EditAuthorityNote(afterRefusal), StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ClaimLease", afterRefusal, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", afterRefusal, StringComparison.Ordinal);
     }
@@ -2270,7 +2333,9 @@ public sealed partial class CaseDetailsWebTests
         var html = await workspace.GetWorkspaceAsync();
         var bar = RecordBar(html);
 
-        Assert.Equal(offersClosure, bar.Contains("record-bar-adverse", StringComparison.Ordinal));
+        // v26 (decision C2): Close case is the last item of the one Actions
+        // menu, in red below a divider.
+        Assert.Equal(offersClosure, bar.Contains("data-dialog-open=\"case-close-dialog\"", StringComparison.Ordinal));
         Assert.Equal(
             offersClosure,
             html.Contains("data-dialog=\"case-close-dialog\"", StringComparison.Ordinal));
@@ -2284,12 +2349,13 @@ public sealed partial class CaseDetailsWebTests
             return;
         }
 
-        // Separation: the adverse group holds the one Close control and none
-        // of the progression actions.
+        // Separation: below the menu's last divider there is the one Close
+        // control, in the danger style, and none of the progression actions.
         var adverse = AdverseGroup(html);
         Assert.Contains("data-dialog-open=\"case-close-dialog\"", adverse, StringComparison.Ordinal);
+        Assert.Contains("btn--danger", adverse, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.CaseWorkspace.CloseCase, adverse, StringComparison.Ordinal);
-        foreach (var progression in new[] { "Hand to Engineer", "Mark completed", "Return to Engineer", "More actions" })
+        foreach (var progression in new[] { "Hand to Engineer", "Mark completed", "Return to Engineer", "Place on Hold", "Correct principal" })
         {
             Assert.DoesNotContain(progression, adverse, StringComparison.Ordinal);
         }
@@ -2332,14 +2398,16 @@ public sealed partial class CaseDetailsWebTests
             Substitute<ICloseCase>(services, new CoreCheckedCloseCase(store)));
 
         var bar = RecordBar(await workspace.GetWorkspaceAsync());
-        var adverseStart = bar.IndexOf("record-bar-adverse", StringComparison.Ordinal);
+        var adverseStart = bar.IndexOf("data-dialog-open=\"case-close-dialog\"", StringComparison.Ordinal);
 
         Assert.Contains("Mark completed", bar, StringComparison.Ordinal);
-        Assert.Contains("More actions", bar, StringComparison.Ordinal);
-        Assert.True(adverseStart > 0, "The adverse group is not rendered.");
-        // Both progression controls are drawn before the adverse group.
+        Assert.Contains("Place on Hold", bar, StringComparison.Ordinal);
+        Assert.True(adverseStart > 0, "The Close item is not rendered.");
+        // The progression items and the hold group are drawn before the
+        // divider that sets Close apart at the end of the menu.
         Assert.InRange(bar.IndexOf("Mark completed", StringComparison.Ordinal), 0, adverseStart);
-        Assert.InRange(bar.IndexOf("More actions", StringComparison.Ordinal), 0, adverseStart);
+        Assert.InRange(bar.IndexOf("Place on Hold", StringComparison.Ordinal), 0, adverseStart);
+        Assert.InRange(bar.LastIndexOf("menu-sep", StringComparison.Ordinal), 0, adverseStart);
     }
 
     /// <summary>
@@ -2446,13 +2514,15 @@ public sealed partial class CaseDetailsWebTests
     private static string EncodedStage(CaseLifecycleState state) =>
         System.Text.Encodings.Web.HtmlEncoder.Default.Encode(OperatorLabels.CaseStage(state));
 
+    /// <summary>The Actions menu's tail below its last divider (v26): the Close item alone.</summary>
     private static string AdverseGroup(string html)
     {
-        var start = html.IndexOf("class=\"record-bar-adverse", StringComparison.Ordinal);
-        Assert.True(start >= 0, "The adverse action group is not rendered.");
-        var end = html.IndexOf("</div>", start, StringComparison.Ordinal);
-        Assert.True(end > start, "The adverse action group is not closed.");
-        return html[start..end];
+        var bar = RecordBar(html);
+        var menuEnd = bar.IndexOf("</details>", StringComparison.Ordinal);
+        Assert.True(menuEnd > 0, "The Actions menu is not rendered.");
+        var start = bar.LastIndexOf("class=\"menu-sep\"", menuEnd, StringComparison.Ordinal);
+        Assert.True(start >= 0, "The adverse divider is not rendered.");
+        return bar[start..menuEnd];
     }
 
     private static string CloseDialog(string html)
@@ -2582,10 +2652,25 @@ public sealed partial class CaseDetailsWebTests
             Task.FromResult<SignOffEngineerProfile?>(null);
     }
 
-    private static void AssertPrg(HttpResponseMessage response, Guid caseId)
+    /// <summary>
+    /// The post-redirect-get lands on the Case record, carrying at most the
+    /// section it returns to (v26: <c>?section=</c> plus a fragment). Name the
+    /// expected query to pin the section.
+    /// </summary>
+    private static void AssertPrg(HttpResponseMessage response, Guid caseId, string? expectedQuery = null)
     {
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal($"/Cases/{caseId:D}", response.Headers.Location?.OriginalString);
+        var location = response.Headers.Location?.OriginalString ?? string.Empty;
+        var path = location.Split('?', '#')[0];
+        Assert.Equal($"/Cases/{caseId:D}", path);
+        var query = location.Contains('?', StringComparison.Ordinal) ? location.Split('?')[1].Split('#')[0] : string.Empty;
+        Assert.True(
+            query.Length == 0 || Regex.IsMatch(query, "^section=[a-z]+$"),
+            $"The redirect carries more than a section: {location}");
+        if (expectedQuery is not null)
+        {
+            Assert.Equal(expectedQuery.TrimStart('?'), query);
+        }
     }
 
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -2690,7 +2775,7 @@ public sealed partial class CaseDetailsWebTests
                 CaseId,
                 workflow.Identity.Reference,
                 null,
-                CaseType.Inspection,
+                SummaryCaseType,
                 workflow.Identity.PrincipalCode,
                 workflow.State,
                 null,
@@ -2717,6 +2802,7 @@ public sealed partial class CaseDetailsWebTests
                 Data = DataOverride ?? CreateData(),
                 VehicleEvidence = VehicleLookupEvidence,
                 QueryEmails = QueryEmails,
+                RecordNotes = RecordNotes,
                 Custody = ExposeCustody
                     ? [new(CaseId, CaseVersion, CustodyTargetKind.CaseSource, "Failed", "Provider storage was unavailable.", 1, true)]
                     : []
@@ -2880,7 +2966,7 @@ public sealed partial class CaseDetailsWebTests
             });
         }
         private CaseWorkflowRecord CreateWorkflow() =>
-            new(
+            new CaseWorkflowRecord(
                 CaseId,
                 new(CaseId, "QDOS", 2031, 42, "QDOS3100042"),
                 State,
@@ -2891,7 +2977,7 @@ public sealed partial class CaseDetailsWebTests
                 null,
                 null,
                 null,
-                CaseVersion);
+                CaseVersion) with { HoldReviewOn = HoldReviewOn };
 
         Task<CaseDueWork> IRecordManualCaseChase.ExecuteAsync(
             ManualChaseRecord request,

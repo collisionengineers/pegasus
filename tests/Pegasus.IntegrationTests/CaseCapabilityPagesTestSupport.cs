@@ -128,7 +128,13 @@ public sealed partial class CaseDetailsWebTests
 
         public string AntiforgeryToken { get; } = antiforgeryToken;
 
-        public ActionActor Claimant => Assert.Single(Store.Claims).Actor;
+        /// <summary>
+        /// The staff member who entered edit mode. v25 decision F: a post made
+        /// inside the session re-acquires the lease the store's mutation
+        /// cleared, so the store may hold more than one claim by the time a
+        /// test reads this; the claimant is the first.
+        /// </summary>
+        public ActionActor Claimant => Store.Claims[0].Actor;
 
         public Task<HttpResponseMessage> PostAsync(string route, HttpContent content) =>
             Client.PostAsync($"/Cases/{Store.CaseId:D}/{route}", content);

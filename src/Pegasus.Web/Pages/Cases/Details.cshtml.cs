@@ -74,6 +74,16 @@ public sealed partial class DetailsModel(
     IEvaSubmissionQueries evaSubmissionQueries,
     IPerUserExternalCredentialReader externalCredentials,
     IGlassRepairEstimateSessionReader glassSessions,
+    ICaseAuditLinkQueries auditLinks,
+    ICaseReportGeneratedQueries reportGenerated,
+    ICreateAuditCase createAuditCase,
+    IAiDraftQueries aiDrafts,
+    IMarketResearchQueries marketResearchQueries,
+    IStartMarketResearch startMarketResearch,
+    IListValuationPresets listValuationPresets,
+    IPreviewValuationCalculation previewValuation,
+    IApplyValuationCalculation applyValuation,
+    IListAppliedValuations listAppliedValuations,
     ILogger<DetailsModel> logger,
     ISubmitCaseToEva? submitCaseToEva = null,
     RequestUploadLimits? requestUploadLimits = null,
@@ -688,12 +698,13 @@ public sealed partial class DetailsModel(
             }
             if (!SectionIsDeferred("valuation"))
             {
-                Valuations = await listCaseValuations.ExecuteAsync(id, cancellationToken);
+                await LoadValuationSectionAsync(id, actor, cancellationToken);
             }
             await DescribeWorkspaceExtrasAsync(cancellationToken);
             AvailableClosureOutcomes = DescribeClosureOutcomes(Case.Workflow, actor);
             RestoreProposedValues(id);
             await DescribeEditAuthorityHolderAsync(actor, cancellationToken);
+            await DescribeFrameAsync(actor, cancellationToken);
             return Page();
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -929,7 +940,7 @@ public sealed partial class DetailsModel(
             }
             if (key == "valuation")
             {
-                Valuations = await listCaseValuations.ExecuteAsync(id, cancellationToken);
+                await LoadValuationSectionAsync(id, actor, cancellationToken);
             }
             return Partial(view, this);
         }
@@ -979,14 +990,24 @@ public sealed partial class DetailsModel(
         Guid id,
         long expectedVersion,
         string operationKey,
+        string? section,
         CancellationToken cancellationToken) =>
         ClaimLeaseAsync(
             acquireLease,
             id,
             expectedVersion,
             operationKey,
-            () => RedirectToDetails(id),
+            () => RedirectToSection(id, section),
             cancellationToken);
+
+    /// <summary>
+    /// The full-POST fallback lands back on the section the operator was
+    /// looking at (v25 decision 3); the scripted path never navigates.
+    /// </summary>
+    private RedirectToPageResult RedirectToSection(Guid id, string? section) =>
+        string.IsNullOrWhiteSpace(section) || NormalizeSection(section) == Labels.CaseWorkspace.DefaultSectionKey
+            ? RedirectToDetails(id)
+            : RedirectToPage("/Cases/Details", new { id, section = NormalizeSection(section) });
 
     public async Task<IActionResult> OnPostRenewLeaseAsync(
         Guid id,
@@ -1045,13 +1066,14 @@ public sealed partial class DetailsModel(
         Guid id,
         string operationKey,
         string editLeaseToken,
+        string? section,
         CancellationToken cancellationToken) =>
         ReleaseLeaseAsync(
             releaseLease,
             id,
             operationKey,
             editLeaseToken,
-            () => RedirectToDetails(id),
+            () => RedirectToSection(id, section),
             cancellationToken);
 
     public Task<IActionResult> OnPostSaveAsync(
@@ -1095,6 +1117,7 @@ public sealed partial class DetailsModel(
         Guid? repairerDirectoryId,
         string? principalNotes,
         string? claimSourceNotes,
+        string? section,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
             id,
@@ -1267,7 +1290,8 @@ public sealed partial class DetailsModel(
                         Submitted(nameof(reportDate), reportDate, recordedDate))
                 }, cancellationToken);
             },
-            "Case saved.");
+            "Case saved.",
+            caseId => RedirectToSection(caseId, section));
 
     private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
 
@@ -1786,6 +1810,7 @@ public sealed partial class DetailsModel(
         }
 
         ClearLeaseState();
+        await ReclaimLeaseAsync(id, cancellationToken);
         TempData["CaseStatus"] = "The valuation was recorded.";
         return RedirectToValuation(id);
     }
@@ -1921,7 +1946,7 @@ public sealed partial class DetailsModel(
         }
 
         TempData["CaseStatus"] =
-            "Sent to Claude. The job is queued; its estimate opens from Operations when ready.";
+            "Sent to AI. The job is queued; its estimate opens from Operations when ready.";
         return RedirectToEstimate(id);
     }
 
@@ -1985,6 +2010,7 @@ public sealed partial class DetailsModel(
                 },
                 cancellationToken);
             ClearLeaseState();
+            await ReclaimLeaseAsync(id, cancellationToken);
             TempData["CaseStatus"] = "The estimate was saved.";
             return RedirectToEstimate(id, saved.SpecificationId.ToString("D"));
         }
@@ -2048,6 +2074,7 @@ public sealed partial class DetailsModel(
                 new(id, currentCaseVersion, actor, operationKey, "Estimate duplicated", editLeaseToken!, estimateId),
                 cancellationToken);
             ClearLeaseState();
+            await ReclaimLeaseAsync(id, cancellationToken);
             TempData["CaseStatus"] = "The estimate was duplicated.";
             return RedirectToEstimate(id, copy.SpecificationId.ToString("D"));
         }
@@ -2093,7 +2120,8 @@ public sealed partial class DetailsModel(
                 new(id, currentCaseVersion, actor, operationKey, reason.Trim(), editLeaseToken!, estimateId),
                 cancellationToken);
             ClearLeaseState();
-            TempData["CaseStatus"] = "The estimate was deleted.";
+            await ReclaimLeaseAsync(id, cancellationToken);
+            TempData["CaseStatus"] = "The estimate was discarded.";
             return RedirectToEstimate(id);
         }
         catch (StaffAuthorizationException)
@@ -2135,6 +2163,7 @@ public sealed partial class DetailsModel(
                 new(id, currentCaseVersion, actor, operationKey, "Estimate made current", editLeaseToken!, estimateId),
                 cancellationToken);
             ClearLeaseState();
+            await ReclaimLeaseAsync(id, cancellationToken);
             TempData["CaseStatus"] = "The estimate is now the case's current estimate.";
             return RedirectToEstimate(id, estimateId.ToString("D"));
         }
@@ -2829,9 +2858,19 @@ public sealed partial class DetailsModel(
         try
         {
             var result = await importRawEstimate.ExecuteAsync(request, cancellationToken);
-            // A source-hash replay consumes no edit authority. The redirected
-            // GET clears this only when the persisted lease was consumed.
-            StoreLeaseAuthority(request.CaseId, request.EditLeaseToken);
+            // A source-hash replay consumes no edit authority, so the posted
+            // token is still live and is kept; a real import consumed it, and
+            // the session carries on with a fresh lease (v25 decision F).
+            var after = await getCase.ExecuteAsync(new(request.CaseId, request.Actor), cancellationToken);
+            if (after?.ActiveEditLease is null)
+            {
+                ClearLeaseState();
+                await ReclaimLeaseAsync(request.CaseId, cancellationToken);
+            }
+            else
+            {
+                StoreLeaseAuthority(request.CaseId, request.EditLeaseToken);
+            }
             TempData["CaseStatus"] = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateImport.Imported;
             return RedirectToEstimate(request.CaseId, result.EstimateId.ToString("D"));
         }

@@ -1,0 +1,99 @@
+@*
+    The Case record's full-screen viewer (v26 § Image viewer): title, tag and
+    position, Rotate, Zoom, Crop (while the image is preparable), Download,
+    and while editing the "In report" toggle that drives the report image set;
+    a filmstrip along the bottom with excluded images greyed. It opens from
+    any [data-evidence-item] inside a [data-evidence-set] — Files, the Damage
+    evidence strip, the Report strip — and from a report draft preview as a
+    document page. Crop happens on the stage: the crop is a stored rectangle
+    over the rotated source, staged into the one Case form, never a new file.
+
+    files.js owns every behaviour; without script each trigger is a real link
+    to the same authorised preview, so nothing here is required to read a file.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Web.Presentation
+@using ViewerLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Viewer
+@using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages
+<div class="case-viewer" data-case-viewer hidden role="dialog" aria-modal="true" aria-label="@ViewerLabels.Title" tabindex="-1">
+    <div class="case-viewer-top">
+        <div class="case-viewer-title">
+            <b data-viewer-name></b>
+            <span class="tag" data-viewer-tag hidden></span>
+            <span class="case-viewer-n" data-viewer-position></span>
+        </div>
+        <div class="case-viewer-tools" data-viewer-tools>
+            <span class="case-viewer-set" data-viewer-view-tools>
+                <button type="button" class="btn btn--small" data-viewer-rotate>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
+                    <span>@ViewerLabels.Rotate</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-zoom>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-zoom-in" /></svg>
+                    <span data-viewer-zoom-label>@ViewerLabels.Zoom</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop hidden>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-crop" /></svg>
+                    <span>@ReportImageLabels.Crop</span>
+                </button>
+                <a class="btn btn--small" data-viewer-download download>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                    <span data-viewer-download-label>@ViewerLabels.Download</span>
+                </a>
+                <label class="case-viewer-inc" data-viewer-in-report-wrap hidden>
+                    <input type="checkbox" data-viewer-in-report />
+                    <span>@ViewerLabels.InReport</span>
+                </label>
+            </span>
+            <span class="case-viewer-set" data-viewer-crop-tools hidden>
+                <span class="case-viewer-n" data-viewer-crop-status></span>
+                <label class="sr-only" for="case-viewer-aspect">@ViewerLabels.Aspect</label>
+                <select id="case-viewer-aspect" class="case-viewer-select" data-viewer-aspect>
+                    <option value="free">@ViewerLabels.AspectFree</option>
+                    <option value="1">@ViewerLabels.AspectSquare</option>
+                    <option value="1.3333333">4:3</option>
+                    <option value="1.7777778">16:9</option>
+                </select>
+                <button type="button" class="btn btn--small" data-viewer-crop-rotate="-90">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                    <span>@ReportImageLabels.RotateLeft</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop-rotate="90">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg>
+                    <span>@ReportImageLabels.RotateRight</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop-full>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg>
+                    <span>@ReportImageLabels.FullFrame</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop-reset>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg>
+                    <span>@ReportImageLabels.Reset</span>
+                </button>
+                <button type="button" class="btn btn--small btn--primary" data-viewer-crop-save>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                    <span>@ViewerLabels.SaveCrop</span>
+                </button>
+                <button type="button" class="btn btn--small" data-viewer-crop-cancel>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    <span>@ViewerLabels.Cancel</span>
+                </button>
+            </span>
+        </div>
+        <button type="button" class="icon-button" data-viewer-close aria-label="@ViewerLabels.Close">
+            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+        </button>
+    </div>
+    <button type="button" class="case-viewer-nav prev" data-viewer-prev aria-label="@ViewerLabels.Previous">
+        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+    </button>
+    <div class="case-viewer-stage" data-viewer-stage>
+        <img alt="" data-viewer-image hidden />
+        <iframe title="" data-viewer-document hidden></iframe>
+        <video controls preload="metadata" data-viewer-video hidden></video>
+    </div>
+    <button type="button" class="case-viewer-nav next" data-viewer-next aria-label="@ViewerLabels.Next">
+        <svg class="icon" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
+    </button>
+    <div class="case-viewer-strip" data-viewer-strip></div>
+</div>
