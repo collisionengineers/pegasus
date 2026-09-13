@@ -45,7 +45,7 @@ Place on Hold gains an optional "Review on" date. When given it is the held Case
 
 ### D6. Adopted improvements (13 September)
 
-P1 to P6, P8 and P9 are adopted as decisions. P7 (Blocked) is not adopted; the Blocked metric stays as it is.
+P1 to P6, P8 and P9 are adopted as decisions. P7 (Blocked) was not adopted on 13 September; it is superseded by D7 the same day.
 
 - **P1. Group the list by due day** instead of a chip per row: headings "Overdue (3)", "Due today (5)", "Later (12)", each row keeping its relative due text. The D2 chips then only appear in the Today pane and the notifications menu.
 - **P2. Office and Mine.** A two-way switch above the list: Office (everything, as now) or Mine (rows whose owner is me, plus unowned rows of kinds I can take). Engineers open on Mine, Administrators and Users on Office. Remembered per person.
@@ -53,9 +53,13 @@ P1 to P6, P8 and P9 are adopted as decisions. P7 (Blocked) is not adopted; the B
 - **P4. The next action does the action.** Assign Engineer opens the Case's assignment dialog on the spot (see [`../case-record/how-it-should-work.md`](../case-record/how-it-should-work.md)); Review Case opens the Case at its Review decision; Open Triage opens the Triage. "Open full record" and the action button are the same link today, so one of them goes.
 - **P5. Freshness.** The snapshot is taken on load and never refreshed. Show "Updated 14:22", refresh when the tab regains focus and every five minutes, and a Refresh button. The mockup's rail already has the freshness indicator.
 - **P6. Received age on the row**: "Received 3 d ago" beside the owner, so a long-waiting item reads as such even before it is overdue.
-- **P7. Blocked opens Blocked** — not adopted. The Blocked metric keeps linking to the Unidentified tab as it does today.
+- **P7. Blocked opens Blocked** — superseded by D7.
 - **P8. Take it.** An "Assign to me" action on Unassigned Engineer rows for Engineers, and on Triage rows without an assignee, straight from the Today pane. The Case side is in [`../case-record/how-it-should-work.md`](../case-record/how-it-should-work.md), the Triage side in [`../triage/how-it-should-work.md`](../triage/how-it-should-work.md).
 - **P9. Empty states per group**, so "Nothing overdue" is visible good news rather than an absent heading.
+
+### D7. The Blocked metric is removed
+
+Blocked stops being an operator concept ([`../received-file/how-it-should-work.md`](../received-file/how-it-should-work.md)): refused material is a closed Unidentified item, unreadable material shows on its message, failed processing shows on Operations. The metric strip drops to four: Not ready, Review, Held, Unidentified.
 
 ### Still open
 

@@ -6,6 +6,8 @@
 
 - [**How it works**](how-it-works.md) — the Blocked outcome, with FRD and source references.
 
+- [**How it should work**](how-it-should-work.md) — no operator page; the record lives in Administration › Logs › Intake log.
+
 ## Screenshots
 
 - [52-intake-record.png](../../current/v26-shots/52-intake-record.png)

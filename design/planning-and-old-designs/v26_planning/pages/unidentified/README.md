@@ -4,6 +4,8 @@
 - **Live source:** `src/Pegasus.Web/Pages/Unidentified/Details.cshtml`
 - **Dialogs:** [`dialogs/`](dialogs/README.md) · **States:** [`states/`](states/README.md) · **Panels:** [`panels/`](panels/README.md)
 
+- [**How it should work**](how-it-should-work.md) — decisions landing here from other pages.
+
 ## Screenshots
 
 - [s08-cases-unidentified.png](../../current/v26-shots/s08-cases-unidentified.png)

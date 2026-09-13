@@ -4,6 +4,8 @@
 - **Live source:** `src/Pegasus.Web/Pages/Administration/ActionLogs`
 - **Dialogs:** [`dialogs/`](dialogs/README.md) · **States:** [`states/`](states/README.md) · **Panels:** [`panels/`](panels/README.md)
 
+- [**How it should work**](how-it-should-work.md) — Logs becomes Action logs + Intake log.
+
 ## Screenshots
 
 - [s24-admin-logs.png](../../current/v26-shots/s24-admin-logs.png)
