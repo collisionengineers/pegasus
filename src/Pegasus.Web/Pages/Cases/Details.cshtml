@@ -72,7 +72,11 @@
     var adverseGroupClass = offersMoreActions
         ? "record-bar-adverse"
         : "record-bar-adverse record-bar-end";
-    ViewData["WorkspaceRecord"] = (Href: $"/Cases/{summary.CaseId:D}", Label: workflow.Identity.Reference);
+    ViewData["WorkingSetRecord"] = new WorkingSetRecord(
+        $"/Cases/{summary.CaseId:D}",
+        WorkingSetRecord.Kinds.Case,
+        workflow.Identity.Reference,
+        summary.Registration);
 }
 
 @* The record carries its own identity in the sticky ribbon below, so the page

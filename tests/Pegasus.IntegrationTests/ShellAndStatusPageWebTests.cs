@@ -4,7 +4,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Pegasus.Core.Operations;
+using Pegasus.Core.Identity;
+using Pegasus.Core.Notifications;
 using Pegasus.Web.Pages;
 using Pegasus.Web.Presentation;
 
@@ -41,6 +42,39 @@ public sealed class ShellAndStatusPageWebTests
         // nav span that says the product is broken.
         Assert.DoesNotContain("Intake unavailable", html, StringComparison.Ordinal);
         Assert.DoesNotContain("nav-link--unavailable", html, StringComparison.Ordinal);
+
+        // v26 shell: the Collapse control at the rail's foot, the working-set
+        // strip rendered empty for site.js (no Work Centre tab, no "+ Open"),
+        // and the bell in the utility bar.
+        Assert.Contains("data-rail-toggle", html, StringComparison.Ordinal);
+        Assert.Contains(">Collapse<", html, StringComparison.Ordinal);
+        Assert.Contains("data-working-set hidden", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-workspace-open", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("class=\"workspace-tab\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open=\"notifications-dialog\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-dialog=\"notifications-dialog\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ARecordPageAnnouncesItselfToTheWorkingSetAndOtherPagesDoNot()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var workCentre = await client.GetStringAsync("/");
+        Assert.DoesNotContain("data-record-kind", workCentre, StringComparison.Ordinal);
+        Assert.Contains("<main id=\"main-content\" class=\"app-main\"", workCentre, StringComparison.Ordinal);
+
+        // The Case record joins the working set with its reference in bold and
+        // its registration in mono; site.js reads exactly these attributes.
+        var caseId = await AutomationMcpTestSupport.SeedAcceptedCaseAsync(factory);
+        using var record = await client.GetAsync($"/Cases/{caseId:D}");
+        record.EnsureSuccessStatusCode();
+        var html = await record.Content.ReadAsStringAsync();
+        Assert.Contains($"data-record-href=\"/Cases/{caseId:D}\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-record-kind=\"case\"", html, StringComparison.Ordinal);
+        Assert.Matches("data-record-ref=\"[^\"]+\"", html);
+        Assert.DoesNotContain("data-record-ref=\"\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -164,17 +198,42 @@ public sealed class ShellAndStatusPageWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        foreach (var route in new[] { "/Account/AccessDenied", "/status/404" })
-        {
-            using var response = await client.GetAsync(route);
-            var html = await response.Content.ReadAsStringAsync();
+        using var response = await client.GetAsync("/status/404");
+        var html = await response.Content.ReadAsStringAsync();
 
-            // Around a sign-in form the navigation shows an unauthenticated
-            // visitor the internal structure of the product; around a refusal
-            // it offers a menu of destinations the page has just declined.
-            Assert.DoesNotContain("aria-label=\"Primary\"", html, StringComparison.Ordinal);
-            Assert.Contains("auth-card", html, StringComparison.Ordinal);
-        }
+        // Around a sign-in form or an anonymous status card the navigation
+        // would show a visitor the internal structure of the product.
+        Assert.DoesNotContain("aria-label=\"Primary\"", html, StringComparison.Ordinal);
+        Assert.Contains("auth-card", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// v26 shell (shot s30): a signed-in person refused a Manage route reads
+    /// the refusal inside the shell they already have — the area as the
+    /// eyebrow, "Access denied", one sentence — because the rail offers a
+    /// User nothing this page has declined.
+    /// </summary>
+    [Fact]
+    public async Task AccessDeniedOnAManageRouteRendersInsideTheShellAndNamesTheArea()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync("/Account/AccessDenied?ReturnUrl=%2FAdministration%2FMailboxes");
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("aria-label=\"Primary\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("auth-card", html, StringComparison.Ordinal);
+        Assert.Contains("<p class=\"eyebrow\">Administration</p>", html, StringComparison.Ordinal);
+        Assert.Contains("<h1>Access denied</h1>", html, StringComparison.Ordinal);
+        Assert.Contains("Administration is available to Administrators only.", html, StringComparison.Ordinal);
+
+        // Without a Manage return route the page still refuses, in the plain
+        // sentence, and names no area it cannot know.
+        var plain = await client.GetStringAsync("/Account/AccessDenied");
+        Assert.DoesNotContain("<p class=\"eyebrow\">", plain, StringComparison.Ordinal);
+        Assert.Contains("Your account does not have access to this page.", plain, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -201,56 +260,152 @@ public sealed class ShellAndStatusPageWebTests
     }
 
     /// <summary>
-    /// C08: the required <see cref="IGetAttentionRows"/> dependency supplies
-    /// the notifications menu through ordinary production composition.
+    /// The bell (Work Centre D10): the person's own notifications and nothing
+    /// else, newest first, each row a form that opens the notification.
     /// </summary>
     [Fact]
-    public async Task NotificationsMenuShowsAttentionRowsOnceTheQueryIsRegistered()
+    public async Task BellShowsTheEmptyStateAndNoCountWhenNothingIsUnread()
     {
-        var rows = new[]
-        {
-            new NeedsAttentionItem(
-                NeedsAttentionKind.Triage, Guid.NewGuid(), "T/2031/041", "AB12 CDE",
-                Detail: null, Reason: "open", NeedsAttentionPriority.Today,
-                Owner: null, Due: null, LastOutcome: null, Source: null, Attempts: null)
-        };
-        using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IGetAttentionRows>();
-                services.AddSingleton<IGetAttentionRows>(new StubAttentionRows(rows));
-            }));
-        using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost:7139")
-        });
+        var notifications = new StubNotifications([]);
+        using var host = FactoryWith(notifications);
+        using var client = host.CreateClient();
 
-        // Not Work Centre ("/") — that page supplies its own rows and never
-        // asks the filter for this query.
         using var response = await client.GetAsync("/Search");
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains("AB12 CDE", html, StringComparison.Ordinal);
+        Assert.Contains(">No notifications<", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("bell-count", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Mark all read<", html, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Notifications\"", html, StringComparison.Ordinal);
+        // The bell never carries office-wide work.
+        Assert.DoesNotContain("data-notification-list", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BellListsPersonalNotificationsWithTheUnreadCountAndCauseWording()
+    {
+        var caseId = Guid.NewGuid();
+        var raisedAt = new DateTimeOffset(2031, 5, 6, 10, 0, 0, TimeSpan.Zero);
+        var unreadEstimate = new StaffNotification(
+            Guid.NewGuid(), Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId, caseId,
+            "QDOS26214", "MA59BDY", StaffNotificationCause.AiDraftReady,
+            $"/Cases/{caseId:D}?section=estimate", raisedAt, ReadAtUtc: null);
+        var unreadAssigned = new StaffNotification(
+            Guid.NewGuid(), Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId, caseId,
+            "QDOS26214", "MA59BDY", StaffNotificationCause.CaseAssigned,
+            $"/Cases/{caseId:D}", raisedAt.AddMinutes(-12), ReadAtUtc: null);
+        var readQuery = new StaffNotification(
+            Guid.NewGuid(), Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId, caseId,
+            "PCH26004", "VN71ULZ", StaffNotificationCause.QueryReceived,
+            $"/Cases/{caseId:D}?section=correspondence", raisedAt.AddDays(-2), raisedAt.AddDays(-1));
+        var notifications = new StubNotifications([unreadEstimate, unreadAssigned, readQuery]);
+        using var host = FactoryWith(notifications);
+        using var client = host.CreateClient();
+
+        using var response = await client.GetAsync("/Search");
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("<span class=\"bell-count\" aria-hidden=\"true\">2</span>", html, StringComparison.Ordinal);
+        // The middle dot is HTML-encoded by Razor; the count and word are what matter.
+        Assert.Contains(" 2 unread\"", html, StringComparison.Ordinal);
+        Assert.Contains(">Estimate draft ready<", html, StringComparison.Ordinal);
+        Assert.Contains(">Assigned to you<", html, StringComparison.Ordinal);
+        Assert.Contains(">Query received<", html, StringComparison.Ordinal);
+        Assert.Contains("MA59BDY", html, StringComparison.Ordinal);
+        Assert.Contains(">Unread<", html, StringComparison.Ordinal);
+        Assert.Contains(">Mark all read<", html, StringComparison.Ordinal);
+        Assert.Contains($"data-notification=\"{unreadEstimate.Id:D}\"", html, StringComparison.Ordinal);
+        Assert.Contains("row-button row-button--unread", html, StringComparison.Ordinal);
+        // The vendor never appears in operator copy.
+        Assert.DoesNotContain("Claude", html, StringComparison.Ordinal);
+        // The list is the store's order: newest first, exactly as returned.
+        Assert.True(
+            html.IndexOf("Estimate draft ready", StringComparison.Ordinal)
+                < html.IndexOf("Assigned to you", StringComparison.Ordinal),
+            "The bell must keep the store's newest-first order.");
+    }
+
+    [Fact]
+    public async Task OpeningANotificationMarksItReadAndRedirectsToItsRoute()
+    {
+        var caseId = Guid.NewGuid();
+        var notification = new StaffNotification(
+            Guid.NewGuid(), Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId, caseId,
+            "QDOS26214", "MA59BDY", StaffNotificationCause.EmailReceived,
+            $"/Cases/{caseId:D}?section=files", new DateTimeOffset(2031, 5, 6, 10, 0, 0, TimeSpan.Zero), ReadAtUtc: null);
+        var notifications = new StubNotifications([notification]);
+        using var host = FactoryWith(notifications);
+        using var client = host.CreateClient();
+
+        var page = await client.GetStringAsync("/Search");
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = AntiforgeryValue(page),
+            ["returnUrl"] = "/Search"
+        });
+        using var response = await client.PostAsync($"/Notifications?handler=Open&id={notification.Id:D}", content);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal($"/Cases/{caseId:D}?section=files", response.Headers.Location?.OriginalString);
+        Assert.Equal([notification.Id], notifications.Opened);
+
+        // A notification that is not this person's opens nothing and returns
+        // to the page the operator was on.
+        using var missing = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = AntiforgeryValue(page),
+            ["returnUrl"] = "/Search"
+        });
+        using var unknown = await client.PostAsync($"/Notifications?handler=Open&id={Guid.NewGuid():D}", missing);
+        Assert.Equal(HttpStatusCode.Redirect, unknown.StatusCode);
+        Assert.Equal("/Search", unknown.Headers.Location?.OriginalString);
+    }
+
+    [Fact]
+    public async Task MarkAllReadMarksThePersonsNotificationsAndReturnsToThePage()
+    {
+        var notifications = new StubNotifications([]);
+        using var host = FactoryWith(notifications);
+        using var client = host.CreateClient();
+
+        var page = await client.GetStringAsync("/Search");
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = AntiforgeryValue(page),
+            ["returnUrl"] = "/Search?query=abc"
+        });
+        using var response = await client.PostAsync("/Notifications?handler=MarkAllRead", content);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/Search?query=abc", response.Headers.Location?.OriginalString);
+        Assert.Equal(1, notifications.MarkAllReadCalls);
+
+        // A GET of the handler route is not a screen: it lands on the Work
+        // Centre with the dialog open.
+        using var get = await client.GetAsync("/Notifications");
+        Assert.Equal(HttpStatusCode.Redirect, get.StatusCode);
+        Assert.Equal("/?notifications=1", get.Headers.Location?.OriginalString);
+    }
+
+    [Fact]
+    public async Task NotificationsQueryOpensTheDialogOnLoad()
+    {
+        var notifications = new StubNotifications([]);
+        using var host = FactoryWith(notifications);
+        using var client = host.CreateClient();
+
+        var html = await client.GetStringAsync("/?notifications=1");
+
+        Assert.Contains("data-dialog=\"notifications-dialog\" data-dialog-open-on-load=\"true\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
     public async Task NotificationFailureDoesNotPreventThePageFromRendering()
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IGetAttentionRows>();
-                services.AddSingleton<IGetAttentionRows>(new UnavailableAttentionRows());
-            }));
-        using var client = factory.CreateClient(new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost:7139"),
-        });
+        using var host = FactoryWith(new UnavailableNotifications());
+        using var client = host.CreateClient();
 
         using var response = await client.GetAsync("/Search");
         var html = await response.Content.ReadAsStringAsync();
@@ -262,17 +417,94 @@ public sealed class ShellAndStatusPageWebTests
         Assert.DoesNotContain(nameof(InvalidOperationException), html, StringComparison.Ordinal);
     }
 
-    private sealed class UnavailableAttentionRows : IGetAttentionRows
+    private static BellHost FactoryWith(IMyStaffNotifications notifications) => new(notifications);
+
+    /// <summary>
+    /// A host whose bell reads the given notifications. Owns the base factory
+    /// (and so the test database) as well as the derived one.
+    /// </summary>
+    private sealed class BellHost : IDisposable
     {
-        public Task<IReadOnlyList<NeedsAttentionItem>> ExecuteAsync(
-            Pegasus.Core.Identity.ActionActor actor, CancellationToken cancellationToken = default) =>
+        private readonly IntakeWebApplicationFactory _base = new();
+        private readonly Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> _factory;
+
+        public BellHost(IMyStaffNotifications notifications)
+        {
+            _factory = _base.WithWebHostBuilder(builder =>
+                builder.ConfigureServices(services =>
+                {
+                    services.RemoveAll<IMyStaffNotifications>();
+                    services.AddSingleton(notifications);
+                }));
+        }
+
+        public HttpClient CreateClient() => _factory.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost:7139")
+            });
+
+        public void Dispose()
+        {
+            _factory.Dispose();
+            _base.Dispose();
+        }
+    }
+
+    private sealed class UnavailableNotifications : IMyStaffNotifications
+    {
+        public Task<IReadOnlyList<StaffNotification>> ListAsync(ActionActor actor, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("sensitive store failure");
+
+        public Task<int> CountUnreadAsync(ActionActor actor, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("sensitive store failure");
+
+        public Task<StaffNotification?> OpenAsync(ActionActor actor, Guid notificationId, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("sensitive store failure");
+
+        public Task<int> MarkAllReadAsync(ActionActor actor, CancellationToken cancellationToken) =>
             throw new InvalidOperationException("sensitive store failure");
     }
 
-    private sealed class StubAttentionRows(IReadOnlyList<NeedsAttentionItem> rows) : IGetAttentionRows
+    private sealed class StubNotifications(IReadOnlyList<StaffNotification> rows) : IMyStaffNotifications
     {
-        public Task<IReadOnlyList<NeedsAttentionItem>> ExecuteAsync(
-            Pegasus.Core.Identity.ActionActor actor, CancellationToken cancellationToken = default) =>
-            Task.FromResult(rows);
+        private readonly List<StaffNotification> _rows = [.. rows];
+
+        public List<Guid> Opened { get; } = [];
+
+        public int MarkAllReadCalls { get; private set; }
+
+        public Task<IReadOnlyList<StaffNotification>> ListAsync(ActionActor actor, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffNotification>>(_rows.ToArray());
+
+        public Task<int> CountUnreadAsync(ActionActor actor, CancellationToken cancellationToken) =>
+            Task.FromResult(_rows.Count(row => row.IsUnread));
+
+        public Task<StaffNotification?> OpenAsync(ActionActor actor, Guid notificationId, CancellationToken cancellationToken)
+        {
+            var index = _rows.FindIndex(row => row.Id == notificationId);
+            if (index == -1)
+            {
+                return Task.FromResult<StaffNotification?>(null);
+            }
+
+            Opened.Add(notificationId);
+            var opened = _rows[index] with { ReadAtUtc = DateTimeOffset.UtcNow };
+            _rows[index] = opened;
+            return Task.FromResult<StaffNotification?>(opened);
+        }
+
+        public Task<int> MarkAllReadAsync(ActionActor actor, CancellationToken cancellationToken)
+        {
+            MarkAllReadCalls++;
+            var unread = _rows.Count(row => row.IsUnread);
+            for (var i = 0; i < _rows.Count; i++)
+            {
+                _rows[i] = _rows[i] with { ReadAtUtc = _rows[i].ReadAtUtc ?? DateTimeOffset.UtcNow };
+            }
+
+            return Task.FromResult(unread);
+        }
     }
 }
