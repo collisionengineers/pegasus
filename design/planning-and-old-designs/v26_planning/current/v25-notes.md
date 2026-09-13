@@ -125,6 +125,7 @@ mockup says "Send to AI".
 
 - Add valuation, Versions, Preview, Prepare delivery, More actions and Close case open
   alerts or do nothing; their real dialogs already exist in the application.
+  (Superseded 13 September: every one of these is mocked in v26; see `v26-notes.md`.)
 - Files → Images shows the report strip again for illustration; the real Images tab
   (tags, crop) is the dev implementation.
 - Fonts fall back to the system stack; the app self-hosts Inter.

@@ -252,6 +252,19 @@ f.onload=()=>{
     check('Claim source record notes read-only with lock',!!d.querySelector('#sNotesRec .lk')&&$('sNotesRec').textContent.includes('Prefer total loss'));
     check('Case notes for principal and claim source are fields',!!$('f-pnotes')&&$('f-pnotes').tagName==='TEXTAREA'&&!!$('f-snotes')&&$('f-snotes').closest('.fc').querySelector('label').textContent.includes('this Case'));
     $('f-src').value='Direct';w.srcNotes();check('a source without record notes shows none',$('sNotesRec').hidden);$('f-src').value='Rapid Hire Solutions';w.srcNotes();check('record notes return with the source',!$('sNotesRec').hidden);
+    // valuation buttons, month, and the estimate dialogs
+    {const wasEd=g('EDITING');if(!wasEd)w.startEdit();
+    check('valuation month and source buttons while editing',!!$('f-valmonth')&&$('f-valmonth').type==='month'&&[...d.querySelectorAll('#valTools .btn span')].map(s=>s.textContent).join('|')==="Glass's|Brego|Super CAP|AI market research|Add valuation");
+    $('f-valmonth').value='2026-06';w.getValuation('Brego');check('valuation runs as pending',d.querySelector('.valuation-card[data-g="Brego"]').classList.contains('is-pending'));
+    w.finishValuation('Brego','2026-06');const bc=d.querySelector('.valuation-card[data-g="Brego"]');check('valuation recorded for the chosen month',!bc.classList.contains('is-pending')&&bc.textContent.includes('Jun 2026')&&+bc.dataset.retail>3050);
+    w.openDlg('addValuation');check('add valuation is the live field set',!!$('val-source')&&$('val-guide').type==='month'&&!!$('val-mileage')&&!!$('val-date')&&!!$('val-time')&&!!$('val-retail')&&!!$('val-trade'));
+    $('val-source').value='Cazana';$('val-retail').value='2800';$('val-trade').value='2100';w.addValuationConfirm();check('manual valuation adds a card',!!d.querySelector('.valuation-card[data-g="Cazana"]:not(.seam)')&&d.querySelector('.valuation-card[data-g="Cazana"]:not(.seam)').textContent.includes('£2,800.00'));
+    w.openDlg('importEstimate');w.importEstimateConfirm();check('import lands a draft estimate',g('ESTIMATES').at(-1).state==='draft'&&g('EST').src.startsWith('Imported'));
+    w.openDlg('sendToAi');check('send to AI dialog has direction and target',!!$('ai-direction')&&$('ai-target').value==='75'&&dlgText().includes('Target amount'));w.sendToAiConfirm();
+    w.openDlg('compareEstimates');check('compare lists every estimate with gross',d.querySelectorAll('#dlgHost tbody tr').length===g('ESTIMATES').length&&dlgText().includes('Gross'));w.closeDlg();
+    g('S.ev=S.ev||2900');w.genPreview();check('preview opens the draft',dlgText().includes('Report draft')&&!!d.querySelector('#dlgHost .draft-page img'));w.closeDlg();
+    check('no placeholder actions remain',!d.body.innerHTML.includes('(existing)'));
+    if(!wasEd)w.cancelEdit(true);}
     // case type and Create audit
     check('case type chip absent for Inspection',$('rbKind').hidden&&!$('barActions').textContent.includes('Create audit'));
     w.setKind('inspection_audit');check('Inspection + Audit shows the chip and Create audit',!$('rbKind').hidden&&$('rbKind').textContent==='Inspection + Audit'&&!!d.querySelector('#barActions .btn[onclick*="createAudit"]'));

@@ -19,6 +19,11 @@
 - `taskComplete`
 - `taskCancel`
 - `crop`
+- [`previewDraft`](../panels/estimate/how-it-should-work.md)
+- [`compareEstimates`](../panels/estimate/how-it-should-work.md)
+- [`sendToAi`](../panels/estimate/how-it-should-work.md)
+- [`importEstimate`](../panels/estimate/how-it-should-work.md)
+- [`addValuation`](../panels/valuation/how-it-should-work.md)
 - `glass-close`
 - `image viewer`
 - `upload-request`

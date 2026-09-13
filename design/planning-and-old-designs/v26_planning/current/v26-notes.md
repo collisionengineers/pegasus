@@ -71,8 +71,8 @@ session states and a guarded close. v26 reproduces the live rules:
   interaction.
 - **Not adopted, as in v25:** product type, composed sentences on the page,
   mi/km toggle, average-mileage arithmetic, a Fee tab, numbered sections.
-  Principal-wide notes need a Core field that does not exist, so nothing is
-  drawn for them.
+  Principal-wide notes were left out here for want of a Core field; on
+  13 September they came back as record notes (see § Record notes).
 
 ## Frame rules this mockup follows
 
@@ -143,7 +143,7 @@ principal dialog.
 
 **Self-check.** `v26-shell-selfcheck.html` renders every route, opens and
 closes every dialog, and drives the main flows; run it the same way as the
-Case record's check. 13 September: `{"fail":[],"okCount":279}` including the strip, the working set (a Triage and a message joining and leaving it, the empty strip) and the viewer, no console
+Case record's check. 13 September (evening): `{"fail":[],"okCount":281}` including the strip, the working set (a Triage and a message joining and leaving it, the empty strip) and the viewer, no console
 errors on any of the 33 rendered routes and states (`v26-shots/s*.png`).
 
 ## Working set — the tab strip, reworked
@@ -208,8 +208,10 @@ through the record's gallery, and a page preview for documents. Gallery tiles
 carry thumbnails. `?viewer=N` on the Case record and `?dialog=viewer` on a
 shell record open it. Shots `36`, `37`.
 
-**Crop and tag.** Crop enters a mode where dragging over the image draws the
-region; Apply keeps it, Clear removes it, Esc cancels, Enter applies. The
+**Crop and tag.** Crop happens on the viewer stage: dragging draws the
+region, handles move and resize it, Aspect, Rotate left and right, Full
+frame and Reset sit in the bar, Save crop keeps it, Esc cancels, Enter
+saves (the shell's viewer keeps the simpler Apply / Clear / Cancel set). The
 crop is a stored rectangle, not a new file: the viewer, the filmstrip, the
 report and Files thumbnails and the shell gallery tiles all show the cropped
 region, and Download still returns the original. A Tag select (Overview,
@@ -354,7 +356,7 @@ file access allowed and read the RESULT line:
   Select-String 'RESULT'
 ```
 
-13 September: `{"fail":[],"okCount":371}` with no console errors, on the
+13 September (evening): `{"fail":[],"okCount":399}` with no console errors, on the
 Playwright Chromium 1228 build. The later checks switch through the three
 damage clickers, open the image viewer from the evidence strip (step, rotate,
 zoom, include, close), and seed nine open records to confirm six tabs plus a
@@ -378,3 +380,8 @@ menu, the state glyphs, and that closing a tab persists.
 ## Record notes (13 September, from v24)
 
 - Overview › Principal: **Principal notes** and **Claim source notes** from the records (read-only, locked, absent when the record has none; the source notes follow the Claim source select) beside **… · this Case** editable notes. Admin: **Notes on every Case** on Principal settings and on a Claim source contact. Planning: `pages/administration/contacts/`. Shots `65`–`68`.
+
+## Valuation and the last placeholders (13 September)
+
+- Valuation, while editing: a **Valuation month** field (month and year) and one button per source, Glass's, Brego, Super CAP and AI market research, that runs the valuation for that month (pending card, then figures, guide month and a Notes line). **Add valuation** is the live manual dialog. Planning: `pages/cases/case-record/panels/valuation/`. Shots `69`–`71`.
+- The notes audit found six actions still opening alerts or toasts: Add valuation, Import, Send to AI, Compare, Preview draft and a dead Prepare delivery alert. All now open their dialogs on the live field sets (`72`–`75`); the self-check asserts that no "(existing)" placeholder remains. v25's "Known limits" first bullet no longer applies.
