@@ -4,6 +4,8 @@
 - **Live source:** `src/Pegasus.Web/Pages/Intake/Details.cshtml`
 - **Dialogs:** [`dialogs/`](dialogs/README.md) · **States:** [`states/`](states/README.md) · **Panels:** [`panels/`](panels/README.md)
 
+- [**How it works**](how-it-works.md) — the Blocked outcome, with FRD and source references.
+
 ## Screenshots
 
 - [52-intake-record.png](../../current/v26-shots/52-intake-record.png)
