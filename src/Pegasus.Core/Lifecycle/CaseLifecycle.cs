@@ -1,16 +1,20 @@
 using Pegasus.Core.Identity;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Lifecycle;
 
 
-public sealed class PutCaseOnHold(ICaseWorkflowStore store) : IPutCaseOnHold
+public sealed class PutCaseOnHold(ICaseWorkflowStore store, TimeProvider timeProvider) : IPutCaseOnHold
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
+    private readonly TimeProvider _timeProvider =
+        timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     public async Task<CaseWorkflowRecord> ExecuteAsync(PutCaseOnHoldRequest request, CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request);
+        CaseLifecycleRules.ValidateHoldReviewDate(request.ReviewOn, _timeProvider.GetUtcNow());
         var current = await CaseLifecycleRules.GetRequiredAsync(_store, request.CaseId, cancellationToken);
         if ((current.State == CaseLifecycleState.Held || CaseLifecycleRules.IsTerminal(current.State))
             && !await _store.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
@@ -64,7 +68,8 @@ public sealed class AssignCaseEngineer(
     ICaseWorkflowStore store,
     ICaseWorkflowConfiguration configuration,
     ICaseEngineerEligibility eligibility,
-    IStaffAccountQueries staffAccounts) : IAssignCaseEngineer
+    IStaffAccountQueries staffAccounts,
+    ICaseStaffNotifier? notifier = null) : IAssignCaseEngineer
 {
     private readonly ICaseWorkflowStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly ICaseWorkflowConfiguration _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
@@ -102,8 +107,21 @@ public sealed class AssignCaseEngineer(
                 profiles)?.StaffId;
         }
 
-        return await _store.AssignEngineerAsync(
+        var assigned = await _store.AssignEngineerAsync(
             request, signOffEngineerId, CaseLifecycleState.ReportPreparation, cancellationToken);
+        if (!isReplay && notifier is not null)
+        {
+            // Work Centre D10 cause 2: the engineer is told, unless they took it themself.
+            await notifier.NotifyAsync(
+                StaffNotificationCause.CaseAssigned,
+                request.CaseId,
+                request.Actor,
+                section: null,
+                registration: null,
+                cancellationToken);
+        }
+
+        return assigned;
     }
 }
 
@@ -554,12 +572,28 @@ public static class CaseLifecycleRules
             .Select(state => state.ToString())
     ];
 
-    public static void ValidateMutation(CaseMutationRequest request)
+    public static void ValidateMutation(CaseMutationRequest request) =>
+        ValidateMutation(request, requireReason: true);
+
+    /// <summary>
+    /// The mutation envelope. A reason is mandatory for every lifecycle action except
+    /// where the caller says otherwise: the Case data save records what changed as
+    /// its own account, so a typed reason there is optional and bounded, never required.
+    /// </summary>
+    public static void ValidateMutation(CaseMutationRequest request, bool requireReason)
     {
         ArgumentNullException.ThrowIfNull(request);
         ValidateCaseAndVersion(request.CaseId, request.ExpectedVersion);
         ValidateActorAndOperation(request.Actor, request.OperationKey);
-        RequireText(request.Reason, "A reason is required.", 500, nameof(request));
+        if (requireReason)
+        {
+            RequireText(request.Reason, "A reason is required.", 500, nameof(request));
+        }
+        else if (request.Reason is { Length: > 500 })
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), "The value cannot exceed 500 characters.");
+        }
+
         RequireText(
             request.EditLeaseToken,
             "An active edit lease token is required.",
@@ -576,6 +610,73 @@ public static class CaseLifecycleRules
     /// </summary>
     public static void ValidateReturnToReview(ReturnCaseToReviewRequest request) =>
         ValidateMutation(request);
+
+    /// <summary>
+    /// A hold's review date is optional; when given it is a Europe/London calendar
+    /// date no earlier than the office's today, so a hold cannot be placed with a
+    /// review that was already due when it was written.
+    /// </summary>
+    public static void ValidateHoldReviewDate(DateOnly? reviewOn, DateTimeOffset now)
+    {
+        if (reviewOn is { } date && date < LondonCalendar.DateAt(now))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(reviewOn),
+                "The review date must be today or later.");
+        }
+    }
+
+    /// <summary>
+    /// Whether the Case is in a state where an Engineer may be assigned at all:
+    /// today that is Review only, the one place <see cref="AssignCaseEngineer"/>
+    /// accepts an assignment.
+    /// </summary>
+    public static bool AllowsEngineerAssignment(CaseLifecycleState state) =>
+        state == CaseLifecycleState.Review;
+
+    /// <summary>
+    /// "Assign to me" is offered on a Case with no Engineer, in a state where
+    /// assignment is allowed. A Case that already has an Engineer is reassigned
+    /// through the ordinary dialog, never taken.
+    /// </summary>
+    public static bool CanAssignToSelf(CaseWorkflowRecord current) =>
+        current.AssignedEngineerId is null
+        && current.Archive is null
+        && !IsTerminal(current.State)
+        && AllowsEngineerAssignment(current.State);
+
+    public static void RequireSelfAssignmentAllowed(CaseWorkflowRecord current)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        if (current.AssignedEngineerId is not null)
+        {
+            throw new InvalidOperationException("The case already has an Engineer.");
+        }
+
+        if (!CanAssignToSelf(current))
+        {
+            throw new InvalidOperationException("An Engineer can be assigned only while the case is in Review.");
+        }
+    }
+
+    /// <summary>
+    /// The staff identity an actor assigns to themself. Only a staff member who
+    /// holds the Engineer role can take a Case; the account's eligibility (enabled,
+    /// still an Engineer) is then checked by the assignment itself.
+    /// </summary>
+    public static Guid RequireSelfAssigningEngineer(ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (actor.Kind != ActorKind.Staff
+            || !actor.IsInRole(StaffRole.Engineer)
+            || !Guid.TryParse(actor.SubjectId, out var staffId)
+            || staffId == Guid.Empty)
+        {
+            throw new InvalidOperationException("Only an Engineer can assign a case to themself.");
+        }
+
+        return staffId;
+    }
 
     public static void ValidateAssignment(
         AssignCaseEngineerRequest request,

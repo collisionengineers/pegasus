@@ -9,6 +9,7 @@ using Pegasus.Core.Vehicle;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ProviderApi;
 using Pegasus.Infrastructure.Custody;
@@ -70,6 +71,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             unidentifiedReconciler,
             vehicleLookupReconciler,
             providerSubmissionReconciler,
+            new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
             logger);
 
         await function.RunAsync(null!, CancellationToken.None);
@@ -78,7 +80,8 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
         Assert.True(pendingCustodyFactory.CreateCount > 0);
         Assert.Equal(50, pairing.MaximumItems);
         Assert.Equal(50, triagePairing.MaximumItems);
-        Assert.Equal(7, logger.States.Count);
+        // Seven reconciliation results and the staff-notification purge.
+        Assert.Equal(8, logger.States.Count);
         var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
         Assert.Equal(7, state["RecoveredWorkItems"]);
         Assert.Equal(0, state["Completed"]);
@@ -140,6 +143,7 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
                 new UnreachableGroupStore(), new EmptyQueuedIntakeStatuses()),
             new ReconcileAutomaticVehicleLookups(new UnreachableAutomaticVehicleLookupStore(), VehicleLookupAvailability.Unavailable),
             new ReconcileProviderSubmissions(new EmptyProviderSubmissionStore(), new UnreachableActionHistoryWriter(), TimeProvider.System),
+            new PurgeStaffNotifications(new EmptyStaffNotificationStore(), TimeProvider.System),
             Microsoft.Extensions.Logging.Abstractions.NullLogger<StagedArtifactReconciliationFunction>.Instance);
         return function.RunAsync(null!, CancellationToken.None);
     }
@@ -213,6 +217,16 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             return inner.CreateDbContextAsync(cancellationToken);
         }
     }
+    private sealed class EmptyStaffNotificationStore : IStaffNotificationStore
+    {
+        public Task<StaffNotification> AddAsync(NewStaffNotification notification, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<StaffNotification>> ListAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<int> CountUnreadAsync(Guid staffId, DateTimeOffset sinceUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<StaffNotification?> MarkReadAsync(Guid staffId, Guid notificationId, DateTimeOffset readAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<int> MarkAllReadAsync(Guid staffId, DateTimeOffset readAtUtc, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<int> PurgeOlderThanAsync(DateTimeOffset cutoffUtc, CancellationToken cancellationToken) => Task.FromResult(0);
+    }
+
     private sealed class EmptyCacheCleanup : IDocumentContentCacheCleanup
     {
         public Task<DocumentContentCacheCleanupResult> ExecuteAsync(

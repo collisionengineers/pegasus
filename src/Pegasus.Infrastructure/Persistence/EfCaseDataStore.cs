@@ -120,12 +120,18 @@ public sealed class EfCaseDataStore(
             CaseChaseState.Stop(workflow);
             if (enteringReview)
             {
+                workflow.StateEnteredAtUtc = now;
                 AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
                     context, workflow, checked(workflow.Version + 1), now);
             }
         }
         else
         {
+            if (workflow.State != nameof(CaseLifecycleState.NotReady))
+            {
+                workflow.StateEnteredAtUtc = now;
+            }
+
             workflow.State = nameof(CaseLifecycleState.NotReady);
             await CaseDueWorkScheduler.ScheduleAsync(context, workflow, snapshot.Case.AcceptedInspectionDeadline, now, cancellationToken);
         }
@@ -232,6 +238,11 @@ public sealed class EfCaseDataStore(
         snapshot.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
         snapshot.Case.InstructionComplete = false;
         snapshot.CompletenessPolicySatisfied = false;
+        if (workflow.State != nameof(CaseLifecycleState.NotReady))
+        {
+            workflow.StateEnteredAtUtc = now;
+        }
+
         workflow.State = nameof(CaseLifecycleState.NotReady);
         await CaseDueWorkScheduler.ScheduleAsync(context, workflow, data.InspectionDeadline, now, cancellationToken);
 
@@ -451,7 +462,9 @@ public sealed class EfCaseDataStore(
                 && CaseOdometer.TryParseUnit(displayUnit, out var unit)
                     ? unit
                     : null,
-            new(data.RepairerId, data.RepairerVersion, data.RepairerName));
+            new(data.RepairerId, data.RepairerVersion, data.RepairerName),
+            data.PrincipalNotes,
+            data.ClaimSourceNotes);
     }
 
     private static CaseField<string> TextField(
@@ -670,6 +683,8 @@ internal static class CaseDataFieldWriter
         Text(CaseDataFieldNames.InspectionContactTelephone, data.InspectionContactTelephone);
         Text(CaseDataFieldNames.InspectionContactEmailAddress, data.InspectionContactEmailAddress);
         Text(CaseDataFieldNames.InspectionNotes, data.InspectionNotes);
+        Text(CaseDataFieldNames.PrincipalNotes, data.PrincipalNotes);
+        Text(CaseDataFieldNames.ClaimSourceNotes, data.ClaimSourceNotes);
     }
 
     public static CaseEditableData ReadEditable(CaseDataSnapshotEntity snapshot) => new(
@@ -723,7 +738,9 @@ internal static class CaseDataFieldWriter
         ConfirmedText(snapshot, CaseDataFieldNames.RepairerName),
         ConfirmedGuid(snapshot, CaseDataFieldNames.RepairerId),
         ConfirmedLong(snapshot, CaseDataFieldNames.RepairerVersion),
-        ConfirmedText(snapshot, CaseDataFieldNames.VehicleYear));
+        ConfirmedText(snapshot, CaseDataFieldNames.VehicleYear),
+        ConfirmedText(snapshot, CaseDataFieldNames.PrincipalNotes),
+        ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceNotes));
 
     private static void SetConfirmed(
         PegasusDbContext context,

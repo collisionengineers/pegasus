@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Pegasus.Core.Notifications;
 
 namespace Pegasus.Core.Intake;
 
@@ -41,7 +42,8 @@ public interface IAutomaticMailCaseAssociationEvidenceQueries
 public sealed class AssociateRetainedMailWithCase(
     IAutomaticMailCaseAssociationEvidenceQueries evidenceQueries,
     IAutomaticCaseAssociationStore associationStore,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ICaseStaffNotifier? caseNotifier = null)
 {
     public const string PolicyKey = "mail_case_association";
     public const int PolicyVersion = 1;
@@ -62,7 +64,7 @@ public sealed class AssociateRetainedMailWithCase(
             return null;
         }
 
-        return await associationStore.AssociateFromMatchAsync(
+        var outcome = await associationStore.AssociateFromMatchAsync(
             new(
                 intakeReceiptId,
                 caseId,
@@ -74,6 +76,13 @@ public sealed class AssociateRetainedMailWithCase(
                 evidence.Fingerprint),
             timeProvider.GetUtcNow(),
             cancellationToken);
+        if (outcome == AutomaticCaseAssociationOutcome.Associated && caseNotifier is not null)
+        {
+            // Work Centre D10 cause 3: the Case's engineer learns an e-mail arrived.
+            await caseNotifier.NotifyMailArrivalAsync(caseId, null, cancellationToken);
+        }
+
+        return outcome;
     }
 
     internal static Guid? SelectTarget(AutomaticMailCaseAssociationEvidence evidence)

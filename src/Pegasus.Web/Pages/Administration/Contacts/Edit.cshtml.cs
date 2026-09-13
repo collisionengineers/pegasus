@@ -27,6 +27,10 @@ public sealed class EditModel(
     IReplacePrincipal replacePrincipal) : AdministrationPageModel
 {
     public ContactDirectoryRecord? Contact { get; private set; }
+
+    // Whether the form carried a field at all: a field the form does not yet render
+    // keeps the record's current value rather than clearing it.
+    private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
     public PrincipalAdministrationSummary? Principal { get; private set; }
     public PrincipalCredentialRecord? Credential { get; private set; }
     public string? IssuedSecret { get; private set; }
@@ -44,6 +48,7 @@ public sealed class EditModel(
     [BindProperty, StringLength(ContactDirectoryPolicy.MaximumPostcodeLength)] public string? Postcode { get; set; }
     [BindProperty, StringLength(ContactDirectoryPolicy.MaximumGuidanceTemplateLength)] public string? GuidanceTemplate { get; set; }
     [BindProperty] public long GuidanceTemplateVersion { get; set; }
+    [BindProperty, StringLength(ContactDirectoryPolicy.MaximumNotesOnEveryCaseLength)] public string? NotesOnEveryCase { get; set; }
     [BindProperty] public bool Active { get; set; } = true;
     [BindProperty] public ContactRole[] Roles { get; set; } = [];
     [BindProperty, StringLength(20)] public string? PrincipalCode { get; set; }
@@ -162,7 +167,8 @@ public sealed class EditModel(
             try
             {
                 var associations = ParsePrincipalAssociations();
-                await administration.SaveAsync(new(actor, ContactId, ExpectedVersion, Name, ContactPerson, Email, Telephone, Address, Postcode, Active, Roles, PrincipalCode, PrincipalInspectionMode, associations, OperationKey, LeaseToken ?? string.Empty, GuidanceTemplate, GuidanceTemplateVersion), cancellationToken);
+                await administration.SaveAsync(new(actor, ContactId, ExpectedVersion, Name, ContactPerson, Email, Telephone, Address, Postcode, Active, Roles, PrincipalCode, PrincipalInspectionMode, associations, OperationKey, LeaseToken ?? string.Empty, GuidanceTemplate, GuidanceTemplateVersion,
+                    Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Contact.NotesOnEveryCase), cancellationToken);
                 TempData["AdministrationStatus"] = "The contact was saved.";
                 return RedirectToPage("Index");
             }
@@ -277,7 +283,8 @@ public sealed class EditModel(
                 await updatePrincipalReportSettings.ExecuteAsync(new(
                     Principal!.Id, expectedVersion, actor, ReportSettingsOperationKey!,
                     "Updated report settings", ReportGenerationPolicy, recipients,
-                    ExpectedVersion, LeaseToken), cancellationToken);
+                    ExpectedVersion, LeaseToken,
+                    Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Principal.NotesOnEveryCase), cancellationToken);
                 TempData["AdministrationStatus"] = "The principal's report settings were updated.";
                 return RedirectToPage(new { id = ContactId });
             }
@@ -501,7 +508,7 @@ public sealed class EditModel(
 
     private void CopyFrom(ContactDirectoryRecord contact)
     {
-        Name = contact.Name; ContactPerson = contact.ContactPerson; Email = contact.Email; Telephone = contact.Telephone; Address = contact.Address; Postcode = contact.Postcode; GuidanceTemplate = contact.GuidanceTemplate; GuidanceTemplateVersion = contact.GuidanceTemplateVersion; Active = contact.Active; Roles = contact.Roles.ToArray(); PrincipalAssociationKeys = (contact.PrincipalAssociations ?? []).Select(association => $"{association.Role}:{association.PrincipalId:D}").ToArray();
+        Name = contact.Name; ContactPerson = contact.ContactPerson; Email = contact.Email; Telephone = contact.Telephone; Address = contact.Address; Postcode = contact.Postcode; GuidanceTemplate = contact.GuidanceTemplate; GuidanceTemplateVersion = contact.GuidanceTemplateVersion; NotesOnEveryCase = contact.NotesOnEveryCase; Active = contact.Active; Roles = contact.Roles.ToArray(); PrincipalAssociationKeys = (contact.PrincipalAssociations ?? []).Select(association => $"{association.Role}:{association.PrincipalId:D}").ToArray();
     }
 
     private ContactPrincipalAssociation[] ParsePrincipalAssociations() =>

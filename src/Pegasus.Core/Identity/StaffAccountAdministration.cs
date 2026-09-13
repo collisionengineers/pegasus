@@ -13,6 +13,9 @@ public sealed record StaffAccountSummary(
 
     public StaffAccountSignOffState SignOff { get; init; } =
         StaffAccountSignOffState.NotConfigured;
+
+    /// <summary>When the person last opened the Work Centre (Work Centre D8); null before their first open.</summary>
+    public DateTimeOffset? WorkCentreLastSeenUtc { get; init; }
 }
 
 public sealed record StaffAccountSignOffState(

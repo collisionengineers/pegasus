@@ -182,12 +182,18 @@ public sealed class EfCaseWorkspaceStore(
                 CaseChaseState.Stop(workflow);
                 if (enteringReview)
                 {
+                    workflow.StateEnteredAtUtc = now;
                     AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
                         context, workflow, checked(workflow.Version + 1), now);
                 }
             }
             else
             {
+                if (state != CaseLifecycleState.NotReady)
+                {
+                    workflow.StateEnteredAtUtc = now;
+                }
+
                 workflow.State = nameof(CaseLifecycleState.NotReady);
                 await CaseDueWorkScheduler.ScheduleAsync(
                     context,
@@ -219,7 +225,15 @@ public sealed class EfCaseWorkspaceStore(
             workflow,
             request.Actor,
             request.OperationKey,
-            request.Reason,
+            CaseWorkspaceChangeSummary.Describe(
+                beforeData,
+                data,
+                beforeFields,
+                afterFields,
+                estimateChanged: estimate is not null
+                    && JsonSerializer.Serialize(beforeLines, JsonOptions) != JsonSerializer.Serialize(afterLines, JsonOptions),
+                imagesPrepared: preparedImages?.Count ?? 0,
+                request.Reason),
             EventType,
             requestHash,
             beforeVersion,

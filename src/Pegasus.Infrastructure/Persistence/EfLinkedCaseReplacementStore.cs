@@ -187,6 +187,7 @@ public sealed class EfLinkedCaseReplacementStore(
             State = CaseInitialWorkflowState.From(initialState).ToString(),
             OriginalCaseId = original.CaseId,
             OriginalCase = original.Case,
+            StateEnteredAtUtc = now,
             Version = 0
         };
         context.CaseWorkflows.Add(replacementWorkflow);
@@ -222,6 +223,7 @@ public sealed class EfLinkedCaseReplacementStore(
 
         var beforeVersion = original.Version;
         original.State = nameof(CaseLifecycleState.CreatedInError);
+        original.StateEnteredAtUtc = now;
         original.ClosureOutcome = nameof(CaseClosureOutcome.CreatedInError);
         original.ReplacementCaseId = replacementCaseId;
         original.ReplacementCase = replacementCase;

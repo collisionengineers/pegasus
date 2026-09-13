@@ -89,7 +89,11 @@ public sealed record AiJobRecord(
     string? ResultText,
     DateTimeOffset? ClosedAtUtc,
     string? ClosureReason,
-    long Version);
+    long Version)
+{
+    /// <summary>When the client wrote its draft; set once the job reaches Draft ready.</summary>
+    public DateTimeOffset? DraftReadyAtUtc { get; init; }
+}
 
 public sealed record AiJobCounts(int Active, int Failed);
 
@@ -198,7 +202,8 @@ public sealed record CompleteMarketResearchAiJobCommand(
     TimeOnly RecordedTime,
     long Mileage,
     decimal RetailValue,
-    decimal TradeValue);
+    decimal TradeValue,
+    DateOnly? GuideMonth = null);
 
 public sealed record MarketResearchAiJobCompletion(
     AiJobRecord Job,

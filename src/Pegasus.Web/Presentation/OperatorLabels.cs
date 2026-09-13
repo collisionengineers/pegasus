@@ -446,11 +446,11 @@ public static class OperatorLabels
     /// </summary>
     public static string NeedsAttentionKind(NeedsAttentionKind kind) => kind switch
     {
-        Pegasus.Core.Operations.NeedsAttentionKind.Case => "Case",
+        Pegasus.Core.Operations.NeedsAttentionKind.CaseChase => "Case",
         Pegasus.Core.Operations.NeedsAttentionKind.HeldDecision => "Held decision",
-        Pegasus.Core.Operations.NeedsAttentionKind.Mail => "Mail",
+        Pegasus.Core.Operations.NeedsAttentionKind.Unidentified => "Unidentified",
         Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
-        Pegasus.Core.Operations.NeedsAttentionKind.ExternalWork => "External work",
+        Pegasus.Core.Operations.NeedsAttentionKind.AiDraft => "AI draft",
         Pegasus.Core.Operations.NeedsAttentionKind.ReviewCase => "Review Case",
         Pegasus.Core.Operations.NeedsAttentionKind.UnassignedEngineer => "Assign Engineer",
         _ => Humanise(kind.ToString())
@@ -465,7 +465,6 @@ public static class OperatorLabels
     public static string NeedsAttentionPriority(NeedsAttentionPriority priority) => priority switch
     {
         Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => "Overdue",
-        Pegasus.Core.Operations.NeedsAttentionPriority.High => "High",
         Pegasus.Core.Operations.NeedsAttentionPriority.Today => "Today",
         Pegasus.Core.Operations.NeedsAttentionPriority.Normal => "Normal",
         _ => Humanise(priority.ToString())
@@ -474,8 +473,7 @@ public static class OperatorLabels
     /// <summary>The chip tone for a work-item priority word.</summary>
     public static string NeedsAttentionPriorityTone(NeedsAttentionPriority priority) => priority switch
     {
-        Pegasus.Core.Operations.NeedsAttentionPriority.Overdue
-            or Pegasus.Core.Operations.NeedsAttentionPriority.High => "red",
+        Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => "red",
         Pegasus.Core.Operations.NeedsAttentionPriority.Today => "amber",
         _ => "neutral"
     };

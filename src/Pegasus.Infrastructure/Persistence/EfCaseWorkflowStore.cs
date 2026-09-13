@@ -510,6 +510,8 @@ public sealed class EfCaseWorkflowStore(
         MutateAsync(request, "case_held", (context, workflow, now) =>
         {
             workflow.PreHoldState = workflow.State;
+            workflow.HeldAtUtc = now;
+            workflow.HoldReviewOn = request.ReviewOn;
             var due = workflow.DueWork;
             if (workflow.State == nameof(CaseLifecycleState.NotReady))
             {
@@ -575,6 +577,8 @@ public sealed class EfCaseWorkflowStore(
 
             workflow.State = previousState.ToString();
             workflow.PreHoldState = null;
+            workflow.HeldAtUtc = null;
+            workflow.HoldReviewOn = null;
             return Task.CompletedTask;
         }, cancellationToken);
 
@@ -1021,7 +1025,13 @@ public sealed class EfCaseWorkflowStore(
         RequireLease(workflow, request.Actor, request.EditLeaseToken, now);
         var beforeJson = JsonSerializer.Serialize(HistoryValue(workflow));
         var beforeVersion = workflow.Version;
+        var beforeState = workflow.State;
         await apply(context, workflow, now);
+        if (!string.Equals(workflow.State, beforeState, StringComparison.Ordinal))
+        {
+            workflow.StateEnteredAtUtc = now;
+        }
+
         workflow.Version = checked(workflow.Version + 1);
         ClearLease(workflow);
         var afterJson = JsonSerializer.Serialize(HistoryValue(workflow));
@@ -1257,6 +1267,7 @@ public sealed class EfCaseWorkflowStore(
         workflow.ReportSentEvidenceId = evidence.Id;
         workflow.ReportSentEvidence = evidence;
         workflow.State = nameof(CaseLifecycleState.PostReport);
+        workflow.StateEnteredAtUtc = linkedAtUtc;
     }
 
     private static AutoLinkReportEvidenceResult AutoLinkLinked(CaseWorkflowEntity workflow)
@@ -1627,7 +1638,10 @@ public sealed class EfCaseWorkflowStore(
         entity.Version)
     {
         Archive = MapArchive(entity),
-        SignOffEngineerId = entity.SignOffEngineerId
+        SignOffEngineerId = entity.SignOffEngineerId,
+        HeldAtUtc = entity.HeldAtUtc,
+        HoldReviewOn = entity.HoldReviewOn,
+        StateEnteredAtUtc = entity.StateEnteredAtUtc
     };
     private static CaseArchive? MapArchive(CaseWorkflowEntity entity)
     {

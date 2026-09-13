@@ -76,6 +76,41 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
         Assert.Equal("group_vrm_no_eligible_case", result.ReasonCode);
     }
 
+    /// <summary>
+    /// Upload planning, 13 September: a member that could not be read travels
+    /// with the group. It is flagged on its row, never decides for the group, and
+    /// a group of nothing but unreadable files is one Unidentified item.
+    /// </summary>
+    [Fact]
+    public void AMemberThatCouldNotBeReadTravelsWithTheGroupAndDoesNotVetoIt()
+    {
+        var result = ImageIntakeGroupRoutingPolicy.Evaluate(
+        [
+            Member(VrmRecognitionOutcomeKind.Suggested, "AC04", 0.95),
+            new(Guid.NewGuid(), false, VrmRecognitionOutcomeKind.TechnicalFailure, null, null, "corrupt", CouldNotBeRead: true)
+        ],
+        expectedMemberCount: 2,
+        eligibleCaseCount: 1);
+
+        Assert.Equal(ImageIntakeGroupRoutingDecision.AssociateExistingCase, result.Decision);
+        Assert.Equal("AC04", result.NormalizedRegistration);
+    }
+
+    [Fact]
+    public void AGroupOfOnlyUnreadableFilesIsOneUnidentifiedItem()
+    {
+        var result = ImageIntakeGroupRoutingPolicy.Evaluate(
+        [
+            new(Guid.NewGuid(), false, VrmRecognitionOutcomeKind.TechnicalFailure, null, null, "corrupt", CouldNotBeRead: true),
+            new(Guid.NewGuid(), false, VrmRecognitionOutcomeKind.NoReadableResult, null, null, null, CouldNotBeRead: true)
+        ],
+        expectedMemberCount: 2,
+        eligibleCaseCount: 0);
+
+        Assert.Equal(ImageIntakeGroupRoutingDecision.RouteToUnidentified, result.Decision);
+        Assert.Equal("group_could_not_be_read", result.ReasonCode);
+    }
+
     private static ImageIntakeGroupMemberRecognition Member(
         VrmRecognitionOutcomeKind outcome,
         string? registration,

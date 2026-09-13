@@ -442,6 +442,7 @@ internal sealed class EfStaffMailSendStore(
             workflow.State, workflow.ClosureOutcome, workflow.Version,
             mail.ObservedSentImmutableMessageId, mail.ProviderSentAtUtc, mail.ObservedSentAtUtc));
         workflow.State = nameof(CaseLifecycleState.PostReportComplete);
+        workflow.StateEnteredAtUtc = occurredAtUtc;
         workflow.ClosureOutcome = CaseClosureOutcome.PostReportComplete.ToString();
         workflow.Version = checked(workflow.Version + 1);
         workflow.ConcurrencyToken = Guid.NewGuid();

@@ -41,7 +41,7 @@ public sealed class EfValuationStore(
         {
             return RequireExactReplay<CaseValuation>(
                 replay,
-                eventKind,
+                replay.EventType == "valuation_replaced" ? "valuation_replaced" : eventKind,
                 requestHash,
                 request.CaseId,
                 request.OperationKey);
@@ -50,29 +50,33 @@ public sealed class EfValuationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
-        var entity = new CaseValuationEntity
+        // A card for the same source and guide month is replaced in place: the
+        // Valuations table does not version rows, so the earlier figures survive
+        // only in the history entry written below.
+        var replaced = await FindReplacedAsync(context, request.CaseId, request.Details, cancellationToken);
+        var before = replaced is null ? null : Map(replaced);
+        var entity = replaced ?? new CaseValuationEntity
         {
             Id = Guid.NewGuid(),
             CaseId = request.CaseId,
             Case = workflow.Case,
             Source = request.Details.Source.ToString(),
-            Date = request.Details.Date,
-            Time = request.Details.Time,
-            GuideMonth = request.Details.GuideMonth,
-            Mileage = request.Details.Mileage,
-            RetailValue = request.Details.RetailValue,
-            TradeValue = request.Details.TradeValue,
             RecordedBy = request.Actor.SubjectId,
             RecordedAtUtc = now,
         };
-        context.CaseValuations.Add(entity);
+        Write(entity, request.Details, replaced is null ? null : request.Actor.SubjectId, now);
+        if (replaced is null)
+        {
+            context.CaseValuations.Add(entity);
+        }
+
         var result = Map(entity);
         var engineersValue = await WriteEngineersValueAsync(
             context,
             workflow,
             request.Actor,
             entity,
-            previousSource: null,
+            previousSource: before?.Details.Source,
             now,
             cancellationToken);
         AddHistory(
@@ -81,10 +85,10 @@ public sealed class EfValuationStore(
             request.Actor,
             request.OperationKey,
             request.Reason,
-            eventKind,
+            replaced is null ? eventKind : "valuation_replaced",
             requestHash,
             result,
-            before: null,
+            before,
             engineersValue,
             now);
         // Manual valuation evidence (guide figures, and the Engineer's Value
@@ -671,6 +675,48 @@ public sealed class EfValuationStore(
         Convert.ToHexStringLower(
             SHA256.HashData(
                 Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request, SerializerOptions))));
+
+    /// <summary>
+    /// The existing card the incoming figures replace (<see cref="ValuationPolicy.Replaces"/>):
+    /// same source, same guide month, on this Case. Null when the figures are a new card.
+    /// </summary>
+    internal static async Task<CaseValuationEntity?> FindReplacedAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        ValuationDetails details,
+        CancellationToken cancellationToken)
+    {
+        if (details.GuideMonth is not { } guideMonth)
+        {
+            return null;
+        }
+
+        var source = details.Source.ToString();
+        return await context.CaseValuations
+            .Where(item => item.CaseId == caseId && item.Source == source && item.GuideMonth == guideMonth)
+            .OrderByDescending(item => item.RecordedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    internal static void Write(
+        CaseValuationEntity entity,
+        ValuationDetails details,
+        string? editedBy,
+        DateTimeOffset now)
+    {
+        entity.Source = details.Source.ToString();
+        entity.Date = details.Date;
+        entity.Time = details.Time;
+        entity.GuideMonth = details.GuideMonth;
+        entity.Mileage = details.Mileage;
+        entity.RetailValue = details.RetailValue;
+        entity.TradeValue = details.TradeValue;
+        if (editedBy is not null)
+        {
+            entity.LastEditedBy = editedBy;
+            entity.LastEditedAtUtc = now;
+        }
+    }
 
     internal static CaseValuation Map(CaseValuationEntity entity)
     {

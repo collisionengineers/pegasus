@@ -35,7 +35,12 @@ public sealed record Principal(
     long Version,
     CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
     PrincipalReportGenerationPolicy ReportGenerationPolicy = PrincipalReportGenerationPolicy.Pegasus,
-    PrincipalReportRecipientSettings? ReportRecipients = null);
+    PrincipalReportRecipientSettings? ReportRecipients = null,
+    // The record's "Notes on every Case" (Contacts planning, 13 September): shown
+    // read-only on every Case of this Principal, read live from the record and
+    // never copied. Null when the record carries none, or when a reader did not
+    // load the organisation.
+    string? NotesOnEveryCase = null);
 
 public enum CaseType
 {
@@ -293,7 +298,8 @@ public sealed record UpdatePrincipalReportSettingsRequest(
     PrincipalReportGenerationPolicy ReportGenerationPolicy,
     PrincipalReportRecipientSettings ReportRecipients,
     long ExpectedContactVersion,
-    string EditLeaseToken);
+    string EditLeaseToken,
+    string? NotesOnEveryCase = null);
 
 public sealed record ReplacePrincipalRequest(
     Guid PrincipalId,

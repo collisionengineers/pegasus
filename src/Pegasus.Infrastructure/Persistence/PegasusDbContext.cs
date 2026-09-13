@@ -558,7 +558,18 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.Reference).IsUnique();
             entity.HasIndex(item => item.AuditReference).IsUnique();
             entity.HasIndex(item => item.OriginIntakeReceiptId);
-            entity.HasIndex(item => new { item.SequenceLineageId, item.Year, item.Sequence }).IsUnique();
+            // An Audit Case shares its original's sequence, so sequence uniqueness ignores
+            // linked Audit Cases; the reference stays unique across every Case.
+            entity.HasIndex(item => new { item.SequenceLineageId, item.Year, item.Sequence })
+                .IsUnique()
+                .HasFilter("[AuditOfCaseId] IS NULL");
+            entity.HasIndex(item => item.AuditOfCaseId)
+                .IsUnique()
+                .HasFilter("[AuditOfCaseId] IS NOT NULL");
+            entity.HasOne<CaseEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.AuditOfCaseId)
+                .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item => item.Principal)
                 .WithMany(item => item.Cases)
                 .HasForeignKey(item => item.PrincipalId)
@@ -995,6 +1006,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.OriginKind).HasMaxLength(40).IsRequired();
             entity.Property(item => item.ReasonCode).HasMaxLength(80).IsRequired();
             entity.Property(item => item.SafeDetail).HasMaxLength(1000).IsRequired();
+            entity.Property(item => item.FileKind).HasMaxLength(100);
             entity.Property(item => item.State).HasMaxLength(40).IsRequired();
             entity.Property(item => item.CreatedByActorKind).HasMaxLength(40).IsRequired();
             entity.Property(item => item.CreatedByActorSubjectId).HasMaxLength(200).IsRequired();
@@ -1088,6 +1100,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         });
         CaseWorkflowModelConfiguration.Configure(builder);
         CaseDueChaserModelConfiguration.Configure(builder);
+        StaffNotificationModelConfiguration.Configure(builder);
     }
 }
 
@@ -1107,6 +1120,9 @@ public sealed class PegasusIdentityUser : IdentityUser<Guid>
 
     public byte[]? SignOffSignature { get; set; }
 
+    /// <summary>When the person last opened the Work Centre, for its "since you last looked" line (D8).</summary>
+    public DateTimeOffset? WorkCentreLastSeenUtc { get; set; }
+
     public string? SignOffSignatureDigest { get; set; }
 
     public bool IsDefaultSignOffEngineer { get; set; }
@@ -1124,6 +1140,8 @@ internal sealed class OrganizationEntity
     public string? Postcode { get; set; }
     public string? GuidanceTemplate { get; set; }
     public long GuidanceTemplateVersion { get; set; }
+    // "Notes on every Case": read live onto every Case of this Principal or from this Claim source.
+    public string? NotesOnEveryCase { get; set; }
     public bool Active { get; set; } = true;
     public long Version { get; set; }
     public List<OrganizationRoleEntity> Roles { get; set; } = [];
@@ -1211,6 +1229,10 @@ internal sealed class CaseEntity : IApplicationManagedConcurrencyToken
     public required string InitialState { get; set; }
     public required string CustodyState { get; set; }
     public Guid? OriginIntakeReceiptId { get; set; }
+    // The Inspection + Audit Case this Audit Case was created from (13 September): the
+    // two share principal, year and sequence, and this Case roots its Box folder under
+    // the original's. Null for every other Case.
+    public Guid? AuditOfCaseId { get; set; }
     public string? StandaloneAuditAssessment { get; set; }
     public Guid? StandaloneAuditEvidenceId { get; set; }
     public DateOnly? AcceptedInspectionDeadline { get; set; }

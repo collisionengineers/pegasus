@@ -26,11 +26,18 @@ public sealed class ConfigurationModel(
     [BindProperty] public bool RequireInstructions { get; set; }
     [BindProperty] public bool RequireImages { get; set; }
     [BindProperty] public int ChaseIntervalDays { get; set; } = 7;
+    [BindProperty] public int UnidentifiedTargetDays { get; set; }
+    [BindProperty] public int TriageTargetDays { get; set; } = 1;
+    [BindProperty] public int HeldTargetDays { get; set; } = 7;
+    [BindProperty] public int ReviewTargetDays { get; set; } = 1;
+    [BindProperty] public int AiDraftTargetDays { get; set; } = 1;
     [BindProperty] public string? CardName { get; set; } = string.Empty;
     [BindProperty] public decimal HourlyRate { get; set; }
     [BindProperty] public bool Enabled { get; set; } = true;
     [BindProperty] public string? Reason { get; set; }
     public bool IsEditing => EditingId != Guid.Empty;
+
+    private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
 
     /// <summary>
     /// The record this operator is already editing in another window, offered
@@ -65,6 +72,11 @@ public sealed class ConfigurationModel(
             RequireInstructions = Configuration.RequireInstructions;
             RequireImages = Configuration.RequireImages;
             ChaseIntervalDays = Configuration.ChaseIntervalDays;
+            UnidentifiedTargetDays = Configuration.UnidentifiedTargetDays;
+            TriageTargetDays = Configuration.TriageTargetDays;
+            HeldTargetDays = Configuration.HeldTargetDays;
+            ReviewTargetDays = Configuration.ReviewTargetDays;
+            AiDraftTargetDays = Configuration.AiDraftTargetDays;
         }
         else
         {
@@ -138,11 +150,22 @@ public sealed class ConfigurationModel(
             if (ModelState.IsValid)
             {
                 if (EditingId == GetWorkflowConfiguration.RecordId)
+                {
+                    // A target the form does not yet render keeps its current value rather
+                    // than falling back to the default.
+                    var current = await getWorkflowConfiguration.ExecuteAsync(actor, cancellationToken);
                     await updateWorkflowConfiguration.ExecuteAsync(new(checked((int)ExpectedVersion), actor, OperationKey)
                     {
                         RequireInstructions = RequireInstructions, RequireImages = RequireImages,
-                        ChaseIntervalDays = ChaseIntervalDays, EditLeaseToken = LeaseToken ?? string.Empty
+                        ChaseIntervalDays = ChaseIntervalDays,
+                        UnidentifiedTargetDays = Posted(nameof(UnidentifiedTargetDays)) ? UnidentifiedTargetDays : current.UnidentifiedTargetDays,
+                        TriageTargetDays = Posted(nameof(TriageTargetDays)) ? TriageTargetDays : current.TriageTargetDays,
+                        HeldTargetDays = Posted(nameof(HeldTargetDays)) ? HeldTargetDays : current.HeldTargetDays,
+                        ReviewTargetDays = Posted(nameof(ReviewTargetDays)) ? ReviewTargetDays : current.ReviewTargetDays,
+                        AiDraftTargetDays = Posted(nameof(AiDraftTargetDays)) ? AiDraftTargetDays : current.AiDraftTargetDays,
+                        EditLeaseToken = LeaseToken ?? string.Empty
                     }, cancellationToken);
+                }
                 else
                     await rateCards.SaveAsync(new(EditingId, CardName ?? string.Empty, HourlyRate, Enabled, ExpectedVersion,
                         actor, Reason, OperationKey, LeaseToken ?? string.Empty), cancellationToken);

@@ -221,6 +221,8 @@ internal sealed class AiJobEntity
     public decimal? MarketResearchRetailValue { get; set; }
     public decimal? MarketResearchTradeValue { get; set; }
     public string? MarketResearchCompletionHash { get; set; }
+    // When the client wrote its draft (Draft ready), so the draft can age (Work Centre D9).
+    public DateTimeOffset? DraftReadyAtUtc { get; set; }
     public DateTimeOffset? ClosedAtUtc { get; set; }
     public string? ClosureReason { get; set; }
     public string? LastOperationKey { get; set; }

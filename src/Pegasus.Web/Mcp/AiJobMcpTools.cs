@@ -280,6 +280,7 @@ internal sealed class AiJobMcpTools(
         long mileage,
         decimal retailValue,
         decimal tradeValue,
+        [Description("Optional guide month the research is for, yyyy-MM; the valuation for that month replaces an earlier card for it.")] string? guideMonth = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.JobsScope, cancellationToken);
@@ -310,7 +311,8 @@ internal sealed class AiJobMcpTools(
                         ParseTime(recordedTime),
                         mileage,
                         retailValue,
-                        tradeValue),
+                        tradeValue,
+                        guideMonth is null ? null : ParseGuideMonth(guideMonth)),
                     cancellationToken);
                 return new MarketResearchCompletionToolResult(
                     Map(completion.Job),
@@ -393,6 +395,11 @@ internal sealed class AiJobMcpTools(
         DateOnly.TryParseExact(value?.Trim(), "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
             ? parsed
             : throw new McpException("recordedDate must use yyyy-MM-dd.");
+
+    private static DateOnly ParseGuideMonth(string value) =>
+        DateOnly.TryParseExact(value.Trim(), "yyyy-MM", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+            ? parsed
+            : throw new McpException("guideMonth must use yyyy-MM.");
 
     private static TimeOnly ParseTime(string value) =>
         TimeOnly.TryParseExact(

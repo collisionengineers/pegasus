@@ -4,6 +4,7 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.ProviderApi;
 using Pegasus.Infrastructure.Transport;
 using Pegasus.Infrastructure.Custody;
@@ -206,6 +207,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcileUnidentifiedDestinations reconcileUnidentifiedDestinations,
     ReconcileAutomaticVehicleLookups reconcileAutomaticVehicleLookups,
     ReconcileProviderSubmissions reconcileProviderSubmissions,
+    PurgeStaffNotifications purgeStaffNotifications,
     ILogger<StagedArtifactReconciliationFunction> logger)
 {
     [Function(nameof(StagedArtifactReconciliationFunction))]
@@ -294,6 +296,12 @@ public sealed partial class StagedArtifactReconciliationFunction(
             providerSubmissions.Repaired,
             providerSubmissions.Failures,
             providerSubmissions.FirstFailure);
+
+        // Work Centre D10: personal notifications past their 30-day retention drop
+        // off. Reads already filter on the window, so this is housekeeping on the
+        // existing sweep, not a new schedule.
+        var purgedNotifications = await purgeStaffNotifications.ExecuteAsync(cancellationToken);
+        LogStaffNotificationPurge(logger, purgedNotifications);
     }
 
     [LoggerMessage(
@@ -371,4 +379,9 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int repaired,
         int failures,
         string? firstFailure);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Purged {Purged} staff notifications past retention.")]
+    private static partial void LogStaffNotificationPurge(ILogger logger, int purged);
 }

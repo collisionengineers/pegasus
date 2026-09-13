@@ -65,6 +65,12 @@ public static class CaseDataFieldNames
     public const string InspectionContactEmailAddress = "inspection_contact_email";
     public const string InspectionNotes = "inspection_notes";
 
+    // The Case's own notes beside the Principal and Claim source records' "Notes on
+    // every Case" (Contacts planning, 13 September): free text saved with the Case,
+    // while the record notes are read live from the record and never copied.
+    public const string PrincipalNotes = "principal_notes";
+    public const string ClaimSourceNotes = "claim_source_notes";
+
     public static readonly string[] All =
     [
         WorkProviderCode,
@@ -119,6 +125,8 @@ public static class CaseDataFieldNames
         InspectionContactName,
         InspectionContactTelephone,
         InspectionContactEmailAddress,
-        InspectionNotes
+        InspectionNotes,
+        PrincipalNotes,
+        ClaimSourceNotes
     ];
 }

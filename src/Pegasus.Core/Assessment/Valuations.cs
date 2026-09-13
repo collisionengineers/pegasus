@@ -154,6 +154,29 @@ public static class ValuationPolicy
         }
     }
 
+    /// <summary>
+    /// A valuation fetched or typed for the same source and guide month replaces
+    /// the earlier card rather than sitting beside it (planning, 13 September): the
+    /// guide publishes one figure per month, so two cards for one month would be
+    /// two answers to one question. Cards without a guide month are never replaced,
+    /// and a different month is a new card.
+    /// </summary>
+    public static bool Replaces(ValuationDetails incoming, ValuationDetails existing)
+    {
+        ArgumentNullException.ThrowIfNull(incoming);
+        ArgumentNullException.ThrowIfNull(existing);
+        return incoming.Source == existing.Source
+            && incoming.GuideMonth is { } month
+            && existing.GuideMonth == month;
+    }
+
+    /// <summary>The card <paramref name="incoming"/> replaces among <paramref name="existing"/>, if any.</summary>
+    public static CaseValuation? FindReplaced(ValuationDetails incoming, IEnumerable<CaseValuation> existing)
+    {
+        ArgumentNullException.ThrowIfNull(existing);
+        return existing.FirstOrDefault(valuation => Replaces(incoming, valuation.Details));
+    }
+
     public static ValuationDetails ValidateAutomationMarketResearch(ValuationDetails details)
     {
         details = ValidateDetails(details);

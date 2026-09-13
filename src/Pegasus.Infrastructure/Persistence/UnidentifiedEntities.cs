@@ -23,6 +23,11 @@ internal sealed class UnidentifiedItemEntity
     public string? ResolutionTargetId { get; set; }
     public string? ResolutionTargetReference { get; set; }
     public long? ReconciledAssociationVersion { get; set; }
+    // What kind of file could not be read, and where the material sits: the retained
+    // e-mail (Open message) and the original file (Open file). Received file D2/Q3.
+    public string? FileKind { get; set; }
+    public Guid? SourceMessageId { get; set; }
+    public Guid? SourceAssetId { get; set; }
     public required string RegistrationOperationKey { get; set; }
     public required string RegistrationFingerprint { get; set; }
     public long Version { get; set; }

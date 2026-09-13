@@ -336,6 +336,44 @@ public sealed class OrganizationAdministrationTests
     }
 
     [Fact]
+    public void NotesOnEveryCaseChangeInPlaceWithTheSettings()
+    {
+        var current = Principal(version: 3) with { ReportRecipients = PrincipalReportRecipientSettings.None };
+
+        var updated = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+            current,
+            expectedVersion: 3,
+            reportGenerationPolicy: current.ReportGenerationPolicy,
+            reportRecipients: PrincipalReportRecipientSettings.None,
+            notesOnEveryCase: "Always copy the fleet manager.");
+
+        Assert.Equal("Always copy the fleet manager.", updated.NotesOnEveryCase);
+        Assert.Equal(4, updated.Version);
+
+        var unchanged = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
+            updated,
+            expectedVersion: 4,
+            reportGenerationPolicy: updated.ReportGenerationPolicy,
+            reportRecipients: PrincipalReportRecipientSettings.None,
+            notesOnEveryCase: "Always copy the fleet manager.");
+        Assert.Equal(4, unchanged.Version);
+    }
+
+    [Fact]
+    public void NotesOnEveryCaseAreTrimmedAndBounded()
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var request = new UpdatePrincipalReportSettingsRequest(
+            Guid.NewGuid(), 1, actor, "notes-op", null, PrincipalReportGenerationPolicy.Pegasus,
+            PrincipalReportRecipientSettings.None, 1, "lease", "  Always copy the fleet manager.  ");
+
+        Assert.Equal("Always copy the fleet manager.", OrganizationAdministrationPolicy.Normalize(request).NotesOnEveryCase);
+        Assert.Null(OrganizationAdministrationPolicy.Normalize(request with { NotesOnEveryCase = "   " }).NotesOnEveryCase);
+        Assert.ThrowsAny<ArgumentException>(() =>
+            OrganizationAdministrationPolicy.Normalize(request with { NotesOnEveryCase = new string('x', 2001) }));
+    }
+
+    [Fact]
     public void ReportSettingsRefuseAStaleVersion()
     {
         var error = Assert.Throws<OrganizationAdministrationException>(() =>

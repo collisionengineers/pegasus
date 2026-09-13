@@ -283,6 +283,7 @@ public sealed class EfCaseAcceptanceStore(
             Case = caseEntity,
             CaseId = caseId,
             State = CaseInitialWorkflowState.From(initialState).ToString(),
+            StateEnteredAtUtc = acceptedAtUtc,
             Version = 0
         };
         context.CaseWorkflows.Add(workflowEntity);
