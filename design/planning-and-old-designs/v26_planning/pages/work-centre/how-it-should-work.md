@@ -37,7 +37,7 @@ Fixed rules, not settings: calendar days; midnight Europe/London as the day boun
 
 - Needs attention is a paged list, page size 50, "Page 1 of N · earliest due first", Previous and Next, the same paging as the Cases list. Nothing is silently dropped.
 - The metric strip counts everything regardless of paging.
-- The shell notifications menu keeps showing the first 10 rows of page 1.
+- The shell bell no longer mirrors this list (D10); it is personal notifications only.
 
 ### D5. Hold carries an optional review date
 
@@ -77,7 +77,7 @@ Decided 13 September: **Draft ready is also a Needs attention kind** ("AI draft"
 
 ### D10. Notifications have a defined use
 
-The bell in the utility bar is today a copy of the first ten Needs attention rows. It becomes a per-person notification list with three defined causes, and no others until decided:
+The bell in the utility bar is today a copy of the first ten Needs attention rows. It becomes a per-person notification list and nothing else: office-wide work never appears in it. Three defined causes, and no others until decided:
 
 1. **An AI draft is ready** on a Case: the Case's engineer is notified, or the person who started the job if the Case has no engineer.
 2. **A Case is assigned to an engineer**: that engineer is notified.

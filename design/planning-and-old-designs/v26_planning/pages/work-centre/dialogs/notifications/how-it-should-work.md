@@ -2,6 +2,8 @@
 
 Decided 13 September 2026 (Work Centre D10).
 
+**The bell is personal notifications and nothing else.** It never shows office-wide work, attention rows, counts of queues or anything not addressed to the signed-in person. The Work Centre owns office-wide work; the bell owns "things that happened that concern you". With no notifications the bell shows nothing and the dialog says so.
+
 ## What raises one
 
 | Cause | Who is notified | Opens |
