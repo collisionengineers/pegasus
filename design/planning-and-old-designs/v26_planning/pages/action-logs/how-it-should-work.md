@@ -36,6 +36,6 @@ Each action writes to the Action log as now. No Block, no Correct draft, no Link
 
 The existing intake metrics (Failed intake, Oldest pending intake due) move onto the Intake log tab as its head-line counts and become links into the filtered list.
 
-## Not decided
+## Audience
 
-- Whether Engineers get the Intake log read-only. Default: Administrators only.
+Administrators only (decided 13 September).

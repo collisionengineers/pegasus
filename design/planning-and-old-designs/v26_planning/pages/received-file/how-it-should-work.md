@@ -61,10 +61,10 @@ The MCP intake tools keep reading and writing receipt decisions on the record. N
 - FRD-02: replace "Blocked intake records a reason and visible warning, offers reasoned resolve and retry actions" with Unidentified › Close with reason; the four received-file outcomes on the surface become message and upload outcomes.
 - FRD-12: Work Centre strip of four; Cases › Unidentified tab lists Unidentified only; Administration › Logs with two tabs; `/Intake/Details` removed from the route table.
 
-## Open questions
+## Open questions, answered 13 September
 
-1. **Close with reason vocabulary.** Fixed reasons (Duplicate, Not for us, Spam, Refused, Other with text) or free text only.
-2. **Intake log audience.** Administrators only (default), or Engineers read-only.
-3. **Unreadable e-mail attachments.** When an e-mail's attachment cannot be read and nothing else came of the e-mail, is the "Could not be read" badge on the Inbox message enough, or does it need an Unidentified item so it appears in a work list? Today such material is invisible.
-4. **Closed Unidentified items.** How long the Closed filter keeps them, and whether a closed item can be reopened (Unidentified's own planning).
-5. **Operations audience.** Deferred to the Operations page.
+1. **Close with reason vocabulary:** free text only.
+2. **Intake log audience:** Administrators only.
+3. **Unreadable e-mail attachments:** land in a work list. An item that could not be read becomes an Unidentified item with the reason "Could not be read" (and the file kind), so it ages and is due like any other Unidentified item. The Inbox message badge stays as well. Nothing is invisible.
+4. **Closed Unidentified items:** follow the existing standard. Unidentified items are Open or Resolved, keep their U-reference for ever, are never deleted, and can be reopened (Core already has `ReopenUnidentifiedRequest`, writing a "Resolved to Open" history row). Close with reason is a resolution; the Closed filter lists resolved items indefinitely; Reopen is offered on a closed item.
+5. **Operations audience:** still deferred.
