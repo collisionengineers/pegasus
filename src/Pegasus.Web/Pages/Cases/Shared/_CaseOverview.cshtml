@@ -1,0 +1,306 @@
+@*
+    Overview (v26): the workflow stepper, outstanding requirements, the
+    Lifecycle actions sub-panel, the three fact columns (Case / Principal /
+    Claimant), the Notes band (record notes beside this Case's notes) and the
+    accident band. One geometry for read and edit (v25 decision 2): every fact
+    is a .fc cell whose value box and control box share the grid position;
+    the controls belong to the record's one Save form, #case-edit-form, which
+    this section renders because it owns the hidden fields the other sections'
+    controls join.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using System.Globalization
+@using Pegasus.Core.Cases
+@using Pegasus.Core.Lifecycle
+@using Pegasus.Core.Workflow
+@using Pegasus.Web.Pages
+@using Pegasus.Web.Presentation
+@using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
+@{
+    var details = Model.Case!;
+    var workflow = details.Workflow;
+    var summary = details.Summary;
+    var data = details.Data;
+    var mayEdit = Model.CanEditCaseData && data is not null;
+    var state = workflow.State;
+    var requirements = Model.OutstandingRequirements;
+    var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "overview");
+    var notes = details.RecordNotes;
+    var caseNotes = data?.Workspace;
+
+    string Value(string? text) => string.IsNullOrWhiteSpace(text) ? OperatorLabels.CaseWorkspace.AbsentValue : text;
+    string ValueClass(string? text) => string.IsNullOrWhiteSpace(text) ? "fv empty" : "fv";
+
+    // The stepper speaks the display vocabulary (D3): Report preparation and
+    // Post report both read "With Engineer", Post-report complete reads
+    // "Complete". Core's states are untouched.
+    var stage = state switch
+    {
+        CaseLifecycleState.Review => 1,
+        CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => 2,
+        CaseLifecycleState.PostReportComplete or CaseLifecycleState.Query => 3,
+        _ => 0
+    };
+    (string Label, string Icon)[] steps =
+    [
+        ("Not ready", "icon-alert-circle"),
+        ("Review", "icon-eye"),
+        ("With Engineer", "icon-user"),
+        ("Complete", "icon-check")
+    ];
+
+    var offersReturnToReview = mayEdit
+        && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
+    var offersUnlinkEvidence = mayEdit
+        && workflow.ReportSentEvidence is not null
+        && state is not CaseLifecycleState.Held
+        && !CaseLifecycleRules.IsTerminal(state);
+    var offersArchive = Model.IsEditing && CaseLifecycleRules.IsTerminal(state) && workflow.Archive is null;
+    var offersLifecyclePanel = offersReturnToReview || offersUnlinkEvidence || offersArchive;
+
+    var claimant = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.Name)?.Value ?? (data is null ? summary.Claimant : null);
+    var claimNumber = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claim.Number)?.Value ?? (data is null ? summary.ClaimNumber : null);
+    var incidentDate = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Accident.IncidentDate)?.Value;
+    var circumstances = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Accident.Circumstances)?.Value;
+    var claimantContact = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.ContactNumber)?.Value;
+    var claimantAddress = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.Address)?.Value;
+    var contactName = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.Name)?.Value;
+    var contactEmail = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.EmailAddress)?.Value;
+    var contactPhone = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.PhoneNumber)?.Value;
+    var vatStatus = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Instruction.VatStatus)?.Value;
+    var claimSource = caseNotes?.ClaimSource;
+    var claimSourceContact = claimSource is null
+        ? null
+        : string.Join(" · ", new[] { claimSource.ContactName, claimSource.ContactTelephone, claimSource.ContactEmailAddress }
+            .Where(part => !string.IsNullOrWhiteSpace(part)));
+}
+
+<section class="record-section panel @(Model.IsEditing && !Model.SectionIsEditable("overview") ? "is-locked" : null)" id="section-overview" data-section="overview" data-collapse="case.overview" aria-labelledby="section-overview-title">
+    <div class="panel-head">
+        <h2 id="section-overview-title">Overview</h2>
+        <div class="panel-actions">
+            <partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" />
+        </div>
+    </div>
+    <div class="panel-body stack">
+        @* A refused save (stale version) is a non-destructive conflict: the
+           proposed values are retained beside what the case now holds, with no
+           way to apply or force them — re-entering edit mode is the only path. *@
+        @if (Model.ProposedValuesWereDropped)
+        {
+            <div class="notice notice--warning" data-dismissable>
+                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                <span>Your change was not applied. The values you submitted were too large to keep and are not shown here; enter edit mode again and re-enter them.</span>
+                <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+            </div>
+        }
+        else if (Model.ProposedValues.Count > 0)
+        {
+            <div class="sub-panel" data-proposed-values aria-labelledby="case-proposed-values-title">
+                <h3 id="case-proposed-values-title">Your change was not applied</h3>
+                @if (Model.ProposedValuesWereShortened)
+                {
+                    <div class="notice notice--warning mb-2">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <span>Some values were too long to keep in full and are shown shortened; re-enter those in full.</span>
+                    </div>
+                }
+                <div class="table-wrap">
+                    <table class="table table--compact">
+                        <thead><tr><th>Field</th><th>You proposed</th><th>The case now holds</th></tr></thead>
+                        <tbody>
+                            @foreach (var proposed in Model.ProposedValues)
+                            {
+                                <tr>
+                                    <th>@proposed.Label</th>
+                                    <td>@proposed.Proposed</td>
+                                    <td>@(string.IsNullOrWhiteSpace(proposed.Current) ? "—" : proposed.Current)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
+        <ol class="stepper" aria-label="Case workflow">
+            @for (var index = 0; index < steps.Length; index++)
+            {
+                var current = index == stage;
+                var complete = index < stage;
+                <li class="@(complete ? "done" : current ? "now" : null)">
+                    <svg class="icon" aria-hidden="true"><use href="#@(complete ? "icon-check" : steps[index].Icon)" /></svg>
+                    <span>@steps[index].Label</span>
+                </li>
+            }
+        </ol>
+        @if (state == CaseLifecycleState.Held)
+        {
+            <div class="workflow-exception">
+                <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
+                <strong>@Model.StateChipText</strong>
+            </div>
+        }
+
+        @if (requirements.Count > 0)
+        {
+            <div class="sub-panel blockers" data-outstanding-requirements>
+                <h3>@Frame.OutstandingRequirements <span class="status status--amber">@requirements.Count outstanding</span></h3>
+                <ul class="blocker-list">
+                    @foreach (var requirement in requirements)
+                    {
+                        <li class="blocker">
+                            <strong>@requirement.Title</strong>
+                            <small>
+                                <b>Source:</b> @requirement.Source
+                                @if (!string.IsNullOrWhiteSpace(requirement.Why))
+                                {
+                                    <br /><b>Why:</b> @requirement.Why
+                                }
+                            </small>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @* The remaining Core lifecycle actions: return to Review and the
+           correction of a wrongly linked report-Sent item. Archiving ends a
+           terminal case's editability. Offered only in edit context. *@
+        @if (offersLifecyclePanel || workflow.ReportSentEvidence is not null)
+        {
+            <div class="sub-panel" data-lifecycle-actions>
+                <h3>@Frame.LifecycleActions</h3>
+                @if (offersLifecyclePanel)
+                {
+                    <div class="button-row">
+                        @if (offersReturnToReview)
+                        {
+                            <button type="button" class="btn btn--small" data-dialog-open="case-return-review-dialog">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                                <span>@Frame.ReturnToReview</span>
+                            </button>
+                        }
+                        @if (offersUnlinkEvidence)
+                        {
+                            <button type="button" class="btn btn--small" data-dialog-open="case-unlink-evidence-dialog">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                                <span>@Frame.UnlinkReportEvidence</span>
+                            </button>
+                        }
+                        @if (offersArchive)
+                        {
+                            <button type="button" class="btn btn--small" data-dialog-open="case-archive-dialog">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+                                <span>@Frame.ArchiveCase</span>
+                            </button>
+                        }
+                    </div>
+                }
+                @if (workflow.ReportSentEvidence is { } sentEvidence)
+                {
+                    @* Inherited scope (PLAT-015): the mailbox address and the
+                       authoritative time, never the retained identifiers. *@
+                    <div class="fc ro mt-2"><span class="lbl">@Frame.ReportSent</span><div class="fv">@sentEvidence.MailboxIdentity · @OperatorLabels.OfficeTime(sentEvidence.SentAtUtc)</div></div>
+                }
+            </div>
+        }
+
+        @if (mayEdit)
+        {
+            @* Submitted workspace sections retain unshown accepted values;
+               these hidden controls also use Confirmed then Fact, never the
+               suggestion fallback. `vehicleMileage`, `inspectionAddress` and
+               the assessment fields are not hidden here: each has one visible
+               control in its own section, associated with this form. *@
+            <form method="post" asp-page="/Cases/Details" asp-page-handler="Save"
+                  asp-route-id="@workflow.CaseId" id="case-edit-form" data-edit-save data-case-save-form>
+                <input type="hidden" name="id" value="@workflow.CaseId" />
+                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
+                <input type="hidden" name="vehicleMileageUnit" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data!.Vehicle.MileageUnit)?.Value)" />
+                <input type="hidden" name="instructionDate" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Instruction.InstructionDate)?.Value.ToString("yyyy-MM-dd"))" />
+                <input type="hidden" name="inspectionDeadline" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Inspection.Deadline)?.Value.ToString("yyyy-MM-dd"))" />
+                <input type="hidden" name="inspectionMode" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Inspection.Mode)?.Value)" />
+            </form>
+        }
+
+        <div class="overview-grid">
+            <div class="sub-panel"><h3>Case</h3>
+                <div class="fg g2">
+                    <div class="fc ro idn"><span class="lbl">@Frame.CaseType<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@OperatorLabels.CaseTypeName(summary.CaseType)</div></div>
+                    <div class="fc ro idn"><span class="lbl">@Frame.OurRef<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv mono">@workflow.Identity.Reference</div></div>
+                    <div class="fc">@{ Lbl("f-claim-reference", Frame.ClaimReference); }<div class="@ValueClass(claimNumber) mono">@Value(claimNumber)</div>@if (mayEdit){<input id="f-claim-reference" class="fi mono" name="claimNumber" form="case-edit-form" maxlength="200" value="@claimNumber" />}</div>
+                    <div class="fc">@{ Lbl("f-incident-date", Frame.IncidentDate); }<div class="@ValueClass(incidentDate?.ToString("d MMM yyyy"))">@Value(incidentDate?.ToString("d MMM yyyy"))</div>@if (mayEdit){<input id="f-incident-date" class="fi" name="incidentDate" form="case-edit-form" type="date" value="@incidentDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
+                    <div class="fc ro idn"><span class="lbl">@Frame.Received<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</div></div>
+                    <div class="fc ro"><span class="lbl">@Frame.Due</span><div class="@ValueClass(workflow.DueWork?.DueBy?.ToString("d MMM yyyy"))">@Value(workflow.DueWork?.DueBy?.ToString("d MMM yyyy"))</div></div>
+                </div>
+            </div>
+            <div class="sub-panel"><h3>Principal</h3>
+                <div class="fg">
+                    <div class="fc ro idn"><span class="lbl">@OperatorLabels.CaseWorkspace.RibbonPrincipal<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@workflow.Identity.PrincipalCode</div></div>
+                    <div class="fc ro"><span class="lbl">@Frame.ClaimSource</span><div class="@ValueClass(claimSource?.Name)">@Value(claimSource?.Name)</div></div>
+                    <div class="fc ro"><span class="lbl">@Frame.ClaimSourceContact</span><div class="@ValueClass(claimSourceContact)">@Value(claimSourceContact)</div></div>
+                </div>
+            </div>
+            <div class="sub-panel"><h3>Claimant</h3>
+                <div class="fg">
+                    <div class="fc">@{ Lbl("f-claimant", OperatorLabels.CaseWorkspace.RibbonClaimant); }<div class="@ValueClass(claimant)">@Value(claimant)</div>@if (mayEdit){<input id="f-claimant" class="fi" name="claimantName" form="case-edit-form" maxlength="300" value="@claimant" />}</div>
+                    <div class="fc">@{ Lbl("f-claimant-contact", Frame.Contact); }<div class="@ValueClass(claimantContact)">@Value(claimantContact)</div>@if (mayEdit){<input id="f-claimant-contact" class="fi" name="claimantContactNumber" form="case-edit-form" maxlength="100" value="@claimantContact" />}</div>
+                    <div class="fc">@{ Lbl("f-claimant-address", Frame.Address); }<div class="@ValueClass(claimantAddress)">@Value(claimantAddress)</div>@if (mayEdit){<input id="f-claimant-address" class="fi" name="claimantAddress" form="case-edit-form" maxlength="1000" value="@claimantAddress" />}</div>
+                    <div class="fc">@{ Lbl("f-vat-status", Frame.VatStatus); }<div class="@ValueClass(vatStatus)">@Value(vatStatus)</div>@if (mayEdit){<input id="f-vat-status" class="fi" name="vatStatus" form="case-edit-form" maxlength="100" value="@vatStatus" />}</div>
+                </div>
+            </div>
+        </div>
+        @* The Case's own contact (CASE-027): who to speak to, distinct from the claimant. *@
+        <div class="sub-panel"><h3>Case contact</h3>
+            <div class="fg g3">
+                <div class="fc">@{ Lbl("f-contact-name", "Contact name"); }<div class="@ValueClass(contactName)">@Value(contactName)</div>@if (mayEdit){<input id="f-contact-name" class="fi" name="contactName" form="case-edit-form" maxlength="300" value="@contactName" />}</div>
+                <div class="fc">@{ Lbl("f-contact-email", "Contact e-mail"); }<div class="@ValueClass(contactEmail)">@Value(contactEmail)</div>@if (mayEdit){<input id="f-contact-email" class="fi" name="contactEmailAddress" form="case-edit-form" type="email" maxlength="300" value="@contactEmail" />}</div>
+                <div class="fc">@{ Lbl("f-contact-phone", "Contact phone"); }<div class="@ValueClass(contactPhone)">@Value(contactPhone)</div>@if (mayEdit){<input id="f-contact-phone" class="fi" name="contactPhoneNumber" form="case-edit-form" maxlength="100" value="@contactPhone" />}</div>
+            </div>
+        </div>
+
+        @* The Notes band (13 September): the Principal record's and the Claim
+           source record's notes on every Case, read live and locked, absent
+           when the record has none, beside this Case's own notes. *@
+        <div class="sub-panel notes-band" data-notes-band><h3>@Frame.Notes</h3>
+            <div class="fg g2">
+                @if (!string.IsNullOrWhiteSpace(notes.PrincipalNotes))
+                {
+                    <div class="fc ro idn rec-notes" data-record-notes="principal"><span class="lbl">@Frame.PrincipalNotes<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv multi">@notes.PrincipalNotes</div></div>
+                }
+                <div class="fc">@{ Lbl("f-principal-notes", Frame.PrincipalNotesThisCase); }<div class="@ValueClass(caseNotes?.PrincipalNotes) multi">@Value(caseNotes?.PrincipalNotes)</div>@if (mayEdit){<textarea id="f-principal-notes" class="fi" name="principalNotes" form="case-edit-form" maxlength="4000">@caseNotes?.PrincipalNotes</textarea>}</div>
+                @if (!string.IsNullOrWhiteSpace(notes.ClaimSourceNotes))
+                {
+                    <div class="fc ro idn rec-notes" data-record-notes="claim-source"><span class="lbl">@Frame.ClaimSourceNotes<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv multi">@notes.ClaimSourceNotes</div></div>
+                }
+                <div class="fc">@{ Lbl("f-claim-source-notes", Frame.ClaimSourceNotesThisCase); }<div class="@ValueClass(caseNotes?.ClaimSourceNotes) multi">@Value(caseNotes?.ClaimSourceNotes)</div>@if (mayEdit){<textarea id="f-claim-source-notes" class="fi" name="claimSourceNotes" form="case-edit-form" maxlength="4000">@caseNotes?.ClaimSourceNotes</textarea>}</div>
+            </div>
+        </div>
+
+        <div class="accident">
+            <div class="fg">
+                <div class="fc">@{ Lbl("f-circumstances", Frame.AccidentCircumstances); }<div class="@ValueClass(circumstances) multi">@Value(circumstances)</div>@if (mayEdit){<textarea id="f-circumstances" class="fi" name="accidentCircumstances" form="case-edit-form" maxlength="2000">@circumstances</textarea>}</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@functions {
+    // The cell's label: a real <label> for the control while editing, the
+    // same words as a plain caption while reading.
+    private void Lbl(string id, string text)
+    {
+        if (Model.CanEditCaseData && Model.Case!.Data is not null)
+        {
+            <label for="@id">@text</label>
+        }
+        else
+        {
+            <span class="lbl">@text</span>
+        }
+    }
+}

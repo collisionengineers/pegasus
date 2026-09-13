@@ -35,6 +35,7 @@ public sealed partial class DownloadModel(
     IReadCaseDocumentPreview readCaseDocumentPreview,
     IReadLogicalDocumentVersion readLogicalDocumentVersion,
     IReadCaseDocumentThumbnail readCaseDocumentThumbnail,
+    ICaseAssetPreparationQueries assetPreparations,
     ILogger<DownloadModel> logger) : StaffPageModel
 {
     /// <summary>
@@ -186,7 +187,21 @@ public sealed partial class DownloadModel(
         var wantsThumbnail = string.Equals(
                 size, CaseDocumentThumbnails.ThumbSizeToken, StringComparison.OrdinalIgnoreCase)
             && CaseDocumentThumbnails.IsThumbnailable(mediaType);
-        if (TryMatchHeldRepresentation(sha256, wantsThumbnail, out var held))
+        // v26 crop and tag: a tile shows the occurrence's prepared region
+        // (rotation, then the crop of the rotated source); the full preview
+        // and the download stay the original. The variant names the region,
+        // so an edited crop is a new representation rather than a stale hit.
+        var variant = DocumentThumbnailCacheVariant.Plain;
+        if (wantsThumbnail)
+        {
+            var preparation = (await assetPreparations.ListForCaseAsync(caseId, cancellationToken))
+                .FirstOrDefault(item => item.OccurrenceId == occurrenceId);
+            if (preparation is not null)
+            {
+                variant = new(preparation.Rotation, preparation.Crop);
+            }
+        }
+        if (TryMatchHeldRepresentation(sha256, wantsThumbnail, variant, out var held))
         {
             // The bytes are already held. Restate the caching terms, because a
             // 304 refreshes them, and send nothing else.
@@ -207,14 +222,17 @@ public sealed partial class DownloadModel(
                         versionId,
                         sha256,
                         preview.ContentLength,
-                        mediaType),
+                        mediaType,
+                        variant.Rotation,
+                        variant.Crop),
                     cancellationToken);
                 if (thumbnail is not null)
                 {
                     // The rendering is derived, so the custody hash of the
                     // source is not the hash of these bytes and is not claimed
-                    // as one; the ETag says which source it was derived from.
-                    SetPreviewCaching(ThumbnailETag(sha256), cacheable: true);
+                    // as one; the ETag says which source and region it was
+                    // derived from.
+                    SetPreviewCaching(ThumbnailETag(sha256, variant), cacheable: true);
                     Response.ContentLength = thumbnail.ContentLength;
                     SetInlineDisposition(fileName);
                     return File(thumbnail.Content, thumbnail.MediaType);
@@ -295,7 +313,8 @@ public sealed partial class DownloadModel(
     /// </summary>
     private static string ContentETag(string sha256) => $"\"{sha256}\"";
 
-    private static string ThumbnailETag(string sha256) => $"\"{sha256}-thumb\"";
+    private static string ThumbnailETag(string sha256, DocumentThumbnailCacheVariant variant) =>
+        $"\"{sha256}-{variant.Token}\"";
 
     /// <summary>
     /// Whether the caller already holds this representation. Each URL accepts
@@ -307,6 +326,7 @@ public sealed partial class DownloadModel(
     private bool TryMatchHeldRepresentation(
         string sha256,
         bool wantsThumbnail,
+        DocumentThumbnailCacheVariant variant,
         out string held)
     {
         held = string.Empty;
@@ -315,7 +335,7 @@ public sealed partial class DownloadModel(
         {
             return false;
         }
-        string[] accepted = [wantsThumbnail ? ThumbnailETag(sha256) : ContentETag(sha256)];
+        string[] accepted = [wantsThumbnail ? ThumbnailETag(sha256, variant) : ContentETag(sha256)];
         foreach (var header in offered)
         {
             foreach (var candidate in (header ?? string.Empty).Split(','))
@@ -446,4 +466,16 @@ public sealed partial class DownloadModel(
         Guid caseId,
         Guid occurrenceId,
         Guid versionId);
+}
+
+/// <summary>
+/// Which thumbnail representation a tile asks for: the plain gallery
+/// rendering or the occurrence's prepared region. The token is the cache and
+/// validator key both sides share (<see cref="CaseDocumentThumbnails.VariantToken"/>).
+/// </summary>
+public sealed record DocumentThumbnailCacheVariant(CaseAssetRotation Rotation, CaseAssetCrop? Crop)
+{
+    public static readonly DocumentThumbnailCacheVariant Plain = new(CaseAssetRotation.None, null);
+
+    public string Token => CaseDocumentThumbnails.VariantToken(Rotation, Crop);
 }

@@ -262,6 +262,12 @@ public sealed partial class SendToAiIntegrationTests
         }
     }
 
+    /// <summary>
+    /// v26: a switched-off control is absent, never disabled — no dialog, no
+    /// opener, no tooltip. The Estimate section states one availability
+    /// sentence, and the only Send to AI condition it names is the missing
+    /// Engineer's Value; an Administrator's switch leaves the head without it.
+    /// </summary>
     [Fact]
     public async Task ASwitchedOffControlStatesTheConditionAndIsNotOffered()
     {
@@ -269,20 +275,11 @@ public sealed partial class SendToAiIntegrationTests
         using var factory = Compose(caseId, controlEnabled: false);
         using var client = CreateClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
-        Assert.DoesNotContain("data-dialog=\"send-to-claude-dialog\"", html, StringComparison.Ordinal);
-        // The condition is read off the Send to Claude control itself: the
-        // record bar carries several gated seams, so the first
-        // data-condition on the page is not necessarily this one.
-        var sendGate = Regex.Match(
-            html,
-            "<span class=\"gated\" data-condition=\"(?<value>[^\"]+)\">[^<]*<button[^>]*>(?:(?!</button>).)*?Send to Claude",
-            RegexOptions.Singleline);
-        Assert.True(sendGate.Success, "Send to Claude renders as a gated, disabled control.");
-        Assert.Contains(
-            "disabled by an Administrator",
-            sendGate.Groups["value"].Value,
-            StringComparison.Ordinal);
+        var html = await EnterEditModeAsync(client, caseId);
+        Assert.DoesNotContain("data-dialog=\"send-to-ai-dialog\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-estimate-send-to-ai", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-condition=", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Send to Claude", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -300,8 +297,8 @@ public sealed partial class SendToAiIntegrationTests
         using var client = CreateClient(factory);
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
-        Assert.DoesNotContain("data-dialog=\"send-to-claude-dialog\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-dialog-open=\"send-to-claude-dialog\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog=\"send-to-ai-dialog\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-dialog-open=\"send-to-ai-dialog\"", html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}?handler=SendToClaude&section=estimate",
@@ -321,9 +318,15 @@ public sealed partial class SendToAiIntegrationTests
         using var factory = Compose(caseId);
         using var client = CreateClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
-        Assert.Contains("data-dialog=\"send-to-claude-dialog\"", html, StringComparison.Ordinal);
-        Assert.Contains("data-range-base=\"9000\"", html, StringComparison.Ordinal);
+        // v26: Send to AI (never a vendor name) sits in the Estimate head
+        // inside the edit session; its dialog carries the Direction, the
+        // 1–100 target slider and the Case valuation the amount is read from.
+        var html = await EnterEditModeAsync(client, caseId);
+        Assert.Contains("data-dialog=\"send-to-ai-dialog\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-estimate-send-to-ai", html, StringComparison.Ordinal);
+        Assert.Contains("data-estimate-range-base=\"9000\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"targetPercent\" min=\"1\" max=\"100\" step=\"1\" value=\"75\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Send to Claude", html, StringComparison.Ordinal);
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}?handler=SendToClaude&section=estimate",
             Form(
@@ -341,7 +344,8 @@ public sealed partial class SendToAiIntegrationTests
         Assert.Equal(80, command.TargetPercentOfEngineerValue);
 
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
-        Assert.Contains("Sent to Claude", afterHtml, StringComparison.Ordinal);
+        Assert.Contains("Sent to AI", afterHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sent to Claude", afterHtml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -419,9 +423,11 @@ public sealed partial class SendToAiIntegrationTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
+                services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ICreateAiJob>();
                 services.RemoveAll<ISendToAiControl>();
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IAcquireCaseEditLease>(source);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
                 services.AddSingleton<ICreateAiJob>(jobs);
@@ -450,6 +456,28 @@ public sealed partial class SendToAiIntegrationTests
         var fields = values.ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal);
         fields["__RequestVerificationToken"] = antiforgeryToken;
         return new(fields);
+    }
+
+    /// <summary>
+    /// v26: the Estimate section's controls render inside the page-wide edit
+    /// session, entered the way the operator enters it — the ribbon's Edit
+    /// Case claim, answered by the fake lease.
+    /// </summary>
+    private static async Task<string> EnterEditModeAsync(HttpClient client, Guid caseId)
+    {
+        var initial = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        using var claim = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(initial),
+                ("id", caseId.ToString("D")),
+                ("expectedVersion", InputValue(initial, "expectedVersion")),
+                ("operationKey", InputValue(initial, "operationKey")),
+                ("section", "estimate")));
+        Assert.Equal(HttpStatusCode.Redirect, claim.StatusCode);
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        Assert.Contains("data-case-editing=\"true\"", editing, StringComparison.Ordinal);
+        return editing;
     }
 
     private static string InputValue(string html, string name)
@@ -538,8 +566,21 @@ public sealed partial class SendToAiIntegrationTests
             CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private sealed class FakeGetCase(Guid caseId) : IGetCase, IGetAssessmentWorkspace
+    private sealed class FakeGetCase(Guid caseId) : IGetCase, IGetAssessmentWorkspace, IAcquireCaseEditLease
     {
+        private CaseEditLeaseSnapshot? activeLease;
+
+        /// <summary>The page's own Edit Case claim, so the section renders inside the session.</summary>
+        public Task<CaseEditLease> ExecuteAsync(
+            ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken)
+        {
+            activeLease = new(
+                request.Actor.SubjectId, request.Actor.Kind, DateTimeOffset.UtcNow.AddMinutes(5), request.OperationKey);
+            return Task.FromResult(new CaseEditLease(
+                request.CaseId, "lease-1", request.Actor.SubjectId, request.ExpectedVersion,
+                DateTimeOffset.UtcNow.AddMinutes(5)));
+        }
+
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
         {
             if (query.CaseId != caseId)
@@ -556,7 +597,7 @@ public sealed partial class SendToAiIntegrationTests
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
                 DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
             CaseDetails details = new(
-                summary, workflow, null, [], null, CaseCustodyState.Pending, [], [], []);
+                summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [], []);
             return Task.FromResult<CaseDetails?>(details);
         }
 

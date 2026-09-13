@@ -839,9 +839,14 @@ internal sealed class DocumentThumbnailCache(
     BlobContainerClient container,
     TimeProvider timeProvider)
 {
-    /// <summary>The variant key every derived-thumbnail entry carries.</summary>
+    /// <summary>
+    /// The variant key of the plain gallery rendering. A prepared region
+    /// (rotation, crop) is cached under its own variant from
+    /// <see cref="CaseDocumentThumbnails.VariantToken"/>, so an occurrence's
+    /// edited crop is never answered with an earlier rendering.
+    /// </summary>
     internal static readonly string Variant =
-        $"thumb-{CaseDocumentThumbnails.LongestEdge}";
+        CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, null);
 
     private static readonly TimeSpan IdleLifetime = TimeSpan.FromHours(24);
     private const string CachePrefix = "cache/";
@@ -854,9 +859,16 @@ internal sealed class DocumentThumbnailCache(
     /// The staff authorization is applied here rather than inherited from the
     /// durable read, because a cache hit makes no durable read.
     /// </remarks>
+    public Task<byte[]?> TryReadAsync(
+        ActionActor actor,
+        Guid versionId,
+        CancellationToken cancellationToken) =>
+        TryReadAsync(actor, versionId, Variant, cancellationToken);
+
     public async Task<byte[]?> TryReadAsync(
         ActionActor actor,
         Guid versionId,
+        string variant,
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(
@@ -868,7 +880,7 @@ internal sealed class DocumentThumbnailCache(
             dbContextFactory, actor, cancellationToken);
         var now = timeProvider.GetUtcNow();
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var entry = await Query(db, versionId).AsNoTracking()
+        var entry = await Query(db, versionId, variant).AsNoTracking()
             .SingleOrDefaultAsync(cancellationToken);
         if (entry is null || entry.ExpiresAtUtc <= now)
         {
@@ -914,15 +926,22 @@ internal sealed class DocumentThumbnailCache(
     /// Records one rendering. Best effort: the caller already holds the bytes,
     /// so a lost race writes nothing rather than failing the preview.
     /// </summary>
+    public Task WriteAsync(
+        Guid versionId,
+        byte[] content,
+        CancellationToken cancellationToken) =>
+        WriteAsync(versionId, Variant, content, cancellationToken);
+
     public async Task WriteAsync(
         Guid versionId,
+        string variant,
         byte[] content,
         CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow();
-        var identity = $"{CachePrefix}document-versions/{versionId:D}/{Variant}";
+        var identity = $"{CachePrefix}document-versions/{versionId:D}/{variant}";
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var entry = await Query(db, versionId).SingleOrDefaultAsync(cancellationToken);
+        var entry = await Query(db, versionId, variant).SingleOrDefaultAsync(cancellationToken);
         if (entry is not null && entry.ReadLeaseExpiresAtUtc > now)
         {
             // A cleanup pass holds this entry and is about to remove the object
@@ -947,7 +966,7 @@ internal sealed class DocumentThumbnailCache(
                 {
                     Id = Guid.NewGuid(),
                     DocumentVersionId = versionId,
-                    Variant = Variant,
+                    Variant = variant,
                     BlobIdentity = identity,
                     ETag = etag,
                     VerifiedSha256 = hash,
@@ -984,9 +1003,10 @@ internal sealed class DocumentThumbnailCache(
 
     private static IQueryable<DocumentContentCacheEntryEntity> Query(
         PegasusDbContext db,
-        Guid versionId) =>
+        Guid versionId,
+        string variant) =>
         db.Set<DocumentContentCacheEntryEntity>().Where(value =>
-            value.DocumentVersionId == versionId && value.Variant == Variant);
+            value.DocumentVersionId == versionId && value.Variant == variant);
 
     private static string Sha256Hex(byte[] content) =>
         Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
@@ -1016,10 +1036,14 @@ internal sealed class CaseDocumentThumbnailReader(
         {
             return null;
         }
+        // The prepared region is its own variant (v26 crop and tag): the tile
+        // shows the crop of the rotated source the operator saved, while
+        // Download and the viewer keep the original bytes.
+        var variant = CaseDocumentThumbnails.VariantToken(request.Rotation, request.Crop);
         if (cache is not null)
         {
             var cached = await cache.TryReadAsync(
-                request.Actor, request.VersionId, cancellationToken);
+                request.Actor, request.VersionId, variant, cancellationToken);
             if (cached is not null)
             {
                 return Rendering(cached, request.Sha256);
@@ -1037,14 +1061,18 @@ internal sealed class CaseDocumentThumbnailReader(
                 ExpectedContentLength: request.ContentLength),
             cancellationToken);
         var rendered = await ImageThumbnailRendering.TryRenderAsync(
-            full.Content, request.ContentLength, cancellationToken);
+            full.Content,
+            request.ContentLength,
+            request.Rotation,
+            request.Crop ?? CaseAssetCrop.Full,
+            cancellationToken);
         if (rendered is null)
         {
             return null;
         }
         if (cache is not null)
         {
-            await cache.WriteAsync(request.VersionId, rendered, cancellationToken);
+            await cache.WriteAsync(request.VersionId, variant, rendered, cancellationToken);
         }
         return Rendering(rendered, request.Sha256);
     }
@@ -1089,11 +1117,20 @@ internal static class ImageThumbnailRendering
 
     private static readonly SemaphoreSlim DecodeGate = new(2, 2);
 
+    internal static Task<byte[]?> TryRenderAsync(
+        Stream content,
+        long contentLength,
+        CancellationToken cancellationToken) =>
+        TryRenderAsync(content, contentLength, CaseAssetRotation.None, CaseAssetCrop.Full, cancellationToken);
+
     internal static async Task<byte[]?> TryRenderAsync(
         Stream content,
         long contentLength,
+        CaseAssetRotation rotation,
+        CaseAssetCrop crop,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(crop);
         ArgumentNullException.ThrowIfNull(content);
         if (contentLength <= 0 || contentLength > MaximumSourceBytes)
         {
@@ -1108,7 +1145,9 @@ internal static class ImageThumbnailRendering
         await DecodeGate.WaitAsync(cancellationToken);
         try
         {
-            return Render(source);
+            return rotation == CaseAssetRotation.None && crop.IsFull
+                ? Render(source)
+                : RenderPrepared(source, rotation, crop);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -1167,6 +1206,85 @@ internal static class ImageThumbnailRendering
         }
         using var image = SKImage.FromBitmap(target);
         using var encoded = image.Encode(SKEncodedImageFormat.Jpeg, JpegQuality);
+        return encoded?.ToArray();
+    }
+
+    /// <summary>
+    /// The prepared region: EXIF orientation first, then the operator's
+    /// whole-turn rotation, then the crop taken as fractions of that rotated
+    /// source - the same geometry the report renderer prints and the crop
+    /// editor draws - scaled so the crop's longest edge is the thumbnail edge.
+    /// </summary>
+    private static byte[]? RenderPrepared(byte[] source, CaseAssetRotation rotation, CaseAssetCrop crop)
+    {
+        using var data = SKData.CreateCopy(source);
+        using var codec = SKCodec.Create(data);
+        if (codec is null
+            || (long)codec.Info.Width * codec.Info.Height is <= 0 or > MaximumDecodedPixels)
+        {
+            return null;
+        }
+        var origin = codec.EncodedOrigin;
+        var transposed = EncodedImageOrientation.IsTransposed(origin);
+        var quarterTurn = rotation is CaseAssetRotation.Clockwise90 or CaseAssetRotation.Clockwise270;
+        var displayedWidth = transposed ? codec.Info.Height : codec.Info.Width;
+        var displayedHeight = transposed ? codec.Info.Width : codec.Info.Height;
+        var rotatedWidth = quarterTurn ? displayedHeight : displayedWidth;
+        var rotatedHeight = quarterTurn ? displayedWidth : displayedHeight;
+        var cropLongEdge = Math.Max(
+            1d,
+            Math.Max((double)crop.Width * rotatedWidth, (double)crop.Height * rotatedHeight));
+        var desiredScale = (float)Math.Min(1d, CaseDocumentThumbnails.LongestEdge / cropLongEdge);
+        var decodedSize = codec.GetScaledDimensions(desiredScale);
+        using var decoded = SKBitmap.Decode(
+            codec,
+            new SKImageInfo(decodedSize.Width, decodedSize.Height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        if (decoded is null)
+        {
+            return null;
+        }
+
+        // The rotated source, exactly as the crop editor drew it.
+        var shownWidth = transposed ? decoded.Height : decoded.Width;
+        var shownHeight = transposed ? decoded.Width : decoded.Height;
+        var sourceWidth = quarterTurn ? shownHeight : shownWidth;
+        var sourceHeight = quarterTurn ? shownWidth : shownHeight;
+        using var rotated = new SKBitmap(
+            new SKImageInfo(sourceWidth, sourceHeight, SKColorType.Rgba8888, SKAlphaType.Opaque));
+        using (var canvas = new SKCanvas(rotated))
+        {
+            canvas.Clear(SKColors.White);
+            canvas.Translate(sourceWidth / 2f, sourceHeight / 2f);
+            canvas.RotateDegrees((int)rotation);
+            canvas.Translate(-shownWidth / 2f, -shownHeight / 2f);
+            EncodedImageOrientation.Apply(canvas, origin, shownWidth, shownHeight);
+            canvas.DrawBitmap(decoded, 0, 0);
+        }
+
+        var region = new SKRect(
+            (float)crop.Left * sourceWidth,
+            (float)crop.Top * sourceHeight,
+            (float)(crop.Left + crop.Width) * sourceWidth,
+            (float)(crop.Top + crop.Height) * sourceHeight);
+        var regionWidth = Math.Max(1f, region.Width);
+        var regionHeight = Math.Max(1f, region.Height);
+        var scale = Math.Min(1d, CaseDocumentThumbnails.LongestEdge / (double)Math.Max(regionWidth, regionHeight));
+        var targetWidth = Math.Max(1, (int)Math.Round(regionWidth * scale));
+        var targetHeight = Math.Max(1, (int)Math.Round(regionHeight * scale));
+        using var target = new SKBitmap(
+            new SKImageInfo(targetWidth, targetHeight, SKColorType.Rgba8888, SKAlphaType.Opaque));
+        using (var canvas = new SKCanvas(target))
+        using (var image = SKImage.FromBitmap(rotated))
+        {
+            canvas.Clear(SKColors.White);
+            canvas.DrawImage(
+                image,
+                region,
+                new SKRect(0, 0, targetWidth, targetHeight),
+                new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
+        }
+        using var output = SKImage.FromBitmap(target);
+        using var encoded = output.Encode(SKEncodedImageFormat.Jpeg, JpegQuality);
         return encoded?.ToArray();
     }
 }

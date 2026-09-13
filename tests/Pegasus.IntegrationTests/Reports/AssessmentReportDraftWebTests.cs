@@ -347,6 +347,13 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.RemoveAll<ICaseReportSnapshotSource>();
                 services.RemoveAll<IAssessmentReportRenderer>();
                 services.RemoveAll<IDocumentContentStore>();
+                if (getCase is IAcquireCaseEditLease leases)
+                {
+                    // v26: the Report head's controls render inside the edit
+                    // session, which the fake answers with a lease of its own.
+                    services.RemoveAll<IAcquireCaseEditLease>();
+                    services.AddSingleton(leases);
+                }
                 if (generateReport is not null)
                 {
                     services.RemoveAll<IGenerateCaseReport>();
@@ -501,8 +508,21 @@ public sealed partial class AssessmentReportDraftWebTests
     [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ValueRegex();
 
-    private sealed class FakeGetCase(Guid caseId) : IGetCase
+    private sealed class FakeGetCase(Guid caseId) : IGetCase, IAcquireCaseEditLease
     {
+        private CaseEditLeaseSnapshot? activeLease;
+
+        /// <summary>The page's own Edit Case claim, answered so the Report section edits.</summary>
+        public Task<CaseEditLease> ExecuteAsync(
+            ClaimCaseEditLeaseRequest request, CancellationToken cancellationToken)
+        {
+            activeLease = new(
+                request.Actor.SubjectId, request.Actor.Kind, DateTimeOffset.UtcNow.AddMinutes(5), request.OperationKey);
+            return Task.FromResult(new CaseEditLease(
+                request.CaseId, "held-report-lease", request.Actor.SubjectId, request.ExpectedVersion,
+                DateTimeOffset.UtcNow.AddMinutes(5)));
+        }
+
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
         {
             if (query.CaseId != caseId)
@@ -519,7 +539,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
                 DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
             CaseDetails details = new(
-                summary, workflow, null, [], null, CaseCustodyState.Pending, [], [], []);
+                summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [], []);
             return Task.FromResult<CaseDetails?>(details);
         }
     }

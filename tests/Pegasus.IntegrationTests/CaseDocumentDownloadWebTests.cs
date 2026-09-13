@@ -29,6 +29,14 @@ public sealed class CaseDocumentDownloadWebTests
     private static readonly Guid DocumentId = Guid.Parse("6a3c1f52-9a20-4c11-9a2f-4a21c9d18c03");
     private static readonly Guid VersionId = Guid.Parse("6a3c1f52-9a20-4c11-9a2f-4a21c9d18c04");
     private const string Sha256 = "1b2c3d4e5f60718293a4b5c6d7e8f9001122334455667788990011223344556f";
+
+    /// <summary>
+    /// The plain thumbnail's validator (v26 § Crop and tag): the source and
+    /// the variant it was rendered under, so a prepared region is a different
+    /// representation from the gallery rendering.
+    /// </summary>
+    private static readonly string ThumbnailValidator =
+        $"\"{Sha256}-{CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, null)}\"";
     private const string FileName = "evidence.jpg";
     private const string MediaType = "image/jpeg";
 
@@ -96,7 +104,7 @@ public sealed class CaseDocumentDownloadWebTests
         Assert.Equal(
             CaseDocumentThumbnails.MediaType,
             response.Content.Headers.ContentType!.MediaType);
-        Assert.Equal($"\"{Sha256}-thumb\"", response.Headers.ETag!.Tag);
+        Assert.Equal(ThumbnailValidator, response.Headers.ETag!.Tag);
         Assert.Equal(TimeSpan.FromDays(7), response.Headers.CacheControl!.MaxAge);
         Assert.Equal(1, ports.ThumbnailReads);
         // The tile never asked for the full photograph, which is the whole
@@ -150,7 +158,7 @@ public sealed class CaseDocumentDownloadWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(ThumbnailContent, body);
-        Assert.Equal($"\"{Sha256}-thumb\"", response.Headers.ETag!.Tag);
+        Assert.Equal(ThumbnailValidator, response.Headers.ETag!.Tag);
         Assert.Equal(1, ports.ThumbnailReads);
     }
 
@@ -163,11 +171,11 @@ public sealed class CaseDocumentDownloadWebTests
         using var client = CreateClient(factory);
 
         using var request = new HttpRequestMessage(HttpMethod.Get, PreviewRoute(thumbnail: true));
-        request.Headers.TryAddWithoutValidation("If-None-Match", $"\"{Sha256}-thumb\"");
+        request.Headers.TryAddWithoutValidation("If-None-Match", ThumbnailValidator);
         using var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.NotModified, response.StatusCode);
-        Assert.Equal($"\"{Sha256}-thumb\"", response.Headers.ETag!.Tag);
+        Assert.Equal(ThumbnailValidator, response.Headers.ETag!.Tag);
         Assert.Equal(0, ports.ThumbnailReads);
         Assert.Equal(0, ports.LogicalReads);
     }

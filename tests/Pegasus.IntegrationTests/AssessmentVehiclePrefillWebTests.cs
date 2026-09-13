@@ -50,7 +50,10 @@ public sealed class AssessmentVehiclePrefillWebTests
         Assert.DoesNotContain("In miles. Required unless", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Sets the mileage sentence", html, StringComparison.Ordinal);
 
-        Assert.Contains("id=\"case-vehicle-title\"", html, StringComparison.Ordinal);
+        // v26: the Vehicle section is the record-section host itself, and the
+        // lookup line sits in its head as the section meta.
+        Assert.Contains("id=\"section-vehicle-title\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-vehicle-lookup-line", html, StringComparison.Ordinal);
         Assert.Contains("AB12CDE", html, StringComparison.Ordinal);
         // The lookup fills the case record rather than displaying its own reading
         // beside it: the observation is stated by the outcome line only.
@@ -87,7 +90,9 @@ public sealed class AssessmentVehiclePrefillWebTests
 
         Assert.Contains("FORD", html, StringComparison.Ordinal);
         Assert.Contains("FOCUS", html, StringComparison.Ordinal);
-        Assert.Contains("40,000 miles", html, StringComparison.Ordinal);
+        // v25 decision 6: one mileage box reads the figure with its unit word.
+        Assert.Contains("40,000 mi", html, StringComparison.Ordinal);
+        Assert.Contains("data-vehicle-mileage-read", html, StringComparison.Ordinal);
         Assert.DoesNotContain("VOLKSWAGEN", html, StringComparison.Ordinal);
         Assert.DoesNotContain("GOLF", html, StringComparison.Ordinal);
     }

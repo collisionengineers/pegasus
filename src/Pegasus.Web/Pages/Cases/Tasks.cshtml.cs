@@ -56,8 +56,12 @@ public sealed class TasksModel(
             TempData["CaseError"] = "The note was not added.";
         }
 
-        return RedirectToDetails(id);
+        return RedirectToNotes(id);
     }
+
+    /// <summary>The Notes section is where a note or a chase is read back.</summary>
+    private RedirectToPageResult RedirectToNotes(Guid id) =>
+        RedirectToPage("/Cases/Details", new { id, section = "notes" });
 
     public Task<IActionResult> OnPostCreateTaskAsync(
         Guid id,
@@ -196,7 +200,8 @@ public sealed class TasksModel(
                     outcome,
                     content),
                 cancellationToken),
-            "The manual chase was recorded and the next chase date was scheduled.");
+            "The manual chase was recorded and the next chase date was scheduled.",
+            RedirectToNotes);
 
     public Task<IActionResult> OnPostLinkReportEvidenceAsync(
         Guid id,

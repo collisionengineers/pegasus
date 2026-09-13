@@ -1,157 +1,210 @@
+@*
+    Report (v26 § Report). Head: one primary (Generate report, gated by the
+    readiness the projection states) and one More menu (Preview draft,
+    Generate fee note, Include fee note). Body: the readiness notice, the
+    preview card, the generation facts and artifacts, the stale notice, the
+    reviewed recipients and delivery, the report fields, the images in the
+    report and — while editing — their preparation. Mark report sent is the
+    ribbon's Actions item and Unlink report evidence is Overview's Lifecycle
+    actions; neither is repeated here.
+*@
+@using System.Globalization
 @using Pegasus.Core.Assessment
+@using Pegasus.Core.Documents
 @using Pegasus.Core.Reports
 @using Pegasus.Web.Pages.Cases
+@using Pegasus.Web.Presentation
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @using ReportLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery
+@using Words = Pegasus.Web.Presentation.CaseWorkspaceLabels.Report
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
-    var caseId = Model.Case!.Workflow.CaseId;
+    var details = Model.Case!;
+    var workflow = details.Workflow;
+    var caseId = workflow.CaseId;
+    var editing = Model.SectionIsEditable("report");
     var generation = Model.CurrentReportGeneration;
     var preparation = Model.CurrentDeliveryPreparation;
     var suggestedRecipients = Model.DeliveryRecipientSuggestions is { } suggestions
         ? CaseReportDeliveryPolicy.SuggestedReview(suggestions)
         : new ReportRecipientReview([], []);
+    var labels = CaseWorkspaceLabels.Editors.Report;
+    var offersHead = !Model.AssessmentIsReadOnly && Model.ReportDraftPreparation is not null;
+    var canGenerate = offersHead && editing && Model.ReportDraftCondition is null;
+    var canPreview = offersHead && Model.ReportDraftCondition is null;
+    var reasons = string.Join("; ", Model.ReportDraftReasons.Select(reason => reason.Requirement));
+    var isStale = generation is { State: CaseReportGenerationState.Stale };
+    var generatedAt = generation is null
+        ? null
+        : Pegasus.Core.LondonCalendar.TimeAt(generation.GeneratedAtUtc).ToString("d MMMM yyyy HH:mm", CultureInfo.InvariantCulture);
+    var draftFileName = Model.ReportTitle + Words.DraftSuffix;
+    var previewHref = Url.Page("/Cases/Details", "PreviewReportDraft", new { id = caseId, includeFeeNote = false })!;
+    var tiles = Model.ReportImageTiles;
+    var inReport = tiles.Count(tile => tile.Preparation.Role != CaseAssetReportRole.NotUsed);
+    var canPrepareDelivery = editing
+        && generation is not null
+        && preparation is null
+        && generation.State == CaseReportGenerationState.Confirmed
+        && generation.Artifacts.All(artifact => artifact.Status == CaseReportArtifactStatus.Confirmed);
+    var reportDate = Model.AssessmentEditorValue(AssessmentVocabulary.ReportDate);
+    var reportDateText = DateOnly.TryParseExact(Model.Assessment?.Field(AssessmentVocabulary.ReportDate)?.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var reportDateValue)
+        ? reportDateValue.ToString("d MMM yyyy", CultureInfo.InvariantCulture)
+        : null;
+    bool SwitchOn(string path) => string.Equals(Model.AssessmentEditorValue(path), "true", StringComparison.OrdinalIgnoreCase);
 }
 
-<section class="panel" aria-labelledby="section-report-title">
+<section class="record-section panel @(Model.IsEditing && !Model.SectionIsEditable("report") ? "is-locked" : null)" id="section-report" data-section="report" data-collapse="case.report" aria-labelledby="section-report-title" data-report>
     <div class="panel-head">
         <h2 id="section-report-title">@EngineerLabels.Report</h2>
-        @if (!Model.AssessmentIsReadOnly && Model.ReportDraftPreparation is not null)
-        {
-            <div class="button-row">
-                @if (Model.ReportDraftCondition is null)
-                {
-                    <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateReportDraft"
-                          asp-route-id="@caseId" asp-route-section="estimate">
-                        <input type="hidden" name="operationKey" value="@Model.ReportDraftOperationKey" />
-                        <button type="submit" class="btn">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                            <span>@EngineerLabels.GenerateReportDraft</span>
-                        </button>
-                    </form>
-                    @* R34B: one choice, one form. The fee note is either the
-                       report's own final pages or the separate document the
-                       action below still generates, and the preview shows
-                       whichever the operator has chosen. *@
-                    <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateReport"
-                          asp-route-id="@caseId" asp-route-section="report">
-                        <input type="hidden" name="operationKey" value="@Model.GenerateReportOperationKey" />
-                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                        <label class="choice" for="report-include-fee-note">
-                            <input type="checkbox" id="report-include-fee-note" name="includeFeeNote" value="true" />
-                            <span>@ReportLabels.IncludeFeeNote</span>
-                        </label>
-                        <button type="submit" class="btn" formtarget="_blank"
-                                asp-page="/Cases/Details" asp-page-handler="PreviewReportDraft"
-                                asp-route-id="@caseId">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
-                            <span>@EngineerLabels.PreviewReportDraft</span>
-                        </button>
-                        <button type="submit" class="btn">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                            <span>@ReportLabels.GenerateReport</span>
-                        </button>
-                    </form>
-                    <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateFeeNote"
-                          asp-route-id="@caseId" asp-route-section="report">
-                        <input type="hidden" name="operationKey" value="@Model.GenerateReportOperationKey" />
-                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                        <button type="submit" class="btn">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                            <span>@ReportLabels.GenerateFeeNote</span>
-                        </button>
-                    </form>
-                }
-                else
-                {
-                    <span class="gated" data-condition="@Model.ReportDraftCondition">
-                        <button type="button" class="btn" disabled aria-disabled="true">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                            <span>@EngineerLabels.GenerateReportDraft</span>
-                        </button>
-                    </span>
-                }
-            </div>
-        }
+        <div class="panel-actions">
+            @if (canGenerate)
+            {
+                <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateReport"
+                      asp-route-id="@caseId" asp-route-section="report" id="case-generate-report-form" data-generate-report>
+                    <input type="hidden" name="operationKey" value="@Model.GenerateReportOperationKey" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    <button type="submit" class="btn btn--small btn--primary">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                        <span>@ReportLabels.GenerateReport</span>
+                    </button>
+                </form>
+            }
+            else if (offersHead && editing && Model.ReportDraftCondition is not null)
+            {
+                <span class="gated" data-report-gate>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
+                    @* One availability label in the head; the notice below names every missing item. *@
+                    <span>@Words.NotReady</span>
+                </span>
+            }
+            @if (offersHead && (canPreview || editing))
+            {
+                <details class="menu" data-menu data-report-menu>
+                    <summary class="btn btn--small"><span>@Words.More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+                    <div class="menu-body">
+                        @if (canPreview)
+                        {
+                            @* The working draft in the page's document viewer with
+                               Download draft (script); the link itself opens the PDF
+                               without script. *@
+                            <a class="btn" href="@previewHref" target="_blank" rel="noopener"
+                               data-report-preview data-file-name="@draftFileName" data-no-inplace>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                                <span>@Words.PreviewDraft</span>
+                            </a>
+                        }
+                        @if (canGenerate)
+                        {
+                            <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateFeeNote"
+                                  asp-route-id="@caseId" asp-route-section="report">
+                                <input type="hidden" name="operationKey" value="@Model.GenerateReportOperationKey" />
+                                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                <button type="submit" class="btn">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                                    <span>@ReportLabels.GenerateFeeNote</span>
+                                </button>
+                            </form>
+                            @* R34B: one choice, bound to the generate form. *@
+                            <label class="choice menu-choice" for="report-include-fee-note">
+                                <input type="checkbox" id="report-include-fee-note" name="includeFeeNote" value="true" form="case-generate-report-form" data-include-fee-note />
+                                <span>@ReportLabels.IncludeFeeNote</span>
+                            </label>
+                        }
+                    </div>
+                </details>
+            }
+            <partial name="Cases/Shared/_CaseSectionHeadTools" model='new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "report")' />
+        </div>
     </div>
     <div class="panel-body stack">
         @if (!Model.AssessmentIsReadOnly && Model.ReportDraftNotReady)
         {
-            <div class="notice notice--warning" role="status">
+            <div class="notice notice--warning" role="status" data-dismissable data-report-not-ready>
                 <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                <span>
-                    @EngineerLabels.ReportDraftNotReady: @string.Join("; ", Model.ReportDraftReasons.Select(reason => reason.Requirement)).
-                </span>
+                <span>@Words.NotReady: @reasons.</span>
+                <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
             </div>
         }
-        @if (generation is not null)
-        {
-            <div class="detail-list">
-                <div>
-                    <dt>@ReportLabels.CurrentGeneration</dt>
-                    <dd>@Pegasus.Core.LondonCalendar.TimeAt(generation.GeneratedAtUtc).ToString("d MMMM yyyy HH:mm")</dd>
-                </div>
-                <div>
-                    <dt>@ReportLabels.GenerationState</dt>
-                    <dd>@generation.State</dd>
-                </div>
-            </div>
-            <div class="button-row">
-                @foreach (var artifact in generation.Artifacts)
-                {
-                    if (artifact.Status == CaseReportArtifactStatus.Confirmed)
+
+        @* The preview card: what the report is and where its generation stands. *@
+        <div class="pv" data-report-preview-card>
+            <div class="pv-thumb" aria-hidden="true"></div>
+            <div class="pv-meta">
+                <div class="pt" data-report-title>@Model.ReportTitle</div>
+                <div class="ps" data-report-status>
+                    @if (generation is null)
                     {
-                        <a class="btn" asp-page="/Cases/Details" asp-page-handler="GeneratedArtifact"
-                           asp-route-id="@caseId" asp-route-generationId="@generation.Id"
-                           asp-route-artifactId="@artifact.Id" target="_blank" rel="noopener">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                            <span>@(artifact.Kind == CaseReportArtifactKind.FeeNote
-                                    ? ReportLabels.DownloadFeeNote
-                                    : generation.Snapshot.Report.IncludeFeeNote
-                                        ? ReportLabels.DownloadReportWithFeeNote
-                                        : ReportLabels.DownloadReport)</span>
-                        </a>
+                        <span>@Words.NoGeneration</span>
                     }
-                }
+                    else
+                    {
+                        <span>@Words.Generated <b>@generatedAt</b> · @ReportLabels.GenerationState @generation.State</span>
+                    }
+                </div>
             </div>
-            @if (generation.State == CaseReportGenerationState.Stale)
+            @if (generation is not null)
             {
-                <div class="notice notice--warning" role="status">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                    <span>@ReportLabels.GenerationStaleNotice</span>
+                <div class="cluster">
+                    @foreach (var artifact in generation.Artifacts)
+                    {
+                        if (artifact.Status == CaseReportArtifactStatus.Confirmed)
+                        {
+                            <a class="btn btn--small" asp-page="/Cases/Details" asp-page-handler="GeneratedArtifact"
+                               asp-route-id="@caseId" asp-route-generationId="@generation.Id"
+                               asp-route-artifactId="@artifact.Id" target="_blank" rel="noopener" data-report-artifact="@artifact.Kind">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                                <span>@(artifact.Kind == CaseReportArtifactKind.FeeNote
+                                        ? ReportLabels.DownloadFeeNote
+                                        : generation.Snapshot.Report.IncludeFeeNote
+                                            ? ReportLabels.DownloadReportWithFeeNote
+                                            : ReportLabels.DownloadReport)</span>
+                            </a>
+                        }
+                    }
                 </div>
             }
-            @if (!Model.AssessmentIsReadOnly
-                && preparation is null
-                && generation.State == CaseReportGenerationState.Confirmed
-                && generation.Artifacts.All(artifact => artifact.Status == CaseReportArtifactStatus.Confirmed))
+        </div>
+
+        @if (generation is not null)
+        {
+            <dl class="detail-list" data-report-generation>
+                <div><dt>@ReportLabels.CurrentGeneration</dt><dd>@generatedAt</dd></div>
+                <div><dt>@ReportLabels.GenerationState</dt><dd>@generation.State</dd></div>
+            </dl>
+            @if (isStale)
+            {
+                <div class="notice notice--warning" role="status" data-dismissable data-report-stale>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    <span>@ReportLabels.GenerationStaleNotice</span>
+                    <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+                </div>
+            }
+            @if (canPrepareDelivery)
             {
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="PrepareReportDelivery"
-                      asp-route-id="@caseId" asp-route-section="report">
+                      asp-route-id="@caseId" asp-route-section="report" class="recip-form" data-prepare-delivery>
                     <input type="hidden" name="operationKey" value="@Model.PrepareDeliveryOperationKey" />
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                     <input type="hidden" name="generationId" value="@generation.Id" />
                     <input type="hidden" name="expectedGenerationVersion" value="@generation.Version" />
-                    <fieldset class="field">
-                        <legend>Reviewed recipients</legend>
-                        <label for="report-recipient-to">To</label>
-                        <div id="report-recipient-to" class="stack">
-                            @foreach (var recipient in suggestedRecipients.To.DefaultIfEmpty(string.Empty))
-                            {
-                                <input name="toRecipients" type="email" value="@recipient" autocomplete="email" aria-label="Report recipient" />
-                            }
-                        </div>
-                        <button type="button" class="btn" data-add-report-recipient="report-recipient-to" data-report-recipient-name="toRecipients">Add To recipient</button>
-                        <label for="report-recipient-cc">Cc</label>
-                        <div id="report-recipient-cc" class="stack">
-                            @foreach (var recipient in suggestedRecipients.Cc.DefaultIfEmpty(string.Empty))
-                            {
-                                <input name="ccRecipients" type="email" value="@recipient" autocomplete="email" aria-label="Report copy recipient" />
-                            }
-                        </div>
-                        <button type="button" class="btn" data-add-report-recipient="report-recipient-cc" data-report-recipient-name="ccRecipients">Add Cc recipient</button>
-                    </fieldset>
-                    <button type="submit" class="btn">
+                    <span class="lg">@Words.ReviewedRecipients</span>
+                    <span class="lbl">To</span>
+                    <div id="report-recipient-to" class="stack">
+                        @foreach (var recipient in suggestedRecipients.To.DefaultIfEmpty(string.Empty))
+                        {
+                            <input name="toRecipients" type="email" value="@recipient" autocomplete="email" aria-label="Report recipient" />
+                        }
+                    </div>
+                    <button type="button" class="btn btn--small" data-add-report-recipient="report-recipient-to" data-report-recipient-name="toRecipients">@Words.AddTo</button>
+                    <span class="lbl">Cc</span>
+                    <div id="report-recipient-cc" class="stack">
+                        @foreach (var recipient in suggestedRecipients.Cc.DefaultIfEmpty(string.Empty))
+                        {
+                            <input name="ccRecipients" type="email" value="@recipient" autocomplete="email" aria-label="Report copy recipient" />
+                        }
+                    </div>
+                    <button type="button" class="btn btn--small" data-add-report-recipient="report-recipient-cc" data-report-recipient-name="ccRecipients">@Words.AddCc</button>
+                    <button type="submit" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                         <span>@ReportLabels.PrepareDelivery</span>
                     </button>
@@ -159,94 +212,186 @@
             }
             @if (preparation is not null && !Model.AssessmentIsReadOnly)
             {
-                <div class="detail-list">
-                    <div>
-                        <dt>@ReportLabels.DeliveryPrepared</dt>
-                        <dd>@string.Join(", ", preparation.Addressing.To.Select(recipient => recipient.Address))</dd>
-                    </div>
-                </div>
+                <dl class="detail-list" data-report-delivery>
+                    <div><dt>@ReportLabels.DeliveryPrepared</dt><dd>@string.Join(", ", preparation.Addressing.To.Select(recipient => recipient.Address))</dd></div>
+                    @if (preparation.Addressing.Cc.Count > 0)
+                    {
+                        <div><dt>Cc</dt><dd>@string.Join(", ", preparation.Addressing.Cc.Select(recipient => recipient.Address))</dd></div>
+                    }
+                </dl>
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="SendPreparedReport"
-                      asp-route-id="@caseId" asp-route-section="report">
+                      asp-route-id="@caseId" asp-route-section="report" class="button-row" data-send-prepared>
                     <input type="hidden" name="preparationId" value="@preparation.Preparation.Id" />
                     <input type="hidden" name="expectedPreparationVersion" value="@preparation.Preparation.Version" />
-                    <button type="submit" class="btn">
+                    <button type="submit" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                         <span>@ReportLabels.SendPreparedReport</span>
                     </button>
                 </form>
             }
         }
-        @* B06/B08: the prepared images exactly as the report will use them —
-           Close-up, Overview, then Supporting in order, Not used omitted —
-           and, in edit mode, the same preparation controls the Files section
-           offers, from the one shared partial. A card here and a card there
-           can never state different preparation, or offer a different
-           control, for one image. *@
-        @if (Model.PreparedReportImages.Count > 0)
-        {
-            <partial name="Cases/Shared/_CaseReportImagePreparation"
-                     model="ReportImagePreparationView.Report(Model)" />
-        }
-        <div class="grid grid-2">
-            @foreach (var field in CaseWorkspaceLabels.Editors.Report)
-            {
-                var definition = AssessmentVocabulary.Definitions[field.Key];
-                var value = Model.AssessmentEditorValue(field.Key);
-                var name = CaseWorkspaceLabels.Editors.FormName(field.Key);
-                if (Model.CanEditAssessmentField(field.Key))
+
+        <div class="fg g4">
+            <div class="fc" data-field="signOffEngineerId">
+                @if (editing)
                 {
-                    <div class="field">
-                        <label for="edit-@field.Key">@field.Value</label>
-                        @if (definition.Type == AssessmentFieldType.Flag)
-                        {
-                            <select id="edit-@field.Key" name="@name" form="case-edit-form">
-                                <option value="" selected="@(value is null)"></option>
-                                <option value="true" selected="@(value == "true")">Yes</option>
-                                <option value="false" selected="@(value == "false")">No</option>
-                            </select>
-                        }
-                        else if (definition.Type == AssessmentFieldType.Money)
-                        {
-                            <input type="number" step="0.01" id="edit-@field.Key" name="@name" value="@value" form="case-edit-form" />
-                        }
-                        else
-                        {
-                            <textarea id="edit-@field.Key" name="@name" form="case-edit-form" rows="4" maxlength="@definition.MaximumLength">@value</textarea>
-                        }
-                    </div>
+                    <label for="f-sign-off-engineer">@Words.SignOffEngineer</label>
                 }
                 else
                 {
-                    <dl class="detail-list"><div><dt>@field.Value</dt><dd>@Model.AssessmentValue(field.Key)</dd></div></dl>
+                    <span class="lbl">@Words.SignOffEngineer</span>
                 }
-            }
-            @if (Model.CanEditEngineering)
-            {
-                <div class="field">
-                    <label for="edit-sign-off-engineer">Sign-off Engineer</label>
-                    <select id="edit-sign-off-engineer" name="signOffEngineerId" form="case-edit-form">
+                <div class="fv">@Model.SignOffEngineerDisplayName</div>
+                @if (editing)
+                {
+                    <select id="f-sign-off-engineer" class="fi" name="signOffEngineerId" form="case-edit-form">
                         <option value="" disabled selected="@(Model.SelectedSignOffEngineerId is null)"></option>
                         @foreach (var engineer in Model.EligibleSignOffEngineers)
                         {
                             <option value="@engineer.StaffId" selected="@(engineer.StaffId == Model.SelectedSignOffEngineerId)">@engineer.PrintedName</option>
                         }
                     </select>
+                }
+            </div>
+            <div class="fc" data-field="reportDate">
+                @if (editing)
+                {
+                    <label for="f-report-date">@Words.ReportDate</label>
+                }
+                else
+                {
+                    <span class="lbl">@Words.ReportDate</span>
+                }
+                <div class="fv derived @(reportDateText is null ? "empty" : null)">@(reportDateText ?? "—")</div>
+                @if (editing)
+                {
+                    <input id="f-report-date" class="fi" type="date" name="reportDate" form="case-edit-form" value="@reportDate" />
+                }
+            </div>
+            @{ await Field(AssessmentVocabulary.AgreedFee, labels[AssessmentVocabulary.AgreedFee]);
+                await Field(AssessmentVocabulary.FeeDescriptionLines, labels[AssessmentVocabulary.FeeDescriptionLines], multi: true);
+                await Field(AssessmentVocabulary.ReportDateOverride, labels[AssessmentVocabulary.ReportDateOverride]);
+                await Field(AssessmentVocabulary.EngineersComments, labels[AssessmentVocabulary.EngineersComments], multi: true, extraClass: "span3");
+            }
+            @* The three content switches: a checkbox posts "true" ahead of its
+               hidden "false", so an unticked switch still records No. *@
+            <div class="fc span4" data-field="report-content">
+                <span class="lbl">@Words.ReportContent</span>
+                <div class="fv" data-report-content>@Model.ReportContentSummary</div>
+                @if (editing)
+                {
+                    <div class="fi chk switches" data-report-switches>
+                        @foreach (var (path, label) in new[]
+                        {
+                            (AssessmentVocabulary.ReportDiscloseGuideSource, Words.DiscloseGuideSource),
+                            (AssessmentVocabulary.ReportValuationCommentary, Words.ValuationCommentary),
+                            (AssessmentVocabulary.ReportIncludeUnrelatedDamage, Words.UnrelatedDamage)
+                        })
+                        {
+                            var name = CaseWorkspaceLabels.Editors.FormName(path);
+                            <label class="choice">
+                                <input type="checkbox" name="@name" value="true" form="case-edit-form" checked="@(SwitchOn(path) ? "checked" : null)" data-report-switch="@path" />
+                                <input type="hidden" name="@name" value="false" form="case-edit-form" />
+                                <span>@label</span>
+                            </label>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="fc ro span4"><span class="lbl">@EngineerLabels.StatementOfTruth</span><div class="fv derived multi @(Model.AssessmentIsAbsent(AssessmentVocabulary.StatementOfTruth) ? "empty" : null)">@Model.AssessmentDisplay(AssessmentVocabulary.StatementOfTruth)</div></div>
+        </div>
+
+        @if (tiles.Count > 0)
+        {
+            @* Every readable Case image, the ones in the report ticked; a tile
+               opens the viewer, whose In report toggle drives the set while
+               editing (the Files lane's viewer binds [data-report-image-toggle]). *@
+            <div class="sub-panel" data-report-images>
+                <h3>@Words.ImagesInReport <span class="rt" data-report-image-count>@inReport of @tiles.Count @Words.InReport</span></h3>
+                <div class="thumbs" data-report-images-strip data-evidence-set>
+                    @foreach (var (file, prep) in tiles)
+                    {
+                        var occurrence = file.Occurrence;
+                        var version = file.Version;
+                        var included = prep.Role != CaseAssetReportRole.NotUsed;
+                        var previewUrl = Url.Page("/Cases/Documents/Download", new { caseId, occurrenceId = occurrence.Id, versionId = version.Id, inline = true })!;
+                        var downloadUrl = Url.Page("/Cases/Documents/Download", new { caseId, occurrenceId = occurrence.Id, versionId = version.Id })!;
+                        var thumbnailUrl = Url.Page("/Cases/Documents/Download", new { caseId, occurrenceId = occurrence.Id, versionId = version.Id, inline = true, size = CaseDocumentThumbnails.ThumbSizeToken })!;
+                        <a class="th @(included ? null : "off")" href="@previewUrl"
+                           data-evidence-item data-download-href="@downloadUrl" data-media-type="@version.MediaType" data-file-name="@version.FileName"
+                           data-report-image="@occurrence.Id" data-report-image-role="@prep.Role"
+                           @(Model.CanEditCaseData ? Html.Raw($"data-report-image-toggle=\"{occurrence.Id:D}\" data-evidence-preparation-occurrence=\"{occurrence.Id:D}\"") : null)>
+                            <img src="@thumbnailUrl" alt="" loading="lazy" data-gallery-image />
+                            <span class="inc" aria-hidden="true">@(included ? "✓" : "–")</span>
+                            @if (included)
+                            {
+                                <span class="tag">@CaseWorkspaceLabels.ReportImages.RoleLabel(prep.Role)</span>
+                            }
+                            <span class="th-name">@version.FileName</span>
+                        </a>
+                    }
                 </div>
-                <div class="field">
-                    <label for="edit-report-date">Report date</label>
-                    <input type="date" id="edit-report-date" name="reportDate" form="case-edit-form" value="@Model.AssessmentEditorValue(AssessmentVocabulary.ReportDate)" />
-                </div>
+            </div>
+        }
+
+        @* B06/B08: the prepared images exactly as the report will use them,
+           with the same preparation controls the Files section offers, from the
+           one shared partial. Shown only while the Case edits. *@
+        @if (Model.CanEditCaseData && Model.PreparedReportImages.Count > 0)
+        {
+            <div class="sub-panel" data-report-preparation>
+                <h3>@Words.ReportImagePreparation</h3>
+                <partial name="Cases/Shared/_CaseReportImagePreparation"
+                         model="ReportImagePreparationView.Report(Model)" />
+            </div>
+        }
+    </div>
+</section>
+
+@functions {
+    // One assessment cell on the vocabulary's own type, the control joining
+    // the record's one Save form while the section edits.
+    private async Task Field(string path, string label, bool multi = false, string? extraClass = null)
+    {
+        var definition = AssessmentVocabulary.Definitions[path];
+        var editable = Model.SectionIsEditable("report") && Model.CanEditAssessmentField(path);
+        var value = Model.AssessmentEditorValue(path);
+        var absent = Model.AssessmentIsAbsent(path);
+        var name = CaseWorkspaceLabels.Editors.FormName(path);
+        var id = "f-" + path.Replace('.', '-').Replace('_', '-');
+        var mono = definition.Type is AssessmentFieldType.Money or AssessmentFieldType.WholeNumber;
+        <div class="fc @extraClass" data-field="@path">
+            @if (editable)
+            {
+                <label for="@id">@label</label>
             }
             else
             {
-                <dl class="detail-list">
-                    <div><dt>Sign-off Engineer</dt><dd>@Model.SignOffEngineerDisplayName</dd></div>
-                    <div><dt>Report date</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.ReportDate)</dd></div>
-                </dl>
+                <span class="lbl">@label</span>
+            }
+            <div class="fv @(mono ? "mono" : null) @(multi ? "multi" : null) @(absent ? "empty" : null)">@Model.AssessmentDisplay(path)</div>
+            @if (editable)
+            {
+                if (definition.Type == AssessmentFieldType.Flag)
+                {
+                    <select id="@id" class="fi" name="@name" form="case-edit-form">
+                        <option value="" selected="@(value is null)"></option>
+                        <option value="true" selected="@(value == "true")">Yes</option>
+                        <option value="false" selected="@(value == "false")">No</option>
+                    </select>
+                }
+                else if (multi)
+                {
+                    <textarea id="@id" class="fi" name="@name" form="case-edit-form" maxlength="@definition.MaximumLength">@value</textarea>
+                }
+                else
+                {
+                    <input id="@id" class="fi @(mono ? "mono" : null)" name="@name" form="case-edit-form" value="@value"
+                           type="@(definition.Type == AssessmentFieldType.Date ? "date" : mono ? "number" : "text")"
+                           step="@(definition.Type == AssessmentFieldType.Money ? "0.01" : null)"
+                           maxlength="@(definition.Type == AssessmentFieldType.Text ? definition.MaximumLength : null)" />
+                }
             }
         </div>
-        <dl class="detail-list">
-            <div><dt>@EngineerLabels.StatementOfTruth</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.StatementOfTruth)</dd></div>
-        </dl>
-    </div>
-</section>
+    }
+}

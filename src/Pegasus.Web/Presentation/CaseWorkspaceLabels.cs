@@ -15,6 +15,81 @@ public static class CaseWorkspaceLabels
 {
     public const string HandToEngineer = "Hand to Engineer";
 
+    /// <summary>
+    /// The v26 frame's own words: the ribbon controls, the Actions menu, the
+    /// section-head Edit and the availability sentences a section states once.
+    /// </summary>
+    public static class Frame
+    {
+        public const string EditCase = "Edit Case";
+        public const string EnableReturn = "Enable return";
+        public const string Edit = "Edit";
+        public const string Cancel = "Cancel";
+        public const string Save = "Save";
+        public const string Actions = "Actions";
+        public const string More = "More";
+        public const string Refresh = "Refresh";
+        public const string Scroll = "Scroll";
+        public const string Tabs = "Tabs";
+        public const string CollapseSection = "Collapse section";
+        public const string ExpandSection = "Expand section";
+        public const string RenewEditing = "Renew editing";
+        public const string Release = "Release";
+        public const string TakeOver = "Take over";
+        public const string Editing = "Editing";
+        public const string Archived = "Archived";
+        public const string AvailableWithEngineer = "Available With Engineer";
+        public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
+        public const string Figures = "Figures";
+        public const string NextAction = "Next action";
+        public const string RepairCostIncVat = "Repair cost inc VAT";
+        public const string EngineersValue = "Engineer's Value";
+        public const string RepairCostOfValue = "Repair cost of value";
+        public const string PlaceOnHold = "Place on Hold";
+        public const string ReleaseHold = "Release Hold";
+        public const string ReviewOn = "Review on";
+        public const string CreateUploadLink = "Create upload link";
+        public const string CorrectPrincipal = "Correct principal";
+        public const string CreateAudit = "Create audit";
+        public const string MarkReportSent = "Mark report sent";
+        public const string MarkCompleted = "Mark completed";
+        public const string ReturnToReview = "Return to Review";
+        public const string ReturnToEngineer = "Return to Engineer";
+        public const string ArchiveCase = "Archive case";
+        public const string AssignToMe = "Assign to me";
+        public const string AuditCase = "Audit case";
+        public const string OriginalCase = "Original case";
+        public const string ReplacementCase = "Replacement case";
+        public const string LifecycleActions = "Lifecycle actions";
+        public const string OutstandingRequirements = "Outstanding requirements";
+        public const string UnlinkReportEvidence = "Unlink report evidence";
+        public const string CaseDataSaved = "Case data saved";
+        public const string AiDraftReady = "AI draft ready";
+        public const string ReviewEstimate = "Review estimate";
+        public const string OpenQuery = "Open query";
+        public const string Review = "Review";
+        public const string CaseType = "Case type";
+        public const string OurRef = "Our ref";
+        public const string ClaimReference = "Claim reference";
+        public const string IncidentDate = "Incident date";
+        public const string Received = "Received";
+        public const string Due = "Due";
+        public const string ClaimSource = "Claim source";
+        public const string ClaimSourceContact = "Claim source contact";
+        public const string Contact = "Contact";
+        public const string Address = "Address";
+        public const string VatStatus = "VAT status";
+        public const string Notes = "Notes";
+        public const string PrincipalNotes = "Principal notes";
+        public const string PrincipalNotesThisCase = "Principal notes · this Case";
+        public const string ClaimSourceNotes = "Claim source notes";
+        public const string ClaimSourceNotesThisCase = "Claim source notes · this Case";
+        public const string AccidentCircumstances = "Accident circumstances";
+        public const string NotesFromClient = "Notes from client";
+        public const string ReportSent = "Report sent";
+        public const string LeaseExpires = "Lease expires";
+    }
+
     // Presentation membership only; types, allowed codes and authority remain
     // owned by AssessmentVocabulary and the workspace command.
     public static class Editors
@@ -24,6 +99,8 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.Outcome] = "Outcome",
             [AssessmentVocabulary.SalvageCategory] = "Salvage category",
             [AssessmentVocabulary.SalvageValue] = "Salvage value",
+            [AssessmentVocabulary.LegalStatus] = "Roadworthiness",
+            [AssessmentVocabulary.UnroadworthyReason] = "Unroadworthy reason",
             [AssessmentVocabulary.SettlementExcess] = "Excess",
             [AssessmentVocabulary.SettlementBetterment] = "Betterment",
             [AssessmentVocabulary.SettlementClaimantVatRegistered] = "Claimant VAT registered",
@@ -94,6 +171,160 @@ public static class CaseWorkspaceLabels
             || path == AssessmentVocabulary.HistoryCheck;
     }
 
+    /// <summary>
+    /// The Damage section's own words (v26 Plan clicker): the workbench
+    /// captions, the derived cells and the recorded-zones list.
+    /// </summary>
+    public static class Damage
+    {
+        public const string DiagramLabel = "Vehicle damage diagram, plan view";
+        public const string Front = "FRONT";
+        public const string Rear = "REAR";
+        public const string RecordedZones = "Recorded zones";
+        public const string NoDamageRecorded = "No damage recorded.";
+        public const string Severity = "Severity";
+        public const string Note = "Note";
+        public const string NoNote = "No note";
+        public const string Remove = "Remove";
+        public const string TyresAndBelts = "Tyres & seat belts";
+        public const string Images = "Images";
+        public const string Multiple = "Multiple";
+        public const string OtherAreas = "Other vehicle areas";
+
+        /// <summary>A code word as the cell prints it: "not_fitted" reads "Not fitted".</summary>
+        public static string CodeWord(string code)
+        {
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                return code;
+            }
+            var words = code.Replace('_', ' ');
+            return char.ToUpperInvariant(words[0]) + words[1..];
+        }
+
+        /// <summary>The impact location as the derived cell prints it, from Core's headline codes.</summary>
+        public static string Location(string? code) =>
+            code is null ? OperatorLabels.CaseWorkspace.AbsentValue
+            : code == "multiple" ? Multiple
+            : AssessmentVocabulary.DamageZones.TryGetValue(code, out var zone) ? zone.Display
+            : code == "wheel" ? "Wheel"
+            : CodeWord(code);
+
+        public static string SeverityWord(string? code) =>
+            code is not null && AssessmentVocabulary.DamageSeverities.TryGetValue(code, out var severity)
+                ? severity.Display
+                : OperatorLabels.CaseWorkspace.AbsentValue;
+    }
+
+    /// <summary>
+    /// The Settlement section's own words (v26 § Settlement): the figures
+    /// strip, the Decisions strip and its proposal column.
+    /// </summary>
+    public static class Settlement
+    {
+        public const string Decisions = "Decisions";
+        public const string Proposed = "Proposed";
+        public const string Awaiting = "Awaiting";
+        public const string Accept = "Accept";
+        public const string AcceptAll = "Accept all";
+        public const string ApplyInValuation = "Apply in Valuation";
+        public const string ValuationLink = "Valuation";
+        public const string EngineersValue = "Engineer's Value";
+        public const string SalvageValue = "Salvage value";
+        public const string Equity = "Equity";
+        public const string EquityMeta = "Engineer's Value − salvage";
+        public const string RepairCostIncVat = "Repair cost inc VAT";
+        public const string CashInLieu = "Cash in lieu";
+        public const string LabourHours = "Labour hours";
+        public const string RepairCostOfValue = "Repair cost of value";
+        public const string ExceedsEngineersValue = "Exceeds Engineer's Value";
+        public const string FromCurrentEstimate = "From current estimate";
+        public const string CurrentEstimate = "current estimate";
+        public const string ApplyInValuationMeta = "Apply in Valuation";
+        public const string CostsHireDelays = "Costs, hire & delays";
+        public const string Salvage = "Salvage";
+        public const string StorageCharge = "Storage charge";
+        public const string RepairDays = "Repair days";
+        public const string AwaitingReview = "awaiting review";
+        public const string AiProposal = "AI proposal";
+    }
+
+    /// <summary>The Report section's own words (v26 § Report).</summary>
+    public static class Report
+    {
+        public const string More = "More";
+        public const string PreviewDraft = "Preview draft";
+        public const string DownloadDraft = "Download draft";
+        public const string NotReady = "Report not ready";
+        public const string NoGeneration = "No generation yet.";
+        public const string Generated = "Generated";
+        public const string DraftSuffix = " (draft).pdf";
+        public const string SignOffEngineer = "Sign-off Engineer";
+        public const string ReportDate = "Report date";
+        public const string ReportContent = "Report content";
+        public const string DiscloseGuideSource = "Disclose guide source";
+        public const string ValuationCommentary = "Valuation commentary";
+        public const string UnrelatedDamage = "Unrelated damage";
+        public const string ImagesInReport = "Images in report";
+        public const string InReport = "in report";
+        public const string ReportImagePreparation = "Report image preparation";
+        public const string ReviewedRecipients = "Reviewed recipients";
+        public const string AddTo = "Add To recipient";
+        public const string AddCc = "Add Cc recipient";
+    }
+
+    /// <summary>
+    /// The Estimate section's own words (v26 § Estimate): the head controls,
+    /// the tab source tags, the grid's source column, the Glass's session
+    /// line and the work-lists. "Send to AI" is the one name the AI has here.
+    /// </summary>
+    public static class Estimate
+    {
+        public const string SendToAi = "Send to AI";
+        public const string Import = "Import";
+        public const string Expand = "Expand";
+        public const string ExpandEstimate = "Expand estimate";
+        public const string CloseFullScreen = "Close full screen";
+        public const string Discard = "Discard";
+        public const string DiscardEstimate = "Discard estimate";
+        public const string Blend = "Blend";
+        public const string LabourRateCard = "Labour-rate card";
+        public const string KeepEnteredRate = "Keep entered rate";
+        public const string PartNumberShort = "Part no.";
+        public const string UnitPounds = "Unit £";
+        public const string Hours = "Hours";
+        public const string DiscountsPercent = "Discounts %";
+        public const string Overall = "Overall";
+        public const string Overridden = "Overridden";
+        public const string ResetToRepairerStatus = "Reset to repairer status";
+        public const string Repairer = "Repairer";
+        public const string MainNewParts = "Main new parts required";
+        public const string RepairsRequired = "Repairs required";
+        public const string AdditionalOperations = "Additional operations";
+        public const string None = "none";
+        public const string On = "on";
+        public const string RepairCostIncVat = "Repair cost inc VAT";
+        public const string DraftSuffix = "draft";
+        public const string EstimateFile = "Estimate file";
+        public const string SourceImported = "imported";
+        public const string SourceAmended = "amended";
+        public const string SourceManual = "manual";
+        public const string RouteManual = "Manual";
+        public const string RouteGlasses = "Glass's";
+        public const string RouteAudatex = "Audatex PDF";
+        public const string RouteJson = "JSON";
+        public const string RouteAi = "AI";
+        public const string RouteUnknown = "Recorded";
+        public const string HeldFromAnotherCase = "Your account is held from another Case";
+        public const string Started = "started";
+        public const string AvailableWhileEditing = "Available while editing";
+        public const string AddALine = "Add a line";
+        public const string RemoveThisLine = "Remove this line";
+
+        public static string DiscardPrompt(string name) =>
+            $"Discard {name} and its lines from this case?";
+    }
+
     public static class EstimateImport
     {
         public const string Complete = "Complete import";
@@ -110,6 +341,75 @@ public static class CaseWorkspaceLabels
     public static class Vehicle
     {
         public const string LookupDvlaMot = "Look up DVLA & MOT";
+        public const string Registration = "Registration";
+        public const string Make = "Make";
+        public const string Model = "Model";
+        public const string Year = "Year";
+        public const string Vin = "VIN";
+        public const string EngineCc = "Engine";
+        public const string Fuel = "Fuel";
+        public const string Colour = "Colour";
+        public const string Transmission = "Transmission";
+        public const string Body = "Body";
+        public const string TaxExpiry = "Tax expiry";
+        public const string MotExpiry = "MOT expiry";
+        public const string MileageAndCondition = "Mileage & condition";
+        public const string Mileage = "Mileage";
+        public const string MileageSourceLabel = "Mileage source";
+        public const string PreIncidentCondition = "Pre-incident condition";
+        public const string OdometerUnit = "Odometer unit";
+        public const string Miles = "Miles";
+        public const string Kilometres = "Kilometres";
+        public const string History = "Vehicle history";
+
+        /// <summary>The provenance word on a value a lookup wrote.</summary>
+        public const string LookupWord = "Lookup";
+
+        /// <summary>13 September (Work Centre D1): a blocking external failure reads in operator words at the point of use.</summary>
+        public const string LookupFailedPrefix = "Lookup failed · ";
+
+        /// <summary>
+        /// The head's one lookup line: the shared outcome wording, with a
+        /// failure read as "Lookup failed · {reason} (at)" rather than "Failed:".
+        /// </summary>
+        public static string LookupLine(Pegasus.Core.Vehicle.VehicleLookupObservation? observation)
+        {
+            var line = OperatorLabels.VehicleLookup.Outcome(observation);
+            return line.StartsWith("Failed: ", StringComparison.Ordinal)
+                ? LookupFailedPrefix + line["Failed: ".Length..]
+                : line;
+        }
+
+        /// <summary>The pre-incident condition code as the operator reads it.</summary>
+        public static string ConditionLabel(string code) => code switch
+        {
+            "poor" => "Poor",
+            "below_average" => "Below average",
+            "average" => "Average",
+            "good" => "Good",
+            "excellent" => "Excellent",
+            _ => OperatorLabels.Humanise(code)
+        };
+
+        /// <summary>
+        /// A lookup-sourced assessment value as a read value: a date in the
+        /// office's short form, an enumerated code as words, everything else
+        /// as recorded.
+        /// </summary>
+        public static string AssessmentValue(string path, string value)
+        {
+            var definition = AssessmentVocabulary.Definitions[path];
+            if (definition.Type == AssessmentFieldType.Date
+                && DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            {
+                return date.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
+            }
+            if (definition.Type == AssessmentFieldType.Enumerated)
+            {
+                return OperatorLabels.Humanise(value);
+            }
+            return path == AssessmentVocabulary.VehicleEngineCc ? value + " cc" : value;
+        }
 
         /// <summary>
         /// Who told staff the mileage, for the codes staff may pick from once
@@ -126,6 +426,21 @@ public static class CaseWorkspaceLabels
     }
 
     /// <summary>
+    /// The Inspection details section's own words (v26), same ownership rule
+    /// as Vehicle; the shared Inspect-at, Repairer and Storage location labels
+    /// stay in OperatorLabels.CaseWorkspace.
+    /// </summary>
+    public static class Inspection
+    {
+        public const string SectionTitle = "Inspection details";
+        public const string InspectionType = "Inspection type";
+        public const string InspectionDate = "Inspection date";
+        public const string Address = "Address";
+        public const string Storage = "Storage";
+        public const string StoragePerDay = "Storage per day";
+    }
+
+    /// <summary>
     /// The Valuation section's source-card surface, same ownership rule as
     /// Vehicle.
     /// </summary>
@@ -134,7 +449,44 @@ public static class CaseWorkspaceLabels
         public const string SectionTitle = "Valuation";
         public const string AddValuation = "Add valuation";
         public const string CazanaCondition = "not a live source";
+        public const string CazanaSeam = "Cazana is not connected";
         public const string AbsentGuideMonth = "Not recorded";
+
+        // v26: the calculator (v25 decision 8) and the per-source Get valuation row.
+        public const string EngineersValueHead = "Engineer's Value";
+        public const string ValuationMonth = "Valuation month";
+        public const string GetValuation = "Get valuation";
+        public const string Basis = "Basis";
+        public const string Retail = "Retail";
+        public const string Trade = "Trade";
+        public const string Calculation = "Calculation";
+        public const string FromRetail = "from {0} retail";
+        public const string Researching = "Researching";
+        public const string PreviousTotalLoss = "Previous total loss";
+        public const string ConditionDeduction = "Condition deduction";
+        public const string CommercialVat = "Commercial VAT";
+        public const string AddVat = "Add 20 % VAT";
+        public const string ClaimantVatRegistered = "Claimant is VAT registered";
+        public const string ValueIncreases = "Value increases";
+        public const string OtherAddition = "Other…";
+        public const string ApplyAsEngineersValue = "Apply as Engineer's Value";
+        public const string AppliedEngineersValue = "Applied Engineer's Value";
+        public const string NoneYet = "None yet";
+        public const string AppliedBy = "Applied by";
+        public const string Adjustments = "Adjustments";
+        public const string NoAdjustments = "None";
+        public const string Applied = "Applied";
+        public const string NotApplied = "Not applied";
+        public const string GuideMonth = "Guide month";
+        public const string Mileage = "Mileage";
+        public const string Date = "Date";
+        public const string Time = "Time";
+        public const string Source = "Source";
+        public const string Add = "Add";
+        public const string Listings = "listings";
+        public const string ChooseBasis = "Choose a basis card to calculate.";
+        public const string GuideRetail = "Guide retail";
+        public const string ProposedEngineersValue = "Proposed Engineer's Value";
 
         public static string SourceLabel(ValuationSource source) => source switch
         {
@@ -452,6 +804,51 @@ public static class CaseWorkspaceLabels
             GlassRepairEstimateSessionState.Cancelled => "Cancelled",
             _ => state.ToString(),
         };
+    }
+
+    /// <summary>
+    /// The Files section (v26 § Files): the tabs, the row actions and the
+    /// empty states. Values only; the custody words are the shared labels'.
+    /// </summary>
+    public static class Files
+    {
+        public const string CorrespondenceTab = "Correspondence";
+        public const string BoxConfirmed = "Box · confirmed";
+        public const string OpenInBox = "Open in Box";
+        public const string View = "View";
+        public const string Remove = "Remove";
+        public const string RemoveFile = "Remove file";
+        public const string WithdrawLink = "Withdraw link";
+        public const string Compose = "Compose";
+        public const string StorageNotReady = "Storage not ready";
+        public const string NoDocuments = "No documents on this Case.";
+        public const string NoImages = "No images on this Case.";
+        public const string NoCorrespondence = "No retained correspondence is associated with this Case.";
+        public const string ImageIntake = "Image intake";
+        public const string Photographs = "photographs";
+    }
+
+    /// <summary>
+    /// The Case record's full-screen viewer (v26 § Image viewer): its
+    /// controls and the crop editor on its stage.
+    /// </summary>
+    public static class Viewer
+    {
+        public const string Title = "Image viewer";
+        public const string Rotate = "Rotate";
+        public const string Zoom = "Zoom";
+        public const string Fit = "Fit";
+        public const string Download = "Download";
+        public const string DownloadDraft = "Download draft";
+        public const string InReport = "In report";
+        public const string Close = "Close";
+        public const string Previous = "Previous";
+        public const string Next = "Next";
+        public const string Aspect = "Aspect";
+        public const string AspectFree = "Free";
+        public const string AspectSquare = "Square";
+        public const string SaveCrop = "Save crop";
+        public const string Cancel = "Cancel";
     }
 
     /// <summary>

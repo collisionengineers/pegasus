@@ -1,70 +1,396 @@
+@*
+    Valuation (v26): the guide cards, the calculator on the Core policy
+    shape (v25 decision 8) and the applied-history row. While editing, the
+    Valuation month and one Get valuation button per source sit above the
+    cards; Glass's, Brego and Super CAP have no provider yet and are inert
+    (13 September), AI market research starts the existing job. Read mode
+    shows values only: the cards, the applied calculation and its increases.
+    The preview lines are Core's own arithmetic, fetched by script from the
+    PreviewValuation handler; without script the Apply posts and the applied
+    calculation is shown after the redirect.
+*@
 @model Pegasus.Web.Pages.Cases.DetailsModel
+@using System.Globalization
 @using Pegasus.Core.Assessment
 @using Pegasus.Web.Presentation
 @using ValuationLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Valuation
-@using SharedLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace
 @{
-    var workflow = Model.Case!.Workflow;
-    var leaseToken = Model.LeaseToken;
-    var mayEdit = Model.CanEditCaseData;
+    var details = Model.Case!;
+    var workflow = details.Workflow;
+    var caseId = workflow.CaseId;
+    var editable = Model.SectionIsEditable("valuation");
+    var engineerValue = Model.EngineerValue;
+    var guides = Model.GuideValuations;
+    var basis = Model.DefaultBasis;
+    var applied = Model.LatestAppliedValuation;
+    var pending = Model.PendingMarketResearch;
+    var claimantVat = Model.ClaimantVatRegistered;
+    var calculation = editable ? Model.DefaultCalculation : applied?.Calculation;
+    var appliedAdditions = applied?.Calculation.Additions ?? [];
+    var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "valuation");
     var manualSources = Enum.GetValues<ValuationSource>()
         .Where(ValuationPolicy.IsManuallyRecordable)
         .ToArray();
+    var now = Pegasus.Core.LondonCalendar.TimeAt(DateTimeOffset.UtcNow);
+    var acceptedMileage = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(details.Data?.Vehicle.Mileage)?.Value;
+    var basisName = basis is null ? null : ValuationLabels.SourceLabel(basis.Details.Source);
+    var appliedBasis = applied is null
+        ? null
+        : Model.Valuations.FirstOrDefault(valuation => valuation.ValuationId == applied.GuideValuationId);
+    var appliedBasisName = appliedBasis is null ? "Guide" : ValuationLabels.SourceLabel(appliedBasis.Details.Source);
+    var lineForm = editable ? "case-valuation-form" : null;
+
+    string Money(decimal value) => ValuationCalculationPolicy.FormatMoney(value);
+
+    string CardMeta(CaseValuation valuation) =>
+        (valuation.Details.GuideMonth?.ToString("MMM yyyy", CultureInfo.InvariantCulture) ?? ValuationLabels.AbsentGuideMonth)
+        + " · " + valuation.Details.Mileage.ToString("N0", CultureInfo.InvariantCulture) + " miles · "
+        + valuation.Details.Date.ToString("d MMM yyyy", CultureInfo.InvariantCulture);
+
+    string Adjustments(ValuationCalculation recorded)
+    {
+        var parts = new List<string>();
+        if (recorded.CommercialVatApplied) parts.Add("+ VAT");
+        if (recorded.PriorTotalLossPercentage is { } percentage)
+            parts.Add("− " + (percentage * 100m).ToString("0", CultureInfo.InvariantCulture) + "% PTL");
+        parts.AddRange(recorded.Additions.Select(addition => "+ " + addition.Label));
+        if (recorded.ConditionDeduction > 0m) parts.Add("− condition");
+        return parts.Count == 0 ? ValuationLabels.NoAdjustments : string.Join(", ", parts);
+    }
 }
 
-<section class="panel" aria-labelledby="case-valuation-title">
+<section class="record-section panel @(Model.IsEditing && !Model.SectionIsEditable("valuation") ? "is-locked" : null)" id="section-valuation" data-section="valuation" data-collapse="case.valuation" aria-labelledby="section-valuation-title">
     <div class="panel-head">
-        <h2 id="case-valuation-title">@ValuationLabels.SectionTitle</h2>
-        @if (mayEdit)
-        {
-            <button type="button" class="btn btn--small btn--primary" data-dialog-open="add-valuation">@ValuationLabels.AddValuation</button>
-        }
+        <h2 id="section-valuation-title">@ValuationLabels.SectionTitle</h2>
+        <span class="meta" data-valuation-head>@ValuationLabels.EngineersValueHead @(engineerValue is { } headValue ? Money(headValue) : "—")</span>
+        <div class="panel-actions">
+            <partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" />
+        </div>
     </div>
-    @if (Model.Valuations.Count > 0)
-    {
-        <div class="panel-body valuation-sources">
-            @foreach (var valuation in Model.Valuations)
+    <div class="panel-body stack">
+        @if (editable)
+        {
+            @* Glass's, Brego and Super CAP have no provider yet: the buttons are
+               present and inert — plain buttons with no handler and no state
+               change (13 September). AI market research runs the existing job
+               for the chosen month; the month input joins that form. *@
+            <div class="val-tools" data-valuation-tools>
+                <form method="post" asp-page="/Cases/Details" asp-page-handler="StartMarketResearch" asp-route-id="@caseId"
+                      id="case-market-research-form" data-valuation-research-form>
+                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                </form>
+                <div class="fc val-month">
+                    <label for="f-valuation-month">@ValuationLabels.ValuationMonth</label>
+                    <input id="f-valuation-month" class="fi" type="month" name="guideMonth" form="case-market-research-form" value="@Model.ValuationMonth" data-valuation-month />
+                </div>
+                <span class="val-get">
+                    <span class="lbl">@ValuationLabels.GetValuation</span>
+                    <button type="button" class="btn btn--small" data-valuation-source="glasses"><span>@ValuationLabels.SourceLabel(ValuationSource.Glasses)</span></button>
+                    <button type="button" class="btn btn--small" data-valuation-source="brego"><span>@ValuationLabels.SourceLabel(ValuationSource.Brego)</span></button>
+                    <button type="button" class="btn btn--small" data-valuation-source="super-cap"><span>@ValuationLabels.SourceLabel(ValuationSource.SuperCap)</span></button>
+                    <button type="submit" form="case-market-research-form" class="btn btn--small" data-valuation-source="ai-market-research">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                        <span>@ValuationLabels.SourceLabel(ValuationSource.AiMarketResearch)</span>
+                    </button>
+                </span>
+                <span class="spacer"></span>
+                <button type="button" class="btn btn--small" data-dialog-open="add-valuation">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <span>@ValuationLabels.AddValuation</span>
+                </button>
+            </div>
+        }
+
+        <div class="guides" data-valuation-cards>
+            @foreach (var valuation in guides)
             {
-                <article class="valuation-card" data-valuation-source="@valuation.Details.Source">
-                    <h3>@ValuationLabels.SourceLabel(valuation.Details.Source)</h3>
-                    <dl class="figures">
-                        <div><dt>Retail</dt><dd>@valuation.Details.RetailValue.ToString("C")</dd></div>
-                        <div><dt>Trade</dt><dd>@valuation.Details.TradeValue.ToString("C")</dd></div>
-                    </dl>
-                    <div>@(valuation.Details.GuideMonth?.ToString("MMMM yyyy") ?? ValuationLabels.AbsentGuideMonth)</div>
-                    <div>@valuation.Details.Mileage.ToString("N0") miles</div>
-                    <time datetime="@valuation.Details.Date.ToString("yyyy-MM-dd")">@valuation.Details.Date.ToString("d MMM yyyy")</time>
-                </article>
+                var isAi = valuation.Details.Source == ValuationSource.AiMarketResearch;
+                if (isAi && pending is not null)
+                {
+                    // A re-run replaces the card: while research is pending the
+                    // pending card stands where the recorded one would.
+                    continue;
+                }
+                var selected = basis is not null && basis.ValuationId == valuation.ValuationId;
+                <div class="valuation-card @(selected ? "sel" : null)"
+                     data-valuation-card="@valuation.ValuationId"
+                     data-valuation-source-card="@valuation.Details.Source"
+                     data-retail="@valuation.Details.RetailValue.ToString("0.00", CultureInfo.InvariantCulture)"
+                     data-trade="@valuation.Details.TradeValue.ToString("0.00", CultureInfo.InvariantCulture)">
+                    <h3>
+                        <span>@ValuationLabels.SourceLabel(valuation.Details.Source)</span>
+                        @if (isAi)
+                        {
+                            <span class="src-tag src-tag--ai">AI</span>
+                        }
+                        @if (editable)
+                        {
+                            <label class="pick">
+                                <input type="radio" name="selection.GuideValuationId" value="@valuation.ValuationId"
+                                       form="case-valuation-form" checked="@(selected ? "checked" : null)"
+                                       data-valuation-basis
+                                       data-stamp="@Pegasus.Web.Pages.Cases.DetailsModel.StampOf(valuation).ToString("o", CultureInfo.InvariantCulture)"
+                                       data-source-name="@ValuationLabels.SourceLabel(valuation.Details.Source)" />
+                                @ValuationLabels.Basis
+                            </label>
+                        }
+                    </h3>
+                    <div class="figs">
+                        <div>@ValuationLabels.Retail<b>@Money(valuation.Details.RetailValue)</b></div>
+                        <div>@ValuationLabels.Trade<b>@Money(valuation.Details.TradeValue)</b></div>
+                    </div>
+                    <div class="meta">@CardMeta(valuation)</div>
+                </div>
             }
+            @if (pending is not null)
+            {
+                <div class="valuation-card is-pending" data-valuation-pending="@pending.JobId">
+                    <h3><span>@ValuationLabels.SourceLabel(ValuationSource.AiMarketResearch)</span> <span class="src-tag src-tag--ai">AI</span></h3>
+                    <div class="figs">
+                        <div>@ValuationLabels.Retail<b class="derived">—</b></div>
+                        <div>@ValuationLabels.Trade<b class="derived">—</b></div>
+                    </div>
+                    <div class="meta">@ValuationLabels.Researching · @Model.PendingMarketResearchMonth</div>
+                </div>
+            }
+            @if (guides.Count == 0 && pending is null)
+            {
+                <div class="valuation-card" data-valuation-empty>
+                    <h3><span>@ValuationLabels.SectionTitle</span></h3>
+                    <div class="meta">No valuations recorded.</div>
+                </div>
+            }
+            <div class="valuation-card seam" data-valuation-seam>
+                <h3><span>@ValuationLabels.SourceLabel(ValuationSource.Cazana)</span></h3>
+                <span class="gated"><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>@ValuationLabels.CazanaSeam</span>
+            </div>
         </div>
-    }
-    else
-    {
-        <div class="panel-body">
-            <p class="empty-state">No valuations recorded.</p>
+
+        @if (editable)
+        {
+            <form method="post" asp-page="/Cases/Details" asp-page-handler="ApplyValuation" asp-route-id="@caseId"
+                  id="case-valuation-form" data-valuation-form
+                  data-preview-url="@Url.Page("/Cases/Details", "PreviewValuation", new { id = caseId })">
+                <input type="hidden" name="id" value="@caseId" />
+                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <input type="hidden" name="guideValuationStampUtc" data-valuation-stamp
+                       value="@(basis is null ? string.Empty : Pegasus.Web.Pages.Cases.DetailsModel.StampOf(basis).ToString("o", CultureInfo.InvariantCulture))" />
+            </form>
+        }
+
+        <div class="calc" data-valuation-calc>
+            <div class="sub-panel">
+                <h3>@ValuationLabels.Calculation <span class="rt" data-valuation-basis-name>@(editable ? (basisName is null ? string.Empty : string.Format(CultureInfo.InvariantCulture, ValuationLabels.FromRetail, basisName)) : (applied is null ? string.Empty : string.Format(CultureInfo.InvariantCulture, ValuationLabels.FromRetail, appliedBasisName)))</span></h3>
+                <div class="fg g3">
+                    <div class="fc">
+                        @if (editable)
+                        {
+                            <label for="f-valuation-ptl">@ValuationLabels.PreviousTotalLoss</label>
+                        }
+                        else
+                        {
+                            <span class="lbl">@ValuationLabels.PreviousTotalLoss</span>
+                        }
+                        <div class="fv" data-valuation-ptl-read>@(applied?.Calculation.PriorTotalLossPercentage is { } ptl ? "−" + (ptl * 100m).ToString("0", CultureInfo.InvariantCulture) + " %" : "None")</div>
+                        @if (editable)
+                        {
+                            <select id="f-valuation-ptl" class="fi" name="selection.PriorTotalLossPercentage" form="@lineForm" data-valuation-input>
+                                <option value="">None</option>
+                                <option value="10">−10 %</option>
+                                <option value="20">−20 %</option>
+                            </select>
+                        }
+                    </div>
+                    <div class="fc">
+                        @if (editable)
+                        {
+                            <label for="f-valuation-deduction">@ValuationLabels.ConditionDeduction</label>
+                        }
+                        else
+                        {
+                            <span class="lbl">@ValuationLabels.ConditionDeduction</span>
+                        }
+                        <div class="fv mono @(applied is { Calculation.ConditionDeduction: > 0m } ? null : "empty")" data-valuation-deduction-read>@(applied is { Calculation.ConditionDeduction: > 0m } ? Money(applied.Calculation.ConditionDeduction) : "—")</div>
+                        @if (editable)
+                        {
+                            <input id="f-valuation-deduction" class="fi mono" type="number" min="0" step="0.01" placeholder="£" name="selection.ConditionDeduction" form="@lineForm" data-valuation-input />
+                        }
+                    </div>
+                    <div class="fc">
+                        <span class="lbl">@ValuationLabels.CommercialVat</span>
+                        <div class="fv" data-valuation-vat-read>@(applied is { Calculation.CommercialVatApplied: true } ? ValuationLabels.Applied : ValuationLabels.NotApplied)</div>
+                        @if (editable)
+                        {
+                            <label class="fi chk choice" data-valuation-vat-wrap>
+                                <input type="checkbox" name="selection.CommercialVat" value="true" form="@lineForm"
+                                       disabled="@(claimantVat ? "disabled" : null)" data-valuation-input />
+                                <span>@ValuationLabels.AddVat</span>
+                                @if (claimantVat)
+                                {
+                                    <span class="src-tag src-tag--warn">@ValuationLabels.ClaimantVatRegistered</span>
+                                }
+                            </label>
+                        }
+                    </div>
+                </div>
+                <h3 class="adds-head @(editable || appliedAdditions.Count > 0 ? null : "none")" data-valuation-adds-head>@ValuationLabels.ValueIncreases</h3>
+                <div class="adds" data-valuation-adds>
+                    @if (editable)
+                    {
+                        var index = 0;
+                        foreach (var preset in Model.ValuationPresets.Where(item => item.Active && item.RemovedAtUtc is null))
+                        {
+                            <div class="add" data-valuation-add="@index">
+                                <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" data-preset-toggle data-valuation-input aria-label="@preset.Label" />
+                                <input type="hidden" name="selection.AdditionPresetId" value="@preset.Id" form="@lineForm" />
+                                <input type="hidden" name="selection.AdditionPresetVersion" value="@preset.Version" form="@lineForm" />
+                                <input type="hidden" name="selection.AdditionLabel" value="" form="@lineForm" />
+                                <label for="f-valuation-add-@index">@preset.Label</label>
+                                <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="@lineForm"
+                                       value="@preset.SuggestedAmount.ToString("0.##", CultureInfo.InvariantCulture)" placeholder="£"
+                                       aria-label="@preset.Label amount" data-valuation-input />
+                            </div>
+                            index++;
+                        }
+                        for (var custom = 0; custom < 2; custom++)
+                        {
+                            <div class="add add--custom" data-valuation-add="@index">
+                                <input type="checkbox" name="selection.AdditionSelected" value="@index" form="@lineForm" id="f-valuation-add-@index" data-preset-toggle data-valuation-input aria-label="@ValuationLabels.OtherAddition" />
+                                <input type="hidden" name="selection.AdditionPresetId" value="@Guid.Empty" form="@lineForm" />
+                                <input type="hidden" name="selection.AdditionPresetVersion" value="0" form="@lineForm" />
+                                <input type="text" name="selection.AdditionLabel" form="@lineForm" maxlength="@ValuationCalculationPolicy.MaximumAdditionLabelLength"
+                                       placeholder="@ValuationLabels.OtherAddition" aria-label="@ValuationLabels.OtherAddition" data-valuation-input />
+                                <input class="amt" type="number" min="0" step="0.01" name="selection.AdditionAmount" form="@lineForm" placeholder="£"
+                                       aria-label="@ValuationLabels.OtherAddition amount" data-valuation-input />
+                            </div>
+                            index++;
+                        }
+                    }
+                    else
+                    {
+                        @* Read mode shows only the increases the latest adoption applied (v26). *@
+                        @foreach (var addition in appliedAdditions)
+                        {
+                            <div class="add on" data-valuation-applied-addition>
+                                <span class="add-check" aria-hidden="true"><svg class="icon"><use href="#icon-check" /></svg></span>
+                                <span>@addition.Label</span>
+                                <span class="amt">@Money(addition.Amount)</span>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+            <div>
+                <div data-valuation-lines-host>
+                    @if (calculation is null)
+                    {
+                        @* The lines partial takes a calculation; with none the
+                           empty state is stated here rather than a null model. *@
+                        <div class="lines" data-valuation-lines>
+                            <div class="ln"><span class="muted">@(editable ? ValuationLabels.ChooseBasis : ValuationLabels.NoneYet)</span></div>
+                        </div>
+                    }
+                    else
+                    {
+                        <partial name="Cases/Shared/_CaseValuationLines" model="calculation" />
+                    }
+                </div>
+                @if (editable)
+                {
+                    <div class="cluster mt-2">
+                        <button type="submit" form="case-valuation-form" class="btn btn--primary" data-valuation-apply disabled="@(basis is null ? "disabled" : null)">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                            <span>@ValuationLabels.ApplyAsEngineersValue</span>
+                        </button>
+                    </div>
+                }
+                <div class="hist" data-valuation-history>
+                    <dl class="definition-list">
+                        @if (applied is null)
+                        {
+                            <div class="definition definition--wide"><dt>@ValuationLabels.AppliedEngineersValue</dt><dd class="derived">@ValuationLabels.NoneYet</dd></div>
+                        }
+                        else
+                        {
+                            <div class="definition"><dt>@ValuationLabels.EngineersValueHead</dt><dd class="mono">@Money(applied.AcceptedEngineerValue)</dd></div>
+                            <div class="definition"><dt>@ValuationLabels.Basis</dt><dd>@appliedBasisName retail @Money(applied.Calculation.GuideRetailValue)</dd></div>
+                            <div class="definition"><dt>@ValuationLabels.AppliedBy</dt><dd>@(Model.AppliedByDisplayName ?? Pegasus.Core.Actors.ActorDisplayNames.UnknownStaff) · @OperatorLabels.OfficeTime(applied.AcceptedAtUtc)</dd></div>
+                            <div class="definition"><dt>@ValuationLabels.Adjustments</dt><dd>@Adjustments(applied.Calculation)</dd></div>
+                        }
+                    </dl>
+                </div>
+            </div>
         </div>
-    }
+    </div>
 </section>
 
-@if (mayEdit)
+@if (editable)
 {
-    <dialog id="add-valuation" class="dialog">
-        <form method="post" asp-page="/Cases/Details" asp-page-handler="AddValuation" asp-route-id="@workflow.CaseId" asp-route-section="valuation" class="stack">
-            <div class="dialog-head"><h2>@ValuationLabels.AddValuation</h2><button type="button" class="btn btn--icon" data-dialog-close aria-label="Close">×</button></div>
-            <input type="hidden" name="id" value="@workflow.CaseId" />
-            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-            <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-            <div class="form-grid form-grid--2">
-                <div class="field"><label class="req" for="valuation-source">Source</label><select id="valuation-source" name="source" required>@foreach (var source in manualSources){<option value="@source">@ValuationLabels.SourceLabel(source)</option>}<option value="@ValuationSource.Cazana" disabled>@ValuationLabels.SourceLabel(ValuationSource.Cazana) · @ValuationLabels.CazanaCondition</option></select></div>
-                <div class="field"><label for="valuation-guide-month">Guide month</label><input id="valuation-guide-month" name="guideMonth" type="month" /></div>
-                <div class="field"><label class="req" for="valuation-mileage">Mileage</label><input id="valuation-mileage" name="mileage" type="number" min="0" required /></div>
-                <div class="field"><label class="req" for="valuation-date">Date</label><input id="valuation-date" name="date" type="date" required /></div>
-                <div class="field"><label class="req" for="valuation-time">Time</label><input id="valuation-time" name="time" type="time" required /></div>
-                <div class="field"><label class="req" for="valuation-retail">Retail</label><input id="valuation-retail" name="retailValue" type="number" min="0" step="0.01" required /></div>
-                <div class="field"><label class="req" for="valuation-trade">Trade</label><input id="valuation-trade" name="tradeValue" type="number" min="0" step="0.01" required /></div>
+    @* Add valuation: the live manual dialog on the live field set. AI market
+       research is not manually recordable (ValuationPolicy), so it is not a
+       source here; Cazana stays the disabled seam option. *@
+    <div id="add-valuation" class="dialog-backdrop" data-dialog="add-valuation" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="add-valuation-title">
+            <div class="dialog-head">
+                <h2 id="add-valuation-title" tabindex="-1">@ValuationLabels.AddValuation</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
             </div>
-            <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Add</button></div>
-        </form>
-    </dialog>
+            <form method="post" asp-page="/Cases/Details" asp-page-handler="AddValuation" asp-route-id="@caseId" asp-route-section="valuation" data-add-valuation-form>
+                <input type="hidden" name="id" value="@caseId" />
+                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <div class="dialog-body stack">
+                    <div class="form-grid form-grid--2">
+                        <div class="field">
+                            <label class="req" for="valuation-source">@ValuationLabels.Source</label>
+                            <select id="valuation-source" name="source" required data-dialog-initial-focus>
+                                @foreach (var source in manualSources)
+                                {
+                                    <option value="@source">@ValuationLabels.SourceLabel(source)</option>
+                                }
+                                <option value="@ValuationSource.Cazana" disabled>@ValuationLabels.SourceLabel(ValuationSource.Cazana) · @ValuationLabels.CazanaCondition</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label for="valuation-guide-month">@ValuationLabels.GuideMonth</label>
+                            <input id="valuation-guide-month" name="guideMonth" type="month" value="@Model.ValuationMonth" data-add-valuation-month />
+                        </div>
+                        <div class="field">
+                            <label class="req" for="valuation-mileage">@ValuationLabels.Mileage</label>
+                            <input id="valuation-mileage" name="mileage" type="number" min="0" required value="@acceptedMileage?.ToString(CultureInfo.InvariantCulture)" />
+                        </div>
+                        <div class="field">
+                            <label class="req" for="valuation-date">@ValuationLabels.Date</label>
+                            <input id="valuation-date" name="date" type="date" required value="@now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
+                        </div>
+                        <div class="field">
+                            <label class="req" for="valuation-time">@ValuationLabels.Time</label>
+                            <input id="valuation-time" name="time" type="time" required value="@now.ToString("HH:mm", CultureInfo.InvariantCulture)" />
+                        </div>
+                        <div class="field">
+                            <label class="req" for="valuation-retail">@ValuationLabels.Retail</label>
+                            <input id="valuation-retail" name="retailValue" type="number" min="0" step="0.01" required placeholder="£" />
+                        </div>
+                        <div class="field">
+                            <label class="req" for="valuation-trade">@ValuationLabels.Trade</label>
+                            <input id="valuation-trade" name="tradeValue" type="number" min="0" step="0.01" required placeholder="£" />
+                        </div>
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                    <button type="submit" class="btn btn--primary">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <span>@ValuationLabels.Add</span>
+                    </button>
+                </div>
+            </form>
+        </section>
+    </div>
 }

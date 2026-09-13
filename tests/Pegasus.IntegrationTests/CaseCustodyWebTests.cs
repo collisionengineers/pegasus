@@ -63,9 +63,10 @@ public sealed partial class CaseDetailsWebTests
                 ("requestId", requestId.ToString("D")),
                 ("expectedRequestVersion", "2")));
 
+        // v26: the Custody page returns to the Files section.
         foreach (var response in new[] { retried, removed, linkCreated, linkRevoked })
         {
-            AssertPrg(response, store.CaseId);
+            AssertPrg(response, store.CaseId, "?section=files");
         }
 
         // The tag and untag posts return to the Files section's Images tab —
@@ -144,9 +145,11 @@ public sealed partial class CaseDetailsWebTests
 
     /// <summary>
     /// EPIC-011 §1.8 Case Files: each live file is a row carrying its name, its
-    /// type, size and source, its custody state, and the two things an operator
-    /// does with it — Preview, which is the viewer's trigger, and Save as, which
-    /// is the same authorised route asked to save instead of display (DOCS-011).
+    /// type, size and source, and the two things an operator does with it —
+    /// View, which is the viewer's trigger, and Save as, which is the same
+    /// authorised route asked to save instead of display (DOCS-011). v26: the
+    /// Case's custody is the head chip; a stored file wears no custody badge
+    /// of its own.
     /// </summary>
     [Fact]
     public async Task CaseFilesSectionDrawsEachLiveFileWithItsCustodyPreviewAndSaveAs()
@@ -170,14 +173,17 @@ public sealed partial class CaseDetailsWebTests
         var download =
             $"/Cases/{store.CaseId:D}/Documents/{occurrenceId:D}/Download?versionId={versionId:D}";
 
-        Assert.Contains("instruction.pdf", html, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.CaseWorkspace.Preview, html, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.CaseWorkspace.SaveAs, html, StringComparison.Ordinal);
-        Assert.Contains($"data-download-href=\"{download}\"", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains($"{download}&amp;inline=True", html, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("data-evidence-item", html, StringComparison.Ordinal);
+        var row = DocumentRow(html, occurrenceId);
+
+        Assert.Contains("instruction.pdf", row, StringComparison.Ordinal);
+        Assert.Contains("<span>" + CaseWorkspaceLabels.Files.View + "</span>", row, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.CaseWorkspace.SaveAs, row, StringComparison.Ordinal);
+        Assert.Contains($"data-download-href=\"{download}\"", row, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"{download}&amp;inline=True", row, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-evidence-item", row, StringComparison.Ordinal);
         Assert.Contains("data-evidence-set", html, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.CustodyState(DocumentCustodyStatus.Confirmed), html, StringComparison.Ordinal);
+        Assert.Contains("data-custody-chip", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.CustodyState(DocumentCustodyStatus.Confirmed), row, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.CaseWorkspace.AddEvidence, html, StringComparison.Ordinal);
         Assert.Contains(OperatorLabels.CaseWorkspace.OpenOperations, html, StringComparison.Ordinal);
         Assert.Contains("href=\"/Operations\"", html, StringComparison.OrdinalIgnoreCase);
@@ -244,7 +250,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Contains(ImageTagVocabulary.ThirdPartyName, html, StringComparison.Ordinal);
         // One grid, not three: no instruction-photograph gallery, no report
         // cards and no per-intake gallery in this section.
-        Assert.Equal(1, Occurrences(html, "class=\"gallery image-grid\""));
+        Assert.Equal(1, Occurrences(html, "data-image-grid>"));
         Assert.DoesNotContain("Instruction photographs", html, StringComparison.Ordinal);
         Assert.DoesNotContain("data-report-images=\"files\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Third-party vehicle", html, StringComparison.Ordinal);
@@ -307,6 +313,22 @@ public sealed partial class CaseDetailsWebTests
         var creation = Assert.Single(store.ImageTagsCreated);
         Assert.Equal("Underside", creation.Name);
         Assert.Equal(ImageTagColour.Grey, creation.Colour);
+    }
+
+    /// <summary>One Documents-tab row (v26 `.doc-row[data-document-row]`).</summary>
+    private static string DocumentRow(string html, Guid occurrenceId)
+    {
+        var marker = html.IndexOf($"data-document-row=\"{occurrenceId:D}\"", StringComparison.Ordinal);
+        Assert.True(marker >= 0, "The document row is not rendered.");
+        var start = html.LastIndexOf("<div", marker, StringComparison.Ordinal);
+        // Up to the next row, or the Images panel that follows the list.
+        var end = html.IndexOf("data-document-row=", marker + 1, StringComparison.Ordinal);
+        if (end < 0)
+        {
+            end = html.IndexOf("data-file-tab-panel=\"images\"", marker, StringComparison.Ordinal);
+        }
+        Assert.True(end > start, "The document row is not closed.");
+        return html[start..end];
     }
 
     private static void AssertPrgToFilesImages(HttpResponseMessage response, Guid caseId)
