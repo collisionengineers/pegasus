@@ -230,6 +230,22 @@ public static class AssessmentReportProjection
     private static string? Field(CaseAssessmentProjection assessment, string path) =>
         assessment.Field(path)?.Value;
 
+    /// <summary>
+    /// The valuation commentary the report prints when the flag is on: the
+    /// Engineer's recorded commentary text when there is one, otherwise the
+    /// reason recorded on the applied valuation. Both are recorded words;
+    /// nothing is inferred and no placeholder is supplied (FRD-11). Null when
+    /// neither holds any text.
+    /// </summary>
+    public static string? ValuationCommentaryOf(CaseAssessmentProjection assessment, string? appliedValuationReason)
+    {
+        ArgumentNullException.ThrowIfNull(assessment);
+        var text = Field(assessment, AssessmentVocabulary.ReportValuationCommentaryText);
+        return !string.IsNullOrWhiteSpace(text) ? text
+            : string.IsNullOrWhiteSpace(appliedValuationReason) ? null
+            : appliedValuationReason;
+    }
+
     private static string? Field(IReadOnlyDictionary<string, string?> fields, string path) =>
         fields.GetValueOrDefault(path);
 

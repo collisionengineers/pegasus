@@ -402,6 +402,7 @@ public static class DependencyInjection
         services.AddScoped<IAutoLinkReportEvidenceStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseWorkflowQueries>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
+        services.AddScoped<ICaseFieldProposalQueries, EfCaseFieldProposalQueries>();
         services.AddScoped<IStaffNotificationStore, EfStaffNotificationStore>();
         services.AddScoped<IRaiseStaffNotification, RaiseStaffNotification>();
         services.AddScoped<ICaseStaffNotifier, CaseStaffNotifier>();

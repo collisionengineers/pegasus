@@ -576,10 +576,10 @@ public static class CaseReportReadiness
             "Record the report date, or clear the override so generation sets it.");
         Require(
             !content.IncludeValuationCommentary
-                || !string.IsNullOrWhiteSpace(input.AppliedValuation?.Reason),
+                || AssessmentReportProjection.ValuationCommentaryOf(assessment, input.AppliedValuation?.Reason) is not null,
             ValuationCommentaryRequirement, "Valuation",
-            "Valuation commentary is selected for the report but the applied valuation records none.",
-            "Record the reason on the applied valuation, or turn the choice off.");
+            "Valuation commentary is selected for the report but none is recorded.",
+            "Write the valuation commentary in the Report section, or turn the choice off.");
         Require(
             !content.IncludeUnrelatedDamage
                 || !string.IsNullOrWhiteSpace(Value(assessment, AssessmentVocabulary.DamageUnrelated)),

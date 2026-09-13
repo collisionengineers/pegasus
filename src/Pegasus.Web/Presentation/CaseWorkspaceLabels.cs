@@ -86,6 +86,7 @@ public static class CaseWorkspaceLabels
         public const string ClaimSourceNotesThisCase = "Claim source notes · this Case";
         public const string AccidentCircumstances = "Accident circumstances";
         public const string NotesFromClient = "Notes from client";
+        public const string NoClaimSource = "None";
         public const string ReportSent = "Report sent";
         public const string LeaseExpires = "Lease expires";
     }
@@ -126,6 +127,7 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.FeeDescriptionLines] = "Fee description",
             [AssessmentVocabulary.ReportDiscloseGuideSource] = "Disclose guide source",
             [AssessmentVocabulary.ReportValuationCommentary] = "Valuation commentary",
+            [AssessmentVocabulary.ReportValuationCommentaryText] = "Valuation commentary text",
             [AssessmentVocabulary.ReportIncludeUnrelatedDamage] = "Include unrelated damage",
             [AssessmentVocabulary.ReportDateOverride] = "Override report date"
         };
@@ -147,12 +149,20 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.DamageMaterialTransfer] = "Material transfer"
         };
 
+        /// <summary>The vehicle's identity the Vehicle section edits beside the registration.</summary>
+        public static IReadOnlyDictionary<string, string> Vehicle { get; } = new Dictionary<string, string>
+        {
+            [AssessmentVocabulary.VehicleVin] = "VIN",
+            [AssessmentVocabulary.VehicleType] = "Vehicle type",
+            [AssessmentVocabulary.VehicleBody] = "Body type"
+        };
+
         public static string FormName(string path) => $"assessmentFields[{path}]";
 
         public static string? Label(string field)
         {
             if (field == FormName(AssessmentVocabulary.HistoryCheck)) return "Vehicle history";
-            foreach (var entry in Settlement.Concat(Report).Concat(Damage))
+            foreach (var entry in Settlement.Concat(Report).Concat(Damage).Concat(Vehicle))
             {
                 if (field == FormName(entry.Key)) return entry.Value;
             }
@@ -168,7 +178,7 @@ public static class CaseWorkspaceLabels
 
         public static bool IsAssessmentField(string path) =>
             Settlement.ContainsKey(path) || Report.ContainsKey(path) || Damage.ContainsKey(path)
-            || path == AssessmentVocabulary.HistoryCheck;
+            || Vehicle.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck;
     }
 
     /// <summary>
@@ -225,6 +235,8 @@ public static class CaseWorkspaceLabels
         public const string Decisions = "Decisions";
         public const string Proposed = "Proposed";
         public const string Awaiting = "Awaiting";
+        public const string Accepted = "Accepted";
+        public const string Corrected = "Corrected";
         public const string Accept = "Accept";
         public const string AcceptAll = "Accept all";
         public const string ApplyInValuation = "Apply in Valuation";
@@ -346,6 +358,8 @@ public static class CaseWorkspaceLabels
         public const string Model = "Model";
         public const string Year = "Year";
         public const string Vin = "VIN";
+        public const string VehicleType = "Vehicle type";
+        public const string BodyType = "Body type";
         public const string EngineCc = "Engine";
         public const string Fuel = "Fuel";
         public const string Colour = "Colour";
