@@ -348,10 +348,11 @@ public sealed partial class OperationsWebTests
 
         Assert.Contains("Send Unidentified to AI", html, StringComparison.Ordinal);
         Assert.Contains("name=\"unidentifiedReference\"", html, StringComparison.Ordinal);
-        // The rendered page reads the queue once for the global rail and once
-        // for notifications. The action resolves one indexed reference and
-        // its redirect must not enumerate the queue for an unused shell.
-        Assert.Equal(2, aiWork.QueueListCalls);
+        // The rendered page reads the queue once, for the global rail's Cases
+        // count (the v26 bell is personal notifications and reads no queue).
+        // The action resolves one indexed reference and its redirect must not
+        // enumerate the queue for an unused shell.
+        Assert.Equal(1, aiWork.QueueListCalls);
 
         using var response = await client.PostAsync(
             "/Operations?handler=SendUnidentifiedToAi",
@@ -369,7 +370,7 @@ public sealed partial class OperationsWebTests
         Assert.Equal(ActorKind.Staff, command.Actor.Kind);
         Assert.False(string.IsNullOrWhiteSpace(command.Instruction));
         Assert.Equal(1, aiWork.ReferenceLookupCalls);
-        Assert.Equal(2, aiWork.QueueListCalls);
+        Assert.Equal(1, aiWork.QueueListCalls);
     }
 
     [Fact]

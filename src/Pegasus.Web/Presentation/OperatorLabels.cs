@@ -326,6 +326,106 @@ public static class OperatorLabels
         };
     }
 
+    /// <summary>The shell's own words (v26 shell): the rail foot, the bell and the working set.</summary>
+    public static class Shell
+    {
+        public const string Collapse = "Collapse";
+        public const string CollapseNavigation = "Collapse navigation";
+        public const string ExpandNavigation = "Expand navigation";
+        public const string NewCase = "New case";
+        public const string Notifications = "Notifications";
+        public const string NotificationsUnavailable = "Notifications unavailable.";
+        public const string NoNotifications = "No notifications";
+        public const string MarkAllRead = "Mark all read";
+        public const string Unread = "Unread";
+        public const string OpenRecords = "Open records";
+        public const string AccessDenied = "Access denied";
+        public const string AccessDeniedSentence = "Your account does not have access to this page.";
+        public const string AdministrationDenied = "Administration is available to Administrators only.";
+
+        /// <summary>"Notifications · 3 unread", the bell's accessible name while anything is unread.</summary>
+        public static string BellLabel(int unread) =>
+            unread > 0
+                ? string.Create(CultureInfo.InvariantCulture, $"{Notifications} · {unread} unread")
+                : Notifications;
+    }
+
+    /// <summary>
+    /// A personal notification's cause in operator words. An AI draft reads by
+    /// its kind, which the notification's route carries (the policy sets one
+    /// route shape per kind: the Case's Estimate section, the message or the
+    /// Case's correspondence, the Unidentified item); a route of another shape
+    /// reads plainly as "AI draft ready". "Edited by" names the colleague only
+    /// when the record carries a name; it carries a subject identifier, so it
+    /// reads "Edited by a colleague".
+    /// </summary>
+    public static string NotificationCause(Pegasus.Core.Notifications.StaffNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        return notification.Cause switch
+        {
+            Pegasus.Core.Notifications.StaffNotificationCause.AiDraftReady => AiDraftCause(notification.Route),
+            Pegasus.Core.Notifications.StaffNotificationCause.CaseAssigned => "Assigned to you",
+            Pegasus.Core.Notifications.StaffNotificationCause.EditedByOther => "Edited by a colleague",
+            Pegasus.Core.Notifications.StaffNotificationCause.EmailReceived => "E-mail received",
+            Pegasus.Core.Notifications.StaffNotificationCause.QueryReceived => "Query received",
+            _ => Humanise(notification.Cause.ToString())
+        };
+    }
+
+    private static string AiDraftCause(string route)
+    {
+        if (route.StartsWith("/Unidentified/", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Unidentified resolution ready";
+        }
+
+        if (route.StartsWith("/Inbox/", StringComparison.OrdinalIgnoreCase)
+            || route.EndsWith("?section=correspondence", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Query draft ready";
+        }
+
+        if (route.EndsWith("?section=estimate", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Estimate draft ready";
+        }
+
+        return "AI draft ready";
+    }
+
+    /// <summary>
+    /// How long ago an instant was, for the bell: "Just now", "12 min ago",
+    /// "3 h ago", "Yesterday", "4 days ago", then the office date. The absolute
+    /// time is on the element's title for anyone who needs it.
+    /// </summary>
+    public static string RelativeTime(DateTimeOffset value, DateTimeOffset now)
+    {
+        var elapsed = now - value;
+        if (elapsed < TimeSpan.FromMinutes(1))
+        {
+            return "Just now";
+        }
+
+        if (elapsed < TimeSpan.FromHours(1))
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"{(int)elapsed.TotalMinutes} min ago");
+        }
+
+        if (elapsed < TimeSpan.FromHours(24))
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"{(int)elapsed.TotalHours} h ago");
+        }
+
+        var days = LondonCalendar.DateAt(now).DayNumber - LondonCalendar.DateAt(value).DayNumber;
+        return days switch
+        {
+            <= 1 => "Yesterday",
+            < 7 => string.Create(CultureInfo.InvariantCulture, $"{days} days ago"),
+            _ => OfficeDate(value)
+        };
+    }
+
     /// <summary>A staff role name as the operator reads it.</summary>
     public static string StaffRole(string? roleName) => roleName switch
     {

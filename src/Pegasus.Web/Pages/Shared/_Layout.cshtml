@@ -38,9 +38,29 @@
     var userName = User.Identity?.Name ?? string.Empty;
     var role = OperatorLabels.StaffRole(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value);
 
-    // A page that is a record announces itself so the workspace-tab strip can
-    // remember it (site.js, max 4, LRU).
-    var workspaceRecord = ViewData["WorkspaceRecord"] as (string Href, string Label)?;
+    // The bell is the person's own notifications and nothing else (D10); the
+    // filter reads them once and the unread figure is counted from that list.
+    var notifications = ViewData["Notifications"] as IReadOnlyList<Pegasus.Core.Notifications.StaffNotification>;
+    var unread = notifications?.Count(notification => notification.IsUnread) ?? 0;
+
+    // A page that is a record announces itself so the working-set strip
+    // (site.js, per browser under pegasus.workingSet) can carry it. data-*
+    // attributes sit outside Razor's conditional-attribute rule (a null value
+    // still renders `data-x=""`), so the announcement is composed only when
+    // there is a record and any other page renders a plain main.
+    var record = ViewData["WorkingSetRecord"] as WorkingSetRecord;
+    var recordAttributes = record is null
+        ? null
+        : Html.Raw(string.Join(" ", new[]
+        {
+            ("data-record-href", record.Href),
+            ("data-record-kind", record.Kind),
+            ("data-record-ref", record.Reference),
+            ("data-record-reg", record.Registration),
+            ("data-record-glyph", record.Glyph)
+        }
+        .Where(attribute => !string.IsNullOrEmpty(attribute.Item2))
+        .Select(attribute => $"{attribute.Item1}=\"{System.Net.WebUtility.HtmlEncode(attribute.Item2)}\"")));
 }
 <html lang="en">
 <head>
@@ -81,7 +101,7 @@
                     </a>
                 }
                 <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases", "/Triage", "/Unidentified", "/ImageIntake", "/Intake")">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-list-checks" /></svg>
                     <span>@OperatorLabels.Nav.Cases</span>
                     @if (CountFor("Cases") is { } casesCount)
                     {
@@ -89,17 +109,17 @@
                     }
                 </a>
                 <a class="nav-link" asp-page="/Search/Index" aria-current="@CurrentWhen("/Search")">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
                     <span>@OperatorLabels.Nav.Search</span>
                 </a>
                 @if (inboxEnabled)
                 {
                     <a class="nav-link" asp-page="/Operations/Index" aria-current="@CurrentWhen("/Operations")">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-activity" /></svg>
                         <span>@OperatorLabels.Nav.Operations</span>
                         @if (CountFor("Operations") is { } operationsCount)
                         {
-                            <span class="nav-count" aria-label="@operationsCount outstanding">@operationsCount</span>
+                            <span class="nav-count" aria-label="@operationsCount retryable">@operationsCount</span>
                         }
                     </a>
                 }
@@ -107,12 +127,20 @@
                 {
                     <div class="nav-label">@OperatorLabels.Nav.Manage</div>
                     <a class="nav-link" asp-page="/Administration/Index" aria-current="@CurrentWhen("/Administration")">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid" /></svg>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
                         <span>@OperatorLabels.Nav.Administration</span>
                     </a>
                 }
             </nav>
             <div class="rail-spacer"></div>
+            @* The rail narrows to icons and counts (C3); site.js remembers the
+               choice per browser under pegasus.rail and gives the collapsed
+               links their label as a tooltip. Without script the rail stays open. *@
+            <button type="button" class="rail-collapse" data-rail-toggle aria-expanded="true" aria-label="@OperatorLabels.Shell.CollapseNavigation"
+                    data-label-collapse="@OperatorLabels.Shell.CollapseNavigation" data-label-expand="@OperatorLabels.Shell.ExpandNavigation">
+                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                <span>@OperatorLabels.Shell.Collapse</span>
+            </button>
             <div class="rail-health">
                 <div class="rail-health-line"><span class="health-dot"></span><span>@OperatorLabels.Freshness.Current · @clock</span></div>
             </div>
@@ -141,12 +169,18 @@
                     {
                         <a class="btn btn--primary" asp-page="/Cases/Create">
                             <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-                            <span>New case</span>
+                            <span>@OperatorLabels.Shell.NewCase</span>
                         </a>
                     }
-                    <button type="button" class="icon-button" data-dialog-open="notifications-dialog" aria-label="Notifications">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
-                    </button>
+                    <span class="bell-wrap">
+                        <button type="button" class="icon-button" data-dialog-open="notifications-dialog" aria-label="@OperatorLabels.Shell.BellLabel(unread)">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
+                        </button>
+                        @if (unread > 0)
+                        {
+                            <span class="bell-count" aria-hidden="true">@unread</span>
+                        }
+                    </span>
                     @if (User.Identity?.IsAuthenticated == true)
                     {
                         <button type="button" class="icon-button utility-account" data-dialog-open="account-dialog" aria-label="Account menu">
@@ -155,22 +189,10 @@
                     }
                 </div>
             </section>
-            <nav class="workspace-tabs" aria-label="Open work" data-workspace-tabs>
-                <a class="workspace-tab" asp-page="/Index" aria-current="@CurrentWhen("/Index")">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
-                    <span>@OperatorLabels.Nav.WorkCentre</span>
-                </a>
-                <button type="button" class="workspace-tab" data-dialog-open="command-dialog" data-workspace-open aria-label="Open another record">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-                    <span>Open</span>
-                </button>
-            </nav>
-            @* Razor omits an attribute whose value is null, so a page that is
-               not a record renders a plain main. *@
-            <main id="main-content" class="app-main" tabindex="-1"
-                  data-workspace-record="@(workspaceRecord is null ? null : "true")"
-                  data-workspace-href="@workspaceRecord?.Href"
-                  data-workspace-label="@workspaceRecord?.Label">
+            @* The working set: open records only, rendered by site.js from the
+               browser's own set and absent when nothing is open. *@
+            <nav class="workspace-tabs" aria-label="@OperatorLabels.Shell.OpenRecords" data-working-set hidden></nav>
+            <main id="main-content" class="app-main" tabindex="-1" @recordAttributes>
                 <div class="content">
                     @if (TempData["Confirmation"] is string confirmation)
                     {
@@ -180,6 +202,9 @@
                         <div class="notice notice--success mb-2" role="status" data-confirmation>
                             <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
                             <span>@confirmation</span>
+                            <button type="button" class="dismiss" data-dismiss aria-label="Dismiss">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                            </button>
                         </div>
                     }
                     @RenderBody()

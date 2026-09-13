@@ -91,8 +91,8 @@ main [id]{scroll-margin-top:92px}
 .nav-link[aria-current="page"]{background:var(--surface);color:var(--ink);border-left-color:var(--red)}
 .nav-link .icon{width:17px;height:17px;opacity:.85}
 .nav-link[aria-current="page"] .icon{color:var(--red);opacity:1}
-.nav-count{margin-left:auto;min-width:25px;height:21px;padding:0 7px;border:1px solid rgba(255,255,255,.25);border-radius:999px;background:rgba(255,255,255,.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.08);display:inline-grid;place-items:center;font-size:10px;font-weight:850;font-variant-numeric:tabular-nums}
-.nav-link[aria-current="page"] .nav-count{border-color:var(--line-strong);background:var(--surface-3)}
+.nav-count{margin-left:auto;min-width:22px;height:20px;padding:0 6px;border:0;border-radius:10px;background:rgba(255,255,255,.14);display:inline-grid;place-items:center;font-size:11px;font-weight:650;font-variant-numeric:tabular-nums}
+.nav-link[aria-current="page"] .nav-count{background:var(--surface-3);color:var(--ink)}
 .rail-spacer{flex:1}
 .rail-health{padding:10px 14px;border-top:1px solid rgba(255,255,255,.08);font-size:11.5px;color:var(--nav-muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .rail-health-line{display:flex;align-items:center;gap:8px}
@@ -115,20 +115,49 @@ main [id]{scroll-margin-top:92px}
 .utility-freshness .health-dot{box-shadow:none;width:7px;height:7px}
 .utility-bar .btn{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.3)}
 .utility-bar .btn--primary{background:var(--red);border-color:var(--red)}
-.workspace-tabs{height:var(--tabs-h);display:flex;align-items:flex-end;gap:4px;padding:8px var(--page-pad) 0;background:var(--surface-3);border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;position:sticky;top:var(--utility-h);z-index:25}
-.workspace-tab{flex:0 0 auto;max-width:260px;height:32px;padding:0 12px;border:1px solid var(--line);border-bottom:0;border-radius:var(--radius) var(--radius) 0 0;background:var(--surface-2);display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--muted);font-size:12.5px;font-weight:500;white-space:nowrap}
-.workspace-tab:hover{background:#fff;text-decoration:none}
-.workspace-tab[aria-current="page"]{background:var(--surface);color:var(--ink);font-weight:600;border-top:2px solid var(--red)}
-.workspace-tab .icon{width:15px;height:15px;flex:none}
-.workspace-tab span{overflow:hidden;text-overflow:ellipsis}
-.workspace-tab--record{padding:0;gap:0}
-.workspace-tab-link{min-width:0;flex:1;height:100%;padding:7px 0 7px 10px;display:flex;align-items:center;gap:7px;color:inherit;text-decoration:none}
-.workspace-tab-link:hover{text-decoration:none}
-.workspace-tab-close{width:28px;height:100%;padding:0;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;flex:none}
-.workspace-tab-close:hover{background:var(--surface-3);color:var(--ink)}
-.workspace-tab-close .icon{width:15px;height:15px}
-.workspace-tab--record.is-active{background:var(--surface);color:var(--ink);font-weight:600;border-top:2px solid var(--red)}
-.workspace-tab--record.is-active .workspace-tab-link{padding-top:5px}
+/* The working set (v26 § Working set): open records only, on the page ground
+   with one hairline, the active tab white with the red accent once, running
+   into the record card with no seam. site.js renders it from the browser's own
+   set (pegasus.workingSet) as .workspace-tab wrappers, each a .workspace-tab-link
+   (ref bold, reg mono, state glyph) and a .tab-close; with nothing open the
+   strip is absent and the sticky offset it would take (--tabs-h) is zero. */
+.workspace-tabs{height:var(--tabs-h);display:flex;align-items:flex-end;gap:2px;padding:6px var(--page-pad) 0;background:var(--bg);border-bottom:1px solid #cbd2d5;position:sticky;top:var(--utility-h);z-index:25;min-width:0}
+body:not(.has-working-set) .app-shell{--tabs-h:0px}
+.workspace-tab{flex:0 1 auto;min-width:0;max-width:240px;height:33px;padding:0 5px 0 0;border:1px solid transparent;border-bottom:0;border-radius:4px 4px 0 0;background:transparent;display:flex;align-items:center;gap:2px;color:var(--muted);font-size:12.5px;font-weight:500;white-space:nowrap;position:relative}
+.workspace-tab:hover{background:rgba(255,255,255,.55);color:var(--ink)}
+.workspace-tab.is-active{background:var(--surface);color:var(--ink);border-color:#cbd2d5;margin-bottom:-1px;height:34px;z-index:1}
+.workspace-tab.is-active::before{content:"";position:absolute;left:-1px;right:-1px;top:-1px;height:2px;background:var(--red);border-radius:4px 4px 0 0}
+.workspace-tab-link{display:flex;align-items:center;gap:7px;min-width:0;height:100%;padding:0 4px 0 11px;color:inherit;text-decoration:none}
+.workspace-tab-link:hover{text-decoration:none;color:inherit}
+.workspace-tab-link:focus-visible{outline-offset:-3px}
+.workspace-tab .icon{width:14px;height:14px;flex:none;opacity:.75}
+.workspace-tab .ref{font-weight:600;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.workspace-tab .reg{font:500 11px var(--mono);color:var(--quiet);overflow:hidden;text-overflow:ellipsis;min-width:0}
+.workspace-tab .st,.tabs-more .st{flex:none;display:inline-grid;place-items:center}
+.st--dirty{width:7px;height:7px;border-radius:50%;background:var(--amber)}
+.st--glass{color:var(--amber)}
+.st--held{color:var(--quiet)}
+.st--glass .icon,.st--held .icon{width:12px;height:12px;opacity:1}
+.workspace-tab .tab-close{display:grid;place-items:center;width:20px;height:20px;border:0;background:transparent;border-radius:3px;color:var(--quiet);padding:0;visibility:hidden;cursor:pointer;flex:none}
+.workspace-tab.is-active .tab-close,.workspace-tab:hover .tab-close,.workspace-tab:focus-within .tab-close{visibility:visible}
+.workspace-tab .tab-close:hover{background:var(--surface-3);color:var(--ink)}
+.workspace-tab .tab-close .icon{width:12px;height:12px;opacity:1}
+.tabs-more{position:relative;margin-left:4px;align-self:center;flex:none}
+.tabs-more>summary{list-style:none;display:flex;align-items:center;gap:4px;height:26px;padding:0 9px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--muted);font-size:11.5px;cursor:pointer;white-space:nowrap}
+.tabs-more>summary::-webkit-details-marker{display:none}
+.tabs-more>summary .icon{width:12px;height:12px}
+.tabs-more .menu-body{min-width:250px;top:30px}
+.tabs-more .menu-body.menu-body--end{left:auto;right:0}
+.tabs-more .menu-body a{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:var(--radius);color:var(--ink);font-size:12.5px;white-space:nowrap;text-decoration:none}
+.tabs-more .menu-body a:hover{background:var(--surface-2)}
+.tabs-more .menu-body a[aria-current="page"]{background:var(--surface-3)}
+.tabs-more .menu-body a>span{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tabs-more .menu-body .icon{width:14px;height:14px;color:var(--quiet);flex:none}
+.tabs-more .menu-body .st{margin-left:auto}
+/* The record card under the strip is one surface with the active tab: its own
+   top edge goes and it rises through the page padding to meet the hairline,
+   which the active tab already covers. */
+body.has-working-set .content>.record:first-child{border-top:0;margin-top:calc(-1 * var(--page-pad))}
 .app-main{min-width:0;flex:1;padding:var(--page-pad);padding-bottom:50px}
 .content{width:min(100%,var(--content-max));margin-inline:auto;min-width:0}
 .kbd{display:inline-flex;min-width:22px;min-height:20px;padding:1px 5px;border:1px solid var(--line-strong);background:#fff;color:var(--ink);box-shadow:0 1px 0 #999;font-size:9px;font-weight:850;align-items:center;justify-content:center;border-radius:2px}
@@ -297,11 +326,20 @@ tbody tr:hover{background:#f3f6f7}
 .priority{font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.06em}
 .priority--high,.priority--overdue{color:var(--danger)}
 .priority--today{color:var(--amber)}
-.notice{padding:11px 13px;border:1px solid var(--line-strong);border-left:4px solid var(--navy);background:var(--navy-bg);display:flex;gap:9px;align-items:flex-start;font-size:12px;line-height:1.45}
-.notice--warning{border-left-color:var(--amber);background:var(--amber-bg)}
-.notice--danger{border-left-color:var(--danger);background:var(--danger-bg)}
-.notice--success{border-left-color:var(--green);background:var(--green-bg)}
-.notice .icon{width:17px;height:17px;flex:none;margin-top:1px}
+.notice{position:relative;padding:10px 12px;border:1px solid var(--line);border-left:3px solid var(--navy);border-radius:var(--radius);background:var(--navy-bg);display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.45}
+.notice--info{border-color:var(--blue);background:var(--blue-bg)}
+.notice--warning{border-color:var(--amber);background:var(--amber-bg);color:#5f3a02}
+.notice--danger{border-color:var(--danger);background:var(--danger-bg)}
+.notice--success{border-color:var(--green);background:var(--green-bg)}
+.notice .icon{width:16px;height:16px;flex:none;margin-top:2px}
+.notice>span,.notice>p,.notice>div{min-width:0}
+/* A notice that can be put away carries [data-dismiss] (site.js removes it;
+   without script the × is simply absent because the page does not render
+   it). The control is the same shape on the stale bar and every tone. */
+.notice:has(.dismiss){padding-right:38px}
+.dismiss{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;padding:0;border:0;background:transparent;color:inherit;opacity:.7;display:grid;place-items:center;border-radius:var(--radius);cursor:pointer}
+.dismiss:hover{opacity:1;background:rgba(0,0,0,.06)}
+.dismiss .icon{width:14px;height:14px;margin:0}
 .notice h2,.notice h3{margin-bottom:4px}
 .validation-summary{padding:12px 14px;border:2px solid var(--danger);background:var(--danger-bg);color:var(--ink)}
 .validation-summary h2{font-size:14px}
@@ -884,6 +922,290 @@ progress.progress::-moz-progress-bar{background:var(--red)}
 .rot-270{transform:rotate(270deg)}
 
 /* ---------------------------------------------------------------------------
+   v26 shell and shared components (Stage 2, Phase 4). Additive on the live
+   tokens: each block is a component the later page lanes compose, named as
+   the v26 mockups name it. The legacy classes above stay for pages that are
+   not yet ported; where a v26 class replaces one, the note says which.
+   --------------------------------------------------------------------------- */
+
+/* Rail collapse (v25 C3). site.js toggles .rail-collapsed on .app-shell and
+   remembers the choice under pegasus.rail; the collapsed links carry their
+   label as a title. Without script the rail stays open. */
+.rail-collapse{margin:0 10px 6px;min-height:32px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.05);color:var(--nav-muted);border-radius:var(--radius);display:flex;align-items:center;gap:8px;padding:0 9px;font-size:11.5px;font-weight:500}
+.rail-collapse:hover{background:rgba(255,255,255,.1);color:var(--nav-text)}
+.rail-collapse .icon{width:15px;height:15px}
+.app-shell.rail-collapsed{--rail:64px}
+.rail-collapsed .brand{justify-content:center;padding:10px 6px}
+.rail-collapsed .brand img{width:36px;height:36px}
+.rail-collapsed .brand-copy,.rail-collapsed .nav-label,.rail-collapsed .nav-link>span:not(.nav-count),.rail-collapsed .rail-health-line>span:last-child,.rail-collapsed .rail-user>div,.rail-collapsed .rail-user .icon-button,.rail-collapsed .rail-collapse>span{display:none}
+.rail-collapsed .primary-nav{padding-inline:8px}
+.rail-collapsed .nav-link{justify-content:center;padding:0;gap:0;position:relative}
+.rail-collapsed .nav-link .icon{width:20px;height:20px}
+.rail-collapsed .nav-count{position:absolute;top:2px;right:3px;min-width:16px;height:15px;font-size:8.5px;padding:0 3px;margin:0}
+.rail-collapsed .rail-user{grid-template-columns:34px;justify-content:center;padding-inline:0}
+.rail-collapsed .rail-collapse{justify-content:center;padding:0}
+.rail-collapsed .rail-collapse .icon{transform:rotate(180deg)}
+.rail-collapsed .rail-health{justify-content:center;padding-inline:0}
+
+/* The bell carries its unread count as a red dot with the figure. */
+.bell-wrap{position:relative;display:inline-flex}
+.bell-count{position:absolute;top:-2px;right:-2px;min-width:15px;height:15px;padding:0 4px;border-radius:999px;background:var(--red);color:#fff;font:600 9.5px/15px var(--font);text-align:center;pointer-events:none}
+
+/* Icon buttons on a light ground (a panel head, a dialog, a notice). The base
+   rule above is drawn for the dark rail and utility bar. */
+.app-main .icon-button,.dialog .icon-button{color:var(--muted)}
+.app-main .icon-button:hover,.dialog .icon-button:hover{background:var(--surface-3);color:var(--ink)}
+
+/* Menus: <details class="menu" data-menu><summary class="btn">…</summary>
+   <div class="menu-body">…</div></details>. One primary plus one menu per
+   panel head (frame rule 3); the body is a list of full-width .btn items
+   (links, buttons or one-control forms), .menu-sep between groups, a
+   .btn--danger item last. site.js keeps one menu open at a time and closes
+   it on Escape or an outside click; without script the native disclosure
+   still opens and closes. .menu-body--start opens under the left edge. */
+.menu{position:relative;display:inline-block}
+.menu>summary{list-style:none;cursor:pointer}
+.menu>summary::-webkit-details-marker{display:none}
+.menu>summary::marker{content:""}
+.menu>summary .icon:last-child{margin-left:-2px}
+.menu-body{position:absolute;right:0;top:calc(100% + 4px);z-index:40;display:grid;gap:3px;min-width:210px;padding:6px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);border-radius:var(--radius-lg)}
+.menu-body--start{right:auto;left:0}
+.menu-body form{display:contents}
+.menu-body .btn{width:100%;justify-content:flex-start;border-color:transparent;box-shadow:none;font-weight:500;text-align:left;background:transparent;color:var(--ink)}
+.menu-body .btn:hover{background:var(--surface-3)}
+.menu-body .btn--danger{color:var(--danger)}
+.menu-body .btn--danger:hover{background:var(--danger-bg)}
+.menu-sep{height:1px;background:var(--line);margin:3px 0}
+
+/* Panel heads: the title, an optional .meta, then .panel-actions at the end
+   (one primary, one .menu, the availability label, the collapse chevron).
+   Collapse: <button class="icon-button panel-collapse" data-collapse-toggle>
+   inside a .panel[data-collapse="<key>"]; site.js toggles .is-collapsed and
+   remembers it under pegasus.collapsed.<key>. */
+.panel-head>h2,.panel-head>h3{flex:1 1 auto;min-width:0}
+.panel-head .meta{font-size:12px;color:var(--quiet);font-weight:400}
+.panel-actions,.panel-head .actions{display:flex;gap:6px;align-items:center;margin-left:auto;flex:none;flex-wrap:wrap;justify-content:flex-end}
+.panel-collapse .icon{transition:transform .15s ease}
+.panel.is-collapsed>.panel-body,.panel.is-collapsed>.panel-foot,.panel.is-collapsed>.panel-section{display:none}
+.panel.is-collapsed>.panel-head{border-bottom:0}
+.panel.is-collapsed .panel-collapse .icon{transform:rotate(-90deg)}
+.panel-section{padding:10px 14px 12px;border-top:1px solid var(--line)}
+.panel-section:first-child{border-top:0}
+.panel-section>h3{margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.panel-section>h3 .meta{font-weight:400;color:var(--quiet);font-size:12px}
+.panel-foot{padding:10px 14px;border-top:1px solid var(--line);background:var(--surface-2);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.panel.is-expanded{position:fixed;inset:0;z-index:600;border-radius:0;overflow:auto;display:flex;flex-direction:column}
+.panel.is-expanded>.panel-head{position:sticky;top:0;z-index:2;flex:none}
+.panel.is-expanded>.panel-body{flex:1}
+
+/* Availability label (v25 decision 4): a section states once, in its head,
+   why it cannot be edited — <span class="gated avail"><svg lock/> Available
+   With Engineer</span>. The legacy tooltip form with data-condition keeps its
+   rule above and becomes unused as the pages port. */
+.gated:not([data-condition]){display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:var(--muted);border:1px dashed var(--line-strong);border-radius:999px;padding:2px 9px;background:var(--surface-2);white-space:nowrap;position:static}
+.gated:not([data-condition]) .icon{width:12px;height:12px}
+.avail{margin-left:auto}
+
+/* One geometry for read and edit (v25 decision 2). A .fg grid of .fc cells;
+   each cell is a label, a value box (.fv) and a control box (.fi) in the
+   same 36px-minimum box; only the border and background change. .is-editing
+   on the record (or any ancestor) shows the controls; .is-locked on a
+   section keeps that section reading; .ro marks a cell that never edits;
+   .idn marks an identity cell that reads with a lock glyph (.lk) and a
+   quiet fill while the rest of the page edits. */
+.fg{display:grid;gap:10px 14px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.fc{min-width:0}
+.fc>label,.fc>.lbl{display:block;font-size:10.5px;color:var(--quiet);font-weight:600;text-transform:uppercase;letter-spacing:.06em;margin:0 0 3px 9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fc .fv,.fc .fi{min-height:var(--control);padding:6px 9px;border:1px solid transparent;border-radius:var(--radius);font-size:13.5px;line-height:1.4;width:100%}
+.fc .fv{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;overflow-wrap:anywhere}
+.fc .fv.mono{font-family:var(--mono)}
+.fc .fv.multi{align-items:flex-start;min-height:72px}
+.fc .fv.empty{color:var(--quiet)}
+.fc .fi{display:none;border-color:var(--line-strong);background:#fff}
+.fc textarea.fi{min-height:72px;resize:vertical}
+.fc .lk{display:none;width:11px;height:11px;vertical-align:-1px;margin-left:4px;flex:none}
+.fc.span2{grid-column:span 2}
+.fc.span3{grid-column:span 3}
+.fc.span4{grid-column:span 4}
+.fc .choice{min-height:var(--control);display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500}
+.fc .choice input{width:15px;height:15px;min-height:0;accent-color:var(--red)}
+.is-editing .fc:not(.ro) .fv{display:none}
+.is-editing .fc:not(.ro) .fi{display:block}
+.is-editing .fc:not(.ro) .fi.chk{display:inline-flex}
+.is-editing .fc.idn .lk{display:inline-block}
+.is-editing .fc.idn .fv{background:var(--surface-2);border-color:var(--line)}
+.is-editing .is-locked .fc .fv{display:flex;background:transparent;border-color:transparent}
+.is-editing .is-locked .fc .fi,.is-editing .is-locked .fc .lk{display:none}
+.switches{display:none;flex-wrap:wrap;gap:4px 16px;border:0;padding:0}
+.is-editing .switches{display:flex}
+.is-editing .is-locked .switches{display:none}
+.sub-panel{border:1px solid var(--line);border-radius:var(--radius);padding:10px 12px}
+.sub-panel>h3{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.sub-panel>h3 .rt{margin-left:auto;font-weight:400;text-transform:none;letter-spacing:0;font-size:11px}
+@media(max-width:1180px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.g2,.g3,.g4{grid-template-columns:minmax(0,1fr)}.fc.span2,.fc.span3,.fc.span4{grid-column:auto}}
+
+/* Record frame (v26 frame rules 1-2). The sticky block is the 56px ribbon
+   and the 40px section row; site.js measures [data-sticky-block] into
+   --sticky-h on the block's parent, so every offset below reads the real
+   height. The aside is 285px at 1441px and above and folds into a two-up
+   strip above the sections below that. */
+.sticky-block{position:sticky;top:calc(var(--utility-h) + var(--tabs-h));z-index:20;background:var(--surface);border-bottom:1px solid var(--line)}
+.ribbon{display:flex;align-items:stretch;min-height:56px;min-width:0;border-bottom:1px solid var(--line)}
+.ribbon-facts{flex:1 1 auto;display:flex;align-items:stretch;min-width:0}
+.ribbon .ribbon-item{flex:1 1 0;min-width:0;min-height:0;padding:5px 11px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}
+.ribbon .ribbon-item:last-child{border-right:1px solid var(--line)}
+.ribbon .ribbon-label{font-size:9.5px;color:var(--quiet);font-weight:600;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ribbon .ribbon-value{font-size:13px;font-weight:650;margin-top:2px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;min-width:0}
+.ribbon .ribbon-value>span{overflow:hidden;text-overflow:ellipsis}
+.ribbon .ribbon-ref{flex:1.2 1 0}
+.ribbon .ribbon-ref .ribbon-value{font-size:15px;font-weight:700;font-family:var(--mono);letter-spacing:.01em}
+.ribbon .ribbon-ref h1{font:inherit;letter-spacing:inherit;margin:0;line-height:inherit}
+.ribbon-chips{display:flex;align-items:center;gap:6px;padding:0 11px;flex:none;border-right:1px solid var(--line)}
+.ribbon-actions{flex:none;display:flex;align-items:center;gap:6px;padding:0 10px;white-space:nowrap}
+.ribbon-actions .sep{width:1px;height:24px;background:var(--line);margin:0 4px}
+.section-row{display:flex;align-items:center;min-height:40px;min-width:0}
+.section-row .section-nav{flex:1;min-width:0;border-top:0;padding:0 10px}
+.section-tools{flex:none;display:flex;align-items:center;gap:6px;padding:0 8px}
+.section-link[aria-disabled="true"]{color:var(--quiet);cursor:not-allowed}
+.section-link .condition{font-size:10.5px;color:var(--quiet);font-weight:500}
+.section-link .count{font-size:11px;color:var(--quiet)}
+.layout-switch{flex:none;display:inline-flex;align-items:center;gap:2px;border:1px solid var(--line);border-radius:var(--radius);padding:2px}
+.layout-switch button{height:24px;padding:0 8px;border:0;background:transparent;border-radius:2px;font-size:11.5px;color:var(--muted)}
+.layout-switch button[aria-pressed="true"]{background:var(--nav-2);color:var(--nav-text)}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:10px;align-items:start;padding:12px}
+.workspace-main{min-width:0;display:grid;gap:10px}
+.workspace-aside{position:sticky;top:calc(var(--utility-h) + var(--tabs-h) + var(--sticky-h,97px) + 10px);display:grid;gap:10px;min-width:0}
+.workspace-aside .panel-body{padding:10px 12px}
+.record-section{scroll-margin-top:calc(var(--utility-h) + var(--tabs-h) + var(--sticky-h,97px) + 8px)}
+.record[data-layout="tabs"] .record-section:not(.is-active){display:none}
+.figures{display:grid;gap:6px;margin:0}
+.figure{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:12.5px;margin:0}
+.figure dt{color:var(--muted)}
+.figure dd{font-weight:650;font-variant-numeric:tabular-nums}
+.figure--big dd{font-size:17px}
+.edit-bar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--amber-bg);border-bottom:1px solid var(--amber);color:#5f3a02;font-size:13px;font-weight:550}
+.edit-bar .end{margin-left:auto;display:flex;gap:8px}
+.bar{display:flex;gap:16px;align-items:center;flex-wrap:wrap;border:1px dashed var(--line);border-radius:var(--radius);padding:7px 12px}
+.bar .bl{font-size:10.5px;color:var(--quiet);font-weight:650;text-transform:uppercase;letter-spacing:.08em}
+.bar-actions{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.bar-actions:empty{display:none}
+@media(max-width:1440px){
+  .workspace{grid-template-columns:minmax(0,1fr)}
+  .workspace-aside{position:static;order:-1;grid-template-columns:1fr 1fr}
+}
+@media(max-width:1100px){.ribbon-facts{flex-wrap:wrap}.ribbon .ribbon-item{flex-basis:33%}}
+@media(max-width:760px){
+  .workspace{padding:10px}
+  .workspace-aside{grid-template-columns:1fr}
+  .ribbon{flex-wrap:wrap}
+  .ribbon .ribbon-item{flex-basis:50%}
+  .ribbon-chips{flex-basis:100%;border-right:0;padding:4px 11px;flex-wrap:wrap}
+  .ribbon-actions{width:100%;border-top:1px solid var(--line);padding:4px 10px;justify-content:flex-end}
+  .section-row{flex-wrap:wrap}
+  .section-tools{padding-block:4px}
+}
+
+/* Dense tables (decision L: lists are tables). .table on the <table>; th
+   34px, td 40px (.table--compact 34px); .num right-aligned figures;
+   .row-actions at the row's end; tr.selected or [aria-selected] carries the
+   red bar. */
+.table{width:100%;border-collapse:collapse;font-size:13px}
+.table th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--quiet);font-weight:600;padding:0 12px;height:34px;background:var(--surface-2);border-bottom:1px solid var(--line);white-space:nowrap;text-align:left;position:sticky;top:0;z-index:1}
+.table td{padding:6px 12px;height:var(--row);border-bottom:1px solid var(--line);vertical-align:middle}
+.table tbody tr:nth-child(even){background:transparent}
+.table tbody tr:last-child td{border-bottom:0}
+.table tbody tr:hover{background:var(--surface-2)}
+.table tr.selected td,.table tr[aria-selected="true"] td{background:var(--navy-bg)}
+.table tr.selected td:first-child,.table tr[aria-selected="true"] td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+.table th.sort a{color:inherit;display:inline-flex;align-items:center;gap:4px}
+.table td .btn{vertical-align:middle}
+.table .row-actions{display:flex;gap:6px;justify-content:flex-end}
+.table td.num,.table th.num{text-align:right;font-variant-numeric:tabular-nums}
+.table td.mono,.table td .mono{font-family:var(--mono);font-size:12.5px}
+.table--compact td{height:34px;padding:4px 10px}
+.table caption{text-align:left;padding:8px 12px;font-weight:600}
+.table input,.table select{height:30px;min-height:30px;padding:0 8px;min-width:60px}
+.table input.num{text-align:right;font-variant-numeric:tabular-nums}
+.table tr[data-href]{cursor:pointer}
+
+/* Chips: a filter chip with an optional count (.n), pressed as .on or
+   aria-pressed; .chip--clear is the dashed reset. Status pills stay .status;
+   .status--plain drops the dot. Tag chips label a thumbnail. */
+.chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--muted);font-size:11.5px;font-weight:500;text-decoration:none;cursor:pointer;white-space:nowrap}
+.chip:hover{border-color:var(--line-strong);color:var(--ink);text-decoration:none}
+.chip .n{font-family:var(--mono);font-size:10.5px;color:var(--quiet)}
+.chip.on,.chip[aria-pressed="true"],.chip[aria-current="true"]{background:var(--nav-2);border-color:var(--nav-2);color:var(--nav-text)}
+.chip.on .n,.chip[aria-pressed="true"] .n,.chip[aria-current="true"] .n{color:var(--nav-text);opacity:.8}
+.chip--clear{border-style:dashed}
+.status--plain::before{display:none}
+.status .icon{width:12px;height:12px}
+.tag-chip{display:inline-flex;align-items:center;font-size:9px;font-weight:700;padding:1px 6px;border-radius:999px;border:1px solid currentColor;background:#fff;line-height:1.4;white-space:nowrap;color:var(--muted)}
+.tag-chip--blue{color:var(--blue);background:var(--blue-bg)}
+.tag-chip--green{color:var(--green);background:var(--green-bg)}
+.tag-chip--amber{color:var(--amber);background:var(--amber-bg)}
+.tag-chip--navy{color:var(--navy);background:var(--navy-bg)}
+.tag-chip--red{color:var(--danger);background:var(--danger-bg)}
+.tag-chip--grey{color:var(--muted);background:var(--surface-2)}
+.tag-chip--more{color:var(--muted);border-style:dashed}
+
+/* Buttons the mockups add to the set above. */
+.btn--icon{min-width:var(--control);padding:6px}
+.btn--danger-solid{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn--danger-solid:hover{background:#7d1f23;border-color:#7d1f23;color:#fff}
+.link-button{border:0;background:none;padding:0;color:var(--blue);font:inherit;font-weight:550;cursor:pointer;text-align:left}
+.link-button:hover{text-decoration:underline}
+
+/* Form fields the dialogs and bounded editors share. .form-grid keeps its
+   auto-fit rule above; these add the fixed column counts and the value box
+   a read-only field shows in place of an input. */
+.form-grid--3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.form-grid--auto{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+.field--wide{grid-column:1/-1}
+.field--span2{grid-column:span 2}
+.field .label{font-size:11px;font-weight:780;color:#45433f}
+.field .value{min-height:30px;display:flex;align-items:center;gap:6px;padding:0 2px;font-weight:500;line-height:1.3}
+.field .value.empty{color:var(--quiet);font-weight:400}
+.field-inline{display:flex;align-items:center;gap:8px}
+.field-inline input{width:120px}
+.check{display:flex;align-items:center;gap:8px;min-height:32px;font-size:13px}
+.check input{width:16px;height:16px;min-height:0;margin:0;accent-color:var(--red)}
+.checks{display:grid;gap:2px}
+.radio-row{display:flex;gap:14px;flex-wrap:wrap}
+.input-money{position:relative}
+.input-money>input{padding-left:22px;text-align:right;font-variant-numeric:tabular-nums}
+.input-money::before{content:"£";position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--quiet);pointer-events:none}
+.input-suffix{position:relative}
+.input-suffix>input{padding-right:34px}
+.input-suffix::after{content:attr(data-suffix);position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--quiet);font-size:12px;pointer-events:none}
+.consequence{font-size:13px;color:var(--danger);font-weight:550}
+
+/* Row lists (the bell, a pane of records): .row-list holds .row-button rows
+   or .row-form forms whose one control is the row. Title, .sub beneath it,
+   and .side (chip and time) at the end. */
+.row-list{display:grid}
+.row-form{display:block;margin:0}
+.row-list .row-button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;width:100%;min-height:var(--row);padding:8px 12px;border:0;border-bottom:1px solid var(--line);border-left:3px solid transparent;background:transparent;text-align:left;color:inherit;cursor:pointer}
+.row-list>:last-child>.row-button,.row-list>.row-button:last-child{border-bottom:0}
+.row-list .row-button:hover{background:var(--surface-2)}
+.row-list .row-button[aria-selected="true"]{background:var(--navy-bg);border-left-color:var(--red);box-shadow:none}
+.row-list .row-button .title{font-weight:600;font-size:13px;grid-column:1;grid-row:1;min-width:0;overflow-wrap:anywhere}
+.row-list .row-button .sub{color:var(--muted);font-size:12px;grid-column:1;grid-row:2;min-width:0;overflow-wrap:anywhere}
+.row-list .row-button .sub .ref{font-weight:500}
+.row-list .row-button .side{grid-column:2;grid-row:1/span 2;align-self:center;display:grid;justify-items:end;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap}
+.row-list .row-button--unread .title{font-weight:700}
+.dialog-body--list{padding:0}
+.dialog-body--list .empty-state{margin:0;padding:18px 20px}
+.dialog-body--list .row-list{max-height:min(60vh,520px);overflow:auto}
+
+/* Utilities the mockups add. */
+.mt-2{margin-top:8px}
+
+/* ---------------------------------------------------------------------------
    Breakpoints: 1360 · 1180 · 1100 · 980 · 900 · 760
    --------------------------------------------------------------------------- */
 
@@ -912,7 +1234,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .app-rail{position:static;height:auto;display:block;overflow:hidden}
   .brand{min-height:62px;border-bottom:1px solid rgba(255,255,255,.12);padding:8px 12px}.brand img{width:40px;height:40px}.brand-copy span{display:none}
   .primary-nav{flex-direction:row;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;padding:7px}
-  .nav-label,.rail-spacer,.rail-health,.rail-user{display:none}
+  .nav-label,.rail-spacer,.rail-health,.rail-user,.rail-collapse{display:none}
   .nav-link{flex:0 0 auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent;min-height:38px;padding:7px 9px}
   .nav-link:hover{transform:none}.nav-link .icon{width:26px;height:26px}
   .nav-link[aria-current="page"]{border-left:0;border-bottom-color:var(--red)}
@@ -944,7 +1266,7 @@ progress.progress::-moz-progress-bar{background:var(--red)}
   .primary-nav .nav-link{font-size:12px;padding-inline:7px}
   .primary-nav .nav-link .icon{width:18px;height:18px}
   .utility-bar{flex-wrap:wrap;padding-block:5px}.utility-search{order:2;flex-basis:100%;max-width:none}.utility-freshness{display:none}
-  .workspace-tabs{padding-inline:7px}.workspace-tab{min-width:105px;max-width:175px}
+  .workspace-tabs{padding-inline:7px}.workspace-tab{flex:1 1 auto;max-width:170px;padding-right:2px}.workspace-tab-link{padding-left:8px;gap:5px}.workspace-tab .ref{flex:1 1 auto;min-width:5ch}.workspace-tab .reg{flex:0 1 auto;min-width:4ch}
   .page-header{flex-direction:column;align-items:stretch;gap:10px;padding-bottom:10px}.page-actions{width:100%;justify-content:flex-start}.page-actions .btn{flex:none;width:auto}
   .grid-2,.grid-3,.admin-grid,.fact-grid,.definition-list{grid-template-columns:1fr}
   .account-settings-facts,.account-signoff-fields{grid-template-columns:1fr}
