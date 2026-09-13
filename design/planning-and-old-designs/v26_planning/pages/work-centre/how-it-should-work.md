@@ -71,11 +71,22 @@ Today a Case created from the provider API, by the e-mail route, or by the Autom
 
 An AI job (FRD-11 § reviewed proposals) is a named piece of work an outside AI client picks up through the Automation actor and hands back as a draft for a person to confirm. Pegasus never runs it and never applies its result. Five kinds: Estimate (a proposed repair estimate for a Case), Unidentified resolution (a proposed destination for a U reference), Query response (a draft reply to a post-report query), Unidentified-queue pass (one proposal per item examined), Market research (research files attached to the Case). "Draft ready" means the client has written its result and the job is waiting for a person.
 
-The Work Centre gains an **AI jobs** section for the office's unfinished jobs: Queued, Taken (running, with the lease expiry), Draft ready, Failed. Each row: kind and detail, record, started by, created, state, and the action FRD-11 already defines per kind for Draft ready: **Review estimate** (opens the Case's Estimate section), **Open query** (opens the message), **Review** (opens the Unidentified item), **Complete job** for a Query response or queue pass. Failed shows the reason with Open Case; Cancel and Retry stay on Operations. Completed, Cancelled and Expired jobs are not shown here. Whether Draft ready should also be a Needs attention kind, so it ages under D3, is open.
+The Work Centre gains an **AI jobs** section for the office's unfinished jobs: Queued, Taken (running, with the lease expiry), Draft ready, Failed. Each row: kind and detail, record, started by, created, state, and the action FRD-11 already defines per kind for Draft ready: **Review estimate** (opens the Case's Estimate section), **Open query** (opens the message), **Review** (opens the Unidentified item), **Complete job** for a Query response or queue pass. Failed shows the reason with Open Case; Cancel and Retry stay on Operations. Completed, Cancelled and Expired jobs are not shown here.
+
+Decided 13 September: **Draft ready is also a Needs attention kind** ("AI draft"), so it ages under D3 with its own target (AI draft target, default 1 day, a workflow setting: [`../configuration/how-it-should-work.md`](../configuration/how-it-should-work.md)). Its row action is the per-kind action above. It also appears on the Case record's Next action panel and raises a notification (D10). **Market research is excluded**: it never waits for a person, completes when its files are attached, and those files simply appear in the Case's Files as evidence, stored in Box like any other evidence ([`../case-record/how-it-should-work.md`](../case-record/how-it-should-work.md)).
+
+### D10. Notifications have a defined use
+
+The bell in the utility bar is today a copy of the first ten Needs attention rows. It becomes a per-person notification list with three defined causes, and no others until decided:
+
+1. **An AI draft is ready** on a Case: the Case's engineer is notified, or the person who started the job if the Case has no engineer.
+2. **A Case is assigned to an engineer**: that engineer is notified.
+3. **A Case an engineer is assigned to changes hands**: someone else edits it, it receives an e-mail, or a query arrives. The engineer is notified.
+
+Each notification names the Case and the cause and opens the Case at the relevant place. Notifications are per person, marked read when opened, and kept for 30 days. The same events feed the person's Mine view (P2), so the Work Centre and the bell agree. The dialog itself is specified in [`dialogs/notifications/how-it-should-work.md`](dialogs/notifications/how-it-should-work.md).
 
 ### Still open
 
-- Whether AI Draft ready becomes a Needs attention kind with its own target (D9).
 - The New cases window: 7 days is the proposal.
 - Operations audience (D1): deferred until the Operations page is planned, see [`../operations/how-it-should-work.md`](../operations/how-it-should-work.md).
 - The exact copy for the relative due text.

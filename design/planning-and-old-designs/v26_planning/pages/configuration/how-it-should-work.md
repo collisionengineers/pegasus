@@ -13,6 +13,7 @@ The Work Centre gives every kind of work a due instant. The targets that produce
 | Triage target (days) | a Triage record without a finding is due this many days after it opened | 0 to 365 | 1 |
 | Held decision target (days) | a held Case is due this many days after the hold was placed, unless the hold carries its own Review on date | 0 to 365 | 7 |
 | Review target (days) | a Case in Review, with or without an engineer, is due this many days after it entered Review | 0 to 365 | 1 |
+| AI draft target (days) | an AI job in Draft ready is due this many days after the draft was written (Work Centre D9) | 0 to 365 | 1 |
 
 Fixed by design, not settings:
 
@@ -22,6 +23,6 @@ Fixed by design, not settings:
 
 ## Read view and edit form
 
-- Read view: five definition rows, "Chase interval · 7 days", "Unidentified target · 0 days" and so on.
-- Edit form: five number inputs with the ranges above, one Save. Validation messages name the range. Same lease, version and Take over behaviour as the existing form.
+- Read view: six definition rows, "Chase interval · 7 days", "Unidentified target · 0 days" and so on.
+- Edit form: six number inputs with the ranges above, one Save. Validation messages name the range. Same lease, version and Take over behaviour as the existing form.
 - Action log: one entry per saved version listing the changed values, as now.

@@ -9,3 +9,6 @@ Decisions that land on the Case record from other pages' planning. The Case reco
 | Work Centre P4 | the Work Centre's Assign Engineer action opens this Case's assignment dialog directly, not the Case page; Review Case opens the Case at its Review decision | assignment dialog; Review decision |
 | Work Centre P8 | "Assign to me" for an Engineer on a ready Case with no engineer, callable from the Work Centre's Today pane | assignment dialog |
 | Received file D2 | Add evidence on Files is where a message or file is attached to this Case, including the upload confirmation's attach-with-override; Remove with reason is the reversal | Files |
+| Work Centre D9 | an AI Draft ready job on this Case shows on the Next action panel in the right column with its per-kind action (Review estimate, Open query, Review) | Next action |
+| Work Centre D9 | Market research files attach to Files as evidence, stored in Box like any other evidence, with the tag Market research; no review step and no use as a value | Files |
+| Work Centre D10 | assignment, edits by someone else, received e-mail and queries on this Case raise the engineer's notification | header, Notes, Files |
