@@ -4,6 +4,8 @@
 - **Live source:** `src/Pegasus.Web/Pages/Mail/Index.cshtml`
 - **Dialogs:** [`dialogs/`](dialogs/README.md) · **States:** [`states/`](states/README.md) · **Panels:** [`panels/`](panels/README.md)
 
+- [**How it should work**](how-it-should-work.md) — Category, no Unread, Dismiss.
+
 ## Screenshots
 
 - [s02-inbox.png](../../current/v26-shots/s02-inbox.png)

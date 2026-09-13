@@ -2,6 +2,13 @@
 
 Read from the live source on 13 September 2026.
 
+## What the Work Centre does not show
+
+- Cases created by the provider API, by the e-mail route or by the Automation actor: no row, no count. They surface only as rows in Cases › Not ready or Review, or in Administration › Action logs (actor type Automation), or on Operations when they fail.
+- Changes the Automation actor makes to an existing Case: Action logs only.
+- AI jobs: Operations (AI job list) and Administration › AI jobs only. States: Queued, Taken, Draft ready, Completed, Failed, Cancelled, Expired (`src/Pegasus.Core/AiWork/AiJobs.cs`). A Draft ready job's suggestions are reviewed on `Cases/Assessment/Suggestions`.
+- The origin of a Case is recorded (`IntakeSourceChannel`: ManualUpload, Mailbox, Automation, ProviderApi) and is a search filter, but no Work Centre surface uses it.
+
 ## Governing documentation
 
 | Document | What it settles for this page |

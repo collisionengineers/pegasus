@@ -63,7 +63,17 @@ Blocked stops being an operator concept ([`../received-file/how-it-should-work.m
 
 The Mail kind (open Unidentified items) is unchanged by Unidentified widening: closed Unidentified items never appear here.
 
+### D8. New cases are visible, whatever created them
+
+Today a Case created from the provider API, by the e-mail route, or by the Automation actor appears nowhere on the Work Centre; only a manually created one is seen by the person who created it. The Work Centre gains a **New cases** section: every Case created in the last 7 days (calendar days, the same fixed rule as D3), newest first, each row showing reference, registration, claimant, principal, and **how it arrived** as a chip: Manual, E-mail, Provider API, Automation. A "since you last looked" divider marks what is new for this person. Rows open the Case. The section is paged like the list (D4). Changes the Automation actor makes to an existing Case appear in the same section as "Changed by automation" rows, so nothing automation does is silent.
+
+### D9. AI jobs have their own section
+
+The Work Centre gains an **AI jobs** section for the office's jobs that are not finished: Queued, Taken (running), Draft ready, Failed. Draft ready is the actionable state and its row action is Review suggestions, opening the Case's suggestions review. Failed shows the failure in operator words with Open Case; Retry stays on Operations. Completed, Cancelled and Expired jobs are not shown here. Whether Draft ready should also be a Needs attention kind, so it ages under D3, is open.
+
 ### Still open
 
+- Whether AI Draft ready becomes a Needs attention kind with its own target (D9).
+- The New cases window: 7 days is the proposal.
 - Operations audience (D1): deferred until the Operations page is planned, see [`../operations/how-it-should-work.md`](../operations/how-it-should-work.md).
 - The exact copy for the relative due text.
