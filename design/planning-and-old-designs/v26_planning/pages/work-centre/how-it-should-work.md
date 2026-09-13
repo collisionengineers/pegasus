@@ -85,8 +85,9 @@ The bell in the utility bar is today a copy of the first ten Needs attention row
 
 Each notification names the Case and the cause and opens the Case at the relevant place. Notifications are per person, marked read when opened, and kept for 30 days. The same events feed the person's Mine view (P2), so the Work Centre and the bell agree. The dialog itself is specified in [`dialogs/notifications/how-it-should-work.md`](dialogs/notifications/how-it-should-work.md).
 
-### Still open
+### Decided 13 September (Stage 2)
 
-- The New cases window: 7 days is the proposal.
-- Operations audience (D1): deferred until the Operations page is planned, see [`../operations/how-it-should-work.md`](../operations/how-it-should-work.md).
-- The exact copy for the relative due text.
+- The New cases window is 7 days.
+- Operations stays open to Engineers and Users (see [`../operations/how-it-should-work.md`](../operations/how-it-should-work.md)).
+- The relative due text is as mocked: "Due Fri", "Due 24 Sep", "2 days overdue".
+- P5 as written: refresh on focus and every five minutes, plus the Refresh button.

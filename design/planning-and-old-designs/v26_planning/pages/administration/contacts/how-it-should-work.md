@@ -13,9 +13,9 @@ Decided with the operator on 13 September 2026.
 
 | Page | Entry |
 | --- | --- |
-| Case record | Overview › Principal column: Principal notes (record, locked), Principal notes · this Case, Claim source notes (record, locked, follows the chosen source), Claim source notes · this Case |
+| Case record | Overview › Notes band under the three columns: Principal notes (record, locked), Principal notes · this Case, Claim source notes (record, locked, follows the chosen source), Claim source notes · this Case |
 | Administration › Contacts | Notes on every Case on the Contact dialog for a Claim source, and on Principal settings |
 
-## Open
+## Decided 13 September
 
-- Whether Repairer, Storage and other contact types also carry notes shown on the Cases that use them. Default: only Principal and Claim source.
+- Only Principal and Claim source carry notes; Repairer, Storage and the other contact types do not.

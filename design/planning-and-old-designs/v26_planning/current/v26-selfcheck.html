@@ -143,9 +143,8 @@ f.onload=()=>{
     w.setLease('expiring');check('expiring lease offers Renew',!$('btnRenew').hidden&&$('leaseLine').classList.contains('is-expiring')&&$('leaseLine').textContent.includes('expires in'));
     w.setLease('elsewhere');check('editing elsewhere offers Take over',!d.body.classList.contains('is-editing')&&$('barActions').textContent.includes('Take over')&&$('barActions').textContent.includes('another window'));
     w.takeOver();check('take over resumes editing here',d.body.classList.contains('is-editing'));
-    w.setLease('colleague');check('colleague editing state',g('STATE')==='colleague'&&$('barActions').textContent.includes('E Mawdsley is editing')&&$('barActions').textContent.includes('Take over'));
-    w.takeOver();check('take over from the colleague',g('STATE')==='engineer'&&d.body.classList.contains('is-editing'));
-    check('take over is recorded',$('noteTop').textContent.includes('Edit lease taken over'));
+    w.setLease('colleague');check('colleague editing state offers no Take over',g('STATE')==='colleague'&&$('barActions').textContent.includes('E Mawdsley is editing')&&!$('barActions').textContent.includes('Take over'));
+    w.setState('engineer');w.setLease('mine');
     w.setLease('available');check('lease released ends the session',!d.body.classList.contains('is-editing')&&$('leaseLine').hidden);
     // vehicle lookup
     for(const p of [['none','Not yet looked up'],['pending','Queued'],['current','Current'],['stale','Stale'],['notfound','Not found for MA59BDY'],['failed','Lookup failed · Provider unavailable']]){w.setLookup(p[0]);check('lookup state '+p[0],$('lookupRead').textContent.includes(p[1])&&d.querySelector('.mock [data-lookup="'+p[0]+'"]').classList.contains('on'));}
@@ -281,10 +280,10 @@ f.onload=()=>{
     $('rbEng').textContent='A Patterson';w.localStorage.removeItem('v26.notif');w.renderBellCount();
     // case type and Create audit
     check('case type chip absent for Inspection',$('rbKind').hidden&&!$('barActions').textContent.includes('Create audit'));
-    w.setKind('inspection_audit');check('Inspection + Audit shows the chip and Create audit in the Actions menu',!$('rbKind').hidden&&$('rbKind').textContent==='Inspection + Audit'&&!!d.querySelector('#menuCase .btn[onclick*="createAudit"]')&&!$('menu').hidden);
+    w.setKind('inspection_audit');check('Create audit is absent before a report is generated',!d.querySelector('#menuCase .btn[onclick*="createAudit"]'));w.setReport('generated');check('Inspection + Audit shows the chip and Create audit in the Actions menu',!$('rbKind').hidden&&$('rbKind').textContent==='Inspection + Audit'&&!!d.querySelector('#menuCase .btn[onclick*="createAudit"]')&&!$('menu').hidden);
     check('the record bar holds neither Create audit nor Send to EVA',![...d.querySelectorAll('#barActions a,#barActions button')].some(b=>['Create audit','Send to EVA'].includes(b.textContent.trim())));
     w.openDlg('createAudit');check('create audit derives ap. from Total loss',dlgText().includes('ap.QDOS26214')&&!d.querySelector('input[name=audit-verdict]'));w.closeDlg();
-    $('f-outcome').value='cash_in_lieu';w.openDlg('createAudit');check('an outcome that is neither asks for the verdict',!!d.querySelector('input[name=audit-verdict]'));w.closeDlg();$('f-outcome').value='total_loss';
+    $('f-outcome').value='cash_in_lieu';w.openDlg('createAudit');check('Cash in lieu derives a. without asking',dlgText().includes('a.QDOS26214')&&!d.querySelector('input[name=audit-verdict]'));w.closeDlg();$('f-outcome').value='total_loss';
     w.openDlg('createAudit');w.createAuditConfirm();check('audit case created and linked from the bar',g('R').audit.ref==='ap.QDOS26214'&&$('barActions').textContent.includes('Audit case ap.QDOS26214')&&!d.querySelector('#menuCase .btn[onclick*="createAudit"]'));
     check('audit case joins the working set',w.readOpen().some(t=>t.id==='ca1'&&t.ref==='ap.QDOS26214')&&w.localStorage.getItem('v26.audit')==='ap.QDOS26214');
     w.setKind('audit');check('Audit type shows its chip',$('rbKind').textContent==='Audit'&&!d.querySelector('#menuCase .btn[onclick*="createAudit"]'));
@@ -307,19 +306,12 @@ f.onload=()=>{
     w.recordChase();check('chase refused without recipient, channel and outcome',!!$('chase-recipient'));
     $('chase-recipient').value='Ms L Carter';$('chase-channel').value='Telephone';$('chase-content').value='Boot floor images';$('chase-outcome').value='No answer';w.recordChase();
     check('manual chase recorded',$('dlgHost').innerHTML===''&&$('noteTop').textContent.includes('Manual chase recorded')&&$('noteTop').textContent.includes('No answer'));
-    // ===== case tasks (proposal) =====
-    check('tasks hidden by default',$('tasksPanel').hidden);
-    w.setTasks(1);check('tasks proposal shown',!$('tasksPanel').hidden&&d.querySelectorAll('#taskList .task-row').length===2&&$('tasksPanel').textContent.includes('Proposal'));
-    w.openDlg('taskCreate');$('task-desc').value='Request the V5C';$('task-who').value='A Patterson';reason('Principal asked');w.taskCreate();
-    check('task created',d.querySelectorAll('#taskList .task-row').length===3&&$('taskList').textContent.includes('Request the V5C'));
-    w.openDlg('taskAssign',{id:'t2'});$('task-who').value='E Mawdsley';reason('Owner changed');w.taskAssign('t2');check('task assigned',g('TASKS').find(t=>t.id==='t2').who==='E Mawdsley');
-    w.openDlg('taskComplete',{id:'t1'});reason('Images received');w.taskComplete('t1');check('task completed',g('TASKS')[0].state==='Completed'&&$('taskList').textContent.includes('Completed'));
-    w.openDlg('taskCancel',{id:'t2'});reason('No longer needed');w.taskCancel('t2');check('task cancelled',g('TASKS')[1].state==='Cancelled');
-    w.setTasks(0);check('tasks proposal hidden again',$('tasksPanel').hidden);
+    // ===== case tasks: not built (13 September) =====
+    check('no Case tasks panel',!$('tasksPanel'));
     // ===== query presets =====
     w.setLife('none');w.setReport('none');w.setLease('available');w.setCustody('confirmed');w.setEva('none');
-    w.replicaQuery(new w.URLSearchParams('lease=mine&lookup=stale&custody=pending&report=generated&tasks=1&imgs=1'));
-    check('query preset: lease, lookup, custody, report, tasks, images',d.body.classList.contains('is-editing')&&g('R').lookup==='stale'&&g('R').custody==='pending'&&g('R').report==='generated'&&!$('tasksPanel').hidden&&!$('fImgs').hidden);
+    w.replicaQuery(new w.URLSearchParams('lease=mine&lookup=stale&custody=pending&report=generated&imgs=1'));
+    check('query preset: lease, lookup, custody, report, images',d.body.classList.contains('is-editing')&&g('R').lookup==='stale'&&g('R').custody==='pending'&&g('R').report==='generated'&&!$('fImgs').hidden);
     w.replicaQuery(new w.URLSearchParams('eva=sent&api=1&link=replacement&life=archived'));
     check('query preset: EVA, link and lifecycle',g('R').eva==='sent'&&g('R').evaApi&&g('R').link==='replacement'&&g('R').archived);
     w.setLife('none');w.setLink('none');w.setCustody('confirmed');w.setLookup('current');w.setTasks(0);w.setReport('none');w.setEva('none');

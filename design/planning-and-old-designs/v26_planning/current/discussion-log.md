@@ -248,9 +248,10 @@ Self-checks: 371 and 279.
 
 The operator moved the mockups and their documentation into `v26_planning/`, gave every page a folder, and planned the Work Centre, the received-file record, Inbox, Upload, AI jobs and notifications page by page into "how it works" and "how it should work" documents, with decisions propagated into the pages they affect. Building them into the mockup was held ("Just edit the document so far. Hang fire for now."). Later the same day: crop on the viewer stage, Create audit, Principal and Claim source notes, valuation month and one button per source, and the last placeholder dialogs were added on request. Asked what had been held back, the operator said "all of them": the Case record's share was built directly and the shell's in three parallel lanes, integrated and verified (§ The 13 September planning decisions, built in, in `v26-notes.md`).
 
+## 13. 13 September — Stage 2 approved
+
+The operator asked for a plan covering every decision and feature in `v26_planning/`, front end and backend, plus two platform changes: the report renderer moves from Chromium to QuestPDF, and Web returns to an Azure App Service Web App ("we really want to move away from container here if we can"; a read-only dry run showed UK South now validates Linux B1/P0v3/P1v3 plans, so the ADR-0015 quota block has gone). The Overview was judged "a little bad" after the notes came back, so the four notes moved into a Notes band under the columns. The sign-off list was read out in full: Take over on a colleague's lease and Tabs-by-default were refused, the Case tasks panel dropped as unclear, the working-set strip explained and kept, the Plan clicker chosen, and every open question in the page folders closed (recorded in each `how-it-should-work.md`). The plan was approved and Stage 2 began on this branch.
+
 ## Outstanding
 
-Stage 1 is at v26 with every page mocked; it has not yet been given final approval to proceed to Stage 2 (the
-Razor implementation). Sign-off items A–F (`v25-notes.md`) and G–R (`v26-notes.md`)
-are open. This folder is temporary per `docs/index.md`'s carve-out — remove it once
-Stage 2 lands or the design is formally accepted or rejected.
+Stage 2 is in progress. This folder is temporary per `docs/index.md`'s carve-out — it is removed in the final Stage 2 PR.

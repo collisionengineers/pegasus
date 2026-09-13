@@ -515,6 +515,10 @@ body:not(.is-editing) .edit-only,.case-section.is-locked .edit-only{display:none
 .next-row.ai-next{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px}
 /* Actions menu: Send to EVA and Create audit */
 #menuCase{display:contents}
+.notes-band{margin-top:10px}
+.notes-band .fg.g2{grid-template-columns:1fr 1fr;column-gap:14px}
+.notes-band .fc .fv.multi{min-height:36px}
+@media(max-width:1180px){.notes-band .fg.g2{grid-template-columns:1fr}}
 /* ---- Damage ---- */
 .damage-workbench{display:grid;grid-template-columns:minmax(220px,300px) minmax(260px,1fr);gap:14px;align-items:start}
 .damage-workbench:has(#carView[data-variant="side"]){grid-template-columns:minmax(280px,360px) minmax(260px,1fr)}
@@ -852,7 +856,7 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
             <ol class="stepper" id="stepper"></ol>
             <div class="sub blockers" id="blockers" hidden><h3>Outstanding requirements <span class="status status--amber" id="blockCount">1 outstanding</span></h3><ul class="blocker-list" id="blockerList"></ul></div>
             <div class="sub" id="lifecycle" hidden><h3>Lifecycle actions</h3><div class="button-row" id="lifecycleBtns"></div><div class="fc ro" id="sentRow" hidden><span class="lbl">Report sent</span><div class="fv" id="sentRead"></div></div></div>
-            <div class="sub" id="tasksPanel" hidden><h3>Case tasks <span class="rt">Proposal</span></h3><div id="taskList"></div><div class="button-row edit-only" style="margin-top:6px"><button type="button" class="btn btn--small" onclick="openDlg('taskCreate')"><svg class="icon"><use href="#icon-plus"/></svg><span>Create task</span></button></div></div>
+
             <div class="overview-grid">
               <div class="sub"><h3>Case</h3>
                 <div class="fg g2">
@@ -867,12 +871,8 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
               <div class="sub"><h3>Principal</h3>
                 <div class="fg">
                   <div class="fc ro idn"><span class="lbl">Principal<svg class="icon lk"><use href="#icon-lock"/></svg></span><div class="fv">QDOS Claims</div></div>
-                  <div class="fc ro idn rec-notes" id="pNotesRec"><span class="lbl">Principal notes<svg class="icon lk"><use href="#icon-lock"/></svg></span><div class="fv multi">In hire via QDOS Rapid — check hire status at Triage. CC all reports to claims@qdosclaims.co.uk.</div></div>
-                  <div class="fc"><label for="f-pnotes">Principal notes · this Case</label><div class="fv multi">Triage 22 Jul: vehicle confirmed in hire since 21 Jul — expedite.</div><textarea id="f-pnotes" class="fi">Triage 22 Jul: vehicle confirmed in hire since 21 Jul — expedite.</textarea></div>
                   <div class="fc"><label for="f-src">Claim source</label><div class="fv">Rapid Hire Solutions</div><select id="f-src" class="fi" onchange="srcNotes()"><option>Rapid Hire Solutions</option><option>Direct</option><option>Other…</option></select></div>
                   <div class="fc ro"><span class="lbl">Claim source contact</span><div class="fv">0151 496 0102 · claims@rapidhire.co.uk</div></div>
-                  <div class="fc ro idn rec-notes" id="sNotesRec"><span class="lbl">Claim source notes<svg class="icon lk"><use href="#icon-lock"/></svg></span><div class="fv multi">Prefer total loss. CC report to rhs-claims@outlook.com. WhatsApp group RHS.</div></div>
-                  <div class="fc"><label for="f-snotes">Claim source notes · this Case</label><div class="fv multi">Source advised in hire.</div><textarea id="f-snotes" class="fi">Source advised in hire.</textarea></div>
                 </div>
               </div>
               <div class="sub"><h3>Claimant</h3>
@@ -882,6 +882,14 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
                   <div class="fc"><label for="f-clmaddr">Address</label><div class="fv">14 Grove Street, Liverpool L15 8HY</div><input id="f-clmaddr" class="fi" value="14 Grove Street, Liverpool L15 8HY"></div>
                   <div class="fc"><label for="f-clmvat">VAT status</label><div class="fv">Not VAT registered</div><select id="f-clmvat" class="fi" onchange="regateVat()"><option>Not VAT registered</option><option>VAT registered</option></select></div>
                 </div>
+              </div>
+            </div>
+            <div class="sub notes-band" id="recNotes"><h3>Notes</h3>
+              <div class="fg g2">
+                <div class="fc ro idn rec-notes" id="pNotesRec"><span class="lbl">Principal notes<svg class="icon lk"><use href="#icon-lock"/></svg></span><div class="fv multi">In hire via QDOS Rapid — check hire status at Triage. CC all reports to claims@qdosclaims.co.uk.</div></div>
+                <div class="fc"><label for="f-pnotes">Principal notes · this Case</label><div class="fv multi">Triage 22 Jul: vehicle confirmed in hire since 21 Jul — expedite.</div><textarea id="f-pnotes" class="fi">Triage 22 Jul: vehicle confirmed in hire since 21 Jul — expedite.</textarea></div>
+                <div class="fc ro idn rec-notes" id="sNotesRec"><span class="lbl">Claim source notes<svg class="icon lk"><use href="#icon-lock"/></svg></span><div class="fv multi">Prefer total loss. CC report to rhs-claims@outlook.com. WhatsApp group RHS.</div></div>
+                <div class="fc"><label for="f-snotes">Claim source notes · this Case</label><div class="fv multi">Source advised in hire.</div><textarea id="f-snotes" class="fi">Source advised in hire.</textarea></div>
               </div>
             </div>
             <div class="accident">
@@ -1233,7 +1241,6 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
   <div class="mrow"><b>EVA</b><button data-eva="none" onclick="setEva('none')">Not sent</button><button data-eva="sent" onclick="setEva('sent')">Sent</button><button data-eva="failed" onclick="setEva('failed')">Refused</button><span class="sep"></span><button data-api="1" onclick="setEvaApi(!R.evaApi)">EVA API enabled</button><span class="sep"></span><button onclick="openDlg('eva')">Open EVA handoff</button></div>
   <div class="mrow"><b>Vehicle lookup</b><button data-lookup="none" onclick="setLookup('none')">Not looked up</button><button data-lookup="pending" onclick="setLookup('pending')">Pending</button><button data-lookup="current" onclick="setLookup('current')">Current</button><button data-lookup="stale" onclick="setLookup('stale')">Stale</button><button data-lookup="notfound" onclick="setLookup('notfound')">Not found</button><button data-lookup="failed" onclick="setLookup('failed')">Failed</button></div>
   <div class="mrow"><b>Image custody</b><button data-custody="confirmed" onclick="setCustody('confirmed')">Confirmed</button><button data-custody="pending" onclick="setCustody('pending')">Still arriving</button><button data-custody="failed" onclick="setCustody('failed')">Storage not ready</button></div>
-  <div class="mrow"><b>Case tasks</b><button data-tasks="1" onclick="setTasks(1)">Proposal on</button><button data-tasks="0" onclick="setTasks(0)">Off</button></div>
   <div class="mrow"><b>Tabs</b><button data-tabs="1" onclick="mockTabs(1)">1 open</button><button data-tabs="4" onclick="mockTabs(4)">4 open</button><button data-tabs="9" onclick="mockTabs(9)">9 open</button></div>
   <div class="mrow"><b>Tab layout</b><button data-o="place:fused" onclick="setTabOpt('place','fused')">Fused strip</button><button data-o="place:band" onclick="setTabOpt('place','band')">Grey band</button><button data-o="place:rail" onclick="setTabOpt('place','rail')">Rail list</button><button data-o="place:crumb" onclick="setTabOpt('place','crumb')">Breadcrumb</button></div>
   <div class="mrow"><b>Tab label</b><button data-o="label:both" onclick="setTabOpt('label','both')">Ref + reg</button><button data-o="label:ref" onclick="setTabOpt('label','ref')">Ref only</button><button data-o="label:reg" onclick="setTabOpt('label','reg')">Reg only</button><span class="sep"></span><button data-o="icons:1" onclick="setTabOpt('icons','1')">Icons</button><button data-o="icons:0" onclick="setTabOpt('icons','0')">No icons</button><span class="sep"></span><button data-o="density:regular" onclick="setTabOpt('density','regular')">Regular</button><button data-o="density:compact" onclick="setTabOpt('density','compact')">Compact</button></div>
@@ -1299,8 +1306,7 @@ function setState(s){STATE=s;document.querySelectorAll('.mock button').forEach(b
     if(s==='colleague'){locked=true;why='E Mawdsley is editing';}
     sec.classList.toggle('is-locked',locked);sec.querySelector('.avail-text')&&(sec.querySelector('.avail-text').textContent=why);
   });
-  if(!LAYOUT_USER)setLayout((s==='engineer'||s==='colleague')?'tabs':'scroll');
-  $('btnImport').hidden=$('section-estimate').classList.contains('is-locked');
+$('btnImport').hidden=$('section-estimate').classList.contains('is-locked');
   renderGlass();updateNext();
 }
 
@@ -1706,7 +1712,7 @@ function setLease(v){mockOn('.mock [data-lease]',v);
 function isTerminal(){return STATE==='complete'||!!R.closed;}
 function canSendToEva(){return !R.archived&&(STATE==='review'||STATE==='engineer'||STATE==='colleague')&&!R.closed;}
 function renderBar(){const ed=EDITING,term=isTerminal();let h='';
-  if(STATE==='colleague')h+=`<span class="presence"><span class="presence-dot"></span>E Mawdsley is editing this Case.</span><button type="button" class="btn" onclick="takeOver()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Take over</span></button>`;
+  if(STATE==='colleague')h+=`<span class="presence"><span class="presence-dot"></span>E Mawdsley is editing this Case.</span>`;
   if(R.lease==='elsewhere'&&!ed&&!RETURN_ON&&STATE!=='colleague')h+=`<span class="presence"><span class="presence-dot"></span>You are editing this Case in another window.</span><button type="button" class="btn" onclick="takeOver()"><svg class="icon"><use href="#icon-pencil"/></svg><span>Take over</span></button>`;
   if(ed||RETURN_ON)h+=`<span class="status status--navy case-edit-badge">Editing</span>`;
   if(R.link==='replacement')h+=`<a class="btn" href="${SHELL_PAGE}#/cases/c3"><span>Replacement case</span></a>`;
@@ -1908,7 +1914,7 @@ function renderNotes(){$('noteForm').hidden=isTerminal()||R.archived;}
 
 /* ---------- Case tasks (Cases/Tasks.cshtml.cs) — proposal, no live Razor surface ---------- */
 const TASKS=[{id:'t1',desc:'Chase claimant for boot-floor images',who:'E Mawdsley',state:'Open'},{id:'t2',desc:'Confirm hire status with QDOS Rapid',who:'',state:'Open'}];
-function renderTasks(){$('tasksPanel').hidden=!R.tasks;if(!R.tasks)return;$('taskList').innerHTML=TASKS.map(t=>`<div class="task-row" data-task="${t.id}"><span>${esc(t.desc)}</span><span class="who">${t.who?esc(t.who):'Unassigned'}</span><span class="status ${t.state==='Open'?'status--blue':t.state==='Completed'?'status--green':'status--amber'}">${t.state}</span><span class="cluster calc-only">${t.state==='Open'?`<button type="button" class="btn btn--small" onclick="openDlg('taskAssign',{id:'${t.id}'})">Assign</button><button type="button" class="btn btn--small" onclick="openDlg('taskComplete',{id:'${t.id}'})">Complete</button><button type="button" class="btn btn--small btn--danger" onclick="openDlg('taskCancel',{id:'${t.id}'})">Cancel</button>`:''}</span></div>`).join('')||'<p class="muted">No tasks</p>';}
+function renderTasks(){if(!$('tasksPanel'))return;$('tasksPanel').hidden=!R.tasks;if(!R.tasks)return;$('taskList').innerHTML=TASKS.map(t=>`<div class="task-row" data-task="${t.id}"><span>${esc(t.desc)}</span><span class="who">${t.who?esc(t.who):'Unassigned'}</span><span class="status ${t.state==='Open'?'status--blue':t.state==='Completed'?'status--green':'status--amber'}">${t.state}</span><span class="cluster calc-only">${t.state==='Open'?`<button type="button" class="btn btn--small" onclick="openDlg('taskAssign',{id:'${t.id}'})">Assign</button><button type="button" class="btn btn--small" onclick="openDlg('taskComplete',{id:'${t.id}'})">Complete</button><button type="button" class="btn btn--small btn--danger" onclick="openDlg('taskCancel',{id:'${t.id}'})">Cancel</button>`:''}</span></div>`).join('')||'<p class="muted">No tasks</p>';}
 function setTasks(on){R.tasks=!!on;document.querySelectorAll('.mock [data-tasks]').forEach(b=>b.classList.toggle('on',(b.dataset.tasks==='1')===R.tasks));renderTasks();}
 function taskById(id){return TASKS.find(t=>t.id===id);}
 function taskCreate(){const d=$('task-desc').value.trim(),who=$('task-who').value,reason=readReason();if(!d){toast('Description is required',true);return;}if(!reason)return;TASKS.push({id:'t'+(TASKS.length+1),desc:d,who,state:'Open'});closeDlg();renderTasks();logNote(`Case task created by ${ME_NAME} — ${d}${who?' · '+who:''} — ${reason}.`);toast('The case task was created.');}
@@ -1969,8 +1975,8 @@ const CASE_REF='QDOS26214';
 R.kind='inspection';R.audit=null;R.asAudit=false;
 function setKind(v){R.kind=v;mockOn('.mock [data-kind]',v);renderKind();renderBar();}
 function renderKind(){const k=$('rbKind');if(!k)return;k.hidden=R.kind==='inspection';k.textContent=KIND_LABEL[R.kind]||'';document.querySelectorAll('.fc .lbl').forEach(l=>{if(l.textContent.trim()==='Case type'){const v=l.parentElement.querySelector('.fv');if(v)v.textContent=KIND_LABEL[R.kind];}});}
-function auditPrefix(){const o=val('f-outcome');return o==='total_loss'?'ap.':o==='repairable'?'a.':null;}
-function canCreateAudit(){return R.kind==='inspection_audit'&&!R.audit&&!R.asAudit&&!R.archived&&R.closed!=='Created in error';}
+function auditPrefix(){const o=val('f-outcome');return o==='total_loss'?'ap.':'a.';}
+function canCreateAudit(){return R.kind==='inspection_audit'&&!R.audit&&!R.asAudit&&!R.archived&&R.closed!=='Created in error'&&['generated','prepared','sent'].includes(R.report);}
 DIALOGS.createAudit=()=>{const p=auditPrefix();const sel=$('f-outcome');const o=sel.options[sel.selectedIndex].text;
   return{title:'Create audit',cls:'dialog--compact',body:`<dl class="audit-facts"><dt>Original case</dt><dd class="mono">${CASE_REF}</dd><dt>Outcome</dt><dd>${esc(o)}</dd>${p?`<dt>Audit reference</dt><dd class="mono">${p}${CASE_REF}</dd>`:''}</dl>${p?'':`<div class="field"><label class="req">Original report outcome</label><div class="cluster audit-verdict"><label><input type="radio" name="audit-verdict" value="a." checked> Repairable <span class="mono">a.${CASE_REF}</span></label><label><input type="radio" name="audit-verdict" value="ap."> Total loss <span class="mono">ap.${CASE_REF}</span></label></div></div>`}`,
   foot:`<button type="button" class="btn btn--primary" onclick="createAuditConfirm()"><svg class="icon"><use href="#icon-plus"/></svg><span>Create audit</span></button>`};};

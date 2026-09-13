@@ -21,7 +21,7 @@ Nothing else raises a notification. Market research does not (its files simply a
 - The bell shows the unread count.
 - The same events feed the person's Mine view on the Work Centre (P2), so both agree.
 
-## Open
+## Decided 13 September
 
-- Whether a User (non-engineer) receives cause 3 for Cases they created.
-- Whether e-mail (Outlook) notification is ever wanted in addition to the bell. Default: no.
+- A User (non-engineer) does not receive cause 3 for Cases they created.
+- No e-mail (Outlook) notification; the bell only.

@@ -67,4 +67,4 @@ The MCP intake tools keep reading and writing receipt decisions on the record. N
 2. **Intake log audience:** Administrators only.
 3. **Unreadable e-mail attachments:** land in a work list. An item that could not be read becomes an Unidentified item with the reason "Could not be read" (and the file kind), so it ages and is due like any other Unidentified item. The Inbox message badge stays as well. Nothing is invisible.
 4. **Closed Unidentified items:** follow the existing standard. Unidentified items are Open or Resolved, keep their U-reference for ever, are never deleted, and can be reopened (Core already has `ReopenUnidentifiedRequest`, writing a "Resolved to Open" history row). Close with reason is a resolution; the Closed filter lists resolved items indefinitely; Reopen is offered on a closed item.
-5. **Operations audience:** still deferred.
+5. **Operations audience:** stays open to Engineers and Users (decided later the same day).

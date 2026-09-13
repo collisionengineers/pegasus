@@ -26,7 +26,7 @@ they exist only so the states can be rendered without a click.
 | All seven valuation presets in read mode | Only applied increases render in read mode; the list is complete on Edit | `17` |
 | Explanatory copy in Next action, drop zone, Files, Notes, Report | Next action is one label and one link; hints removed; Report date and commentary read as empty values | `01`, `18` |
 | Report and Files heads had four buttons each | One primary (Generate report / Add evidence) plus one More menu | `18` |
-| Scroll was the default everywhere | Tabs is the default in With Engineer; Scroll elsewhere; the switch remembers a manual choice for the session | `01`, `02` |
+| Scroll was the default everywhere | Tabs offered as an alternative; the switch remembers a manual choice for the session (13 September: Scroll stays the default in every state) | `01`, `02` |
 | Aside hidden below 1361px | Below 1441px the Figures and Next action cards fold into a two-up strip above the sections | `20` |
 | Ribbon height varied with content | Ribbon 56px, section row 40px; sticky block is measured, not assumed | all |
 | Notices could not be dismissed | Every notice and the stale bar carry a dismiss × | `09`, `18` |
@@ -310,7 +310,7 @@ Everything in `v25-notes.md` A–F still stands. New:
 - **G. One Glass's slot.** Live renders Launch in the head and Resume in the
   session panel at the same time. v26 shows one slot that changes label.
   Confirm, or keep both as today.
-- **H. Tabs by default in With Engineer.** Confirm the default, or keep Scroll.
+- **H. Tabs by default in With Engineer.** *Rejected 13 September: Scroll is the default everywhere; the switch stays.*
 - **I. Decisions strip.** It moves five Settlement fields, keeps them there and
   shows the proposal column only from a real reviewed proposal. Confirm the
   position (top of Settlement) or ask for its own section.
@@ -325,14 +325,14 @@ Everything in `v25-notes.md` A–F still stands. New:
 - **N. Two files.** The shell and the Case record are separate files here; in
   Stage 2 they are one application. Nothing to decide unless a page is
   missing from the table above.
-- **O. Damage clicker.** Pick one of Plan, Elevations or Dial for Stage 2
-  (see § Damage clicker). Only one ships; the strip switch is mockup-only.
+- **O. Damage clicker.** *Decided 13 September: Plan ships.* The strip switch stays mockup-only for comparison.
 - **P. Working set.** Open records only, fused into the record, six then a
   menu, persisted per browser. Every variable is on the strip; pick the
   combination for Stage 2 (see the table under § Working set).
-- **R. Proposals inside the replica.** Take over on a colleague's lease, the
-  Case tasks panel, and the working-set strip have no live counterpart.
-  Confirm each, or drop it before Stage 2.
+- **R. Proposals inside the replica.** *Decided 13 September: Take over on a
+  colleague's lease is dropped (a person's own second window keeps Take over);
+  the Case tasks panel is dropped; the working-set strip is confirmed at its
+  defaults.* Every other item in A–R stands as mocked.
 - **Q. Crop as a stored rectangle.** The viewer's crop is a region kept on
   the image record, applied wherever the image is shown, with the original
   retained. Confirm this over writing a derived file.
@@ -375,11 +375,11 @@ menu, the state glyphs, and that closing a tab persists.
 ## Create audit (13 September)
 
 - Case type (Inspection, Audit, Inspection + Audit) on the mock strip and as a ribbon chip; `?kind=`.
-- On an Inspection + Audit Case the Actions menu offers **Create audit** (with Send to EVA; neither sits in the record bar, and the menu shows outside an edit session when either is available): a new duplicate Case with `a.`/`ap.{Case/PO}` derived from the Settlement outcome (asks when the outcome is neither). The bars link the two; the Audit Case joins the working set and the shell's lists (`#/cases/ca1`, opened as `?audit=1`). Planning: `pages/cases/case-record/dialogs/create-audit/`. Shots `61`–`64`.
+- On an Inspection + Audit Case the Actions menu offers **Create audit** (with Send to EVA; neither sits in the record bar, and the menu shows outside an edit session when either is available): a new duplicate Case with `a.`/`ap.{Case/PO}` derived from the Settlement outcome (Total loss → `ap.`, every other outcome → `a.`; offered once a report has been generated). The bars link the two; the Audit Case joins the working set and the shell's lists (`#/cases/ca1`, opened as `?audit=1`). Planning: `pages/cases/case-record/dialogs/create-audit/`. Shots `61`–`64`.
 
 ## Record notes (13 September, from v24)
 
-- Overview › Principal: **Principal notes** and **Claim source notes** from the records (read-only, locked, absent when the record has none; the source notes follow the Claim source select) beside **… · this Case** editable notes. Admin: **Notes on every Case** on Principal settings and on a Claim source contact. Planning: `pages/administration/contacts/`. Shots `65`–`68`.
+- Overview: **Principal notes** and **Claim source notes** from the records (read-only, locked, absent when the record has none; the source notes follow the Claim source select) beside **… · this Case** editable notes, in a **Notes band** under the three columns (13 September: moved out of the Principal column, which had grown to twice the height of its neighbours). Admin: **Notes on every Case** on Principal settings and on a Claim source contact. Planning: `pages/administration/contacts/`. Shots `65`–`68`.
 
 ## Valuation and the last placeholders (13 September)
 
@@ -402,4 +402,8 @@ Every decision in `../pages/*/how-it-should-work.md` that had been held back is 
 
 **How it was built.** Three parallel lanes (`wc`, `intake`, `inbox`) each wrote only their own lane files, spliced by the shell build after the existing overrides. The shell self-check lost the checks for the removed received-file page and the Unread scope and gained each lane's checks. 13 September: Case record `{"fail":[],"okCount":410}`, shell `{"fail":[],"okCount":416}`.
 
-**Left for the next pass.** The removed received-file page's code is unreachable but still in the build inputs. Dismiss on a message with an open Unidentified item is allowed until that question is decided.
+**Left for the next pass.** The removed received-file page's code is unreachable but still in the build inputs.
+
+## Stage 2 approval (13 September, evening)
+
+The operator approved Stage 2 with these settlements: Scroll default everywhere (H); no Take over on a colleague's lease and no Case tasks panel (R); Plan clicker (O); the Overview Notes band; Create audit after a report is generated, never asking for the outcome; the Glass's, Brego and Super CAP valuation buttons inert until a provider exists, AI market research inline through the existing job, a re-run replacing the card; Dismiss always allowed; the remaining open questions closed at their proposals (7-day New cases window, Operations open to all roles, no User "changed hands" cause, no e-mail notification, notes on Principal and Claim source only). The Case self-check now reports `{"fail":[],"okCount":403}`. Stage 2 also moves the report renderer to QuestPDF and Web to an App Service Web App (ADR-0049, ADR-0050).
