@@ -19,7 +19,8 @@ public sealed class IndexModel(
     IForceStaffLogout forceStaffLogout,
     IResetStaffPassword resetStaffPassword,
     IDeleteStaffAccount deleteStaffAccount,
-    IEditScopeLeases editScopes) : AdministrationPageModel
+    IEditScopeLeases editScopes,
+    IPerUserExternalCredentialAdministration externalCredentials) : AdministrationPageModel
 {
     public IReadOnlyList<StaffAccountRow> Rows { get; private set; } = [];
     public bool HasMoreAccounts { get; private set; }
@@ -447,8 +448,33 @@ public sealed class IndexModel(
         var accounts = await listStaffAccounts.ExecuteAsync(new(actor, PageSize: ListStaffAccounts.MaximumPageSize), cancellationToken);
         HasMoreAccounts = accounts.HasMoreAccounts;
         var currentOperatorId = Guid.TryParse(actor.SubjectId, out var id) ? id : (Guid?)null;
-        Rows = accounts.Accounts.Select(account => new StaffAccountRow(account, account.Id == currentOperatorId)).ToArray();
+        var rows = new List<StaffAccountRow>(accounts.Accounts.Count);
+        foreach (var account in accounts.Accounts)
+        {
+            // Decision M (v26): the Glass's column puts each account's credential on
+            // the list; the credential itself is still managed from the account.
+            var glass = await externalCredentials.GetAsync(
+                actor,
+                account.Id,
+                ExternalCredentialProvider.GlassRepairEstimate,
+                cancellationToken);
+            rows.Add(new StaffAccountRow(account, account.Id == currentOperatorId, glass));
+        }
+        Rows = rows;
     }
 }
 
-public sealed record StaffAccountRow(StaffAccountSummary Account, bool IsCurrentOperator);
+public sealed record StaffAccountRow(
+    StaffAccountSummary Account,
+    bool IsCurrentOperator,
+    PerUserExternalCredentialStatus? Glass = null)
+{
+    /// <summary>The Glass's column: Not set, Disabled, or the login username.</summary>
+    public string GlassLabel => Glass switch
+    {
+        null or { Configured: false } => "Not set",
+        { Enabled: false } => "Disabled",
+        { Username: { Length: > 0 } username } => username,
+        _ => "Set"
+    };
+}

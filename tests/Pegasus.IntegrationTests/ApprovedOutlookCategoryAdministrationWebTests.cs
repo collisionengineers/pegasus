@@ -33,15 +33,16 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
     }
 
     [Fact]
-    public async Task SupersededCategoryRouteRedirectsToMailSettings()
+    public async Task SupersededCategoryRouteIsGone()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
+        // The MailCategories redirect stub was deleted (Phase 6); categories are
+        // administered under Mail settings only.
         using var response = await client.GetAsync("/Administration/MailCategories");
 
-        Assert.Equal(HttpStatusCode.MovedPermanently, response.StatusCode);
-        Assert.Equal("/Administration/Mailboxes", response.Headers.Location?.OriginalString);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
