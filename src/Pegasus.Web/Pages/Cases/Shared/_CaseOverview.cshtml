@@ -75,7 +75,7 @@
             .Where(part => !string.IsNullOrWhiteSpace(part)));
 }
 
-<section class="record-section panel @(Model.IsEditing && !Model.SectionIsEditable("overview") ? "is-locked" : null)" id="section-overview" data-section="overview" data-collapse="case.overview" aria-labelledby="section-overview-title">
+<section class="record-section panel @Model.CollapsedClass("case.overview") @Model.ActiveTabClass("overview") @(Model.IsEditing && !Model.SectionIsEditable("overview") ? "is-locked" : null)" id="section-overview" data-section="overview" data-collapse="case.overview" aria-labelledby="section-overview-title">
     <div class="panel-head">
         <h2 id="section-overview-title">Overview</h2>
         <div class="panel-actions">
@@ -241,8 +241,26 @@
             <div class="sub-panel"><h3>Principal</h3>
                 <div class="fg">
                     <div class="fc ro idn"><span class="lbl">@OperatorLabels.CaseWorkspace.RibbonPrincipal<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@workflow.Identity.PrincipalCode</div></div>
-                    <div class="fc ro"><span class="lbl">@Frame.ClaimSource</span><div class="@ValueClass(claimSource?.Name)">@Value(claimSource?.Name)</div></div>
-                    <div class="fc ro"><span class="lbl">@Frame.ClaimSourceContact</span><div class="@ValueClass(claimSourceContact)">@Value(claimSourceContact)</div></div>
+                    @* The claim source is chosen from the active Claim source
+                       records while editing; each option carries the record's
+                       notes and contact line so the notes band and the contact
+                       cell follow a change before Save (case-workspace.js). *@
+                    <div class="fc" data-claim-source-cell>@{ Lbl("f-claim-source", Frame.ClaimSource); }<div class="@ValueClass(claimSource?.Name)">@Value(claimSource?.Name)</div>@if (mayEdit)
+                        {
+                            <select id="f-claim-source" class="fi" name="claimSourceId" form="case-edit-form" data-claim-source-select>
+                                <option value="" data-notes="" data-contact="" selected="@(claimSource?.ClaimSourceId is null)">@Frame.NoClaimSource</option>
+                                @if (claimSource?.ClaimSourceId is { } recordedSourceId && Model.ClaimSourceChoices.All(choice => choice.OrganizationId != recordedSourceId))
+                                {
+                                    <option value="@recordedSourceId" data-notes="@notes.ClaimSourceNotes" data-contact="@claimSourceContact" selected>@claimSource.Name</option>
+                                }
+                                @foreach (var choice in Model.ClaimSourceChoices)
+                                {
+                                    var choiceContact = string.Join(" · ", new[] { choice.ContactPerson, choice.Telephone, choice.Email }.Where(part => !string.IsNullOrWhiteSpace(part)));
+                                    <option value="@choice.OrganizationId" data-notes="@choice.NotesOnEveryCase" data-contact="@choiceContact" selected="@(choice.OrganizationId == claimSource?.ClaimSourceId)">@choice.Name</option>
+                                }
+                            </select>
+                        }</div>
+                    <div class="fc ro"><span class="lbl">@Frame.ClaimSourceContact</span><div class="@ValueClass(claimSourceContact)" data-claim-source-contact>@Value(claimSourceContact)</div></div>
                 </div>
             </div>
             <div class="sub-panel"><h3>Claimant</h3>
@@ -275,15 +293,21 @@
                 <div class="fc">@{ Lbl("f-principal-notes", Frame.PrincipalNotesThisCase); }<div class="@ValueClass(caseNotes?.PrincipalNotes) multi">@Value(caseNotes?.PrincipalNotes)</div>@if (mayEdit){<textarea id="f-principal-notes" class="fi" name="principalNotes" form="case-edit-form" maxlength="4000">@caseNotes?.PrincipalNotes</textarea>}</div>
                 @if (!string.IsNullOrWhiteSpace(notes.ClaimSourceNotes))
                 {
-                    <div class="fc ro idn rec-notes" data-record-notes="claim-source"><span class="lbl">@Frame.ClaimSourceNotes<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv multi">@notes.ClaimSourceNotes</div></div>
+                    <div class="fc ro idn rec-notes" data-record-notes="claim-source"><span class="lbl">@Frame.ClaimSourceNotes<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv multi" data-record-notes-text>@notes.ClaimSourceNotes</div></div>
+                }
+                else if (mayEdit)
+                {
+                    @* While editing, an empty slot the claim source select can fill. *@
+                    <div class="fc ro idn rec-notes" data-record-notes-slot="claim-source" hidden><span class="lbl">@Frame.ClaimSourceNotes<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv multi" data-record-notes-text></div></div>
                 }
                 <div class="fc">@{ Lbl("f-claim-source-notes", Frame.ClaimSourceNotesThisCase); }<div class="@ValueClass(caseNotes?.ClaimSourceNotes) multi">@Value(caseNotes?.ClaimSourceNotes)</div>@if (mayEdit){<textarea id="f-claim-source-notes" class="fi" name="claimSourceNotes" form="case-edit-form" maxlength="4000">@caseNotes?.ClaimSourceNotes</textarea>}</div>
             </div>
         </div>
 
-        <div class="accident">
-            <div class="fg">
+        <div class="accident" data-accident-band>
+            <div class="fg g2">
                 <div class="fc">@{ Lbl("f-circumstances", Frame.AccidentCircumstances); }<div class="@ValueClass(circumstances) multi">@Value(circumstances)</div>@if (mayEdit){<textarea id="f-circumstances" class="fi" name="accidentCircumstances" form="case-edit-form" maxlength="2000">@circumstances</textarea>}</div>
+                <div class="fc" data-client-notes>@{ Lbl("f-client-notes", Frame.NotesFromClient); }<div class="@ValueClass(caseNotes?.ClientNotes) multi">@Value(caseNotes?.ClientNotes)</div>@if (mayEdit){<textarea id="f-client-notes" class="fi" name="clientNotes" form="case-edit-form" maxlength="4000">@caseNotes?.ClientNotes</textarea>}</div>
             </div>
         </div>
     </div>

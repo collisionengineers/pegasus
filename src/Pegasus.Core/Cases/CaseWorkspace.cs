@@ -158,7 +158,8 @@ public sealed record CaseWorkspaceOverview(
     CaseWorkspaceClaimSource? ClaimSource,
     CaseWorkspaceRepairer? Repairer = null,
     string? PrincipalNotes = null,
-    string? ClaimSourceNotes = null);
+    string? ClaimSourceNotes = null,
+    string? ClientNotes = null);
 
 public sealed record CaseWorkspaceInspection(
     CaseReportAddressTreatment? AddressTreatment,
@@ -371,12 +372,28 @@ public static class CaseWorkspaceChangeSummary
         ArgumentNullException.ThrowIfNull(afterFields);
 
         List<string> parts = [];
+        var claimSourceNamed = false;
         foreach (var property in typeof(CaseEditableData).GetProperties())
         {
-            if (!Equals(property.GetValue(before), property.GetValue(after)))
+            if (Equals(property.GetValue(before), property.GetValue(after)))
             {
-                parts.Add(Humanise(property.Name));
+                continue;
             }
+
+            // The claim source is one choice copied as a six-member snapshot;
+            // the line names the choice once, by the source it now is.
+            if (IsClaimSourceSnapshot(property.Name))
+            {
+                if (!claimSourceNamed)
+                {
+                    claimSourceNamed = true;
+                    parts.Add($"Claim source: {after.ClaimSourceName ?? "none"}");
+                }
+
+                continue;
+            }
+
+            parts.Add(Humanise(property.Name));
         }
 
         foreach (var name in beforeFields.Keys.Union(afterFields.Keys, StringComparer.Ordinal).Order(StringComparer.Ordinal))
@@ -408,6 +425,10 @@ public static class CaseWorkspaceChangeSummary
 
         return summary.Length <= MaximumLength ? summary : summary[..(MaximumLength - 1)] + "…";
     }
+
+    private static bool IsClaimSourceSnapshot(string propertyName) =>
+        propertyName.StartsWith(nameof(CaseEditableData.ClaimSourceId)[..^2], StringComparison.Ordinal)
+        && propertyName != nameof(CaseEditableData.ClaimSourceNotes);
 
     /// <summary>
     /// "vehicle_registration", "VehicleRegistration" and "assessment.outcome" all
@@ -627,6 +648,7 @@ public static class CaseWorkspacePolicy
                 AccidentCircumstances = overview.AccidentCircumstances,
                 PrincipalNotes = overview.PrincipalNotes,
                 ClaimSourceNotes = overview.ClaimSourceNotes,
+                ClientNotes = overview.ClientNotes,
                 InstructionDate = overview.InstructionDate,
                 VatStatus = overview.VatStatus,
                 RepairerAddress = overview.RepairerAddress,

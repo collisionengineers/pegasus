@@ -48,6 +48,10 @@
     // attributes sit outside Razor's conditional-attribute rule (a null value
     // still renders `data-x=""`), so the announcement is composed only when
     // there is a record and any other page renders a plain main.
+    // The rail's remembered width is served in the first paint (no inline
+    // script under the CSP): site.js mirrors the choice into this cookie.
+    var railCollapsed = ShellPreferences.RailCollapsed(Context.Request);
+
     var record = ViewData["WorkingSetRecord"] as WorkingSetRecord;
     var recordAttributes = record is null
         ? null
@@ -73,7 +77,7 @@
 <body>
     <partial name="Shared/_LucideSprite" />
     <a class="skip-link" href="#main-content">Skip to main content</a>
-    <div class="app-shell" data-app-shell>
+    <div class="app-shell @(railCollapsed ? "rail-collapsed" : null)" data-app-shell>
         <header class="app-rail">
             <a class="brand" asp-page="/Index" aria-label="Pegasus home">
                 <img src="~/images/marks/pegasus-lockup.png" asp-append-version="true" alt="" aria-hidden="true" />
@@ -134,9 +138,10 @@
             </nav>
             <div class="rail-spacer"></div>
             @* The rail narrows to icons and counts (C3); site.js remembers the
-               choice per browser under pegasus.rail and gives the collapsed
-               links their label as a tooltip. Without script the rail stays open. *@
-            <button type="button" class="rail-collapse" data-rail-toggle aria-expanded="true" aria-label="@OperatorLabels.Shell.CollapseNavigation"
+               choice per browser in the pegasus-rail cookie, which this page
+               reads so the first paint is already narrow, and gives the
+               collapsed links their label as a tooltip. *@
+            <button type="button" class="rail-collapse" data-rail-toggle aria-expanded="@(railCollapsed ? "false" : "true")" aria-label="@(railCollapsed ? OperatorLabels.Shell.ExpandNavigation : OperatorLabels.Shell.CollapseNavigation)"
                     data-label-collapse="@OperatorLabels.Shell.CollapseNavigation" data-label-expand="@OperatorLabels.Shell.ExpandNavigation">
                 <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
                 <span>@OperatorLabels.Shell.Collapse</span>

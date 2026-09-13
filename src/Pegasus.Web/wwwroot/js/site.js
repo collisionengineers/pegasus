@@ -2065,10 +2065,44 @@
     render(tabs);
 })();
 
+// --- Layout preference cookies (Phase 5b) ------------------------------------
+// The server paints the rail width, the Case record's layout and folded panels
+// from first-party cookies, so nothing flashes open before this script runs
+// (the CSP allows no inline script). This is the one writer of those cookies:
+// Path=/, SameSite=Lax, Secure over HTTPS, readable by script by design; the
+// server allow-lists every value it reads (ShellPreferences).
+window.pegasusPreferences = (function () {
+    'use strict';
+    function read(name) {
+        var prefix = name + '=';
+        var parts = document.cookie ? document.cookie.split('; ') : [];
+        for (var i = 0; i < parts.length; i++) {
+            if (parts[i].indexOf(prefix) === 0) {
+                return parts[i].substring(prefix.length);
+            }
+        }
+        return null;
+    }
+    // A missing max-age writes a session cookie.
+    function write(name, value, maxAgeSeconds) {
+        var cookie = name + '=' + value + '; Path=/; SameSite=Lax';
+        if (maxAgeSeconds) {
+            cookie += '; Max-Age=' + maxAgeSeconds;
+        }
+        if (window.location.protocol === 'https:') {
+            cookie += '; Secure';
+        }
+        document.cookie = cookie;
+    }
+    return { read: read, write: write, year: 31536000 };
+})();
+
 // --- Rail collapse (v25 C3) ----------------------------------------------------
 // The Collapse control at the rail's foot narrows it to icons and counts;
-// the choice is per browser under localStorage "pegasus.rail". A collapsed
-// link carries its label as a title so the name is still readable.
+// the choice is per browser in the "pegasus-rail" cookie, which the server
+// reads for its first paint. The old localStorage "pegasus.rail" value only
+// seeds a missing cookie once. A collapsed link carries its label as a title
+// so the name is still readable.
 (function () {
     'use strict';
     var shell = document.querySelector('[data-app-shell]');
@@ -2076,17 +2110,26 @@
     if (!shell || !toggle) {
         return;
     }
+    var prefs = window.pegasusPreferences;
     var KEY = 'pegasus.rail';
+    var COOKIE = 'pegasus-rail';
     var links = Array.prototype.slice.call(shell.querySelectorAll('.primary-nav .nav-link'));
     var collapseLabel = toggle.getAttribute('data-label-collapse') || 'Collapse navigation';
     var expandLabel = toggle.getAttribute('data-label-expand') || 'Expand navigation';
 
     function stored() {
-        try {
-            return window.localStorage.getItem(KEY) === 'collapsed';
-        } catch (error) {
-            return false;
+        var value = prefs.read(COOKIE);
+        if (value === 'collapsed' || value === 'expanded') {
+            return value === 'collapsed';
         }
+        var legacy = false;
+        try {
+            legacy = window.localStorage.getItem(KEY) === 'collapsed';
+        } catch (error) {
+            legacy = false;
+        }
+        prefs.write(COOKIE, legacy ? 'collapsed' : 'expanded', prefs.year);
+        return legacy;
     }
 
     function apply(collapsed) {
@@ -2109,11 +2152,7 @@
     toggle.addEventListener('click', function () {
         collapsed = !collapsed;
         apply(collapsed);
-        try {
-            window.localStorage.setItem(KEY, collapsed ? 'collapsed' : 'open');
-        } catch (error) {
-            // The rail still narrows for this page when storage is refused.
-        }
+        prefs.write(COOKIE, collapsed ? 'collapsed' : 'expanded', prefs.year);
     });
 })();
 
@@ -2123,7 +2162,10 @@
 //   details[data-menu]       one open at a time; Escape or an outside click closes
 //   [data-dismiss]           removes the enclosing .notice (or [data-dismissable])
 //   [data-collapse="key"]    a panel whose [data-collapse-toggle] folds its body,
-//                            remembered under localStorage "pegasus.collapsed.<key>"
+//                            remembered in the "pegasus-collapsed" cookie (the
+//                            folded keys joined by "|", served in the first
+//                            paint); localStorage "pegasus.collapsed.<key>"
+//                            only seeds a missing cookie once
 //   [data-sticky-block]      measured into --sticky-h on its parent element
 (function () {
     'use strict';
@@ -2180,6 +2222,39 @@
         }
     });
 
+    var prefs = window.pegasusPreferences;
+    var COLLAPSED_COOKIE = 'pegasus-collapsed';
+    var LEGACY_PREFIX = 'pegasus.collapsed.';
+    var KEY_PATTERN = /^[a-z0-9.-]{1,40}$/;
+    var MAX_KEYS = 40;
+
+    function saveCollapsedKeys(keys) {
+        prefs.write(COLLAPSED_COOKIE, keys.slice(-MAX_KEYS).join('|'), prefs.year);
+    }
+
+    function collapsedKeys() {
+        var value = prefs.read(COLLAPSED_COOKIE);
+        if (value !== null) {
+            return value.split('|').filter(function (key) { return KEY_PATTERN.test(key); }).slice(0, MAX_KEYS);
+        }
+        var keys = [];
+        try {
+            for (var i = 0; i < window.localStorage.length; i++) {
+                var name = window.localStorage.key(i);
+                if (name && name.indexOf(LEGACY_PREFIX) === 0 && window.localStorage.getItem(name) === '1') {
+                    var legacyKey = name.substring(LEGACY_PREFIX.length);
+                    if (KEY_PATTERN.test(legacyKey) && keys.length < MAX_KEYS) {
+                        keys.push(legacyKey);
+                    }
+                }
+            }
+        } catch (error) {
+            keys = [];
+        }
+        saveCollapsedKeys(keys);
+        return keys;
+    }
+
     function bindCollapsible(root) {
         root.querySelectorAll('[data-collapse]').forEach(function (panel) {
             if (panel.dataset.collapseBound === 'true') {
@@ -2190,8 +2265,8 @@
                 return;
             }
             panel.dataset.collapseBound = 'true';
-            var key = 'pegasus.collapsed.' + panel.getAttribute('data-collapse');
-            var collapseLabel = toggle.getAttribute('aria-label') || 'Collapse section';
+            var key = panel.getAttribute('data-collapse');
+            var collapseLabel = toggle.getAttribute('data-label-collapse') || toggle.getAttribute('aria-label') || 'Collapse section';
             var expandLabel = toggle.getAttribute('data-label-expand') || 'Expand section';
 
             function apply(collapsed) {
@@ -2200,21 +2275,18 @@
                 toggle.setAttribute('aria-label', collapsed ? expandLabel : collapseLabel);
             }
 
-            var collapsed = false;
-            try {
-                collapsed = window.localStorage.getItem(key) === '1';
-            } catch (error) {
-                collapsed = false;
-            }
+            // The server already painted a folded panel from the cookie; the
+            // cookie is read again for a body mounted after load.
+            var collapsed = panel.classList.contains('is-collapsed') || collapsedKeys().indexOf(key) !== -1;
             apply(collapsed);
             toggle.addEventListener('click', function () {
                 collapsed = !collapsed;
                 apply(collapsed);
-                try {
-                    window.localStorage.setItem(key, collapsed ? '1' : '0');
-                } catch (error) {
-                    // The fold still applies for this page.
+                var keys = collapsedKeys().filter(function (other) { return other !== key; });
+                if (collapsed && KEY_PATTERN.test(key)) {
+                    keys.push(key);
                 }
+                saveCollapsedKeys(keys);
             });
         });
     }

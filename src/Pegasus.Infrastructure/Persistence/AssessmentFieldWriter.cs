@@ -31,6 +31,7 @@ internal static class AssessmentFieldWriter
         string? confirmedBy)
     {
         ArgumentNullException.ThrowIfNull(context);
+        CaseFieldProposalWriter.Track(context, caseId, path, value, recordedByKind, recordedBy, recordedAtUtc);
         if (existing is null)
         {
             var created = new CaseAssessmentFieldEntity
@@ -142,6 +143,7 @@ internal static class AssessmentWriteSet
             {
                 if (existing is not null)
                 {
+                    CaseFieldProposalWriter.Track(context, caseId, path, null, actor.Kind, actor.SubjectId, now);
                     context.CaseAssessmentFields.Remove(existing);
                     fields.Remove(existing);
                 }

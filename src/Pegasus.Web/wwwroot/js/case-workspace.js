@@ -58,18 +58,28 @@
         return block.getBoundingClientRect().bottom;
     }
 
+    // The layout is served in the first paint from the session cookie
+    // "pegasus-case-layout" (data-layout on the record). A session's earlier
+    // choice kept under sessionStorage seeds a missing cookie once.
+    var layoutCookie = 'pegasus-case-layout';
     function readLayout() {
-        try {
-            return window.sessionStorage.getItem(layoutKey) === 'tabs' ? 'tabs' : 'scroll';
-        } catch (_) {
-            return 'scroll';
+        var served = record.getAttribute('data-layout') === 'tabs' ? 'tabs' : 'scroll';
+        var prefs = window.pegasusPreferences;
+        if (!prefs || prefs.read(layoutCookie) !== null) {
+            return served;
         }
+        var legacy = served;
+        try {
+            legacy = window.sessionStorage.getItem(layoutKey) === 'tabs' ? 'tabs' : served;
+        } catch (_) {
+            legacy = served;
+        }
+        prefs.write(layoutCookie, legacy);
+        return legacy;
     }
     function saveLayout() {
-        try {
-            window.sessionStorage.setItem(layoutKey, layout);
-        } catch (_) {
-            // The chosen view still applies for this page.
+        if (window.pegasusPreferences) {
+            window.pegasusPreferences.write(layoutCookie, layout);
         }
     }
 
@@ -1422,6 +1432,44 @@
 
 
 // --- report -----------------------------------------------------------------
+// --- overview: the claim source select ----------------------------------------
+// Choosing another claim source while editing shows that record's contact line
+// and its "Notes on every Case" at once, from the option's own data attributes
+// (no request); Save records the choice and the server renders the same.
+(function () {
+    'use strict';
+
+    function bind(root) {
+        root.querySelectorAll('[data-claim-source-select]').forEach(function (select) {
+            if (select.dataset.claimSourceBound === 'true') {
+                return;
+            }
+            select.dataset.claimSourceBound = 'true';
+            var section = select.closest('[data-section="overview"]') || document;
+            select.addEventListener('change', function () {
+                var option = select.options[select.selectedIndex];
+                var notes = option ? option.getAttribute('data-notes') || '' : '';
+                var contact = option ? option.getAttribute('data-contact') || '' : '';
+                var contactCell = section.querySelector('[data-claim-source-contact]');
+                if (contactCell) {
+                    contactCell.textContent = contact || '—';
+                    contactCell.classList.toggle('empty', !contact);
+                }
+                var cell = section.querySelector('[data-record-notes="claim-source"], [data-record-notes-slot="claim-source"]');
+                if (cell) {
+                    var text = cell.querySelector('[data-record-notes-text]');
+                    if (text) {
+                        text.textContent = notes;
+                    }
+                    cell.hidden = !notes;
+                }
+            });
+        });
+    }
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
+
 // --- settlement: the Decisions strip -----------------------------------------
 // The outcome and roadworthiness selects show and hide the rows that only
 // apply to them; Accept copies an AI proposal into the row's own control.
@@ -1449,12 +1497,21 @@
                     element.hidden = !on;
                 });
             }
+            // An awaiting AI proposal leaves its control empty until accepted,
+            // so the rows it implies follow the proposal until a person decides.
+            function decided(path, control) {
+                if (control && control.value) {
+                    return control.value;
+                }
+                var awaiting = section.querySelector('[data-proposal="' + path + '"][data-proposal-status="Awaiting"] [data-proposal-value]');
+                return awaiting ? awaiting.getAttribute('data-proposal-value') : '';
+            }
             function sync() {
                 if (outcome) {
-                    show('total-loss', outcome.value === 'total_loss');
+                    show('total-loss', decided('assessment.outcome', outcome) === 'total_loss');
                 }
                 if (legal) {
-                    show('unroadworthy', legal.value === 'unroadworthy');
+                    show('unroadworthy', decided('assessment.legal_status', legal) === 'unroadworthy');
                 }
             }
             if (outcome) { outcome.addEventListener('change', sync); }

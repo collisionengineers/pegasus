@@ -92,6 +92,12 @@ public static class AssessmentVocabulary
     public const string EngineersComments = "narrative.engineers_comments";
     public const string ReportDiscloseGuideSource = "report.disclose_guide_source";
     public const string ReportValuationCommentary = "report.valuation_commentary";
+
+    /// <summary>
+    /// The valuation commentary itself, beside the flag that prints it: the
+    /// Engineer's own words, saved with the Case and frozen into the report.
+    /// </summary>
+    public const string ReportValuationCommentaryText = "report.valuation_commentary_text";
     public const string ReportIncludeUnrelatedDamage = "report.include_unrelated_damage";
     public const string ReportDateOverride = "report.date_override";
     public const string ReportDate = "report.report_date";
@@ -212,7 +218,7 @@ public static class AssessmentVocabulary
         new(VehicleTransmission, AssessmentFieldType.Enumerated, 20, IsFinding: false,
             Codes: ["manual", "automatic", "semi_automatic", "cvt", "unknown"]),
         new(VehicleColour, AssessmentFieldType.Text, 40, IsFinding: false),
-        new(VehicleBody, AssessmentFieldType.Text, 40, IsFinding: false),
+        new(VehicleBody, AssessmentFieldType.Text, 100, IsFinding: false),
         new(VehicleTaxExpiry, AssessmentFieldType.Date, 10, IsFinding: false),
         new(VehicleMotExpiry, AssessmentFieldType.Date, 10, IsFinding: false),
         new(VehicleAirbagsDeployed, AssessmentFieldType.Text, 200, IsFinding: false),
@@ -272,6 +278,7 @@ public static class AssessmentVocabulary
         new(StatementOfTruth, AssessmentFieldType.Text, 4000, IsFinding: false),
         new(ReportDiscloseGuideSource, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(ReportValuationCommentary, AssessmentFieldType.Flag, 5, IsFinding: false),
+        new(ReportValuationCommentaryText, AssessmentFieldType.Text, 4000, IsFinding: false),
         new(ReportIncludeUnrelatedDamage, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(ReportDateOverride, AssessmentFieldType.Flag, 5, IsFinding: false),
         new(ReportDate, AssessmentFieldType.Date, 10, IsFinding: false),
