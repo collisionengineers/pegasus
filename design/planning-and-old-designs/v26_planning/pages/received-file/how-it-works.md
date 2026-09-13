@@ -41,6 +41,22 @@ Separately, a **failed Case allocation** on the same page (`IntakeAllocationProj
 - **Unidentified resolve**: a Blocked receipt is a valid resolution target (`UnidentifiedResolutionTargetKind.BlockedIntake`), so an Unidentified item can be resolved "as" an already-blocked item.
 - Automation (MCP intake tools) can read the decision as `blocked_intake`.
 
+## How you get to the received-file record
+
+There is no list of received files and no rail entry. `/Intake/Details/{id}` is reached only by following a link from something that already knows the receipt id:
+
+| From | Link | When |
+| --- | --- | --- |
+| Cases › Unidentified tab | "Open received item" on a Blocked intake row | the only route that starts from a list; only Blocked receipts appear there |
+| Work Centre | the Blocked metric, via that tab | same rows |
+| Unidentified record | "View received item"; a candidate row in the resolve search; "Open image registration" | the Unidentified item's own receipt, or a receipt it may be resolved to |
+| Triage record | "View received item" (the Triage's origin receipt) | always |
+| Image-initiated Case record | "View received item" (the registration's origin receipt); the primary button when awaiting instruction | always |
+| Create case | "Open the received item" on the "This item cannot become a case" refusal; "Reject proposal" on a seeded proposal; the redirect after a refused acceptance | when creating from a received file |
+| Upload confirmation | the per-file outcome's attach-with-override and reversal actions (`UploadOutcome`) | after an upload |
+
+Not linked from: the Inbox message (attachments show their outcome label but do not link to the receipt), Search (returns Cases and image intakes only), Operations, the Case record. So a receipt that ended Unsupported, OCR required or Technical failure, and that is not the origin of a Triage, Unidentified or image record, has no page anyone can reach except through the upload confirmation at the moment it was uploaded. E-mailed material with those outcomes is reachable from nowhere.
+
 ## Implications
 
 - **Blocked is a human verdict, not a system failure.** Every real block has a person's reason behind it. The name and glossary suggest limits, custody and safety failures, but the code sends those to Unsupported and TechnicalFailure, which the Work Centre does not count at all. An unreadable PDF is therefore invisible on the Work Centre; a deliberately blocked one shows as a metric.
