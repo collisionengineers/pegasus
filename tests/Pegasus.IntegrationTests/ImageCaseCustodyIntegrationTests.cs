@@ -135,6 +135,8 @@ public sealed class ImageCaseCustodyIntegrationTests
         var caseId = await SeedCaseAsync(
             services, memberReceiptIds[0], "a.IMG26001", originalCaseId);
         var caseCustody = services.GetRequiredService<ICaseCustody>();
+        await caseCustody.CreateCaseRootAsync(
+            originalCaseId, "IMG26001", $"img-case-root:{originalCaseId:N}", CancellationToken.None);
         var caseRoot = await caseCustody.CreateLinkedAuditCaseRootAsync(
             caseId,
             "a.IMG26001",
