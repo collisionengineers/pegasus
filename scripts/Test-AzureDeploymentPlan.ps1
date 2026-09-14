@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [ValidateSet('Local', 'Artifact', 'PreUpload', 'PreMigration', 'PreProvision')]
+    [ValidateSet('Local', 'Artifact', 'PreDeploy', 'PreMigration', 'PreProvision')]
     [string] $Mode,
 
     [string] $ManifestPath,
@@ -116,6 +116,30 @@ function Test-ArtifactManifest {
         }
     }
 
+    function Assert-ZipRootFile {
+        param(
+            [Parameter(Mandatory)][string] $ArchivePath,
+            [Parameter(Mandatory)][string] $RequiredFile
+        )
+
+        # App Service run-from-package mounts the zip root as the site root, so
+        # the entry must be exactly the file name: no directory prefix.
+        $archive = [IO.Compression.ZipFile]::OpenRead($ArchivePath)
+        try {
+            $hasRequiredFile = @(
+                $archive.Entries | Where-Object {
+                    [StringComparer]::Ordinal.Equals($_.FullName, $RequiredFile)
+                }
+            ).Count -eq 1
+            if (-not $hasRequiredFile) {
+                throw "$(Split-Path -Leaf $ArchivePath) must contain $RequiredFile at its root."
+            }
+        }
+        finally {
+            $archive.Dispose()
+        }
+    }
+
     $resolvedManifest = Resolve-Path -LiteralPath $Path
     $manifest = Get-Content -LiteralPath $resolvedManifest -Raw | ConvertFrom-Json
     if ($manifest.schemaVersion -ne 3) {
@@ -127,8 +151,8 @@ function Test-ArtifactManifest {
     if ($manifest.sourceStatus -ne 'clean') {
         throw 'The release manifest must record a clean source status.'
     }
-    if (-not $manifest.artifacts -or $manifest.artifacts.Count -ne 4) {
-        throw 'The release manifest must contain exactly the bootstrap Web ZIP, Web OCI archive, Worker ZIP, and migration bundle.'
+    if (-not $manifest.artifacts -or $manifest.artifacts.Count -ne 3) {
+        throw 'The release manifest must contain exactly the Web ZIP, Worker ZIP, and migration bundle.'
     }
 
     $manifestDirectory = Split-Path -Parent $resolvedManifest
@@ -138,7 +162,7 @@ function Test-ArtifactManifest {
         throw "The release manifest must carry $($migrationBundle.RuntimeIdentifier)/$($migrationBundle.Name) for this workstation."
     }
     $migrationBundleName = $migrationBundle.Name
-    $requiredNames = @('web.zip', 'web-image.tar.gz', 'worker.zip', $migrationBundleName)
+    $requiredNames = @('web.zip', 'worker.zip', $migrationBundleName)
     foreach ($name in $requiredNames) {
         $entry = @($manifest.artifacts | Where-Object name -eq $name)
         if ($entry.Count -ne 1) {
@@ -164,28 +188,21 @@ function Test-ArtifactManifest {
     }
 
     Assert-ZipRoot -ArchivePath (Join-Path $manifestDirectory 'worker.zip') -RequiredRoot '.azurefunctions/'
+    # ADR-0049: web.zip is a framework-dependent publish that App Service runs
+    # from package on the platform DOTNETCORE|10.0 stack; the entry assembly and
+    # its runtimeconfig must sit at the zip root.
+    Assert-ZipRootFile -ArchivePath (Join-Path $manifestDirectory 'web.zip') -RequiredFile 'Pegasus.Web.dll'
+    Assert-ZipRootFile -ArchivePath (Join-Path $manifestDirectory 'web.zip') -RequiredFile 'Pegasus.Web.runtimeconfig.json'
 
+    $webPackage = $manifest.PSObject.Properties['webPackage']
     if (
-        $manifest.webImage.repository -ne 'pegasus/web' -or
-        $manifest.webImage.tag -ne $manifest.sourceRevision -or
-        $manifest.webImage.digest -notmatch '^sha256:[0-9a-f]{64}$' -or
-        $manifest.webImage.platform -ne 'linux/amd64' -or
-        $manifest.webImage.archive -ne 'web-image.tar.gz'
+        $null -eq $webPackage -or
+        $webPackage.Value.name -cne 'web.zip' -or
+        $webPackage.Value.runtimeIdentifier -cne 'linux-x64' -or
+        $webPackage.Value.selfContained -ne $false -or
+        $webPackage.Value.hostStack -cne 'DOTNETCORE|10.0'
     ) {
-        throw 'The release manifest Web OCI identity is incomplete or invalid.'
-    }
-    $imageArchive = Join-Path $manifestDirectory 'web-image.tar.gz'
-    $descriptor = & oras manifest fetch --oci-layout "${imageArchive}:$($manifest.webImage.tag)" --descriptor | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0 -or $descriptor.digest -ne $manifest.webImage.digest) {
-        throw 'The Web OCI archive descriptor differs from the release manifest.'
-    }
-    $imageManifest = & oras manifest fetch --oci-layout "${imageArchive}:$($manifest.webImage.tag)" | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0 -or $imageManifest.config.digest -notmatch '^sha256:[0-9a-f]{64}$') {
-        throw 'The Web OCI config descriptor is invalid.'
-    }
-    $imageConfig = & oras blob fetch --oci-layout --output - "${imageArchive}@$($imageManifest.config.digest)" | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0 -or "$($imageConfig.os)/$($imageConfig.architecture)" -ne $manifest.webImage.platform) {
-        throw 'The inspected Web OCI platform differs from the release manifest.'
+        throw 'The release manifest Web package identity is incomplete or invalid.'
     }
 }
 
@@ -211,37 +228,65 @@ Assert-Text $mainBicep "param\s+workerActivation\s+string\s*=\s*'disabled'" 'Bas
 Assert-Text $mainBicep 'workerActivation:\s*workerActivation' 'The main template must pass the Worker activation input to the platform module.'
 Assert-Text $parameters '"workerActivation"\s*:\s*\{\s*"value"\s*:\s*"\$\{PEGASUS_WORKER_ACTIVATION=disabled\}"\s*\}' 'The azd parameter map must default PEGASUS_WORKER_ACTIVATION to disabled.'
 Assert-Text $parameters 'GRAPH_CHANGE_NOTIFICATION_CLIENT_STATE_SECRET_URI' 'The Graph notification clientState must be supplied as a versioned secret URI.'
-Assert-Text $platformBicep "webImageReference\s*=\s*'\$\{containerRegistryName\}\.azurecr\.io/pegasus/web@\$\{webImageDigest\}'" 'The template must own the exact ACR and repository image prefix.'
-Assert-Text $platformBicep "webActivation\s*==\s*'approved'[\s\S]*?startsWith\(webImageDigest,\s*'sha256:'\)[\s\S]*?length\(webImageDigest\)\s*==\s*71[\s\S]*?length\(webRevisionSuffix\)\s*==\s*12" 'Approved Web activation must require a sha256 digest and exact revision suffix.'
+Assert-Text $platformBicep "webActivationApproved\s*=\s*webActivation\s*==\s*'approved'" 'Only the exact approved value may create the production Web App.'
+Assert-Text $mainBicep "param\s+webLocation\s+string\s*=\s*''" 'The main template must accept an optional Web region that defaults to the platform region.'
+Assert-Text $mainBicep "webLocation:\s*empty\(webLocation\)\s*\?\s*location\s*:\s*webLocation" 'The main template must resolve the Web region to the platform region when unset.'
+Assert-Text $parameters '"webLocation"\s*:\s*\{\s*"value"\s*:\s*"\$\{PEGASUS_WEB_LOCATION=\}"\s*\}' 'The azd parameter map must map PEGASUS_WEB_LOCATION with an empty default.'
 Assert-Text $platformBicep "workerActivationApproved\s*=\s*workerActivation\s*==\s*'approved-live-worker'" 'Only the exact approved-live-worker value may enable the production Worker.'
 Assert-Text $platformBicep "scaleAndConcurrency:\s*\{[\s\S]*?instanceMemoryMB:\s*2048[\s\S]*?alwaysReady:\s*\[[\s\S]*?name:\s*'function:UnifiedWorkFunction'[\s\S]*?instanceCount:\s*1" 'The Worker must retain one 2 GiB always-ready unified queue consumer.'
-Assert-Text $platformBicep "resource\s+webContainerApp[\s\S]*?if\s*\(webActivationApproved\)" 'The Web Container App must be conditional on approved activation.'
-Assert-Text $platformBicep "image:\s*webImageReference" 'The Container App must use the exact supplied digest reference.'
-Assert-Text $platformBicep "activeRevisionsMode:\s*'Single'" 'The Container App must use one active revision.'
-Assert-Text $platformBicep "targetPort:\s*8080" 'The Container App ingress must target port 8080.'
-Assert-Text $platformBicep "minReplicas:\s*1[\s\S]*?maxReplicas:\s*1" 'The Web Container App must retain exactly one always-warm replica.'
-Assert-Text $platformBicep "Graph__ChangeNotificationClientState'[\s\S]*?secretRef:\s*'graph-change-notification-client-state'" 'The Web callback must receive clientState only through its Key Vault-backed secret.'
-Assert-Text $platformBicep "Graph__ChangeNotificationUrl'[\s\S]*?/hooks/microsoft-graph/mail" 'The Worker must maintain the exact Web Graph callback URL.'
+# ADR-0049: Web is a code-deployed Linux App Service Web App. The plan is
+# unconditional (fixed compute, resizable within Basic); the site is created
+# only when activation is approved.
+$webPlanMatches = [regex]::Matches($platformBicep, "(?ms)^resource webPlan 'Microsoft\.Web/serverfarms@[^']+' = \{.*?^\}")
+if ($webPlanMatches.Count -ne 1) {
+    throw 'The production template must declare exactly one Web App Service plan.'
+}
+$webPlanResource = $webPlanMatches[0].Value
+Assert-Text $webPlanResource "location:\s*webLocation" 'The Web plan must be placed in the Web region.'
+Assert-Text $webPlanResource "kind:\s*'linux'" 'The Web plan must be a Linux plan.'
+Assert-Text $webPlanResource "sku:\s*\{\s*name:\s*'B1',\s*tier:\s*'Basic',\s*capacity:\s*1\s*\}" 'The Web plan must be exactly one B1 Basic instance.'
+Assert-Text $webPlanResource "reserved:\s*true" 'The Web plan must be reserved for Linux.'
+$webAppMatches = [regex]::Matches($platformBicep, "(?ms)^resource webApp 'Microsoft\.Web/sites@[^']+' = if \(webActivationApproved\) \{.*?^\}")
+if ($webAppMatches.Count -ne 1) {
+    throw 'The Web App must be declared exactly once and conditional on approved activation.'
+}
+$webAppResource = $webAppMatches[0].Value
+Assert-Text $webAppResource "location:\s*webLocation" 'The Web App must be placed in the Web region.'
+Assert-Text $webAppResource "kind:\s*'app,linux'" 'The Web App must be a Linux code app.'
+Assert-Text $webAppResource "serverFarmId:\s*webPlan\.id" 'The Web App must run on the Web plan.'
+Assert-Text $webAppResource "httpsOnly:\s*true" 'The Web App must be HTTPS only.'
+Assert-Text $webAppResource "linuxFxVersion:\s*'DOTNETCORE\|10\.0'" 'The Web App must run on the platform DOTNETCORE|10.0 stack.'
+Assert-Text $webAppResource "alwaysOn:\s*true" 'The Web App must be Always On.'
+Assert-Text $webAppResource "ftpsState:\s*'Disabled'" 'The Web App must disable FTPS.'
+Assert-Text $webAppResource "minTlsVersion:\s*'1\.2'" 'The Web App must require TLS 1.2.'
+Assert-Text $webAppResource "healthCheckPath:\s*'/health/ready'" 'The Web App health check must probe /health/ready.'
+Assert-Text $webAppResource "keyVaultReferenceIdentity:\s*webIdentity\.id" 'The Web App must resolve Key Vault references through the Web identity.'
+Assert-Text $webAppResource "name:\s*'WEBSITE_RUN_FROM_PACKAGE',\s*value:\s*'1'" 'The Web App must run from the deployed package.'
+Assert-Text $webAppResource "name:\s*'SCM_DO_BUILD_DURING_DEPLOYMENT',\s*value:\s*'false'" 'The Web App must never build on the host.'
+Assert-Text $webAppResource "name:\s*'ASPNETCORE_HTTP_PORTS',\s*value:\s*'8080'[\s\S]*?name:\s*'WEBSITES_PORT',\s*value:\s*'8080'" 'The Web App and Kestrel must agree on port 8080.'
+Assert-Text $webAppResource "Graph__ChangeNotificationClientState',\s*value:\s*'@Microsoft\.KeyVault\(SecretUri=\$\{graphChangeNotificationClientStateSecretUri\}\)'" 'The Web callback must receive clientState only through its Key Vault reference.'
+Assert-Text $webAppResource "userAssignedIdentities:\s*\{\s*'\$\{webIdentity\.id\}':\s*\{\}\s*\}" 'The Web App must carry the Web user-assigned identity.'
+Assert-TextAbsent $webAppResource "(?i)docker|containerapp|azurecr" 'The Web App must not reference a container image or registry.'
+Assert-Text $platformBicep "resource\s+webAppScmBasicAuth[\s\S]*?name:\s*'scm'[\s\S]*?allow:\s*false" 'Kudu basic publishing credentials must stay disabled.'
+Assert-Text $platformBicep "resource\s+webAppFtpBasicAuth[\s\S]*?name:\s*'ftp'[\s\S]*?allow:\s*false" 'FTP basic publishing credentials must stay disabled.'
+Assert-Text $platformBicep "webHostName\s*=\s*'\$\{prefix\}-web-\$\{suffix\}\.azurewebsites\.net'" 'The public origin must be the template-owned default Web App hostname.'
+Assert-Text $platformBicep "webPublicOrigin\s*=\s*'https://\$\{webHostName\}/'" 'The public origin must be derived from the template-owned Web hostname.'
+Assert-Text $platformBicep "Graph__ChangeNotificationUrl',\s*value:\s*'\$\{webPublicOrigin\}hooks/microsoft-graph/mail'" 'The Worker must maintain the exact Web Graph callback URL at the public origin.'
 Assert-Text $platformBicep "ApprovedInboxPollSchedule'[\s\S]*?value:\s*'0 \*/5 \* \* \* \*'" 'Approved Inbox polling must be five-minute recovery, not the ordinary intake path.'
-# Raised from 0.5 vCPU / 1 GiB on the operator's decision (2026-08-19,
-# DELIV-012) when the report renderer began running in process in this
-# container: the renderer shares the app's CPU and memory, Container Apps
-# hard-OOM-kills rather than throttling, and the app runs a single always-warm
-# replica. The exact pair stays asserted so a later change cannot drift the
-# sizing silently.
-Assert-Text $platformBicep "cpu:\s*json\('1\.0'\)[\s\S]*?memory:\s*'2Gi'" 'The Web Container App must use 1.0 vCPU and 2 GiB.'
-Assert-Text $platformBicep "sku:\s*\{\s*name:\s*'Basic'\s*\}[\s\S]*?adminUserEnabled:\s*false" 'The production ACR must be Basic with admin credentials disabled.'
-Assert-Text $platformBicep "roleDefinitionId:\s*acrPullRole" 'The Web identity must receive AcrPull at the production ACR.'
+Assert-TextAbsent $combined "(?i)Microsoft\.App/|Microsoft\.ContainerRegistry/|acrPull|containerRegistry" 'ADR-0049: Container Apps and the container registry have left the template.'
 Assert-Text $platformBicep "queueDataMessageSenderRole\s*=\s*subscriptionResourceId\('Microsoft.Authorization/roleDefinitions',\s*'c6a89b2d-59bc-44d0-9896-0f6e12d7b80a'\)" 'The Web must use the built-in Storage Queue Data Message Sender role.'
 Assert-Text $platformBicep "resource\s+webIntakeQueueSender[\s\S]*?scope:\s*intakeQueue[\s\S]*?roleDefinitionId:\s*queueDataMessageSenderRole" 'The Web identity must receive sender-only access scoped to intake-work.'
 if ([regex]::Matches($platformBicep, 'roleDefinitionId:\s*monitoringMetricsPublisherRole').Count -ne 2) {
     throw 'Both Web and Worker identities must receive Monitoring Metrics Publisher at Application Insights.'
 }
-Assert-Text $platformBicep "server:\s*containerRegistry\.properties\.loginServer[\s\S]*?identity:\s*webIdentity\.id" 'The Container App must pull from ACR through the Web user-assigned identity.'
-Assert-Text $mainBicep 'WEB_CONTAINER_APP_FQDN' 'The Container App FQDN must be exported.'
-Assert-Text $mainBicep 'CONTAINER_REGISTRY_LOGIN_SERVER' 'The ACR login server must be exported.'
-Assert-Text $azureYaml "host:\s*containerapp" 'azure.yaml must select Container Apps for Web.'
-Assert-TextAbsent $combined "(?im)^\s*SCM_DO_BUILD_DURING_DEPLOYMENT\s*[:=]" 'Remote build is prohibited.'
+foreach ($output in @('WEB_APP_NAME', 'WEB_APP_HOST_NAME', 'WEB_PLAN_NAME', 'WEB_LOCATION')) {
+    Assert-Text $mainBicep "output\s+$output\s+string" "The main template must export $output."
+}
+Assert-Text $azureYaml "host:\s*appservice" 'azure.yaml must select App Service for Web.'
+Assert-TextAbsent $azureYaml "(?s)web:.*?remoteBuild:\s*true.*?worker:" 'The Web service must not request a remote build.'
+# The Web App's SCM_DO_BUILD_DURING_DEPLOYMENT=false is asserted above; any
+# other spelling of a host build, in any deployment file, is prohibited.
+Assert-TextAbsent ($combined.Replace("{ name: 'SCM_DO_BUILD_DURING_DEPLOYMENT', value: 'false' }", '')) "SCM_DO_BUILD_DURING_DEPLOYMENT|ENABLE_ORYX_BUILD" 'Remote build is prohibited.'
 Assert-TextAbsent $combined "(?i)offline-replay|rg-pegasus-dev|pegasusdev" 'Azure deployment files must not contain a development/offline target.'
 Assert-Text $platformBicep 'transportStorageName' 'The transport/deployment storage account is missing.'
 Assert-Text $platformBicep 'custodyStorageName' 'The custody/protection storage account is missing.'
@@ -296,11 +341,10 @@ function Get-AzdEnvironmentMap {
 Assert-Text $platformBicep 'retentionInDays:\s*31' 'Log Analytics retention must be exactly 31 days.'
 Assert-Text $mainBicep 'LOG_ANALYTICS_WORKSPACE_NAME' 'The Log Analytics workspace name must be exported for exact post-provision configuration.'
 Assert-Text $platformBicep "APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING'[\s\S]*?value:\s*'true'" 'Adaptive sampling must be enabled for production telemetry.'
-Assert-TextAbsent $platformBicep "resource\s+webPlan\b|name:\s*'P0v4'|kind:\s*'app,linux'" 'The superseded App Service Web route is prohibited.'
 Assert-TextAbsent $platformBicep '4633458b-17de-408a-b874-0445c86b69e6' 'Vault-wide Key Vault Secrets User grants are prohibited; exact secret grants occur only after the secret census.'
 Assert-Text $platformBicep 'Microsoft\.Insights/actionGroups' 'The production action group is missing.'
 Assert-Text $platformBicep 'Microsoft\.Insights/metricAlerts' 'The production platform metric alert is missing.'
-Assert-Text $platformBicep "metricNamespace:\s*'Microsoft\.App/containerapps'[\s\S]*?metricName:\s*'Requests'[\s\S]*?name:\s*'StatusCodeCategory'[\s\S]*?values:\s*\['5xx'\]" 'The Web 5xx alert must use the Container Apps Requests metric and status category.'
+Assert-Text $platformBicep "resource\s+webHttp5xxAlert[\s\S]*?scopes:\s*\[webApp\.id\][\s\S]*?targetResourceType:\s*'Microsoft\.Web/sites'[\s\S]*?metricNamespace:\s*'Microsoft\.Web/sites'[\s\S]*?metricName:\s*'Http5xx'" 'The Web 5xx alert must use the App Service Http5xx metric on the Web App.'
 Assert-Text $platformBicep 'Microsoft\.Insights/scheduledQueryRules' 'The production application exception alert is missing.'
 Assert-Text $mainBicep "amount:\s*75" 'The monthly production budget must be GBP 75.'
 foreach ($threshold in @(50, 80, 100)) {
@@ -409,16 +453,16 @@ else {
     'true'
 }
 
-if ($Mode -in @('Artifact', 'PreUpload', 'PreMigration')) {
+if ($Mode -in @('Artifact', 'PreDeploy', 'PreMigration')) {
     if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
         throw '-ManifestPath is required in Artifact mode.'
     }
     Test-ArtifactManifest -Path $ManifestPath
 }
 
-if ($Mode -in @('PreUpload', 'PreMigration')) {
+if ($Mode -in @('PreDeploy', 'PreMigration')) {
     if ($ManifestSha256 -notmatch '^[0-9a-fA-F]{64}$') {
-        throw '-ManifestSha256 must be the operator-approved 64-character SHA-256 in PreUpload and PreMigration modes.'
+        throw '-ManifestSha256 must be the operator-approved 64-character SHA-256 in PreDeploy and PreMigration modes.'
     }
     $actualManifestSha256 = (Get-FileHash -LiteralPath (Resolve-Path -LiteralPath $ManifestPath) -Algorithm SHA256).Hash
     if (-not $actualManifestSha256.Equals($ManifestSha256, [StringComparison]::OrdinalIgnoreCase)) {
@@ -435,7 +479,7 @@ if ($Mode -eq 'PreMigration') {
     $required = @(
         'AZURE_SUBSCRIPTION_ID', 'AZURE_TENANT_ID', 'AZURE_RESOURCE_GROUP', 'AZURE_SQL_SERVER_FQDN',
         'AZURE_SQL_DATABASE_NAME', 'WEB_IDENTITY_CLIENT_ID', 'WORKER_IDENTITY_CLIENT_ID',
-        'CONTAINER_REGISTRY_NAME', 'CONTAINER_REGISTRY_LOGIN_SERVER')
+        'WORKER_APP_NAME')
     foreach ($key in $required) {
         if ($values -notmatch "(?m)^$key=") { throw "azd environment $Environment is missing $key." }
     }
@@ -515,6 +559,49 @@ if ($Mode -eq 'PreProvision') {
     if ($environmentValues['PEGASUS_WORKER_ACTIVATION'] -cne $WorkerActivation) {
         throw 'The desired Worker activation differs from the explicit PEGASUS_WORKER_ACTIVATION azd environment value.'
     }
+
+    # ADR-0049 quota pre-flight. The Web plan is fixed compute, so the Web
+    # region must hold App Service VM quota for the plan SKU before provision.
+    # On 2026-09-13 the subscription's per-SKU quota in the platform region
+    # read 0 for every SKU while other UK regions carried only an aggregate
+    # row, so the SKU row is checked first and the aggregate ('*') row only
+    # when no SKU row exists. Read-only.
+    $webRegion = if ($environmentValues.ContainsKey('PEGASUS_WEB_LOCATION') -and
+        -not [string]::IsNullOrWhiteSpace([string]$environmentValues['PEGASUS_WEB_LOCATION'])) {
+        [string]$environmentValues['PEGASUS_WEB_LOCATION']
+    }
+    elseif ($environmentValues.ContainsKey('AZURE_LOCATION') -and
+        -not [string]::IsNullOrWhiteSpace([string]$environmentValues['AZURE_LOCATION'])) {
+        [string]$environmentValues['AZURE_LOCATION']
+    }
+    else {
+        'uksouth'
+    }
+    if ($webRegion -cnotmatch '^[a-z0-9]+$') {
+        throw "The Web region '$webRegion' is not a lowercase Azure region name."
+    }
+    $webPlanSku = [regex]::Match($webPlanResource, "sku:\s*\{\s*name:\s*'([^']+)'").Groups[1].Value
+    if ([string]::IsNullOrWhiteSpace($webPlanSku)) { throw 'Unable to read the Web plan SKU from the template.' }
+    $quotaJson = (& az rest --method get `
+        --url "https://management.azure.com/subscriptions/$($environmentValues['AZURE_SUBSCRIPTION_ID'])/providers/Microsoft.Web/locations/$webRegion/providers/Microsoft.Quota/quotas?api-version=2023-02-01" `
+        --output json) -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw "Unable to read the App Service quota for $webRegion." }
+    try { $quotaItems = @(($quotaJson | ConvertFrom-Json).value) }
+    catch { throw "The App Service quota read-back for $webRegion was not valid JSON." }
+    $skuQuota = @($quotaItems | Where-Object { [string]$_.name -ceq $webPlanSku })
+    $aggregateQuota = @($quotaItems | Where-Object { [string]$_.name -ceq '*' })
+    $effectiveQuota = if ($skuQuota.Count -eq 1) { $skuQuota[0] } elseif ($aggregateQuota.Count -eq 1) { $aggregateQuota[0] } else { $null }
+    if ($null -eq $effectiveQuota) {
+        throw "The App Service quota list for $webRegion has neither a $webPlanSku row nor an aggregate row."
+    }
+    $effectiveLimit = [int]$effectiveQuota.properties.limit.value
+    if ($effectiveLimit -lt 1) {
+        $summary = ($quotaItems | Where-Object { [int]$_.properties.limit.value -gt 0 } |
+            ForEach-Object { "$($_.name)=$($_.properties.limit.value)" }) -join ', '
+        if ([string]::IsNullOrWhiteSpace($summary)) { $summary = 'none' }
+        throw "App Service $webPlanSku quota in $webRegion is $effectiveLimit ($($effectiveQuota.name) row). Request a quota increase for $webRegion or set PEGASUS_WEB_LOCATION to a region with quota. Rows with quota in ${webRegion}: $summary."
+    }
+    Write-Output "App Service quota pre-flight passed: $webPlanSku in $webRegion has limit $effectiveLimit ($($effectiveQuota.name) row)."
     if ($AllowWorkerDisable -and
         ($ExpectedLiveWorkerActivation -ne 'approved-live-worker' -or
             $WorkerActivation -ne 'disabled')) {

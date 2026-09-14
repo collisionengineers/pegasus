@@ -78,9 +78,9 @@ public static class AutomationMcpExtensions
                         server.AddSigningCertificate(certificate);
                     }
                 }
-                // TLS terminates at the Container Apps ingress
-                // (allowInsecure: false); the app listens on plain HTTP behind
-                // it, as does the in-process integration test server.
+                // TLS terminates at the App Service front end (the site is
+                // HTTPS only); the app listens on plain HTTP behind it, as
+                // does the in-process integration test server.
                 server.UseAspNetCore()
                     .EnableTokenEndpointPassthrough()
                     .EnableAuthorizationEndpointPassthrough()
