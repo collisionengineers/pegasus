@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Presentation;
 
@@ -11,8 +12,8 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// The v26 Valuation section on the one Case workspace: while editing, the
 /// Valuation month and one Get valuation button per source sit above the
-/// guide cards (Glass's, Brego and Super CAP have no provider yet and are
-/// inert; AI market research starts the existing job for the chosen month),
+/// guide cards and on each card (Glass's, Brego and Super CAP post to
+/// GetValuation; AI market research starts the existing job for the month),
 /// a pending job shows as a Researching card, and Apply as Engineer's Value
 /// posts the calculator's selection to the Core policy shape.
 /// </summary>
@@ -20,12 +21,12 @@ public sealed partial class CaseDetailsWebTests
 {
     /// <summary>
     /// The Get valuation tools render only inside the edit session: the month
-    /// input defaults to the current month and joins the research form, the
-    /// three sources without a provider are plain buttons bound to no form and
-    /// no handler, and only AI market research submits the research form.
+    /// input defaults to the current month and joins the research form, and
+    /// every source button submits that form: the three guide sources to
+    /// GetValuation, AI market research to the research handler.
     /// </summary>
     [Fact]
-    public async Task WhileEditingTheValuationSectionOffersTheMonthTheInertSourcesAndTheResearchForm()
+    public async Task WhileEditingTheValuationSectionOffersTheMonthTheGuideSourcesAndTheResearchForm()
     {
         var store = new RecordingCaseDetailsStore();
         var valuation = new RecordingValuationSection(store.CaseId);
@@ -41,12 +42,13 @@ public sealed partial class CaseDetailsWebTests
         Assert.Contains("form=\"case-market-research-form\"", month, StringComparison.Ordinal);
         Assert.Contains($"value=\"{currentMonth}\"", month, StringComparison.Ordinal);
 
-        foreach (var source in new[] { "glasses", "brego", "super-cap" })
+        foreach (var (source, name) in new[] { ("glasses", "Glasses"), ("brego", "Brego"), ("super-cap", "SuperCap") })
         {
             var button = ButtonTag(html, source);
-            Assert.Contains("type=\"button\"", button, StringComparison.Ordinal);
-            Assert.DoesNotContain("form=", button, StringComparison.Ordinal);
-            Assert.DoesNotContain("formaction=", button, StringComparison.Ordinal);
+            Assert.Contains("type=\"submit\"", button, StringComparison.Ordinal);
+            Assert.Contains("form=\"case-market-research-form\"", button, StringComparison.Ordinal);
+            Assert.Contains("handler=GetValuation", button, StringComparison.Ordinal);
+            Assert.Contains("source=" + name, button, StringComparison.Ordinal);
         }
         var research = ButtonTag(html, "ai-market-research");
         Assert.Contains("type=\"submit\"", research, StringComparison.Ordinal);
@@ -238,6 +240,87 @@ public sealed partial class CaseDetailsWebTests
         AssertEditorCommit(after, "case-valuation-form", operationKey, applied.ExpectedVersion);
     }
 
+    /// <summary>
+    /// A guide source with no connected provider answers with the not-connected
+    /// notice, records nothing, and leaves the edit session as it was.
+    /// </summary>
+    [Fact]
+    public async Task GetValuationWithoutAConnectedProviderAnswersWithANoticeAndRecordsNothing()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        using var workspace = await EnterEngineerEditModeAsync(store, valuation.Register);
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=GetValuation&source={ValuationSource.SuperCap}",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("operationKey", "4f4e4d4c4b4a49484746454443424140"),
+                ("editLeaseToken", store.LeaseToken),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("guideMonth", "2026-09")));
+
+        AssertValuationPrg(response, store.CaseId);
+        Assert.Empty(valuation.Saved);
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+        Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
+        Assert.Contains(
+            CaseWorkspaceLabels.Valuation.NotConnected(ValuationSource.SuperCap),
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains("data-case-editing=\"true\"", html, StringComparison.Ordinal);
+        Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
+    }
+
+    /// <summary>
+    /// A connected provider is asked for the Case's accepted registration and
+    /// mileage in the posted month, and its figures become a guide card through
+    /// the one valuation save; each guide card then carries its own button.
+    /// </summary>
+    [Fact]
+    public async Task GetValuationWithAConnectedProviderRecordsTheQuoteAsAGuideCard()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var valuation = new RecordingValuationSection(store.CaseId);
+        var provider = new FakeGuideValuationProvider(ValuationSource.Brego, 13_250m, 11_000m);
+        using var workspace = await EnterEngineerEditModeAsync(store, services =>
+        {
+            valuation.Register(services);
+            Substitute<ICaseDataQueries>(services, store);
+            services.AddSingleton<IGuideValuationProvider>(provider);
+        });
+        const string operationKey = "5f5e5d5c5b5a59585756555453525150";
+
+        using var response = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=GetValuation&source={ValuationSource.Brego}",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("operationKey", operationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("guideMonth", "2026-08")));
+
+        AssertValuationPrg(response, store.CaseId);
+        var asked = Assert.Single(provider.Requests);
+        Assert.Equal("AB12CDE", asked.Registration);
+        Assert.Equal(42_000L, asked.Mileage);
+        Assert.Equal(new DateOnly(2026, 8, 1), asked.GuideMonth);
+        var saved = Assert.Single(valuation.Saved);
+        Assert.Equal(ValuationSource.Brego, saved.Details.Source);
+        Assert.Equal(13_250m, saved.Details.RetailValue);
+        Assert.Equal(11_000m, saved.Details.TradeValue);
+        Assert.Equal(new DateOnly(2026, 8, 1), saved.Details.GuideMonth);
+        Assert.Equal(operationKey, saved.OperationKey);
+        Assert.Equal(store.LeaseToken, saved.EditLeaseToken);
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+        var cardButton = ButtonTagByHook(html, "data-valuation-card-get=\"brego\"");
+        Assert.Contains("handler=GetValuation", cardButton, StringComparison.Ordinal);
+        Assert.Contains("form=\"case-market-research-form\"", cardButton, StringComparison.Ordinal);
+    }
+
     /// <summary>The one input carrying <paramref name="name"/> and <paramref name="hook"/>.</summary>
     private static string InputTag(string html, string name, string hook)
     {
@@ -268,13 +351,28 @@ public sealed partial class CaseDetailsWebTests
     /// renders from seeded cards, presets and a pending job and its commands
     /// are recorded rather than persisted.
     /// </summary>
+    private sealed class FakeGuideValuationProvider(ValuationSource source, decimal retail, decimal trade)
+        : IGuideValuationProvider
+    {
+        public List<GuideValuationRequest> Requests { get; } = [];
+
+        public ValuationSource Source => source;
+
+        public Task<GuideValuationQuote> GetAsync(GuideValuationRequest request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(new GuideValuationQuote(retail, trade, request.GuideMonth, request.Mileage));
+        }
+    }
+
     private sealed class RecordingValuationSection(Guid caseId) :
         IListCaseValuations,
         IListAppliedValuations,
         IListValuationPresets,
         IMarketResearchQueries,
         IStartMarketResearch,
-        IApplyValuationCalculation
+        IApplyValuationCalculation,
+        ISaveValuation
     {
         private static readonly DateTimeOffset RecordedAt = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         private readonly List<CaseValuation> guides = [];
@@ -285,6 +383,8 @@ public sealed partial class CaseDetailsWebTests
 
         public List<ApplyValuationRequest> Applied { get; } = [];
 
+        public List<SaveValuationRequest> Saved { get; } = [];
+
         /// <summary>Substitutes every port the section reads and posts through.</summary>
         public void Register(IServiceCollection services)
         {
@@ -294,6 +394,7 @@ public sealed partial class CaseDetailsWebTests
             Substitute<IMarketResearchQueries>(services, this);
             Substitute<IStartMarketResearch>(services, this);
             Substitute<IApplyValuationCalculation>(services, this);
+            Substitute<ISaveValuation>(services, this);
         }
 
         public CaseValuation AddGuide(ValuationSource source, decimal retail, decimal trade)
@@ -383,6 +484,12 @@ public sealed partial class CaseDetailsWebTests
                 RecordedAt,
                 request.Reason,
                 "test"));
+        }
+
+        public Task<CaseValuation> ExecuteAsync(SaveValuationRequest request, CancellationToken cancellationToken)
+        {
+            Saved.Add(request);
+            return Task.FromResult(AddGuide(request.Details.Source, request.Details.RetailValue, request.Details.TradeValue));
         }
     }
 }

@@ -477,8 +477,11 @@ a non-destructive conflict.
   (`EXT-10`); sources are Glass's valuation, Brego and Super CAP manual entries,
   Cazana (disabled seam), Engineer's Value and AI market research (automation
   only) (D40). While editing, a **Valuation month** and one button per source
-  run the valuation for that month: Glass's, Brego and Super CAP are present but
-  inert until a provider exists, and **AI market research** creates a
+  run the valuation for that month, on the row and on each guide card:
+  Glass's, Brego and Super CAP post the source to one Get valuation handler,
+  which records the connected provider's guide figures as a card and answers
+  with a notice while that source has no provider, and **AI market
+  research** creates a
   `MarketResearch` job and shows a "Researching · {month}" card until it
   completes, a re-run replacing the card (D35,
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)).

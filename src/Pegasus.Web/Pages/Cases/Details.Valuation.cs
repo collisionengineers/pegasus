@@ -5,6 +5,7 @@ using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Cases;
 
@@ -12,8 +13,10 @@ namespace Pegasus.Web.Pages.Cases;
 /// The Valuation section's members (v26 § Valuation): the calculator on the
 /// Core policy shape — presets, a preview that Core computes, an Apply that
 /// adopts the Engineer's Value with its applied-history row — and the
-/// per-source Get valuation controls, of which only AI market research has a
-/// provider: it starts the existing Market research job for the chosen month.
+/// per-source Get valuation controls: AI market research starts the existing
+/// Market research job for the chosen month, and every guide source posts to
+/// GetValuation, which records the connected provider's figures as a card
+/// and answers with a notice while that source has no provider.
 /// </summary>
 public sealed partial class DetailsModel
 {
@@ -293,8 +296,7 @@ public sealed partial class DetailsModel
     }
 
     /// <summary>
-    /// AI market research for the chosen month, through the existing job. The
-    /// other guide buttons have no provider and post nothing (13 September).
+    /// AI market research for the chosen month, through the existing job.
     /// </summary>
     public async Task<IActionResult> OnPostStartMarketResearchAsync(
         Guid id,
@@ -333,6 +335,65 @@ public sealed partial class DetailsModel
         // The job takes no lease: the edit session carries on as it was.
         PreserveLeaseState(id, editLeaseToken);
         TempData["CaseStatus"] = "AI market research was started.";
+        return RedirectToValuation(id);
+    }
+
+    /// <summary>
+    /// Get valuation for one guide source (Glass's, Brego, Super CAP): the
+    /// connected provider's figures for the chosen month become a guide card
+    /// through the one valuation save, which ends and re-claims the edit
+    /// session like Add valuation. A source with no connected provider answers
+    /// with a notice and writes nothing.
+    /// </summary>
+    public async Task<IActionResult> OnPostGetValuationAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        long expectedVersion,
+        string? guideMonth,
+        ValuationSource source,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardValuationCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var today = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow);
+            var month = ParseGuideMonth(guideMonth) ?? new DateOnly(today.Year, today.Month, 1);
+            await fetchGuideValuation.ExecuteAsync(
+                new(id, expectedVersion, actor, operationKey, editLeaseToken!, source, month),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (GuideValuationProviderUnavailableException unavailable)
+        {
+            PreserveLeaseState(id, editLeaseToken);
+            TempData["CaseError"] = CaseWorkspaceLabels.Valuation.NotConnected(unavailable.ValuationSource);
+            return RedirectToValuation(id);
+        }
+        catch (Exception exception) when (exception is ArgumentException
+            or InvalidOperationException
+            or KeyNotFoundException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception, "The valuation was not recorded. Retry the operation.");
+            return RedirectToValuation(id);
+        }
+
+        ClearLeaseState();
+        await ReclaimLeaseAsync(id, cancellationToken);
+        TempData["CaseStatus"] = "The valuation was recorded.";
         return RedirectToValuation(id);
     }
 }
