@@ -501,7 +501,8 @@ public sealed record IntakeSourceReadResult(
     string ReaderKey = "unspecified_reader",
     string ReaderVersion = "1",
     IReadOnlyList<IntakeAttachmentDescriptor>? Attachments = null,
-    IReadOnlyList<IntakeContentFragment>? Companions = null)
+    IReadOnlyList<IntakeContentFragment>? Companions = null,
+    IntakeEmailSummary? RootEmail = null)
 {
     public IReadOnlyList<IntakeAssetCandidate> AssetCandidates => Assets ?? [];
 
@@ -527,6 +528,23 @@ public sealed record IntakeAttachmentDescriptor(
     long? ContentLength,
     int Ordinal = 0,
     string? SourceLabel = null);
+
+/// <summary>
+/// The submitted source as a message, when the source is an email: what the
+/// Correspondence tab and the mail viewer show for a polled message, read once
+/// by the reader so an uploaded <c>.eml</c> can be retained the same way.
+/// </summary>
+public sealed record IntakeEmailSummary(
+    string? SenderAddress,
+    string? SenderDisplayName,
+    IReadOnlyList<string> ToAddresses,
+    IReadOnlyList<string> CcAddresses,
+    IReadOnlyList<string> ReplyToAddresses,
+    string? Subject,
+    string? BodyPlainText,
+    IReadOnlyList<RetainedMailboxAttachment> Attachments,
+    string? ThreadIdentity,
+    DateTimeOffset? SentAtUtc);
 
 public sealed record IntakeAssetRecord(
     Guid Id,

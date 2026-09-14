@@ -163,7 +163,8 @@ public sealed record CaseQueryEmail(
     string? SenderDisplayName,
     string? SenderAddress,
     string? Subject,
-    MailCategory Classification);
+    MailCategory? Classification,
+    string? SourceSha256 = null);
 
 public sealed record CaseDetails(
     CaseSearchItem Summary,

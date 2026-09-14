@@ -47,7 +47,9 @@ internal sealed class ApprovedInboxPoisonMessageEntity
 internal sealed class RetainedMailboxMessageEntity
 {
     public Guid Id { get; set; }
-    public Guid MailboxId { get; set; }
+
+    /// <summary>The polled mailbox the message came from; null for an uploaded email.</summary>
+    public Guid? MailboxId { get; set; }
     public required string MailboxAddress { get; set; }
 
     /// <summary>

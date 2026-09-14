@@ -303,25 +303,29 @@ public sealed class EfCaseQueryStore(
                 .AsNoTracking()
                 .Where(item => item.CaseId == query.CaseId)
                 .Select(item => item.IntakeReceiptId));
+        // Correspondence is the mailbox's query mail associated with the Case
+        // and every .eml a member of staff uploaded to it; an upload carries
+        // its classification where one was recorded.
         var classifiedQueryReceipts = await context.IntakeReceipts
             .AsNoTracking()
             .Where(item => associatedReceiptIds.Contains(item.Id)
-                && item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)
-                && item.MailClassificationDecision != null
-                && item.MailClassificationDecision.Outcome == "classified"
-                && ((item.MailClassificationDecision.Direction == "received"
-                        && item.MailClassificationDecision.Family != null
-                        && queryFamilies.Contains(item.MailClassificationDecision.Family))
-                    || (exactQuery != null
-                        && item.MailClassificationDecision.OtherName == null
-                        && item.MailClassificationDecision.Direction == exactDirection
-                        && item.MailClassificationDecision.Family == exactQuery.Name
-                        && item.MailClassificationDecision.Subtype == exactQuery.Subtype)))
+                && ((item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)
+                        && item.MailClassificationDecision != null
+                        && item.MailClassificationDecision.Outcome == "classified"
+                        && ((item.MailClassificationDecision.Direction == "received"
+                                && item.MailClassificationDecision.Family != null
+                                && queryFamilies.Contains(item.MailClassificationDecision.Family))
+                            || (exactQuery != null
+                                && item.MailClassificationDecision.OtherName == null
+                                && item.MailClassificationDecision.Direction == exactDirection
+                                && item.MailClassificationDecision.Family == exactQuery.Name
+                                && item.MailClassificationDecision.Subtype == exactQuery.Subtype)))
+                    || item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload)))
             .Select(item => new
             {
                 item.Id,
                 item.ExternalReceiptToken,
-                Classification = item.MailClassificationDecision!,
+                Classification = item.MailClassificationDecision,
                 EffectiveSenderAddress = item.MailRouteDecision == null
                     ? null
                     : item.MailRouteDecision.EffectiveSenderAddress
@@ -351,7 +355,8 @@ public sealed class EfCaseQueryStore(
                     item.ReceivedAtUtc,
                     item.SenderDisplayName,
                     item.SenderAddress,
-                    item.Subject
+                    item.Subject,
+                    item.SourceSha256
                 })
                 .ToArrayAsync(cancellationToken);
         var queryReceiptByToken = linkedQueryReceipts.ToDictionary(
@@ -368,8 +373,10 @@ public sealed class EfCaseQueryStore(
                     item.SenderDisplayName,
                     item.SenderAddress,
                     item.Subject,
-                    EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification)
-                        .Category!);
+                    receipt.Classification is null
+                        ? null
+                        : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification).Category,
+                    item.SourceSha256);
             })
             .OrderByDescending(item => item.ReceivedAtUtc)
             .ThenBy(item => item.RetainedMessageId)
