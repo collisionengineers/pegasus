@@ -532,6 +532,9 @@ public static class DependencyInjection
         services.AddScoped<ICreateAiJob, CreateAiJob>();
         services.AddScoped<IMarketResearchQueries, MarketResearchQueries>();
         services.AddScoped<IStartMarketResearch, StartMarketResearch>();
+        // Guide providers register beside their adapter; none is connected yet,
+        // so the set is empty and Get valuation answers with a notice.
+        services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
         services.AddScoped<IAiDraftQueries, AiDraftQueries>();
         services.AddScoped<ICancelAiJob, CancelAiJob>();

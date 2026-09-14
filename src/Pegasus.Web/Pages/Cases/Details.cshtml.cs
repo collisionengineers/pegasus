@@ -80,6 +80,7 @@ public sealed partial class DetailsModel(
     IAiDraftQueries aiDrafts,
     IMarketResearchQueries marketResearchQueries,
     IStartMarketResearch startMarketResearch,
+    IFetchGuideValuation fetchGuideValuation,
     IListValuationPresets listValuationPresets,
     IPreviewValuationCalculation previewValuation,
     IApplyValuationCalculation applyValuation,
