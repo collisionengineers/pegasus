@@ -655,7 +655,7 @@ resource webHttp5xxAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = if (webA
   location: 'global'
   tags: tags
   properties: {
-    description: 'Pegasus production Web returned an HTTP 5xx response.'
+    description: 'Pegasus production Web returned more than one HTTP 5xx response in five minutes.'
     severity: 1
     enabled: true
     scopes: [webApp.id]
@@ -673,7 +673,7 @@ resource webHttp5xxAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = if (webA
           metricName: 'Http5xx'
           operator: 'GreaterThan'
           timeAggregation: 'Total'
-          threshold: 0
+          threshold: 1
           criterionType: 'StaticThresholdCriterion'
         }
       ]
@@ -691,7 +691,7 @@ resource applicationExceptionAlert 'Microsoft.Insights/scheduledQueryRules@2023-
   properties: {
     displayName: 'Pegasus production application exceptions'
     description: 'One or more correlated Web or Worker exceptions were recorded.'
-    severity: 1
+    severity: 2
     enabled: true
     evaluationFrequency: 'PT5M'
     scopes: [logAnalytics.id]
