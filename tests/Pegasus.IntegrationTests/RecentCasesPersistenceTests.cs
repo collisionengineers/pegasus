@@ -29,6 +29,7 @@ public sealed class RecentCasesPersistenceTests
         Assert.Equal([ids.Replacement, ids.Mail], third.Items.Select(item => item.CaseId));
         Assert.Equal(CaseArrival.Email, Assert.Single(third.Items, item => item.CaseId == ids.Mail).Arrival);
         Assert.Equal(CaseArrival.Automation, Assert.Single(third.Items, item => item.CaseId == ids.Replacement).Arrival);
+        Assert.Equal(CaseArrival.Manual, Assert.Single(second.Items, item => item.CaseId == ids.Guidance).Arrival);
         Assert.All(
             first.Items.Concat(second.Items).Where(item => item.Kind == RecentCaseRowKind.ChangedByAutomation),
             item => Assert.Contains(item.ChangeKind, new[] { "operator_note", "case_field_updated", "audit_case_created" }));
@@ -64,7 +65,7 @@ public sealed class RecentCasesPersistenceTests
             Workflow(initialEdit),
             Workflow(note),
             Event(replacement, "case_created_as_replacement", Since.AddMinutes(51), 0, 0),
-            Event(guidance, "case_guidance_applied", Since.AddMinutes(52), 0, 1),
+            Event(guidance, "case_guidance_applied", Since.AddMinutes(52), 0, 0),
             Event(auditOriginal, "audit_case_created", Since.AddMinutes(53), 0, 1),
             Event(initialEdit, "case_field_updated", Since.AddMinutes(54), 0, 1),
             Event(note, "operator_note", Since.AddMinutes(55), 0, 0));
