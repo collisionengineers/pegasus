@@ -870,6 +870,7 @@ public enum StaffAccountAdministrationError
     StaffAccountNotFound,
     DisabledAccount,
     LastAdministrator,
+    AssignedToOpenCases,
     SelfAction,
     OperationConflict,
     SignOffEngineerRequiresEngineerRole,
