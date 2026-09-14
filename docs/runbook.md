@@ -583,6 +583,14 @@ subscriptions cannot advance the replacement generation's cursor. Do not
 clear cursors manually to manufacture a backfill. Opening or filtering retained
 mail in Pegasus changes no Outlook read state, folder, flag or category.
 
+Re-enabling the same address with complete stored mailbox and folder identities
+uses those identities for the fresh Inbox access check. It does not repeat a
+directory lookup. New addresses, changed addresses and incomplete identities
+still require address resolution. The Web identity needs Exchange read access
+to the mailbox for this check; successful Worker polling proves only the
+Worker identity's access. Verify both application identities against the
+intended Exchange scope before disabling a mailbox for a webhook refresh.
+
 Global Worker containment, individual Function activation and per-mailbox
 capabilities are independent. For a destructive migration, keep Worker functions
 disabled through the approved containment/migration/grant/bootstrap sequence and
