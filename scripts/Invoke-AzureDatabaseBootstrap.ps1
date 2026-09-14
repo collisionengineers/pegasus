@@ -487,6 +487,23 @@ function Get-MigrationPermissionMatrix {
         }
         $expected.Add("$role|D|DELETE|CaseFieldProposals")
     }
+    # 20260914091000_PreCaseImagePreparation: crop, rotation and tags on pre-Case
+    # images. Web records crops (never deletes) and tags (never updates); the
+    # Worker reads both and copies the tags onto the Case occurrence.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|IntakeAssetPreparations")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|IntakeAssetPreparations')
+    foreach ($permission in @('SELECT', 'INSERT', 'DELETE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|IntakeAssetTags")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|UPDATE|IntakeAssetTags')
+    foreach ($table in @('IntakeAssetPreparations', 'IntakeAssetTags')) {
+        $expected.Add("pegasus_worker_runtime_role|G|SELECT|$table")
+        $expected.Add("pegasus_worker_runtime_role|D|UPDATE|$table")
+        $expected.Add("pegasus_worker_runtime_role|D|DELETE|$table")
+    }
+    $expected.Add('pegasus_worker_runtime_role|G|INSERT|DocumentOccurrenceTags')
     return @($expected | Sort-Object -Unique)
 }
 

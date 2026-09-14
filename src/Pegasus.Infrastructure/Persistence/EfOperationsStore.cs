@@ -276,7 +276,8 @@ internal sealed class EfOperationsStore(
                     workflow.EditLeaseHolderKind,
                     workflow.EditLeaseOperationKey,
                     workflow.EditLeaseExpiresAtUtc,
-                    workflow.ArchivedAtUtc != null))
+                    workflow.ArchivedAtUtc != null,
+                    request.Recipient))
             .Take(sourceLimit)
             .ToListAsync(cancellationToken);
 
@@ -612,6 +613,8 @@ internal sealed class EfOperationsStore(
             leaseState,
             item.CaseEditLeaseExpiresAtUtc)
         {
+            Recipient = item.Recipient,
+            CreatedAtUtc = item.CreatedAtUtc,
             ActiveEditLease = MapActiveEditLease(
                 leaseState,
                 item.CaseEditLeaseHolder,
@@ -819,7 +822,8 @@ internal sealed class EfOperationsStore(
         string? CaseEditLeaseHolderKind,
         string? CaseEditLeaseOperationKey,
         DateTimeOffset? CaseEditLeaseExpiresAtUtc,
-        bool CaseIsArchived);
+        bool CaseIsArchived,
+        string? Recipient);
 
     private sealed record ExternalWorkRow(
         Guid Id,

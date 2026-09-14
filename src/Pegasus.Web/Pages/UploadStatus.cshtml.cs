@@ -54,8 +54,7 @@ public sealed class UploadStatusModel(
             : null;
 
     /// <param name="duplicate">
-    /// Carried on the URL, as <c>/Received/{id}?duplicate=true</c> already does,
-    /// so the duplicate value survives the page's own refreshes.
+    /// Carried on the URL so the duplicate value survives the page's own refreshes.
     /// </param>
     public async Task<IActionResult> OnGetAsync(
         Guid id,

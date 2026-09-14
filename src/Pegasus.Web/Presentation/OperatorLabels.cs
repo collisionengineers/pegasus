@@ -56,9 +56,6 @@ public static class OperatorLabels
     /// </summary>
     public const string TriageReference = "Triage reference";
 
-    public static string AttachmentSearchability(bool isSearchable) =>
-        isSearchable ? "Searchable content" : "Content unavailable for search";
-
     public static string UnidentifiedReason(UnidentifiedReasonCode reason) => reason switch
     {
         UnidentifiedReasonCode.UnreadableOrCorruptContent => "Unreadable or corrupt content",
@@ -296,17 +293,6 @@ public static class OperatorLabels
         public const string ValuationPresets = "Valuation presets";
         public const string ClaimSources = "Claim sources";
         // C08 shell administration areas end
-    }
-
-    /// <summary>
-    /// Handed to C08 by C05 (INTK-060 scratch/c05-notes, ASSUMPTION 7): the
-    /// chip label for a persisted <c>finding.&lt;code&gt;</c> source candidate
-    /// row — a reconciliation finding, not a value — wherever the C04-owned
-    /// retained-analysis list (<c>Pages/Intake/Details.cshtml</c>) renders one.
-    /// </summary>
-    public static class SourceCandidateKind
-    {
-        public const string Finding = "Finding";
     }
 
     /// <summary>The freshness words the shell and every page header share.</summary>
@@ -577,6 +563,189 @@ public static class OperatorLabels
         Pegasus.Core.Operations.NeedsAttentionPriority.Today => "amber",
         _ => "neutral"
     };
+
+    /// <summary>
+    /// The v26 Work Centre's words (Work Centre D2, D4, D8, D9, P1–P6): the
+    /// kind chips, the due-day groups and their empty states, the relative due
+    /// and received text, the Office/Mine switch and the New cases arrival chip.
+    /// </summary>
+    public static class WorkCentre
+    {
+        public const string Eyebrow = "Office-wide work";
+        public const string Title = "Work Centre";
+        public const string CreateCase = "Create Case";
+        public const string Refresh = "Refresh";
+        public const string NeedsAttention = "Needs attention";
+        public const string Today = "Today";
+        public const string SelectedWork = "Selected work";
+        public const string Office = "Office";
+        public const string Mine = "Mine";
+        public const string AllKinds = "All kinds";
+        public const string NothingNeedsAttention = "Nothing needs attention";
+        public const string SelectAnItem = "Select an item";
+        public const string AssignToMe = "Assign to me";
+        public const string AssignEngineer = "Assign Engineer";
+        public const string Assign = "Assign";
+        public const string Reassign = "Reassign";
+        public const string ChooseEngineer = "Choose an Engineer";
+        public const string Engineer = "Engineer";
+        public const string NotRecorded = "Not recorded";
+        public const string Unavailable = "Work Centre is unavailable. Refresh to run the live queues again.";
+        public const string NewCases = "New cases";
+        public const string ChangedByAutomation = "Changed by automation";
+        public const string SinceYouLastLooked = "Since you last looked";
+        public const string NoNewCases = "No Case was created in the last 7 days";
+        public const string NewCasesUnavailable = "New cases are unavailable.";
+        public const string AiJobsTitle = "AI jobs";
+        public const string NoAiJobs = "No AI job is waiting";
+        public const string AiJobsUnavailable = "AI jobs are unavailable.";
+        public const string NoReasonRecorded = "No reason recorded";
+        public const string OpenCase = "Open Case";
+        public const string NoEngineer = "No Engineer";
+        public const string NoOwner = "No owner";
+        public const string Previous = "Previous";
+        public const string Next = "Next";
+
+        public static string Updated(DateTimeOffset value) => $"Updated {OfficeClock(value)}";
+
+        public static string Items(int count) => count == 1 ? "1 item" : string.Create(CultureInfo.InvariantCulture, $"{count} items");
+
+        public static string Rows(int count) => count == 1 ? "1 row" : string.Create(CultureInfo.InvariantCulture, $"{count} rows");
+
+        public static string NewCasesMeta(int count) => $"Last 7 days · {Rows(count)}";
+
+        public static string AiJobsMeta(int draftReady, int failed) =>
+            string.Create(CultureInfo.InvariantCulture, $"{draftReady} draft ready · {failed} failed");
+
+        public static string AttentionPaging(int page, int pages) =>
+            string.Create(CultureInfo.InvariantCulture, $"Page {page} of {pages} · earliest due first");
+
+        public static string NewCasesPaging(int page, int pages) =>
+            string.Create(CultureInfo.InvariantCulture, $"Page {page} of {pages} · newest first");
+
+        public static string LeaseExpires(DateTimeOffset value) => $"Lease expires {OfficeTime(value)}";
+
+        /// <summary>The kind filter chip (P3), in the mockup's order.</summary>
+        public static string KindChip(NeedsAttentionKind kind) => kind switch
+        {
+            Pegasus.Core.Operations.NeedsAttentionKind.CaseChase => "Case",
+            Pegasus.Core.Operations.NeedsAttentionKind.HeldDecision => "Held",
+            Pegasus.Core.Operations.NeedsAttentionKind.ReviewCase => "Review",
+            Pegasus.Core.Operations.NeedsAttentionKind.UnassignedEngineer => "Unassigned",
+            Pegasus.Core.Operations.NeedsAttentionKind.Unidentified => "Unidentified",
+            Pegasus.Core.Operations.NeedsAttentionKind.Triage => "Triage",
+            Pegasus.Core.Operations.NeedsAttentionKind.AiDraft => "AI draft",
+            _ => Humanise(kind.ToString())
+        };
+
+        /// <summary>The due-day group heading (P1) with the whole-list count.</summary>
+        public static string Group(NeedsAttentionPriority priority, int count) => priority switch
+        {
+            Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => string.Create(CultureInfo.InvariantCulture, $"Overdue ({count})"),
+            Pegasus.Core.Operations.NeedsAttentionPriority.Today => string.Create(CultureInfo.InvariantCulture, $"Due today ({count})"),
+            _ => string.Create(CultureInfo.InvariantCulture, $"Later ({count})")
+        };
+
+        /// <summary>The group's empty state (P9): absence is visible good news.</summary>
+        public static string GroupEmpty(NeedsAttentionPriority priority) => priority switch
+        {
+            Pegasus.Core.Operations.NeedsAttentionPriority.Overdue => "Nothing overdue",
+            Pegasus.Core.Operations.NeedsAttentionPriority.Today => "Nothing due today",
+            _ => "Nothing later"
+        };
+
+        /// <summary>
+        /// The relative due text (D2, decided 13 September): "2 days overdue",
+        /// "Due today", "Due tomorrow", "Due Fri", "Due 24 Sep". Core's due
+        /// instants are the midnight that ends the due day, so the day named is
+        /// the Europe/London date just before the instant.
+        /// </summary>
+        public static string DueText(DateTimeOffset? due, DateTimeOffset now)
+        {
+            if (due is not { } instant)
+            {
+                return "No due date";
+            }
+
+            var dueDay = LondonCalendar.DateAt(instant.AddTicks(-1));
+            var today = LondonCalendar.DateAt(now);
+            var days = today.DayNumber - dueDay.DayNumber;
+            if (instant <= now)
+            {
+                return days switch
+                {
+                    <= 0 => "Overdue",
+                    1 => "1 day overdue",
+                    _ => string.Create(CultureInfo.InvariantCulture, $"{days} days overdue")
+                };
+            }
+
+            return -days switch
+            {
+                <= 0 => "Due today",
+                1 => "Due tomorrow",
+                < 7 => $"Due {dueDay.ToString("ddd", CultureInfo.InvariantCulture)}",
+                _ => $"Due {dueDay.ToString("d MMM", CultureInfo.InvariantCulture)}"
+            };
+        }
+
+        /// <summary>The received age (P6): "Received today", "Received 3 d ago".</summary>
+        public static string? ReceivedText(DateTimeOffset? received, DateTimeOffset now)
+        {
+            if (received is not { } instant)
+            {
+                return null;
+            }
+
+            var days = LondonCalendar.DateAt(now).DayNumber - LondonCalendar.DateAt(instant).DayNumber;
+            return days <= 0
+                ? "Received today"
+                : string.Create(CultureInfo.InvariantCulture, $"Received {days} d ago");
+        }
+
+        public static string Arrival(CaseArrival arrival) => arrival switch
+        {
+            CaseArrival.Manual => "Manual",
+            CaseArrival.Email => "E-mail",
+            CaseArrival.ProviderApi => "Provider API",
+            CaseArrival.Automation => "Automation",
+            _ => Humanise(arrival.ToString())
+        };
+
+        public static string ArrivalTone(CaseArrival arrival) => arrival switch
+        {
+            CaseArrival.Automation => "blue",
+            CaseArrival.ProviderApi => "navy",
+            _ => "neutral"
+        };
+
+        /// <summary>The Triage kind's row title: a Triage without a finding.</summary>
+        public static string TriageTitle(string? state) => state switch
+        {
+            nameof(Pegasus.Core.Triage.TriageState.AwaitingInformation) => "Awaiting information",
+            _ => "Finding required"
+        };
+
+        public static string AiDraftTitle(string kind) =>
+            Enum.TryParse<Pegasus.Core.AiWork.AiJobKind>(kind, out var parsed)
+                ? $"{AiJobs.Kind(parsed)} draft ready"
+                : $"{Humanise(kind)} draft ready";
+
+        public static string AiDraftAction(string? action) => action switch
+        {
+            nameof(Pegasus.Core.AiWork.AiDraftAction.ReviewEstimate) => AiJobs.ReviewEstimate,
+            nameof(Pegasus.Core.AiWork.AiDraftAction.OpenQuery) => AiJobs.OpenQuery,
+            _ => AiJobs.Review
+        };
+
+        public const string AssignedToYou = "The Case was assigned to you.";
+        public const string Assigned = "The Case was assigned.";
+        public const string TriageAssignedToYou = "The Triage was assigned to you.";
+        public const string AssignRefused = "The Case was not assigned because it changed, someone is editing it, or the action is not permitted.";
+        public const string TriageAssignRefused = "The Triage was not assigned because it changed or the action is not permitted.";
+        public const string JobCompleted = "The AI job was completed.";
+        public const string JobRefused = "The AI job changed before it could be completed. Refresh and try again.";
+    }
 
     /// <summary>
     /// The Image-initiated Case side of chase visibility
@@ -2167,4 +2336,120 @@ public static class OperatorLabels
                 .Replace("Dvsa", "DVSA", StringComparison.Ordinal)
                 .Replace("dvsa", "DVSA", StringComparison.Ordinal);
     }
+
+    // Phase 6 Lane B (Inbox, Upload, Search, Operations, Administration) start
+
+    /// <summary>Administration › Logs › Intake log (13 September): the outcome words and what a receipt became.</summary>
+    public static class IntakeLog
+    {
+        public const string Logs = "Logs";
+        public const string ActionLogsTab = "Action logs";
+        public const string IntakeLogTab = "Intake log";
+        public const string FailedIntake = "Failed intake";
+        public const string OldestPendingIntake = "Oldest pending intake";
+        public const string Reevaluate = "Re-evaluate with current policy";
+        public const string RetryAllocation = "Retry allocation";
+        public const string RetryOcr = "Retry OCR";
+        public const string OpenFile = "Open file";
+        public const string OpenMessage = "Open message";
+
+        public static string Outcome(IntakeLogOutcome outcome) => outcome switch
+        {
+            IntakeLogOutcome.CaseCreated => "Case created",
+            IntakeLogOutcome.Unidentified => "Unidentified",
+            IntakeLogOutcome.Triage => "Triage",
+            IntakeLogOutcome.VehicleImages => "Vehicle images",
+            IntakeLogOutcome.CouldNotBeRead => "Could not be read",
+            IntakeLogOutcome.ProcessingFailed => "Processing failed",
+            IntakeLogOutcome.Closed => "Closed",
+            IntakeLogOutcome.AllocationFailed => "Allocation failed",
+            IntakeLogOutcome.OcrFailed => "OCR failed",
+            _ => Humanise(outcome.ToString())
+        };
+
+        /// <summary>The Operations failure kind a failed outcome is listed under, as its row hook.</summary>
+        public static string FailureKindSlug(IntakeLogOutcome outcome) => outcome switch
+        {
+            IntakeLogOutcome.AllocationFailed => "allocation",
+            IntakeLogOutcome.OcrFailed => "ocr",
+            _ => "processing"
+        };
+
+        /// <summary>The chip tone for an outcome: green when it became work, amber when a person must act, red when processing failed.</summary>
+        public static string OutcomeTone(IntakeLogOutcome outcome) => outcome switch
+        {
+            IntakeLogOutcome.CaseCreated or IntakeLogOutcome.VehicleImages or IntakeLogOutcome.Triage => "green",
+            IntakeLogOutcome.ProcessingFailed or IntakeLogOutcome.AllocationFailed or IntakeLogOutcome.OcrFailed => "red",
+            IntakeLogOutcome.Closed => "neutral",
+            _ => "amber"
+        };
+
+        /// <summary>The page a produced record opens.</summary>
+        public static string BecameHref(IntakeLogBecame became) => became.Kind switch
+        {
+            IntakeLogBecameKind.Case => $"/Cases/{became.Id:D}",
+            IntakeLogBecameKind.Unidentified => $"/Unidentified/{became.Id:D}",
+            IntakeLogBecameKind.Triage => $"/Triage/{became.Id:D}",
+            IntakeLogBecameKind.ImageIntake => $"/VehicleImages/{became.Id:D}",
+            _ => "/"
+        };
+
+        public static string Source(IntakeLogSource source) =>
+            string.Join(" · ", new[] { SourceChannel(source.Channel), source.Address, source.Detail }
+                .Where(part => !string.IsNullOrWhiteSpace(part))
+                .Distinct(StringComparer.OrdinalIgnoreCase));
+
+        /// <summary>"2 processing · 1 allocation", or null when neither ran more than once.</summary>
+        public static string? Attempts(IntakeLogRow row) =>
+            row.ProcessingAttempts > 1 || row.AllocationAttempts > 1
+                ? $"{row.ProcessingAttempts} processing · {row.AllocationAttempts} allocation"
+                : null;
+    }
+
+    /// <summary>Crop and tag on a pre-Case image (image record, Triage, Unidentified; v26).</summary>
+    public static class PreCaseImages
+    {
+        public const string Crop = "Crop";
+        public const string Cropped = "Cropped";
+        public const string DrawHint = "Drag across the image to frame it";
+        public const string Apply = "Apply";
+        public const string Clear = "Clear";
+        public const string Cancel = "Cancel";
+        public const string Tag = "Tag";
+        public const string AddTag = "Add a tag";
+        public const string CropSaved = "The crop was saved.";
+        public const string CropCleared = "The crop was cleared.";
+        public const string TagAdded = "The tag was added.";
+        public const string TagRemoved = "The tag was removed.";
+    }
+
+    /// <summary>Inbox and the message record (Inbox, 13 September): Category, no Unread scope, Dismiss and Restore.</summary>
+    public static class Inbox
+    {
+        public const string Category = "Category";
+        public const string AllCategories = "All categories";
+        public const string DestinationGroup = "Destinations";
+        public const string CategoryGroup = "Categories";
+        public const string DismissedScope = "Dismissed";
+        public const string Dismiss = "Dismiss";
+        public const string Restore = "Restore";
+        public const string DismissedNotice = "Dismissed";
+        public const string RestoredNotice = "Restored";
+        public const string OpenFile = "Open file";
+    }
+
+    /// <summary>Upload: one upload is one group with one decision (Upload, 13 September).</summary>
+    public static class UploadDecision
+    {
+        public const string ThisUpload = "This upload";
+        public const string OneGroup = "One group";
+        public const string Attached = "Attached to a Case";
+        public const string VehicleImages = "Registered as vehicle images";
+        public const string Unidentified = "Unidentified";
+        public const string Files = "Files";
+        public const string CouldNotBeRead = "Could not be read";
+        public const string NoFileCouldBeRead = "No file in this upload could be read";
+    }
+
+    // Phase 6 Lane B end
 }

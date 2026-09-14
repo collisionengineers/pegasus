@@ -164,7 +164,7 @@ public sealed class MailWorkspaceWebTests
         // "estimate" (the attachment every seeded row carries) is the term
         // that actually leaves rows in the filtered list; a term that
         // matches nothing would render zero rows and no row link at all.
-        var query = $"mailbox={FirstMailboxId}&folder=inbox&search=estimate&queue=receiving-work&unread=true&sort=oldest";
+        var query = $"mailbox={FirstMailboxId}&folder=inbox&search=estimate&queue=receiving-work&sort=oldest";
         await GetHtmlAsync(client, "/Inbox");
         var listHtml = await GetHtmlAsync(client, $"/Inbox?{query}");
 
@@ -184,7 +184,8 @@ public sealed class MailWorkspaceWebTests
         var rowHrefMatch = Regex.Match(rowAnchor, "href=\"(?<href>[^\"]+)\"", RegexOptions.IgnoreCase);
         Assert.True(rowHrefMatch.Success, $"expected the rendered row anchor to carry an href: {rowAnchor}");
         var rowHref = WebUtility.HtmlDecode(rowHrefMatch.Groups["href"].Value);
-        Assert.Contains("unread=true", rowHref, StringComparison.Ordinal);
+        // No Unread scope (Inbox, 13 September): the row link never carries one.
+        Assert.DoesNotContain("unread=", rowHref, StringComparison.Ordinal);
         Assert.Contains("sort=oldest", rowHref, StringComparison.Ordinal);
 
         // Diagnostic for a non-OK preview: confirm whether the seeded row is
@@ -767,19 +768,20 @@ public sealed class MailWorkspaceWebTests
         var oldest = html.IndexOf("Message 0 from instructions", StringComparison.Ordinal);
         Assert.True(newest < oldest, "The list must default to newest received first.");
 
-        // A viewer changes nothing. The only POST form the screen carries is the
-        // layout's sign-out.
-        Assert.Equal(1, CountOccurrences(html, "method=\"post\""));
+        // Reading changes nothing. Beyond the layout's sign-out, the only POST
+        // forms are the rows' Dismiss actions (Inbox, 13 September), one per row.
+        Assert.Equal(3, CountOccurrences(html, "data-mail-row-action=\"dismiss\""));
+        Assert.Equal(1 + 3, CountOccurrences(html, "method=\"post\""));
         Assert.Contains("/Account/SignOut", html, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// The ported list's new surface: the scope rail with one count per scope,
-    /// the Unread scope as a real query, the sort toggle as a server-side
-    /// flip, and the preview pane rendered from the selected row.
+    /// The list's scope rail (Inbox, 13 September): one count per scope, no Unread
+    /// scope and a Dismissed scope last, the sort toggle as a server-side flip, and
+    /// the preview pane rendered from the selected row.
     /// </summary>
     [Fact]
-    public async Task TheScopeRailCountsEachScopeUnreadFiltersAndTheSortToggleFlipsOrder()
+    public async Task TheScopeRailCountsEachScopeHasNoUnreadScopeAndTheSortToggleFlipsOrder()
     {
         using var factory = new IntakeWebApplicationFactory();
         await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 3);
@@ -787,14 +789,17 @@ public sealed class MailWorkspaceWebTests
 
         var html = await GetHtmlAsync(client, "/Inbox");
 
-        // Every drawn scope renders once, with its count.
+        // Every planned scope renders once, with its count; Unread is not a scope.
         Assert.Contains(">All incoming</span>", html, StringComparison.Ordinal);
-        Assert.Contains(">Unread</span>", html, StringComparison.Ordinal);
+        // The scope label renders as <span>Label</span>; an unread row's sr-only
+        // "Unread" word is not a scope.
+        Assert.DoesNotContain("<span>Unread</span>", html, StringComparison.Ordinal);
         Assert.Contains(">Receiving work</span>", html, StringComparison.Ordinal);
         Assert.Contains(">Case updates</span>", html, StringComparison.Ordinal);
         Assert.Contains(">Pre-instructions</span>", html, StringComparison.Ordinal);
         Assert.Contains(">Unidentified</span>", html, StringComparison.Ordinal);
         Assert.Contains(">Sent Items</span>", html, StringComparison.Ordinal);
+        Assert.Contains(">Dismissed</span>", html, StringComparison.Ordinal);
         Assert.Equal(7, CountOccurrences(html, "class=\"scope-button\""));
         // Three retained inbox messages, none read.
         Assert.Contains("<span class=\"tabular\">3</span>", html, StringComparison.Ordinal);
@@ -805,10 +810,12 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("Message 2 from instructions", html, StringComparison.Ordinal);
         Assert.Contains("Open full message", html, StringComparison.Ordinal);
 
-        // The Unread scope is a real query, not a client filter.
-        var unread = await GetHtmlAsync(client, "/Inbox?unread=true");
-        Assert.Contains("Message 2 from instructions", unread, StringComparison.Ordinal);
-        Assert.Contains("aria-pressed=\"true\"", unread, StringComparison.Ordinal);
+        // The Dismissed scope is a real query: nothing dismissed yet, so it is empty
+        // and pressed, and the incoming rows are not in it.
+        var dismissed = await GetHtmlAsync(client, "/Inbox?folder=dismissed");
+        Assert.Contains("No dismissed messages.", dismissed, StringComparison.Ordinal);
+        Assert.DoesNotContain("Message 2 from instructions", dismissed, StringComparison.Ordinal);
+        Assert.Contains("aria-pressed=\"true\"", dismissed, StringComparison.Ordinal);
 
         // The sort toggle flips the received order server-side. The arrow is
         // rendered through the HTML encoder (an expression, not markup text),
@@ -824,11 +831,11 @@ public sealed class MailWorkspaceWebTests
         var newest = await GetHtmlAsync(client, "/Inbox");
         Assert.Contains("Received &#x2193;", newest, StringComparison.Ordinal);
 
-        // An unknown sort or unread value is refused, like an unknown folder.
+        // An unknown sort or folder value is refused.
         using var badSort = await client.GetAsync("/Inbox?sort=newest-first");
-        using var badUnread = await client.GetAsync("/Inbox?folder=sent&unread=true");
+        using var badFolder = await client.GetAsync("/Inbox?folder=unread");
         Assert.Equal(HttpStatusCode.NotFound, badSort.StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, badUnread.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, badFolder.StatusCode);
     }
 
     [Fact]
@@ -848,23 +855,22 @@ public sealed class MailWorkspaceWebTests
         // The row link carries the exact list position back into detail.
         Assert.Contains($"mailbox={FirstMailboxFilter}&amp;pageNumber=2", secondPage, StringComparison.Ordinal);
 
-        // The Unread scope and the oldest-first order survive the message
-        // round-trip: the pane's full-detail entry opens the message with
-        // them, Back returns to the same scope and order, and so does every
-        // section tab.
-        var unreadOldest = await GetHtmlAsync(
+        // The oldest-first order survives the message round-trip: the pane's
+        // full-detail entry opens the message with it, Back returns to the same
+        // scope and order, and so does every section tab.
+        var oldest = await GetHtmlAsync(
             client,
-            $"/Inbox?mailbox={FirstMailboxFilter}&unread=true&sort=oldest&pageNumber=2");
-        Assert.Contains("unread=true&amp;sort=oldest&amp;pageNumber=2", unreadOldest, StringComparison.Ordinal);
+            $"/Inbox?mailbox={FirstMailboxFilter}&sort=oldest&pageNumber=2");
+        Assert.Contains("sort=oldest&amp;pageNumber=2", oldest, StringComparison.Ordinal);
 
         var detail = await GetHtmlAsync(
             client,
-            $"/Inbox/{ids[0]:D}?mailbox={FirstMailboxFilter}&unread=true&sort=oldest&pageNumber=2");
+            $"/Inbox/{ids[0]:D}?mailbox={FirstMailboxFilter}&sort=oldest&pageNumber=2");
         Assert.Contains(
-            $"/Inbox?mailbox={FirstMailboxFilter}&amp;unread=true&amp;sort=oldest&amp;pageNumber=2",
+            $"/Inbox?mailbox={FirstMailboxFilter}&amp;sort=oldest&amp;pageNumber=2",
             detail,
             StringComparison.Ordinal);
-        Assert.Contains("unread=true&amp;sort=oldest&amp;section=attachments", detail, StringComparison.Ordinal);
+        Assert.Contains("sort=oldest&amp;section=attachments", detail, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1117,9 +1123,12 @@ public sealed class MailWorkspaceWebTests
         using var client = CreateClient(factory);
 
         var receiving = await GetHtmlAsync(client, "/Inbox?queue=receiving-work");
-        Assert.Contains("<label for=\"queue-filter\">Queue</label>", receiving, StringComparison.Ordinal);
-        Assert.Contains("<optgroup label=\"Operational queues\">", receiving, StringComparison.Ordinal);
-        Assert.Contains("<optgroup label=\"Detailed classifications\">", receiving, StringComparison.Ordinal);
+        // Category, not Queue (Inbox, 13 September).
+        Assert.Contains("<label for=\"queue-filter\">Category</label>", receiving, StringComparison.Ordinal);
+        Assert.Contains(">All categories</option>", receiving, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Queue</label>", receiving, StringComparison.Ordinal);
+        Assert.Contains("<optgroup label=\"Destinations\">", receiving, StringComparison.Ordinal);
+        Assert.Contains("<optgroup label=\"Categories\">", receiving, StringComparison.Ordinal);
         Assert.DoesNotContain("Current view:", receiving, StringComparison.Ordinal);
         Assert.DoesNotContain("class=\"field-hint\"", receiving, StringComparison.Ordinal);
         // One selected option per filter-bar select: mailbox, folder, queue.
@@ -1336,14 +1345,16 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains(">No case</strong>", message, StringComparison.Ordinal);
         // Back reconstructs the exact list position.
         Assert.Contains($"/Inbox?mailbox={FirstMailboxFilter}", message, StringComparison.Ordinal);
-        // A viewer: the layout's sign-out is still the only POST on the screen.
-        Assert.Equal(1, CountOccurrences(message, "method=\"post\""));
+        // Beyond the layout's sign-out, the record's only POST is Dismiss (Inbox, 13 September).
+        Assert.Equal(2, CountOccurrences(message, "method=\"post\""));
+        Assert.Contains("data-message-dismissal=\"dismiss\"", message, StringComparison.Ordinal);
 
         var attachments = await GetHtmlAsync(
             client,
             $"/Inbox/{ids[0]:D}{query}&section=attachments");
         Assert.Contains("estimate.pdf", attachments, StringComparison.Ordinal);
-        Assert.Contains("Content unavailable for search", attachments, StringComparison.Ordinal);
+        // The v26 attachments table states each file's outcome, not its searchability.
+        Assert.Contains("data-attachment-outcome=", attachments, StringComparison.Ordinal);
         // Megabytes, never bytes.
         Assert.Contains("under 0.1 MB", attachments, StringComparison.Ordinal);
         Assert.DoesNotContain("2048", attachments, StringComparison.Ordinal);
@@ -1369,7 +1380,8 @@ public sealed class MailWorkspaceWebTests
         Assert.DoesNotContain("Recommended Outlook folder", html, StringComparison.Ordinal);
         Assert.DoesNotContain(">Folder</span>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("no current classification decision", html, StringComparison.Ordinal);
-        Assert.Equal(1, CountOccurrences(html, "method=\"post\""));
+        // Sign-out and the record's Dismiss.
+        Assert.Equal(2, CountOccurrences(html, "method=\"post\""));
     }
 
     [Fact]
@@ -1722,6 +1734,139 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("href=\"/Inbox\"", html, StringComparison.Ordinal);
         Assert.Contains("href=\"/Operations\"", html, StringComparison.Ordinal);
         Assert.Contains(">Operations<", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Dismiss on the row (Inbox, 13 September): the message leaves every incoming
+    /// scope and the counts, appears only under Dismissed, and Restore brings it
+    /// back. Nothing is deleted.
+    /// </summary>
+    [Fact]
+    public async Task DismissFromTheRowMovesTheMessageToDismissedAndRestoreBringsItBack()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        using var client = CreateClient(factory);
+        var dismissedId = ids[0];
+
+        var list = await GetHtmlAsync(client, "/Inbox");
+        var dismissForm = RowActionForm(list, "dismiss", dismissedId);
+        using (var dismiss = await client.PostAsync(
+            FormAction(dismissForm),
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = FormInput(list, "__RequestVerificationToken"),
+                ["id"] = dismissedId.ToString("D"),
+                ["operationKey"] = FormInput(dismissForm, "operationKey")
+            })))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, dismiss.StatusCode);
+            Assert.Equal("/Inbox", dismiss.Headers.Location?.OriginalString);
+        }
+
+        var incoming = await GetHtmlAsync(client, "/Inbox");
+        Assert.DoesNotContain($"data-mail-row=\"{dismissedId:D}\"", incoming, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"data-mail-row=\"{ids[1]:D}\"", incoming, StringComparison.OrdinalIgnoreCase);
+
+        var dismissed = await GetHtmlAsync(client, "/Inbox?folder=dismissed");
+        Assert.Contains($"data-mail-row=\"{dismissedId:D}\"", dismissed, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain($"data-mail-row=\"{ids[1]:D}\"", dismissed, StringComparison.OrdinalIgnoreCase);
+        var restoreForm = RowActionForm(dismissed, "restore", dismissedId);
+        Assert.Contains("folder=dismissed", WebUtility.HtmlDecode(FormAction(restoreForm)), StringComparison.Ordinal);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            Assert.NotNull(await context.RetainedMailboxMessages
+                .Where(item => item.Id == dismissedId)
+                .Select(item => item.DismissedAtUtc)
+                .SingleAsync());
+        }
+
+        using (var restore = await client.PostAsync(
+            WebUtility.HtmlDecode(FormAction(restoreForm)),
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = FormInput(dismissed, "__RequestVerificationToken"),
+                ["id"] = dismissedId.ToString("D"),
+                ["operationKey"] = FormInput(restoreForm, "operationKey")
+            })))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, restore.StatusCode);
+            Assert.Equal("/Inbox?folder=dismissed", restore.Headers.Location?.OriginalString);
+        }
+
+        Assert.Contains("No dismissed messages.", await GetHtmlAsync(client, "/Inbox?folder=dismissed"), StringComparison.Ordinal);
+        Assert.Contains($"data-mail-row=\"{dismissedId:D}\"", await GetHtmlAsync(client, "/Inbox"), StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The message record carries Dismiss (Restore once dismissed), announces itself
+    /// to the working set as a message, and its Attachments tab states an outcome per
+    /// attachment in operator words with nothing linking to a receipt.
+    /// </summary>
+    [Fact]
+    public async Task TheMessageRecordDismissesAnnouncesItselfAndStatesAttachmentOutcomes()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var messageId = Assert.Single(await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        using var client = CreateClient(factory);
+
+        var record = await GetHtmlAsync(client, $"/Inbox/{messageId:D}");
+        Assert.Contains("data-message-dismissal=\"dismiss\"", record, StringComparison.Ordinal);
+        Assert.Contains("data-record-kind=\"message\"", record, StringComparison.Ordinal);
+        Assert.Contains($"data-record-href=\"/Inbox/{messageId:D}\"", record, StringComparison.OrdinalIgnoreCase);
+
+        var attachments = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?section=attachments");
+        var table = Between(attachments, "data-message-attachments", "</table>");
+        Assert.Contains("<th scope=\"col\">Outcome</th>", table, StringComparison.Ordinal);
+        Assert.Contains("estimate.pdf", table, StringComparison.Ordinal);
+        // The seeded message has no intake receipt yet, so its outcome is stated plainly.
+        Assert.Contains("data-attachment-outcome=\"Not yet processed\"", table, StringComparison.Ordinal);
+        Assert.DoesNotContain("Retained", table, StringComparison.Ordinal);
+
+        var dismissForm = Regex.Match(record, "<form[^>]*data-message-dismissal=\"dismiss\"[^>]*>[\\s\\S]*?</form>").Value;
+        using (var dismiss = await client.PostAsync(
+            WebUtility.HtmlDecode(FormAction(dismissForm)),
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = FormInput(record, "__RequestVerificationToken"),
+                ["operationKey"] = FormInput(dismissForm, "operationKey")
+            })))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, dismiss.StatusCode);
+            Assert.StartsWith($"/Inbox/{messageId:D}", dismiss.Headers.Location?.OriginalString ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        }
+
+        var dismissedRecord = await GetHtmlAsync(client, $"/Inbox/{messageId:D}?folder=dismissed");
+        Assert.Contains("data-message-dismissal=\"restore\"", dismissedRecord, StringComparison.Ordinal);
+        Assert.DoesNotContain("This message is no longer in the view you opened it from.", dismissedRecord, StringComparison.Ordinal);
+    }
+
+    private static string RowActionForm(string html, string action, Guid messageId)
+    {
+        var row = Regex.Match(
+            html,
+            $"<div[^>]*data-mail-row=\"{messageId:D}\"[\\s\\S]*?<form[^>]*data-mail-row-action=\"{action}\"[^>]*>[\\s\\S]*?</form>",
+            RegexOptions.IgnoreCase);
+        Assert.True(row.Success, $"The {action} row action for {messageId:D} was not rendered.");
+        return row.Value[row.Value.LastIndexOf("<form", StringComparison.Ordinal)..];
+    }
+
+    private static string FormAction(string form)
+    {
+        // Anchored on a preceding space: data-mail-row-action="…" also ends in action=".
+        var match = Regex.Match(form, "\\saction=\"(?<action>[^\"]+)\"");
+        Assert.True(match.Success, "The form has no action.");
+        return WebUtility.HtmlDecode(match.Groups["action"].Value);
+    }
+
+    private static string FormInput(string html, string name)
+    {
+        var tag = Regex.Match(html, $"<input[^>]*name=\"{Regex.Escape(name)}\"[^>]*>");
+        Assert.True(tag.Success, $"The input '{name}' was not rendered.");
+        return WebUtility.HtmlDecode(Regex.Match(tag.Value, "value=\"(?<value>[^\"]*)\"").Groups["value"].Value);
     }
 
     private static async Task<string> GetHtmlAsync(HttpClient client, string route)

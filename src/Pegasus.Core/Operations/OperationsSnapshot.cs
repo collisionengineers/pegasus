@@ -322,14 +322,18 @@ public sealed class GetOperationsSnapshot(
             filtered = filtered.Where(item => NeedsAttentionPolicy.IsMine(item, query.Actor));
         }
 
+        // The kind chips count the scope's whole list, before the kind filter (P3),
+        // so a filtered page still states what every other chip would show.
+        var scoped = filtered.ToArray();
+        var kindCounts = Enum.GetValues<NeedsAttentionKind>()
+            .ToDictionary(kind => kind, kind => scoped.Count(item => item.Kind == kind));
+        filtered = scoped;
         if (query.Kinds is { Count: > 0 } kinds)
         {
             filtered = filtered.Where(item => kinds.Contains(item.Kind));
         }
 
         var list = filtered.ToArray();
-        var kindCounts = Enum.GetValues<NeedsAttentionKind>()
-            .ToDictionary(kind => kind, kind => list.Count(item => item.Kind == kind));
         var overdue = list.Count(item => NeedsAttentionPolicy.Priority(item.Due, asOfUtc, dayEndUtc) == NeedsAttentionPriority.Overdue);
         var today = list.Count(item => NeedsAttentionPolicy.Priority(item.Due, asOfUtc, dayEndUtc) == NeedsAttentionPriority.Today);
         return new(

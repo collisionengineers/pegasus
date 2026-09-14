@@ -37,6 +37,9 @@ public sealed class DetailsModel(
     IAddTriageNote addNote,
     ISetTriagePrincipal setPrincipal,
     ITriageQueries triageQueries,
+    IAssignTriageToMe assignToMe,
+    Pegasus.Core.ImageIntake.IGetPreCaseImagePreparations getPreparations,
+    Pegasus.Core.Documents.IReadImageTagVocabulary tagVocabulary,
     GetRetainedMail? getRetainedMail = null,
     IStaffMailSend? staffMailSend = null,
     IApprovedMailboxStore? approvedMailboxes = null,
@@ -55,6 +58,13 @@ public sealed class DetailsModel(
     /// claim instead of an Edit that would be refused again.
     /// </summary>
     public bool CanTakeOverEdit { get; private set; }
+
+    /// <summary>Each evidence image's recorded crop and tags, by its asset (pre-Case crop and tag, v26).</summary>
+    public IReadOnlyDictionary<Guid, Pegasus.Core.ImageIntake.PreCaseImagePreparation> Preparations { get; private set; } =
+        new Dictionary<Guid, Pegasus.Core.ImageIntake.PreCaseImagePreparation>();
+
+    /// <summary>The tag vocabulary the viewer's Tag select offers.</summary>
+    public IReadOnlyList<Pegasus.Core.Documents.ImageTag> ImageTags { get; private set; } = [];
 
     /// <summary>The record as the operator reading an ownership sentence names it.</summary>
     private const string RecordName = "Triage record";
@@ -115,7 +125,48 @@ public sealed class DetailsModel(
     /// (<see cref="UnidentifiedMediaKindPolicy"/>) so one retained source is
     /// not called two different things on two screens.
     /// </summary>
-    public string ViewSourceLabel { get; private set; } = "View file";
+    public bool SourceIsEmail { get; private set; }
+
+    /// <summary>The retained message the request came in, so the record offers Open message (never a receipt page).</summary>
+    public Guid? SourceMessageId => RetainedMail?.Summary.Id;
+
+    /// <summary>Open file: the retained original through the kept source route.</summary>
+    public string OpenFileHref => $"/Received/{Triage.Record.Origin.ReceiptId:D}/Source";
+
+    public string? AssigneeName { get; private set; }
+
+    /// <summary>Assign to me (Work Centre P8): an Engineer takes a Triage with no assignee.</summary>
+    public bool CanAssignToMe { get; private set; }
+
+    public async Task<IActionResult> OnPostAssignToMeAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out _, out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await assignToMe.ExecuteAsync(
+                new AssignTriageToMeRequest(id, expectedVersion, actor, operationKey),
+                cancellationToken);
+            TempData["TriageStatus"] = "The Triage was assigned to you.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (IsExpected(exception))
+        {
+            TempData["TriageStatus"] = "The Triage was not assigned because it changed or the action is not permitted.";
+        }
+
+        return RedirectToPage(new { id });
+    }
     public string? CaseAssociationUnavailableReason { get; private set; }
     public Guid? CaseAssociationUnavailableCaseId { get; private set; }
 
@@ -539,12 +590,31 @@ public sealed class DetailsModel(
         EvidenceImages = receipt is null
             ? []
             : InstructionEvidenceImages.Select(receipt.AssetRecords);
+        if (EvidenceImages.Count > 0)
+        {
+            Preparations = await getPreparations.ExecuteAsync(
+                actor,
+                EvidenceImages.Select(asset => asset.Id).ToArray(),
+                cancellationToken);
+            ImageTags = await tagVocabulary.ListAsync(cancellationToken);
+        }
         var sourceIsEmail = receipt is not null && !string.IsNullOrWhiteSpace(receipt.MediaType)
             ? UnidentifiedMediaKindPolicy.Classify(
                 receipt.SourceIdentity.Channel,
                 receipt.MediaType) == UnidentifiedMediaKind.Email
             : triage.Record.Origin.SourceIdentity.Channel == IntakeSourceChannel.Mailbox;
-        ViewSourceLabel = sourceIsEmail ? "View email" : "View file";
+        SourceIsEmail = sourceIsEmail;
+        var roster = await engineerChoices.GetAsync(actor, cancellationToken);
+        AssigneeName = triage.Record.AssigneeId is { } assigneeId
+            ? roster.FirstOrDefault(choice => choice.StaffId == assigneeId)?.DisplayName ?? "Assigned"
+            : null;
+        CanAssignToMe = TriageLifecycleRules.CanAssignToSelf(triage.Record)
+            && NeedsAttentionPolicy.CanTake(NeedsAttentionKind.Triage, actor);
+        ViewData["WorkingSetRecord"] = new WorkingSetRecord(
+            $"/Triage/{id:D}",
+            WorkingSetRecord.Kinds.Triage,
+            triage.Record.Reference ?? "Triage",
+            triage.Record.NormalizedVehicleRegistration);
 
         ActiveFindings = triage.Findings
             .Where(candidate => !triage.Findings.Any(

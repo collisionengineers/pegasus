@@ -3,7 +3,9 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
@@ -35,8 +37,36 @@ public sealed class MessageModel(
     IAcquireCaseEditLease acquireCaseEditLease,
     IReleaseCaseEditLease releaseCaseEditLease,
     ILinkIntake linkIntake,
-    IReverseIntakeLink reverseIntakeLink) : StaffPageModel
+    IReverseIntakeLink reverseIntakeLink,
+    IDismissRetainedMail dismissRetainedMail,
+    IRestoreRetainedMail restoreRetainedMail,
+    IGetRetainedMailAttachmentOutcomes attachmentOutcomes) : StaffPageModel
 {
+    /// <summary>
+    /// One attachment's outcome in operator words (message planning, 13 September):
+    /// Case created, Unidentified, Vehicle images, Could not be read (with the reason
+    /// and its Unidentified item) or Processing failed. Nothing links to a receipt.
+    /// </summary>
+    public sealed record AttachmentOutcome(
+        string Label,
+        string Tone,
+        string? Href = null,
+        string? LinkText = null,
+        string? Reason = null);
+
+    /// <summary>An attachment row: the retained attachment, its outcome and the viewer address of its retained file.</summary>
+    public sealed record AttachmentRow(
+        RetainedMailAttachment Attachment,
+        AttachmentOutcome Outcome,
+        string? ViewerHref);
+
+    public IReadOnlyList<AttachmentRow> AttachmentRows { get; private set; } = [];
+
+    /// <summary>The list this message was opened from was the Dismissed scope.</summary>
+    public bool ListDismissed { get; private set; }
+
+    public bool IsDismissed => Detail.Summary.DismissedAtUtc is not null;
+
     public const string LinkAssociationAction = "Link";
 
     public const string UnlinkAssociationAction = "Unlink";
@@ -63,15 +93,9 @@ public sealed class MessageModel(
     [BindProperty(SupportsGet = true, Name = "queue")]
     public string? QueueFilter { get; set; }
 
-    /// <summary>The Unread scope of the list this message was opened from.</summary>
-    [BindProperty(SupportsGet = true, Name = "unread")]
-    public string? UnreadFilter { get; set; }
-
     /// <summary>The list's sort toggle state this message was opened from.</summary>
     [BindProperty(SupportsGet = true, Name = "sort")]
     public string? SortOrder { get; set; }
-
-    public bool UnreadOnly { get; private set; }
 
     public bool OldestFirst { get; private set; }
 
@@ -290,6 +314,7 @@ public sealed class MessageModel(
         Detail = detail;
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
+        await LoadAttachmentOutcomesAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
         if (StaffMailAvailable)
         {
@@ -304,6 +329,139 @@ public sealed class MessageModel(
             CorrespondenceMode = null;
         }
         return Page();
+    }
+
+    /// <summary>Dismiss on the record: always allowed; an open Unidentified item stays open (Inbox, 13 September).</summary>
+    public Task<IActionResult> OnPostDismissAsync(Guid id, string? operationKey, CancellationToken cancellationToken) =>
+        ChangeDismissalAsync(
+            id,
+            actor => dismissRetainedMail.ExecuteAsync(
+                new(id, actor, string.IsNullOrWhiteSpace(operationKey) ? NewOperationKey() : operationKey),
+                cancellationToken),
+            OperatorLabels.Inbox.DismissedNotice);
+
+    /// <summary>Restore on the record of a dismissed message.</summary>
+    public Task<IActionResult> OnPostRestoreAsync(Guid id, string? operationKey, CancellationToken cancellationToken) =>
+        ChangeDismissalAsync(
+            id,
+            actor => restoreRetainedMail.ExecuteAsync(
+                new(id, actor, string.IsNullOrWhiteSpace(operationKey) ? NewOperationKey() : operationKey),
+                cancellationToken),
+            OperatorLabels.Inbox.RestoredNotice);
+
+    private async Task<IActionResult> ChangeDismissalAsync(
+        Guid id,
+        Func<ActionActor, Task<RetainedMailDismissal?>> change,
+        string notice)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            if (await change(actor) is null)
+            {
+                return NotFound();
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException)
+        {
+            return NotFound();
+        }
+
+        TempData["Confirmation"] = notice;
+        return RedirectToPage(new
+        {
+            id,
+            mailbox = MailboxFilter,
+            folder = FolderFilter,
+            pageNumber = PageRouteValue,
+            search = SearchTerm,
+            queue = QueueFilter,
+            sort = OldestFirst ? "oldest" : null
+        });
+    }
+
+    private async Task LoadAttachmentOutcomesAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        if (ActiveSection != "attachments" || Detail.Attachments.Count == 0)
+        {
+            return;
+        }
+
+        var receipt = AssociationReceipt;
+        var assets = receipt?.AssetRecords ?? [];
+        // Core decides each attachment's own outcome (Case, Unidentified, Vehicle
+        // images, Could not be read, Processing failed) from its receipt and assets.
+        var outcomes = receipt is null
+            ? []
+            : await attachmentOutcomes.ExecuteAsync(actor, receipt.Id, cancellationToken);
+        AttachmentRows = Detail.Attachments
+            .Select(attachment =>
+            {
+                var asset = assets.FirstOrDefault(item =>
+                    item.Kind == IntakeAssetKind.Attachment
+                    && string.Equals(item.FileName, attachment.FileName, StringComparison.OrdinalIgnoreCase));
+                var outcome = asset is null ? null : outcomes.FirstOrDefault(item => item.AssetId == asset.Id);
+                return new AttachmentRow(
+                    attachment,
+                    Describe(outcome, receipt),
+                    receipt is not null && asset is not null
+                        ? $"/Received/{receipt.Id:D}/Asset/{asset.Id:D}"
+                        : null);
+            })
+            .ToArray();
+    }
+
+    /// <summary>One attachment's outcome in operator words, with the record it opens.</summary>
+    private AttachmentOutcome Describe(RetainedMailAttachmentOutcome? outcome, IntakeReceipt? receipt)
+    {
+        if (outcome is null)
+        {
+            return new("Not yet processed", "neutral");
+        }
+
+        var href = outcome.Record is { } record
+            ? record.Kind switch
+            {
+                AttachmentOutcomeRecordKind.Case => $"/Cases/{record.Id:D}",
+                AttachmentOutcomeRecordKind.ImageIntake => $"/VehicleImages/{record.Id:D}",
+                _ => $"/Unidentified/{record.Id:D}"
+            }
+            : null;
+        var linkText = outcome.Record?.Reference;
+        return outcome.Kind switch
+        {
+            AttachmentOutcomeKind.CaseCreated => new("Case created", "green", href, linkText),
+            AttachmentOutcomeKind.LinkedToCase => new("Linked to Case", "green", href, linkText),
+            AttachmentOutcomeKind.VehicleImages => new("Vehicle images", "green", href, linkText),
+            AttachmentOutcomeKind.CouldNotBeRead => new(
+                "Could not be read",
+                "amber",
+                href,
+                linkText,
+                outcome.Reason ?? (receipt is null ? null : OperatorLabels.IntakeCannotBecomeCaseReason(receipt.Decision))),
+            AttachmentOutcomeKind.ProcessingFailed => new(
+                "Processing failed",
+                "red",
+                href,
+                linkText,
+                outcome.Reason ?? OperatorLabels.IntakeFailure(receipt?.FailureCode)),
+            AttachmentOutcomeKind.Triage => new("Triage", "navy"),
+            AttachmentOutcomeKind.Unidentified => new("Unidentified", "amber", href, linkText),
+            AttachmentOutcomeKind.NotYetProcessed => new("Not yet processed", "neutral"),
+            _ => new(OutcomeLabel(Detail.Summary), "neutral")
+        };
     }
 
     public Task<IActionResult> OnPostReplyAsync(Guid id, CancellationToken cancellationToken) =>
@@ -400,7 +558,6 @@ public sealed class MessageModel(
             pageNumber = PageRouteValue,
             search = SearchTerm,
             queue = QueueFilter,
-            unread = UnreadOnly ? "true" : null,
             sort = OldestFirst ? "oldest" : null,
             compose = CorrespondenceMode,
             mailOperationId
@@ -770,7 +927,6 @@ public sealed class MessageModel(
             pageNumber = PageNumber,
             search = SearchTerm,
             queue = QueueFilter,
-            unread = UnreadOnly ? "true" : null,
             sort = OldestFirst ? "oldest" : null
         });
     }
@@ -819,7 +975,6 @@ public sealed class MessageModel(
                 pageNumber = PageNumber,
                 search = SearchTerm,
                 queue = QueueFilter,
-                unread = UnreadOnly ? "true" : null,
                 sort = OldestFirst ? "oldest" : null
             });
         }
@@ -860,6 +1015,7 @@ public sealed class MessageModel(
         Detail = detail;
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
+        await LoadAttachmentOutcomesAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
         await LoadRetainedOperationAsync(actor, cancellationToken);
         await LoadCorrespondenceContextAsync(actor, initializeForm: false, cancellationToken);
@@ -1044,7 +1200,6 @@ public sealed class MessageModel(
             pageNumber = PageRouteValue,
             search = SearchTerm,
             queue = QueueFilter,
-            unread = UnreadOnly ? "true" : null,
             sort = OldestFirst ? "oldest" : null,
             compose = ModeCode(mode),
             mailOperationId = CorrespondenceOperation?.Id
@@ -1431,7 +1586,6 @@ public sealed class MessageModel(
         pageNumber = PageNumber,
         search = SearchTerm,
         queue = QueueFilter,
-        unread = UnreadOnly ? "true" : null,
         sort = OldestFirst ? "oldest" : null,
         section = "case"
     });
@@ -1445,7 +1599,6 @@ public sealed class MessageModel(
             pageNumber = PageNumber,
             search = SearchTerm,
             queue = QueueFilter,
-            unread = UnreadOnly ? "true" : null,
             sort = OldestFirst ? "oldest" : null,
             section = "case",
             caseQuery = CaseQuery,
@@ -1653,6 +1806,7 @@ public sealed class MessageModel(
         (listFolder == MailFolderScope.Inbox
             && SearchTerm is null
             && detail.Summary.CurrentFolderType is not null)
+            || ListDismissed != (detail.Summary.DismissedAtUtc is not null)
             || detail.Folder != listFolder
             || (MailboxFilter is { } mailbox
                 && !string.Equals(mailbox, detail.Summary.MailboxId.ToString("D"), StringComparison.OrdinalIgnoreCase))
@@ -1661,15 +1815,14 @@ public sealed class MessageModel(
 
     private bool TryParseListContext(out MailFolderScope listFolder)
     {
-        if (!IndexModel.TryParseFolder(FolderFilter, out listFolder)
+        if (!IndexModel.TryParseFolder(FolderFilter, out listFolder, out var dismissed)
             || !ParseQueueFilter(listFolder)
-            || !IndexModel.TryParseUnread(UnreadFilter, listFolder, out var unreadOnly)
             || !IndexModel.TryParseSort(SortOrder, out var oldestFirst))
         {
             return false;
         }
 
-        UnreadOnly = unreadOnly;
+        ListDismissed = dismissed;
         OldestFirst = oldestFirst;
         return true;
     }
@@ -1735,8 +1888,7 @@ public sealed class MessageModel(
         _ => CaseQuery is not null || TargetCaseId is not null ? "case" : "message"
     };
 
-    public string? FolderRouteValue =>
-        ListFolder == MailFolderScope.Inbox ? null : IndexModel.FolderCode(ListFolder);
+    public string? FolderRouteValue => IndexModel.ListFolderCode(ListFolder, ListDismissed);
 
     public int? PageRouteValue => PageNumber is > 1 ? PageNumber : null;
 

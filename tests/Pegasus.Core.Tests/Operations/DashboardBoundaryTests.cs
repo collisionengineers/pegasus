@@ -336,6 +336,30 @@ public sealed class DashboardBoundaryTests
     }
 
     [Fact]
+    public async Task KindChipsCountTheScopeBeforeTheKindFilter()
+    {
+        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var snapshot = await new GetOperationsSnapshot(
+            new StubIntakeReceiptQueries(),
+            new StubListTriage { Items = [NewTriage(Guid.NewGuid(), "AB12CDE", TriageState.Open)] },
+            new StubDueWorkQueries(),
+            new RecordingDashboardQueries(),
+            new StubSearchCases(),
+            new StubUnidentifiedQueue { Rows = [NewUnidentified(Guid.NewGuid(), "U3001"), NewUnidentified(Guid.NewGuid(), "U3002")] },
+            new UnknownStaffAccounts(),
+            new FixedWorkflowConfiguration(new("case-workflow", 1)),
+            new FixedTimeProvider(NowUtc)).ExecuteAsync(
+                new NeedsAttentionQuery(administrator, NeedsAttentionScope.Office, 1, [NeedsAttentionKind.Triage]));
+
+        // The page and its totals are the filtered list...
+        Assert.Equal([NeedsAttentionKind.Triage], snapshot.Attention.Items.Select(item => item.Kind).ToArray());
+        Assert.Equal(1, snapshot.Attention.TotalCount);
+        // ...while every chip still counts the whole scope.
+        Assert.Equal(1, snapshot.Attention.KindCounts[NeedsAttentionKind.Triage]);
+        Assert.Equal(2, snapshot.Attention.KindCounts[NeedsAttentionKind.Unidentified]);
+    }
+
+    [Fact]
     public async Task NeedsAttentionIsBoundedAtFiftyRows()
     {
         var recorder = new RecordingDashboardQueries();

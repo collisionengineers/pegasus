@@ -227,9 +227,6 @@ public sealed class QdosIntakeWebTests
         using var review = await client.GetAsync($"/Cases/{caseId:D}");
         review.EnsureSuccessStatusCode();
         var html = await review.Content.ReadAsStringAsync();
-        using var sourceReview = await client.GetAsync($"/Received/{receipt.Id:D}");
-        sourceReview.EnsureSuccessStatusCode();
-        var sourceHtml = await sourceReview.Content.ReadAsStringAsync();
 
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
         var draft = Assert.IsType<InstructionDraft>(receipt.InstructionDraft);
@@ -265,10 +262,6 @@ public sealed class QdosIntakeWebTests
         Assert.False(string.IsNullOrWhiteSpace(caseReference));
         Assert.Contains($"<h1>{caseReference}</h1>", html, StringComparison.Ordinal);
         Assert.Contains(caseReference, html, StringComparison.Ordinal);
-        Assert.Contains("<h1>Linked to Case</h1>", sourceHtml, StringComparison.Ordinal);
-        Assert.Contains(receipt.SourceFileName, sourceHtml, StringComparison.Ordinal);
-        Assert.Contains($"/Cases/{caseId:D}", sourceHtml, StringComparison.Ordinal);
-        Assert.Contains(caseReference, sourceHtml, StringComparison.Ordinal);
     }
 
     [GenuineQdosCorpusFact(LowTextNonScanPdfHash)]
@@ -284,8 +277,6 @@ public sealed class QdosIntakeWebTests
             GenuineQdosCorpus.Read(LowTextNonScanPdfHash));
         var receiptId = IntakeWebDriver.ReceiptId(upload);
         var receipt = await GetReceiptAsync(factory, receiptId);
-        using var review = await client.GetAsync(upload.Location);
-        var reviewHtml = await review.Content.ReadAsStringAsync();
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Equal(LowTextNonScanPdfHash, receipt.SourceHash);
         Assert.Null(receipt.FailureCode);
@@ -295,9 +286,6 @@ public sealed class QdosIntakeWebTests
         Assert.Null(receipt.CurrentCaseReference);
         Assert.Empty(receipt.ScannedPdfPages);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "insufficient-embedded-text");
-        Assert.Contains("<h1>Unidentified</h1>", reviewHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("id=\"triage-title\"", reviewHtml, StringComparison.Ordinal);
-        Assert.Contains("not an image-led scanned page", reviewHtml, StringComparison.Ordinal);
     }
 
     [GenuineQdosCorpusFact(ForwardedEmailHash, ConfirmedInputTwoHash)]
@@ -320,15 +308,12 @@ public sealed class QdosIntakeWebTests
         var distinctId = IntakeWebDriver.ReceiptId(distinct);
         var firstReceipt = await GetReceiptAsync(factory, firstId);
         var distinctReceipt = await GetReceiptAsync(factory, distinctId);
-        using var duplicateReview = await client.GetAsync(duplicate.Location);
-        var duplicateHtml = await duplicateReview.Content.ReadAsStringAsync();
 
         Assert.Equal(firstId, duplicateId);
         Assert.Equal(replayToken, firstReceipt.SourceIdentity.ExternalReceiptToken);
         Assert.NotEqual(
             firstReceipt.SourceIdentity.ExternalReceiptToken,
             distinctReceipt.SourceIdentity.ExternalReceiptToken);
-        Assert.Contains("This file was already received. The existing record is shown.", duplicateHtml, StringComparison.Ordinal);
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
         Assert.Equal(2, (await queries.ListAsync(null, 1, 100, CancellationToken.None)).TotalCount);
@@ -434,9 +419,6 @@ public sealed class QdosIntakeWebTests
         Assert.Equal(new IntakeQueueCounts(1, 0), counts);
         Assert.Matches(
             "(?s)data-value=\"unidentified\"(?:(?!</a>).)*?<span class=\"metric-value\">1</span>",
-            dashboard);
-        Assert.Matches(
-            "(?s)data-value=\"blocked\"(?:(?!</a>).)*?<span class=\"metric-value\">0</span>",
             dashboard);
         var sortingItem = Assert.Single(sortingQueue.Items);
         Assert.Equal(IntakeDecision.NeedsSorting, sortingItem.Decision);

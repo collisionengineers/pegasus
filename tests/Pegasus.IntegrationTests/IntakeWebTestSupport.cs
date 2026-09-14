@@ -398,9 +398,9 @@ internal static partial class IntakeWebDriver
     /// <remarks>
     /// Every ingress stages pending work; the Web host never processes it. This
     /// stands in for the Worker timer and queue trigger with an immediate
-    /// enqueuer. The result is pointed at <c>/Received/{id}</c> because that is
-    /// what callers want next: the retained record of what arrived. Where the
-    /// upload itself landed is asked with <see cref="Landing"/>.
+    /// enqueuer. The result names the processed receipt and points at its
+    /// retained original (<c>/Received/{id}/Source</c>, the kept viewer route).
+    /// Where the upload itself landed is asked with <see cref="Landing"/>.
     /// </remarks>
     public static async Task<UploadResult> ProcessQueuedAsync(
         WebApplicationFactory<Program> factory,
@@ -424,7 +424,7 @@ internal static partial class IntakeWebDriver
 
             return upload with
             {
-                Location = new Uri($"/Received/{first:D}", UriKind.Relative),
+                Location = new Uri($"/Received/{first:D}/Source", UriKind.Relative),
                 ProcessedReceiptId = first
             };
         }
@@ -441,7 +441,7 @@ internal static partial class IntakeWebDriver
             return upload with
             {
                 Location = new Uri(
-                    $"/Received/{tokenReceiptId:D}" + (IsDuplicateLanding(upload) ? "?duplicate=true" : string.Empty),
+                    $"/Received/{tokenReceiptId:D}/Source" + (IsDuplicateLanding(upload) ? "?duplicate=true" : string.Empty),
                     UriKind.Relative),
                 ProcessedReceiptId = tokenReceiptId
             };
@@ -454,7 +454,7 @@ internal static partial class IntakeWebDriver
         var evaluation = await DrainStagedAsync(services, stagedReceiptId, cancellationToken);
         var processedReceiptId = evaluation.ProcessedReceiptId;
 
-        var detailLocation = $"/Received/{processedReceiptId:D}"
+        var detailLocation = $"/Received/{processedReceiptId:D}/Source"
             + (landing.IsDuplicate ? "?duplicate=true" : string.Empty);
         return upload with
         {

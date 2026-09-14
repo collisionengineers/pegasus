@@ -12,12 +12,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] · Pegasus</title>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
 </head>
 <body>
     <partial name="Shared/_LucideSprite" />
     <div class="external-shell">
         <main id="main-content" tabindex="-1">
-            <section class="auth-card">
+            <section class="auth-card @(ViewData["AuthCardClass"] as string)">
                 <div class="auth-brand">
                     <img src="~/images/logo_no_margin.png" asp-append-version="true" alt="" />
                     <strong>PEGASUS</strong>

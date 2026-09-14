@@ -152,6 +152,7 @@ public sealed class SubmitMailboxImageIntake(
             $"mailbox-image-submission-failure:group:{group.Id:N}",
             group.ReceivedAtUtc);
 
-    private static string SubmissionToken(Guid receiptId) =>
+    /// <summary>The submission token of a message's image group, named here once so readers find the same group.</summary>
+    public static string SubmissionToken(Guid receiptId) =>
         $"mailbox-images:{receiptId:N}";
 }

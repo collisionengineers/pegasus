@@ -221,7 +221,11 @@ public sealed record SetImageIntakePrincipalRequest(
 public sealed record ImageIntakeImage(
     Guid ReceiptId,
     string FileName,
-    string MediaType);
+    string MediaType)
+{
+    /// <summary>The retained image asset, which carries the image's pre-Case crop and tags.</summary>
+    public Guid? AssetId { get; init; }
+}
 
 public interface IImageIntakeQueries
 {

@@ -1052,6 +1052,12 @@ public sealed class AnalyzeRetainedInstructionTests
             CancellationToken cancellationToken) =>
             Task.FromResult<IntakeOcrOperation?>(Operations.Values.SingleOrDefault(item => item.Id == operationId));
 
+        public Task<IntakeOcrOperation?> ResumeRequestedRetryAsync(
+            Guid operationId,
+            long expectedVersion,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IntakeOcrOperation?>(null);
+
         public Task<IntakeOcrOperation> BeginAsync(
             Guid operationId,
             IntakeOcrRequest request,

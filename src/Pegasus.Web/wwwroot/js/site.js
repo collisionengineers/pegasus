@@ -1417,6 +1417,206 @@
                 || typeof window.pegasusOpenCaseCrop !== 'function';
             previous.disabled = index === 0;
             following.disabled = index === items.length - 1;
+            showPreCase(item, kind);
+        }
+
+        // Pre-Case crop and tag (v26): an image on an image record, a Triage or
+        // an Unidentified item carries data-precase-asset. The recorded rotation
+        // is shown on the stage; Crop draws a frame over the image (fractions of
+        // the rotated image, as a Case crop is); Apply and Clear post to the one
+        // owner; Cancel leaves crop mode; the Tag select and chip × post a tag.
+        var preCaseTools = viewer.querySelector('[data-precase-tools]');
+        var preCaseCropForm = viewer.querySelector('[data-precase-crop-form]');
+        var preCaseTagForm = viewer.querySelector('[data-precase-tag-form]');
+        var preCaseCropping = null;
+
+        function preCaseRotation() {
+            if (stage.classList.contains('rot-90')) { return 90; }
+            if (stage.classList.contains('rot-180')) { return 180; }
+            return stage.classList.contains('rot-270') ? 270 : 0;
+        }
+
+        function endPreCaseCrop() {
+            if (preCaseCropping) {
+                preCaseCropping.layer.remove();
+                preCaseCropping = null;
+            }
+            if (preCaseTools) {
+                preCaseTools.querySelector('[data-precase-view]').hidden = false;
+                preCaseTools.querySelector('[data-precase-cropping]').hidden = true;
+            }
+        }
+
+        function showPreCase(item, kind) {
+            if (!preCaseTools) {
+                return;
+            }
+            endPreCaseCrop();
+            var asset = kind === 'image' ? item.getAttribute('data-precase-asset') : null;
+            preCaseTools.hidden = !asset;
+            if (!asset) {
+                return;
+            }
+            stage.classList.remove('rot-90', 'rot-180', 'rot-270');
+            var rotation = item.getAttribute('data-precase-rotation');
+            if (rotation && rotation !== '0') {
+                stage.classList.add('rot-' + rotation);
+            }
+            var cropState = preCaseTools.querySelector('[data-precase-crop-state]');
+            cropState.textContent = item.getAttribute('data-precase-crop') || (rotation && rotation !== '0') ? 'Cropped' : '';
+            var tagList = preCaseTools.querySelector('[data-precase-tag-list]');
+            var select = preCaseTools.querySelector('[data-precase-tag-select]');
+            var applied = (item.getAttribute('data-precase-tags') || '').split(',').filter(Boolean);
+            tagList.textContent = '';
+            Array.prototype.forEach.call(select.options, function (option) {
+                if (!option.value) {
+                    return;
+                }
+                var on = applied.indexOf(option.value) >= 0;
+                option.hidden = on;
+                if (on) {
+                    var chip = document.createElement('span');
+                    chip.className = 'tag-chip tag-chip--' + (option.getAttribute('data-colour') || 'grey');
+                    chip.textContent = option.textContent;
+                    var remove = document.createElement('button');
+                    remove.type = 'button';
+                    remove.className = 'precase-tag-remove';
+                    remove.setAttribute('aria-label', 'Remove tag ' + option.textContent);
+                    remove.setAttribute('data-precase-tag-remove', option.value);
+                    remove.textContent = '×';
+                    chip.appendChild(remove);
+                    tagList.appendChild(chip);
+                }
+            });
+            select.value = '';
+        }
+
+        function preCaseItem() {
+            var item = items[index];
+            return item && item.getAttribute('data-precase-asset') ? item : null;
+        }
+
+        function fraction(value) {
+            return Math.round(Math.min(1, Math.max(0, value)) * 1e7) / 1e7;
+        }
+
+        function beginPreCaseCrop() {
+            var item = preCaseItem();
+            if (!item || image.hidden) {
+                return;
+            }
+            endPreCaseCrop();
+            // The frame is drawn over the image as it is shown (after the view's
+            // rotation), outside the rotated stage, so its fractions are of the
+            // rotated image exactly as a Case crop's are.
+            var host = stage.parentElement;
+            var bounds = image.getBoundingClientRect();
+            var hostBounds = host.getBoundingClientRect();
+            var layer = document.createElement('div');
+            layer.className = 'precase-crop-layer';
+            layer.setAttribute('data-precase-crop-layer', '');
+            layer.style.left = (bounds.left - hostBounds.left + host.scrollLeft) + 'px';
+            layer.style.top = (bounds.top - hostBounds.top + host.scrollTop) + 'px';
+            layer.style.width = bounds.width + 'px';
+            layer.style.height = bounds.height + 'px';
+            var selection = document.createElement('div');
+            selection.className = 'precase-crop-selection';
+            selection.hidden = true;
+            layer.appendChild(selection);
+            host.appendChild(layer);
+            preCaseCropping = { layer: layer, selection: selection, frame: null };
+            var stored = (item.getAttribute('data-precase-crop') || '').split(',').map(Number);
+            if (stored.length === 4 && stored.every(function (value) { return !isNaN(value); })) {
+                drawPreCaseFrame({ left: stored[0], top: stored[1], width: stored[2], height: stored[3] });
+            }
+            var start = null;
+            layer.addEventListener('pointerdown', function (event) {
+                var rect = layer.getBoundingClientRect();
+                start = { x: (event.clientX - rect.left) / rect.width, y: (event.clientY - rect.top) / rect.height };
+                layer.setPointerCapture(event.pointerId);
+                event.preventDefault();
+            });
+            layer.addEventListener('pointermove', function (event) {
+                if (!start) {
+                    return;
+                }
+                var rect = layer.getBoundingClientRect();
+                var x = fraction((event.clientX - rect.left) / rect.width);
+                var y = fraction((event.clientY - rect.top) / rect.height);
+                drawPreCaseFrame({
+                    left: fraction(Math.min(start.x, x)),
+                    top: fraction(Math.min(start.y, y)),
+                    width: fraction(Math.abs(x - start.x)),
+                    height: fraction(Math.abs(y - start.y))
+                });
+            });
+            layer.addEventListener('pointerup', function () { start = null; });
+            preCaseTools.querySelector('[data-precase-view]').hidden = true;
+            preCaseTools.querySelector('[data-precase-cropping]').hidden = false;
+        }
+
+        function drawPreCaseFrame(frame) {
+            if (!preCaseCropping) {
+                return;
+            }
+            preCaseCropping.frame = frame;
+            var selection = preCaseCropping.selection;
+            selection.hidden = !(frame.width > 0 && frame.height > 0);
+            selection.style.left = (frame.left * 100) + '%';
+            selection.style.top = (frame.top * 100) + '%';
+            selection.style.width = (frame.width * 100) + '%';
+            selection.style.height = (frame.height * 100) + '%';
+        }
+
+        function postPreCaseCrop(clear) {
+            var item = preCaseItem();
+            if (!item || !preCaseCropForm) {
+                return;
+            }
+            var frame = preCaseCropping && preCaseCropping.frame;
+            if (!clear && !(frame && frame.width > 0 && frame.height > 0)) {
+                frame = { left: 0, top: 0, width: 1, height: 1 };
+            }
+            if (!clear) {
+                frame.width = fraction(Math.min(frame.width, 1 - frame.left));
+                frame.height = fraction(Math.min(frame.height, 1 - frame.top));
+            }
+            preCaseCropForm.elements.intakeAssetId.value = item.getAttribute('data-precase-asset');
+            preCaseCropForm.elements.expectedVersion.value = item.getAttribute('data-precase-version') || '0';
+            preCaseCropForm.elements.rotation.value = clear ? '0' : String(preCaseRotation());
+            preCaseCropForm.elements.clear.value = clear ? 'true' : 'false';
+            preCaseCropForm.elements.cropLeft.value = clear ? '' : String(frame.left);
+            preCaseCropForm.elements.cropTop.value = clear ? '' : String(frame.top);
+            preCaseCropForm.elements.cropWidth.value = clear ? '' : String(frame.width);
+            preCaseCropForm.elements.cropHeight.value = clear ? '' : String(frame.height);
+            preCaseCropForm.submit();
+        }
+
+        function postPreCaseTag(tagId, applied) {
+            var item = preCaseItem();
+            if (!item || !preCaseTagForm || !tagId) {
+                return;
+            }
+            preCaseTagForm.elements.intakeAssetId.value = item.getAttribute('data-precase-asset');
+            preCaseTagForm.elements.tagId.value = tagId;
+            preCaseTagForm.elements.applied.value = applied ? 'true' : 'false';
+            preCaseTagForm.submit();
+        }
+
+        if (preCaseTools) {
+            preCaseTools.querySelector('[data-precase-crop-start]').addEventListener('click', beginPreCaseCrop);
+            preCaseTools.querySelector('[data-precase-crop-apply]').addEventListener('click', function () { postPreCaseCrop(false); });
+            preCaseTools.querySelector('[data-precase-crop-clear]').addEventListener('click', function () { postPreCaseCrop(true); });
+            preCaseTools.querySelector('[data-precase-crop-cancel]').addEventListener('click', endPreCaseCrop);
+            preCaseTools.querySelector('[data-precase-tag-select]').addEventListener('change', function (event) {
+                postPreCaseTag(event.target.value, true);
+            });
+            preCaseTools.addEventListener('click', function (event) {
+                var remove = event.target.closest('[data-precase-tag-remove]');
+                if (remove) {
+                    postPreCaseTag(remove.getAttribute('data-precase-tag-remove'), false);
+                }
+            });
         }
 
         var release = null;

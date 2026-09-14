@@ -770,6 +770,40 @@ public sealed class CloseUnidentified(IResolveUnidentified resolve) : ICloseUnid
 }
 
 /// <summary>
+/// Reopen (Received file D2): a member of staff withdraws a resolution — a
+/// closure or a destination — with a reason, and the item returns to the open
+/// list. The store appends the "Resolved to Open" history row; the withdrawn
+/// destination stays on that history. Automation reconciliation reopens through
+/// the store under its own actor; this is the staff act.
+/// </summary>
+public interface IReopenUnidentified
+{
+    Task<UnidentifiedReopenResult> ExecuteAsync(
+        ReopenUnidentifiedRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class ReopenUnidentified(IUnidentifiedStore store) : IReopenUnidentified
+{
+    private readonly IUnidentifiedStore _store = store ?? throw new ArgumentNullException(nameof(store));
+
+    public Task<UnidentifiedReopenResult> ExecuteAsync(
+        ReopenUnidentifiedRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        if (request.Actor.Kind != ActorKind.Staff)
+        {
+            throw new UnauthorizedAccessException("Only staff can reopen an Unidentified item with a reason.");
+        }
+
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        return _store.ReopenAsync(request, cancellationToken);
+    }
+}
+
+/// <summary>
 /// What kind of file an item that could not be read was, in operator words.
 /// One rule, so the Inbox attachment badge, the upload confirmation row and the
 /// Unidentified record all say the same thing about the same file.

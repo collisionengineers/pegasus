@@ -12,16 +12,20 @@
         ["tab"] = Model.Queue,
         ["principal"] = Model.PrincipalFilter,
         ["missing"] = Model.ShowingNotReady ? Model.MissingFilter : null,
+        ["show"] = Model.ShowFilter,
         ["page"] = Model.CurrentPage > 1 ? Model.CurrentPage.ToString() : null,
         ["selected"] = Model.SelectedId?.ToString("D")
     };
 
     var hasFilters = Model.PrincipalFilter is not null || Model.MissingFilter is not null;
+    var isCaseScope = IndexModel.ListsCases(Model.Queue);
+    var noun = isCaseScope || Model.Queue == "awaiting" ? "case" : "item";
 }
 
-@* One page for the whole case workflow: the rail's groups are where the work
-   is, each count a queried figure, and the panes read the open group beside
-   the row the operator selected. *@
+@section Styles {
+    <link rel="stylesheet" href="~/css/cases-index.css" asp-append-version="true" />
+}
+
 <header class="page-header">
     <div class="page-title">
         <h1>Cases</h1>
@@ -36,54 +40,24 @@
     <div class="validation-summary" role="alert">@uploadConfirmationError</div>
 }
 
-@if (IndexModel.ListsCases(Model.Queue))
+@if (Model.IsUnavailable)
 {
-    @* Selects submit on change; the button is the no-script path. The
-       Principal select exists only where Principal rows are listed, and the
-       Missing select only on Not ready — a control that filters nothing is
-       never drawn. *@
-    <form method="get" class="filter-bar" data-auto-submit>
-        <input type="hidden" name="tab" value="@Model.Queue" />
-        <div class="field">
-            <label for="queue-principal">Principal</label>
-            <select id="queue-principal" name="principal">
-                <option value="">All</option>
-                @foreach (var principal in Model.Principals)
-                {
-                    <option value="@principal" selected="@(Model.PrincipalFilter == principal ? "selected" : null)">@principal</option>
-                }
-            </select>
-        </div>
-        @if (Model.ShowingNotReady)
-        {
-            <div class="field">
-                <label for="queue-missing">Missing</label>
-                <select id="queue-missing" name="missing">
-                    <option value="">All</option>
-                    <option value="instructions" selected="@(Model.MissingFilter == "instructions" ? "selected" : null)">Instructions</option>
-                    <option value="images" selected="@(Model.MissingFilter == "images" ? "selected" : null)">Images</option>
-                    <option value="both" selected="@(Model.MissingFilter == "both" ? "selected" : null)">Both missing</option>
-                </select>
-            </div>
-        }
-        <noscript><button type="submit" class="btn">Apply</button></noscript>
-        @if (hasFilters)
-        {
-            <a class="btn" href="@Model.Href(tab: Model.Queue, keepFilters: false)">Clear</a>
-        }
-    </form>
+    <div class="notice notice--warning" role="status" data-cases-unavailable>
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>Cases are unavailable. Refresh to run the live queues again.</span>
+    </div>
 }
-
-<section class="pane-layout pane-layout--3 queue-layout @(Model.Rows.Count == 0 ? "pane-layout--empty" : null)">
+else
+{
+<section class="pane-layout pane-layout--3 queue-layout cases-queue" data-cases-queue="@Model.Queue">
     <aside class="pane">
         <div class="pane-head">
             <h2>Workflow</h2>
         </div>
-        @* The rail is the shape the design system styles for a pressed
-           scope: buttons carrying tab=X, in one GET form, so a scope opens
+        @* The rail: buttons carrying tab=X in one GET form, so a scope opens
            with a plain native submit and keeps the Principal filter. Counts
            are queried figures, never placeholders. *@
-        <form method="get" action="/Cases" class="scope-list" data-row-list>
+        <form method="get" action="/Cases" class="scope-list">
             @if (Model.PrincipalFilter is not null)
             {
                 <input type="hidden" name="principal" value="@Model.PrincipalFilter" />
@@ -112,171 +86,216 @@
         </form>
     </aside>
 
-    <div class="pane">
+    <div class="pane cases-list">
+        @if (isCaseScope)
+        {
+            @* Selects submit on change; the button is the no-script path. The
+               Principal select exists only where Principal rows are listed, and
+               the Missing select only on Not ready. *@
+            <form method="get" class="filter-bar cases-filters" data-auto-submit>
+                <input type="hidden" name="tab" value="@Model.Queue" />
+                <div class="field">
+                    <label for="queue-principal">Principal</label>
+                    <select id="queue-principal" name="principal">
+                        <option value="">All principals</option>
+                        @foreach (var principal in Model.Principals)
+                        {
+                            <option value="@principal" selected="@(Model.PrincipalFilter == principal ? "selected" : null)">@principal</option>
+                        }
+                    </select>
+                </div>
+                @if (Model.ShowingNotReady)
+                {
+                    <div class="field">
+                        <label for="queue-missing">Missing</label>
+                        <select id="queue-missing" name="missing">
+                            <option value="">All</option>
+                            <option value="instructions" selected="@(Model.MissingFilter == "instructions" ? "selected" : null)">Instructions</option>
+                            <option value="images" selected="@(Model.MissingFilter == "images" ? "selected" : null)">Images</option>
+                            <option value="both" selected="@(Model.MissingFilter == "both" ? "selected" : null)">Both missing</option>
+                        </select>
+                    </div>
+                }
+                <noscript><button type="submit" class="btn">Apply</button></noscript>
+                @if (hasFilters)
+                {
+                    <a class="btn" href="@Model.Href(tab: Model.Queue, keepFilters: false)">Clear</a>
+                }
+            </form>
+        }
+        else if (Model.Queue == "unidentified")
+        {
+            <form method="get" class="filter-bar cases-filters" data-auto-submit>
+                <input type="hidden" name="tab" value="unidentified" />
+                <div class="field">
+                    <label for="queue-show">Show</label>
+                    <select id="queue-show" name="show" data-cases-show>
+                        <option value="open">Open items</option>
+                        <option value="closed" selected="@(Model.ShowingClosed ? "selected" : null)">Closed items</option>
+                    </select>
+                </div>
+                <noscript><button type="submit" class="btn">Apply</button></noscript>
+            </form>
+        }
         <div class="pane-head">
-            <div>
-                <h2>@Model.CurrentTab.Label</h2>
-                <span class="muted">@Model.Rows.Count item@(Model.Rows.Count == 1 ? string.Empty : "s")</span>
-            </div>
+            <h2>@Model.CurrentTab.Label</h2>
+            <span class="meta">@Model.Rows.Count @(noun)@(Model.Rows.Count == 1 ? string.Empty : "s")</span>
         </div>
-        <div class="pane-body pane-scroll" data-row-list>
-            @* A row links to its detail and nothing else; the selected row
-               is the one the quick detail beside it reads, marked as the
-               current item of the list (aria-current, the one current-state
-               token a link may legally carry). Blocked intake rows sit in
-               the Unidentified scope with their own chip and no count of
-               their own (D14). *@
+        <div class="cases-table" data-row-list>
             @if (Model.Rows.Count == 0)
             {
-                <div class="empty pane-empty">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
-                    <h3>No cases</h3>
-                </div>
+                <div class="cases-empty">@(Model.ShowingClosed ? "No closed items" : isCaseScope ? "No cases in this queue" : Model.Queue == "triage" ? "No open Triage" : Model.Queue == "awaiting" ? "No images awaiting an instruction" : "Nothing Unidentified")</div>
             }
-            else foreach (var row in Model.Rows)
+            else
             {
-                <a class="row-button" href="@(row.Kind == IndexModel.RowKind.Image ? Model.Href(selected: row.Id) : row.DetailHref)" aria-current="@(Model.SelectedId == row.Id ? "true" : null)">
-                    <span class="row-top">
-                        <span class="row-title">@row.Title</span>
-                        @if (!string.IsNullOrEmpty(row.Chip))
+                <table class="table">
+                    <thead>
+                        <tr>
+                            @foreach (var column in Model.Columns)
+                            {
+                                <th scope="col">@column</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.Rows)
                         {
-                            <partial name="Shared/_StatusChip" model="@row.Chip" />
+                            <tr data-cases-row="@row.Id" data-select-url="@Model.Href(selected: row.Id)"
+                                aria-selected="@(Model.SelectedId == row.Id ? "true" : "false")">
+                                @foreach (var cell in row.Cells)
+                                {
+                                    switch (cell.Kind)
+                                    {
+                                        case IndexModel.CellKind.Link:
+                                            <td class="mono nowrap">
+                                                <a class="table-row-link" href="@row.DetailHref">@cell.Text</a>
+                                                @if (row.Kind == IndexModel.RowKind.Case && row.Notice is { } typeChip)
+                                                {
+                                                    <span class="status status--navy" data-cases-type>@typeChip</span>
+                                                }
+                                            </td>
+                                            break;
+                                        case IndexModel.CellKind.Mono:
+                                            <td class="mono nowrap">@cell.Text</td>
+                                            break;
+                                        case IndexModel.CellKind.Late:
+                                            <td class="nowrap cases-late">@cell.Text</td>
+                                            break;
+                                        case IndexModel.CellKind.Chip:
+                                            <td>
+                                                <partial name="Shared/_StatusChip" model="@cell.Text"
+                                                         view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = cell.Tone }' />
+                                            </td>
+                                            break;
+                                        default:
+                                            <td>@cell.Text</td>
+                                            break;
+                                    }
+                                }
+                            </tr>
                         }
-                    </span>
-                    @if (!string.IsNullOrEmpty(row.Excerpt))
-                    {
-                        <span class="row-excerpt">@row.Excerpt</span>
-                    }
-                    <span class="row-top">
-                        <span class="row-meta">@row.Meta</span>
-                        @if (row.Time is { } time)
-                        {
-                            <span class="row-meta">@time</span>
-                        }
-                    </span>
-                </a>
+                    </tbody>
+                </table>
             }
         </div>
-        @if (Model.HasPreviousPage || Model.HasNextPage)
-        {
-            <nav class="pagination" aria-label="Pages">
+        <nav class="pagination" aria-label="Pages">
+            <span>Page @Model.CurrentPage · newest first</span>
+            <div class="button-row">
                 @if (Model.HasPreviousPage)
                 {
                     <a class="btn btn--small" href="@Model.Href(page: Model.CurrentPage - 1)">Previous</a>
                 }
-                <span>Page @Model.CurrentPage</span>
                 @if (Model.HasNextPage)
                 {
                     <a class="btn btn--small" href="@Model.Href(page: Model.CurrentPage + 1)">Next</a>
                 }
-            </nav>
-        }
+            </div>
+        </nav>
     </div>
 
-    <div class="pane">
+    <div class="pane cases-detail">
         <div class="pane-head">
             <h2>Quick detail</h2>
+            @if (Model.Selected is { } head)
+            {
+                <a class="btn btn--small btn--dark" href="@head.DetailHref">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                    <span>@head.OpenLabel</span>
+                </a>
+            }
         </div>
-        <div class="pane-body pane-scroll">
+        <div class="pane-body">
             @if (Model.Selected is { } detail)
             {
-                <div class="detail-canvas">
-                    <p class="eyebrow">@detail.Eyebrow</p>
-                    <h2>@detail.Heading</h2>
-                    @if (detail.Kind == IndexModel.RowKind.Case && detail.State is { } state)
+                <div class="detail-canvas stack" data-cases-detail="@detail.Kind">
+                    <div>
+                        <p class="eyebrow">@detail.Eyebrow</p>
+                        <h2>@detail.Heading</h2>
+                    </div>
+                    @if (detail.Notice is { } notice)
                     {
-                        var step = IndexModel.StepIndex(state);
-                        <ol class="workflow-stepper workflow-stepper--compact" aria-label="Case workflow">
-                            @for (var index = 0; index < IndexModel.Steps.Count; index++)
-                            {
-                                var current = IndexModel.Steps[index];
-                                <li class="workflow-step @(index < step ? "is-complete" : null) @(index == step ? "is-current" : null)">
-                                    <span class="workflow-step-icon">
-                                        <svg class="icon" aria-hidden="true"><use href="#@(index < step ? "icon-check" : current.Icon)" /></svg>
-                                    </span>
-                                    <span>@current.Label</span>
-                                </li>
-                            }
-                        </ol>
-                        if (state == CaseLifecycleState.Held)
+                        <div class="notice notice--@(detail.NoticeTone ?? "info")" data-cases-notice>
+                            <svg class="icon" aria-hidden="true"><use href="#@(detail.NoticeTone == "success" ? "icon-check-circle" : "icon-alert-triangle")" /></svg>
+                            <span>@notice</span>
+                        </div>
+                    }
+                    <dl class="fact-grid cases-facts">
+                        @foreach (var fact in detail.Facts)
                         {
-                            <div class="workflow-exception">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
-                                <strong>@OperatorLabels.CaseStage(CaseLifecycleState.Held)</strong>
+                            <div class="fact"><dt>@fact.Label</dt><dd class="@(fact.Label is "Case/PO" or "Registration" or "Reference" or "Image reference" ? "mono" : null)">@fact.Value</dd></div>
+                        }
+                        @if (detail.StateChip is { } stateChip)
+                        {
+                            <div class="fact">
+                                <dt>State</dt>
+                                <dd><partial name="Shared/_StatusChip" model="@stateChip"
+                                             view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = detail.StateTone }' /></dd>
                             </div>
                         }
-                        @* Outstanding requirements are the case's recorded
-                           completeness facts: the requirement and the action
-                           that resolves it, nothing else. *@
-                        @if (detail.Outstanding is { Count: > 0 })
-                        {
-                            <section class="section-gap">
-                                <h3 class="section-label">Outstanding requirements</h3>
-                                <ul class="blocker-list">
-                                    @foreach (var requirement in detail.Outstanding)
-                                    {
-                                        <li class="blocker">
-                                            <strong>@requirement.Requirement</strong>
-                                            <small>@requirement.Resolve</small>
-                                        </li>
-                                    }
-                                </ul>
-                            </section>
-                        }
-                        <section class="panel section-gap">
-                            <div class="panel-head">
-                                <h3>Current work</h3>
-                            </div>
-                            <div class="panel-body">
-                                @foreach (var fact in detail.Facts)
+                    </dl>
+                    @if (detail.Outstanding is { Count: > 0 })
+                    {
+                        <section>
+                            <h3 class="section-label">Outstanding requirements</h3>
+                            <ul class="blocker-list">
+                                @foreach (var requirement in detail.Outstanding)
                                 {
-                                    <div class="decision-row">
-                                        <span>@fact.Label</span>
-                                        <strong>@fact.Value</strong>
-                                    </div>
+                                    <li class="blocker">
+                                        <strong>@requirement.Requirement</strong>
+                                        <small>@requirement.Resolve</small>
+                                    </li>
                                 }
-                                <div class="button-row section-gap">
-                                    <a class="btn btn--dark" href="@detail.DetailHref">
-                                        <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                                        <span>@detail.OpenLabel</span>
-                                    </a>
-                                </div>
-                            </div>
+                            </ul>
                         </section>
                     }
-                    else
+                    @if (detail.Work is { Count: > 0 })
                     {
-                        <div class="definition-list section-gap">
-                            @foreach (var fact in detail.Facts)
+                        <div class="cases-work">
+                            @foreach (var fact in detail.Work)
                             {
-                                <dl class="definition">
-                                    <dt>@fact.Label</dt>
-                                    <dd>@fact.Value</dd>
-                                </dl>
-                            }
-                        </div>
-                        <div class="button-row section-gap">
-                            <a class="btn btn--dark" href="@detail.DetailHref">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                                <span>@detail.OpenLabel</span>
-                            </a>
-                        </div>
-                        @if (detail.Kind == IndexModel.RowKind.Image && detail.OriginReceiptId is { } receiptId)
-                        {
-                            @if (Model.SelectedImageSubmissionGroupId is { } groupId)
-                            {
-                                <div class="button-row section-gap">
-                                    <a class="btn btn--dark" href="/Upload/Group/@groupId">
-                                        Continue with this submission
-                                    </a>
+                                <div class="decision-row">
+                                    <span>@fact.Label</span>
+                                    <strong>@fact.Value</strong>
                                 </div>
                             }
-                            else
-                            {
-                                var confirmation = Model.UploadCaseConfirmation;
-                                var draft = Model.UploadCaseDraft;
-                                var isConfirmation = confirmation?.ReceiptId == receiptId;
-                                <form method="post" asp-page-handler="Attach" class="section-gap">
+                        </div>
+                    }
+                    @if (detail.Kind == IndexModel.RowKind.Image && detail.OriginReceiptId is { } receiptId)
+                    {
+                        @if (Model.SelectedImageSubmissionGroupId is { } groupId)
+                        {
+                            <div class="button-row">
+                                <a class="btn btn--dark" href="/Upload/Group/@groupId">
+                                    Continue with this submission
+                                </a>
+                            </div>
+                        }
+                        else
+                        {
+                            var confirmation = Model.UploadCaseConfirmation;
+                            var draft = Model.UploadCaseDraft;
+                            var isConfirmation = confirmation?.ReceiptId == receiptId;
+                            <form method="post" asp-page-handler="Attach">
                                 <input type="hidden" name="id" value="@Model.SelectedId" />
                                 <input type="hidden" name="receiptId" value="@receiptId" />
                                 <input type="hidden" name="operationId" value="@(isConfirmation ? confirmation!.Input.OperationId : draft?.OperationId ?? Guid.NewGuid())" />
@@ -291,21 +310,22 @@
                                 </div>
                                 <div class="button-row section-gap">
                                     <button type="submit" class="btn btn--dark">@(isConfirmation ? "Confirm and add to this case" : "Add to an existing case")</button>
+                                    <a class="btn" asp-page="/Cases/Create">Create Case</a>
                                 </div>
-                                </form>
-                            }
+                            </form>
                         }
                     }
                 </div>
             }
             else
             {
-                <div class="empty pane-empty">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
-                    <h2>No item selected</h2>
-                    <p>Choose an item when one is listed.</p>
-                </div>
+                <div class="cases-empty">Select a row</div>
             }
         </div>
     </div>
 </section>
+}
+
+@section Scripts {
+    <script src="~/js/cases-index.js" asp-append-version="true"></script>
+}

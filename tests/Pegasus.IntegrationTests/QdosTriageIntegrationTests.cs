@@ -158,7 +158,7 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
         // The record is one container now: its registration and state are the
         // header, not a "Triage record" panel among stacked panels.
-        Assert.Contains("class=\"record\"", detailHtml, StringComparison.Ordinal);
+        Assert.Contains("class=\"record triage-record\"", detailHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "name=\"caseEditLeaseToken\"",
             detailHtml,
@@ -191,8 +191,11 @@ public sealed partial class QdosTriageIntegrationTests
             StringComparison.Ordinal);
         Assert.Contains("id=\"triage-assignee\"", detailHtml, StringComparison.Ordinal);
 
-        // The origin link is named for the material behind it.
-        Assert.Contains("View email", detailHtml, StringComparison.Ordinal);
+        // The origin is offered as Open message only when a retained message
+        // exists (v26, 405faa39a). This request was submitted directly, with no
+        // retained message, so there is none to open and no receipt page instead.
+        Assert.DoesNotContain("data-triage-action=\"open-message\"", detailHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("View email", detailHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "View retained source",
             detailHtml,

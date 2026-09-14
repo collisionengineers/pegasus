@@ -309,6 +309,37 @@ internal sealed class EfIntakeMutationStore(
             occurredAtUtc,
             cancellationToken);
 
+    public Task<IntakeReceipt> ScheduleOcrRetryAsync(
+        RetryIntakeOcrRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken) =>
+        ExecuteAsync(
+            request.ReceiptId,
+            request.ExpectedVersion,
+            request.Actor,
+            request.OperationKey,
+            request.Reason,
+            "intake_ocr_retry_queued",
+            RequestHash("intake_ocr_retry_queued", request),
+            expectedCaseId: null,
+            expectedCaseVersion: null,
+            editLeaseToken: null,
+            async (context, receipt, _, token) =>
+            {
+                var last = await EfIntakeOcrOperationStore.FindLastForReceiptAsync(context, receipt.Id, token)
+                    ?? throw new InvalidOperationException("This received item has no OCR attempt to retry.");
+                if (!IntakeOcrRetryPolicy.CanRetry(
+                        EfIntakeOcrOperationStore.EffectiveState(last.Operation.State, last.WorkItem.State)))
+                {
+                    throw new InvalidOperationException("OCR can be retried only when its last attempt failed.");
+                }
+
+                // Web re-queues the work only; the Worker resumes the operation.
+                EfIntakeOcrOperationStore.RequeueForStaffRetry(last.WorkItem, occurredAtUtc);
+            },
+            occurredAtUtc,
+            cancellationToken);
+
     public async Task LinkAsync(
         LinkIntakeRequest request,
         DateTimeOffset occurredAtUtc,
@@ -1456,6 +1487,17 @@ internal sealed class EfIntakeMutationStore(
         }));
 
     private static string RequestHash(string eventType, ReevaluateIntakeRequest request) =>
+        Hash(JsonSerializer.Serialize(new
+        {
+            EventType = eventType,
+            request.ReceiptId,
+            request.ExpectedVersion,
+            Actor = ActorMaterial(request.Actor),
+            request.OperationKey,
+            request.Reason
+        }));
+
+    private static string RequestHash(string eventType, RetryIntakeOcrRequest request) =>
         Hash(JsonSerializer.Serialize(new
         {
             EventType = eventType,

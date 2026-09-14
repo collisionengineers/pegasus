@@ -14,6 +14,11 @@
     var selectedSummary = selectedDetail?.Summary;
     var totalPages = Model.DeletedResults?.TotalPages ?? Model.Results.TotalPages;
     var currentPage = Model.DeletedResults?.Page ?? Model.Results.Page;
+    var rowHandler = Model.Dismissed ? "Restore" : "Dismiss";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/inbox.css" asp-append-version="true" />
 }
 
 @* No lede. The filter bar, the rows and the freshness element are the explanation. *@
@@ -42,65 +47,11 @@
 
 <div id="mail-compose-host" class="mail-compose-backdrop" data-mail-compose-host hidden></div>
 
-<form method="get" class="filter-bar" data-auto-submit aria-label="Mail view">
-    <div class="field">
-        <label for="mailbox-filter">Mailbox</label>
-        <select id="mailbox-filter" name="mailbox">
-            <option value="" selected="@(Model.MailboxFilter is null)">All Mailboxes</option>
-            @foreach (var mailbox in Model.Mailboxes)
-            {
-                <option value="@mailbox.MailboxId"
-                        selected="@(Model.MailboxFilter == mailbox.MailboxId.ToString("D"))">
-                    @mailbox.MailboxAddress
-                </option>
-            }
-        </select>
-    </div>
-    <div class="field">
-        <label for="folder-filter">Folder</label>
-        <select id="folder-filter" name="folder">
-            <option value="" selected="@(Model.Folder == MailFolderScope.Inbox)">Inbox</option>
-            <option value="sent" selected="@(Model.Folder == MailFolderScope.Sent)">Sent Items</option>
-            <option value="deleted" selected="@(Model.Folder == MailFolderScope.DeletedItems)">Deleted Items</option>
-        </select>
-    </div>
-    <div class="field">
-        @* A Deleted Items view has no queues; the select stays so switching
-           folders never submits a queue the deleted view refuses. *@
-        <label for="queue-filter">Queue</label>
-        <select id="queue-filter" name="queue" disabled="@(Model.Folder == MailFolderScope.DeletedItems)">
-            <option value="" selected="@(Model.QueueFilter is null)">All emails</option>
-            <optgroup label="Operational queues">
-                @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.AggregateViews)
-                {
-                    <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
-                }
-            </optgroup>
-            <optgroup label="Detailed classifications">
-                @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.DetailedViews)
-                {
-                    <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
-                }
-            </optgroup>
-        </select>
-    </div>
-    <div class="searchbox">
-        <label class="sr-only" for="mail-search">Search emails</label>
-        <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
-        <input id="mail-search" type="search" name="search" value="@Model.SearchTerm" maxlength="200" />
-    </div>
-    <button class="btn btn--dark" type="submit">
-        <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
-        <span>Search</span>
-    </button>
-</form>
-
-<section class="pane-layout @(selectedDetail is null ? "pane-layout--2" : "pane-layout--3")"
+<section class="pane-layout @(selectedDetail is null ? "pane-layout--2" : "pane-layout--3") inbox-layout"
          data-mail-preview-workspace aria-label="Emails">
     <aside class="pane">
-        <div class="pane-head"><h2>Scope</h2></div>
         <div class="pane-body pane-scroll">
-            <div class="scope-list">
+            <div class="scope-list" data-mail-scopes>
                 @foreach (var scope in Model.Scopes)
                 {
                     <form method="get">
@@ -122,10 +73,67 @@
     </aside>
 
     <div class="pane">
+        <form method="get" class="inbox-filter" data-auto-submit aria-label="Mail view">
+            @if (Model.Dismissed)
+            {
+                <input type="hidden" name="folder" value="@Pegasus.Web.Pages.Mail.IndexModel.DismissedFolderCode" />
+            }
+            <div class="field">
+                <label for="mailbox-filter">Mailbox</label>
+                <select id="mailbox-filter" name="mailbox">
+                    <option value="" selected="@(Model.MailboxFilter is null)">All Mailboxes</option>
+                    @foreach (var mailbox in Model.Mailboxes)
+                    {
+                        <option value="@mailbox.MailboxId"
+                                selected="@(Model.MailboxFilter == mailbox.MailboxId.ToString("D"))">
+                            @mailbox.MailboxAddress
+                        </option>
+                    }
+                </select>
+            </div>
+            @if (!Model.Dismissed)
+            {
+                <div class="field">
+                    <label for="folder-filter">Folder</label>
+                    <select id="folder-filter" name="folder">
+                        <option value="" selected="@(Model.Folder == MailFolderScope.Inbox)">Inbox</option>
+                        <option value="sent" selected="@(Model.Folder == MailFolderScope.Sent)">Sent Items</option>
+                        <option value="deleted" selected="@(Model.Folder == MailFolderScope.DeletedItems)">Deleted Items</option>
+                    </select>
+                </div>
+            }
+            <div class="field">
+                @* A Deleted Items view has no categories; the select stays so switching
+                   folders never submits a category the deleted view refuses. *@
+                <label for="queue-filter">@OperatorLabels.Inbox.Category</label>
+                <select id="queue-filter" name="queue" disabled="@(Model.Folder == MailFolderScope.DeletedItems)">
+                    <option value="" selected="@(Model.QueueFilter is null)">@OperatorLabels.Inbox.AllCategories</option>
+                    <optgroup label="@OperatorLabels.Inbox.DestinationGroup">
+                        @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.AggregateViews)
+                        {
+                            <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
+                        }
+                    </optgroup>
+                    <optgroup label="@OperatorLabels.Inbox.CategoryGroup">
+                        @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.DetailedViews)
+                        {
+                            <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
+                        }
+                    </optgroup>
+                </select>
+            </div>
+            <div class="field inbox-filter__search">
+                <label for="mail-search">Search</label>
+                <input id="mail-search" type="search" name="search" value="@Model.SearchTerm" maxlength="200" placeholder="Subject, sender, reference" />
+            </div>
+            <button class="btn btn--dark" type="submit">Search</button>
+        </form>
+
         @* The sort order is a two-state link, so the pane head is a title and
            the toggle in one row, as drawn. *@
         <div class="pane-head inbox-messages-head">
             <div class="inbox-message-title"><h2>Messages</h2></div>
+            <span class="meta">@Model.Results.TotalCount message@(Model.Results.TotalCount == 1 ? string.Empty : "s")</span>
             @if (Model.Folder != MailFolderScope.DeletedItems)
             {
                 <a class="btn btn--small sort-toggle"
@@ -134,7 +142,6 @@
                    asp-route-folder="@Model.FolderRouteValue"
                    asp-route-search="@Model.SearchTerm"
                    asp-route-queue="@Model.QueueFilter"
-                   asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
                    asp-route-pageNumber="@(currentPage > 1 ? currentPage : (int?)null)"
                    asp-route-sort="@(Model.OldestFirst ? null : "oldest")"
                    aria-label="@(Model.OldestFirst
@@ -201,13 +208,15 @@
             }
             else if (Model.Results.Items.Count == 0)
             {
-                @* An empty scope says which of the three reasons it is empty for. A blank
-                   list that could equally mean "nothing arrived", "nothing is kept here"
-                   or "everything here predates retention" tells the operator nothing. *@
+                @* An empty scope says which of the reasons it is empty for. *@
                 <div class="empty">
                     @if (Model.SearchTerm is not null)
                     {
                         <p>No emails in this mailbox matched “@Model.SearchTerm”.</p>
+                    }
+                    else if (Model.Dismissed)
+                    {
+                        <p>No dismissed messages.</p>
                     }
                     else if (Model.Folder != MailFolderScope.Inbox)
                     {
@@ -237,7 +246,7 @@
                     var isSelected = selectedSummary?.Id == item.Id;
                     @* The row is a container, not a widget: selection state
                        lives on the row's link, where aria-current is legal. *@
-                    <div class="row-button @(item.IsRead ? null : "unread")" data-mail-preview-row>
+                    <div class="row-button inbox-row @(item.IsRead ? null : "unread")" data-mail-preview-row data-mail-row="@item.Id">
                         <span class="row-top">
                             <span class="row-title">
                                 @if (!item.IsRead)
@@ -261,7 +270,6 @@
                            asp-route-folder="@Model.FolderRouteValue"
                            asp-route-search="@Model.SearchTerm"
                            asp-route-queue="@Model.QueueFilter"
-                           asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
                            asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                            asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)"
                            asp-route-selected="@item.Id"
@@ -321,6 +329,26 @@
                                 <partial name="Shared/_StatusChip" model="@("No longer polled")" />
                             </span>
                         }
+                        @if (Model.Folder == MailFolderScope.Inbox)
+                        {
+                            <form method="post" class="inbox-row-action"
+                                  asp-page-handler="@rowHandler"
+                                  asp-route-mailbox="@Model.MailboxFilter"
+                                  asp-route-folder="@Model.FolderRouteValue"
+                                  asp-route-search="@Model.SearchTerm"
+                                  asp-route-queue="@Model.QueueFilter"
+                                  asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                                  asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)"
+                                  data-mail-row-action="@rowHandler.ToLowerInvariant()">
+                                <input type="hidden" name="id" value="@item.Id" />
+                                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                                <button type="submit" class="icon-button"
+                                        title="@(Model.Dismissed ? OperatorLabels.Inbox.Restore : OperatorLabels.Inbox.Dismiss)"
+                                        aria-label="@(Model.Dismissed ? OperatorLabels.Inbox.Restore : OperatorLabels.Inbox.Dismiss) @Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">
+                                    <svg class="icon" aria-hidden="true"><use href="@(Model.Dismissed ? "#icon-undo" : "#icon-x")" /></svg>
+                                </button>
+                            </form>
+                        }
                     </div>
                 }
             }
@@ -342,7 +370,6 @@
                            asp-route-folder="@Model.FolderRouteValue"
                            asp-route-search="@Model.SearchTerm"
                            asp-route-queue="@Model.QueueFilter"
-                           asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
                            asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                            asp-route-pageNumber="@(currentPage - 1)">Previous</a>
                     }
@@ -354,7 +381,6 @@
                            asp-route-folder="@Model.FolderRouteValue"
                            asp-route-search="@Model.SearchTerm"
                            asp-route-queue="@Model.QueueFilter"
-                           asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
                            asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                            asp-route-pageNumber="@(currentPage + 1)">Next</a>
                     }
@@ -440,7 +466,6 @@
                                asp-route-folder="@Model.FolderRouteValue"
                                asp-route-search="@Model.SearchTerm"
                                asp-route-queue="@Model.QueueFilter"
-                               asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
                                asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                                asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>

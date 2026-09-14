@@ -9,7 +9,7 @@
     string? Current(string key) => area == key
         || page == (key switch
         {
-            "action-logs" => "/Administration/ActionLogs",
+            "logs" => "/Administration/Logs",
             "ai-jobs" => "/Administration/AiJobs",
             "reports" => "/Administration/Reports",
             "health" => "/Administration/Health",
@@ -43,22 +43,22 @@
             <span>@OperatorLabels.Admin.Mail</span>
         </a>
         <a asp-page="/Administration/ValuationPresets/Index" aria-current="@Current("valuation-presets")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="#icon-pound-sterling" /></svg>
             <span>@OperatorLabels.Admin.ValuationPresets</span>
         </a>
     </div>
     <div class="admin-nav__group" role="group" aria-labelledby="admin-nav-oversight">
         <span class="admin-nav__label" id="admin-nav-oversight">Operations and oversight</span>
         <a asp-page="/Administration/Health" aria-current="@Current("health")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="#icon-heart-pulse" /></svg>
             <span>@OperatorLabels.Admin.Health</span>
         </a>
-        <a asp-page="/Administration/ActionLogs" aria-current="@Current("action-logs")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
-            <span>@OperatorLabels.Admin.ActionLogs</span>
+        <a asp-page="/Administration/Logs" aria-current="@Current("logs")">
+            <svg class="icon" aria-hidden="true"><use href="#icon-scroll-text" /></svg>
+            <span>@OperatorLabels.IntakeLog.Logs</span>
         </a>
         <a asp-page="/Administration/Reports" aria-current="@Current("reports")">
-            <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+            <svg class="icon" aria-hidden="true"><use href="#icon-bar-chart" /></svg>
             <span>@OperatorLabels.Admin.Reports</span>
         </a>
         <a asp-page="/Administration/AiJobs" aria-current="@Current("ai-jobs")">
@@ -68,7 +68,7 @@
         @if (automationComposed)
         {
             <a asp-page="/Administration/Automation/Index" aria-current="@Current("automation")">
-                <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+                <svg class="icon" aria-hidden="true"><use href="#icon-bot" /></svg>
                 <span>@OperatorLabels.Admin.Automation</span>
             </a>
         }

@@ -40,6 +40,56 @@
                 <video data-evidence-video controls preload="metadata" hidden></video>
             </div>
         </div>
+        @if (ViewData["PreCaseImageTags"] is IReadOnlyList<Pegasus.Core.Documents.ImageTag> preCaseTags)
+        {
+            @* Pre-Case crop and tag (v26): shown by site.js for an item carrying
+               data-precase-asset. Apply saves the drawn frame with the view's
+               rotation, Clear restores the original, Cancel leaves crop mode;
+               the Tag select puts a tag on and a chip's × takes it off. *@
+            var returnUrl = Context.Request.Path + Context.Request.QueryString;
+            <div class="evidence-precase" data-precase-tools hidden>
+                <span class="evidence-precase-set" data-precase-view>
+                    <button type="button" class="btn btn--small" data-precase-crop-start>@OperatorLabels.PreCaseImages.Crop</button>
+                    <span class="muted" data-precase-crop-state></span>
+                </span>
+                <span class="evidence-precase-set" data-precase-cropping hidden>
+                    <span class="muted">@OperatorLabels.PreCaseImages.DrawHint</span>
+                    <button type="button" class="btn btn--small btn--primary" data-precase-crop-apply>@OperatorLabels.PreCaseImages.Apply</button>
+                    <button type="button" class="btn btn--small" data-precase-crop-clear>@OperatorLabels.PreCaseImages.Clear</button>
+                    <button type="button" class="btn btn--small" data-precase-crop-cancel>@OperatorLabels.PreCaseImages.Cancel</button>
+                </span>
+                <span class="evidence-precase-set">
+                    <label class="sr-only" for="precase-tag-select">@OperatorLabels.PreCaseImages.Tag</label>
+                    <select id="precase-tag-select" data-precase-tag-select>
+                        <option value="">@OperatorLabels.PreCaseImages.AddTag</option>
+                        @foreach (var tag in preCaseTags)
+                        {
+                            <option value="@tag.Id" data-colour="@tag.Colour.ToString().ToLowerInvariant()">@tag.Name</option>
+                        }
+                    </select>
+                    <span class="precase-tags" data-precase-tag-list></span>
+                </span>
+            </div>
+            <form method="post" asp-page="/PreCaseImages/Index" asp-page-handler="Crop" data-precase-crop-form hidden>
+                <input type="hidden" name="intakeAssetId" />
+                <input type="hidden" name="expectedVersion" />
+                <input type="hidden" name="rotation" />
+                <input type="hidden" name="cropLeft" />
+                <input type="hidden" name="cropTop" />
+                <input type="hidden" name="cropWidth" />
+                <input type="hidden" name="cropHeight" />
+                <input type="hidden" name="clear" value="false" />
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                <input type="hidden" name="returnUrl" value="@returnUrl" />
+            </form>
+            <form method="post" asp-page="/PreCaseImages/Index" asp-page-handler="Tag" data-precase-tag-form hidden>
+                <input type="hidden" name="intakeAssetId" />
+                <input type="hidden" name="tagId" />
+                <input type="hidden" name="applied" />
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+                <input type="hidden" name="returnUrl" value="@returnUrl" />
+            </form>
+        }
         <div class="dialog-foot cluster--between">
             <button type="button" class="btn" data-evidence-previous>
                 <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
