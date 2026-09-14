@@ -920,11 +920,12 @@ if (initializeDevelopment)
 
 if (productionProfile)
 {
-    // Container Apps ingress terminates TLS and forwards the original scheme in
-    // X-Forwarded-Proto. Without this, Kestrel sees http, UseHttpsRedirection
-    // loops, and every generated redirect and sign-in callback emits http://.
-    // It must run before UseHsts and UseHttpsRedirection.
-    // The ingress is not on a known network, so the proxy allow-lists are cleared.
+    // The App Service front end terminates TLS and forwards the original scheme
+    // in X-Forwarded-Proto (and the caller in X-Forwarded-For). Without this,
+    // Kestrel sees http, UseHttpsRedirection loops, and every generated redirect
+    // and sign-in callback emits http://. It must run before UseHsts and
+    // UseHttpsRedirection. The front end is not on a known network, so the
+    // proxy allow-lists are cleared.
     var forwardedHeadersOptions = new ForwardedHeadersOptions
     {
         ForwardedHeaders = ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedFor

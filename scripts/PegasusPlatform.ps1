@@ -999,10 +999,6 @@ $script:PegasusRepairHints = @{
         Windows = 'winget install --exact --id Microsoft.Azd --version 1.28.0 --scope user'
         Linux = 'curl -fsSL https://aka.ms/install-azd.sh | sudo bash'
     }
-    'oras' = @{
-        Windows = 'Install ORAS 1.3.4 from https://oras.land/docs/installation/'
-        Linux = 'Install ORAS 1.3.4 from https://oras.land/docs/installation/'
-    }
     'bicep' = @{
         Windows = 'winget install --exact --id Microsoft.Bicep --version 0.45.15 --scope user'
         Linux = 'az bicep install'

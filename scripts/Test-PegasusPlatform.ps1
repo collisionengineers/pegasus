@@ -53,9 +53,15 @@ try {
             $bundle.IsLinux -ne ($hostKind -eq 'Linux')) {
             throw "Incorrect migration bundle identity for $hostKind."
         }
-        $orasHint = Get-PegasusRepairHint -Id 'oras'
-        if ($orasHint -cne 'Install ORAS 1.3.4 from https://oras.land/docs/installation/') {
-            throw "Incorrect ORAS installation guidance for $hostKind."
+        foreach ($cloudTool in @('az', 'azd', 'bicep')) {
+            if ([string]::IsNullOrWhiteSpace((Get-PegasusRepairHint -Id $cloudTool))) {
+                throw "Missing $cloudTool installation guidance for $hostKind."
+            }
+        }
+        $orasHintMissing = $false
+        try { [void](Get-PegasusRepairHint -Id 'oras') } catch { $orasHintMissing = $true }
+        if (-not $orasHintMissing) {
+            throw 'ADR-0049: ORAS is no longer a release tool and must have no repair hint.'
         }
     }
 }
@@ -78,15 +84,11 @@ if ($null -eq $manifestFunction) { throw 'Manifest validator is missing.' }
 $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ("pegasus-release-contract-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
 try {
-    $digest = 'sha256:' + ('a' * 64)
-    $script:OrasCalls = 0
-    function oras {
-        $script:OrasCalls++
-        $global:LASTEXITCODE = 0
-        if ($args[0] -eq 'blob') { return '{"os":"linux","architecture":"amd64"}' }
-        if ($args -contains '--descriptor') { return (@{ digest = $digest } | ConvertTo-Json -Compress) }
-        return (@{ config = @{ digest = $digest } } | ConvertTo-Json -Compress)
-    }
+    # ADR-0049: the manifest validator must never shell out; web.zip is a plain
+    # publish and there is no image tooling to call.
+    $script:NativeCalls = 0
+    function oras { $script:NativeCalls++; throw 'ORAS must not be invoked.' }
+    function docker { $script:NativeCalls++; throw 'docker must not be invoked.' }
 
     function New-ZipFixture {
         param(
@@ -103,21 +105,24 @@ try {
     $webArchiveSource = Join-Path $fixtureRoot 'web-archive'
     $workerArchiveSource = Join-Path $fixtureRoot 'worker-archive'
     $missingRootSource = Join-Path $fixtureRoot 'missing-root-archive'
+    $nestedWebSource = Join-Path $fixtureRoot 'nested-web-archive'
     New-Item -ItemType Directory -Path $webArchiveSource -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $workerArchiveSource '.azurefunctions') -Force | Out-Null
     New-Item -ItemType Directory -Path $missingRootSource -Force | Out-Null
-    Set-Content -LiteralPath (Join-Path $webArchiveSource 'fixture.txt') -Value 'fixture' -Encoding utf8NoBOM
+    New-Item -ItemType Directory -Path (Join-Path $nestedWebSource 'web') -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $webArchiveSource 'Pegasus.Web.dll') -Value 'fixture' -Encoding utf8NoBOM
+    Set-Content -LiteralPath (Join-Path $webArchiveSource 'Pegasus.Web.runtimeconfig.json') -Value '{}' -Encoding utf8NoBOM
     Set-Content -LiteralPath (Join-Path $workerArchiveSource '.azurefunctions/fixture.txt') -Value 'fixture' -Encoding utf8NoBOM
     Set-Content -LiteralPath (Join-Path $missingRootSource 'fixture.txt') -Value 'fixture' -Encoding utf8NoBOM
+    # A publish zipped one directory too high: the files exist but not at the root.
+    Set-Content -LiteralPath (Join-Path $nestedWebSource 'web/Pegasus.Web.dll') -Value 'fixture' -Encoding utf8NoBOM
+    Set-Content -LiteralPath (Join-Path $nestedWebSource 'web/Pegasus.Web.runtimeconfig.json') -Value '{}' -Encoding utf8NoBOM
     $webZipPath = Join-Path $fixtureRoot 'web.zip'
     $workerZipPath = Join-Path $fixtureRoot 'worker.zip'
     New-ZipFixture -Source $webArchiveSource -Archive $webZipPath
     New-ZipFixture -Source $workerArchiveSource -Archive $workerZipPath
-    foreach ($name in @('web-image.tar.gz', $nativeBundle.Name)) {
-        $path = Join-Path $fixtureRoot $name
-        Set-Content -LiteralPath $path -Value 'artifact contract fixture' -Encoding utf8NoBOM
-    }
-    $artifacts = @('web.zip', 'web-image.tar.gz', 'worker.zip', $nativeBundle.Name) | ForEach-Object {
+    Set-Content -LiteralPath (Join-Path $fixtureRoot $nativeBundle.Name) -Value 'artifact contract fixture' -Encoding utf8NoBOM
+    $artifacts = @('web.zip', 'worker.zip', $nativeBundle.Name) | ForEach-Object {
         $path = Join-Path $fixtureRoot $_
         @{ name = $_; sizeBytes = (Get-Item -LiteralPath $path).Length;
             sha256 = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash }
@@ -129,35 +134,59 @@ try {
     $manifest = @{
         schemaVersion = 3; sourceRevision = 'a' * 40; sourceStatus = 'clean'; artifacts = $artifacts
         migrationRuntimeIdentifier = $nativeBundle.RuntimeIdentifier; migrationBundleName = $nativeBundle.Name
-        webImage = @{ repository = 'pegasus/web'; tag = 'a' * 40; digest = $digest;
-            platform = 'linux/amd64'; archive = 'web-image.tar.gz' }
+        webPackage = @{ name = 'web.zip'; runtimeIdentifier = 'linux-x64'; selfContained = $false;
+            hostStack = 'DOTNETCORE|10.0' }
     }
     $manifestPath = Join-Path $fixtureRoot 'release-manifest.json'
     function Assert-Manifest {
         param([string]$ExpectedError)
         $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
-        $script:OrasCalls = 0
+        $script:NativeCalls = 0
         $failure = $null
         try { Test-ArtifactManifest -Path $manifestPath }
         catch { $failure = $_.Exception.Message }
+        if ($script:NativeCalls -ne 0) {
+            throw "The manifest validator invoked image tooling ($script:NativeCalls calls)."
+        }
         if ($ExpectedError) {
-            if (-not $failure -or -not $failure.Contains($ExpectedError) -or $script:OrasCalls -ne 0) {
-                throw "Expected rejection '$ExpectedError' before ORAS; got '$failure' ($script:OrasCalls calls)."
+            if (-not $failure -or -not $failure.Contains($ExpectedError)) {
+                throw "Expected rejection '$ExpectedError'; got '$failure'."
             }
         }
-        elseif ($failure -or $script:OrasCalls -ne 3) {
-            throw "Expected valid manifest and OCI inspection; got '$failure' ($script:OrasCalls calls)."
+        elseif ($failure) {
+            throw "Expected a valid manifest; got '$failure'."
         }
+    }
+
+    function Set-ArtifactIdentity {
+        param([Parameter(Mandatory)][int] $Index, [Parameter(Mandatory)][string] $Path)
+        $manifest.artifacts[$Index].sizeBytes = (Get-Item -LiteralPath $Path).Length
+        $manifest.artifacts[$Index].sha256 = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash
     }
 
     Assert-Manifest
     New-ZipFixture -Source $missingRootSource -Archive $workerZipPath
-    $manifest.artifacts[2].sizeBytes = (Get-Item -LiteralPath $workerZipPath).Length
-    $manifest.artifacts[2].sha256 = (Get-FileHash -LiteralPath $workerZipPath -Algorithm SHA256).Hash
+    Set-ArtifactIdentity -Index 1 -Path $workerZipPath
     Assert-Manifest -ExpectedError 'worker.zip must contain .azurefunctions/'
     New-ZipFixture -Source $workerArchiveSource -Archive $workerZipPath
-    $manifest.artifacts[2].sizeBytes = (Get-Item -LiteralPath $workerZipPath).Length
-    $manifest.artifacts[2].sha256 = (Get-FileHash -LiteralPath $workerZipPath -Algorithm SHA256).Hash
+    Set-ArtifactIdentity -Index 1 -Path $workerZipPath
+    New-ZipFixture -Source $missingRootSource -Archive $webZipPath
+    Set-ArtifactIdentity -Index 0 -Path $webZipPath
+    Assert-Manifest -ExpectedError 'web.zip must contain Pegasus.Web.dll at its root'
+    New-ZipFixture -Source $nestedWebSource -Archive $webZipPath
+    Set-ArtifactIdentity -Index 0 -Path $webZipPath
+    Assert-Manifest -ExpectedError 'web.zip must contain Pegasus.Web.dll at its root'
+    New-ZipFixture -Source $webArchiveSource -Archive $webZipPath
+    Set-ArtifactIdentity -Index 0 -Path $webZipPath
+    $manifest.webPackage.hostStack = 'DOTNETCORE|9.0'
+    Assert-Manifest -ExpectedError 'Web package identity is incomplete or invalid'
+    $manifest.webPackage.hostStack = 'DOTNETCORE|10.0'
+    $manifest.webPackage.selfContained = $true
+    Assert-Manifest -ExpectedError 'Web package identity is incomplete or invalid'
+    $manifest.webPackage.selfContained = $false
+    $manifest.artifacts = @($manifest.artifacts) + @(@{ name = 'web-image.tar.gz'; sizeBytes = 1; sha256 = 'c' * 64 })
+    Assert-Manifest -ExpectedError 'exactly the Web ZIP, Worker ZIP, and migration bundle'
+    $manifest.artifacts = @($manifest.artifacts | Select-Object -First 3)
     foreach ($wrongName in @('../efbundle', 'wrong.exe')) {
         $manifest.migrationBundleName = $wrongName
         Assert-Manifest -ExpectedError 'for this workstation'

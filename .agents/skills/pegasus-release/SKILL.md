@@ -5,17 +5,18 @@ description: Promote and release Pegasus through its authorised terminal route, 
 
 # Release Pegasus
 
-Use the repository scripts and the exact source SHA. `azd up` and `azd deploy
-worker` are not release procedures.
+Use the repository scripts and the exact source SHA. `azd up`, `azd deploy web`
+and `azd deploy worker` are not release procedures.
 
 Run the route from an authorised Windows x64 or Linux x64 PowerShell 7 terminal
 using that platform's native tools and storage throughout the run. Before
 preflight, dot-source `scripts/PegasusPlatform.ps1` and call
 `Get-PegasusMigrationBundle` to verify the supported workstation and its bundle
-identity. Require `oras version` to report 1.3.4, and both `az account show` and
-`azd auth login --check-status` to identify the intended operator.
-Authentication is not write approval. Deployed Web/Worker remain Linux; no
-Windows containers or Docker daemon are needed to build the OCI archive.
+identity. Require both `az account show` and `azd auth login --check-status` to
+identify the intended operator. Authentication is not write approval. Deployed
+Web and Worker remain Linux; Web is a code-deployed App Service Web App
+(ADR-0049) and the Worker a Flex Consumption Function App. No container image,
+registry or image tooling is part of the route.
 
 The [index](../../../docs/index.md) identifies each policy owner. This skill
 owns the release procedure; engineering owns verification policy and operations
@@ -30,12 +31,20 @@ affected operation.
 | Tenant | `858cf5b3-aa0a-47a6-9b40-4851fd0afa94` |
 | Resource group | `rg-pegasus-prod` |
 | azd environment | `pegasus-prod` |
-| Web | `pegasus-prod-web-252ow37gij` |
+| Web App | `pegasus-prod-web-252ow37gij` |
+| Web plan | `pegasus-prod-web-plan-252ow37gij` (Linux, B1) |
+| Web public origin | `https://pegasus-prod-web-252ow37gij.azurewebsites.net/` |
 | Worker | `pegasus-prod-worker-252ow37gij` |
-| ACR | `pegasusprodacr252ow37gij` |
 | Key Vault | `pegasusprodkv252ow37g` |
 | SQL | `pegasus-prod-sql-252ow37gij` / `pegasus` |
 | App Insights | `pegasus-prod-appi-252ow37gij` |
+
+The Web plan and Web App sit in the platform region unless
+`PEGASUS_WEB_LOCATION` places them elsewhere (section 8). Every other resource
+stays in the platform region. Until the first App Service release completes,
+the retired Container App `pegasus-prod-web-252ow37gij` in the Container Apps
+environment and the registry `pegasusprodacr252ow37gij` still exist; the
+[cutover section](#12-one-time-cutover-from-the-container-app) owns them.
 
 Read-only GitHub and Azure checks need no approval. A `dev` to `main` update
 needs fresh `MERGE AUTH GRANTED` immediately before the push. Every Azure or
@@ -49,8 +58,9 @@ $releaseEnvironment = 'pegasus-prod'
 $subscriptionId = 'e6076573-23a5-46a8-acef-7e22d264e5db'
 $resourceGroup = 'rg-pegasus-prod'
 $webApp = 'pegasus-prod-web-252ow37gij'
+$webPlan = 'pegasus-prod-web-plan-252ow37gij'
+$webOrigin = 'https://pegasus-prod-web-252ow37gij.azurewebsites.net/'
 $workerApp = 'pegasus-prod-worker-252ow37gij'
-$registry = 'pegasusprodacr252ow37gij'
 $version = '0.1.0-alpha.1'
 ```
 
@@ -65,6 +75,8 @@ Inspect `origin/main..origin/dev` before doing anything else.
 - **Full release:** any deployable application, infrastructure, migration,
   dependency, or runtime-configuration change. Follow the one applicable route
   selected in section 6.
+- **First App Service release:** a full release that also executes
+  [section 12](#12-one-time-cutover-from-the-container-app) once.
 - **Rollback or diagnosis:** read
   [references/troubleshooting.md](references/troubleshooting.md) only when the
   normal route fails or rollback is requested.
@@ -86,17 +98,23 @@ git log --oneline --decorate "$mainSha..$releaseSha"
 git diff --stat "$mainSha..$releaseSha"
 ```
 
-Read the deployed state before requesting approval:
+Read the deployed state before requesting approval. The Web App reports its
+state and stack; the running bytes identify themselves at
+`/diagnostics/version` (anonymous, read-only):
 
 ```powershell
 az account show --query '{subscription:id,tenant:tenantId}' --output json
-az containerapp revision list --subscription $subscriptionId `
+az webapp show --subscription $subscriptionId `
   --resource-group $resourceGroup --name $webApp `
-  --query "[?properties.active].{name:name,image:properties.template.containers[0].image}" --output json
+  --query '{state:state,stack:siteConfig.linuxFxVersion,host:defaultHostName}' --output json
+Invoke-RestMethod -Uri ([uri]::new($webOrigin, 'diagnostics/version')) | ConvertTo-Json
 az functionapp config appsettings list --subscription $subscriptionId `
   --resource-group $resourceGroup --name $workerApp `
   --query "[?contains(name,'Schedule') || starts_with(name,'AzureWebJobs.')].{name:name,value:value}" --output json
 ```
+
+Before the first App Service release the Web App does not exist and
+`az webapp show` fails; read the Container App instead as section 12 describes.
 
 For a promotion-only change, obtain fresh `MERGE AUTH GRANTED`, perform section
 3, verify both remote refs, and stop without building or writing Azure state.
@@ -110,7 +128,8 @@ uncertainty before proceeding. The destructive classification also requires a
 concrete approved short-outage window; after actual release it must be outside
 typical usage, but this procedure does not invent standing hours. Approval later
 binds that recorded route, exact manifest, exact targets and, for destructive
-containment, the exact currently active Web revision.
+containment, the exact source SHA the Web App reports at `/diagnostics/version`
+immediately before containment.
 
 ## 3. Promote the reviewed exact SHA
 
@@ -156,98 +175,81 @@ pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local
 pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Artifact -ManifestPath $manifestPath
 $manifestSha256 = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash
 $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json -Depth 10
+$webPackagePath = "artifacts/releases/$version/web.zip"
+$webPackageSha256 = @($manifest.artifacts | Where-Object name -eq 'web.zip')[0].sha256
 ```
 
 The manifest must use schema 3. Its `migrationRuntimeIdentifier` and
 `migrationBundleName` must match the workstation: `win-x64`/`efbundle.exe` on
-Windows or `linux-x64`/`efbundle` on Linux. The four artifacts are `web.zip`,
-`worker.zip`, `web-image.tar.gz` and that migration bundle. The deployed
-packages still target Linux x64 and the OCI image must inspect as linux/amd64.
-Build and migrate on the same workstation platform; do not rename the bundle.
+Windows or `linux-x64`/`efbundle` on Linux. The three artifacts are `web.zip`,
+`worker.zip` and that migration bundle. `web.zip` is a framework-dependent
+Linux x64 publish for the platform `DOTNETCORE|10.0` stack with
+`Pegasus.Web.dll` at its root; `worker.zip` targets Linux x64 and carries
+`.azurefunctions/`. Build and migrate on the same workstation platform; do not
+rename the bundle.
 
-Record the manifest SHA-256, source SHA, image digest, migration identity and
-exact Azure operations. Obtain explicit approval for that manifest and those
+Record the manifest SHA-256, source SHA, `web.zip` SHA-256, migration identity
+and exact Azure operations. Obtain explicit approval for that manifest and those
 targets before the first Azure write.
 
-## 5. Validate and upload the approved image
+## 5. Validate the approved artifacts and define the Web read-back
 
 ```powershell
-pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreUpload `
+pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreDeploy `
   -ManifestPath $manifestPath -ManifestSha256 $manifestSha256
-$token = az acr login --subscription $subscriptionId --name $registry --expose-token --output json | ConvertFrom-Json
-$token.accessToken | oras login $token.loginServer `
-  --username '00000000-0000-0000-0000-000000000000' --password-stdin
-oras cp --from-oci-layout "artifacts/releases/$version/web-image.tar.gz:$releaseSha" `
-  "$($token.loginServer)/pegasus/web:$releaseSha"
-$remoteImage = oras manifest fetch "$($token.loginServer)/pegasus/web:$releaseSha" `
-  --descriptor | ConvertFrom-Json
-if ($remoteImage.digest -ne $manifest.webImage.digest) {
-  throw 'Uploaded Web digest differs from the approved manifest.'
-}
 ```
 
-The uploaded digest must equal `webImage.digest` in the approved manifest.
-
-`RunningAtMaxScale` is a normal running state: Azure has started the maximum
-configured replica count. Accept it only alongside the same exact revision,
-digest, `Healthy` and `Provisioned` checks as `Running`; see
-[Azure revision running states](https://learn.microsoft.com/en-us/azure/container-apps/revisions#running-status).
+The Web App runs from the deployed package and identifies its bytes at
+`/diagnostics/version`. The read-back below requires the site `Running`,
+`/health/ready` answering 200 and the version endpoint reporting the exact
+release SHA and version. A site that reports an earlier SHA is still serving the
+previous package; a site whose health check fails is recycled by the platform
+and is not evidence.
 
 ```powershell
-function Wait-PegasusExpectedWebRevision {
+function Wait-PegasusExpectedWebSite {
   param(
-    [Parameter(Mandatory)][string] $ExpectedRevisionName,
-    [Parameter(Mandatory)][string] $ExpectedImage
+    [Parameter(Mandatory)][string] $ExpectedSourceRevision,
+    [Parameter(Mandatory)][string] $ExpectedVersion
   )
 
-  for ($attempt = 1; $attempt -le 12; $attempt++) {
-    $revisionJson = az containerapp revision list --subscription $subscriptionId `
-      --resource-group $resourceGroup --name $webApp --all `
-      --query '[].{name:name,active:properties.active,health:properties.healthState,running:properties.runningState,provisioning:properties.provisioningState,image:properties.template.containers[0].image}' --output json
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to read Web revision health.' }
-    $revisionText = $revisionJson -join "`n"
-    if ($revisionText -notmatch '^\s*\[') { throw 'Web revision health read-back was not an array.' }
-    try { $revisions = @($revisionText | ConvertFrom-Json) }
-    catch { throw 'Web revision health read-back was not valid JSON.' }
-    if (@($revisions | Where-Object {
-      [string]::IsNullOrWhiteSpace([string]$_.name) -or -not ($_.active -is [bool])
-    }).Count -ne 0) { throw 'Web revision health read-back has an invalid name or active state.' }
-
-    $active = @($revisions | Where-Object { $_.active })
-    if (@($active | Where-Object { $_.name -cne $ExpectedRevisionName }).Count -ne 0) {
-      throw 'An unexpected Web revision is active.'
-    }
-    $expected = @($revisions | Where-Object { $_.name -ceq $ExpectedRevisionName })
-    if ($expected.Count -gt 1) { throw 'Expected Web revision appears more than once.' }
-    if ($expected.Count -eq 1 -and $expected[0].active) {
-      $revision = $expected[0]
-      foreach ($property in @('health', 'running', 'provisioning', 'image')) {
-        if ([string]::IsNullOrWhiteSpace([string]$revision.$property)) {
-          throw "Expected Web revision is missing $property state."
+  $handler = [Net.Http.HttpClientHandler]::new()
+  $handler.AllowAutoRedirect = $false
+  $client = [Net.Http.HttpClient]::new($handler)
+  $client.Timeout = [TimeSpan]::FromSeconds(30)
+  try {
+    for ($attempt = 1; $attempt -le 24; $attempt++) {
+      $siteJson = az webapp show --subscription $subscriptionId `
+        --resource-group $resourceGroup --name $webApp `
+        --query '{state:state,stack:siteConfig.linuxFxVersion}' --output json
+      if ($LASTEXITCODE -ne 0) { throw 'Unable to read the Web App state.' }
+      try { $site = ($siteJson -join "`n") | ConvertFrom-Json }
+      catch { throw 'Web App state read-back was not valid JSON.' }
+      if ([string]$site.stack -cne 'DOTNETCORE|10.0') { throw "Web App stack is '$($site.stack)', not DOTNETCORE|10.0." }
+      if ([string]$site.state -ceq 'Running') {
+        $ready = $null
+        $reported = $null
+        try {
+          $ready = $client.GetAsync([uri]::new($webOrigin, 'health/ready')).GetAwaiter().GetResult()
+          if ($ready.IsSuccessStatusCode) {
+            $reported = $client.GetStringAsync([uri]::new($webOrigin, 'diagnostics/version')).GetAwaiter().GetResult() | ConvertFrom-Json
+          }
         }
+        catch { $reported = $null }
+        if ($null -ne $reported -and
+            $reported.sourceSha -ceq $ExpectedSourceRevision -and
+            $reported.version -ceq $ExpectedVersion) { return }
       }
-      if ($revision.image -cne $ExpectedImage) { throw 'Expected Web revision image differs from the approved digest.' }
-      if ($revision.health -ceq 'Healthy' -and
-          $revision.running -cin @('Running', 'RunningAtMaxScale') -and
-          $revision.provisioning -ceq 'Provisioned') { return }
-      if ($revision.health -ceq 'Unhealthy' -or
-          $revision.running -in @('Stopped', 'Degraded', 'Failed', 'Unknown') -or
-          $revision.provisioning -in @('Failed', 'Deprovisioning', 'Deprovisioned')) {
-        throw 'Expected Web revision reached a terminal unhealthy state.'
+      elseif ([string]$site.state -cnotin @('Stopped', 'Starting', 'Running')) {
+        throw "Web App reported an unexpected state '$($site.state)'."
       }
-      if ($revision.health -cne 'None' -and $revision.health -cne 'Healthy') {
-        throw 'Expected Web revision reported an unknown health state.'
-      }
-      if ($revision.running -cnotin @('Processing', 'Running', 'RunningAtMaxScale')) {
-        throw 'Expected Web revision reported an unknown running state.'
-      }
-      if ($revision.provisioning -cne 'Provisioning' -and $revision.provisioning -cne 'Provisioned') {
-        throw 'Expected Web revision reported an unknown provisioning state.'
-      }
+      if ($attempt -lt 24) { Start-Sleep -Seconds 5 }
     }
-    if ($attempt -lt 12) { Start-Sleep -Seconds 5 }
+    throw 'The Web App did not become Running, ready and at the approved release within the bounded wait.'
   }
-  throw 'Expected Web revision did not become the sole active healthy revision.'
+  finally {
+    $client.Dispose()
+  }
 }
 ```
 
@@ -255,8 +257,8 @@ function Wait-PegasusExpectedWebRevision {
 
 Execute the migration classification recorded in section 2. Do not run migration
 or bootstrap when the identity is unchanged. If the candidate, deployed identity,
-approved targets, or approved old Web revision changed since classification, stop
-and obtain a fresh classification and approval.
+approved targets, or approved old Web source SHA changed since classification,
+stop and obtain a fresh classification and approval.
 
 For an additive migration, read and follow
 [references/database-migration.md](references/database-migration.md): migration
@@ -271,11 +273,12 @@ For a destructive migration, obtain approval for a short Web and Worker outage,
 the exact manifest and exact targets. After actual release, the approved window
 must be outside typical usage; record the concrete window then, without
 inventing standing hours here. Before any write, re-read the exact target
-inventory, require Web `Single` revision mode and exactly one active revision,
-and bind it to the exact `$approvedOldWebRevision` named in the approval. Confirm the candidate has no
-schema-dependent startup/background work outside disabled Functions and that its
-Flex update strategy is `Recreate` or the documented default. A `RollingUpdate`,
-unproved strategy, or inventory drift stops the operation.
+inventory, require the Web App `Running` on `DOTNETCORE|10.0`, and bind the
+source SHA it reports to the exact `$approvedOldWebSourceSha` named in the
+approval. Confirm the candidate has no schema-dependent startup/background work
+outside disabled Functions and that its Flex update strategy is `Recreate` or
+the documented default. A `RollingUpdate`, unproved strategy, or inventory drift
+stops the operation.
 
 The destructive route has one bounded staging exception: while the old schema is
 still intact, install the approved **new** Worker package with every Worker
@@ -285,37 +288,23 @@ prove that a Function host cannot initialize. Do not use Function master keys or
 the portal to invoke any Function during maintenance.
 
 ```powershell
-$webModeJson = az containerapp show --subscription $subscriptionId `
+$webSiteJson = az webapp show --subscription $subscriptionId `
   --resource-group $resourceGroup --name $webApp `
-  --query '{mode:properties.configuration.activeRevisionsMode}' --output json
-if ($LASTEXITCODE -ne 0) { throw 'Unable to read Web revision mode.' }
-$webRevisionsJson = az containerapp revision list --subscription $subscriptionId `
-  --resource-group $resourceGroup --name $webApp --all `
-  --query '[].{name:name,active:properties.active}' --output json
-if ($LASTEXITCODE -ne 0) { throw 'Unable to read Web revision inventory.' }
-if ([string]::IsNullOrWhiteSpace($approvedOldWebRevision)) {
-  throw 'Destructive migration approval must name the exact old Web revision.'
+  --query '{state:state,stack:siteConfig.linuxFxVersion,host:defaultHostName}' --output json
+if ($LASTEXITCODE -ne 0) { throw 'Unable to read the Web App.' }
+if ([string]::IsNullOrWhiteSpace($approvedOldWebSourceSha)) {
+  throw 'Destructive migration approval must name the exact old Web source SHA.'
 }
-if (($webRevisionsJson -join "`n") -notmatch '^\s*\[') {
-  throw 'Web revision inventory was not an array.'
+try { $webSite = ($webSiteJson -join "`n") | ConvertFrom-Json }
+catch { throw 'Web App read-back was not valid JSON.' }
+if ([string]$webSite.state -cne 'Running' -or [string]$webSite.stack -cne 'DOTNETCORE|10.0') {
+  throw 'Destructive migration requires the Web App Running on DOTNETCORE|10.0 before containment.'
 }
-try {
-  $webMode = ($webModeJson -join "`n") | ConvertFrom-Json
-  $webRevisions = @(($webRevisionsJson -join "`n") | ConvertFrom-Json)
-}
-catch { throw 'Web inventory was not valid JSON.' }
-if (@($webRevisions | Where-Object {
-  [string]::IsNullOrWhiteSpace([string]$_.name) -or -not ($_.active -is [bool])
-}).Count -ne 0) {
-  throw 'Web revision inventory has an invalid name or active state.'
-}
-$activeWebRevisions = @($webRevisions | Where-Object { $_.active })
-if ($webMode.mode -cne 'Single' -or $activeWebRevisions.Count -ne 1) {
-  throw 'Destructive migration requires Single mode and exactly one active Web revision.'
-}
-$oldWebRevision = [string]$activeWebRevisions[0].name
-if ($oldWebRevision -cne $approvedOldWebRevision) {
-  throw 'Active Web revision differs from the exact approved old revision.'
+if ("https://$($webSite.host)/" -cne $webOrigin) { throw 'Web App hostname differs from the fixed target.' }
+$oldWebVersion = Invoke-RestMethod -Uri ([uri]::new($webOrigin, 'diagnostics/version'))
+$oldWebSourceSha = [string]$oldWebVersion.sourceSha
+if ($oldWebSourceSha -cne $approvedOldWebSourceSha) {
+  throw 'The Web App reports a source SHA that differs from the exact approved old SHA.'
 }
 ```
 
@@ -351,10 +340,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Staged Worker disabled census smoke failed.' }
 Staging success proves only that the approved new package was staged. Never use
 `azd deploy worker`; it invokes a remote Oryx build against an already-published
 package. Stop the Function App and require a bounded `Stopped` read-back. Then
-deactivate only `$oldWebRevision`; bounded polling must prove that revision
-inactive, its replica-list response is valid JSON `[]`, and no other revision is
-active. Every Azure command or JSON parse failure stops the route. An unhealthy
-host, trigger-disabled setting, or missing response is not containment evidence.
+stop the Web App; bounded polling must prove the site `Stopped` and its public
+origin no longer serving the application (`/health/live` must not answer 2xx; a
+stopped site answers 403). Every Azure command or JSON parse failure stops the
+route. An unhealthy host, trigger-disabled setting, or missing response is not
+containment evidence. Stopping the site does not stop its deployment (Kudu)
+endpoint, which section 9 relies on.
 
 ```powershell
 az functionapp stop --subscription $subscriptionId --resource-group $resourceGroup --name $workerApp
@@ -370,47 +361,33 @@ for ($attempt = 1; $attempt -le 12; $attempt++) {
 }
 if (-not $workerStopped) { throw 'Worker did not read back as Stopped.' }
 
-az containerapp revision deactivate --subscription $subscriptionId `
-  --resource-group $resourceGroup --name $webApp --revision $oldWebRevision --output none
-if ($LASTEXITCODE -ne 0) { throw "Unable to deactivate $oldWebRevision." }
+az webapp stop --subscription $subscriptionId --resource-group $resourceGroup --name $webApp --output none
+if ($LASTEXITCODE -ne 0) { throw "Unable to stop $webApp." }
 $webContained = $false
-for ($attempt = 1; $attempt -le 12; $attempt++) {
-  $revisionJson = az containerapp revision list --subscription $subscriptionId `
-    --resource-group $resourceGroup --name $webApp --all `
-    --query '[].{name:name,active:properties.active}' --output json
-  if ($LASTEXITCODE -ne 0) { throw 'Unable to read Web revision inventory.' }
-  $webModeJson = az containerapp show --subscription $subscriptionId `
-    --resource-group $resourceGroup --name $webApp `
-    --query '{mode:properties.configuration.activeRevisionsMode}' --output json
-  if ($LASTEXITCODE -ne 0) { throw 'Unable to read Web revision mode.' }
-  $replicasJson = az containerapp replica list --subscription $subscriptionId `
-    --resource-group $resourceGroup --name $webApp --revision $oldWebRevision --output json
-  if ($LASTEXITCODE -ne 0) { throw 'Unable to read old Web revision replicas.' }
-  $replicasText = $replicasJson -join "`n"
-  $revisionsText = $revisionJson -join "`n"
-  if ($revisionsText -notmatch '^\s*\[') { throw 'Web revision read-back was not an array.' }
-  try {
-    $revisions = @($revisionsText | ConvertFrom-Json)
-    $pollWebMode = ($webModeJson -join "`n") | ConvertFrom-Json
-    $replicas = @($replicasText | ConvertFrom-Json)
+$handler = [Net.Http.HttpClientHandler]::new()
+$handler.AllowAutoRedirect = $false
+$probe = [Net.Http.HttpClient]::new($handler)
+$probe.Timeout = [TimeSpan]::FromSeconds(30)
+try {
+  for ($attempt = 1; $attempt -le 12; $attempt++) {
+    $webState = (az webapp show --subscription $subscriptionId `
+      --resource-group $resourceGroup --name $webApp --query state --output tsv).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to read Web App state.' }
+    $serving = $true
+    try {
+      $live = $probe.GetAsync([uri]::new($webOrigin, 'health/live')).GetAwaiter().GetResult()
+      $serving = $live.IsSuccessStatusCode
+    }
+    catch { $serving = $false }
+    if ($webState -ceq 'Stopped' -and -not $serving) { $webContained = $true; break }
+    if ($webState -cnotin @('Stopped', 'Running')) { throw "Web App reported an unexpected state '$webState' during containment." }
+    Start-Sleep -Seconds 5
   }
-  catch { throw 'Web containment read-back was not valid JSON.' }
-  if ($replicasText -notmatch '^\s*\[') { throw 'Old Web replica read-back was not an array.' }
-  if (@($revisions | Where-Object {
-    [string]::IsNullOrWhiteSpace([string]$_.name) -or -not ($_.active -is [bool])
-  }).Count -ne 0) { throw 'Web revision read-back has an invalid name or active state.' }
-  if ($pollWebMode.mode -cne 'Single') { throw 'Web revision mode changed during containment.' }
-  $oldRevisionRows = @($revisions | Where-Object { $_.name -ceq $oldWebRevision })
-  if ($oldRevisionRows.Count -ne 1 -or
-      -not ($oldRevisionRows[0].active -is [bool]) -or
-      $oldRevisionRows[0].active) {
-    throw 'Exact approved old Web revision did not read back inactive.'
-  }
-  $active = @($revisions | Where-Object { $_.active })
-  if ($active.Count -eq 0 -and $replicas.Count -eq 0) { $webContained = $true; break }
-  Start-Sleep -Seconds 5
 }
-if (-not $webContained) { throw 'Old Web did not read back inactive with zero replicas.' }
+finally {
+  $probe.Dispose()
+}
+if (-not $webContained) { throw 'Old Web did not read back Stopped and unserved.' }
 ```
 
 Immediately before SQL, take a fresh containment read-back rather than relying
@@ -423,59 +400,44 @@ $preSqlWorkerState = (az resource show --subscription $subscriptionId `
 if ($LASTEXITCODE -ne 0 -or $preSqlWorkerState -cne 'Stopped') {
   throw 'Worker is not freshly confirmed Stopped before destructive SQL.'
 }
-$preSqlModeJson = az containerapp show --subscription $subscriptionId `
-  --resource-group $resourceGroup --name $webApp `
-  --query '{mode:properties.configuration.activeRevisionsMode}' --output json
-if ($LASTEXITCODE -ne 0) { throw 'Unable to re-read Web revision mode before SQL.' }
-$preSqlRevisionsJson = az containerapp revision list --subscription $subscriptionId `
-  --resource-group $resourceGroup --name $webApp --all `
-  --query '[].{name:name,active:properties.active}' --output json
-if ($LASTEXITCODE -ne 0) { throw 'Unable to re-read Web revisions before SQL.' }
-$preSqlReplicasJson = az containerapp replica list --subscription $subscriptionId `
-  --resource-group $resourceGroup --name $webApp --revision $oldWebRevision --output json
-if ($LASTEXITCODE -ne 0) { throw 'Unable to re-read old Web replicas before SQL.' }
-$preSqlRevisionsText = $preSqlRevisionsJson -join "`n"
-$preSqlReplicasText = $preSqlReplicasJson -join "`n"
-if ($preSqlRevisionsText -notmatch '^\s*\[' -or $preSqlReplicasText -notmatch '^\s*\[') {
-  throw 'Pre-SQL Web read-back was not an array.'
+$preSqlWebState = (az webapp show --subscription $subscriptionId `
+  --resource-group $resourceGroup --name $webApp --query state --output tsv).Trim()
+if ($LASTEXITCODE -ne 0 -or $preSqlWebState -cne 'Stopped') {
+  throw 'Web App is not freshly confirmed Stopped before destructive SQL.'
 }
+$preSqlServing = $true
 try {
-  $preSqlMode = ($preSqlModeJson -join "`n") | ConvertFrom-Json
-  $preSqlRevisions = @($preSqlRevisionsText | ConvertFrom-Json)
-  $preSqlReplicas = @($preSqlReplicasText | ConvertFrom-Json)
+  $preSqlLive = Invoke-WebRequest -Uri ([uri]::new($webOrigin, 'health/live')) -MaximumRedirection 0 -SkipHttpErrorCheck
+  $preSqlServing = [int]$preSqlLive.StatusCode -ge 200 -and [int]$preSqlLive.StatusCode -lt 300
 }
-catch { throw 'Pre-SQL Web read-back was not valid JSON.' }
-if ($preSqlMode.mode -cne 'Single' -or
-    @($preSqlRevisions | Where-Object {
-      [string]::IsNullOrWhiteSpace([string]$_.name) -or -not ($_.active -is [bool])
-    }).Count -ne 0 -or
-    @($preSqlRevisions | Where-Object { $_.active }).Count -ne 0 -or
-    @($preSqlRevisions | Where-Object { $_.name -ceq $oldWebRevision }).Count -ne 1 -or
-    @($preSqlRevisions | Where-Object { $_.name -ceq $oldWebRevision -and $_.active }).Count -ne 0 -or
-    $preSqlReplicas.Count -ne 0) {
-  throw 'Web is not freshly confirmed inactive with zero replicas before destructive SQL.'
-}
+catch { $preSqlServing = $false }
+if ($preSqlServing) { throw 'Web App is still serving the application before destructive SQL.' }
 ```
 
 Then follow [references/database-migration.md](references/database-migration.md).
-If SQL, grants, or migration-head verification fails, leave the Worker stopped
-and every Disabled setting true. From this point recover forward only: never
-start the old Worker package or old Web revision against changed or unknown schema.
+If SQL, grants, or migration-head verification fails, leave the Worker stopped,
+the Web App stopped and every Disabled setting true. From this point recover
+forward only: never start the old Worker package or the old Web package against
+changed or unknown schema.
 
-## 8. Normal route: provision, then deploy Worker
+## 8. Normal route: provision, deploy Web, then deploy Worker
 
 For an unchanged migration identity, or after the additive migration recipe
-succeeds, retain the ordinary ordering: provision the approved Web and
-infrastructure with the Worker approved live, then deploy the approved Worker
-ZIP and run the full smoke. Do not use the destructive containment steps or its
-disabled-first staging exception for this route.
+succeeds, retain the ordinary ordering: provision the approved infrastructure
+with Web activation approved and the Worker approved live, deploy the approved
+`web.zip` to the Web App, wait for the exact release to answer, deploy the
+approved Worker ZIP and run the full smoke. Do not use the destructive
+containment steps or its disabled-first staging exception for this route.
+
+`PEGASUS_WEB_LOCATION` is set only when the approval names a Web region other
+than the platform region (the quota route chosen in section 12); leave it unset
+otherwise. `PreProvision` reads the App Service quota for the effective Web
+region and refuses a region without quota for the plan SKU. `az webapp deploy`
+authenticates with the operator's Entra token; basic publishing credentials are
+disabled by the template. `--clean true` removes the previous package contents
+and `--restart true` restarts the site onto the new package.
 
 ```powershell
-$revisionSuffix = $releaseSha.Substring(0,12)
-azd env set PEGASUS_WEB_IMAGE_DIGEST $manifest.webImage.digest -e $releaseEnvironment
-if ($LASTEXITCODE -ne 0) { throw 'Unable to set normal-route Web digest.' }
-azd env set PEGASUS_WEB_REVISION_SUFFIX $revisionSuffix -e $releaseEnvironment
-if ($LASTEXITCODE -ne 0) { throw 'Unable to set normal-route Web revision suffix.' }
 azd env set PEGASUS_WEB_ACTIVATION approved -e $releaseEnvironment
 if ($LASTEXITCODE -ne 0) { throw 'Unable to set normal-route Web activation.' }
 azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker -e $releaseEnvironment
@@ -485,41 +447,60 @@ pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision `
   -WorkerActivation approved-live-worker -ExpectedLiveWorkerActivation approved-live-worker
 if ($LASTEXITCODE -ne 0) { throw 'Normal-route pre-provision validation failed.' }
 azd provision -e $releaseEnvironment --no-prompt
-if ($LASTEXITCODE -ne 0) { throw 'Normal-route Web provisioning failed.' }
-$expectedWebRevisionName = "$webApp--$revisionSuffix"
-$expectedWebImage = "$registry.azurecr.io/pegasus/web@$($manifest.webImage.digest)"
-Wait-PegasusExpectedWebRevision `
-  -ExpectedRevisionName $expectedWebRevisionName -ExpectedImage $expectedWebImage
+if ($LASTEXITCODE -ne 0) { throw 'Normal-route provisioning failed.' }
+az webapp deploy --subscription $subscriptionId `
+  --resource-group $resourceGroup --name $webApp `
+  --src-path $webPackagePath --type zip --clean true --restart true --output none
+if ($LASTEXITCODE -ne 0) { throw 'Normal-route Web package deployment failed.' }
+Wait-PegasusExpectedWebSite -ExpectedSourceRevision $releaseSha -ExpectedVersion $version
 az functionapp deployment source config-zip --subscription $subscriptionId `
   --resource-group $resourceGroup --name $workerApp `
   --src "./artifacts/releases/$version/worker.zip"
 if ($LASTEXITCODE -ne 0) { throw 'Normal-route Worker deployment failed.' }
 pwsh ./scripts/Invoke-ProductionSmoke.ps1 `
-  -BaseUri 'https://pegasus-prod-web-252ow37gij.ashymushroom-676209e5.uksouth.azurecontainerapps.io' `
+  -BaseUri $webOrigin `
   -ExpectedSourceRevision $releaseSha -ExpectedVersion $version `
+  -ExpectedWebPackageSha256 $webPackageSha256 `
   -ResourceGroupName $resourceGroup -SubscriptionId $subscriptionId `
   -ExpectedWorkerActivation approved-live-worker
 if ($LASTEXITCODE -ne 0) { throw 'Normal-route exact release smoke failed.' }
 ```
 
-## 9. Destructive route: provision the new Web while Worker remains disabled
+Provisioning may restart the site when it changes app settings; on this route
+that restart runs the previous package against a compatible schema and is
+acceptable. The Web package deployment, not provisioning, changes the served
+bytes.
+
+## 9. Destructive route: deploy the new Web package, then provision with Worker disabled
 
 Read the azd environment and refuse stale or wrong targets. Every secret URI
 must name `pegasusprodkv252ow37g`; `AZURE_RESOURCE_GROUP` must be
-`rg-pegasus-prod`. After verified migration, grants and migration head, use the
-same approved Web digest and suffix, set Web activation to `approved`, and retain
-the desired Worker value as `disabled`. `PreProvision` must observe the Worker
-disabled before provision. Check each native exit, read back the new active Web
-revision/digest, and run the full Worker-only disabled smoke. A configuration
-update may start the Function host, but its approved new bytes were staged before
-SQL; do not deploy the Worker ZIP again.
+`rg-pegasus-prod`. After verified migration, grants and migration head, first
+deploy the approved `web.zip` to the **stopped** Web App so that no start,
+however caused, can run the old package against the new schema: the deployment
+endpoint stays available while the site is stopped, and `--restart false` leaves
+the site stopped. Then set Web activation to `approved`, retain the desired
+Worker value as `disabled`, and provision. `PreProvision` must observe the
+Worker disabled before provision. Check each native exit and run the full
+Worker-only disabled smoke. A configuration update may start the Function
+host, but its approved new bytes were staged before SQL; do not deploy the
+Worker ZIP again. The Web App is started only in section 10.
 
 ```powershell
-$revisionSuffix = $releaseSha.Substring(0,12)
-azd env set PEGASUS_WEB_IMAGE_DIGEST $manifest.webImage.digest -e $releaseEnvironment
-if ($LASTEXITCODE -ne 0) { throw 'Unable to set the approved Web digest.' }
-azd env set PEGASUS_WEB_REVISION_SUFFIX $revisionSuffix -e $releaseEnvironment
-if ($LASTEXITCODE -ne 0) { throw 'Unable to set the approved Web revision suffix.' }
+$stagedWebState = (az webapp show --subscription $subscriptionId `
+  --resource-group $resourceGroup --name $webApp --query state --output tsv).Trim()
+if ($LASTEXITCODE -ne 0 -or $stagedWebState -cne 'Stopped') {
+  throw 'The Web App must read back Stopped before the new package is deployed.'
+}
+az webapp deploy --subscription $subscriptionId `
+  --resource-group $resourceGroup --name $webApp `
+  --src-path $webPackagePath --type zip --clean true --restart false --output none
+if ($LASTEXITCODE -ne 0) { throw 'New Web package deployment failed.' }
+$postDeployWebState = (az webapp show --subscription $subscriptionId `
+  --resource-group $resourceGroup --name $webApp --query state --output tsv).Trim()
+if ($LASTEXITCODE -ne 0 -or $postDeployWebState -cne 'Stopped') {
+  throw 'The Web App did not remain Stopped after the package deployment.'
+}
 azd env set PEGASUS_WEB_ACTIVATION approved -e $releaseEnvironment
 if ($LASTEXITCODE -ne 0) { throw 'Unable to set approved Web activation.' }
 azd env set PEGASUS_WORKER_ACTIVATION disabled -e $releaseEnvironment
@@ -530,10 +511,6 @@ pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision `
 if ($LASTEXITCODE -ne 0) { throw 'Disabled Worker pre-provision validation failed.' }
 azd provision -e $releaseEnvironment --no-prompt
 if ($LASTEXITCODE -ne 0) { throw 'New Web provisioning failed.' }
-$expectedWebRevisionName = "$webApp--$revisionSuffix"
-$expectedWebImage = "$registry.azurecr.io/pegasus/web@$($manifest.webImage.digest)"
-Wait-PegasusExpectedWebRevision `
-  -ExpectedRevisionName $expectedWebRevisionName -ExpectedImage $expectedWebImage
 pwsh ./scripts/Invoke-ProductionSmoke.ps1 -WorkerOnly `
   -ResourceGroupName $resourceGroup -SubscriptionId $subscriptionId `
   -ExpectedWorkerActivation disabled
@@ -542,13 +519,14 @@ if ($LASTEXITCODE -ne 0) { throw 'New Worker disabled census smoke failed.' }
 
 ## 10. Explicitly activate the compatible release
 
-Keep the same approved digest and suffix. Set only
+Keep the same approved manifest. Set only
 `PEGASUS_WORKER_ACTIVATION=approved-live-worker`, preflight against the observed
-disabled Worker, and provision once. If it remains stopped, start the exact
-approved target and require a `Running` read-back. Completion requires the new
-Web active and healthy at the approved digest, the Worker `Running`, every
-Disabled value `false`, and a successful full smoke. If any of those fail, report
-an unfinished outage; do not call the release successful or revive old bytes.
+disabled Worker, and provision once. Start the Web App and require the exact
+release read-back of section 5. If the Worker remains stopped, start the exact
+approved target and require a `Running` read-back. Completion requires the Web
+App `Running` at the approved release, the Worker `Running`, every Disabled
+value `false`, and a successful full smoke. If any of those fail, report an
+unfinished outage; do not call the release successful or revive old bytes.
 
 ```powershell
 azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker -e $releaseEnvironment
@@ -559,8 +537,9 @@ pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision `
 if ($LASTEXITCODE -ne 0) { throw 'Worker activation pre-provision validation failed.' }
 azd provision -e $releaseEnvironment --no-prompt
 if ($LASTEXITCODE -ne 0) { throw 'Compatible release activation failed.' }
-Wait-PegasusExpectedWebRevision `
-  -ExpectedRevisionName $expectedWebRevisionName -ExpectedImage $expectedWebImage
+az webapp start --subscription $subscriptionId --resource-group $resourceGroup --name $webApp --output none
+if ($LASTEXITCODE -ne 0) { throw 'Web App start failed.' }
+Wait-PegasusExpectedWebSite -ExpectedSourceRevision $releaseSha -ExpectedVersion $version
 $workerState = (az resource show --subscription $subscriptionId `
   --resource-group $resourceGroup --name $workerApp --resource-type 'Microsoft.Web/sites' `
   --api-version 2024-04-01 --query properties.state --output tsv).Trim()
@@ -583,21 +562,25 @@ for ($attempt = 1; $attempt -le 12; $attempt++) {
 }
 if (-not $workerRunning) { throw 'Worker did not read back as Running.' }
 pwsh ./scripts/Invoke-ProductionSmoke.ps1 `
-  -BaseUri 'https://pegasus-prod-web-252ow37gij.ashymushroom-676209e5.uksouth.azurecontainerapps.io' `
+  -BaseUri $webOrigin `
   -ExpectedSourceRevision $releaseSha -ExpectedVersion $version `
+  -ExpectedWebPackageSha256 $webPackageSha256 `
   -ResourceGroupName $resourceGroup -SubscriptionId $subscriptionId `
   -ExpectedWorkerActivation approved-live-worker
 if ($LASTEXITCODE -ne 0) { throw 'Exact release smoke failed.' }
 ```
 
 The scripts at the released SHA own the exact Worker function and schedule
-census. Do not duplicate a function count in the skill. The full smoke also
-reads the production database (read-only) and fails unless an intake mailbox
-is activated, an unexpired `Active` Graph subscription exists, and an inbound
-poll completed within 15 minutes. Smoke proves the right bytes, configuration,
-and intake liveness, not the changed user journey. Run only the focused live
-behavioural check required by the released change and record its result without
-overclaiming.
+census. Do not duplicate a function count in the skill. The full smoke reads
+the Web App state, stack, run-from-package setting and last deployment record,
+compares the deployed package bytes with the approved `web.zip` when the
+deployment endpoint exposes them and says so when it cannot, and proves the
+running bytes at `/diagnostics/version`. It also reads the production database
+(read-only) and fails unless an intake mailbox is activated, an unexpired
+`Active` Graph subscription exists, and an inbound poll completed within 15
+minutes. Smoke proves the right bytes, configuration, and intake liveness, not
+the changed user journey. Run only the focused live behavioural check required
+by the released change and record its result without overclaiming.
 
 ## 11. Record and retain evidence
 
@@ -609,6 +592,147 @@ identities there. Link retained attempts and failures from the release record.
 Copy `artifacts/releases/$version` outside the disposable worktree before
 removing it. The release is unfinished until operations records the deployed observation
 and any source-structure change is reflected in current-architecture.
+
+## 12. One-time cutover from the Container App
+
+The first App Service release replaces the Container App with the Web App
+under the same public-origin dependencies. Execute this section once, inside
+that release, with the normal route of section 8 (or the destructive route
+when the candidate also carries a destructive migration). Every write below
+needs explicit operator approval naming the exact target and operation; the
+list is the approval request, not the grant.
+
+### 12.1 Pre-flight: App Service quota
+
+On 2026-09-13 a read-only quota check found the subscription's App Service VM
+quota in the platform region `uksouth` at 0 for every SKU, `B1` included,
+while `ukwest` and `westeurope` carried an aggregate quota of 30. Provisioning
+a B1 plan in a region with quota 0 fails. Read the current figures before
+provision and choose one route:
+
+```powershell
+foreach ($region in @('uksouth', 'ukwest')) {
+  $quota = az rest --method get --url "https://management.azure.com/subscriptions/$subscriptionId/providers/Microsoft.Web/locations/$region/providers/Microsoft.Quota/quotas?api-version=2023-02-01" --output json | ConvertFrom-Json
+  "$region : " + (($quota.value | Where-Object { $_.name -in @('B1', '*') } | ForEach-Object { "$($_.name)=$($_.properties.limit.value)" }) -join ' ')
+}
+```
+
+- **Quota increase (platform region):** the operator requests a UK South
+  App Service `B1` quota increase through the subscription's quota request
+  route and waits for the read-back above to show `B1` at 1 or more. The Web
+  plan and Web App then sit in `uksouth` with everything else; leave
+  `PEGASUS_WEB_LOCATION` unset.
+- **Separate Web region:** the operator names a region whose read-back shows
+  quota (`ukwest` on 2026-09-13) and the Web plan alone moves there:
+  `azd env set PEGASUS_WEB_LOCATION ukwest -e $releaseEnvironment`. SQL,
+  storage, Key Vault, telemetry and the Worker stay in `uksouth`; Web traffic
+  to them crosses regions. Record the chosen region in the release record.
+
+`Test-AzureDeploymentPlan.ps1 -Mode PreProvision` repeats the read for the
+effective Web region and refuses to continue at 0. A quota that reads 0 is
+not repaired by retrying the provision.
+
+### 12.2 Read the retiring Container App
+
+The Web App does not exist yet, so section 2 reads the Container App instead.
+Record the active revision, its image digest and the source SHA it reports:
+
+```powershell
+$oldOrigin = 'https://pegasus-prod-web-252ow37gij.ashymushroom-676209e5.uksouth.azurecontainerapps.io/'
+az containerapp revision list --subscription $subscriptionId `
+  --resource-group $resourceGroup --name $webApp `
+  --query "[?properties.active].{name:name,image:properties.template.containers[0].image}" --output json
+Invoke-RestMethod -Uri ([uri]::new($oldOrigin, 'diagnostics/version')) | ConvertTo-Json
+```
+
+The Container App and the Web App share the name `pegasus-prod-web-252ow37gij`
+in different resource types; every command in this skill names the type, so
+no command addresses the wrong one.
+
+### 12.3 Provision, deploy and smoke beside the running Container App
+
+Run section 8 (or 7, 9 and 10) as written. The template no longer declares the
+Container Apps environment, the Container App, the registry or its role
+assignment, and `azd provision` deletes nothing it no longer declares: they
+remain in the resource group untouched while the Web App is created next to
+them. Provision also re-points the Worker's `Graph__ChangeNotificationUrl` at
+the Web App origin. The smoke proves the Web App serving the exact release at
+`$webOrigin` while the Container App still serves the old origin.
+
+### 12.4 Re-point every consumer of the public hostname
+
+The public origin changes from the Container App hostname to
+`pegasus-prod-web-252ow37gij.azurewebsites.net`. After the smoke passes:
+
+1. **Staff sign-in.** Staff authenticate with the application's own cookie
+   scheme at `/Account/SignIn`; there is no Entra app registration redirect
+   URI for staff and nothing to re-point. Staff use the new origin.
+2. **External MCP connector consent.** Pegasus is the OAuth authorization
+   server for the automation connector (`/authorize`, `/connect/token`,
+   resource `/mcp`). The connector's own redirect URIs
+   (`AUTOMATION_MCP_REDIRECT_URIS`) do not change. The connector's registration
+   of the Pegasus server URL does: an Administrator re-adds the connector at
+   `https://pegasus-prod-web-252ow37gij.azurewebsites.net/mcp` and completes
+   consent again, because tokens and the resource metadata at
+   `/.well-known/oauth-protected-resource/mcp` are bound to the origin the Web
+   App now reports in `AutomationMcp__PublicOrigin`. Tokens issued for the old
+   origin are not valid for the new resource.
+3. **Graph mail webhook.** The Worker maintains one subscription per approved
+   intake mailbox from `Graph__ChangeNotificationUrl`, which provision moved to
+   `https://pegasus-prod-web-252ow37gij.azurewebsites.net/hooks/microsoft-graph/mail`.
+   Maintenance renews an existing `Active` subscription in place and a renewal
+   does not change its notification URL, so every existing subscription keeps
+   notifying the old origin until it is re-created. Re-creation happens only
+   when a mailbox generation advances. The operator step, per approved intake
+   mailbox in `/Administration/Mailboxes`, is: set the mailbox **Disabled**,
+   save, then set it **Approved** again and save, in one sitting. The next
+   `InboxRecoveryFunction` run (every five minutes) creates a new subscription
+   at the new URL; confirm the new subscription expiry in Mailboxes and in the
+   smoke's liveness line. Consequence to state in the release record: re-enable
+   establishes a new start boundary, so mail delivered to that mailbox between
+   the disable and the re-enable is not backfilled; keep the window seconds
+   long and outside typical usage. The superseded Graph subscriptions expire
+   within six days on their own; the five-minute recovery poll carries intake
+   throughout, so the webhook change affects immediacy, not delivery.
+4. **Public upload links.** Links are issued as absolute URLs on the origin
+   current at issue time. Every unexpired link issued before cutover carries the
+   Container App hostname and stops working when that origin is disabled in
+   12.5; a member of staff issues a fresh link from the Case for any outstanding
+   request. Links have a seven-day lifetime (`DocumentRequests__LifetimeHours`),
+   so the exposure ends within a week of cutover.
+5. **Provider API base address.** The Provider API is served at the new origin.
+   The operator informs each principal that holds Provider API credentials of
+   the new base address before the old origin is disabled; credentials do not
+   change.
+6. **Glass's return.** `Glass__CallbackBaseUri` is derived from the Web App
+   origin by the template; no provider-side change is needed unless the
+   provider account records a fixed return address, which the operator checks
+   on the account.
+
+### 12.5 Retire the Container App
+
+Only after 12.3 and 12.4 are complete and recorded, and with explicit approval
+naming each target and operation, stop the old origin. Scaling to zero keeps
+the retired app recoverable during the observation period; deletion is a later
+approved release.
+
+```powershell
+az containerapp update --subscription $subscriptionId --resource-group $resourceGroup `
+  --name $webApp --min-replicas 0 --max-replicas 0 --output none
+if ($LASTEXITCODE -ne 0) { throw 'Unable to scale the retired Container App to zero.' }
+az containerapp ingress disable --subscription $subscriptionId --resource-group $resourceGroup `
+  --name $webApp --output none
+if ($LASTEXITCODE -ne 0) { throw 'Unable to disable the retired Container App ingress.' }
+```
+
+Confirm the old origin no longer answers `/health/live` with 2xx and that the
+Web App smoke still passes. In a later, separately approved release, after the
+observation period the operator names, delete the retired resources in this
+order: `az containerapp delete --name pegasus-prod-web-252ow37gij`,
+`az containerapp env delete` for the Container Apps environment in
+`rg-pegasus-prod`, and `az acr delete --name pegasusprodacr252ow37gij`. Record
+each deletion in operations. A custom domain for the Web App is a separate
+operator decision and is not part of this cutover.
 
 ## Recovery and diagnostics
 

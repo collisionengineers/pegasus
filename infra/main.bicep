@@ -16,20 +16,17 @@ param deploymentMode string
   'disabled'
   'approved'
 ])
-@description('Fail-closed Web activation. Base provisioning leaves the public Container App absent.')
+@description('Fail-closed Web activation. Base provisioning leaves the public Web App absent.')
 param webActivation string = 'disabled'
 
 @description('Fail-closed Worker activation. Only approved-live-worker enables the nine production functions.')
 param workerActivation string = 'disabled'
 
-@description('Exact sha256 OCI manifest digest. Required only when Web activation is approved; the registry and repository are template-owned.')
-param webImageDigest string = ''
-
-@description('Twelve-character source revision suffix for the immutable Container App revision.')
-param webRevisionSuffix string = ''
-
 @description('Primary Azure region.')
 param location string = 'uksouth'
+
+@description('Region of the Web App Service plan and Web App; defaults to the primary region (ADR-0049).')
+param webLocation string = ''
 
 @description('Object ID for the Microsoft Entra administrator of the Azure SQL logical server.')
 param sqlAdministratorObjectId string
@@ -110,14 +107,13 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
   scope: resourceGroup
   params: {
     location: location
+    webLocation: empty(webLocation) ? location : webLocation
     tags: commonTags
     sqlAdministratorObjectId: sqlAdministratorObjectId
     sqlAdministratorLogin: sqlAdministratorLogin
     alertEmailAddress: alertEmailAddress
     webActivation: webActivation
     workerActivation: workerActivation
-    webImageDigest: webImageDigest
-    webRevisionSuffix: webRevisionSuffix
     graphChangeNotificationClientStateSecretUri: graphChangeNotificationClientStateSecretUri
     boxConfigJsonSecretUri: boxConfigJsonSecretUri
     boxHoldingFolderId: boxHoldingFolderId
@@ -207,12 +203,10 @@ resource productionBudget 'Microsoft.Consumption/budgets@2023-11-01' = if (activ
 output DEPLOYMENT_MODE string = deploymentMode
 output AZURE_RESOURCE_GROUP string = activationAllowed ? resourceGroup!.name : ''
 output AZURE_LOCATION string = location
-output WEB_CONTAINER_APP_NAME string = activationAllowed ? platform!.outputs.webContainerAppName : ''
-output WEB_CONTAINER_APP_FQDN string = activationAllowed ? platform!.outputs.webContainerAppFqdn : ''
-output WEB_CONTAINER_APP_REVISION string = activationAllowed ? platform!.outputs.webContainerAppRevision : ''
-output CONTAINER_REGISTRY_NAME string = activationAllowed ? platform!.outputs.containerRegistryName : ''
-output CONTAINER_REGISTRY_LOGIN_SERVER string = activationAllowed ? platform!.outputs.containerRegistryLoginServer : ''
-output WEB_IMAGE_REFERENCE string = activationAllowed ? platform!.outputs.webImageReference : ''
+output WEB_APP_NAME string = activationAllowed ? platform!.outputs.webAppName : ''
+output WEB_APP_HOST_NAME string = activationAllowed ? platform!.outputs.webAppHostName : ''
+output WEB_PLAN_NAME string = activationAllowed ? platform!.outputs.webPlanName : ''
+output WEB_LOCATION string = empty(webLocation) ? location : webLocation
 output WEB_IDENTITY_NAME string = activationAllowed ? platform!.outputs.webIdentityName : ''
 output WEB_IDENTITY_CLIENT_ID string = activationAllowed ? platform!.outputs.webIdentityClientId : ''
 output WORKER_APP_NAME string = activationAllowed ? platform!.outputs.workerAppName : ''
