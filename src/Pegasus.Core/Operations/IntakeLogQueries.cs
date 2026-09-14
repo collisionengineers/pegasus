@@ -82,7 +82,12 @@ public sealed record IntakeLogPage(
     public int TotalPages => TotalCount == 0 ? 1 : (int)Math.Ceiling((double)TotalCount / PageSize);
 }
 
-/// <summary>The tab's head-line counts, each a link into the filtered list.</summary>
+/// <summary>
+/// The tab's head-line counts. <see cref="FailedIntake"/> counts every receipt
+/// whose outcome is a retryable failure (<see cref="IntakeLogPolicy.RetryableFailures"/>):
+/// the same rows Operations lists under Attention required, each with its own
+/// retry.
+/// </summary>
 public sealed record IntakeLogCounts(int FailedIntake, DateTimeOffset? OldestPendingIntakeDueAtUtc);
 
 /// <summary>
@@ -117,6 +122,17 @@ public static class IntakeLogPolicy
 {
     public const int PageSize = 50;
     public const int MaximumTextLength = 200;
+
+    /// <summary>
+    /// The intake failures a person can retry, in the order Operations lists
+    /// them: failed allocation (Retry allocation), failed OCR (Retry OCR) and
+    /// any other processing failure (Re-evaluate). The Intake log's Failed
+    /// intake count is the number of receipts in these outcomes.
+    /// </summary>
+    public static readonly IReadOnlyList<IntakeLogOutcome> RetryableFailures =
+        [IntakeLogOutcome.AllocationFailed, IntakeLogOutcome.OcrFailed, IntakeLogOutcome.ProcessingFailed];
+
+    public static bool IsRetryableFailure(IntakeLogOutcome outcome) => RetryableFailures.Contains(outcome);
 
     /// <summary>
     /// The outcome a receipt reads as. A receipt whose Unidentified item was

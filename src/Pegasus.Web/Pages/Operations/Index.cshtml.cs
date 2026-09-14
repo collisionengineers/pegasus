@@ -45,8 +45,7 @@ public sealed class IndexModel(
     public IReadOnlyList<IntakeLogDetail> FailedIntake { get; private set; } = [];
 
     /// <summary>The failure kinds Operations lists, in the order it lists them.</summary>
-    public static readonly IReadOnlyList<IntakeLogOutcome> FailureKinds =
-        [IntakeLogOutcome.AllocationFailed, IntakeLogOutcome.OcrFailed, IntakeLogOutcome.ProcessingFailed];
+    public static readonly IReadOnlyList<IntakeLogOutcome> FailureKinds = IntakeLogPolicy.RetryableFailures;
     private const string PreservedReasonKey = "OperationsRequestReason";
     private const string PreservedRequestIdKey = "OperationsRequestReasonId";
 

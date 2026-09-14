@@ -35,6 +35,24 @@ public sealed class IntakeLogTests
             IntakeLogPolicy.Outcome(decision, triageOpened: false, unidentifiedClosed: false, processingFailed, allocationFailed, ocrFailed));
 
     [Theory]
+    [InlineData(IntakeLogOutcome.AllocationFailed, true)]
+    [InlineData(IntakeLogOutcome.OcrFailed, true)]
+    [InlineData(IntakeLogOutcome.ProcessingFailed, true)]
+    [InlineData(IntakeLogOutcome.CouldNotBeRead, false)]
+    [InlineData(IntakeLogOutcome.Unidentified, false)]
+    [InlineData(IntakeLogOutcome.Closed, false)]
+    [InlineData(IntakeLogOutcome.CaseCreated, false)]
+    [InlineData(IntakeLogOutcome.Triage, false)]
+    [InlineData(IntakeLogOutcome.VehicleImages, false)]
+    public void FailedIntakeCountsEveryRetryableFailureOperationsLists(IntakeLogOutcome outcome, bool counted)
+    {
+        Assert.Equal(counted, IntakeLogPolicy.IsRetryableFailure(outcome));
+        Assert.Equal(
+            [IntakeLogOutcome.AllocationFailed, IntakeLogOutcome.OcrFailed, IntakeLogOutcome.ProcessingFailed],
+            IntakeLogPolicy.RetryableFailures);
+    }
+
+    [Theory]
     [InlineData(IntakeOcrState.Failed, true)]
     [InlineData(IntakeOcrState.Pending, false)]
     [InlineData(IntakeOcrState.Processing, false)]

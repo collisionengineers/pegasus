@@ -48,7 +48,8 @@
                        data-precase-rotation="@((int)preparation.Rotation)"
                        data-precase-crop="@(crop.IsFull ? string.Empty : string.Join(',', new[] { crop.Left, crop.Top, crop.Width, crop.Height }.Select(value => value.ToString(culture))))"
                        data-precase-tags="@string.Join(',', preparation.Tags.Select(tag => tag.TagId.ToString("D")))">
-                        <span class="gallery-image"><img src="@(image.ThumbnailHref ?? image.Href)" alt="@image.FileName" loading="lazy" data-gallery-image /></span>
+                        @* A recorded crop is drawn on the tile, as a Case image's tile draws it. *@
+                        <span class="gallery-image"><img src="@image.TileHref" alt="@image.FileName" loading="lazy" data-gallery-image data-precase-tile="@(preparation.IsPrepared ? "prepared" : "original")" /></span>
                         <span class="gallery-caption">
                             <strong>@image.FileName</strong>
                             @if (preparation.IsPrepared)
