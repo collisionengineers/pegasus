@@ -334,11 +334,11 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Equal(HttpStatusCode.Found, created.StatusCode);
 
         DateTimeOffset originalActivation;
-        await using (var scope = factory.Services.CreateAsyncScope())
+        await using (var initialScope = factory.Services.CreateAsyncScope())
         {
-            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-            await using var context = await contextFactory.CreateDbContextAsync();
-            originalActivation = (await context.ApprovedMailboxes.SingleAsync(item =>
+            var initialContextFactory = initialScope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var initialContext = await initialContextFactory.CreateDbContextAsync();
+            originalActivation = (await initialContext.ApprovedMailboxes.SingleAsync(item =>
                 item.Id == Guid.Parse(mailboxId))).ActivatedAtUtc!.Value;
         }
 
