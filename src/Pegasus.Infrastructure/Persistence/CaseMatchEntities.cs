@@ -95,6 +95,14 @@ internal static class CaseMatchIndexProjector
         IEnumerable<IProviderCaseMatchPolicy> policies,
         DateTimeOffset updatedAtUtc)
     {
+        // A linked Audit Case is never an intake match target: its material is the
+        // original's, and indexing it would make every match for that vehicle
+        // ambiguous between the two.
+        if (caseEntity.AuditOfCaseId is not null)
+        {
+            return null;
+        }
+
         var provider = CurrentValue(fields, CaseDataFieldNames.WorkProviderCode);
         var policy = provider is null
             ? null

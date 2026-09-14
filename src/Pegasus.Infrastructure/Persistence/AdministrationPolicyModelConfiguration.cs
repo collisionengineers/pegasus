@@ -13,14 +13,25 @@ internal static class AdministrationPolicyModelConfiguration
     {
         builder.Entity<WorkflowConfigurationEntity>(entity =>
         {
-            entity.ToTable("WorkflowConfigurations", table => table.HasCheckConstraint(
-                "CK_WorkflowConfigurations_ChaseIntervalDays", "[ChaseIntervalDays] BETWEEN 1 AND 365"));
+            entity.ToTable("WorkflowConfigurations", table =>
+            {
+                table.HasCheckConstraint(
+                    "CK_WorkflowConfigurations_ChaseIntervalDays", "[ChaseIntervalDays] BETWEEN 1 AND 365");
+                table.HasCheckConstraint(
+                    "CK_WorkflowConfigurations_TargetDays",
+                    "[UnidentifiedTargetDays] BETWEEN 0 AND 365 AND [TriageTargetDays] BETWEEN 0 AND 365 AND [HeldTargetDays] BETWEEN 0 AND 365 AND [ReviewTargetDays] BETWEEN 0 AND 365 AND [AiDraftTargetDays] BETWEEN 0 AND 365");
+            });
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Id).HasMaxLength(100);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.Property(item => item.RequireInstructions).HasDefaultValue(true);
             entity.Property(item => item.RequireImages).HasDefaultValue(true);
             entity.Property(item => item.ChaseIntervalDays).HasDefaultValue(7);
+            entity.Property(item => item.UnidentifiedTargetDays).HasDefaultValue(0);
+            entity.Property(item => item.TriageTargetDays).HasDefaultValue(1);
+            entity.Property(item => item.HeldTargetDays).HasDefaultValue(7);
+            entity.Property(item => item.ReviewTargetDays).HasDefaultValue(1);
+            entity.Property(item => item.AiDraftTargetDays).HasDefaultValue(1);
             entity.HasData(new WorkflowConfigurationEntity
             {
                 Id = WorkflowPolicyKey,

@@ -6,6 +6,11 @@ internal sealed class CaseWorkflowEntity : IApplicationManagedConcurrencyToken
     public CaseEntity Case { get; set; } = null!;
     public required string State { get; set; }
     public string? PreHoldState { get; set; }
+    // The current hold: when it was placed and the optional review date; both null outside Held.
+    public DateTimeOffset? HeldAtUtc { get; set; }
+    public DateOnly? HoldReviewOn { get; set; }
+    // When State last changed, so Review and Held ageing count from the transition.
+    public DateTimeOffset? StateEnteredAtUtc { get; set; }
     public Guid? AssignedEngineerId { get; set; }
     public Guid? SignOffEngineerId { get; set; }
     public Guid? ReportApprovalId { get; set; }

@@ -87,6 +87,10 @@ public sealed class EfUnidentifiedStore(
             CreatedByActorRolesJson = JsonSerializer.Serialize(request.Actor.Roles.OrderBy(role => role)),
             RegistrationOperationKey = operationKey,
             RegistrationFingerprint = fingerprint,
+            FileKind = request.FileKind,
+            SourceAssetId = request.SourceAssetId,
+            SourceMessageId = request.SourceMessageId
+                ?? await SourceMessageIdAsync(context, request.Origin, cancellationToken),
             Version = 0
         };
         context.Set<UnidentifiedItemEntity>().Add(entity);
@@ -458,6 +462,30 @@ public sealed class EfUnidentifiedStore(
             : rows.Where(row => row.MediaKind == mediaKind.Value).ToArray();
     }
 
+    public async Task<IReadOnlyList<UnidentifiedQueueRow>> ListClosedQueueAsync(
+        UnidentifiedMediaKind? mediaKind,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var resolvedState = UnidentifiedState.Resolved.ToString();
+        var closedKind = UnidentifiedResolutionTargetKind.Closed.ToString();
+
+        var joined = await (
+            from item in context.Set<UnidentifiedItemEntity>().AsNoTracking()
+            where item.State == resolvedState && item.ResolutionTargetKind == closedKind
+            join receipt in context.Set<IntakeReceiptEntity>().AsNoTracking().Include(entity => entity.MailRouteDecision)
+                on item.OriginId equals receipt.Id into receiptGroup
+            from receipt in receiptGroup.DefaultIfEmpty()
+            orderby item.ResolvedAtUtc descending, item.Sequence descending
+            select new { item, receipt })
+            .ToArrayAsync(cancellationToken);
+
+        var rows = joined.Select(row => MapQueueRow(row.item, row.receipt)).ToArray();
+        return mediaKind is null
+            ? rows
+            : rows.Where(row => row.MediaKind == mediaKind.Value).ToArray();
+    }
+
     public async Task<KeysetPage<UnidentifiedQueueRow>> ListQueueByCursorAsync(
         UnidentifiedMediaKind? mediaKind,
         KeysetPosition? after,
@@ -652,6 +680,37 @@ public sealed class EfUnidentifiedStore(
             ? reason[..UnidentifiedValidation.MaximumReasonLength]
             : reason;
 
+    /// <summary>
+    /// The retained e-mail behind a mailbox receipt, so the record can offer Open
+    /// message. Read here rather than asked of every registering caller: the
+    /// receipt and the retained message share the mailbox receipt token.
+    /// </summary>
+    private static async Task<Guid?> SourceMessageIdAsync(
+        PegasusDbContext context,
+        UnidentifiedOrigin origin,
+        CancellationToken cancellationToken)
+    {
+        if (origin.Kind != UnidentifiedOriginKind.Receipt)
+        {
+            return null;
+        }
+
+        var token = await context.IntakeReceipts.AsNoTracking()
+            .Where(item => item.Id == origin.Id && item.SourceChannel == "mailbox")
+            .Select(item => item.ExternalReceiptToken)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (token is null)
+        {
+            return null;
+        }
+
+        var messageId = await context.RetainedMailboxMessages.AsNoTracking()
+            .Where(item => item.ExternalReceiptToken == token)
+            .Select(item => (Guid?)item.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        return messageId;
+    }
+
     private static string Fingerprint(RegisterUnidentifiedRequest request)
     {
         var value = string.Join('|', request.Origin.Kind, request.Origin.Id, request.ReasonCode, request.SafeDetail.Trim(), request.Actor.Kind, request.Actor.SubjectId);
@@ -674,7 +733,12 @@ public sealed class EfUnidentifiedStore(
         entity.ResolutionTargetKind is null ? null : Enum.Parse<UnidentifiedResolutionTargetKind>(entity.ResolutionTargetKind),
         entity.ResolutionTargetId,
         entity.ResolutionTargetReference,
-        entity.Version);
+        entity.Version)
+    {
+        FileKind = entity.FileKind,
+        SourceMessageId = entity.SourceMessageId,
+        SourceAssetId = entity.SourceAssetId
+    };
 
     private static UnidentifiedHistoryEntry Map(UnidentifiedHistoryEntity entity) => new(
         entity.Id,

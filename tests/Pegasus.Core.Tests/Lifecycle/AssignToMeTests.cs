@@ -1,0 +1,178 @@
+using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Triage;
+using Pegasus.Core.Workflow;
+
+namespace Pegasus.Core.Tests.Lifecycle;
+
+public sealed class AssignToMeTests
+{
+    private static readonly Guid CaseId = Guid.NewGuid();
+    private static readonly Guid TriageId = Guid.NewGuid();
+    private static readonly Guid EngineerId = Guid.NewGuid();
+    private static readonly ActionActor Engineer = ActionActor.Staff(EngineerId, [StaffRole.Engineer]);
+    private static readonly ActionActor User = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+    [Fact]
+    public async Task AnEngineerTakesAnUnassignedReviewCaseAsThemself()
+    {
+        var assign = new RecordingAssign();
+        var sut = new AssignCaseToMe(new Queries(Workflow(CaseLifecycleState.Review, null)), assign);
+
+        await sut.ExecuteAsync(new(CaseId, 3, Engineer, "take-1", "lease-token"), default);
+
+        var request = Assert.Single(assign.Requests);
+        Assert.Equal(EngineerId, request.EngineerId);
+        Assert.Same(Engineer, request.Actor);
+        Assert.Equal(3, request.ExpectedVersion);
+        Assert.Equal("take-1", request.OperationKey);
+        Assert.Equal("lease-token", request.EditLeaseToken);
+        Assert.Equal(AssignCaseToMe.Reason, request.Reason);
+    }
+
+    [Fact]
+    public async Task AUserCannotTakeACase()
+    {
+        var assign = new RecordingAssign();
+        var sut = new AssignCaseToMe(new Queries(Workflow(CaseLifecycleState.Review, null)), assign);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.ExecuteAsync(new(CaseId, 3, User, "take-2", "lease-token"), default));
+
+        Assert.Empty(assign.Requests);
+    }
+
+    [Fact]
+    public async Task ACaseWithAnEngineerIsNotTaken()
+    {
+        var assign = new RecordingAssign();
+        var sut = new AssignCaseToMe(new Queries(Workflow(CaseLifecycleState.Review, Guid.NewGuid())), assign);
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.ExecuteAsync(new(CaseId, 3, Engineer, "take-3", "lease-token"), default));
+
+        Assert.Contains("already has an Engineer", exception.Message, StringComparison.Ordinal);
+        Assert.Empty(assign.Requests);
+    }
+
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady)]
+    [InlineData(CaseLifecycleState.Held)]
+    [InlineData(CaseLifecycleState.ReportPreparation)]
+    [InlineData(CaseLifecycleState.ProviderCancelled)]
+    public async Task OnlyAReviewCaseCanBeTaken(CaseLifecycleState state)
+    {
+        var assign = new RecordingAssign();
+        var sut = new AssignCaseToMe(new Queries(Workflow(state, null)), assign);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => sut.ExecuteAsync(new(CaseId, 3, Engineer, "take-4", "lease-token"), default));
+
+        Assert.Empty(assign.Requests);
+        Assert.False(CaseLifecycleRules.CanAssignToSelf(Workflow(state, null)));
+    }
+
+    [Fact]
+    public async Task AnEngineerTakesAnUnassignedOpenTriage()
+    {
+        var assign = new RecordingTriageAssign();
+        var sut = new AssignTriageToMe(new TriageQueries(Triage(TriageState.Open, null)), assign);
+
+        await sut.ExecuteAsync(new(TriageId, 2, Engineer, "take-t1") { EditLeaseToken = "lease" }, default);
+
+        var request = Assert.Single(assign.Requests);
+        Assert.Equal(EngineerId, request.AssigneeId);
+        Assert.Equal(2, request.ExpectedVersion);
+        Assert.Equal("lease", request.EditLeaseToken);
+        Assert.Equal(AssignTriageToMe.Reason, request.Reason);
+    }
+
+    [Fact]
+    public async Task AnAssignedOrSettledTriageIsNotTaken()
+    {
+        var assign = new RecordingTriageAssign();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => new AssignTriageToMe(new TriageQueries(Triage(TriageState.Open, Guid.NewGuid())), assign)
+                .ExecuteAsync(new(TriageId, 2, Engineer, "take-t2"), default));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => new AssignTriageToMe(new TriageQueries(Triage(TriageState.Completed, null)), assign)
+                .ExecuteAsync(new(TriageId, 2, Engineer, "take-t3"), default));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => new AssignTriageToMe(new TriageQueries(Triage(TriageState.Open, null)), assign)
+                .ExecuteAsync(new(TriageId, 2, User, "take-t4"), default));
+
+        Assert.Empty(assign.Requests);
+        Assert.True(TriageLifecycleRules.CanAssignToSelf(Triage(TriageState.Open, null)));
+        Assert.False(TriageLifecycleRules.CanAssignToSelf(Triage(TriageState.Cancelled, null)));
+    }
+
+    private static CaseWorkflowRecord Workflow(CaseLifecycleState state, Guid? engineerId) => new(
+        CaseId,
+        new(CaseId, "QDOS", 2026, 1, "QDOS260001"),
+        state,
+        engineerId,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        3);
+
+    private static TriageRecord Triage(TriageState state, Guid? assigneeId) => new(
+        TriageId,
+        new(Guid.NewGuid(), new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, "token"), new string('a', 64), Guid.NewGuid()),
+        "AB12CDE",
+        state,
+        assigneeId,
+        LinkedCaseId: null,
+        2,
+        "T-00001");
+
+    private sealed class Queries(CaseWorkflowRecord current) : ICaseWorkflowQueries
+    {
+        public Task<CaseWorkflowRecord?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseWorkflowRecord?>(caseId == current.CaseId ? current : null);
+
+        public Task<bool> HasOperationAsync(Guid caseId, string operationKey, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+    }
+
+    private sealed class RecordingAssign : IAssignCaseEngineer
+    {
+        public List<AssignCaseEngineerRequest> Requests { get; } = [];
+
+        public Task<CaseWorkflowRecord> ExecuteAsync(AssignCaseEngineerRequest request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(Workflow(CaseLifecycleState.ReportPreparation, request.EngineerId));
+        }
+    }
+
+    private sealed class TriageQueries(TriageRecord current) : ITriageQueries
+    {
+        public Task<IReadOnlyList<TriageSummary>> ListAsync(TriageState? state, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult<TriageDetail?>(id == current.Id
+                ? new TriageDetail(current, DateTimeOffset.UnixEpoch, [], [], [], [])
+                : null);
+
+        public Task<TriageSummary?> GetByOriginReceiptAsync(Guid originReceiptId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class RecordingTriageAssign : IAssignTriage
+    {
+        public List<AssignTriageRequest> Requests { get; } = [];
+
+        public Task<TriageRecord> ExecuteAsync(AssignTriageRequest request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(Triage(TriageState.Open, request.AssigneeId));
+        }
+    }
+}

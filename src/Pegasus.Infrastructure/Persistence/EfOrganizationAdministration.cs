@@ -198,7 +198,8 @@ public sealed class EfOrganizationAdministration(
             request.ExpectedContactVersion,
             request.ReportGenerationPolicy,
             request.ReportRecipients,
-            request.Reason
+            request.Reason,
+            request.NotesOnEveryCase
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
@@ -217,6 +218,7 @@ public sealed class EfOrganizationAdministration(
         }
 
         var entity = await context.Principals
+            .Include(item => item.Organization)
             .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
             ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
         var contact = await RequirePrincipalContactScopeAsync(
@@ -232,9 +234,11 @@ public sealed class EfOrganizationAdministration(
             before,
             request.ExpectedVersion,
             request.ReportGenerationPolicy,
-            request.ReportRecipients);
+            request.ReportRecipients,
+            request.NotesOnEveryCase);
 
         entity.ReportGenerationPolicy = result.ReportGenerationPolicy.ToString();
+        entity.Organization.NotesOnEveryCase = result.NotesOnEveryCase;
         entity.IncludeOriginalInstructionSender = (result.ReportRecipients ?? PrincipalReportRecipientSettings.None).IncludeOriginalInstructionSender;
         entity.ReportRecipientAddressesJson = JsonSerializer.Serialize((result.ReportRecipients ?? PrincipalReportRecipientSettings.None).AdditionalAddresses, SerializerOptions);
         entity.Version = result.Version;
@@ -340,7 +344,7 @@ public sealed class EfOrganizationAdministration(
         var allocatedCaseCount = await context.Cases
             .AsNoTracking()
             .CountAsync(item => item.PrincipalId == entity.Id, cancellationToken);
-        var before = ToSummary(entity, allocatedCaseCount);
+        var before = ToSummary(entity, allocatedCaseCount, entity.Organization?.NotesOnEveryCase);
 
         entity.DefaultInspectionLocationLabel = request.Label;
         entity.DefaultInspectionAddress = isImageBased ? null : request.Address;
@@ -350,7 +354,7 @@ public sealed class EfOrganizationAdministration(
         entity.DefaultInspectionSourceVersion = request.SourceVersion;
         entity.Version = changed ? checked(entity.Version + 1) : entity.Version;
 
-        var result = ToSummary(entity, allocatedCaseCount);
+        var result = ToSummary(entity, allocatedCaseCount, entity.Organization?.NotesOnEveryCase);
         var now = _timeProvider.GetUtcNow();
         AddReceipt(
             context,
@@ -501,11 +505,12 @@ public sealed class EfOrganizationAdministration(
             {
                 Principal = item,
                 item.Organization.Name,
+                item.Organization.NotesOnEveryCase,
                 AllocatedCount = context.Cases.Count(caseItem => caseItem.PrincipalId == item.Id)
             })
             .ToArrayAsync(cancellationToken);
         return rows.Select(row => new PrincipalAdministrationDetails(
-            row.Name, ToSummary(row.Principal, row.AllocatedCount))).ToArray();
+            row.Name, ToSummary(row.Principal, row.AllocatedCount, row.NotesOnEveryCase))).ToArray();
     }
 
     public async Task<PrincipalAdministrationDetails?> GetPrincipalAsync(
@@ -518,15 +523,17 @@ public sealed class EfOrganizationAdministration(
             {
                 Principal = item,
                 item.Organization.Name,
+                item.Organization.NotesOnEveryCase,
                 AllocatedCount = context.Cases.Count(caseItem => caseItem.PrincipalId == item.Id)
             })
             .SingleOrDefaultAsync(cancellationToken);
-        return row is null ? null : new(row.Name, ToSummary(row.Principal, row.AllocatedCount));
+        return row is null ? null : new(row.Name, ToSummary(row.Principal, row.AllocatedCount, row.NotesOnEveryCase));
     }
 
     private static PrincipalAdministrationSummary ToSummary(
         PrincipalEntity entity,
-        int allocatedCaseCount) =>
+        int allocatedCaseCount,
+        string? notesOnEveryCase) =>
         new(
             entity.Id,
             entity.OrganizationId,
@@ -547,7 +554,8 @@ public sealed class EfOrganizationAdministration(
             entity.DefaultInspectionSourceRecordId is { Length: > 0 } sourceRecordId
                 ? Guid.Parse(sourceRecordId)
                 : null,
-            entity.DefaultInspectionSourceVersion);
+            entity.DefaultInspectionSourceVersion,
+            notesOnEveryCase);
 
     private static Organization ToOrganization(OrganizationEntity entity) =>
         new(
@@ -568,7 +576,8 @@ public sealed class EfOrganizationAdministration(
             entity.Version,
             ProviderInspectionModePolicy.Parse(entity.InspectionMode),
             Enum.Parse<PrincipalReportGenerationPolicy>(entity.ReportGenerationPolicy),
-            RecipientSettings(entity));
+            RecipientSettings(entity),
+            entity.Organization?.NotesOnEveryCase);
 
     private static PrincipalReportRecipientSettings RecipientSettings(PrincipalEntity entity) =>
         PrincipalReportRecipientSettings.Normalize(

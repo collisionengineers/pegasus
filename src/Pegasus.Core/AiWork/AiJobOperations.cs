@@ -2,6 +2,7 @@ using System.Globalization;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.AiWork;
@@ -431,7 +432,8 @@ public sealed class CreateAiJob(
 public sealed class WorkAiJob(
     IAiJobStore store,
     ISendToAiControl control,
-    TimeProvider timeProvider) : IWorkAiJob
+    TimeProvider timeProvider,
+    ICaseStaffNotifier? caseNotifier = null) : IWorkAiJob
 {
     public async Task<AiJobRecord> TakeAsync(
         TakeAiJobCommand command,
@@ -496,7 +498,7 @@ public sealed class WorkAiJob(
                 "A MarketResearch job requires the typed market research completion contract.");
         }
 
-        return await store.TransitionAsync(
+        var draftReady = await store.TransitionAsync(
             new(
                 command.JobId,
                 command.ExpectedVersion,
@@ -505,6 +507,15 @@ public sealed class WorkAiJob(
                 command.OperationKey,
                 Result: command.Result),
             cancellationToken);
+        // Work Centre D10 cause 1: a draft is ready for a person. The transition is
+        // idempotent per operation key, so a replay leaves the job's version where it
+        // was and raises nothing twice.
+        if (caseNotifier is not null && draftReady.Version == job?.Version + 1)
+        {
+            await caseNotifier.NotifyAiDraftReadyAsync(draftReady, cancellationToken);
+        }
+
+        return draftReady;
     }
 
     public Task<AiJobRecord> FailAsync(

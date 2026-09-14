@@ -195,7 +195,9 @@ public sealed record CaseWorkspaceData(
     string? InspectionContactEmailAddress,
     string? InspectionNotes,
     CaseOdometerUnit? VehicleMileageDisplayUnit,
-    CaseWorkspaceRepairer? Repairer = null);
+    CaseWorkspaceRepairer? Repairer = null,
+    string? PrincipalNotes = null,
+    string? ClaimSourceNotes = null);
 
 public sealed record CaseEditableData(
     string? ClaimantName = null,
@@ -260,7 +262,11 @@ public sealed record CaseEditableData(
     // Appended for the Vehicle section: the manufacture year is a Case fact
     // beside the make and model, not an assessment field. Same rule as above —
     // appended, never inserted.
-    string? VehicleYear = null);
+    string? VehicleYear = null,
+    // Appended for the Overview notes band: this Case's own notes beside the
+    // Principal and Claim source records' notes. Same rule as above.
+    string? PrincipalNotes = null,
+    string? ClaimSourceNotes = null);
 
 public sealed record ConfirmCompletenessRequest(
     Guid CaseId,

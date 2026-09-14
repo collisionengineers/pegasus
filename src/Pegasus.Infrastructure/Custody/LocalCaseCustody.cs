@@ -50,6 +50,30 @@ internal sealed class LocalCaseCustody(
         return new(caseId, relativeId, caseReference);
     }
 
+    /// <summary>
+    /// Local custody keys every case folder by its identifier, so an Audit Case's
+    /// root is created like any other; the parent is verified to exist and nothing
+    /// else, because local layout has no Box-style hierarchy to honour.
+    /// </summary>
+    public async Task<CaseCustodyRoot> CreateLinkedAuditCaseRootAsync(
+        Guid auditCaseId,
+        string auditReference,
+        Guid originalCaseId,
+        string originalReference,
+        string creationOwnerToken,
+        string operationKey,
+        CustodyEffectLeaseGuard? leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        await GetExistingCaseRootAsync(originalCaseId, originalReference, cancellationToken);
+        if (leaseGuard is not null)
+        {
+            await leaseGuard.RequireCurrentAsync(cancellationToken);
+        }
+
+        return await CreateCaseRootAsync(auditCaseId, auditReference, creationOwnerToken, operationKey, cancellationToken);
+    }
+
     public async Task<CaseCustodyRoot> GetExistingCaseRootAsync(
         Guid caseId,
         string caseReference,

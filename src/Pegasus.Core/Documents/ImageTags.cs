@@ -64,10 +64,18 @@ public static class ImageTagVocabulary
     public static readonly Guid ThirdPartyId = new("00000000-0000-4000-8000-0000000017a3");
     public static readonly Guid ReflectionId = new("00000000-0000-4000-8000-0000000017a4");
 
+    /// <summary>
+    /// The tag a Market research AI job's findings file wears when it lands in the
+    /// Case's Files (Work Centre D9): evidence stored like any other, with no review
+    /// step and no use as a value.
+    /// </summary>
+    public static readonly Guid MarketResearchId = new("00000000-0000-4000-8000-0000000017a5");
+
     public const string OverviewName = "Overview";
     public const string CloseUpName = "Close-up";
     public const string ThirdPartyName = "Third party";
     public const string ReflectionName = "Reflection";
+    public const string MarketResearchName = "Market research";
 
     /// <summary>The seeded entries, in the order the picker lists them.</summary>
     public static readonly IReadOnlyList<ImageTag> BuiltIn =
@@ -75,7 +83,8 @@ public static class ImageTagVocabulary
         new(OverviewId, OverviewName, ImageTagColour.Blue, IsBuiltIn: true, Version: 1),
         new(CloseUpId, CloseUpName, ImageTagColour.Green, IsBuiltIn: true, Version: 1),
         new(ThirdPartyId, ThirdPartyName, ImageTagColour.Amber, IsBuiltIn: true, Version: 1),
-        new(ReflectionId, ReflectionName, ImageTagColour.Navy, IsBuiltIn: true, Version: 1)
+        new(ReflectionId, ReflectionName, ImageTagColour.Navy, IsBuiltIn: true, Version: 1),
+        new(MarketResearchId, MarketResearchName, ImageTagColour.Grey, IsBuiltIn: true, Version: 1)
     ];
 
     /// <summary>

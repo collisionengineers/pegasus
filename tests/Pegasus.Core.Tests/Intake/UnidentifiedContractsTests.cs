@@ -179,3 +179,91 @@ public sealed class UnidentifiedContractsTests
         Assert.Equal(expected, UnidentifiedMediaKindPolicy.Classify(channel, mediaType));
     }
 }
+
+public sealed class CloseUnidentifiedTests
+{
+    private static readonly Guid ItemId = Guid.NewGuid();
+    private static readonly DateTimeOffset Now = new(2026, 9, 13, 10, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task CloseWithReasonIsAResolutionWithNoDestinationThatKeepsTheReference()
+    {
+        var resolve = new RecordingResolve();
+        var sut = new CloseUnidentified(resolve);
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        var result = await sut.ExecuteAsync(new(ItemId, 2, staff, "close-1", "Duplicate of an instruction already on file.", Now));
+
+        var request = Assert.Single(resolve.Requests);
+        Assert.Equal(UnidentifiedResolutionTargetKind.Closed, request.TargetKind);
+        Assert.Equal(CloseUnidentified.ClosedTargetId, request.TargetId);
+        Assert.Null(request.TargetReference);
+        Assert.Equal("Duplicate of an instruction already on file.", request.Reason);
+        Assert.Equal(2, request.ExpectedVersion);
+        Assert.True(result.Item.IsClosed);
+        Assert.Equal("U7", result.Item.Reference);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => sut.ExecuteAsync(new(ItemId, 2, ActionActor.Automation("client"), "close-2", "No.", Now)));
+    }
+
+    [Fact]
+    public async Task ClosingValidatesLikeAnyResolutionAndNeedsNoDestinationLookup()
+    {
+        // The real resolver, with no destination queries at all: a closure names none.
+        var store = new ClosingStore();
+        var sut = new CloseUnidentified(new ResolveUnidentified(store));
+
+        var result = await sut.ExecuteAsync(new(ItemId, 0, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), "close-3", "Not ours.", Now));
+
+        Assert.True(result.Item.IsClosed);
+        await Assert.ThrowsAnyAsync<ArgumentException>(
+            () => sut.ExecuteAsync(new(ItemId, 0, ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]), "close-4", " ", Now)));
+    }
+
+    private static UnidentifiedItem Closed(ResolveUnidentifiedRequest request) => new(
+        ItemId, 7, "U7", UnidentifiedOrigin.Receipt(Guid.NewGuid()), UnidentifiedReasonCode.CouldNotBeRead,
+        "Could not be read", UnidentifiedState.Resolved, Now.AddDays(-1), request.ResolvedAtUtc,
+        ActionActor.SystemWorker("intake-processing"), request.Actor, request.Reason,
+        request.TargetKind, request.TargetId, request.TargetReference, 1)
+    {
+        FileKind = "PDF"
+    };
+
+    private sealed class RecordingResolve : IResolveUnidentified
+    {
+        public List<ResolveUnidentifiedRequest> Requests { get; } = [];
+
+        public Task<UnidentifiedResolveResult> ExecuteAsync(ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default)
+        {
+            Requests.Add(request);
+            var item = Closed(request);
+            return Task.FromResult(new UnidentifiedResolveResult(
+                item,
+                new(Guid.NewGuid(), ItemId, UnidentifiedState.Open, UnidentifiedState.Resolved, request.Actor, request.ResolvedAtUtc, request.Reason, request.OperationKey, request.TargetKind, request.TargetId, request.TargetReference),
+                false));
+        }
+    }
+
+    private sealed class ClosingStore : IUnidentifiedStore
+    {
+        public Task<UnidentifiedRegisterResult> RegisterAsync(RegisterUnidentifiedRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(RegisterUnidentifiedRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<UnidentifiedResolveResult> ResolveAsync(ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default)
+        {
+            var item = Closed(request);
+            return Task.FromResult(new UnidentifiedResolveResult(
+                item,
+                new(Guid.NewGuid(), ItemId, UnidentifiedState.Open, UnidentifiedState.Resolved, request.Actor, request.ResolvedAtUtc, request.Reason, request.OperationKey, request.TargetKind, request.TargetId, request.TargetReference),
+                false));
+        }
+
+        public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(ResolveUnidentifiedRequest request, CancellationToken cancellationToken = default) => Task.FromResult<UnidentifiedResolveResult?>(null);
+        public Task<UnidentifiedItem?> GetAsync(Guid id, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<UnidentifiedItem?> GetByReferenceAsync(string reference, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<UnidentifiedItem?> GetByOriginAsync(UnidentifiedOrigin origin, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<UnidentifiedItem>> ListAsync(UnidentifiedState? state = UnidentifiedState.Open, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(UnidentifiedMediaKind? mediaKind, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(Guid unidentifiedItemId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+}

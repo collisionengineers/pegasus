@@ -18,30 +18,39 @@ public static class NeedsAttentionPresentation
     /// </summary>
     public static string RecordPage(NeedsAttentionKind kind) => kind switch
     {
-        NeedsAttentionKind.Case or NeedsAttentionKind.HeldDecision
+        NeedsAttentionKind.CaseChase or NeedsAttentionKind.HeldDecision
             or NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer => "/Cases/Details",
-        NeedsAttentionKind.Mail => "/Unidentified/Details",
+        NeedsAttentionKind.Unidentified => "/Unidentified/Details",
         NeedsAttentionKind.Triage => "/Triage/Details",
         _ => "/Operations/Index"
     };
 
     /// <summary>
-    /// The route id for that page: external work opens Operations, which has
-    /// no record id of its own — a null omits the route value entirely.
+    /// The route id for that page: an AI draft opens through its own route
+    /// (<see cref="NeedsAttentionItem.Route"/>), so it has no record id here.
     /// </summary>
     public static Guid? RecordRouteId(NeedsAttentionItem item) =>
-        item.Kind == NeedsAttentionKind.ExternalWork ? null : item.Id;
+        item.Kind == NeedsAttentionKind.AiDraft ? null : item.Id;
 
     /// <summary>The next permitted action's words, per the Work Centre contract.</summary>
     public static string ActionLabel(NeedsAttentionKind kind) => kind switch
     {
         NeedsAttentionKind.Triage => "Open Triage",
-        NeedsAttentionKind.Mail => "Review source",
-        NeedsAttentionKind.ExternalWork => "Open Operations",
+        NeedsAttentionKind.Unidentified => "Review source",
+        NeedsAttentionKind.AiDraft => "Review draft",
         NeedsAttentionKind.ReviewCase => "Review Case",
         NeedsAttentionKind.UnassignedEngineer => "Assign Engineer",
         _ => "Open Case"
     };
+
+    /// <summary>
+    /// The row's reference. A queue pass names no record, so its Core subject
+    /// token is printed as the operator's words for the queue.
+    /// </summary>
+    public static string ReferenceLabel(NeedsAttentionItem item) =>
+        item.Reference == Pegasus.Core.AiWork.AiJobPolicy.QueueSubjectReference
+            ? OperatorLabels.AiJobs.QueueRecord
+            : item.Reference;
 
     /// <summary>
     /// The row's title. External work records its kind as the persisted
@@ -50,7 +59,7 @@ public static class NeedsAttentionPresentation
     /// is a reference or a recorded name that is already operator text.
     /// </summary>
     public static string TitleLabel(NeedsAttentionItem item) =>
-        item.Kind == NeedsAttentionKind.ExternalWork
+        item.Kind == NeedsAttentionKind.AiDraft
             ? OperatorLabels.Humanise(item.Title)
             : item.Title;
 
@@ -68,10 +77,10 @@ public static class NeedsAttentionPresentation
     /// </summary>
     public static string ReasonLabel(NeedsAttentionItem item) => item.Kind switch
     {
-        NeedsAttentionKind.Case => OperatorLabels.ChaseState(item.Reason),
+        NeedsAttentionKind.CaseChase => OperatorLabels.ChaseState(item.Reason),
         NeedsAttentionKind.ReviewCase => "Case needs review",
         NeedsAttentionKind.UnassignedEngineer => "Engineer assignment is required",
-        NeedsAttentionKind.Mail => OperatorLabels.UnidentifiedReason(item.Reason),
+        NeedsAttentionKind.Unidentified => OperatorLabels.UnidentifiedReason(item.Reason),
         NeedsAttentionKind.Triage => OperatorLabels.Humanise(item.Reason),
         _ => item.Reason
     };
@@ -79,7 +88,7 @@ public static class NeedsAttentionPresentation
     /// <summary>The fact grid's Source value: the recorded origin, labelled per kind.</summary>
     public static string? SourceLabel(NeedsAttentionItem item) => item.Kind switch
     {
-        NeedsAttentionKind.Mail => OperatorLabels.UnidentifiedMediaKind(item.Source),
+        NeedsAttentionKind.Unidentified => OperatorLabels.UnidentifiedMediaKind(item.Source),
         _ => item.Source
     };
 }

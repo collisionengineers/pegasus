@@ -36,7 +36,8 @@ public sealed record ContactDirectoryRecord(
     IReadOnlyList<ContactPrincipalAssociation>? PrincipalAssociations = null,
     IReadOnlyList<Guid>? OwnPrincipalIds = null,
     string? GuidanceTemplate = null,
-    long GuidanceTemplateVersion = 0);
+    long GuidanceTemplateVersion = 0,
+    string? NotesOnEveryCase = null);
 
 public sealed record ContactPrincipalAssociation(
     Guid OrganizationId,
@@ -68,7 +69,8 @@ public sealed record SaveContactRequest(
     string OperationKey,
     string EditLeaseToken,
     string? GuidanceTemplate = null,
-    long GuidanceTemplateVersion = 0);
+    long GuidanceTemplateVersion = 0,
+    string? NotesOnEveryCase = null);
 
 public interface IContactDirectoryQueries
 {
@@ -118,6 +120,7 @@ public static partial class ContactDirectoryPolicy
     public const int MaximumAddressLength = 1000;
     public const int MaximumPostcodeLength = 20;
     public const int MaximumGuidanceTemplateLength = 4000;
+    public const int MaximumNotesOnEveryCaseLength = 2000;
     public const int MaximumOperationKeyLength = 100;
     public const int MaximumListLimit = 200;
 
@@ -173,6 +176,11 @@ public static partial class ContactDirectoryPolicy
             Address = Optional(request.Address, MaximumAddressLength, nameof(request.Address)),
             Postcode = Optional(request.Postcode, MaximumPostcodeLength, nameof(request.Postcode)),
             GuidanceTemplate = Optional(request.GuidanceTemplate, MaximumGuidanceTemplateLength, nameof(request.GuidanceTemplate)),
+            // Only a Principal or Claim source record carries notes on every Case (decided
+            // 13 September); for any other contact type the field is absent, not kept.
+            NotesOnEveryCase = roles.Contains(ContactRole.Principal) || roles.Contains(ContactRole.ClaimSource)
+                ? Optional(request.NotesOnEveryCase, MaximumNotesOnEveryCaseLength, nameof(request.NotesOnEveryCase))
+                : null,
             Roles = roles,
             PrincipalAssociations = associations,
             PrincipalCode = string.IsNullOrWhiteSpace(request.PrincipalCode)

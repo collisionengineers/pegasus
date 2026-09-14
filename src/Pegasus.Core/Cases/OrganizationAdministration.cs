@@ -41,7 +41,8 @@ public sealed record PrincipalAdministrationSummary(
     string? DefaultInspectionPostcode = null,
     string? DefaultInspectionSourceKind = null,
     Guid? DefaultInspectionSourceRecordId = null,
-    long? DefaultInspectionSourceVersion = null);
+    long? DefaultInspectionSourceVersion = null,
+    string? NotesOnEveryCase = null);
 
 public sealed record PrincipalAdministrationDetails(
     string Name,
@@ -230,6 +231,7 @@ public static class OrganizationAdministrationPolicy
     public const int MaximumPrincipalCodeLength = 20;
     public const int MaximumOperationKeyLength = 100;
     public const int MaximumReasonLength = 500;
+    public const int MaximumNotesOnEveryCaseLength = 2000;
 
     public static void RequireUniqueOrganizationName(bool alreadyExists)
     {
@@ -349,6 +351,10 @@ public static class OrganizationAdministrationPolicy
         RequireExpectedVersion(request.ExpectedContactVersion, nameof(request.ExpectedContactVersion));
         return request with
         {
+            NotesOnEveryCase = NormalizeOptionalText(
+                request.NotesOnEveryCase,
+                MaximumNotesOnEveryCaseLength,
+                nameof(request.NotesOnEveryCase)),
             OperationKey = NormalizeRequiredText(
                 request.OperationKey,
                 MaximumOperationKeyLength,
@@ -427,7 +433,8 @@ public static class OrganizationAdministrationPolicy
         Principal current,
         long expectedVersion,
         PrincipalReportGenerationPolicy reportGenerationPolicy,
-        PrincipalReportRecipientSettings reportRecipients)
+        PrincipalReportRecipientSettings reportRecipients,
+        string? notesOnEveryCase = null)
     {
         ArgumentNullException.ThrowIfNull(current);
         RequireExpectedVersion(expectedVersion, nameof(expectedVersion));
@@ -455,11 +462,13 @@ public static class OrganizationAdministrationPolicy
             reportRecipients.IncludeOriginalInstructionSender,
             reportRecipients.AdditionalAddresses);
         var changed = current.ReportGenerationPolicy != reportGenerationPolicy
-            || !Equals(current.ReportRecipients ?? PrincipalReportRecipientSettings.None, normalizedRecipients);
+            || !Equals(current.ReportRecipients ?? PrincipalReportRecipientSettings.None, normalizedRecipients)
+            || !string.Equals(current.NotesOnEveryCase, notesOnEveryCase, StringComparison.Ordinal);
         return current with
         {
             ReportGenerationPolicy = reportGenerationPolicy,
             ReportRecipients = normalizedRecipients,
+            NotesOnEveryCase = notesOnEveryCase,
             Version = changed ? checked(current.Version + 1) : current.Version
         };
     }

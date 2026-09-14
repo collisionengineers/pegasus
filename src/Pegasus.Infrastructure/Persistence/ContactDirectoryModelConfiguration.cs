@@ -15,6 +15,7 @@ internal static class ContactDirectoryModelConfiguration
             entity.Property(item => item.Postcode).HasMaxLength(20);
             entity.Property(item => item.GuidanceTemplate).HasMaxLength(4000);
             entity.Property(item => item.GuidanceTemplateVersion).HasDefaultValue(0L);
+            entity.Property(item => item.NotesOnEveryCase).HasMaxLength(2000);
             entity.Property(item => item.Active).HasDefaultValue(true);
         });
 

@@ -6,6 +6,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Triage;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Intake;
@@ -697,7 +698,8 @@ public sealed class ProcessQueuedIntake(
     ReconcileUnidentifiedDestinations? unidentifiedDestinations = null,
     AssociateRetainedMailWithCase? automaticMailCaseAssociation = null,
     SubmitMailboxImageIntake? mailboxImageIntake = null,
-    IIntakeSubmissionGroupStore? submissionGroups = null) : IProcessQueuedIntake
+    IIntakeSubmissionGroupStore? submissionGroups = null,
+    ICaseStaffNotifier? caseNotifier = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
 
@@ -1183,6 +1185,12 @@ public sealed class ProcessQueuedIntake(
                 $"Automatic association from the recorded case-match decision ({decision.PolicyKey} v{decision.PolicyVersion})."),
             timeProvider.GetUtcNow(),
             cancellationToken);
+        if (outcome == AutomaticCaseAssociationOutcome.Associated && caseNotifier is not null)
+        {
+            // Work Centre D10 cause 3: the Case's engineer learns an e-mail arrived.
+            await caseNotifier.NotifyMailArrivalAsync(matchedCaseId, null, cancellationToken);
+        }
+
         return outcome is AutomaticCaseAssociationOutcome.Associated or AutomaticCaseAssociationOutcome.AlreadyAssociated;
     }
 
@@ -1513,7 +1521,8 @@ public sealed class ReevaluateIntake(
 public sealed class LinkIntake(
     IIntakeMutationStore store,
     IImageIntakeCasePairing casePairing,
-    TimeProvider timeProvider) : ILinkIntake
+    TimeProvider timeProvider,
+    ICaseStaffNotifier? caseNotifier = null) : ILinkIntake
 {
     public async Task ExecuteAsync(
         LinkIntakeRequest request,
@@ -1531,6 +1540,12 @@ public sealed class LinkIntake(
             request.ExpectedCaseVersion,
             request.EditLeaseToken);
         await store.LinkAsync(request, timeProvider.GetUtcNow(), cancellationToken);
+        if (caseNotifier is not null)
+        {
+            // Work Centre D10 cause 3: the Case's engineer learns an e-mail (or a
+            // query) arrived, unless they linked it themself.
+            await caseNotifier.NotifyMailArrivalAsync(request.CaseId, request.Actor, cancellationToken);
+        }
 
         // The reasoned link committed. The same observable owner completes
         // untouched group members and merge, or leaves durable timer recovery.

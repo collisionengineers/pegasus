@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.ProviderApi;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Vehicle;
@@ -29,6 +30,7 @@ public sealed class StagedArtifactReconciliationFunctionTests
                 typeof(ReconcileUnidentifiedDestinations),
                 typeof(ReconcileAutomaticVehicleLookups),
                 typeof(ReconcileProviderSubmissions),
+                typeof(PurgeStaffNotifications),
                 typeof(ILogger<StagedArtifactReconciliationFunction>)
             ],
             constructor.GetParameters().Select(parameter => parameter.ParameterType));

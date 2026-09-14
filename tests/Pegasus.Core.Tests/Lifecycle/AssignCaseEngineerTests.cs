@@ -93,6 +93,48 @@ public sealed class AssignCaseEngineerTests
         Assert.Equal(defaultSignOffEngineerId, assigned.SignOffEngineerId);
     }
 
+    /// <summary>
+    /// Work Centre D10 cause 2: the engineer is told once, on the assignment that
+    /// committed, never again on an exact replay.
+    /// </summary>
+    [Fact]
+    public async Task AssignmentRaisesTheEngineersNotificationOnceAndNotOnReplay()
+    {
+        var store = new RecordingWorkflowStore();
+        var notifier = new RecordingNotifier();
+        var sut = new AssignCaseEngineer(
+            store,
+            new DefaultCaseWorkflowConfiguration(),
+            new StubEligibility(new(true, true, true)),
+            new StubStaffAccounts([Profile(EngineerId, isDefault: false)]),
+            notifier);
+        var request = CreateAssignmentRequest();
+
+        await sut.ExecuteAsync(request, default);
+        await sut.ExecuteAsync(request, default);
+
+        var raised = Assert.Single(notifier.Raised);
+        Assert.Equal((Pegasus.Core.Notifications.StaffNotificationCause.CaseAssigned, CaseId), raised);
+    }
+
+    private sealed class RecordingNotifier : Pegasus.Core.Notifications.ICaseStaffNotifier
+    {
+        public List<(Pegasus.Core.Notifications.StaffNotificationCause Cause, Guid CaseId)> Raised { get; } = [];
+
+        public Task<Pegasus.Core.Notifications.StaffNotification?> NotifyAsync(
+            Pegasus.Core.Notifications.StaffNotificationCause cause, Guid caseId, ActionActor? actor, string? section, string? registration, CancellationToken cancellationToken)
+        {
+            Raised.Add((cause, caseId));
+            return Task.FromResult<Pegasus.Core.Notifications.StaffNotification?>(null);
+        }
+
+        public Task<Pegasus.Core.Notifications.StaffNotification?> NotifyMailArrivalAsync(Guid caseId, ActionActor? actor, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<Pegasus.Core.Notifications.StaffNotification?> NotifyAiDraftReadyAsync(Pegasus.Core.AiWork.AiJobRecord job, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
     private static SignOffEngineerProfile Profile(Guid staffId, bool isDefault) =>
         new(staffId, "Named Signatory", null, [1], "image/png", isDefault);
 

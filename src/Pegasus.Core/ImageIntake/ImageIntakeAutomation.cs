@@ -226,7 +226,8 @@ public sealed class ImageIntakeAutomation(
                     : VrmRecognitionOutcomeKind.NoReadableResult),
                 best?.SuggestedRegistration,
                 best?.Confidence,
-                suggestions.FirstOrDefault(suggestion => suggestion.FailureCode is not null)?.FailureCode));
+                suggestions.FirstOrDefault(suggestion => suggestion.FailureCode is not null)?.FailureCode,
+                CouldNotBeRead: IntakeDecisionPolicy.CouldNotBeRead(memberReceipt.Decision)));
         }
 
         var registrationCandidates = recognitions

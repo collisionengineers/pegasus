@@ -44,6 +44,8 @@ public sealed class EfWorkflowConfigurationStore(
         StaffAuthorization.Require(request.Actor, StaffAccessRight.ManageWorkflowConfiguration);
         if (request.ChaseIntervalDays is < 1 or > 365)
             throw new ArgumentOutOfRangeException(nameof(request));
+        if (request.TargetDays().Any(target => target.Days is < CaseWorkflowConfiguration.MinimumTargetDays or > CaseWorkflowConfiguration.MaximumTargetDays))
+            throw new ArgumentOutOfRangeException(nameof(request));
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
@@ -82,6 +84,11 @@ public sealed class EfWorkflowConfigurationStore(
         entity.RequireInstructions = request.RequireInstructions;
         entity.RequireImages = request.RequireImages;
         entity.ChaseIntervalDays = request.ChaseIntervalDays;
+        entity.UnidentifiedTargetDays = request.UnidentifiedTargetDays;
+        entity.TriageTargetDays = request.TriageTargetDays;
+        entity.HeldTargetDays = request.HeldTargetDays;
+        entity.ReviewTargetDays = request.ReviewTargetDays;
+        entity.AiDraftTargetDays = request.AiDraftTargetDays;
         entity.Version = checked(entity.Version + 1);
         var after = Snapshot(entity);
 
@@ -128,7 +135,12 @@ public sealed class EfWorkflowConfigurationStore(
         if (snapshot.PolicyVersion != checked(request.ExpectedVersion + 1)
             || snapshot.RequireInstructions != request.RequireInstructions
             || snapshot.RequireImages != request.RequireImages
-            || snapshot.ChaseIntervalDays != request.ChaseIntervalDays)
+            || snapshot.ChaseIntervalDays != request.ChaseIntervalDays
+            || snapshot.UnidentifiedTargetDays != request.UnidentifiedTargetDays
+            || snapshot.TriageTargetDays != request.TriageTargetDays
+            || snapshot.HeldTargetDays != request.HeldTargetDays
+            || snapshot.ReviewTargetDays != request.ReviewTargetDays
+            || snapshot.AiDraftTargetDays != request.AiDraftTargetDays)
         {
             throw new WorkflowConfigurationOperationConflictException();
         }
@@ -141,7 +153,12 @@ public sealed class EfWorkflowConfigurationStore(
         entity.Version,
         entity.RequireInstructions,
         entity.RequireImages,
-        entity.ChaseIntervalDays);
+        entity.ChaseIntervalDays,
+        entity.UnidentifiedTargetDays,
+        entity.TriageTargetDays,
+        entity.HeldTargetDays,
+        entity.ReviewTargetDays,
+        entity.AiDraftTargetDays);
 
     private static CaseWorkflowConfiguration Map(WorkflowConfigurationEntity entity) =>
         Map(Snapshot(entity));
@@ -152,7 +169,12 @@ public sealed class EfWorkflowConfigurationStore(
     {
         RequireInstructions = snapshot.RequireInstructions,
         RequireImages = snapshot.RequireImages,
-        ChaseIntervalDays = snapshot.ChaseIntervalDays
+        ChaseIntervalDays = snapshot.ChaseIntervalDays,
+        UnidentifiedTargetDays = snapshot.UnidentifiedTargetDays,
+        TriageTargetDays = snapshot.TriageTargetDays,
+        HeldTargetDays = snapshot.HeldTargetDays,
+        ReviewTargetDays = snapshot.ReviewTargetDays,
+        AiDraftTargetDays = snapshot.AiDraftTargetDays
     };
 
     private sealed record WorkflowConfigurationSnapshot(
@@ -160,5 +182,10 @@ public sealed class EfWorkflowConfigurationStore(
         int PolicyVersion,
         bool RequireInstructions,
         bool RequireImages,
-        int ChaseIntervalDays);
+        int ChaseIntervalDays,
+        int UnidentifiedTargetDays = 0,
+        int TriageTargetDays = 1,
+        int HeldTargetDays = 7,
+        int ReviewTargetDays = 1,
+        int AiDraftTargetDays = 1);
 }
