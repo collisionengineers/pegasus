@@ -465,7 +465,8 @@ public static class CaseWorkspaceLabels
         public const string SectionTitle = "Valuation";
         public const string AddValuation = "Add valuation";
         public const string CazanaCondition = "not a live source";
-        public const string CazanaSeam = "Cazana is not connected";
+        public static string NotConnected(ValuationSource source) => SourceLabel(source) + " is not connected";
+        public static string CazanaSeam => NotConnected(ValuationSource.Cazana);
         public const string AbsentGuideMonth = "Not recorded";
 
         // v26: the calculator (v25 decision 8) and the per-source Get valuation row.
@@ -513,6 +514,18 @@ public static class CaseWorkspaceLabels
             ValuationSource.Brego => "Brego",
             ValuationSource.SuperCap => "Super CAP",
             _ => source.ToString(),
+        };
+
+        /// <summary>The hook slug for a source, one list beside its label.</summary>
+        public static string SourceSlug(ValuationSource source) => source switch
+        {
+            ValuationSource.Glasses => "glasses",
+            ValuationSource.Cazana => "cazana",
+            ValuationSource.EngineersValue => "engineers-value",
+            ValuationSource.AiMarketResearch => "ai-market-research",
+            ValuationSource.Brego => "brego",
+            ValuationSource.SuperCap => "super-cap",
+            _ => source.ToString().ToLowerInvariant(),
         };
     }
 

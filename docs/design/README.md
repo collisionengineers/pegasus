@@ -773,8 +773,11 @@ in the approved design:
 | Cazana | Valuation source | ENG-008 / ENG-009 |
 
 **Narrowed 2026-09-01 (D21).** An excluded capability is absent, never drawn as
-a disabled control. The direct Glass's valuation-service and Audatex
-service-launch controls are removed on that rule (ENG-030). This does not
+a disabled control. The direct Audatex service-launch control is removed on
+that rule (ENG-030); the Valuation section's per-source Get valuation buttons
+(Glass's, Brego, Super CAP) are present by the operator's 14 September 2026
+instruction, post to one handler, and answer with a notice for a source with
+no connected provider. This does not
 remove the Estimate section's selected configured-Engineer Glass's
 repair-estimate launch (D03). Glass's and Audatex file import stays in scope
 through the whole-page drop, and manual valuation records include Glass's,
