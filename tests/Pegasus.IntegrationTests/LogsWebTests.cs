@@ -101,7 +101,12 @@ public sealed class LogsWebTests
         Assert.Equal("The sender re-sent a readable copy.", reevaluation.Reason);
         Assert.Equal(ActorKind.Staff, reevaluation.Actor.Kind);
 
+        // Open message sits beside Open file when the row carries its message.
+        Assert.Contains($"href=\"/Inbox/{log.MessageId:D}\" data-intake-open-message", drawer, StringComparison.OrdinalIgnoreCase);
+
+        // Retry OCR is its own Core command with a reason, not a re-evaluation.
         var ocr = ActionForm(drawer, "retry-ocr");
+        Assert.Contains("name=\"reason\"", ocr, StringComparison.Ordinal);
         using (var response = await client.PostAsync(
             "/Administration/Logs?handler=RetryIntakeOcr",
             new FormUrlEncodedContent(new Dictionary<string, string>
@@ -110,12 +115,16 @@ public sealed class LogsWebTests
                 ["receiptId"] = log.ReceiptId.ToString("D"),
                 ["expectedVersion"] = Input(ocr, "expectedVersion"),
                 ["operationKey"] = Input(ocr, "operationKey"),
+                ["reason"] = "The OCR provider was unavailable.",
                 ["returnUrl"] = Input(ocr, "returnUrl")
             })))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         }
-        Assert.Equal("Retry OCR", log.Reevaluations[1].Reason);
+        var ocrRetry = Assert.Single(log.OcrRetries);
+        Assert.Equal("The OCR provider was unavailable.", ocrRetry.Reason);
+        Assert.Equal(7, ocrRetry.ExpectedVersion);
+        Assert.Single(log.Reevaluations);
 
         var allocation = ActionForm(drawer, "retry-allocation");
         using (var response = await client.PostAsync(
@@ -151,7 +160,22 @@ public sealed class LogsWebTests
         {
             Assert.Equal(HttpStatusCode.Redirect, refused.StatusCode);
         }
-        Assert.Equal(2, log.Reevaluations.Count);
+        Assert.Single(log.Reevaluations);
+
+        // Retry OCR without a reason sends nothing either.
+        using (var refusedOcr = await client.PostAsync(
+            "/Administration/Logs?handler=RetryIntakeOcr",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["receiptId"] = log.ReceiptId.ToString("D"),
+                ["expectedVersion"] = "7",
+                ["operationKey"] = Guid.NewGuid().ToString("N")
+            })))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, refusedOcr.StatusCode);
+        }
+        Assert.Single(log.OcrRetries);
     }
 
     [Fact]
@@ -163,14 +187,23 @@ public sealed class LogsWebTests
         using var client = CreateClient(factory);
 
         var operations = await GetHtmlAsync(client, "/Operations");
-        Assert.Contains($"data-failed-intake-row=\"{log.ReceiptId:D}\"", operations, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("action=\"/Administration/Logs?handler=RetryIntakeAllocation\"", operations, StringComparison.Ordinal);
-        Assert.Contains("action=\"/Administration/Logs?handler=RetryIntakeOcr\"", operations, StringComparison.Ordinal);
-        Assert.Contains("action=\"/Administration/Logs?handler=ReevaluateIntake\"", operations, StringComparison.Ordinal);
+        // Three failure kinds, each read by its own Intake log outcome, each row
+        // offering only its own action.
+        Assert.Equal(
+            [IntakeLogOutcome.AllocationFailed, IntakeLogOutcome.OcrFailed, IntakeLogOutcome.ProcessingFailed],
+            log.Filters.Select(filter => filter.Outcome!.Value).ToArray());
+        var allocationRow = FailedRow(operations, "allocation");
+        Assert.Contains("action=\"/Administration/Logs?handler=RetryIntakeAllocation\"", allocationRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=RetryIntakeOcr", allocationRow, StringComparison.Ordinal);
+        var ocrRow = FailedRow(operations, "ocr");
+        Assert.Contains("action=\"/Administration/Logs?handler=RetryIntakeOcr\"", ocrRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ReevaluateIntake", ocrRow, StringComparison.Ordinal);
+        var processingRow = FailedRow(operations, "processing");
+        Assert.Contains("action=\"/Administration/Logs?handler=ReevaluateIntake\"", processingRow, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=RetryIntakeAllocation", processingRow, StringComparison.Ordinal);
         Assert.Contains("name=\"returnUrl\" value=\"/Operations\"", operations, StringComparison.Ordinal);
-        Assert.Equal(IntakeLogOutcome.ProcessingFailed, log.LastFilter?.Outcome);
 
-        var form = Regex.Match(operations, "<form[^>]*action=\"/Administration/Logs\\?handler=RetryIntakeOcr\"[^>]*>[\\s\\S]*?</form>").Value;
+        var form = Regex.Match(ocrRow, "<form[^>]*action=\"/Administration/Logs\\?handler=RetryIntakeOcr\"[^>]*>[\\s\\S]*?</form>").Value;
         using (var response = await client.PostAsync(
             "/Administration/Logs?handler=RetryIntakeOcr",
             new FormUrlEncodedContent(new Dictionary<string, string>
@@ -179,13 +212,22 @@ public sealed class LogsWebTests
                 ["receiptId"] = log.ReceiptId.ToString("D"),
                 ["expectedVersion"] = Input(form, "expectedVersion"),
                 ["operationKey"] = Input(form, "operationKey"),
+                ["reason"] = "The provider is back.",
                 ["returnUrl"] = "/Operations"
             })))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
             Assert.Equal("/Operations", response.Headers.Location?.OriginalString);
         }
-        Assert.Single(log.Reevaluations);
+        Assert.Single(log.OcrRetries);
+        Assert.Empty(log.Reevaluations);
+    }
+
+    private static string FailedRow(string html, string kind)
+    {
+        var row = Regex.Match(html, $"<tr[^>]*data-failed-intake-kind=\"{kind}\"[^>]*>[\\s\\S]*?</tr>");
+        Assert.True(row.Success, $"The {kind} failure row was not rendered.");
+        return row.Value;
     }
 
     [Theory]
@@ -210,9 +252,11 @@ public sealed class LogsWebTests
         {
             services.RemoveAll<IListIntakeLog>();
             services.RemoveAll<IReevaluateIntake>();
+            services.RemoveAll<IRetryIntakeOcr>();
             services.RemoveAll<IAllocateIntake>();
             services.AddSingleton<IListIntakeLog>(log);
             services.AddSingleton<IReevaluateIntake>(log);
+            services.AddSingleton<IRetryIntakeOcr>(log);
             services.AddSingleton<IAllocateIntake>(log);
         }));
 
@@ -244,25 +288,33 @@ public sealed class LogsWebTests
         return WebUtility.HtmlDecode(Regex.Match(tag.Value, "value=\"(?<value>[^\"]*)\"").Groups["value"].Value);
     }
 
-    private sealed class RecordingIntakeLog : IListIntakeLog, IReevaluateIntake, IAllocateIntake
+    private sealed class RecordingIntakeLog : IListIntakeLog, IReevaluateIntake, IRetryIntakeOcr, IAllocateIntake
     {
         public Guid ReceiptId { get; } = Guid.NewGuid();
         public Guid AttemptId { get; } = Guid.NewGuid();
+        public Guid MessageId { get; } = Guid.NewGuid();
         public IntakeLogFilter? LastFilter { get; private set; }
+        public List<IntakeLogFilter> Filters { get; } = [];
         public List<ReevaluateIntakeRequest> Reevaluations { get; } = [];
+        public List<RetryIntakeOcrRequest> OcrRetries { get; } = [];
         public List<RetryIntakeAllocationRequest> AllocationRetries { get; } = [];
 
-        private IntakeLogRow Row => new(
+        private IntakeLogRow RowFor(IntakeLogOutcome outcome) => new(
             ReceiptId,
             ReceivedAtUtc,
             new IntakeLogSource(IntakeSourceChannel.Mailbox, "desk@collisionengineers.co.uk", "nduncombe@example.invalid"),
             "57709_1_LtrtoEngineerIn.pdf",
             Guid.NewGuid(),
-            IntakeLogOutcome.ProcessingFailed,
+            outcome,
             "The PDF text layer was empty.",
             null,
             2,
-            3);
+            3)
+        {
+            MessageId = MessageId
+        };
+
+        private IntakeLogRow Row => RowFor(LastFilter?.Outcome ?? IntakeLogOutcome.ProcessingFailed);
 
         private IntakeReceipt Receipt => new(
             ReceiptId,
@@ -291,7 +343,14 @@ public sealed class LogsWebTests
         public Task<IntakeLogPage> ExecuteAsync(ActionActor actor, IntakeLogFilter filter, int page, CancellationToken cancellationToken)
         {
             LastFilter = filter;
+            Filters.Add(filter);
             return Task.FromResult(new IntakeLogPage([Row], page, IntakeLogPolicy.PageSize, 1));
+        }
+
+        public Task<IntakeReceipt> ExecuteAsync(RetryIntakeOcrRequest request, CancellationToken cancellationToken = default)
+        {
+            OcrRetries.Add(request);
+            return Task.FromResult(Receipt);
         }
 
         public Task<IntakeLogCounts> CountsAsync(ActionActor actor, CancellationToken cancellationToken) =>

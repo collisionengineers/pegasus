@@ -209,7 +209,6 @@ public sealed partial class CaseCreateWebTests
         var form = await OpenCreateScreenAsync(client, receipt.Id);
         Assert.Contains("data-create-seeded", form.Html, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Received/{receipt.Id:D}/Source\"", form.Html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain($"href=\"/Received/{receipt.Id:D}\"", form.Html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Reject proposal", form.Html, StringComparison.Ordinal);
         Assert.Contains(">Cancel</a>", form.Html, StringComparison.Ordinal);
         Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
@@ -702,56 +701,19 @@ public sealed partial class CaseCreateWebTests
         Assert.Equal(1, await CountAsync(factory.Services, "Cases"));
     }
 
-    /// <summary>
-    /// v26 (received file D2): the received-item page is gone. Its route no
-    /// longer answers, nothing on it can accept or resolve, and the Create
-    /// screen stays the one acceptance caller.
-    /// </summary>
-    [Fact]
-    public async Task TheReceivedItemPageIsGoneAndCreateStaysTheOneAcceptanceCaller()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var receipt = await CreateBareReceiptAsync(factory.Services);
-
-        using var details = await client.GetAsync($"/Received/{receipt.Id}");
-        Assert.Equal(HttpStatusCode.NotFound, details.StatusCode);
-
-        var form = await OpenCreateScreenAsync(client, receipt.Id);
-        foreach (var handler in new[] { "Accept", "AcceptAddress", "CorrectAddress", "LinkCase", "RegisterImageIntake", "OpenTriage" })
-        {
-            using var content = new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = AntiforgeryToken(form.Html)
-            });
-            using var response = await client.PostAsync(
-                $"/Received/{receipt.Id}?handler={handler}",
-                content);
-            Assert.True(
-                response.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.Redirect),
-                $"Handler '{handler}' should no longer exist; it answered {(int)response.StatusCode}.");
-        }
-
-        Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
-        Assert.Equal(0, await CountEventsAsync(factory.Services, "intake_resolved"));
-    }
-
     [Fact]
     public async Task CreateScreenIsReachableWhereverUploadIs()
     {
-        // The received-item surface is gated; creating a case is not, because
-        // it is a staff action in every runtime profile. The route sits outside
-        // /Intake so it inherits no gate.
+        // Creating a case is a staff action in every runtime profile, so the
+        // route inherits no local-intake gate.
         using var factory = new IntakeWebApplicationFactory(
             "Development",
             localIntakeEnabled: false);
         using var client = IntakeWebDriver.CreateClient(factory);
         var receipt = await CreateBareReceiptAsync(factory.Services);
 
-        using var gated = await client.GetAsync($"/Received/{receipt.Id}");
         using var createScreen = await client.GetAsync($"/Cases/Create?receiptId={receipt.Id}");
 
-        Assert.Equal(HttpStatusCode.NotFound, gated.StatusCode);
         Assert.Equal(HttpStatusCode.OK, createScreen.StatusCode);
     }
 

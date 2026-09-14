@@ -124,6 +124,7 @@ public static class DependencyInjection
         services.AddScoped<AssociateRetainedMailWithCase>();
         services.AddScoped<IResolveIntake, ResolveIntake>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
+        services.AddScoped<IRetryIntakeOcr, RetryIntakeOcr>();
         services.AddScoped<ILinkIntake, LinkIntake>();
         services.AddScoped<IReverseIntakeLink, ReverseIntakeLink>();
         services.AddScoped<EfImageIntakeStore>();
@@ -142,6 +143,13 @@ public static class DependencyInjection
         services.AddScoped<IRegisterUnidentified, RegisterUnidentified>();
         services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
         services.AddScoped<ICloseUnidentified, CloseUnidentified>();
+        services.AddScoped<IReopenUnidentified, ReopenUnidentified>();
+        services.AddScoped<IGetRetainedMailAttachmentOutcomes, GetRetainedMailAttachmentOutcomes>();
+        services.AddScoped<IPreCaseImagePreparationStore, EfPreCaseImagePreparationStore>();
+        services.AddScoped<PreCaseImagePreparations>();
+        services.AddScoped<IGetPreCaseImagePreparations>(provider => provider.GetRequiredService<PreCaseImagePreparations>());
+        services.AddScoped<ISavePreCaseImageCrop>(provider => provider.GetRequiredService<PreCaseImagePreparations>());
+        services.AddScoped<ITagPreCaseImage>(provider => provider.GetRequiredService<PreCaseImagePreparations>());
         services.AddScoped<IGetUnidentifiedItemContext, GetUnidentifiedItemContext>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
         services.AddScoped<EfTriageStore>();

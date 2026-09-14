@@ -9,7 +9,10 @@
     string OnLoad(string dialog) => string.Equals(Model.OpenDialog, dialog, StringComparison.Ordinal) ? "true" : "false";
 }
 
-<link rel="stylesheet" href="~/css/unidentified.css" asp-append-version="true" />
+@section Styles {
+    <link rel="stylesheet" href="~/css/unidentified.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pre-case-images.css" asp-append-version="true" />
+}
 
 <header class="page-header">
     <div class="page-title">
@@ -103,7 +106,9 @@
                     @if (Model.Receipt is { } imageReceipt && imageReceipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
                     {
                         var href = $"/Received/{imageReceipt.Id:D}/Image";
-                        <partial name="Shared/_ImageGallery" model="@new[] { new GalleryImage(href, href, imageReceipt.SourceFileName, imageReceipt.MediaType) }" />
+                        var imageAssetId = Model.Context.SourceAssetId;
+                        ViewData["PreCaseImageTags"] = Model.ImageTags;
+                        <partial name="Shared/_ImageGallery" model="@new[] { new GalleryImage(href, href, imageReceipt.SourceFileName, imageReceipt.MediaType, IntakeAssetId: imageAssetId, Preparation: imageAssetId is { } preparedId ? Model.Preparations.GetValueOrDefault(preparedId) : null) }" />
                     }
                     <div class="button-row" data-unidentified-material-actions>
                         @if (Model.OpenFileHref is { } fileHref)

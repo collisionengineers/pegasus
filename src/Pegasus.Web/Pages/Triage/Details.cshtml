@@ -31,7 +31,10 @@
     }
 }
 
-<link rel="stylesheet" href="~/css/triage.css" asp-append-version="true" />
+@section Styles {
+    <link rel="stylesheet" href="~/css/triage.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pre-case-images.css" asp-append-version="true" />
+}
 
 <header class="page-header">
     <div class="page-title">
@@ -393,9 +396,12 @@
                                 href,
                                 href,
                                 asset.FileName,
-                                asset.MediaType);
+                                asset.MediaType,
+                                IntakeAssetId: asset.Id,
+                                Preparation: Model.Preparations.GetValueOrDefault(asset.Id));
                         })
                         .ToArray();
+                    ViewData["PreCaseImageTags"] = Model.ImageTags;
                 }
                 <partial name="Shared/_ImageGallery" model="triageGallery" />
             </section>

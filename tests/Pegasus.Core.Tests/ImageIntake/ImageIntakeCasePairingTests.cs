@@ -424,6 +424,11 @@ public sealed class ImageIntakeCasePairingTests
             DateTimeOffset occurredAtUtc,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        public Task<IntakeReceipt> ScheduleOcrRetryAsync(
+            RetryIntakeOcrRequest request,
+            DateTimeOffset occurredAtUtc,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task LinkAsync(
             LinkIntakeRequest request,
             DateTimeOffset occurredAtUtc,

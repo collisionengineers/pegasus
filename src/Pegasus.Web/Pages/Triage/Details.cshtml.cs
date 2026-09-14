@@ -38,6 +38,8 @@ public sealed class DetailsModel(
     ISetTriagePrincipal setPrincipal,
     ITriageQueries triageQueries,
     IAssignTriageToMe assignToMe,
+    Pegasus.Core.ImageIntake.IGetPreCaseImagePreparations getPreparations,
+    Pegasus.Core.Documents.IReadImageTagVocabulary tagVocabulary,
     GetRetainedMail? getRetainedMail = null,
     IStaffMailSend? staffMailSend = null,
     IApprovedMailboxStore? approvedMailboxes = null,
@@ -56,6 +58,13 @@ public sealed class DetailsModel(
     /// claim instead of an Edit that would be refused again.
     /// </summary>
     public bool CanTakeOverEdit { get; private set; }
+
+    /// <summary>Each evidence image's recorded crop and tags, by its asset (pre-Case crop and tag, v26).</summary>
+    public IReadOnlyDictionary<Guid, Pegasus.Core.ImageIntake.PreCaseImagePreparation> Preparations { get; private set; } =
+        new Dictionary<Guid, Pegasus.Core.ImageIntake.PreCaseImagePreparation>();
+
+    /// <summary>The tag vocabulary the viewer's Tag select offers.</summary>
+    public IReadOnlyList<Pegasus.Core.Documents.ImageTag> ImageTags { get; private set; } = [];
 
     /// <summary>The record as the operator reading an ownership sentence names it.</summary>
     private const string RecordName = "Triage record";
@@ -581,6 +590,14 @@ public sealed class DetailsModel(
         EvidenceImages = receipt is null
             ? []
             : InstructionEvidenceImages.Select(receipt.AssetRecords);
+        if (EvidenceImages.Count > 0)
+        {
+            Preparations = await getPreparations.ExecuteAsync(
+                actor,
+                EvidenceImages.Select(asset => asset.Id).ToArray(),
+                cancellationToken);
+            ImageTags = await tagVocabulary.ListAsync(cancellationToken);
+        }
         var sourceIsEmail = receipt is not null && !string.IsNullOrWhiteSpace(receipt.MediaType)
             ? UnidentifiedMediaKindPolicy.Classify(
                 receipt.SourceIdentity.Channel,

@@ -380,7 +380,7 @@ internal sealed partial class EfIntakeAllocationStore(
         _ => throw new ArgumentOutOfRangeException(nameof(value))
     };
 
-    private static IntakeAllocationRecoveryDisposition ParseRecoveryDisposition(string value) => value switch
+    internal static IntakeAllocationRecoveryDisposition ParseRecoveryDisposition(string value) => value switch
     {
         "retry_after_correction" => IntakeAllocationRecoveryDisposition.RetryAfterCorrection,
         "reload_then_retry" => IntakeAllocationRecoveryDisposition.ReloadThenRetry,

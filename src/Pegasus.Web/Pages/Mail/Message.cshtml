@@ -12,6 +12,9 @@
     var dossier = Model.Detail.Classification;
     var isClassified = Model.Detail.ClassificationOutcome == Pegasus.Core.Intake.MailClassificationOutcome.Classified;
 }
+@section Styles {
+    <link rel="stylesheet" href="~/css/inbox.css" asp-append-version="true" />
+}
 
 <header class="page-header">
     <div class="page-title">
@@ -534,7 +537,6 @@
             }
             else
             {
-                <link rel="stylesheet" href="~/css/inbox.css" asp-append-version="true" />
                 <div class="table-wrap message-attachments">
                     <table class="table table--compact" data-message-attachments>
                         <thead>

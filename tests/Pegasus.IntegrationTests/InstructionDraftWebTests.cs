@@ -40,10 +40,6 @@ public sealed class InstructionDraftWebTests
         Assert.Null(receipt.AcceptedCaseId);
         Assert.Null(receipt.AllocationState);
         Assert.NotEmpty(receipt.AssetRecords);
-        using var replayReview = await client.GetAsync(replay.Location);
-        var replayHtml = await replayReview.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, replayReview.StatusCode);
-        Assert.Contains("was already received", replayHtml, StringComparison.Ordinal);
         Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(1, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(receipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
@@ -200,19 +196,6 @@ public sealed class InstructionDraftWebTests
         Assert.Contains(receipt.Fields, field => field.Name == "Repairer details");
         Assert.Contains(receipt.Fields, field => field.Name == "Requested work");
 
-        using var review = await client.GetAsync(upload.Location);
-        var html = await review.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, review.StatusCode);
-        foreach (var value in new[]
-                 {
-                     "QDOS", "Controlled Claimant", "PROTOCOL-2031-001", "AB12CDE",
-                     "Example Make", "Example Model", "12,345", "Controlled protocol circumstances",
-                     "04 Mar 2031", "05 Mar 2031", "Image Based Assessment"
-                 })
-        {
-            Assert.Contains(value, html, StringComparison.Ordinal);
-        }
-
         Assert.Equal(0, await CountRowsAsync(factory, "Cases"));
         Assert.Equal(0, await CountRowsAsync(factory, "CaseSequences"));
         Assert.Equal(0, await CountRowsAsync(factory, "CaseIntakeLinks"));
@@ -333,15 +316,6 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(["04/03/2031", "05/03/2031"],
             incidentDate.Candidates.Select(candidate => candidate.Value).ToArray());
 
-        using var review = await client.GetAsync(upload.Location);
-        var html = await review.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, review.StatusCode);
-        Assert.Contains("awaiting confirmation", html, StringComparison.Ordinal);
-        Assert.Contains("Conflicting suggestions", html, StringComparison.Ordinal);
-        Assert.Contains(
-            "uploaded controlled-invalid-values.eml, attachment 1: instruction.pdf, page 1",
-            html,
-            StringComparison.Ordinal);
     }
 
     private static string CompleteBody() =>

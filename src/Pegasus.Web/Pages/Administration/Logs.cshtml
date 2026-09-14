@@ -8,8 +8,9 @@
     ViewData["AdminArea"] = "logs";
     var detail = Model.IntakeDetail;
 }
-@* _Layout renders no Styles section (and is outside this lane), so the page's own sheet is linked in the body. *@
-<link rel="stylesheet" href="~/css/logs.css" asp-append-version="true" />
+@section Styles {
+    <link rel="stylesheet" href="~/css/logs.css" asp-append-version="true" />
+}
 <partial name="Shared/_PageHeader" />
 <partial name="Shared/_ErrorSummary" />
 <div class="admin-layout">
@@ -154,6 +155,12 @@
                                 <a class="btn" href="/Received/@detail.Row.ReceiptId.ToString("D")/Source" target="_blank" rel="noopener" data-intake-open-file>
                                     <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>@OperatorLabels.IntakeLog.OpenFile</span>
                                 </a>
+                                @if (detail.Row.MessageId is { } drawerMessageId)
+                                {
+                                    <a class="btn" href="/Inbox/@drawerMessageId.ToString("D")" data-intake-open-message>
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg><span>@OperatorLabels.IntakeLog.OpenMessage</span>
+                                    </a>
+                                }
                             </div>
                         </section>
                         <section class="panel">
@@ -219,6 +226,8 @@
                                 <input type="hidden" name="expectedVersion" value="@detail.Receipt.Version" />
                                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                                 <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                <label class="sr-only" for="retry-ocr-reason">Reason</label>
+                                <input id="retry-ocr-reason" name="reason" maxlength="500" required placeholder="Reason" />
                                 <button class="btn" type="submit">@OperatorLabels.IntakeLog.RetryOcr</button>
                             </form>
                         }

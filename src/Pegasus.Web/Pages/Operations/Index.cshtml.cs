@@ -36,12 +36,17 @@ public sealed class IndexModel(
     IListIntakeLog listIntakeLog) : StaffPageModel
 {
     /// <summary>
-    /// Failed intake processing (Received file D2, 13 September): the Intake log's
-    /// Processing failed rows with their technical actions. The Intake log is
-    /// Administrators only, so the rows are read (and rendered) only for an
-    /// Administrator; the actions post to the one owner, Administration › Logs.
+    /// Failed intake (Received file D2, 13 September), one row per failure kind:
+    /// failed allocation (Retry allocation), failed OCR (Retry OCR) and other
+    /// processing failures (Re-evaluate). The Intake log is Administrators only,
+    /// so the rows are read (and rendered) only for an Administrator; the actions
+    /// post to the one owner, Administration › Logs.
     /// </summary>
     public IReadOnlyList<IntakeLogDetail> FailedIntake { get; private set; } = [];
+
+    /// <summary>The failure kinds Operations lists, in the order it lists them.</summary>
+    public static readonly IReadOnlyList<IntakeLogOutcome> FailureKinds =
+        [IntakeLogOutcome.AllocationFailed, IntakeLogOutcome.OcrFailed, IntakeLogOutcome.ProcessingFailed];
     private const string PreservedReasonKey = "OperationsRequestReason";
     private const string PreservedRequestIdKey = "OperationsRequestReasonId";
 
@@ -498,17 +503,20 @@ public sealed class IndexModel(
             return [];
         }
 
-        var page = await listIntakeLog.ExecuteAsync(
-            actor,
-            new IntakeLogFilter(Outcome: IntakeLogOutcome.ProcessingFailed),
-            1,
-            cancellationToken);
-        var details = new List<IntakeLogDetail>(page.Items.Count);
-        foreach (var row in page.Items)
+        var details = new List<IntakeLogDetail>();
+        foreach (var kind in FailureKinds)
         {
-            if (await listIntakeLog.GetAsync(actor, row.ReceiptId, cancellationToken) is { } detail)
+            var page = await listIntakeLog.ExecuteAsync(
+                actor,
+                new IntakeLogFilter(Outcome: kind),
+                1,
+                cancellationToken);
+            foreach (var row in page.Items)
             {
-                details.Add(detail);
+                if (await listIntakeLog.GetAsync(actor, row.ReceiptId, cancellationToken) is { } detail)
+                {
+                    details.Add(detail);
+                }
             }
         }
         return details;

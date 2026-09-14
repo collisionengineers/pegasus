@@ -56,9 +56,6 @@ public static class OperatorLabels
     /// </summary>
     public const string TriageReference = "Triage reference";
 
-    public static string AttachmentSearchability(bool isSearchable) =>
-        isSearchable ? "Searchable content" : "Content unavailable for search";
-
     public static string UnidentifiedReason(UnidentifiedReasonCode reason) => reason switch
     {
         UnidentifiedReasonCode.UnreadableOrCorruptContent => "Unreadable or corrupt content",
@@ -2365,14 +2362,24 @@ public static class OperatorLabels
             IntakeLogOutcome.CouldNotBeRead => "Could not be read",
             IntakeLogOutcome.ProcessingFailed => "Processing failed",
             IntakeLogOutcome.Closed => "Closed",
+            IntakeLogOutcome.AllocationFailed => "Allocation failed",
+            IntakeLogOutcome.OcrFailed => "OCR failed",
             _ => Humanise(outcome.ToString())
+        };
+
+        /// <summary>The Operations failure kind a failed outcome is listed under, as its row hook.</summary>
+        public static string FailureKindSlug(IntakeLogOutcome outcome) => outcome switch
+        {
+            IntakeLogOutcome.AllocationFailed => "allocation",
+            IntakeLogOutcome.OcrFailed => "ocr",
+            _ => "processing"
         };
 
         /// <summary>The chip tone for an outcome: green when it became work, amber when a person must act, red when processing failed.</summary>
         public static string OutcomeTone(IntakeLogOutcome outcome) => outcome switch
         {
             IntakeLogOutcome.CaseCreated or IntakeLogOutcome.VehicleImages or IntakeLogOutcome.Triage => "green",
-            IntakeLogOutcome.ProcessingFailed => "red",
+            IntakeLogOutcome.ProcessingFailed or IntakeLogOutcome.AllocationFailed or IntakeLogOutcome.OcrFailed => "red",
             IntakeLogOutcome.Closed => "neutral",
             _ => "amber"
         };
@@ -2397,6 +2404,23 @@ public static class OperatorLabels
             row.ProcessingAttempts > 1 || row.AllocationAttempts > 1
                 ? $"{row.ProcessingAttempts} processing · {row.AllocationAttempts} allocation"
                 : null;
+    }
+
+    /// <summary>Crop and tag on a pre-Case image (image record, Triage, Unidentified; v26).</summary>
+    public static class PreCaseImages
+    {
+        public const string Crop = "Crop";
+        public const string Cropped = "Cropped";
+        public const string DrawHint = "Drag across the image to frame it";
+        public const string Apply = "Apply";
+        public const string Clear = "Clear";
+        public const string Cancel = "Cancel";
+        public const string Tag = "Tag";
+        public const string AddTag = "Add a tag";
+        public const string CropSaved = "The crop was saved.";
+        public const string CropCleared = "The crop was cleared.";
+        public const string TagAdded = "The tag was added.";
+        public const string TagRemoved = "The tag was removed.";
     }
 
     /// <summary>Inbox and the message record (Inbox, 13 September): Category, no Unread scope, Dismiss and Restore.</summary>

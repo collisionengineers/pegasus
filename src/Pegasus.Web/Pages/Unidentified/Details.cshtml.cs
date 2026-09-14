@@ -24,6 +24,7 @@ public sealed partial class DetailsModel(
     IGetIntake getIntake,
     IUnidentifiedStore store,
     ICloseUnidentified closeUnidentified,
+    IReopenUnidentified reopenUnidentified,
     IIntakeAssociationDestinationQueries destinations,
     IAcquireCaseEditLease acquireLease,
     IReleaseCaseEditLease releaseLease,
@@ -34,6 +35,8 @@ public sealed partial class DetailsModel(
     ICreateTriageFromIntake createTriage,
     ReconcileUnidentifiedDestinations reconcile,
     IIntakeSubmissionGroupStore submissionGroups,
+    IGetPreCaseImagePreparations getPreparations,
+    Pegasus.Core.Documents.IReadImageTagVocabulary tagVocabulary,
     TimeProvider timeProvider,
     ILogger<DetailsModel> logger) : StaffPageModel
 {
@@ -44,6 +47,13 @@ public sealed partial class DetailsModel(
     public const string ReopenDialog = "reopen";
 
     public UnidentifiedItemContext Context { get; private set; } = null!;
+
+    /// <summary>The item's image's recorded crop and tags (pre-Case crop and tag, v26).</summary>
+    public IReadOnlyDictionary<Guid, PreCaseImagePreparation> Preparations { get; private set; } =
+        new Dictionary<Guid, PreCaseImagePreparation>();
+
+    /// <summary>The tag vocabulary the viewer's Tag select offers.</summary>
+    public IReadOnlyList<Pegasus.Core.Documents.ImageTag> ImageTags { get; private set; } = [];
 
     public UnidentifiedItem Item => Context.Item;
 
@@ -303,8 +313,7 @@ public sealed partial class DetailsModel(
             ReopenDialog,
             async (actor, context) =>
             {
-                StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-                await store.ReopenAsync(
+                await reopenUnidentified.ExecuteAsync(
                     new ReopenUnidentifiedRequest(id, expectedVersion, actor, operationKey, reason, timeProvider.GetUtcNow()),
                     cancellationToken);
                 return $"{context.Item.Reference} was reopened.";
@@ -376,6 +385,14 @@ public sealed partial class DetailsModel(
         }
 
         Context = context;
+        if (context.Receipt is { } imageReceipt
+            && imageReceipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+            && context.SourceAssetId is { } imageAssetId)
+        {
+            Preparations = await getPreparations.ExecuteAsync(actor, [imageAssetId], cancellationToken);
+            ImageTags = await tagVocabulary.ListAsync(cancellationToken);
+        }
+
         History = await store.HistoryAsync(id, cancellationToken);
         if (context.Item.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup)
         {

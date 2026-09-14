@@ -42,7 +42,6 @@ public sealed class LocalIntakeAccessTests
         foreach (var path in new[]
                  {
                       "/Received",
-                      $"/Received/{Guid.NewGuid()}",
                      $"/Received/{Guid.NewGuid()}/Source",
                      // Retained mail exists only where polling is composed, so the
                      // mail workspace is behind the same gate.

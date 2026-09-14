@@ -18,9 +18,18 @@ public sealed class DetailsModel(
     ITriageQueries triageQueries,
     IEditScopeLeases editScopes,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
+    IGetPreCaseImagePreparations getPreparations,
+    Pegasus.Core.Documents.IReadImageTagVocabulary tagVocabulary,
     Pegasus.Core.Intake.GetRetainedMail? getRetainedMail = null) : StaffPageModel
 {
     public ImageIntakeDetail Detail { get; private set; } = null!;
+
+    /// <summary>Each image's recorded crop and tags, by its asset (pre-Case crop and tag, v26).</summary>
+    public IReadOnlyDictionary<Guid, PreCaseImagePreparation> Preparations { get; private set; } =
+        new Dictionary<Guid, PreCaseImagePreparation>();
+
+    /// <summary>The tag vocabulary the viewer's Tag select offers.</summary>
+    public IReadOnlyList<Pegasus.Core.Documents.ImageTag> ImageTags { get; private set; } = [];
 
     /// <summary>The Inbox message the images came in, when they came by e-mail (Open message).</summary>
     public Guid? SourceMessageId { get; private set; }
@@ -74,6 +83,14 @@ public sealed class DetailsModel(
 
         Detail = detail;
         Images = await imageIntakeStore.ListImagesAsync(id, cancellationToken);
+        if (TryGetActor(out var preparationActor))
+        {
+            Preparations = await getPreparations.ExecuteAsync(
+                preparationActor,
+                Images.Where(image => image.AssetId is not null).Select(image => image.AssetId!.Value).ToArray(),
+                cancellationToken);
+            ImageTags = await tagVocabulary.ListAsync(cancellationToken);
+        }
         History = await imageIntakeStore.ListHistoryAsync(id, cancellationToken);
         Suggestions = await vrmSuggestionStore.ListForReceiptAsync(
             detail.Record.Origin.ReceiptId,

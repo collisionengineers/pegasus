@@ -319,17 +319,6 @@ public sealed class IntakeWebNegativeTests
     }
 
     [Fact]
-    public async Task MissingReviewReceiptReturnsNotFound()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        using var response = await client.GetAsync($"/Received/{Guid.NewGuid()}");
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
     public async Task PersistedDraftValuesAreHtmlEncodedByReviewPage()
     {
         const string hostile = "<script>alert(1)</script>";

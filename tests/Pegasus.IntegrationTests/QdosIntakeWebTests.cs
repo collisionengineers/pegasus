@@ -277,8 +277,6 @@ public sealed class QdosIntakeWebTests
             GenuineQdosCorpus.Read(LowTextNonScanPdfHash));
         var receiptId = IntakeWebDriver.ReceiptId(upload);
         var receipt = await GetReceiptAsync(factory, receiptId);
-        using var review = await client.GetAsync(upload.Location);
-        var reviewHtml = await review.Content.ReadAsStringAsync();
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Equal(LowTextNonScanPdfHash, receipt.SourceHash);
         Assert.Null(receipt.FailureCode);
@@ -288,9 +286,6 @@ public sealed class QdosIntakeWebTests
         Assert.Null(receipt.CurrentCaseReference);
         Assert.Empty(receipt.ScannedPdfPages);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "insufficient-embedded-text");
-        Assert.Contains("<h1>Unidentified</h1>", reviewHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("id=\"triage-title\"", reviewHtml, StringComparison.Ordinal);
-        Assert.Contains("not an image-led scanned page", reviewHtml, StringComparison.Ordinal);
     }
 
     [GenuineQdosCorpusFact(ForwardedEmailHash, ConfirmedInputTwoHash)]
@@ -313,15 +308,12 @@ public sealed class QdosIntakeWebTests
         var distinctId = IntakeWebDriver.ReceiptId(distinct);
         var firstReceipt = await GetReceiptAsync(factory, firstId);
         var distinctReceipt = await GetReceiptAsync(factory, distinctId);
-        using var duplicateReview = await client.GetAsync(duplicate.Location);
-        var duplicateHtml = await duplicateReview.Content.ReadAsStringAsync();
 
         Assert.Equal(firstId, duplicateId);
         Assert.Equal(replayToken, firstReceipt.SourceIdentity.ExternalReceiptToken);
         Assert.NotEqual(
             firstReceipt.SourceIdentity.ExternalReceiptToken,
             distinctReceipt.SourceIdentity.ExternalReceiptToken);
-        Assert.Contains("This file was already received. The existing record is shown.", duplicateHtml, StringComparison.Ordinal);
         await using var scope = factory.Services.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
         Assert.Equal(2, (await queries.ListAsync(null, 1, 100, CancellationToken.None)).TotalCount);

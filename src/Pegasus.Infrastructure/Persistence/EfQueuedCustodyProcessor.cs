@@ -460,7 +460,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 asset.BoxVersionId = file.BoxVersionId;
                 asset.CustodyStatus = "confirmed";
             }
-            context.Add(new DocumentOccurrenceEntity
+            var occurrence = new DocumentOccurrenceEntity
             {
                 Id = Guid.NewGuid(),
                 CaseId = caseId,
@@ -472,7 +472,15 @@ internal sealed class EfQueuedCustodyProcessor(
                 SourceOccurrenceIdentity = file.OperationKey,
                 RecordedAtUtc = now,
                 OperationKey = file.OperationKey
-            });
+            };
+            context.Add(occurrence);
+            if (file.IntakeAssetId is { } preparedAssetId)
+            {
+                // Crop, rotation and tags made on the image before it had a Case
+                // travel with it onto the Case document.
+                await EfPreCaseImagePreparationStore.CopyToOccurrenceAsync(
+                    context, preparedAssetId, occurrence, cancellationToken);
+            }
         }
         if (added)
         {

@@ -545,6 +545,13 @@ public sealed class IntakeOcrTests
         public Task<IntakeOcrOperation?> FindAsync(Guid operationId, CancellationToken cancellationToken) =>
             Task.FromResult(this.operations.TryGetValue(operationId, out var operation) ? operation : null);
 
+        // No person re-queued anything here, so a Failed operation stays terminal.
+        public Task<IntakeOcrOperation?> ResumeRequestedRetryAsync(
+            Guid operationId,
+            long expectedVersion,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IntakeOcrOperation?>(null);
+
         public Task<IntakeOcrOperation> BeginAsync(
             Guid operationId,
             IntakeOcrRequest request,

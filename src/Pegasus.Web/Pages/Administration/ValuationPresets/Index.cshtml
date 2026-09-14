@@ -24,15 +24,15 @@
         <section class="panel" aria-labelledby="valuation-presets-title">
             <div class="panel-head">
                 <h2 id="valuation-presets-title">Fixed valuation additions</h2>
-                <span class="muted">@Model.Presets.Count preset@(Model.Presets.Count == 1 ? string.Empty : "s")</span>
+                <span class="meta">@Model.Presets.Count preset@(Model.Presets.Count == 1 ? string.Empty : "s")</span>
             </div>
             <div class="table-wrap no-border">
-                <table class="preset-table">
+                <table class="table table--compact preset-table">
                     <caption class="sr-only">@ValuationPresetLabels.Title</caption>
                     <thead>
                         <tr>
                             <th scope="col">@ValuationPresetLabels.PresetLabel</th>
-                            <th scope="col">@ValuationPresetLabels.Amount</th>
+                            <th scope="col" class="num">@ValuationPresetLabels.Amount</th>
                             <th scope="col">@ValuationPresetLabels.State</th>
                             <th scope="col"><span class="sr-only">Actions</span></th>
                         </tr>
@@ -79,7 +79,7 @@
                         {
                             <tr>
                                 <td><strong>@preset.Label</strong></td>
-                                <td>@ValuationCalculationPolicy.FormatMoney(preset.SuggestedAmount)</td>
+                                <td class="num">@ValuationCalculationPolicy.FormatMoney(preset.SuggestedAmount)</td>
                                 <td><partial name="Shared/_StatusChip" model="@ValuationPresetLabels.StateName(preset.Active)" /></td>
                                 <td>
                                     <span class="cluster">

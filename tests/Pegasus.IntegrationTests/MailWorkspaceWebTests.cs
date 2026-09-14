@@ -1353,7 +1353,8 @@ public sealed class MailWorkspaceWebTests
             client,
             $"/Inbox/{ids[0]:D}{query}&section=attachments");
         Assert.Contains("estimate.pdf", attachments, StringComparison.Ordinal);
-        Assert.Contains("Content unavailable for search", attachments, StringComparison.Ordinal);
+        // The v26 attachments table states each file's outcome, not its searchability.
+        Assert.Contains("data-attachment-outcome=", attachments, StringComparison.Ordinal);
         // Megabytes, never bytes.
         Assert.Contains("under 0.1 MB", attachments, StringComparison.Ordinal);
         Assert.DoesNotContain("2048", attachments, StringComparison.Ordinal);
@@ -1824,7 +1825,6 @@ public sealed class MailWorkspaceWebTests
         // The seeded message has no intake receipt yet, so its outcome is stated plainly.
         Assert.Contains("data-attachment-outcome=\"Not yet processed\"", table, StringComparison.Ordinal);
         Assert.DoesNotContain("Retained", table, StringComparison.Ordinal);
-        Assert.DoesNotMatch("/Received/[0-9a-fA-F-]{36}\"", attachments);
 
         var dismissForm = Regex.Match(record, "<form[^>]*data-message-dismissal=\"dismiss\"[^>]*>[\\s\\S]*?</form>").Value;
         using (var dismiss = await client.PostAsync(

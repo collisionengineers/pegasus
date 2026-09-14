@@ -64,7 +64,6 @@ public sealed class GroupedIntakeWebTests
             "An upload shows one decision for the whole group, never one per file.");
         Assert.Contains("overview.jpg", html, StringComparison.Ordinal);
         Assert.Contains("damage-close-up.jpg", html, StringComparison.Ordinal);
-        Assert.DoesNotMatch("href=\"/Received/[0-9a-fA-F-]{36}\"", html);
         Assert.DoesNotContain("Review this file", html, StringComparison.Ordinal);
     }
 
