@@ -9,7 +9,6 @@ $initializationPath = Join-Path $localDevelopmentRoot '.initialized.json'
 $solutionPath = Join-Path $repositoryRoot 'Pegasus.slnx'
 $webAssemblyRelativePath = 'src/Pegasus.Web/bin/Debug/net10.0/Pegasus.Web.dll'
 $workerAssemblyRelativePath = 'src/Pegasus.Worker/bin/Debug/net10.0/Pegasus.Worker.dll'
-$playwrightPath = Join-Path $repositoryRoot 'src/Pegasus.Infrastructure/bin/Debug/net10.0/playwright.ps1'
 
 . (Join-Path $PSScriptRoot 'PegasusPlatform.ps1')
 
@@ -196,14 +195,6 @@ try {
         ) `
         -Description 'Deterministic local application build'
     Assert-CleanRepositoryRevision -Git $git -ExpectedRevision $sourceRevision
-
-    if (-not [System.IO.File]::Exists($playwrightPath)) {
-        throw "The package-pinned Playwright command was not generated: $playwrightPath"
-    }
-    Invoke-RequiredCommand `
-        -Command $playwrightPath `
-        -Arguments @('install', 'chromium') `
-        -Description 'Pinned Playwright Chromium installation'
 
     if ($platform.IsWindows) {
         & $dotnet dev-certs https --check --trust | Out-Null

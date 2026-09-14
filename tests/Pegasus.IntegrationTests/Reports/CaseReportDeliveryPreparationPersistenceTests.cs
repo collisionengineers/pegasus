@@ -491,7 +491,7 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                     SnapshotHash = new string('1', 64),
                     SnapshotJson = "{}",
                     TemplateVersion = "assessment-report/v1",
-                    RendererVersion = "playwright/v1",
+                    RendererVersion = "renderer/v1",
                     State = nameof(CaseReportGenerationState.Confirmed),
                     GeneratedAtUtc = StartUtc,
                     Version = 1

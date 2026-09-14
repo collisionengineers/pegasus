@@ -317,7 +317,7 @@ public sealed class CaseWorkspacePersistenceTests
                 SnapshotHash = new string('2', 64),
                 SnapshotJson = "{\"operationKey\":\"seed-generation-current\"}",
                 TemplateVersion = "assessment-report/v1",
-                RendererVersion = "playwright/v1",
+                RendererVersion = "renderer/v1",
                 State = nameof(CaseReportGenerationState.Confirmed),
                 GeneratedAtUtc = harness.TimeProvider.GetUtcNow(),
                 Version = 1
