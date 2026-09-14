@@ -32,6 +32,14 @@
   outline: 1px dashed var(--line-strong);
 }
 
+/* The recorded crop in view mode: a picture over the image, never a target. */
+.precase-crop-layer--view {
+  cursor: default;
+  pointer-events: none;
+  outline: 0;
+  overflow: hidden;
+}
+
 .precase-crop-selection {
   position: absolute;
   border: 2px solid var(--red);

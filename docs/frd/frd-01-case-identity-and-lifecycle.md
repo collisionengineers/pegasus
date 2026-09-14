@@ -14,7 +14,18 @@ resolution can link it to a supported destination, without changing that U-refer
 - Reference allocation occurs once safe source processing establishes an unambiguous Principal and Case type and all identity-critical gates pass. Manual upload additionally requires explicit staff acceptance under [FRD-02](frd-02-intake-and-source-identity.md); its extracted proposal remains pre-Case with no reserved Case/PO until acceptance. Incomplete ordinary business detail, images, or required external checks create or retain an accepted Case as `Not ready`; they do not otherwise leave a valid instruction pre-Case.
 - The normal Case/PO is `{principal code}{YY}{shared sequence}` with a three-digit minimum: `001` through `999`, then `1000` through `9999`. Inspection, standalone Audit, and Inspection + Audit consume one principal/year sequence. Exhaustion at `9999` is visible and blocks allocation; references and sequence values never wrap or return to use.
 - An Audit requires two separate document attachments: the Audit instruction and the original report to be audited. Who states that report's outcome depends on the route. On the retained-email route Pegasus reads the literal outcome in the report itself: `repairable` derives `a.{Case/PO}` and `total loss` derives `ap.{Case/PO}`, and missing, conflicting or ambiguous original-report evidence withholds only the later Audit reference. A definitive instruction still creates the normal Case/PO once Principal and identity-critical gates pass. On the Provider API route the authenticated Principal declares the verdict and that declaration derives the reference (operator decision, 2026-08-28); the original report is still required as an attachment, because the Engineer needs the report they are auditing, but it is not parsed to decide the prefix. No staff confirmation is an intake gate on either route.
-- Inspection + Audit begins with the normal Inspection Case/PO reference. After Collision Engineers’ Engineer produces the later Audit report through EVA, the Engineer manually creates the applicable `a.{Case/PO}` or `ap.{Case/PO}` Box subfolder under that existing Box folder. Pegasus does not create that later folder until it replaces EVA under a separately accepted integration.
+- Inspection + Audit begins with the normal Inspection Case/PO reference. Once
+  a report has been generated on that Case, **Create audit** (the Case record's
+  Actions menu, inside an edit session) creates one linked Audit Case. The
+  Audit Case keeps the Principal and sequence, has Case type Audit and its own
+  reference: `ap.{Case/PO}` when the Settlement outcome is total loss and
+  `a.{Case/PO}` for every other outcome; the operator is never asked. It
+  inherits the original's Engineer, starts in Review, carries the Case data,
+  assessment and estimate forward, and shares the original's files by
+  reference to the same stored bytes. Pegasus creates its Box subfolder under
+  the original Case's folder. The two Cases link to each other, the Audit Case
+  is its own record rather than a second reference on the Inspection Case, and
+  a second Create audit is refused. Neither reference changes or is reused.
 - A used principal code is replaced by one linked successor in an atomic Core transaction: deactivate the predecessor, continue its next unused sequence in the Europe/London cutover year, and begin later years at `001`. Both identities and the reason remain permanent.
 - A wrong-principal Case records `Created in error`, a reason and a linked
   replacement. Neither identity changes and neither reference is reused. This
@@ -40,7 +51,7 @@ The active alpha types are:
 
 - **Inspection:** Collision Engineers prepares accepted work for its Engineer’s desktop assessment and returns that Engineer’s report to the provider.
 - **Audit:** another engineering firm has already inspected the vehicle; Collision Engineers receives that firm’s original Engineer report with the Audit instruction and audits or double-checks the work.
-- **Inspection + Audit:** Collision Engineers completes an Inspection report and then immediately performs a distinct Audit of that report in the same Case; the Audit retains its own identity, evidence, and acceptance boundary.
+- **Inspection + Audit:** Collision Engineers completes an Inspection report on the Inspection Case and then performs a distinct Audit of that report on a linked Audit Case created from it by Create audit; the Audit Case retains its own reference, identity, evidence, report and acceptance boundary.
 
 Diminution and Commercial remain deferred unless their capability rows and activation evidence say otherwise. They are not active alpha aliases or generic case types.
 
@@ -55,7 +66,7 @@ choice (D33).
 
 The lifecycle must support:
 
-- pre-case receiving, and the sorting of material that is not definitive (this is the `Unidentified`/`Blocked intake` path and its reasoned resolution, not a manual acceptance step applied to definitive intake — see the allocation rule above);
+- pre-case receiving, and the sorting of material that is not definitive (this is the `Unidentified` path and its reasoned resolution or closure, not a manual acceptance step applied to definitive intake — see the allocation rule above);
 - active work, `Not ready`, `Held`, `Review`, due-work visibility, and
   mandatory instruction- and image-completeness before Review; there is no
   separate staff act of reviewing instructions or images (D44, 2026-09-03);
@@ -151,7 +162,13 @@ map for code-to-words translation; existing enum names do not override these
 requirements. No formal Case appears as terminally Closed.
 
 - **Hand to Engineer** in Review assigns an eligible Engineer and starts native
-  engineering work through the Case lease and version gates.
+  engineering work through the Case lease and version gates. An Engineer may
+  **Assign to me** where the same assignment would be accepted.
+- **Place on Hold** records a reason and an optional **Review on** date (today
+  or later, a Europe/London calendar date). A held Case is due for its decision
+  at the end of that date, or, without one, the Held decision target after the
+  hold was placed; the record reads "Held · review on 24 Sep". **Release Hold**
+  records a reason.
 - EVA work is optional in Review or With Engineer and is governed by the
   Principal's report-generation policy
   ([FRD-07](frd-07-eva-and-external-engineering-handoff.md),
@@ -199,6 +216,12 @@ signatory.
 ### Case edit authority and recovery
 
 Every staff case mutation targets one identified case through a named Core action and requires the role permitted by the [staff role access matrix](frd-04-parties-accounts-and-access.md#staff-role-access-matrix). Entering edit mode acquires the case’s one server-owned expiring lease. Other authorised staff remain read-only and can see the holder and recovery state. Every save, transition, assignment, association, evidence change, and other staff mutation presents both the lease token and the Case version loaded by that editor.
+
+A Case save needs no reason. Its permanent history line names the fields the
+save changed (for example "Vehicle registration, Incident date"), so the
+record of what changed is the change itself. Reasons remain required where a
+named action's policy requires one: holds and releases, closure, corrections,
+returns to engineering, removals.
 
 Editing is held for as long as the holder's editing session stays open, however long the work takes; the case workspace and the assessment surface enter the same one edit mode over the same lease. The holder may leave editing; an abandoned lease expires by server time and may then be reacquired. Because the moment editing becomes available again is therefore not knowable while a holder is present, a non-holder is told who is editing and is never given a time. Core refuses a missing, expired, wrong-holder, or stale-version mutation without overwriting newer work. The rejected editor keeps proposed values for comparison and must reload and reacquire rather than merge or force the save. There is no Administrator bypass, forced takeover, collaborative merge, bulk case mutation, queue-inline lifecycle edit, provider case-edit route, or direct external-system or adapter edit.
 

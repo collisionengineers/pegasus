@@ -1445,6 +1445,62 @@
                 preCaseTools.querySelector('[data-precase-view]').hidden = false;
                 preCaseTools.querySelector('[data-precase-cropping]').hidden = true;
             }
+            drawPreCaseView(preCaseItem());
+        }
+
+        // The recorded crop, drawn over the image as it is shown (after the
+        // recorded rotation) and shading what the crop leaves out: the same
+        // region the tile renders. It is a picture, not a control; Crop replaces
+        // it with the editable frame.
+        var preCaseView = null;
+
+        function removePreCaseView() {
+            if (preCaseView) {
+                preCaseView.remove();
+                preCaseView = null;
+            }
+        }
+
+        function drawPreCaseView(item) {
+            removePreCaseView();
+            if (!item || image.hidden || preCaseCropping) {
+                return;
+            }
+            var stored = (item.getAttribute('data-precase-crop') || '').split(',').map(Number);
+            if (stored.length !== 4 || stored.some(function (value) { return isNaN(value); })) {
+                return;
+            }
+            var host = stage.parentElement;
+            var layer = document.createElement('div');
+            layer.className = 'precase-crop-layer precase-crop-layer--view';
+            layer.setAttribute('data-precase-crop-view', '');
+            layer.setAttribute('aria-hidden', 'true');
+            var selection = document.createElement('div');
+            selection.className = 'precase-crop-selection';
+            selection.style.left = (stored[0] * 100) + '%';
+            selection.style.top = (stored[1] * 100) + '%';
+            selection.style.width = (stored[2] * 100) + '%';
+            selection.style.height = (stored[3] * 100) + '%';
+            layer.appendChild(selection);
+            host.appendChild(layer);
+            preCaseView = layer;
+            function place() {
+                if (preCaseView !== layer) {
+                    return;
+                }
+                var bounds = image.getBoundingClientRect();
+                var hostBounds = host.getBoundingClientRect();
+                layer.style.left = (bounds.left - hostBounds.left + host.scrollLeft) + 'px';
+                layer.style.top = (bounds.top - hostBounds.top + host.scrollTop) + 'px';
+                layer.style.width = bounds.width + 'px';
+                layer.style.height = bounds.height + 'px';
+            }
+            if (image.complete && image.naturalWidth) {
+                place();
+            } else {
+                image.addEventListener('load', place, { once: true });
+            }
+            window.requestAnimationFrame(place);
         }
 
         function showPreCase(item, kind) {
@@ -1489,6 +1545,7 @@
                 }
             });
             select.value = '';
+            drawPreCaseView(item);
         }
 
         function preCaseItem() {
@@ -1506,6 +1563,7 @@
                 return;
             }
             endPreCaseCrop();
+            removePreCaseView();
             // The frame is drawn over the image as it is shown (after the view's
             // rotation), outside the rotated stage, so its fractions are of the
             // rotated image exactly as a Case crop's are.
@@ -1604,6 +1662,12 @@
         }
 
         if (preCaseTools) {
+            // Turning the view moves the image under the recorded frame, so the
+            // frame leaves rather than point at the wrong region.
+            var rotateView = viewer.querySelector('[data-rotate]');
+            if (rotateView) {
+                rotateView.addEventListener('click', removePreCaseView);
+            }
             preCaseTools.querySelector('[data-precase-crop-start]').addEventListener('click', beginPreCaseCrop);
             preCaseTools.querySelector('[data-precase-crop-apply]').addEventListener('click', function () { postPreCaseCrop(false); });
             preCaseTools.querySelector('[data-precase-crop-clear]').addEventListener('click', function () { postPreCaseCrop(true); });
@@ -3194,7 +3258,10 @@ window.pegasusPreferences = (function () {
             if (!target) {
                 return;
             }
-            var current = steps.findIndex(function (step) { return step && target.classList.contains(step); });
+            // An unrotated target carries no class, which is step 0; findIndex
+            // skips the empty step and answers -1 there, and -1 + 1 would pick
+            // the empty step again, so the first turn never happened.
+            var current = Math.max(0, steps.findIndex(function (step) { return step && target.classList.contains(step); }));
             steps.forEach(function (step) { if (step) { target.classList.remove(step); } });
             var next = steps[(current + 1) % steps.length];
             if (next) {

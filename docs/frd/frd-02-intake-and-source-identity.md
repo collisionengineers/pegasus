@@ -37,12 +37,15 @@ submission group. Group membership is durable: one group receives one `U<n>` ref
 and every member keeps its own filename, receipt identity, custody, and chronology.
 The reference is uppercase `U` followed by positive, invariant, unpadded decimal
 digits, allocated atomically from a dedicated sequence and never reused. The item
-stores one of the six Core-owned reasons—unreadable/corrupt, unsupported, no usable
-identification, conflicting identification, ambiguous ownership/destination, or
-terminal technical processing failure—and bounded safe detail. Retryable work does
-not allocate a reference.
+stores one of the seven Core-owned reasons—unreadable/corrupt, unsupported, no usable
+identification, conflicting identification, ambiguous ownership/destination,
+terminal technical processing failure, or could not be read (with the file
+kind)—and bounded safe detail. Retryable work does not allocate a reference.
 
-Unidentified is open or resolved. Authorised staff resolution requires an operation
+Unidentified is open or resolved. Staff may **Close with reason** (free text)
+readable material that must not become a Case; the closed item is resolved,
+listed under Closed items with its reason, and **Reopen** (with a reason)
+returns it to open with a "Resolved to Open" history row. Authorised staff resolution requires an operation
 key, expected version, reason, and one supported destination; it appends immutable
 history with actor, time, target, and before/after state. Replays return the original
 result; conflicting operation reuse fails closed. An open item whose origin receipt
@@ -190,10 +193,54 @@ own retained receipt is already classified Audit and has its existing
 standalone-Audit evidence; the existing acceptance gate verifies that evidence
 belongs to that receipt.
 If the route cannot establish an identity-critical fact, it persists only what is safe and enters the
-corresponding pre-Case outcome. `Blocked intake` records a reason and visible
-warning, offers reasoned resolve and retry actions, and retains the resolution
-evidence and each retry result. It never allocates a reusable identity as a
-convenience.
+corresponding pre-Case outcome, which is Unidentified; there is no separate
+blocked outcome for an operator. Material that could not be read (unsupported,
+failed OCR, or a technical failure on the file) becomes an Unidentified item
+with the reason Could not be read and its file kind, so it ages and falls due
+like any other item. Readable material that must not become a Case is closed on
+its Unidentified item with a free-text reason; a closed item keeps its
+U-reference, is listed under Closed items and can be reopened. A retryable
+technical failure stays retryable work
+([Received file history and technical actions](#received-file-history-and-technical-actions)).
+None of these allocates a reusable identity as a convenience.
+
+### Received file history and technical actions
+
+There is no received-file page for operators. A received file is shown where
+it matters: its message (retained mail), the upload that brought it, and the
+record it became (Case, Triage, Image-initiated Case or Unidentified item).
+Each of those offers **Open file** for the retained original and, where the
+file came by e-mail, **Open message**.
+
+The receipt's history lives in Administration › Logs › **Intake log**,
+Administrators only: one row per received file with source, item, outcome
+(Case created, Linked to Case, Vehicle images, Triage, Unidentified, Could not
+be read, Closed, Processing failed, Allocation failed, OCR failed), what it
+became and its attempt counts, and a row drawer with the retained original and
+the processing evidence (decision, failure, registration readings, suggested
+fields, decision evidence, allocation attempts). The head-line Failed intake
+count is the number of files whose outcome is a retryable failure — Allocation
+failed, OCR failed or Processing failed — the same set Operations lists.
+
+Three technical actions, each requiring a reason and each offered only where
+it applies, live in the Intake log drawer and on the matching Operations
+Attention required row (Administrators only):
+
+- **Retry allocation** when the last allocation attempt failed and can be
+  retried;
+- **Retry OCR** when the last OCR attempt failed; it re-queues that attempt
+  for the Worker once, with a fresh attempt budget, and is no longer offered
+  once re-queued;
+- **Re-evaluate** a processed file under the current policy, the action for
+  any other processing failure.
+
+Each records the actor, reason, time and before/after state, and replays by
+operation key.
+
+A retained message's attachments each state their own outcome in operator
+words — Case created, Linked to Case, Vehicle images, Triage, Unidentified,
+Could not be read (with its reason and Unidentified item) or Processing
+failed — rather than repeating the message's outcome on every attachment.
 
 Box case-file custody is a required day-one alpha capability, but it follows Case/PO allocation: Pegasus uses the newly allocated immutable reference to create the Box case folder and stores the retained source material there. Blob staging remains temporary hot processing storage, not accepted Case custody. A Box folder or filing failure retains the allocated Case as `Not ready`, records the exact failure and staff-initiated retry/recovery evidence, and prevents progression that requires accepted Case custody; it never rolls back, reuses, or reallocates the immutable Case/PO reference. No background or automatic business retry is permitted.
 
@@ -429,9 +476,16 @@ The decision table, evaluated against the current retained material:
    is editable; reject/cancel changes nothing and leaves the source
    unallocated. Acceptance alone runs the existing allocation path and may
    allocate the Case/PO.
-4. **Cannot become a case** (blocked, unsupported, or a technical failure) or
-   **the file itself failed to process.** Reported plainly; no offer, since
-   none is genuine.
+4. **Cannot become a case** (could not be read, unsupported, or a technical
+   failure) or **the file itself failed to process.** Reported plainly with its
+   Unidentified item where one exists and Open file; no offer, since none is
+   genuine.
+
+One upload is one submission group with one decision. Each member shows its
+own read status: a member that could not be read says so beside its file name
+and never vetoes the group's decision for the members that could be read. When
+no file in the upload could be read, the upload becomes one Unidentified item
+with the reason Could not be read.
 
 Where the staff decision is genuinely open — rows 2 and 3 — the surface also
 carries the decision itself:
@@ -459,8 +513,8 @@ For a group, the operator makes one submission-level choice. Completed members
 must prove the same decision; missing, elsewhere-associated or failed members
 are reported rather than silently counted as success. Every other action the
 confirmation surface offers routes to an existing surface that already performs
-it (case details, the received-item screen's attach/reverse controls, the
-case-creation screen, the Image-initiated Case and Unidentified detail screens).
+it (the Case record, the case-creation screen, the Image-initiated Case and
+Unidentified records, and Open file for the retained original).
 
 ### Global vehicle and value checks
 

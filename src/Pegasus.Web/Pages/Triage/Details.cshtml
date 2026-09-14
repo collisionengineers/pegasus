@@ -398,6 +398,7 @@
                                 asset.FileName,
                                 asset.MediaType,
                                 IntakeAssetId: asset.Id,
+                                IntakeReceiptId: record.Origin.ReceiptId,
                                 Preparation: Model.Preparations.GetValueOrDefault(asset.Id));
                         })
                         .ToArray();
