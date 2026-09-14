@@ -270,6 +270,7 @@ public sealed partial class DetailsModel
                     guideValuationStampUtc,
                     correctedEngineerValue),
                 cancellationToken);
+            RecordEditorCommit("case-valuation-form", operationKey, expectedVersion);
         }
         catch (StaffAuthorizationException)
         {

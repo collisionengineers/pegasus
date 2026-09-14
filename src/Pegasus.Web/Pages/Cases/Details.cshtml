@@ -126,6 +126,7 @@
 
 <article class="record case-record @(editing ? "is-editing" : null)" id="case-record" data-case-record
          data-case-id="@summary.CaseId" data-case-version="@workflow.Version"
+         data-editor-commit="@Model.CommittedEditorCommand"
          data-layout="@Pegasus.Web.Presentation.ShellPreferences.CaseLayout(HttpContext.Request)" data-section-current="@Model.Section"
          data-case-editing="@(editing ? "true" : "false")">
     @* The sticky block (v26 frame rule 1): the 56px ribbon and the 40px

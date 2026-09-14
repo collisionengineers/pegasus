@@ -105,7 +105,8 @@ public sealed record RetainedMailAttachment(
     string FileName,
     string MediaType,
     long ContentLength,
-    bool IsSearchable = false);
+    bool IsSearchable = false,
+    Guid? IntakeAssetId = null);
 
 public sealed record RetainedMailThreadEntry(
     Guid Id,

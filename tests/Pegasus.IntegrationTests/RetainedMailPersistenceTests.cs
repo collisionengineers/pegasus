@@ -230,6 +230,151 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task AttachmentProjectionUsesOrdinalAndSourceLabelForDuplicateFileNamesIncludingUnsearchableFiles()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("duplicate-attachments") with
+        {
+            Metadata = Message("duplicate-attachments").Metadata with
+            {
+                Attachments =
+                [
+                    new("evidence.pdf", "application/pdf", 11),
+                    new("evidence.pdf", "application/pdf", 22)
+                ]
+            }
+        };
+        await RetainAsync(database, message);
+        var firstAssetId = Guid.NewGuid();
+        var secondAssetId = Guid.NewGuid();
+        await using (var context = await database.CreateContextAsync())
+        {
+            var receipt = Receipt(Guid.NewGuid(), message.ExternalReceiptToken);
+            receipt.SourceChannel = "mailbox";
+            receipt.Assets.AddRange(
+            [
+                AttachmentAsset(firstAssetId, receipt.Id, "message, attachment 1", "evidence.pdf", 11, "A"),
+                AttachmentAsset(secondAssetId, receipt.Id, "message, attachment 2", "evidence.pdf", 22, "B")
+            ]);
+            receipt.SearchDocuments.AddRange(
+            [
+                SearchDocument(receipt, 0, "message, attachment 1", "evidence.pdf", null, 0),
+                SearchDocument(receipt, 1, "message, attachment 2", "evidence.pdf", "Readable evidence.", 1)
+            ]);
+            context.IntakeReceipts.Add(receipt);
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetAsync(await RetainedIdAsync(database, message), CancellationToken.None));
+
+        Assert.Collection(
+            detail.Attachments,
+            first =>
+            {
+                Assert.Equal("evidence.pdf", first.FileName);
+                Assert.False(first.IsSearchable);
+                Assert.Equal(firstAssetId, first.IntakeAssetId);
+            },
+            second =>
+            {
+                Assert.Equal("evidence.pdf", second.FileName);
+                Assert.True(second.IsSearchable);
+                Assert.Equal(secondAssetId, second.IntakeAssetId);
+            });
+    }
+
+    [Fact]
+    public async Task AttachmentProjectionWithholdsTheAssetIdWhenTheSourceLabelIsMissingOrAmbiguous()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("unresolved-attachments") with
+        {
+            Metadata = Message("unresolved-attachments").Metadata with
+            {
+                Attachments =
+                [
+                    new("missing.pdf", "application/pdf", 11),
+                    new("ambiguous.pdf", "application/pdf", 22)
+                ]
+            }
+        };
+        await RetainAsync(database, message);
+        await using (var context = await database.CreateContextAsync())
+        {
+            var receipt = Receipt(Guid.NewGuid(), message.ExternalReceiptToken);
+            receipt.SourceChannel = "mailbox";
+            receipt.Assets.AddRange(
+            [
+                AttachmentAsset(Guid.NewGuid(), receipt.Id, "message, attachment 2", "ambiguous.pdf", 22, "A"),
+                AttachmentAsset(Guid.NewGuid(), receipt.Id, "message, attachment 2", "ambiguous.pdf", 22, "B")
+            ]);
+            receipt.SearchDocuments.AddRange(
+            [
+                SearchDocument(receipt, 0, "message, attachment 1", "missing.pdf", null, 0),
+                SearchDocument(receipt, 1, "message, attachment 2", "ambiguous.pdf", null, 1)
+            ]);
+            context.IntakeReceipts.Add(receipt);
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetAsync(await RetainedIdAsync(database, message), CancellationToken.None));
+
+        Assert.All(detail.Attachments, attachment => Assert.Null(attachment.IntakeAssetId));
+    }
+
+    [Fact]
+    public async Task AttachmentProjectionRefusesAmbiguousOrdinalLabelsAndCaseInsensitiveAssetMatches()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("ambiguous-ordinal-labels") with
+        {
+            Metadata = Message("ambiguous-ordinal-labels").Metadata with
+            {
+                Attachments =
+                [
+                    new("ambiguous-label.pdf", "application/pdf", 11),
+                    new("case-sensitive.pdf", "application/pdf", 22)
+                ]
+            }
+        };
+        await RetainAsync(database, message);
+        await using (var context = await database.CreateContextAsync())
+        {
+            var receipt = Receipt(Guid.NewGuid(), message.ExternalReceiptToken);
+            receipt.SourceChannel = "mailbox";
+            receipt.Assets.AddRange(
+            [
+                AttachmentAsset(Guid.NewGuid(), receipt.Id, "message, attachment 1a", "ambiguous-label.pdf", 11, "A"),
+                AttachmentAsset(Guid.NewGuid(), receipt.Id, "message, attachment 2", "case-sensitive.pdf", 22, "B")
+            ]);
+            receipt.SearchDocuments.AddRange(
+            [
+                SearchDocument(receipt, 0, "message, attachment 1a", "ambiguous-label.pdf", null, 0),
+                SearchDocument(receipt, 1, "message, attachment 1b", "ambiguous-label.pdf", null, 0),
+                SearchDocument(receipt, 2, "MESSAGE, ATTACHMENT 2", "case-sensitive.pdf", null, 1)
+            ]);
+            context.IntakeReceipts.Add(receipt);
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetAsync(await RetainedIdAsync(database, message), CancellationToken.None));
+
+        Assert.All(detail.Attachments, attachment => Assert.Null(attachment.IntakeAssetId));
+    }
+
+    [Fact]
     public async Task OriginMailboxReceiptResolvesItsExactRetainedMessage()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -1636,6 +1781,49 @@ public sealed class RetainedMailPersistenceTests
             .GetRequiredService<EfRetainedMailboxMessageStore>()
             .RetainAsync(message, CancellationToken.None);
     }
+
+    private static Task<Guid> RetainedIdAsync(
+        LocalDbTestDatabase database,
+        RetainedMailboxMessage message) => database.ScalarAsync<Guid>(
+            $"SELECT Id FROM RetainedMailboxMessages WHERE ImmutableMessageId = '{message.ImmutableMessageId}';");
+
+    private static IntakeAssetEntity AttachmentAsset(
+        Guid id,
+        Guid receiptId,
+        string sourceLabel,
+        string fileName,
+        long contentLength,
+        string hashCharacter) => new()
+    {
+        Id = id,
+        IntakeReceiptId = receiptId,
+        SourceLabel = sourceLabel,
+        FileName = fileName,
+        MediaType = "application/pdf",
+        Kind = "attachment",
+        Disposition = "unidentified",
+        ContentLength = contentLength,
+        ContentHash = new string(hashCharacter[0], 64),
+        StorageKey = $"test:{id:N}"
+    };
+
+    private static IntakeSearchDocumentEntity SearchDocument(
+        IntakeReceiptEntity receipt,
+        int ordinal,
+        string sourceLabel,
+        string fileName,
+        string? text,
+        int attachmentOrdinal) => new()
+    {
+        Id = Guid.NewGuid(),
+        IntakeReceiptId = receipt.Id,
+        IntakeReceipt = receipt,
+        Ordinal = ordinal,
+        AttachmentOrdinal = attachmentOrdinal,
+        SourceLabel = sourceLabel,
+        AttachmentFileName = fileName,
+        Text = text
+    };
 
     private static Task<IntakeReceipt> StoreClassifiedReceiptAsync(
         LocalDbTestDatabase database,
