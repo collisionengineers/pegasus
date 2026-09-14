@@ -434,6 +434,7 @@ public sealed class IndexModel(
         StaffAccountAdministrationError.StaffAccountNotFound => "The staff account no longer exists.",
         StaffAccountAdministrationError.DuplicateUserName => "That username is already assigned.",
         StaffAccountAdministrationError.LastAdministrator => "The change was denied because at least one enabled Administrator must remain.",
+        StaffAccountAdministrationError.AssignedToOpenCases => "The account is the Engineer or Sign-off Engineer on open cases. Reassign those cases first.",
         StaffAccountAdministrationError.SelfAction => "An account cannot act on itself.",
         StaffAccountAdministrationError.OperationConflict => "The form was already used for a different operation. Retry from the current page.",
         StaffAccountAdministrationError.SignOffEngineerRequiresEngineerRole => OperatorLabels.StaffAccounts.EngineerRoleRequired,

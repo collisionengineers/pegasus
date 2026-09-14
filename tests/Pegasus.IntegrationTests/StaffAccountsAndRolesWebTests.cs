@@ -97,9 +97,10 @@ public sealed class StaffAccountsAndRolesWebTests
     }
 
     // The settings dialog auto-opens (data-dialog-open-on-load) and carries
-    // Disable/Delete/Force logout/Reset password as direct row forms: no
-    // confirmation dialog, no reason. Disable posts on the click and its
-    // history row records no reason.
+    // Disable/Force logout/Reset password as direct row forms: no
+    // confirmation dialog, no reason. Delete confirms in its own native dialog
+    // because the row is removed. Disable posts on the click and its history
+    // row records no reason.
     [Fact]
     public async Task SettingsDialogPostsAccountActionsDirectly()
     {
@@ -138,6 +139,8 @@ public sealed class StaffAccountsAndRolesWebTests
             Assert.Contains("?handler=" + handler + "\"", html, StringComparison.Ordinal);
         }
         Assert.DoesNotContain("data-dialog=\"" + settingsId + "-", html, StringComparison.Ordinal);
+        Assert.Contains("<dialog id=\"" + settingsId + "-delete\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open=\"" + settingsId + "-delete\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"reason\"", html, StringComparison.Ordinal);
 
         using var disabled = await client.PostAsync(

@@ -558,6 +558,14 @@ public static class CaseLifecycleRules
         CaseLifecycleState.SourceEmailUnlinked;
 
     /// <summary>
+    /// A case nobody is still working: its report is complete or it ended in a terminal
+    /// outcome. The one question asked when a staff account is about to be removed, so an
+    /// open case never points at an Engineer who no longer exists.
+    /// </summary>
+    public static bool IsClosed(CaseLifecycleState state) =>
+        state == CaseLifecycleState.PostReportComplete || IsTerminal(state);
+
+    /// <summary>
     /// The terminal states as the names they are persisted under, for store
     /// queries that cannot call <see cref="IsTerminal"/> across a database
     /// boundary. Derived from <see cref="IsTerminal"/> rather than restated, so

@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
 using OpenIddict.EntityFrameworkCore.Models;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -542,25 +543,24 @@ public sealed class EfStaffAccountAdministration(
                 StaffAccountAdministrationError.LastAdministrator);
         }
 
+        if (await IsEngineerOnOpenCasesAsync(user.Id, cancellationToken))
+        {
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.AssignedToOpenCases);
+        }
+
         var before = Snapshot(user, role);
-        user.IsEnabled = false;
-        user.Version++;
-        user.MustChangePassword = true;
-        user.PasswordHash = null;
-        user.IsSignOffEngineer = false;
-        user.SignOffPrintedName = null;
-        user.SignOffQualifications = null;
-        user.SignOffSignature = null;
-        user.SignOffSignatureDigest = null;
-        user.IsDefaultSignOffEngineer = false;
-        ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
+        // The row goes. What it can no longer answer for is settled first: its
+        // authorizations and tokens are revoked and scrubbed, its edit scopes
+        // released, and the rows keyed on it removed or detached. The history
+        // row keeps the account as it was, under its own id.
         var revoked = await RevokeAuthorizationsAndTokensAsync(
             user.Id,
             scrubTokenMaterial: true,
             cancellationToken);
-        ClearExternalCredentialsAndSessions(user.Id);
         await EfEditScopeStore.ClearForActorAsync(
             context, ActionActor.Staff(user.Id, [role]), cancellationToken);
+        await RemoveDependentsAsync(user.Id, cancellationToken);
         var now = timeProvider.GetUtcNow();
         AddHistory(
             request.Actor,
@@ -579,6 +579,7 @@ public sealed class EfStaffAccountAdministration(
             "staff_account_deleted",
             now);
         EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
+        context.Users.Remove(user);
         await context.SaveChangesAsync(cancellationToken);
         await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -715,27 +716,48 @@ public sealed class EfStaffAccountAdministration(
         return (authorizations.Count, tokens.Count);
     }
 
-    private void ClearExternalCredentialsAndSessions(Guid staffId)
+    /// <summary>
+    /// Whether the account is the assigned or Sign-off Engineer on a case that is still
+    /// open. Those cases are reassigned before the account can go; a closed case keeps
+    /// the id in its history and nothing resolves it again.
+    /// </summary>
+    private async Task<bool> IsEngineerOnOpenCasesAsync(Guid staffId, CancellationToken cancellationToken)
     {
-        foreach (var credential in context.Set<UserExternalCredentialEntity>()
-                     .Where(item => item.UserId == staffId))
-        {
-            credential.Enabled = false;
-            credential.ProtectedCredential = string.Empty;
-            credential.CredentialGeneration++;
-            credential.Version++;
-            credential.ConcurrencyToken = Guid.NewGuid();
-        }
+        var closedStates = Enum.GetValues<CaseLifecycleState>()
+            .Where(CaseLifecycleRules.IsClosed)
+            .Select(state => state.ToString())
+            .ToArray();
+        return await context.CaseWorkflows.AsNoTracking().AnyAsync(
+            item => (item.AssignedEngineerId == staffId || item.SignOffEngineerId == staffId)
+                && item.ArchivedAtUtc == null
+                && !closedStates.Contains(item.State),
+            cancellationToken);
+    }
 
-        foreach (var session in context.Set<GlassRepairEstimateSessionEntity>()
-                     .Where(item => item.UserId == staffId))
+    /// <summary>
+    /// The rows that key on the account by foreign key or by id: the provider credential
+    /// and its Glass's sessions are the account's own and go with it; a task it was
+    /// assigned is left unassigned; its notifications have nobody to read them.
+    /// </summary>
+    private async Task RemoveDependentsAsync(Guid staffId, CancellationToken cancellationToken)
+    {
+        context.Set<UserExternalCredentialEntity>().RemoveRange(
+            await context.Set<UserExternalCredentialEntity>()
+                .Where(item => item.UserId == staffId)
+                .ToListAsync(cancellationToken));
+        context.Set<GlassRepairEstimateSessionEntity>().RemoveRange(
+            await context.Set<GlassRepairEstimateSessionEntity>()
+                .Where(item => item.UserId == staffId)
+                .ToListAsync(cancellationToken));
+        context.Set<StaffNotificationEntity>().RemoveRange(
+            await context.Set<StaffNotificationEntity>()
+                .Where(item => item.StaffId == staffId)
+                .ToListAsync(cancellationToken));
+        foreach (var task in await context.CaseTasks
+                     .Where(item => item.AssigneeId == staffId)
+                     .ToListAsync(cancellationToken))
         {
-            session.State = Pegasus.Core.Assessment.GlassRepairEstimateSessionState.Cancelled;
-            session.ActiveAccountKey = null;
-            session.ProtectedSession = string.Empty;
-            session.Version++;
-            session.ConcurrencyToken = Guid.NewGuid();
-            session.UpdatedAtUtc = timeProvider.GetUtcNow();
+            task.AssigneeId = null;
         }
     }
 
