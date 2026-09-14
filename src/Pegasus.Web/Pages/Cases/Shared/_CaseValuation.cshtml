@@ -2,8 +2,8 @@
     Valuation (v26): the guide cards, the calculator on the Core policy
     shape (v25 decision 8) and the applied-history row. While editing, the
     Valuation month and one Get valuation button per source sit above the
-    cards; Glass's, Brego and Super CAP have no provider yet and are inert
-    (13 September), AI market research starts the existing job. Read mode
+    cards, and every guide card carries its own; a guide source posts to
+    GetValuation, AI market research starts the existing job. Read mode
     shows values only: the cards, the applied calculation and its increases.
     The preview lines are Core's own arithmetic, fetched by script from the
     PreviewValuation handler; without script the Apply posts and the applied
@@ -31,6 +31,11 @@
     var manualSources = Enum.GetValues<ValuationSource>()
         .Where(ValuationPolicy.IsManuallyRecordable)
         .ToArray();
+    var guideSources = new[] { ValuationSource.Glasses, ValuationSource.Brego, ValuationSource.SuperCap };
+
+    string GetValuationAction(ValuationSource source) => source == ValuationSource.AiMarketResearch
+        ? Url.Page("/Cases/Details", "StartMarketResearch", new { id = caseId })!
+        : Url.Page("/Cases/Details", "GetValuation", new { id = caseId, source })!;
     var now = Pegasus.Core.LondonCalendar.TimeAt(DateTimeOffset.UtcNow);
     var acceptedMileage = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(details.Data?.Vehicle.Mileage)?.Value;
     var basisName = basis is null ? null : ValuationLabels.SourceLabel(basis.Details.Source);
@@ -70,15 +75,15 @@
     <div class="panel-body stack">
         @if (editable)
         {
-            @* Glass's, Brego and Super CAP have no provider yet: the buttons are
-               present and inert — plain buttons with no handler and no state
-               change (13 September). AI market research runs the existing job
-               for the chosen month; the month input joins that form. *@
+            @* One form carries the month, the lease, the version and the
+               operation key for every Get valuation button: AI market research
+               runs the existing job, each guide source posts to GetValuation. *@
             <div class="val-tools" data-valuation-tools>
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="StartMarketResearch" asp-route-id="@caseId"
                       id="case-market-research-form" data-valuation-research-form>
                     <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 </form>
                 <div class="fc val-month">
                     <label for="f-valuation-month">@ValuationLabels.ValuationMonth</label>
@@ -86,9 +91,10 @@
                 </div>
                 <span class="val-get">
                     <span class="lbl">@ValuationLabels.GetValuation</span>
-                    <button type="button" class="btn btn--small" data-valuation-source="glasses"><span>@ValuationLabels.SourceLabel(ValuationSource.Glasses)</span></button>
-                    <button type="button" class="btn btn--small" data-valuation-source="brego"><span>@ValuationLabels.SourceLabel(ValuationSource.Brego)</span></button>
-                    <button type="button" class="btn btn--small" data-valuation-source="super-cap"><span>@ValuationLabels.SourceLabel(ValuationSource.SuperCap)</span></button>
+                    @foreach (var guideSource in guideSources)
+                    {
+                        <button type="submit" form="case-market-research-form" formaction="@GetValuationAction(guideSource)" class="btn btn--small" data-valuation-source="@ValuationLabels.SourceSlug(guideSource)"><span>@ValuationLabels.SourceLabel(guideSource)</span></button>
+                    }
                     <button type="submit" form="case-market-research-form" class="btn btn--small" data-valuation-source="ai-market-research">
                         <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
                         <span>@ValuationLabels.SourceLabel(ValuationSource.AiMarketResearch)</span>
@@ -134,6 +140,10 @@
                                        data-source-name="@ValuationLabels.SourceLabel(valuation.Details.Source)" />
                                 @ValuationLabels.Basis
                             </label>
+                            @if (valuation.Details.Source != ValuationSource.EngineersValue)
+                            {
+                                <button type="submit" form="case-market-research-form" formaction="@GetValuationAction(valuation.Details.Source)" class="btn btn--small btn--ghost" data-valuation-card-get="@ValuationLabels.SourceSlug(valuation.Details.Source)"><span>@ValuationLabels.GetValuation</span></button>
+                            }
                         }
                     </h3>
                     <div class="figs">
