@@ -128,8 +128,10 @@ uncertainty before proceeding. The destructive classification also requires a
 concrete approved short-outage window; after actual release it must be outside
 typical usage, but this procedure does not invent standing hours. Approval later
 binds that recorded route, exact manifest, exact targets and, for destructive
-containment, the exact source SHA the Web App reports at `/diagnostics/version`
-immediately before containment.
+containment, the exact source SHA the old serving Web workload reports at
+`/diagnostics/version` immediately before containment. For a first App Service
+destructive cutover, that workload is the Container App and approval also names
+all of its active revisions.
 
 ## 3. Promote the reviewed exact SHA
 
@@ -257,8 +259,8 @@ function Wait-PegasusExpectedWebSite {
 
 Execute the migration classification recorded in section 2. Do not run migration
 or bootstrap when the identity is unchanged. If the candidate, deployed identity,
-approved targets, or approved old Web source SHA changed since classification,
-stop and obtain a fresh classification and approval.
+approved targets, or approved old serving-Web source SHA changed since
+classification, stop and obtain a fresh classification and approval.
 
 For an additive migration, read and follow
 [references/database-migration.md](references/database-migration.md): migration
@@ -266,19 +268,25 @@ and runtime grants finish before provisioning Web or deploying Worker.
 
 Choose exactly one route. An unchanged identity, or an additive identity after
 that recipe succeeds, executes section 8 and then section 11. A destructive
-identity executes section 7, the migration recipe, section 9, section 10, and
-then section 11. Do not execute the other route's deployment steps.
+identity with an existing Web App executes section 7, the migration recipe,
+section 9, section 10, and then section 11. A first App Service destructive
+cutover executes section 12.3's dedicated route instead. Do not execute the
+other route's deployment steps.
 
 For a destructive migration, obtain approval for a short Web and Worker outage,
 the exact manifest and exact targets. After actual release, the approved window
 must be outside typical usage; record the concrete window then, without
-inventing standing hours here. Before any write, re-read the exact target
-inventory, require the Web App `Running` on `DOTNETCORE|10.0`, and bind the
-source SHA it reports to the exact `$approvedOldWebSourceSha` named in the
-approval. Confirm the candidate has no schema-dependent startup/background work
-outside disabled Functions and that its Flex update strategy is `Recreate` or
-the documented default. A `RollingUpdate`, unproved strategy, or inventory drift
-stops the operation.
+inventing standing hours here. Confirm the candidate has no schema-dependent
+startup/background work outside disabled Functions and that its Flex update
+strategy is `Recreate` or the documented default. A `RollingUpdate`, unproved
+strategy, or inventory drift stops the operation.
+
+For a destructive route with an existing Web App, before any write re-read the
+exact target inventory, require the Web App `Running` on `DOTNETCORE|10.0`, and
+bind the source SHA it reports to the exact `$approvedOldWebSourceSha` named in
+the approval. The first App Service destructive cutover has no Web App to read:
+it must not run this App Service precondition or section 7's Web App containment
+block, and instead follows section 12.3.
 
 The destructive route has one bounded staging exception: while the old schema is
 still intact, install the approved **new** Worker package with every Worker
@@ -494,7 +502,8 @@ if ($LASTEXITCODE -ne 0 -or $stagedWebState -cne 'Stopped') {
 }
 az webapp deploy --subscription $subscriptionId `
   --resource-group $resourceGroup --name $webApp `
-  --src-path $webPackagePath --type zip --clean true --restart false --output none
+  --src-path $webPackagePath --type zip --clean true --restart false `
+  --track-status false --output none
 if ($LASTEXITCODE -ne 0) { throw 'New Web package deployment failed.' }
 $postDeployWebState = (az webapp show --subscription $subscriptionId `
   --resource-group $resourceGroup --name $webApp --query state --output tsv).Trim()
@@ -649,20 +658,110 @@ The Container App and the Web App share the name `pegasus-prod-web-252ow37gij`
 in different resource types; every command in this skill names the type, so
 no command addresses the wrong one.
 
-### 12.3 Provision, deploy and smoke beside the running Container App
+### 12.3 Provision, deploy and smoke beside the retiring Container App
 
-Run section 8 (or 7, 9 and 10) as written. The template no longer declares the
-Container Apps environment, the Container App, the registry or its role
-assignment, and `azd provision` deletes nothing it no longer declares: they
-remain in the resource group untouched while the Web App is created next to
-them. Provision also re-points the Worker's `Graph__ChangeNotificationUrl` at
-the Web App origin. The smoke proves the Web App serving the exact release at
-`$webOrigin` while the Container App still serves the old origin.
+For an unchanged or additive migration identity, run section 8 as written. The
+template no longer declares the Container Apps environment, the Container App,
+the registry or its role assignment, and `azd provision` deletes nothing it no
+longer declares: they remain in the resource group untouched while the Web App
+is created next to them. Provision also re-points the Worker's
+`Graph__ChangeNotificationUrl` at the Web App origin. The smoke proves the Web
+App serving the exact release at `$webOrigin` while the Container App still
+serves the old origin. Set `$firstAppServiceDestructiveCutover = $false` before
+the section 12.5 retirement commands.
+
+For a destructive migration, use this first-App-Service route instead of
+section 9, which requires an existing stopped App Service Web App. Before any
+write, prove no `Microsoft.Web/sites` Web App named `$webApp` exists, record all
+active Container App revisions, and bind the old origin's source SHA and the
+complete revision list to approval as `$approvedOldContainerAppSourceSha` and
+`$approvedOldContainerAppRevisions`. An absent expected revision, an additional
+active revision, a Web App appearance, a source-SHA change, or other inventory
+drift stops the route and requires fresh approval. Set
+`$firstAppServiceDestructiveCutover = $true` for this route so section 12.5
+performs that exact fresh comparison before its first containment write. Define
+and run this read-only guard before the first Worker or Container App write, then
+leave it in the terminal for section 12.5 to run again:
+
+```powershell
+function Assert-FirstCutoverLegacyInventory {
+  if ([string]::IsNullOrWhiteSpace($approvedOldContainerAppSourceSha) -or
+      @($approvedOldContainerAppRevisions).Count -eq 0) {
+    throw 'First-cutover approval must name the old Container App source SHA and every active revision.'
+  }
+  $newWebApps = @(& az resource list --subscription $subscriptionId `
+    --resource-group $resourceGroup --resource-type 'Microsoft.Web/sites' `
+    --query "[?name == '$webApp'].id" --output tsv | Where-Object {
+      -not [string]::IsNullOrWhiteSpace($_)
+    })
+  if ($LASTEXITCODE -ne 0 -or $newWebApps.Count -ne 0) {
+    throw 'First-cutover inventory found an App Service Web App before containment.'
+  }
+  $oldContainerVersion = Invoke-RestMethod -Uri ([uri]::new($oldOrigin, 'diagnostics/version'))
+  if ([string]$oldContainerVersion.sourceSha -cne $approvedOldContainerAppSourceSha) {
+    throw 'The retiring Container App source SHA differs from the approved value.'
+  }
+  $observedOldRevisions = @(& az containerapp revision list --subscription $subscriptionId `
+    --resource-group $resourceGroup --name $webApp `
+    --query "[?properties.active].name" --output tsv | Where-Object {
+      -not [string]::IsNullOrWhiteSpace($_)
+    })
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Unable to read active retiring Container App revisions.'
+  }
+  $revisionDifference = @(Compare-Object `
+    -ReferenceObject @($approvedOldContainerAppRevisions | Sort-Object) `
+    -DifferenceObject @($observedOldRevisions | Sort-Object))
+  if ($revisionDifference.Count -ne 0) {
+    throw 'The retiring Container App active revision set differs from approval.'
+  }
+}
+
+Assert-FirstCutoverLegacyInventory
+```
+
+If Provider API credentials exist, tell each holder the new base address before
+Container App containment. Confirm the update after the new Web App smoke in
+section 12.4.
+
+While the old schema remains intact, run section 7 through its Worker `Stopped`
+read-back: reuse its canonical Disabled-setting census, stage the approved
+Worker ZIP, and stop the Worker. Do not run section 7's App Service Web
+containment or its App Service fresh read-back. Then use section 12.5's
+containment commands for the old Container App. Before SQL, require fresh proof
+that it has no active revisions, each captured revision has no replicas, and
+`$oldOrigin/health/live` is not 2xx, together with section 7's Worker `Stopped`
+read-back. The existing migration and grant recipe begins only after both
+containment checks pass.
+
+Once SQL begins, never reactivate the Container App. If containment, migration,
+grants, bootstrap, or migration-head verification fails, leave the Container App
+inactive and unserved and the Worker stopped with every Disabled setting true.
+
+Only after the migration recipe succeeds, set
+`PEGASUS_WEB_ACTIVATION=approved` and `PEGASUS_WORKER_ACTIVATION=disabled`, run
+the existing `PreProvision` check against disabled Worker settings, and run
+`azd provision` to create the new empty App Service. Provisioning before SQL is
+prohibited on this route. Reuse section 7's Worker stop/read-back if provision
+starts the Function host. Stop the new Web App, prove it is `Stopped`, deploy
+the approved `web.zip` with `az webapp deploy`, using
+`--clean true --restart false --track-status false`, and prove it remains stopped.
+Startup tracking defaults
+to true on Linux and waits for a deliberately stopped site to start; disabling
+that client wait does not change deployment or activation. Then use section 10
+unchanged to activate the compatible release. Any later failure leaves the new
+Web App stopped, the old Container App inactive, and the Worker stopped.
 
 ### 12.4 Re-point every consumer of the public hostname
 
 The public origin changes from the Container App hostname to
-`pegasus-prod-web-252ow37gij.azurewebsites.net`. After the smoke passes:
+`pegasus-prod-web-252ow37gij.azurewebsites.net`. For an unchanged or additive
+cutover, perform these steps after the smoke passes and before section 12.5. For
+a destructive cutover, the Container App is already unserved before SQL: carry
+out these steps after section 10's smoke within the approved migration window.
+That approval covers the new public URL, any interval in which old public upload
+links are unavailable, and needed operator notifications; do not leave the old
+Container App serving while consumers are moved.
 
 1. **Staff sign-in.** Staff authenticate with the application's own cookie
    scheme at `/Account/SignIn`; there is no Entra app registration redirect
@@ -687,13 +786,25 @@ The public origin changes from the Container App hostname to
    mailbox in `/Administration/Mailboxes`, is: set the mailbox **Disabled**,
    save, then set it **Approved** again and save, in one sitting. The next
    `InboxRecoveryFunction` run (every five minutes) creates a new subscription
-   at the new URL; confirm the new subscription expiry in Mailboxes and in the
-   smoke's liveness line. Consequence to state in the release record: re-enable
-   establishes a new start boundary, so mail delivered to that mailbox between
-   the disable and the re-enable is not backfilled; keep the window seconds
-   long and outside typical usage. The superseded Graph subscriptions expire
-   within six days on their own; the five-minute recovery poll carries intake
-   throughout, so the webhook change affects immediacy, not delivery.
+   at the new URL. Confirm the current generation's `Active` subscription in
+   Mailboxes and read back the Worker's exact `Graph__ChangeNotificationUrl`.
+   The generic smoke liveness line alone does not prove either condition:
+
+   ```powershell
+   $notificationUrl = (& az functionapp config appsettings list `
+     --subscription $subscriptionId --resource-group $resourceGroup --name $workerApp `
+     --query "[?name == 'Graph__ChangeNotificationUrl'].value | [0]" --output tsv).Trim()
+   if ($LASTEXITCODE -ne 0 -or $notificationUrl -cne "${webOrigin}hooks/microsoft-graph/mail") {
+     throw 'Worker Graph notification URL is not the new Web App webhook.'
+   }
+   ```
+
+   Consequence to state in the release record: re-enable establishes a new start
+   boundary, so mail delivered to that mailbox between the disable and the
+   re-enable is not backfilled; keep the window seconds long and outside typical
+   usage. The superseded Graph subscriptions expire within six days on their own;
+   the five-minute recovery poll carries intake throughout, so the webhook change
+   affects immediacy, not delivery.
 4. **Public upload links.** Links are issued as absolute URLs on the origin
    current at issue time. Every unexpired link issued before cutover carries the
    Container App hostname and stops working when that origin is disabled in
@@ -701,28 +812,63 @@ The public origin changes from the Container App hostname to
    request. Links have a seven-day lifetime (`DocumentRequests__LifetimeHours`),
    so the exposure ends within a week of cutover.
 5. **Provider API base address.** The Provider API is served at the new origin.
-   The operator informs each principal that holds Provider API credentials of
-   the new base address before the old origin is disabled; credentials do not
-   change.
+   For the destructive route, holders were notified before containment; after
+   the new Web App smoke, confirm each holder has updated the base address.
+   For the unchanged or additive route, notify and confirm before the old origin
+   is disabled. Credentials do not change.
 6. **Glass's return.** `Glass__CallbackBaseUri` is derived from the Web App
-   origin by the template; no provider-side change is needed unless the
-   provider account records a fixed return address, which the operator checks
-   on the account.
+   origin by the template. Confirm that deployed setting uses the new origin.
+   The launch client supplies the resulting per-session callback in the
+   provider launch URL's `caller` parameter; the current integration contract
+   defines no provider-account return-address registration to change.
 
 ### 12.5 Retire the Container App
 
-Only after 12.3 and 12.4 are complete and recorded, and with explicit approval
-naming each target and operation, stop the old origin. Scaling to zero keeps
-the retired app recoverable during the observation period; deletion is a later
-approved release.
+For an unchanged or additive cutover, only after 12.3 and 12.4 are complete and
+recorded, and with explicit approval naming each target and operation, stop the
+old origin. Deactivation keeps the retired app recoverable during the
+observation period; deletion is a later approved release. For a destructive
+cutover, section 12.3 already performed containment before SQL; confirm and
+record the retained inactive state here without reactivating the Container App.
 
 ```powershell
-az containerapp update --subscription $subscriptionId --resource-group $resourceGroup `
-  --name $webApp --min-replicas 0 --max-replicas 0 --output none
-if ($LASTEXITCODE -ne 0) { throw 'Unable to scale the retired Container App to zero.' }
+if ($firstAppServiceDestructiveCutover) {
+  Assert-FirstCutoverLegacyInventory
+  $activeOldRevisions = @($approvedOldContainerAppRevisions)
+}
+else {
+  $activeOldRevisions = @(& az containerapp revision list --subscription $subscriptionId `
+    --resource-group $resourceGroup --name $webApp `
+    --query "[?properties.active].name" --output tsv | Where-Object {
+      -not [string]::IsNullOrWhiteSpace($_)
+    })
+  if ($LASTEXITCODE -ne 0) { throw 'Unable to read active retired Container App revisions.' }
+}
+foreach ($revision in $activeOldRevisions) {
+  if ([string]::IsNullOrWhiteSpace($revision)) { continue }
+  az containerapp revision deactivate --subscription $subscriptionId `
+    --resource-group $resourceGroup --name $webApp --revision $revision --output none
+  if ($LASTEXITCODE -ne 0) { throw "Unable to deactivate retired Container App revision $revision." }
+  $retiredReplicas = @(& az containerapp replica list --subscription $subscriptionId `
+    --resource-group $resourceGroup --name $webApp --revision $revision `
+    --query "[].name" --output tsv | Where-Object {
+      -not [string]::IsNullOrWhiteSpace($_)
+    })
+  if ($LASTEXITCODE -ne 0 -or $retiredReplicas.Count -ne 0) {
+    throw "Retired Container App revision $revision still has replicas."
+  }
+}
 az containerapp ingress disable --subscription $subscriptionId --resource-group $resourceGroup `
   --name $webApp --output none
 if ($LASTEXITCODE -ne 0) { throw 'Unable to disable the retired Container App ingress.' }
+$remainingOldRevisions = @(& az containerapp revision list --subscription $subscriptionId `
+  --resource-group $resourceGroup --name $webApp `
+  --query "[?properties.active].name" --output tsv | Where-Object {
+    -not [string]::IsNullOrWhiteSpace($_)
+  })
+if ($LASTEXITCODE -ne 0 -or $remainingOldRevisions.Count -ne 0) {
+  throw 'The retired Container App still has active revisions.'
+}
 ```
 
 Confirm the old origin no longer answers `/health/live` with 2xx and that the
