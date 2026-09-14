@@ -1319,10 +1319,16 @@ public sealed partial class DetailsModel(
                     nameof(vehicleYear), nameof(vehicleMileage), nameof(vehicleMileageUnit),
                     nameof(vehicleMileageSource) }.Any(Posted)
                     || assessmentFields.ContainsKey(AssessmentVocabulary.HistoryCheck)
+                    || assessmentFields.ContainsKey(AssessmentVocabulary.VehicleCondition)
                     || vehicleIdentityFields.Count > 0;
-                if (assessmentFields.TryGetValue(AssessmentVocabulary.HistoryCheck, out var historyCheck))
+                // The history check and pre-incident condition are Engineer
+                // fields the Vehicle section renders; they travel with its request.
+                foreach (var path in new[] { AssessmentVocabulary.HistoryCheck, AssessmentVocabulary.VehicleCondition })
                 {
-                    vehicleIdentityFields[AssessmentVocabulary.HistoryCheck] = historyCheck;
+                    if (assessmentFields.TryGetValue(path, out var vehicleFinding))
+                    {
+                        vehicleIdentityFields[path] = vehicleFinding;
+                    }
                 }
                 var impacts = !Posted(nameof(damageImpacts))
                     ? null
