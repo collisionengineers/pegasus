@@ -89,6 +89,40 @@ public static class CaseEditAuthority
             throw new CaseEditLeaseConflictException(caseId, caseVersion);
         }
     }
+
+    /// <summary>
+    /// The heartbeat's guard. It asks everything <see cref="RequireLease"/> asks except whether
+    /// the expiry is still in the future: an editor whose beats were lost for longer than the
+    /// lease lasts — a throttled tab, a resumed machine, a run of faulted requests — still holds
+    /// the token whose hash the case retains, and a matching hash under the same holder proves
+    /// nobody took the case over in the meantime, because a takeover or a release rewrites both.
+    /// Reviving that lease changes nothing another editor could have relied on. A mutation never
+    /// gets this leniency: it goes through <see cref="RequireLease"/>.
+    /// </summary>
+    public static void RequireHeartbeat(
+        Guid caseId,
+        long caseVersion,
+        ActionActor actor,
+        string? presentedLeaseToken,
+        ActorKind? retainedLeaseHolderKind,
+        string? retainedLeaseHolder,
+        bool hasRetainedLeaseTokenHash,
+        bool presentedTokenMatchesRetainedHash)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (string.IsNullOrWhiteSpace(presentedLeaseToken)
+            || !hasRetainedLeaseTokenHash
+            || string.IsNullOrWhiteSpace(retainedLeaseHolder))
+        {
+            throw new CaseEditLeaseExpiredException(caseId, caseVersion);
+        }
+
+        if (!IsHolder(retainedLeaseHolderKind, retainedLeaseHolder, actor)
+            || !presentedTokenMatchesRetainedHash)
+        {
+            throw new CaseEditLeaseConflictException(caseId, caseVersion);
+        }
+    }
 }
 
 /// <summary>

@@ -318,7 +318,7 @@ public sealed class EfCaseWorkflowStore(
         ArchivedCaseGuard.RequireNotArchived(workflow);
 
         var now = timeProvider.GetUtcNow();
-        RequireLease(workflow, request.Actor, request.LeaseToken, now);
+        CaseMutationGuard.RequireHeartbeat(workflow, request.Actor, request.LeaseToken);
         var expiresAtUtc = now + EditLeaseDuration;
         workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
         await context.SaveChangesAsync(cancellationToken);
