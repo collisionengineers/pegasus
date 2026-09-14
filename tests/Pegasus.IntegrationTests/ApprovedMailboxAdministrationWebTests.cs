@@ -302,6 +302,157 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Equal("replacement-mailbox-id", stored.MailboxIdentity);
         Assert.Equal(1, stored.MailboxGeneration);
         Assert.Equal(ApprovedMailboxState.Approved.ToString(), stored.State);
+        Assert.Equal(2, resolver.Resolutions);
+    }
+
+    [Fact]
+    public async Task ApprovedMailboxCanBeDisabledThenReactivatedWithItsStoredIdentity()
+    {
+        var resolution = new ApprovedMailboxIdentityResolution(
+            "resolved-mailbox-id", "resolved-inbox-id", "resolved-sent-id");
+        var resolver = new AccessResolver(resolution,
+            canRead: true);
+        var timeProvider = new MutableTimeProvider(
+            new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero));
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, timeProvider: timeProvider,
+            approvedMailboxIdentityResolver: resolver);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var page = await GetPageAsync(client);
+        var mailboxId = NewMailboxId(page);
+        var created = await PostAsync(client, new()
+        {
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "0",
+            ["MailboxForm.OperationKey"] = OperationKey(page),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Approved",
+            ["__RequestVerificationToken"] = AntiforgeryToken(page)
+        });
+        Assert.Equal(HttpStatusCode.Found, created.StatusCode);
+
+        DateTimeOffset originalActivation;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            originalActivation = (await context.ApprovedMailboxes.SingleAsync(item =>
+                item.Id == Guid.Parse(mailboxId))).ActivatedAtUtc!.Value;
+        }
+
+        var approved = await GetPageAsync(client);
+        var approvedEditing = await OpenMailboxEditAsync(client, mailboxId, 1, approved);
+        var disabled = await PostAsync(client, new()
+        {
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "1",
+            ["MailboxForm.OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Disabled",
+            ["MailboxForm.EditLeaseToken"] = MailboxEditToken(approvedEditing, mailboxId),
+            ["__RequestVerificationToken"] = AntiforgeryToken(approvedEditing)
+        });
+        Assert.Equal(HttpStatusCode.Found, disabled.StatusCode);
+
+        var reactivationTime = originalActivation.AddHours(1);
+        timeProvider.UtcNow = reactivationTime;
+        var disabledPage = await GetPageAsync(client);
+        var editing = await OpenMailboxEditAsync(client, mailboxId, 2, disabledPage);
+        var reenabled = await PostAsync(client, new()
+        {
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "2",
+            ["MailboxForm.OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["MailboxForm.Address"] = NewAddress.ToUpperInvariant(),
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Approved",
+            ["MailboxForm.EditLeaseToken"] = MailboxEditToken(editing, mailboxId),
+            ["__RequestVerificationToken"] = AntiforgeryToken(editing)
+        });
+        Assert.Equal(HttpStatusCode.Found, reenabled.StatusCode);
+        Assert.Equal(1, resolver.Resolutions);
+        Assert.Equal(2, resolver.AccessChecks);
+        Assert.NotNull(resolver.LastCheckedMailbox);
+        Assert.Equal(resolution.MailboxIdentity, resolver.LastCheckedMailbox.MailboxIdentity);
+        Assert.Equal(resolution.InboxFolderIdentity, resolver.LastCheckedMailbox.InboxFolderIdentity);
+        Assert.Equal(resolution.SentFolderIdentity, resolver.LastCheckedMailbox.SentFolderIdentity);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var stored = await context.ApprovedMailboxes.SingleAsync(item =>
+            item.Id == Guid.Parse(mailboxId));
+        Assert.Equal("resolved-mailbox-id", stored.MailboxIdentity);
+        Assert.Equal("resolved-inbox-id", stored.InboxFolderIdentity);
+        Assert.Equal("resolved-sent-id", stored.SentFolderIdentity);
+        Assert.Equal(ApprovedMailboxState.Approved.ToString(), stored.State);
+        Assert.Equal(3, stored.MailboxGeneration);
+        Assert.Equal(reactivationTime, stored.ActivatedAtUtc);
+        Assert.NotEqual(originalActivation, stored.ActivatedAtUtc);
+    }
+
+    [Fact]
+    public async Task DisabledBoundMailboxReactivationFailsClosedWhenReadAccessIsDenied()
+    {
+        var resolver = new AccessResolver(
+            new("resolved-mailbox-id", "resolved-inbox-id", "resolved-sent-id"),
+            canRead: true);
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, approvedMailboxIdentityResolver: resolver);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var page = await GetPageAsync(client);
+        var mailboxId = NewMailboxId(page);
+        var created = await PostAsync(client, new()
+        {
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "0",
+            ["MailboxForm.OperationKey"] = OperationKey(page),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Disabled",
+            ["__RequestVerificationToken"] = AntiforgeryToken(page)
+        });
+        Assert.Equal(HttpStatusCode.Found, created.StatusCode);
+
+        resolver.CanRead = false;
+        var disabled = await GetPageAsync(client);
+        var editing = await OpenMailboxEditAsync(client, mailboxId, 1, disabled);
+        var reenabled = await PostAsync(client, new()
+        {
+            ["MailboxForm.MailboxId"] = mailboxId,
+            ["MailboxForm.ExpectedVersion"] = "1",
+            ["MailboxForm.OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["MailboxForm.Address"] = NewAddress,
+            ["MailboxForm.SelectedRouteScopes"] = "InboundIntake",
+            ["MailboxForm.SelectedState"] = "Approved",
+            ["MailboxForm.EditLeaseToken"] = MailboxEditToken(editing, mailboxId),
+            ["__RequestVerificationToken"] = AntiforgeryToken(editing)
+        });
+
+        Assert.Equal(HttpStatusCode.OK, reenabled.StatusCode);
+        Assert.Equal(1, resolver.Resolutions);
+        Assert.Equal(2, resolver.AccessChecks);
+        Assert.NotNull(resolver.LastCheckedMailbox);
+        Assert.Equal("resolved-mailbox-id", resolver.LastCheckedMailbox.MailboxIdentity);
+        Assert.Equal("resolved-inbox-id", resolver.LastCheckedMailbox.InboxFolderIdentity);
+        Assert.Equal("resolved-sent-id", resolver.LastCheckedMailbox.SentFolderIdentity);
+        Assert.Contains(
+            "could not verify read access",
+            await reenabled.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var stored = await context.ApprovedMailboxes.SingleAsync(item =>
+            item.Id == Guid.Parse(mailboxId));
+        Assert.Equal(ApprovedMailboxState.Disabled.ToString(), stored.State);
+        Assert.Equal(0, stored.MailboxGeneration);
+        Assert.Null(stored.ActivatedAtUtc);
     }
 
     [Fact]
@@ -748,11 +899,16 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
     {
         private int _index;
 
+        public int Resolutions { get; private set; }
+
         public Task<ApprovedMailboxIdentityResolution?> ResolveAsync(
             string address,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<ApprovedMailboxIdentityResolution?>(
+            CancellationToken cancellationToken)
+        {
+            Resolutions++;
+            return Task.FromResult<ApprovedMailboxIdentityResolution?>(
                 resolutions[Math.Min(_index++, resolutions.Length - 1)]);
+        }
 
         public Task<bool> CanReadInboxAsync(
             ApprovedMailboxIdentityResolution mailbox,
@@ -763,19 +919,37 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         ApprovedMailboxIdentityResolution resolution,
         bool canRead) : IResolveApprovedMailboxIdentity, ICheckApprovedMailboxAccess
     {
+        public int Resolutions { get; private set; }
+
         public int AccessChecks { get; private set; }
+
+        public bool CanRead { get; set; } = canRead;
+
+        public ApprovedMailboxIdentityResolution? LastCheckedMailbox { get; private set; }
 
         public Task<ApprovedMailboxIdentityResolution?> ResolveAsync(
             string address,
-            CancellationToken cancellationToken) => Task.FromResult<ApprovedMailboxIdentityResolution?>(resolution);
+            CancellationToken cancellationToken)
+        {
+            Resolutions++;
+            return Task.FromResult<ApprovedMailboxIdentityResolution?>(resolution);
+        }
 
         public Task<bool> CanReadInboxAsync(
             ApprovedMailboxIdentityResolution mailbox,
             CancellationToken cancellationToken)
         {
             AccessChecks++;
-            return Task.FromResult(canRead);
+            LastCheckedMailbox = mailbox;
+            return Task.FromResult(CanRead);
         }
+    }
+
+    private sealed class MutableTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public DateTimeOffset UtcNow { get; set; } = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 
     private static ApprovedMailboxIdentityResolution Resolution(
