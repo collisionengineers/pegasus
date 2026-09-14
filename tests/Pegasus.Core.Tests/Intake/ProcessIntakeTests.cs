@@ -161,9 +161,21 @@ public sealed class ProcessIntakeTests
         Assert.Equal(IntakeDecision.TechnicalFailure, result.Decision);
         var draft = Assert.Single(store.Drafts);
         Assert.Equal(IntakeDecision.TechnicalFailure, draft.Decision);
+        // Received file Q3: a file processing could not read is one outcome to the
+        // person, Could not be read, and the item says what kind of file it was.
         var request = Assert.Single(registerUnidentified.Requests);
-        Assert.Equal(UnidentifiedReasonCode.TechnicalProcessingFailure, request.ReasonCode);
+        Assert.Equal(UnidentifiedReasonCode.CouldNotBeRead, request.ReasonCode);
+        Assert.Equal("PDF", request.FileKind);
     }
+
+    [Theory]
+    [InlineData("application/pdf", "scan.pdf", "PDF")]
+    [InlineData("image/jpeg", "IMG_1.jpg", "Image")]
+    [InlineData("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "letter.docx", "Word document")]
+    [InlineData("application/octet-stream", "unknown.xyz", "XYZ file")]
+    [InlineData("application/octet-stream", "", "File")]
+    public void TheFileKindReadsInOperatorWords(string mediaType, string fileName, string expected) =>
+        Assert.Equal(expected, UnidentifiedFileKind.Describe(mediaType, fileName));
 
     [Fact]
     public async Task StoreCancellationIsPropagatedWithoutRetry()

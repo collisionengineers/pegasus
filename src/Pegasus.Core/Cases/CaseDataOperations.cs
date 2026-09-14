@@ -222,7 +222,9 @@ public static class CaseDataPolicy
             InspectionContactName = Text(data.InspectionContactName, 300, nameof(data.InspectionContactName)),
             InspectionContactTelephone = Text(data.InspectionContactTelephone, 100, nameof(data.InspectionContactTelephone)),
             InspectionContactEmailAddress = Text(data.InspectionContactEmailAddress, 320, nameof(data.InspectionContactEmailAddress)),
-            InspectionNotes = Paragraphs(data.InspectionNotes, 2000, nameof(data.InspectionNotes))
+            InspectionNotes = Paragraphs(data.InspectionNotes, 2000, nameof(data.InspectionNotes)),
+            PrincipalNotes = Paragraphs(data.PrincipalNotes, 2000, nameof(data.PrincipalNotes)),
+            ClaimSourceNotes = Paragraphs(data.ClaimSourceNotes, 2000, nameof(data.ClaimSourceNotes))
         };
 
         if (normalized.VehicleMileage.HasValue != (normalized.VehicleMileageUnit is not null))

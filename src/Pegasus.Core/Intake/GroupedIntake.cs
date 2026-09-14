@@ -37,7 +37,18 @@ public sealed record IntakeSubmissionGroupMember(
     Guid StagedReceiptId,
     string SourceFileName,
     string SourceHash,
-    bool IsDuplicate);
+    bool IsDuplicate)
+{
+    /// <summary>
+    /// Processing could not read this member (Upload planning, 13 September): it is
+    /// flagged on its row and travels with the group to the group's one destination,
+    /// never split off. Null until the member has been processed.
+    /// </summary>
+    public bool? CouldNotBeRead { get; init; }
+
+    /// <summary>The processed receipt behind this member, once processing has run.</summary>
+    public Guid? ProcessedReceiptId { get; init; }
+}
 
 public sealed record GroupedIntakeFile(
     int Ordinal,

@@ -5,34 +5,21 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// UIIMP-008: the needs-attention row carries recorded facts and Core enum
-/// names, and the Work Centre labels them. External work records its kind as
-/// the persisted snake_case code and its tries as a number, so neither may
-/// reach the operator as it is stored.
+/// names, and the Work Centre labels them. An AI draft records its kind as the
+/// enum name, so it may not reach the operator as it is stored. Failed
+/// external work is no longer a row (Work Centre D1).
 /// </summary>
 public sealed class WorkCentreLabelTests
 {
     [Fact]
-    public void ExternalWorkTitleRendersThroughTheOperatorLabelMap()
+    public void AiDraftTitleRendersThroughTheOperatorLabelMap()
     {
         var item = NewItem(
-            NeedsAttentionKind.ExternalWork,
-            title: "document_custody",
-            attempts: 2);
+            NeedsAttentionKind.AiDraft,
+            title: "QueryResponse",
+            attempts: null);
 
-        // The same words the Operations table's Work column already shows for
-        // this exact field — one list per concept, not a second map.
-        Assert.Equal("Document custody", NeedsAttentionPresentation.TitleLabel(item));
-    }
-
-    [Fact]
-    public void ExternalWorkDetailReadsTheRecordedAttemptCount()
-    {
-        var item = NewItem(
-            NeedsAttentionKind.ExternalWork,
-            title: "document_custody",
-            attempts: 2);
-
-        Assert.Equal("2 attempts", NeedsAttentionPresentation.DetailLabel(item));
+        Assert.Equal("Query response", NeedsAttentionPresentation.TitleLabel(item));
     }
 
     [Fact]
@@ -60,9 +47,10 @@ public sealed class WorkCentreLabelTests
     /// itself; <see cref="TheWorkCentreRendersNoEmptyLink"/> catches the class.
     /// </summary>
     [Fact]
-    public void ExternalWorkOpensTheOperationsPageByItsPageName()
+    public void AnAiDraftOpensThroughItsOwnRouteNotARecordPage()
     {
-        Assert.Equal("/Operations/Index", NeedsAttentionPresentation.RecordPage(NeedsAttentionKind.ExternalWork));
+        Assert.Equal("/Operations/Index", NeedsAttentionPresentation.RecordPage(NeedsAttentionKind.AiDraft));
+        Assert.Null(NeedsAttentionPresentation.RecordRouteId(NewItem(NeedsAttentionKind.AiDraft, "Estimate", null)));
     }
 
     /// <summary>
@@ -70,11 +58,11 @@ public sealed class WorkCentreLabelTests
     /// same way.
     /// </summary>
     [Theory]
-    [InlineData(NeedsAttentionKind.Case, "/Cases/Details")]
+    [InlineData(NeedsAttentionKind.CaseChase, "/Cases/Details")]
     [InlineData(NeedsAttentionKind.HeldDecision, "/Cases/Details")]
     [InlineData(NeedsAttentionKind.ReviewCase, "/Cases/Details")]
     [InlineData(NeedsAttentionKind.UnassignedEngineer, "/Cases/Details")]
-    [InlineData(NeedsAttentionKind.Mail, "/Unidentified/Details")]
+    [InlineData(NeedsAttentionKind.Unidentified, "/Unidentified/Details")]
     [InlineData(NeedsAttentionKind.Triage, "/Triage/Details")]
     public void EveryRecordPageNamesARealPage(NeedsAttentionKind kind, string expected)
     {
@@ -92,7 +80,7 @@ public sealed class WorkCentreLabelTests
         title,
         detail,
         "custody_failed",
-        NeedsAttentionPriority.High,
+        NeedsAttentionPriority.Today,
         Owner: null,
         Due: null,
         LastOutcome: null,

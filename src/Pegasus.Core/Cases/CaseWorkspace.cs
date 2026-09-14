@@ -4,6 +4,7 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Cases;
@@ -155,7 +156,9 @@ public sealed record CaseWorkspaceOverview(
     string? VatStatus,
     string? RepairerAddress,
     CaseWorkspaceClaimSource? ClaimSource,
-    CaseWorkspaceRepairer? Repairer = null);
+    CaseWorkspaceRepairer? Repairer = null,
+    string? PrincipalNotes = null,
+    string? ClaimSourceNotes = null);
 
 public sealed record CaseWorkspaceInspection(
     CaseReportAddressTreatment? AddressTreatment,
@@ -231,15 +234,19 @@ public sealed record CaseWorkspaceCompleteness(
 /// own members — a null member inside it clears that value. Engineer notes and
 /// Case notes are separately attributed append commands and are deliberately
 /// absent from this replace-style payload.
+///
+/// The save needs no reason (planning decision A, 13 September): its history
+/// line records what changed. A typed <paramref name="Reason"/> is kept beside
+/// that account when one is given.
 /// </summary>
 public sealed record SaveCaseWorkspaceRequest(
     Guid CaseId,
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    string Reason,
+    string? Reason,
     string EditLeaseToken)
-    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken)
+    : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason ?? string.Empty, EditLeaseToken)
 {
     public CaseWorkspaceOverview? Overview { get; init; }
 
@@ -302,7 +309,8 @@ public interface ISaveCaseWorkspace
 
 public sealed class SaveCaseWorkspace(
     ICaseWorkspaceStore store,
-    IStaffAccountQueries staffAccounts) : ISaveCaseWorkspace
+    IStaffAccountQueries staffAccounts,
+    ICaseStaffNotifier? notifier = null) : ISaveCaseWorkspace
 {
     private readonly ICaseWorkspaceStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly IStaffAccountQueries _staffAccounts =
@@ -320,7 +328,113 @@ public sealed class SaveCaseWorkspace(
                 signOffEngineerId);
         }
 
-        return await _store.SaveAsync(normalized, cancellationToken);
+        var result = await _store.SaveAsync(normalized, cancellationToken);
+        if (!result.WasReplay && notifier is not null)
+        {
+            // Work Centre D10 cause 3: the Case's engineer is told when someone else
+            // edits it; the policy drops the notification when the saver is the engineer.
+            await notifier.NotifyAsync(
+                StaffNotificationCause.EditedByOther,
+                normalized.CaseId,
+                normalized.Actor,
+                section: "notes",
+                registration: result.Data.Vehicle.Registration.Current?.Value,
+                cancellationToken);
+        }
+
+        return result;
+    }
+}
+
+/// <summary>
+/// The account a Case save leaves in the history: "Case data saved by {name} —
+/// {changed fields}". The name is the actor the entry already carries; this
+/// builds the changed-fields part from what the store found different, so the
+/// line describes the save rather than asking the person to.
+/// </summary>
+public static class CaseWorkspaceChangeSummary
+{
+    public const int MaximumLength = 2000;
+
+    public static string Describe(
+        CaseEditableData before,
+        CaseEditableData after,
+        IReadOnlyDictionary<string, object?> beforeFields,
+        IReadOnlyDictionary<string, object?> afterFields,
+        bool estimateChanged,
+        int imagesPrepared,
+        string? reason)
+    {
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(after);
+        ArgumentNullException.ThrowIfNull(beforeFields);
+        ArgumentNullException.ThrowIfNull(afterFields);
+
+        List<string> parts = [];
+        foreach (var property in typeof(CaseEditableData).GetProperties())
+        {
+            if (!Equals(property.GetValue(before), property.GetValue(after)))
+            {
+                parts.Add(Humanise(property.Name));
+            }
+        }
+
+        foreach (var name in beforeFields.Keys.Union(afterFields.Keys, StringComparer.Ordinal).Order(StringComparer.Ordinal))
+        {
+            beforeFields.TryGetValue(name, out var was);
+            afterFields.TryGetValue(name, out var now);
+            if (!Equals(was?.ToString(), now?.ToString()))
+            {
+                parts.Add(Humanise(name));
+            }
+        }
+
+        if (estimateChanged)
+        {
+            parts.Add("Estimate");
+        }
+
+        if (imagesPrepared > 0)
+        {
+            parts.Add(imagesPrepared == 1 ? "1 image prepared" : $"{imagesPrepared} images prepared");
+        }
+
+        var summary = parts.Count == 0 ? "No field changed" : string.Join(", ", parts);
+        var trimmedReason = reason?.Trim();
+        if (!string.IsNullOrEmpty(trimmedReason))
+        {
+            summary = $"{summary} · {trimmedReason}";
+        }
+
+        return summary.Length <= MaximumLength ? summary : summary[..(MaximumLength - 1)] + "…";
+    }
+
+    /// <summary>
+    /// "vehicle_registration", "VehicleRegistration" and "assessment.outcome" all
+    /// read as words: the last dotted segment, split on underscores or capitals,
+    /// first letter up.
+    /// </summary>
+    internal static string Humanise(string name)
+    {
+        var segment = name[(name.LastIndexOf('.') + 1)..];
+        var builder = new System.Text.StringBuilder(segment.Length + 8);
+        foreach (var character in segment)
+        {
+            if (character == '_')
+            {
+                builder.Append(' ');
+            }
+            else if (char.IsUpper(character) && builder.Length > 0 && builder[^1] != ' ')
+            {
+                builder.Append(' ').Append(char.ToLowerInvariant(character));
+            }
+            else
+            {
+                builder.Append(builder.Length == 0 ? char.ToUpperInvariant(character) : character);
+            }
+        }
+
+        return builder.ToString();
     }
 }
 
@@ -342,7 +456,7 @@ public static class CaseWorkspacePolicy
     public static SaveCaseWorkspaceRequest ValidateAndNormalize(SaveCaseWorkspaceRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        CaseDataPolicy.ValidateMutation(request);
+        CaseLifecycleRules.ValidateMutation(request, requireReason: false);
         if (request.Actor.Kind is not (ActorKind.Staff or ActorKind.Automation))
         {
             throw new InvalidOperationException(
@@ -511,6 +625,8 @@ public static class CaseWorkspacePolicy
                 ContactPhoneNumber = overview.ContactPhoneNumber,
                 IncidentDate = overview.IncidentDate,
                 AccidentCircumstances = overview.AccidentCircumstances,
+                PrincipalNotes = overview.PrincipalNotes,
+                ClaimSourceNotes = overview.ClaimSourceNotes,
                 InstructionDate = overview.InstructionDate,
                 VatStatus = overview.VatStatus,
                 RepairerAddress = overview.RepairerAddress,

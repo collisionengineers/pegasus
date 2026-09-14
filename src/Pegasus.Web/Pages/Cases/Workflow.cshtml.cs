@@ -30,13 +30,14 @@ public sealed class WorkflowModel(
         string operationKey,
         string reason,
         string editLeaseToken,
+        DateOnly? reviewOn,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
             id,
             editLeaseToken,
             "hold",
             actor => holdCase.ExecuteAsync(
-                new(id, expectedVersion, actor, operationKey, reason, editLeaseToken),
+                new(id, expectedVersion, actor, operationKey, reason, editLeaseToken, reviewOn),
                 cancellationToken),
             "The case was put on hold.");
 

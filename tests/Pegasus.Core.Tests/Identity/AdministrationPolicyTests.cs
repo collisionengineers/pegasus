@@ -18,6 +18,67 @@ public sealed class AdministrationPolicyTests
             { ChaseIntervalDays = interval }, default));
         Assert.Null(store.UpdateRequest);
     }
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(366)]
+    public async Task WorkflowRejectsOutOfRangeDueTargetsBeforeStore(int days)
+    {
+        var store = new WorkflowStore();
+        var command = new UpdateWorkflowConfiguration(store);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+        foreach (var request in new UpdateWorkflowConfigurationRequest[]
+        {
+            new(1, actor, "targets") { UnidentifiedTargetDays = days },
+            new(1, actor, "targets") { TriageTargetDays = days },
+            new(1, actor, "targets") { HeldTargetDays = days },
+            new(1, actor, "targets") { ReviewTargetDays = days },
+            new(1, actor, "targets") { AiDraftTargetDays = days }
+        })
+        {
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => command.ExecuteAsync(request, default));
+        }
+
+        Assert.Null(store.UpdateRequest);
+    }
+
+    [Fact]
+    public async Task WorkflowAcceptsZeroAndMaximumDueTargets()
+    {
+        var store = new WorkflowStore();
+        var command = new UpdateWorkflowConfiguration(store);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+        await command.ExecuteAsync(
+            new(1, actor, "targets")
+            {
+                UnidentifiedTargetDays = 0,
+                TriageTargetDays = 365,
+                HeldTargetDays = 0,
+                ReviewTargetDays = 365,
+                AiDraftTargetDays = 0
+            },
+            default);
+
+        var request = Assert.IsType<UpdateWorkflowConfigurationRequest>(store.UpdateRequest);
+        Assert.Equal(0, request.UnidentifiedTargetDays);
+        Assert.Equal(365, request.TriageTargetDays);
+        Assert.Equal(0, request.AiDraftTargetDays);
+    }
+
+    [Fact]
+    public void WorkflowConfigurationDefaultsAreTheStandardTargets()
+    {
+        var configuration = new CaseWorkflowConfiguration("case-workflow", 1);
+
+        Assert.Equal(7, configuration.ChaseIntervalDays);
+        Assert.Equal(0, configuration.UnidentifiedTargetDays);
+        Assert.Equal(1, configuration.TriageTargetDays);
+        Assert.Equal(7, configuration.HeldTargetDays);
+        Assert.Equal(1, configuration.ReviewTargetDays);
+        Assert.Equal(1, configuration.AiDraftTargetDays);
+    }
+
     [Fact]
     public async Task WorkflowConfigurationQueryRequiresAdministrator()
     {

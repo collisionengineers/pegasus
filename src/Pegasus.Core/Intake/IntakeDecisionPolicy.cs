@@ -27,6 +27,17 @@ public static class IntakeDecisionPolicy
     /// image set are all outcomes that are not pre-case material, so none of
     /// them can become a case here.
     /// </remarks>
+    /// <summary>
+    /// The outcomes a person reads as "Could not be read" (Received file D3): an
+    /// unsupported file, OCR that was required and failed, a technical failure
+    /// on the file. One rule for the Inbox attachment badge, the upload
+    /// confirmation row and the Unidentified item.
+    /// </summary>
+    public static bool CouldNotBeRead(IntakeDecision decision) => decision is
+        IntakeDecision.Unsupported
+        or IntakeDecision.OcrRequired
+        or IntakeDecision.TechnicalFailure;
+
     public static bool CanBecomeCase(IntakeDecision decision) => decision switch
     {
         IntakeDecision.CaseCreated or IntakeDecision.NeedsSorting => true,

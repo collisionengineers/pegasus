@@ -140,7 +140,8 @@ public sealed class EfContactDirectoryAdministration(
         {
             command = SaveKind, request.OrganizationId, request.ExpectedVersion, request.Name, request.ContactPerson,
             request.Email, request.Telephone, request.Address, request.Postcode, request.Active, request.Roles, request.PrincipalCode,
-            request.PrincipalInspectionMode, request.PrincipalAssociations, request.GuidanceTemplate, request.GuidanceTemplateVersion
+            request.PrincipalInspectionMode, request.PrincipalAssociations, request.GuidanceTemplate, request.GuidanceTemplateVersion,
+            request.NotesOnEveryCase
         });
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
@@ -184,9 +185,11 @@ public sealed class EfContactDirectoryAdministration(
         var changed = entity.Name != request.Name || entity.ContactPerson != request.ContactPerson || entity.Email != request.Email
             || entity.Telephone != request.Telephone || entity.Address != request.Address || entity.Postcode != request.Postcode || entity.Active != request.Active
             || guidanceChanged
+            || entity.NotesOnEveryCase != request.NotesOnEveryCase
             || !entity.ContactRoles.Select(item => item.Role).Order().SequenceEqual(request.Roles.Select(ToCode).Order());
         entity.Name = request.Name; entity.ContactPerson = request.ContactPerson; entity.Email = request.Email;
         entity.Telephone = request.Telephone; entity.Address = request.Address; entity.Postcode = request.Postcode; entity.Active = request.Active;
+        entity.NotesOnEveryCase = request.NotesOnEveryCase;
         if (guidanceChanged)
         {
             entity.GuidanceTemplate = request.GuidanceTemplate;
@@ -362,7 +365,8 @@ public sealed class EfContactDirectoryAdministration(
             links,
             entity.Principals.Select(item => item.Id).Order().ToArray(),
             entity.GuidanceTemplate,
-            entity.GuidanceTemplateVersion);
+            entity.GuidanceTemplateVersion,
+            entity.NotesOnEveryCase);
     }
 
     private sealed class LatestCaseRow

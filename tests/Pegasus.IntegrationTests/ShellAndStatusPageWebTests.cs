@@ -211,7 +211,7 @@ public sealed class ShellAndStatusPageWebTests
         {
             new NeedsAttentionItem(
                 NeedsAttentionKind.Triage, Guid.NewGuid(), "T/2031/041", "AB12 CDE",
-                Detail: null, Reason: "open", NeedsAttentionPriority.High,
+                Detail: null, Reason: "open", NeedsAttentionPriority.Today,
                 Owner: null, Due: null, LastOutcome: null, Source: null, Attempts: null)
         };
         using var baseFactory = new IntakeWebApplicationFactory();

@@ -18,7 +18,10 @@ public enum MailLogicalFolderType
     Images,
     Cancellations,
     CaseUpdates,
-    Other
+    Other,
+    // The Dismissed scope (Inbox planning, 13 September): where a dismissed message
+    // sits until it is restored. Never recommended by classification.
+    Dismissed
 }
 
 public sealed record MailLogicalFolderDefinition(
@@ -42,7 +45,8 @@ public static class MailLogicalFolders
         new(MailLogicalFolderType.Images, "images", "Images"),
         new(MailLogicalFolderType.Cancellations, "cancellations", "Cancellations"),
         new(MailLogicalFolderType.CaseUpdates, "case-updates", "Case updates"),
-        new(MailLogicalFolderType.Other, "other", "Other")
+        new(MailLogicalFolderType.Other, "other", "Other"),
+        new(MailLogicalFolderType.Dismissed, "dismissed", "Dismissed")
     ];
 
     public static MailLogicalFolderDefinition Definition(MailLogicalFolderType type) =>

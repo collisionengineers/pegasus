@@ -84,6 +84,15 @@ public sealed record CaseSearchItem(
     public bool? InstructionComplete { get; init; }
 
     public bool? ImagesComplete { get; init; }
+
+    /// <summary>The hold's review date when the Case is Held with one, so a list can read "Held · review on 24 Sep".</summary>
+    public DateOnly? HoldReviewOn { get; init; }
+
+    /// <summary>When the current hold was placed; null unless the Case is Held.</summary>
+    public DateTimeOffset? HeldAtUtc { get; init; }
+
+    /// <summary>When the Case entered its current state, so Review ageing counts from the transition.</summary>
+    public DateTimeOffset? StateEnteredAtUtc { get; init; }
 }
 
 public sealed record SearchCasesResult(
@@ -179,6 +188,19 @@ public sealed record CaseDetails(
     /// resolved by <c>GetCase</c>. Null when there is no report approval to name.
     /// </summary>
     public string? ReportApprovedByDisplayName { get; init; }
+
+    /// <summary>
+    /// The Principal record's and the Claim source record's "Notes on every Case", read
+    /// live from the records when the Case is read and never copied onto it, so a
+    /// change to a record shows on every Case at once. Absent when a record has none.
+    /// </summary>
+    public CaseRecordNotes RecordNotes { get; init; } = CaseRecordNotes.None;
+}
+
+/// <summary>The record-level notes shown read-only on a Case's Overview beside the Case's own.</summary>
+public sealed record CaseRecordNotes(string? PrincipalNotes, string? ClaimSourceNotes)
+{
+    public static readonly CaseRecordNotes None = new(null, null);
 }
 
 public sealed record GetCaseQuery(Guid CaseId, ActionActor Actor);

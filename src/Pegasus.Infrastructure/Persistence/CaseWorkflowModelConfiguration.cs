@@ -20,6 +20,9 @@ internal static class CaseWorkflowModelConfiguration
                     "CK_CaseWorkflows_OriginalNotSelf",
                     "[OriginalCaseId] IS NULL OR [OriginalCaseId] <> [CaseId]");
                 table.HasCheckConstraint(
+                    "CK_CaseWorkflows_HoldReview",
+                    "[HoldReviewOn] IS NULL OR [HeldAtUtc] IS NOT NULL");
+                table.HasCheckConstraint(
                     "CK_CaseWorkflows_ArchiveMetadata",
                     "([ArchivedAtUtc] IS NULL AND [ArchivedByKind] IS NULL AND [ArchivedBySubjectId] IS NULL AND [ArchivedByRolesJson] IS NULL AND [ArchiveReason] IS NULL) OR ([ArchivedAtUtc] IS NOT NULL AND [ArchivedByKind] IS NOT NULL AND [ArchivedBySubjectId] IS NOT NULL AND [ArchivedByRolesJson] IS NOT NULL AND [ArchiveReason] IS NOT NULL AND [ArchiveReason] <> '')");
             });

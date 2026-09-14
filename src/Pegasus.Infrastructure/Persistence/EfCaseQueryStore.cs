@@ -388,6 +388,25 @@ public sealed class EfCaseQueryStore(
             .Take(200)
             .ToArray();
         var activeLease = ResolveActiveLease(workflow, timeProvider.GetUtcNow());
+        // The record notes are read live from the organisations, never from the Case:
+        // the Principal's own, and the Claim source the Case currently names.
+        var claimSourceId = await context.CaseDataFields.AsNoTracking()
+            .Where(item => item.CaseId == query.CaseId
+                && item.FieldName == CaseDataFieldNames.ClaimSourceId
+                && item.ValueKind == CaseDataCodes.Confirmed)
+            .Select(item => item.Value)
+            .FirstOrDefaultAsync(cancellationToken);
+        var recordNotes = new CaseRecordNotes(
+            await context.Organizations.AsNoTracking()
+                .Where(item => item.Id == workflow.Case.Principal.OrganizationId)
+                .Select(item => item.NotesOnEveryCase)
+                .FirstOrDefaultAsync(cancellationToken),
+            Guid.TryParse(claimSourceId, out var claimSourceOrganizationId)
+                ? await context.Organizations.AsNoTracking()
+                    .Where(item => item.Id == claimSourceOrganizationId)
+                    .Select(item => item.NotesOnEveryCase)
+                    .FirstOrDefaultAsync(cancellationToken)
+                : null);
 
         return new CaseDetails(
             MapSearchItem(summaryRow),
@@ -400,7 +419,8 @@ public sealed class EfCaseQueryStore(
             availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
             history)
         {
-            QueryEmails = queryEmails
+            QueryEmails = queryEmails,
+            RecordNotes = recordNotes
         };
     }
 
@@ -545,7 +565,10 @@ public sealed class EfCaseQueryStore(
             CreatedAtUtc = caseEntity.CreatedAtUtc,
             NextChaseAtUtc = workflow.DueWork == null ? null : workflow.DueWork!.NextChaseAtUtc,
             InstructionComplete = caseEntity.InstructionComplete,
-            ImagesComplete = caseEntity.ImagesComplete
+            ImagesComplete = caseEntity.ImagesComplete,
+            HoldReviewOn = workflow.HoldReviewOn,
+            HeldAtUtc = workflow.HeldAtUtc,
+            StateEnteredAtUtc = workflow.StateEnteredAtUtc
         };
 
     private static async Task<IReadOnlyList<CaseDocument>> ReadDocumentsAsync(
@@ -825,7 +848,10 @@ public sealed class EfCaseQueryStore(
         item.AccidentCircumstances)
     {
         InstructionComplete = item.InstructionComplete,
-        ImagesComplete = item.ImagesComplete
+        ImagesComplete = item.ImagesComplete,
+        HoldReviewOn = item.HoldReviewOn,
+        HeldAtUtc = item.HeldAtUtc,
+        StateEnteredAtUtc = item.StateEnteredAtUtc
     };
 
     internal static CaseType ParseCaseType(string value)
@@ -1044,5 +1070,8 @@ public sealed class EfCaseQueryStore(
         public string? AccidentCircumstances { get; init; }
         public bool InstructionComplete { get; init; }
         public bool ImagesComplete { get; init; }
+        public DateOnly? HoldReviewOn { get; init; }
+        public DateTimeOffset? HeldAtUtc { get; init; }
+        public DateTimeOffset? StateEnteredAtUtc { get; init; }
     }
 }

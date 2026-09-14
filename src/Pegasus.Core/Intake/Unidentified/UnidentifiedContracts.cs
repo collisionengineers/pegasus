@@ -15,7 +15,15 @@ public enum UnidentifiedReasonCode
     NoUsableIdentification,
     ConflictingIdentification,
     AmbiguousOwnershipOrDestination,
-    TechnicalProcessingFailure
+    TechnicalProcessingFailure,
+
+    /// <summary>
+    /// Processing could not read the file (unsupported, OCR that failed, or a
+    /// technical failure on it), so it lands in the work list and ages like any
+    /// other item (Received file Q3, 13 September). <see cref="UnidentifiedItem.FileKind"/>
+    /// says what kind of file it was.
+    /// </summary>
+    CouldNotBeRead
 }
 
 public enum UnidentifiedState
@@ -36,7 +44,14 @@ public enum UnidentifiedResolutionTargetKind
     ImageIntake,
     Triage,
     BlockedIntake,
-    ExternalReference
+    ExternalReference,
+
+    /// <summary>
+    /// Close with reason (Received file D2): the one refusal in the system. The
+    /// item is resolved with a free-text reason and no destination, keeps its
+    /// U-reference for ever, sits under the Closed filter and can be reopened.
+    /// </summary>
+    Closed
 }
 
 /// <summary>
@@ -188,6 +203,17 @@ public sealed record UnidentifiedItem(
     string? ResolutionTargetReference,
     long Version)
 {
+    /// <summary>What kind of file could not be read, in operator words ("PDF", "Image", "Word document"); null for other reasons.</summary>
+    public string? FileKind { get; init; }
+
+    /// <summary>The retained e-mail the material came in, so the record can offer Open message.</summary>
+    public Guid? SourceMessageId { get; init; }
+
+    /// <summary>The original file, so the record can offer Open file (the viewer, never the receipt).</summary>
+    public Guid? SourceAssetId { get; init; }
+
+    public bool IsClosed => State == UnidentifiedState.Resolved && ResolutionTargetKind == UnidentifiedResolutionTargetKind.Closed;
+
     public static void Validate(UnidentifiedItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
@@ -240,7 +266,14 @@ public sealed record RegisterUnidentifiedRequest(
     string SafeDetail,
     ActionActor Actor,
     string OperationKey,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc)
+{
+    public string? FileKind { get; init; }
+
+    public Guid? SourceMessageId { get; init; }
+
+    public Guid? SourceAssetId { get; init; }
+}
 
 public sealed record ResolveUnidentifiedRequest(
     Guid UnidentifiedItemId,
@@ -399,6 +432,17 @@ public interface IUnidentifiedStore
         UnidentifiedMediaKind? mediaKind,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The Closed filter of the Cases › Unidentified tab (Received file D5): items
+    /// resolved by Close with reason, newest closed first, listed indefinitely.
+    /// Default: unsupported, for the in-memory doubles that never close anything.
+    /// </summary>
+    Task<IReadOnlyList<UnidentifiedQueueRow>> ListClosedQueueAsync(
+        UnidentifiedMediaKind? mediaKind,
+        CancellationToken cancellationToken = default) =>
+        Task.FromException<IReadOnlyList<UnidentifiedQueueRow>>(
+            new NotSupportedException("This Unidentified store does not list closed items."));
+
     Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(
         Guid unidentifiedItemId,
         CancellationToken cancellationToken = default);
@@ -476,6 +520,8 @@ public sealed class ResolveUnidentified(
                     { Decision: IntakeDecision.BlockedIntake },
             // Free-form external reference; no Core-owned destination to validate.
             UnidentifiedResolutionTargetKind.ExternalReference => true,
+            // Close with reason names no destination: the reason is the record.
+            UnidentifiedResolutionTargetKind.Closed => true,
             _ => throw new ArgumentOutOfRangeException(
                 nameof(request), "The resolution target is not recognised.")
         };
@@ -665,5 +711,85 @@ public sealed class ListUnidentifiedQueueByCursor(
                     CursorPaging.EncodeUtcTimestamp(next.SortKey),
                     next.Id)
                 : null);
+    }
+}
+
+/// <summary>
+/// Close with reason (Received file D2, decided 13 September): the one refusal
+/// in the system. A readable item that must not become a Case, or one nobody
+/// can place, is closed here with a free-text reason. It is an ordinary
+/// resolution with no destination: the U-reference stays for ever, the item
+/// sits under the Closed filter, and Reopen brings it back.
+/// </summary>
+public sealed record CloseUnidentifiedRequest(
+    Guid UnidentifiedItemId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    DateTimeOffset ClosedAtUtc);
+
+public interface ICloseUnidentified
+{
+    Task<UnidentifiedResolveResult> ExecuteAsync(
+        CloseUnidentifiedRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class CloseUnidentified(IResolveUnidentified resolve) : ICloseUnidentified
+{
+    /// <summary>The target a closure records: there is no destination, only the reason.</summary>
+    public const string ClosedTargetId = "closed";
+
+    private readonly IResolveUnidentified _resolve = resolve ?? throw new ArgumentNullException(nameof(resolve));
+
+    public Task<UnidentifiedResolveResult> ExecuteAsync(
+        CloseUnidentifiedRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Actor);
+        if (request.Actor.Kind != ActorKind.Staff)
+        {
+            throw new UnauthorizedAccessException("Only staff can close an Unidentified item with a reason.");
+        }
+
+        return _resolve.ExecuteAsync(
+            new ResolveUnidentifiedRequest(
+                request.UnidentifiedItemId,
+                request.ExpectedVersion,
+                request.Actor,
+                request.OperationKey,
+                request.Reason,
+                UnidentifiedResolutionTargetKind.Closed,
+                ClosedTargetId,
+                TargetReference: null,
+                request.ClosedAtUtc),
+            cancellationToken);
+    }
+}
+
+/// <summary>
+/// What kind of file an item that could not be read was, in operator words.
+/// One rule, so the Inbox attachment badge, the upload confirmation row and the
+/// Unidentified record all say the same thing about the same file.
+/// </summary>
+public static class UnidentifiedFileKind
+{
+    public static string Describe(string? mediaType, string? fileName)
+    {
+        var type = mediaType?.Trim().ToLowerInvariant() ?? string.Empty;
+        var extension = Path.GetExtension(fileName ?? string.Empty).TrimStart('.').ToLowerInvariant();
+        return type switch
+        {
+            "application/pdf" => "PDF",
+            _ when type.StartsWith("image/", StringComparison.Ordinal) => "Image",
+            "application/msword" or "application/vnd.openxmlformats-officedocument.wordprocessingml.document" => "Word document",
+            "application/vnd.ms-excel" or "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" => "Spreadsheet",
+            "message/rfc822" or "application/vnd.ms-outlook" => "E-mail",
+            "text/plain" => "Text file",
+            _ when extension.Length is > 0 and <= 8 => extension.ToUpperInvariant() + " file",
+            _ => "File"
+        };
     }
 }

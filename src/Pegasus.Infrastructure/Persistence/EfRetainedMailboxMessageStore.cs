@@ -153,7 +153,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                     .FirstOrDefault(),
                 item.BodyPlainText == null
                     ? null
-                    : item.BodyPlainText.Substring(0, 600)))
+                    : item.BodyPlainText.Substring(0, 600),
+                null,
+                item.DismissedAtUtc))
             .ToListAsync(cancellationToken);
 
         if (searchTerm is not null && rows.Count > 0)
@@ -210,7 +212,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                     .Where(move => move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded")
                     .OrderByDescending(move => move.RecordedAtUtc).ThenByDescending(move => move.Id)
                     .Select(move => move.FolderType).FirstOrDefault(),
-                item.BodyPlainText == null ? null : item.BodyPlainText.Substring(0, 600)))
+                item.BodyPlainText == null ? null : item.BodyPlainText.Substring(0, 600),
+                null,
+                item.DismissedAtUtc))
             .ToListAsync(cancellationToken);
         var hasMore = rows.Count > limit;
         if (hasMore) rows.RemoveAt(rows.Count - 1);
@@ -299,7 +303,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                         searchTerm,
                         StringComparison.OrdinalIgnoreCase) == true,
                 currentFolderType,
-                entity.BodyPlainText)
+                entity.BodyPlainText,
+                null,
+                entity.DismissedAtUtc)
         };
         if (searchTerm is not null)
         {
@@ -850,7 +856,10 @@ internal sealed class EfRetainedMailboxMessageStore(
                     classification,
                     classification is null
                         ? null
-                        : MailOperationalDestinationPolicy.Map(classification));
+                        : MailOperationalDestinationPolicy.Map(classification))
+                {
+                    DismissedAtUtc = row.DismissedAtUtc
+                };
             })
             .ToArray();
     }
@@ -873,6 +882,10 @@ internal sealed class EfRetainedMailboxMessageStore(
             matches = matches.Where(item => !context.RetainedMailFolderMoves.Any(move =>
                 move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded"));
         }
+        // A dismissed message sits in the Dismissed scope and nowhere else.
+        matches = scope.DismissedOnly
+            ? matches.Where(item => item.DismissedAtUtc != null)
+            : matches.Where(item => item.DismissedAtUtc == null);
         if (scope.MailboxId is { } mailboxId)
         {
             matches = matches.Where(item => item.MailboxId == mailboxId);
@@ -1035,7 +1048,8 @@ internal sealed class EfRetainedMailboxMessageStore(
         // header block from. BodyExcerpt collapses whitespace, so it cannot
         // answer this question (MAIL-009).
         string? BodyHead = null,
-        IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null);
+        IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null,
+        DateTimeOffset? DismissedAtUtc = null);
 
     private static async Task<List<SummaryRow>> AddSearchMatchesAsync(
         PegasusDbContext context,

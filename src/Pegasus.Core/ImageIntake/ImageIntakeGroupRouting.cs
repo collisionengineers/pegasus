@@ -26,7 +26,12 @@ public sealed record ImageIntakeGroupMemberRecognition(
     VrmRecognitionOutcomeKind Outcome,
     string? NormalizedRegistration,
     double? Confidence,
-    string? FailureCode = null);
+    string? FailureCode = null,
+    // A member whose file could not be read (Upload planning, 13 September). It
+    // travels with the group and never decides for it: it is neither a
+    // recognition failure nor a vote, and a group of nothing but such members
+    // is one Unidentified item.
+    bool CouldNotBeRead = false);
 
 public sealed record ImageIntakeGroupRoutingResult(
     ImageIntakeGroupRoutingDecision Decision,
@@ -43,6 +48,7 @@ public static class ImageIntakeGroupRoutingPolicy
             {
                 "conflicting_vrms" => UnidentifiedReasonCode.ConflictingIdentification,
                 "group_no_accepted_vrm" => UnidentifiedReasonCode.NoUsableIdentification,
+                "group_could_not_be_read" => UnidentifiedReasonCode.CouldNotBeRead,
                 _ => UnidentifiedReasonCode.TechnicalProcessingFailure
             },
             reason,
@@ -66,7 +72,18 @@ public static class ImageIntakeGroupRoutingPolicy
                 "group_members_incomplete");
         }
 
-        if (members.Any(member => !member.IsTerminal))
+        // A member that could not be read is flagged on its row and travels with
+        // the group; it neither waits for recognition nor vetoes the others.
+        var readable = members.Where(member => !member.CouldNotBeRead).ToArray();
+        if (readable.Length == 0)
+        {
+            return new(
+                ImageIntakeGroupRoutingDecision.RouteToUnidentified,
+                null,
+                "group_could_not_be_read");
+        }
+
+        if (readable.Any(member => !member.IsTerminal))
         {
             return new(
                 ImageIntakeGroupRoutingDecision.WaitingForRecognition,
@@ -74,7 +91,7 @@ public static class ImageIntakeGroupRoutingPolicy
                 "group_recognition_incomplete");
         }
 
-        if (members.Any(member => member.Outcome is VrmRecognitionOutcomeKind.TechnicalFailure
+        if (readable.Any(member => member.Outcome is VrmRecognitionOutcomeKind.TechnicalFailure
                 or VrmRecognitionOutcomeKind.Unavailable))
         {
             return new(
@@ -83,7 +100,7 @@ public static class ImageIntakeGroupRoutingPolicy
                 "group_recognition_failure");
         }
 
-        var registrations = members
+        var registrations = readable
             .Where(member => member.Outcome == VrmRecognitionOutcomeKind.Suggested
                 && member.NormalizedRegistration is not null
                 && member.Confidence >= VrmRecognitionProvisionalBar.MinimumAutomaticConfidence)

@@ -67,6 +67,7 @@ internal static class MailboxModelConfiguration
             entity.Property(item => item.Subject).HasMaxLength(1000);
             entity.Property(item => item.BodyExcerpt).HasMaxLength(400);
             entity.Property(item => item.SourceSha256).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.DismissedBySubjectId).HasMaxLength(200);
             // One row per message per mailbox: the poll inserts if absent and a
             // redelivery is refused here, not judged in application code.
             entity.HasIndex(item => new { item.MailboxId, item.ImmutableMessageId }).IsUnique();

@@ -27,7 +27,8 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             command.RecordedTime,
             command.Mileage,
             command.RetailValue,
-            command.TradeValue));
+            command.TradeValue,
+            command.GuideMonth));
         var documentCommand = new AddCaseDocumentCommand(
             command.CaseId,
             command.FileName,
@@ -91,21 +92,25 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
             cancellationToken);
         try
         {
-            var valuationEntity = new CaseValuationEntity
+            // Research for a month that already has a card replaces that card
+            // (ValuationPolicy.Replaces); the earlier figures stay in the history.
+            var replaced = await EfValuationStore.FindReplacedAsync(context, command.CaseId, details, cancellationToken);
+            var before = replaced is null ? null : EfValuationStore.Map(replaced);
+            var valuationEntity = replaced ?? new CaseValuationEntity
             {
                 Id = Guid.NewGuid(),
                 CaseId = command.CaseId,
                 Case = workflow.Case,
                 Source = details.Source.ToString(),
-                Date = details.Date,
-                Time = details.Time,
-                Mileage = details.Mileage,
-                RetailValue = details.RetailValue,
-                TradeValue = details.TradeValue,
                 RecordedBy = command.Actor.SubjectId,
                 RecordedAtUtc = now
             };
-            context.CaseValuations.Add(valuationEntity);
+            EfValuationStore.Write(valuationEntity, details, replaced is null ? null : command.Actor.SubjectId, now);
+            if (replaced is null)
+            {
+                context.CaseValuations.Add(valuationEntity);
+            }
+
             var valuation = EfValuationStore.Map(valuationEntity);
 
             CaseMutationGuard.Complete(workflow);
@@ -115,14 +120,28 @@ internal sealed class EfMarketResearchAiJobCompletionStore(
                 command.Actor,
                 command.OperationKey,
                 "AI market research completed.",
-                "valuation_created",
+                replaced is null ? "valuation_created" : "valuation_replaced",
                 completionHash,
                 valuation,
-                before: null,
+                before,
                 engineersValue: null,
                 now);
 
+            // The findings file is evidence in Files wearing the built-in Market
+            // research tag (Work Centre D9); nothing reviews it and nothing reads it
+            // as a value.
+            context.Set<DocumentOccurrenceTagEntity>().Add(new()
+            {
+                OccurrenceId = pending.Result.Occurrence.Id,
+                TagId = ImageTagVocabulary.MarketResearchId,
+                AppliedByKind = command.Actor.Kind.ToString(),
+                AppliedBySubjectId = command.Actor.SubjectId,
+                AppliedAtUtc = now,
+                OperationKey = command.OperationKey.Trim()
+            });
+
             job.State = nameof(AiJobState.DraftReady);
+            job.DraftReadyAtUtc = now;
             job.Version++;
             job.LastOperationKey = command.OperationKey;
             job.ResultKind = nameof(AiJobResultKind.MarketResearch);

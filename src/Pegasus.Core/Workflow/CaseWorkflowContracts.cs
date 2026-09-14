@@ -40,13 +40,40 @@ public enum CaseReopenDestination
     PostReport
 }
 
+/// <summary>
+/// The office's workflow settings. The five target-day values give every kind of
+/// Work Centre work a due instant: an item is due that many calendar days after
+/// its event, at midnight Europe/London, so a target of 0 means "by the end of
+/// the day it happened". Working days are not modelled anywhere.
+/// </summary>
 public sealed record CaseWorkflowConfiguration(
     string PolicyKey,
     int PolicyVersion)
 {
+    public const int MinimumTargetDays = 0;
+    public const int MaximumTargetDays = 365;
+
     public bool RequireInstructions { get; init; } = true;
     public bool RequireImages { get; init; } = true;
     public int ChaseIntervalDays { get; init; } = 7;
+
+    /// <summary>An Unidentified item is due this many days after it was received.</summary>
+    public int UnidentifiedTargetDays { get; init; }
+
+    /// <summary>A Triage record without a finding is due this many days after it opened.</summary>
+    public int TriageTargetDays { get; init; } = 1;
+
+    /// <summary>
+    /// A held Case is due this many days after the hold was placed, unless the hold
+    /// carries its own review date.
+    /// </summary>
+    public int HeldTargetDays { get; init; } = 7;
+
+    /// <summary>A Case in Review, with or without an engineer, is due this many days after it entered Review.</summary>
+    public int ReviewTargetDays { get; init; } = 1;
+
+    /// <summary>An AI job in Draft ready is due this many days after the draft was written.</summary>
+    public int AiDraftTargetDays { get; init; } = 1;
 
     public IReadOnlyList<string> MissingRequirements(CaseCompleteness facts)
     {
@@ -130,6 +157,19 @@ public sealed record CaseWorkflowRecord(
     public CaseArchive? Archive { get; init; }
 
     public Guid? SignOffEngineerId { get; init; }
+
+    /// <summary>When the current hold was placed; null unless the Case is Held.</summary>
+    public DateTimeOffset? HeldAtUtc { get; init; }
+
+    /// <summary>The hold's optional review date (Europe/London); cleared when the hold is released.</summary>
+    public DateOnly? HoldReviewOn { get; init; }
+
+    /// <summary>
+    /// When the Case entered its current lifecycle state, so Review and Held ageing
+    /// count from the transition rather than from creation. Null for a workflow
+    /// recorded before the moment was kept.
+    /// </summary>
+    public DateTimeOffset? StateEnteredAtUtc { get; init; }
 }
 
 public sealed record CaseEditLease(
@@ -255,13 +295,20 @@ public sealed record ChangeCaseStateRequest(
     string EditLeaseToken)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
+/// <summary>
+/// Places a hold. <paramref name="ReviewOn"/> is the optional Europe/London calendar date
+/// the person means to look at the Case again (today or later); when given it is the
+/// Work Centre due instant for the held decision, otherwise the Held decision target
+/// applies from the moment of the hold. Nothing is sent on that date.
+/// </summary>
 public sealed record PutCaseOnHoldRequest(
     Guid CaseId,
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
     string Reason,
-    string EditLeaseToken)
+    string EditLeaseToken,
+    DateOnly? ReviewOn = null)
     : CaseMutationRequest(CaseId, ExpectedVersion, Actor, OperationKey, Reason, EditLeaseToken);
 
 public sealed record ReturnCaseToReviewRequest(

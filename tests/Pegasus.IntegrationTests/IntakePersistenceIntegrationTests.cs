@@ -151,7 +151,17 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260910110000_SecurityEventActingPrincipal",
                 "20260910111500_DocumentContentCacheVariants",
                 "20260910120000_CaseImageTags",
-                "20260911100000_PromoteVehicleLookupSuggestionsToFacts"
+                "20260911100000_PromoteVehicleLookupSuggestionsToFacts",
+                "20260913082540_WorkflowDueTargets",
+                "20260913083338_CaseHoldReviewDate",
+                "20260913090000_MarketResearchImageTag",
+                "20260913090111_OrganizationNotesOnEveryCase",
+                "20260913091041_RetainedMailDismissal",
+                "20260913092038_StaffNotifications",
+                "20260913092816_AiJobDraftReadyAt",
+                "20260913094324_WorkCentreLastSeen",
+                "20260913095127_UnidentifiedCouldNotBeRead",
+                "20260913101413_LinkedAuditCase"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -232,12 +242,13 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'Cases'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseSequences'"));
-        Assert.Equal(6, await database.ScalarAsync<int>(
+        Assert.Equal(7, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*)
             FROM sys.indexes
             WHERE object_id = OBJECT_ID(N'Cases')
               AND name IN (
+                  N'IX_Cases_AuditOfCaseId',
                   N'IX_Cases_AuditReference',
                   N'IX_Cases_OriginIntakeReceiptId',
                   N'IX_Cases_PrincipalId',
@@ -245,7 +256,7 @@ public sealed class IntakePersistenceIntegrationTests
                   N'IX_Cases_SequenceLineageId_Year_Sequence',
                   N'IX_Cases_StandaloneAuditEvidenceId')
             """));
-        Assert.Equal(6, await database.ScalarAsync<int>(
+        Assert.Equal(7, await database.ScalarAsync<int>(
             """
             SELECT COUNT(*)
             FROM sys.indexes

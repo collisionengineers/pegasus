@@ -133,6 +133,7 @@ public sealed class EfManualCaseCreationStore(
             CaseId = caseId,
             Case = caseEntity,
             State = CaseInitialWorkflowState.From(initialState).ToString(),
+            StateEnteredAtUtc = now,
             Version = 0
         };
         context.CaseWorkflows.Add(workflow);

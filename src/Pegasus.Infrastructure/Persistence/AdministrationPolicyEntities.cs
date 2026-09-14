@@ -7,6 +7,11 @@ internal sealed class WorkflowConfigurationEntity
     public bool RequireInstructions { get; set; } = true;
     public bool RequireImages { get; set; } = true;
     public int ChaseIntervalDays { get; set; } = 7;
+    public int UnidentifiedTargetDays { get; set; }
+    public int TriageTargetDays { get; set; } = 1;
+    public int HeldTargetDays { get; set; } = 7;
+    public int ReviewTargetDays { get; set; } = 1;
+    public int AiDraftTargetDays { get; set; } = 1;
 }
 
 internal sealed class ApprovedMailboxEntity

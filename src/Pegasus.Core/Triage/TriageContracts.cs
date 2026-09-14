@@ -650,3 +650,22 @@ public interface ITriageStore : ITriageQueries, ITriageResponseEvidenceCandidate
 
     Task UnlinkCaseAsync(TriageCaseLinkRequest request, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// "Assign to me" (Work Centre P8) on an unassigned Triage: the ordinary assignment
+/// with the actor as the assignee, carrying the same version, lease and operation
+/// key; the reason is fixed because the action is its own record.
+/// </summary>
+public sealed record AssignTriageToMeRequest(
+    Guid TriageId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey)
+{
+    public string EditLeaseToken { get; init; } = string.Empty;
+}
+
+public interface IAssignTriageToMe
+{
+    Task<TriageRecord> ExecuteAsync(AssignTriageToMeRequest request, CancellationToken cancellationToken);
+}

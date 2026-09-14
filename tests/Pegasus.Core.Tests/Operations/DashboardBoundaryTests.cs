@@ -126,11 +126,10 @@ public sealed class DashboardBoundaryTests
         Assert.Equivalent(
             new[]
             {
-                NeedsAttentionKind.Case,
+                NeedsAttentionKind.CaseChase,
                 NeedsAttentionKind.HeldDecision,
-                NeedsAttentionKind.Mail,
-                NeedsAttentionKind.Triage,
-                NeedsAttentionKind.ExternalWork
+                NeedsAttentionKind.Unidentified,
+                NeedsAttentionKind.Triage
             },
             snapshot.NeedsAttention.Select(item => item.Kind).ToArray());
     }
@@ -214,7 +213,9 @@ public sealed class DashboardBoundaryTests
 
         var kinds = snapshot.NeedsAttention.Select(item => item.Kind).ToArray();
         Assert.DoesNotContain(NeedsAttentionKind.Triage, kinds);
-        Assert.DoesNotContain(NeedsAttentionKind.ExternalWork, kinds);
+        // Failed external work is never a Needs attention row (Work Centre D1).
+        Assert.DoesNotContain(NeedsAttentionKind.AiDraft, kinds);
+        Assert.DoesNotContain("ExternalWork", Enum.GetNames<NeedsAttentionKind>());
     }
 
     /// <summary>
@@ -270,15 +271,68 @@ public sealed class DashboardBoundaryTests
             },
             requestStore: new StubRequestOperationStore { Items = [NewExternalWork(canRetry: true)] });
 
+        // Due instant first (D2): the overdue chase, then the Unidentified item due
+        // by tonight's midnight (target 0), then the Triage due tomorrow (target 1);
+        // the hold has no held-at and no review date, so it is undated and last.
         Assert.Equal(
             [
-                NeedsAttentionKind.Case,        // Overdue
-                NeedsAttentionKind.ExternalWork, // High
-                NeedsAttentionKind.Triage,       // Normal, "AB12CDE"
-                NeedsAttentionKind.HeldDecision, // Normal, "H2000"
-                NeedsAttentionKind.Mail          // Normal, "U1000"
+                NeedsAttentionKind.CaseChase,
+                NeedsAttentionKind.Unidentified,
+                NeedsAttentionKind.Triage,
+                NeedsAttentionKind.HeldDecision
             ],
             snapshot.NeedsAttention.Select(item => item.Kind).ToArray());
+        Assert.Equal(NeedsAttentionPriority.Overdue, snapshot.NeedsAttention[0].Priority);
+        Assert.Equal(NeedsAttentionPriority.Today, snapshot.NeedsAttention[1].Priority);
+        Assert.Equal(NeedsAttentionPriority.Normal, snapshot.NeedsAttention[2].Priority);
+        Assert.Null(snapshot.NeedsAttention[3].Due);
+        Assert.Equal(1, snapshot.Attention.OverdueCount);
+        Assert.Equal(1, snapshot.Attention.TodayCount);
+        Assert.Equal(2, snapshot.Attention.LaterCount);
+    }
+
+    [Fact]
+    public async Task TheOperationsBadgeCountsRetryableExternalFailuresOnly()
+    {
+        var badge = new GetOperationsBadge(new GetRequestOperations(
+            new StubRequestOperationStore
+            {
+                Items = [NewExternalWork(canRetry: true), NewExternalWork(canRetry: false), NewExternalWork(canRetry: true)]
+            },
+            new FixedTimeProvider(NowUtc)));
+
+        Assert.Equal(2, await badge.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])));
+    }
+
+    [Fact]
+    public async Task MineShowsMyRowsAndTheUnownedRowsAnEngineerCanTake()
+    {
+        var engineerId = Guid.NewGuid();
+        var engineer = ActionActor.Staff(engineerId, [StaffRole.Engineer]);
+        var user = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var mine = NewHeldCase(Guid.NewGuid(), "H-MINE") with { EngineerId = engineerId };
+        var theirs = NewHeldCase(Guid.NewGuid(), "H-THEIRS") with { EngineerId = Guid.NewGuid() };
+        var snapshotFor = (ActionActor actor) => new GetOperationsSnapshot(
+            new StubIntakeReceiptQueries(),
+            new StubListTriage { Items = [NewTriage(Guid.NewGuid(), "AB12CDE", TriageState.Open)] },
+            new StubDueWorkQueries(),
+            new RecordingDashboardQueries(),
+            new StubSearchCases { Items = [mine, theirs] },
+            new StubUnidentifiedQueue { Rows = [NewUnidentified(Guid.NewGuid(), "U1000")] },
+            new UnknownStaffAccounts(),
+            new FixedWorkflowConfiguration(new("case-workflow", 1)),
+            new FixedTimeProvider(NowUtc)).ExecuteAsync(new NeedsAttentionQuery(actor, NeedsAttentionScope.Mine));
+
+        var engineerView = await snapshotFor(engineer);
+        var userView = await snapshotFor(user);
+
+        Assert.Equal(
+            [NeedsAttentionKind.Triage, NeedsAttentionKind.HeldDecision],
+            engineerView.NeedsAttention.Select(item => item.Kind).ToArray());
+        Assert.Equal("H-MINE", engineerView.NeedsAttention[1].Reference);
+        Assert.Equal(NeedsAttentionScope.Mine, engineerView.Scope);
+        Assert.Empty(userView.NeedsAttention);
+        Assert.Equal(2, engineerView.Attention.TotalCount);
     }
 
     [Fact]
@@ -294,7 +348,12 @@ public sealed class DashboardBoundaryTests
             unidentified: new StubUnidentifiedQueue { Rows = rows });
 
         Assert.Equal(rows.Length, snapshot.UnidentifiedCount);
-        Assert.Equal(GetOperationsSnapshot.MaximumNeedsAttention, snapshot.NeedsAttention.Count);
+        Assert.Equal(GetOperationsSnapshot.PageSize, snapshot.NeedsAttention.Count);
+        // Paged, never cut (D4): the counts are of the whole list.
+        Assert.Equal(rows.Length, snapshot.Attention.TotalCount);
+        Assert.Equal(2, snapshot.Attention.TotalPages);
+        Assert.Equal(rows.Length, snapshot.Attention.KindCounts[NeedsAttentionKind.Unidentified]);
+        Assert.Equal(rows.Length, snapshot.Metrics.Unidentified);
     }
 
     [Theory]
@@ -372,7 +431,6 @@ public sealed class DashboardBoundaryTests
             recorder,
             searchCases ?? new StubSearchCases(),
             unidentified ?? new StubUnidentifiedQueue(),
-            new GetRequestOperations(requestStore ?? new StubRequestOperationStore(), timeProvider),
             new NoStaffAccounts(),
             new FixedWorkflowConfiguration(workflowConfiguration ?? new("case-workflow", 1)),
             timeProvider);
@@ -610,6 +668,22 @@ public sealed class DashboardBoundaryTests
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken) =>
             Task.FromResult(new RequestOperationsProjection([.. Items], LimitReached: false));
+    }
+
+    /// <summary>Resolves nobody: every owner reads as former staff, and nothing throws.</summary>
+    private sealed class UnknownStaffAccounts : IStaffAccountQueries
+    {
+        public Task<StaffAccountQuerySlice> ListAsync(int offset, int limit, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<StaffAccountSummary?> GetAsync(Guid staffId, CancellationToken cancellationToken) =>
+            Task.FromResult<StaffAccountSummary?>(null);
+
+        public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<SignOffEngineerProfile?> GetSignOffEngineerAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
     }
 
     private sealed class NoStaffAccounts : IStaffAccountQueries

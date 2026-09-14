@@ -572,27 +572,45 @@ public sealed class ProcessIntake(
         receipt.MailClassificationDecision is { IsTriageRequest: true }
         || receipt.Evidence.Any(item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
 
-    internal static RegisterUnidentifiedRequest BuildUnidentifiedRegistrationRequest(IntakeReceipt receipt) =>
-        new(
+    internal static RegisterUnidentifiedRequest BuildUnidentifiedRegistrationRequest(IntakeReceipt receipt)
+    {
+        var reason = MapUnidentifiedReason(receipt);
+        var source = IntakeFileIdentity.SourceAsset(receipt);
+        return new(
             UnidentifiedOrigin.Receipt(receipt.Id),
-            MapUnidentifiedReason(receipt),
+            reason,
             receipt.FailureReason ?? receipt.DecisionReason,
             ActionActor.SystemWorker("intake-processing"),
             $"intake-unidentified:{receipt.Id:N}:{receipt.Version}",
             // The queue and detail UI order and display Unidentified work by
             // when the source arrived, not when this processing attempt ran;
             // a delayed or retried attempt must not misreport either.
-            receipt.ReceivedAtUtc);
+            receipt.ReceivedAtUtc)
+        {
+            // An item that could not be read says what kind of file it was, and every
+            // item names the original so the record offers Open file (never the receipt).
+            FileKind = reason == UnidentifiedReasonCode.CouldNotBeRead
+                ? UnidentifiedFileKind.Describe(receipt.MediaType, receipt.SourceFileName)
+                : null,
+            SourceAssetId = source?.Id
+        };
+    }
 
     /// <summary>
     /// Selects the specific reason from evidence the assessment already
     /// established, rather than collapsing every non-Unsupported,
     /// non-TechnicalFailure outcome into <see cref="UnidentifiedReasonCode.NoUsableIdentification"/>.
     /// </summary>
+    /// <remarks>
+    /// Unsupported, OCR that failed and a technical failure on a file are one
+    /// outcome to the person (Received file D3, Q3): the file could not be read,
+    /// and the item ages in the work list like any other.
+    /// </remarks>
     private static UnidentifiedReasonCode MapUnidentifiedReason(IntakeReceipt receipt) => receipt.Decision switch
     {
-        IntakeDecision.Unsupported => UnidentifiedReasonCode.UnsupportedContent,
-        IntakeDecision.TechnicalFailure => UnidentifiedReasonCode.TechnicalProcessingFailure,
+        IntakeDecision.Unsupported
+            or IntakeDecision.OcrRequired
+            or IntakeDecision.TechnicalFailure => UnidentifiedReasonCode.CouldNotBeRead,
         _ when receipt.CaseMatchDecision?.Outcome == CaseMatchOutcome.Ambiguous =>
             UnidentifiedReasonCode.ConflictingIdentification,
         _ when receipt.MailClassificationDecision?.Outcome == MailClassificationOutcome.Ambiguous =>

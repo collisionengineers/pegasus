@@ -75,6 +75,9 @@ internal sealed class RetainedMailboxMessageEntity
     public required string SourceSha256 { get; set; }
     public DateTimeOffset ReceivedAtUtc { get; set; }
     public DateTimeOffset RetainedAtUtc { get; set; }
+    // Dismissed from the incoming scopes by a member of staff; null while it is not.
+    public DateTimeOffset? DismissedAtUtc { get; set; }
+    public string? DismissedBySubjectId { get; set; }
     public List<RetainedMailboxAttachmentEntity> Attachments { get; } = [];
 }
 

@@ -139,7 +139,7 @@ public sealed class DueChaserSweepPersistenceTests
         var holdLease = await harness.WorkflowStore.ClaimAsync(
             new(harness.CaseId, 0, actor, "claim-due-hold"),
             default);
-        var held = await new PutCaseOnHold(harness.WorkflowStore).ExecuteAsync(
+        var held = await new PutCaseOnHold(harness.WorkflowStore, harness.TimeProvider).ExecuteAsync(
             new(
                 harness.CaseId,
                 0,
