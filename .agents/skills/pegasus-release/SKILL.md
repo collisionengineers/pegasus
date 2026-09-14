@@ -502,7 +502,8 @@ if ($LASTEXITCODE -ne 0 -or $stagedWebState -cne 'Stopped') {
 }
 az webapp deploy --subscription $subscriptionId `
   --resource-group $resourceGroup --name $webApp `
-  --src-path $webPackagePath --type zip --clean true --restart false --output none
+  --src-path $webPackagePath --type zip --clean true --restart false `
+  --track-status false --output none
 if ($LASTEXITCODE -ne 0) { throw 'New Web package deployment failed.' }
 $postDeployWebState = (az webapp show --subscription $subscriptionId `
   --resource-group $resourceGroup --name $webApp --query state --output tsv).Trim()
@@ -743,10 +744,13 @@ the existing `PreProvision` check against disabled Worker settings, and run
 `azd provision` to create the new empty App Service. Provisioning before SQL is
 prohibited on this route. Reuse section 7's Worker stop/read-back if provision
 starts the Function host. Stop the new Web App, prove it is `Stopped`, deploy
-the approved `web.zip` with `az webapp deploy --clean true --restart false`, and
-prove it remains stopped. Then use section 10 unchanged to activate the
-compatible release. Any later failure leaves the new Web App stopped, the old
-Container App inactive, and the Worker stopped.
+the approved `web.zip` with `az webapp deploy`, using
+`--clean true --restart false --track-status false`, and prove it remains stopped.
+Startup tracking defaults
+to true on Linux and waits for a deliberately stopped site to start; disabling
+that client wait does not change deployment or activation. Then use section 10
+unchanged to activate the compatible release. Any later failure leaves the new
+Web App stopped, the old Container App inactive, and the Worker stopped.
 
 ### 12.4 Re-point every consumer of the public hostname
 
