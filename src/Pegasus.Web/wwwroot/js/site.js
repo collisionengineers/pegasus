@@ -867,11 +867,12 @@
             method: 'POST',
             body: new FormData(form)
         }).then(function (response) {
-            // 204 is the only answer that means the lease is still ours. A
-            // refusal is final - the lease was released, expired, or is now
-            // someone else's - and the page the operator lands on next already
-            // shows the case's real edit state, so nothing is said here.
-            if (response.status !== 204) {
+            // A 409 or 403 is the server refusing the lease itself: it was
+            // released, expired, or is now someone else's - and the page the
+            // operator lands on next already shows the record's real edit
+            // state, so nothing is said here. Any other answer says nothing
+            // about the lease, and the next beat settles it.
+            if (response.status === 409 || response.status === 403) {
                 stop();
             }
         }).catch(function () {
