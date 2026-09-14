@@ -409,9 +409,9 @@ public sealed class MessageModel(
         AttachmentRows = Detail.Attachments
             .Select(attachment =>
             {
-                var asset = assets.FirstOrDefault(item =>
-                    item.Kind == IntakeAssetKind.Attachment
-                    && string.Equals(item.FileName, attachment.FileName, StringComparison.OrdinalIgnoreCase));
+                var asset = attachment.IntakeAssetId is { } assetId
+                    ? assets.SingleOrDefault(item => item.Id == assetId)
+                    : null;
                 var outcome = asset is null ? null : outcomes.FirstOrDefault(item => item.AssetId == asset.Id);
                 return new AttachmentRow(
                     attachment,

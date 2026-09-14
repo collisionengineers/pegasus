@@ -3221,8 +3221,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Variant")
                         .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<string>("VerifiedSha256")
                         .IsRequired()

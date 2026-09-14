@@ -90,6 +90,18 @@ public sealed partial class DetailsModel(
     RequestUploadLimits? requestUploadLimits = null,
     IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
 {
+    public string? CommittedEditorCommand => TempData["CaseEditorCommit"] as string;
+
+    private void RecordEditorCommit(string editor, string operationKey, long expectedVersion)
+    {
+        // These three commands each complete exactly one guarded Case mutation.
+        // Use its expected version, not a later read which may include another write.
+        TempData["CaseEditorCommit"] = JsonSerializer.Serialize(new
+        {
+            editor, operationKey, expectedVersion, version = checked(expectedVersion + 1)
+        });
+    }
+
     public bool StaffMailAvailable => staffMailSend is not null
         && staffMailSend is not UnavailableStaffMailSend;
     /// <summary>
@@ -1368,9 +1380,11 @@ public sealed partial class DetailsModel(
                         Submitted(nameof(signOffEngineerId), signOffEngineerId, current.Workflow.SignOffEngineerId),
                         Submitted(nameof(reportDate), reportDate, recordedDate))
                 }, cancellationToken);
+                RecordEditorCommit("case-edit-form", operationKey, expectedVersion);
             },
             "Case saved.",
-            caseId => RedirectToSection(caseId, section));
+            caseId => RedirectToSection(caseId, section),
+            keepEditing: true);
 
     private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
 
@@ -2088,6 +2102,7 @@ public sealed partial class DetailsModel(
                     SelectedRateCardVersion = selectedRateCard.Version
                 },
                 cancellationToken);
+            RecordEditorCommit("case-estimate-form", operationKey, expectedVersion.Value);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
             TempData["CaseStatus"] = "The estimate was saved.";

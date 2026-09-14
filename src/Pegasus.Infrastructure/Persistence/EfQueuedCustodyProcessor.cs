@@ -139,18 +139,16 @@ internal sealed class EfQueuedCustodyProcessor(
                 casePayload.WorkKind,
                 ExternalWorkKinds.CreateAuditReferenceCustody,
                 StringComparison.Ordinal);
-            // CASE-014: an audit's reference already carries its a./ap. prefix,
-            // so the case folder is named by the case reference like every
-            // other case. This also closes a split that made audit custody
-            // behave unlike anything the tests covered: the root was created
-            // under the audit identity while GetExistingCaseRootAsync looked
-            // it up under the case reference.
+            // A linked Audit Case is located through its persisted original
+            // Case relationship; its a./ap. reference names only that child.
             var rootReference = casePayload.CaseReference;
             var root = isAuditCustody
                 ? await caseCustody.GetExistingCaseRootAsync(
                     casePayload.CaseId,
                     casePayload.CaseReference,
-                    cancellationToken)
+                    cancellationToken,
+                    casePayload.OriginalCaseId,
+                    casePayload.OriginalCaseReference)
                 : casePayload is { OriginalCaseId: { } originalCaseId, OriginalCaseReference: { } originalCaseReference }
                     // A linked Audit Case roots under its original's folder (13 September).
                     ? await caseCustody.CreateLinkedAuditCaseRootAsync(
@@ -519,14 +517,14 @@ internal sealed class EfQueuedCustodyProcessor(
         var caseEntity = await context.Cases
             .AsNoTracking()
             .SingleAsync(value => value.Id == caseId, cancellationToken);
+        var originalReference = caseEntity.AuditOfCaseId is { } originalId
+            ? await context.Cases.AsNoTracking()
+                .Where(value => value.Id == originalId)
+                .Select(value => value.Reference)
+                .SingleAsync(cancellationToken)
+            : null;
         if (caseEntity.OriginIntakeReceiptId is null)
         {
-            var originalReference = caseEntity.AuditOfCaseId is { } originalId
-                ? await context.Cases.AsNoTracking()
-                    .Where(value => value.Id == originalId)
-                    .Select(value => value.Reference)
-                    .SingleAsync(cancellationToken)
-                : null;
             return new(
                 workKind,
                 caseEntity.Id,
@@ -597,7 +595,9 @@ internal sealed class EfQueuedCustodyProcessor(
             source.IntakeAssetId,
             operationKey,
             caseRootCreationToken,
-            auditFolderCreationToken);
+            auditFolderCreationToken,
+            caseEntity.AuditOfCaseId,
+            originalReference);
     }
 
     private static void EnsureSourceMatchesReceipt(
@@ -903,6 +903,12 @@ internal sealed class EfQueuedCustodyProcessor(
         var caseEntity = await context.Cases
             .AsNoTracking()
             .SingleAsync(value => value.Id == mergedIntoCaseId, cancellationToken);
+        var originalReference = caseEntity.AuditOfCaseId is { } originalId
+            ? await context.Cases.AsNoTracking()
+                .Where(value => value.Id == originalId)
+                .Select(value => value.Reference)
+                .SingleAsync(cancellationToken)
+            : null;
         // The case root folder is named for the same reference the create path
         // used: the Audit reference for an Audit-type case, otherwise the Case
         // reference.
@@ -918,6 +924,8 @@ internal sealed class EfQueuedCustodyProcessor(
             caseEntity.Id,
             caseRootReference,
             caseEntity.CustodyRootRemoteId,
+            caseEntity.AuditOfCaseId,
+            originalReference,
             operationKey);
     }
 
@@ -1076,7 +1084,9 @@ internal sealed class EfQueuedCustodyProcessor(
         var caseRoot = await caseCustody.GetExistingCaseRootAsync(
             payload.CaseId,
             payload.CaseRootReference,
-            cancellationToken);
+            cancellationToken,
+            payload.OriginalCaseId,
+            payload.OriginalCaseReference);
         await caseCustody.MergeImageCaseContentsAsync(
             imageRoot,
             caseRoot,
@@ -1243,6 +1253,8 @@ internal sealed class EfQueuedCustodyProcessor(
         Guid CaseId,
         string CaseRootReference,
         string? CaseCustodyRootRemoteId,
+        Guid? OriginalCaseId,
+        string? OriginalCaseReference,
         string OperationKey) : CustodyWorkPayload;
 
     private sealed record WorkPayload(

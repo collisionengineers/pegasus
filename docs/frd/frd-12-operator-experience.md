@@ -363,7 +363,16 @@ Figures (outcome and legal chips and three figures) and Next action (AI drafts
 ready on the Case with their per-kind action, and the next permitted action
 with a link to its section); below 1441px it folds into a strip above the
 sections. Actions post in place and the record's parts are refreshed without a
-navigation; an unsaved edit is confirmed before Cancel or an immediate action.
+navigation; unsaved changes in each editor are confirmed before Cancel,
+Refresh, navigation or an immediate action. Case Save, Estimate Save and
+Valuation Apply remain separate commands. Saving one keeps editing open and
+preserves the other editors' pending values, including estimate rows and staged
+image preparations. Only that command's confirmed save clears its draft.
+Pending editors advance their Case version and lease only after the same
+operator's confirmed command, with no intervening Case change. A refusal or
+unknown response retains proposed values and their original authority for
+review. Ctrl S submits the active dirty editor. Selecting a tab also updates
+the section submitted by Refresh; after a refresh its active lazy body loads.
 The sections, in order, are **Overview**,
 **Inspection**, **Vehicle**, **Damage**, **Valuation**, **Estimate**,
 **Settlement**, **Report**, **Files**, **Notes**. Every
