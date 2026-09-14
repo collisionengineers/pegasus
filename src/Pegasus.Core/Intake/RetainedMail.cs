@@ -13,7 +13,14 @@ public enum MailFolderScope
 {
     Inbox,
     Sent,
-    DeletedItems
+    DeletedItems,
+
+    /// <summary>
+    /// An email a member of staff uploaded rather than one a mailbox poll
+    /// brought in. It has no mailbox folder; the mailbox workspace leaves the
+    /// scope out and the Case's Correspondence tab is where it is read.
+    /// </summary>
+    Upload
 }
 
 /// <summary>

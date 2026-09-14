@@ -440,6 +440,7 @@ public sealed class IndexModel(
         MailFolderScope.Inbox => "inbox",
         MailFolderScope.Sent => "sent",
         MailFolderScope.DeletedItems => "deleted",
+        MailFolderScope.Upload => "upload",
         _ => throw new InvalidOperationException($"Unknown mail folder scope '{(int)folder}'.")
     };
 
@@ -448,6 +449,7 @@ public sealed class IndexModel(
         MailFolderScope.Inbox => "Inbox",
         MailFolderScope.Sent => "Sent",
         MailFolderScope.DeletedItems => "Deleted items",
+        MailFolderScope.Upload => "Uploaded",
         _ => throw new InvalidOperationException($"Unknown mail folder scope '{(int)folder}'.")
     };
 

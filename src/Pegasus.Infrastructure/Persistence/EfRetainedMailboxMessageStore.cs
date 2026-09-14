@@ -35,10 +35,11 @@ internal sealed class EfRetainedMailboxMessageStore(
             Id = Guid.NewGuid(),
             MailboxId = message.MailboxId,
             MailboxAddress = message.MailboxAddress,
-            // Inbound polling is the only writer, so every row it makes is an Inbox
-            // row. Sent and Deleted Items are declared scopes with no writer yet,
-            // and the workspace says so rather than hiding the tab.
-            FolderScope = ToCode(MailFolderScope.Inbox),
+            // Inbound polling writes Inbox rows and an uploaded email is retained
+            // under the Upload scope, which the mailbox workspace leaves out. Sent
+            // and Deleted Items are declared scopes with no writer yet, and the
+            // workspace says so rather than hiding the tab.
+            FolderScope = ToCode(message.Folder),
             FolderIdentity = message.Metadata.FolderIdentity,
             ImmutableMessageId = message.ImmutableMessageId,
             ConversationIdentity = message.Metadata.ConversationIdentity,
@@ -127,7 +128,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             .Take(pageSize)
             .Select(item => new SummaryRow(
                 item.Id,
-                item.MailboxId,
+                item.MailboxId ?? UploadedCorrespondence.MailboxId,
                 item.MailboxAddress,
                 item.SenderAddress,
                 item.SenderDisplayName,
@@ -199,7 +200,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             .ThenByDescending(item => item.Id)
             .Take(limit + 1)
             .Select(item => new SummaryRow(
-                item.Id, item.MailboxId, item.MailboxAddress, item.SenderAddress,
+                item.Id, item.MailboxId ?? UploadedCorrespondence.MailboxId, item.MailboxAddress, item.SenderAddress,
                 item.SenderDisplayName, item.Subject, item.BodyExcerpt, item.ReceivedAtUtc,
                 item.IsRead, item.Attachments.Count, item.ExternalReceiptToken,
                 searchTerm != null && context.IntakeReceipts.Any(receipt =>
@@ -289,7 +290,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         {
             new(
                 entity.Id,
-                entity.MailboxId,
+                entity.MailboxId ?? UploadedCorrespondence.MailboxId,
                 entity.MailboxAddress,
                 entity.SenderAddress,
                 entity.SenderDisplayName,
@@ -421,10 +422,12 @@ internal sealed class EfRetainedMailboxMessageStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var mailboxes = await context.RetainedMailboxMessages
             .AsNoTracking()
+            // Uploaded emails have no mailbox; they are read from their Case.
+            .Where(item => item.FolderScope != ToCode(MailFolderScope.Upload))
             .GroupBy(item => new { item.MailboxId, item.MailboxAddress })
             .Select(group => new
             {
-                group.Key.MailboxId,
+                MailboxId = group.Key.MailboxId ?? UploadedCorrespondence.MailboxId,
                 group.Key.MailboxAddress
             })
             .ToListAsync(cancellationToken);
@@ -700,8 +703,9 @@ internal sealed class EfRetainedMailboxMessageStore(
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 item => item.MailboxId == message.MailboxId
-                    && (item.CanonicalInternetMessageIdentity == canonicalIdentity
-                        || item.ImmutableMessageId == message.ImmutableMessageId),
+                    && (item.ImmutableMessageId == message.ImmutableMessageId
+                        || (canonicalIdentity != null
+                            && item.CanonicalInternetMessageIdentity == canonicalIdentity)),
                 cancellationToken);
     }
 
@@ -720,9 +724,15 @@ internal sealed class EfRetainedMailboxMessageStore(
         }
     }
 
-    private static string CanonicalInternetMessageIdentity(RetainedMailboxMessage message) =>
-        MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(
-            message.Metadata.InternetMessageIdentity!);
+    /// <summary>
+    /// The canonical Message-ID, or null for a message retained without one: an
+    /// uploaded email is identified by its bytes alone, so a re-saved copy of the
+    /// same message is a second retained row rather than a contradiction.
+    /// </summary>
+    private static string? CanonicalInternetMessageIdentity(RetainedMailboxMessage message) =>
+        message.Metadata.InternetMessageIdentity is { } identity
+            ? MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(identity)
+            : null;
 
     /// <summary>
     /// True where a mailbox in scope has polled successfully but this scope holds no
@@ -1042,6 +1052,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         MailFolderScope.Inbox => "inbox",
         MailFolderScope.Sent => "sent",
         MailFolderScope.DeletedItems => "deleted_items",
+        MailFolderScope.Upload => "upload",
         _ => throw new InvalidOperationException($"Unknown mail folder scope '{(int)value}'.")
     };
 
@@ -1050,6 +1061,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         "inbox" => MailFolderScope.Inbox,
         "sent" => MailFolderScope.Sent,
         "deleted_items" => MailFolderScope.DeletedItems,
+        "upload" => MailFolderScope.Upload,
         _ => throw new InvalidDataException($"Unknown persisted mail folder scope '{value}'.")
     };
 

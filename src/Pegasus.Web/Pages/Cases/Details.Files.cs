@@ -13,9 +13,28 @@ namespace Pegasus.Web.Pages.Cases;
 /// </summary>
 public sealed partial class DetailsModel
 {
-    /// <summary>Every current file that is not an image: the Documents tab.</summary>
-    public IReadOnlyList<CaseFile> CaseDocumentFiles =>
-        Case is null ? [] : [.. CaseFiles.Current(Case.Documents).Where(file => !IsCaseImage(file))];
+    /// <summary>
+    /// Every current file that is not an image and is not listed as
+    /// correspondence: the Documents tab. An uploaded email is retained as a
+    /// correspondence row over the same bytes, and is read from that tab.
+    /// </summary>
+    public IReadOnlyList<CaseFile> CaseDocumentFiles
+    {
+        get
+        {
+            if (Case is null)
+            {
+                return [];
+            }
+
+            var correspondence = Case.QueryEmails
+                .Select(email => email.SourceSha256)
+                .Where(hash => !string.IsNullOrWhiteSpace(hash))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            return [.. CaseFiles.Current(Case.Documents).Where(file =>
+                !IsCaseImage(file) && !correspondence.Contains(file.Version.Sha256))];
+        }
+    }
 
     /// <summary>Every current image file, confirmed or still arriving: the Images tab and the strips.</summary>
     public IReadOnlyList<CaseFile> CaseImageFiles =>
