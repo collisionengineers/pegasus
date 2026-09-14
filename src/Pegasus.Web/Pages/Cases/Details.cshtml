@@ -188,7 +188,7 @@
                 }
                 @if (editing)
                 {
-                    <span class="lease-line" data-lease-line hidden></span>
+                    <span class="lease-line" data-lease-line data-lease-expired-text="@Frame.EditingExpired" hidden></span>
                     <form method="post" asp-page-handler="ReleaseLease" id="case-finish-editing-form" data-case-cancel-form hidden>
                         <input type="hidden" name="id" value="@summary.CaseId" />
                         <input type="hidden" name="operationKey" value="@Model.ReleaseLeaseOperationKey" />

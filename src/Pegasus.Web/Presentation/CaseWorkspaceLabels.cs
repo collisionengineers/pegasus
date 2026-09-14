@@ -22,6 +22,7 @@ public static class CaseWorkspaceLabels
     public static class Frame
     {
         public const string EditCase = "Edit Case";
+        public const string EditingExpired = "Editing expired · changes are not kept";
         public const string EnableReturn = "Enable return";
         public const string Edit = "Edit";
         public const string Cancel = "Cancel";
@@ -199,7 +200,6 @@ public static class CaseWorkspaceLabels
         public const string NoNote = "No note";
         public const string Remove = "Remove";
         public const string TyresAndBelts = "Tyres & seat belts";
-        public const string Images = "Images";
         public const string Multiple = "Multiple";
         public const string OtherAreas = "Other vehicle areas";
 

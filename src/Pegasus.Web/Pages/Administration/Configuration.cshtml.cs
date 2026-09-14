@@ -271,8 +271,8 @@ public sealed class ConfigurationModel(
         if (!TryGetActor(out var actor)) return Forbid();
         try
         {
-            var lease = await editScopes.HeartbeatAsync(new(ScopeKind, EditingId, actor, LeaseToken ?? string.Empty), cancellationToken);
-            return new JsonResult(new { expiresAtUtc = lease.ExpiresAtUtc });
+            await editScopes.HeartbeatAsync(new(ScopeKind, EditingId, actor, LeaseToken ?? string.Empty), cancellationToken);
+            return new NoContentResult();
         }
         catch (Exception exception) when (exception is EditScopeExpiredException or EditScopeConflictException)
         { return StatusCode(409); }
