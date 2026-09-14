@@ -67,13 +67,6 @@ public class IndexModel(IGetOperationsSnapshot getOperationsSnapshot) : StaffPag
             : null;
         Selected ??= NeedsAttention.Count > 0 ? NeedsAttention[0] : null;
 
-        // The shell notifications menu shares this page's own snapshot rather
-        // than paying for a second IGetAttentionRows call — RailCountsPageFilter
-        // skips this page for exactly that reason (C08).
-        ViewData["AttentionRows"] = NeedsAttention
-            .Take(GetOperationsSnapshot.MaximumAttentionRows)
-            .ToArray();
-
         return Page();
     }
 }

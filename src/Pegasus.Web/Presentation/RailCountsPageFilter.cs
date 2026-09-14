@@ -4,15 +4,17 @@ using System.Security.Claims;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Notifications;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
 
 namespace Pegasus.Web.Presentation;
 
 /// <summary>
-/// Supplies <c>ViewData["RailCounts"]</c> and <c>ViewData["ShellRenderedAtUtc"]</c>
-/// on each authenticated full page result, so <c>_Layout.cshtml</c>'s rail
-/// counts and freshness line never carry a shell-invented figure.
+/// Supplies the shell's own figures on each authenticated full page result —
+/// <c>ViewData["RailCounts"]</c>, <c>ViewData["ShellRenderedAtUtc"]</c>, and the
+/// bell's <c>ViewData["Notifications"]</c> — so <c>_Layout.cshtml</c> never
+/// carries a shell-invented figure.
 /// </summary>
 /// <remarks>
 /// The dictionary keys are the rail routes that can carry a count —
@@ -22,10 +24,17 @@ namespace Pegasus.Web.Presentation;
 /// <see cref="IDashboardQueries.GetCaseStageCountsAsync"/> (one grouped
 /// aggregate), <see cref="IListTriage"/> (the open-Triage total; the rows are
 /// not projected beyond page one) and
-/// <see cref="IUnidentifiedStore.ListQueueAsync"/>. Inbox and Operations have
-/// no established figure to reuse without inventing one, so they are absent
-/// from the dictionary — the layout renders nothing for a missing key, never
-/// a stale zero.
+/// <see cref="IUnidentifiedStore.ListQueueAsync"/>. <c>Operations</c> is the
+/// retryable-failure badge (<see cref="IGetOperationsBadge"/>, 13 September) and
+/// is present only when it is above zero: a badge is an attention signal, and
+/// nothing needing attention renders nothing. Inbox has no established figure
+/// to reuse without inventing one, so it is absent — the layout renders nothing
+/// for a missing key, never a stale zero.
+///
+/// The bell is the person's own notifications (Work Centre D10), newest first,
+/// read once here; the unread count is derived from the same list rather than
+/// read a second time. A failed read sets <c>NotificationsUnavailable</c> so the
+/// dialog states it, and the page still renders (FRD-12).
 ///
 /// A global <c>IAsyncPageFilter</c> is the direct ASP.NET Core mechanism for
 /// shared page <c>ViewData</c>. It waits for the selected handler's result:
@@ -38,7 +47,8 @@ public sealed partial class RailCountsPageFilter(
     IDashboardQueries dashboardQueries,
     IListTriage listTriage,
     IUnidentifiedStore unidentifiedStore,
-    IGetAttentionRows getAttentionRows,
+    IGetOperationsBadge getOperationsBadge,
+    IMyStaffNotifications myNotifications,
     TimeProvider timeProvider,
     ILogger<RailCountsPageFilter> logger) : IAsyncPageFilter
 {
@@ -48,8 +58,10 @@ public sealed partial class RailCountsPageFilter(
         listTriage ?? throw new ArgumentNullException(nameof(listTriage));
     private readonly IUnidentifiedStore unidentifiedStore =
         unidentifiedStore ?? throw new ArgumentNullException(nameof(unidentifiedStore));
-    private readonly IGetAttentionRows getAttentionRows =
-        getAttentionRows ?? throw new ArgumentNullException(nameof(getAttentionRows));
+    private readonly IGetOperationsBadge getOperationsBadge =
+        getOperationsBadge ?? throw new ArgumentNullException(nameof(getOperationsBadge));
+    private readonly IMyStaffNotifications myNotifications =
+        myNotifications ?? throw new ArgumentNullException(nameof(myNotifications));
     private readonly TimeProvider timeProvider =
         timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
@@ -73,14 +85,10 @@ public sealed partial class RailCountsPageFilter(
             var stagesTask = dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
             var triageTask = listTriage.ExecuteAsync(new(actor, State: null, Page: 1, PageSize: 1), cancellationToken);
             var unidentifiedTask = unidentifiedStore.ListQueueAsync(null, cancellationToken);
-            // Work Centre already holds its own full snapshot and slices its
-            // own top ten (Pages/Index.cshtml.cs) — calling the narrow query
-            // again here would be a second read of the same rows.
-            var isWorkCentre = pageModel is Pegasus.Web.Pages.IndexModel;
             await Task.WhenAll(stagesTask, triageTask, unidentifiedTask);
 
             var stages = stagesTask.Result;
-            pageModel.ViewData["RailCounts"] = new Dictionary<string, int>
+            var railCounts = new Dictionary<string, int>
             {
                 ["Cases"] = stages.NotReady
                     + stages.Review
@@ -90,26 +98,56 @@ public sealed partial class RailCountsPageFilter(
                     + triageTask.Result.TotalCount
                     + unidentifiedTask.Result.Count
             };
+            if (await OperationsBadgeAsync(actor, cancellationToken) is > 0 and var badge)
+            {
+                railCounts["Operations"] = badge;
+            }
+
+            pageModel.ViewData["RailCounts"] = railCounts;
             pageModel.ViewData["ShellRenderedAtUtc"] = timeProvider.GetUtcNow();
 
-            if (!isWorkCentre)
+            try
             {
-                try
-                {
-                    pageModel.ViewData["AttentionRows"] =
-                        await getAttentionRows.ExecuteAsync(actor, cancellationToken);
-                }
-                catch (Exception exception) when (exception is not
-                    (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException))
-                {
-                    LogAttentionRowsUnavailable(logger, exception);
-                    pageModel.ViewData["AttentionRowsUnavailable"] = true;
-                }
+                pageModel.ViewData["Notifications"] = await myNotifications.ListAsync(actor, cancellationToken);
+            }
+            catch (Exception exception) when (exception is not
+                (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException))
+            {
+                LogNotificationsUnavailable(logger, exception);
+                pageModel.ViewData["NotificationsUnavailable"] = true;
             }
         }
     }
 
+    /// <summary>
+    /// The Operations badge, or nothing. The badge needs casework rights, so a
+    /// User has none; a failed read is logged and renders no figure rather than
+    /// a page failure.
+    /// </summary>
+    private async Task<int> OperationsBadgeAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        if (!StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework))
+        {
+            return 0;
+        }
+
+        try
+        {
+            return await getOperationsBadge.ExecuteAsync(actor, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not
+            (OperationCanceledException or StaffAuthorizationException or UnauthorizedAccessException))
+        {
+            LogOperationsBadgeUnavailable(logger, exception);
+            return 0;
+        }
+    }
+
     [LoggerMessage(Level = LogLevel.Error, Message = "The notification query is unavailable.")]
-    private static partial void LogAttentionRowsUnavailable(
+    private static partial void LogNotificationsUnavailable(
+        ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The Operations badge query is unavailable.")]
+    private static partial void LogOperationsBadgeUnavailable(
         ILogger logger, Exception exception);
 }
