@@ -22,6 +22,8 @@ namespace Pegasus.Web.Presentation;
 /// <paramref name="IntakeAssetId"/> marks a pre-Case image (image record, Triage,
 /// Unidentified): the viewer then offers Crop (Apply / Clear / Cancel) and the
 /// Tag select, and <paramref name="Preparation"/> is what is already recorded.
+/// <paramref name="IntakeReceiptId"/> is the receipt that asset belongs to, so a
+/// prepared image's tile can ask for its prepared rendering.
 /// </summary>
 public sealed record GalleryImage(
     string Href,
@@ -31,4 +33,17 @@ public sealed record GalleryImage(
     string? ThumbnailHref = null,
     bool IsStored = true,
     Guid? IntakeAssetId = null,
-    Pegasus.Core.ImageIntake.PreCaseImagePreparation? Preparation = null);
+    Pegasus.Core.ImageIntake.PreCaseImagePreparation? Preparation = null,
+    Guid? IntakeReceiptId = null)
+{
+    /// <summary>
+    /// The tile source: a pre-Case image with a recorded crop or rotation shows
+    /// the prepared region (the intake asset route's <c>size=thumb</c>, versioned
+    /// so a new crop is a new address); otherwise the route's own rendering or
+    /// the image itself. The viewer and Open file keep <see cref="Href"/>.
+    /// </summary>
+    public string TileHref =>
+        IntakeReceiptId is { } receiptId && IntakeAssetId is { } assetId && Preparation is { IsPrepared: true } preparation
+            ? $"/Received/{receiptId:D}/Asset/{assetId:D}?size={Pegasus.Core.Documents.CaseDocumentThumbnails.ThumbSizeToken}&v={preparation.Version}"
+            : ThumbnailHref ?? Href;
+}

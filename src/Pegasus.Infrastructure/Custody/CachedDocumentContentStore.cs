@@ -1086,6 +1086,27 @@ internal sealed class CaseDocumentThumbnailReader(
 }
 
 /// <summary>
+/// The Case gallery's rendering offered for bytes that are not a Case document
+/// version (a pre-Case intake image's prepared tile): the same
+/// <see cref="ImageThumbnailRendering"/>, uncached, because the intake read has
+/// no content cache and a pre-Case record holds a handful of images.
+/// </summary>
+internal sealed class ImageThumbnailRenderer : IRenderImageThumbnail
+{
+    public async Task<byte[]?> RenderAsync(
+        ReadOnlyMemory<byte> content,
+        CaseAssetRotation rotation,
+        CaseAssetCrop crop,
+        CancellationToken cancellationToken)
+    {
+        using var stream = System.Runtime.InteropServices.MemoryMarshal.TryGetArray(content, out var segment)
+            ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
+            : new MemoryStream(content.ToArray(), writable: false);
+        return await ImageThumbnailRendering.TryRenderAsync(stream, content.Length, rotation, crop, cancellationToken);
+    }
+}
+
+/// <summary>
 /// Renders one image's gallery thumbnail with SkiaSharp: longest displayed edge
 /// <see cref="CaseDocumentThumbnails.LongestEdge"/>, JPEG, EXIF orientation
 /// applied.

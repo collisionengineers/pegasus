@@ -109,6 +109,26 @@ public interface IReadCaseDocumentThumbnail
 }
 
 /// <summary>
+/// The rendering half of a thumbnail, for bytes that are not a Case document
+/// version (a pre-Case intake image): the same derivation the Case gallery
+/// uses — the whole-turn rotation, then the crop as fractions of the rotated
+/// source, bounded by <see cref="CaseDocumentThumbnails.LongestEdge"/> and
+/// encoded as <see cref="CaseDocumentThumbnails.MediaType"/>.
+/// </summary>
+/// <remarks>
+/// Answers <c>null</c> when the bytes cannot be rendered; the caller then
+/// serves the original, as <see cref="IReadCaseDocumentThumbnail"/> does.
+/// </remarks>
+public interface IRenderImageThumbnail
+{
+    Task<byte[]?> RenderAsync(
+        ReadOnlyMemory<byte> content,
+        CaseAssetRotation rotation,
+        CaseAssetCrop crop,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
 /// The one owner of what a thumbnail is: how large, what it is encoded as, and
 /// which media types have one at all.
 /// </summary>

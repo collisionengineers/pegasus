@@ -108,7 +108,7 @@
                         var href = $"/Received/{imageReceipt.Id:D}/Image";
                         var imageAssetId = Model.Context.SourceAssetId;
                         ViewData["PreCaseImageTags"] = Model.ImageTags;
-                        <partial name="Shared/_ImageGallery" model="@new[] { new GalleryImage(href, href, imageReceipt.SourceFileName, imageReceipt.MediaType, IntakeAssetId: imageAssetId, Preparation: imageAssetId is { } preparedId ? Model.Preparations.GetValueOrDefault(preparedId) : null) }" />
+                        <partial name="Shared/_ImageGallery" model="@new[] { new GalleryImage(href, href, imageReceipt.SourceFileName, imageReceipt.MediaType, IntakeAssetId: imageAssetId, Preparation: imageAssetId is { } preparedId ? Model.Preparations.GetValueOrDefault(preparedId) : null, IntakeReceiptId: imageReceipt.Id) }" />
                     }
                     <div class="button-row" data-unidentified-material-actions>
                         @if (Model.OpenFileHref is { } fileHref)
