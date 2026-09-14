@@ -311,6 +311,19 @@ public interface IIntakeOcrOperationStore
     Task<IntakeOcrOperation?> FindAsync(Guid operationId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// A person's Retry OCR, carried out by the Worker. Web only re-queues the
+    /// paired work item (<see cref="RetryIntakeOcr"/>); Web never changes the
+    /// operation. When the Worker then runs a Failed operation whose work item is
+    /// no longer Failed, that re-queue is the request. The operation returns to
+    /// Pending with a fresh attempt budget, and the resumed operation is returned.
+    /// Returns null when no retry was requested (the operation stays terminal).
+    /// </summary>
+    Task<IntakeOcrOperation?> ResumeRequestedRetryAsync(
+        Guid operationId,
+        long expectedVersion,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Records the operation's identity and its Pending state. Idempotent on the
     /// operation key: a replay returns the recorded operation and starts no
     /// second one.
@@ -535,9 +548,21 @@ public sealed class ProcessIntakeOcr(
             ?? throw new InvalidOperationException("The intake OCR operation is unavailable.");
 
         // Provider completion is not terminal until its analysis is applied.
-        if (operation.AnalysisCompleted || operation.State == IntakeOcrState.Failed)
+        if (operation.AnalysisCompleted)
         {
             return;
+        }
+
+        // Failed is terminal unless a person re-queued it (Retry OCR).
+        if (operation.State == IntakeOcrState.Failed)
+        {
+            var resumed = await store.ResumeRequestedRetryAsync(operation.Id, operation.Version, cancellationToken);
+            if (resumed is null)
+            {
+                return;
+            }
+
+            operation = resumed;
         }
 
         var receipt = await receiptQueries.GetAsync(operation.IntakeReceiptId, cancellationToken);

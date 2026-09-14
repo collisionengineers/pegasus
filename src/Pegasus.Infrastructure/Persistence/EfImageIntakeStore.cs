@@ -1037,7 +1037,7 @@ public sealed class EfImageIntakeStore(
                 && asset.Kind == "source"
                 && asset.Disposition == "source"
                 && asset.MediaType.StartsWith(ImageIntakeLifecycleRules.ImageMediaTypePrefix))
-            .Select(asset => new { asset.IntakeReceiptId, asset.FileName, asset.MediaType })
+            .Select(asset => new { asset.Id, asset.IntakeReceiptId, asset.FileName, asset.MediaType })
             .ToArrayAsync(cancellationToken);
         var byReceipt = rows.ToDictionary(row => row.IntakeReceiptId);
         var images = new List<ImageIntakeImage>(rows.Length);
@@ -1045,7 +1045,7 @@ public sealed class EfImageIntakeStore(
         {
             if (byReceipt.TryGetValue(receiptId, out var row))
             {
-                images.Add(new(receiptId, row.FileName, row.MediaType));
+                images.Add(new(receiptId, row.FileName, row.MediaType) { AssetId = row.Id });
             }
         }
         return images;

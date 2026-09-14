@@ -37,7 +37,6 @@ public sealed class ImageIntakeWebTests
         var detailsBefore = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{unidentifiedId:D}");
         Assert.Contains("Register images", detailsBefore);
         Assert.Contains("No readable registration", detailsBefore);
-        Assert.DoesNotContain($"/Received/{receiptId:D}\"", detailsBefore, StringComparison.Ordinal);
 
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
         using var registerResponse = await client.PostAsync(
@@ -81,18 +80,14 @@ public sealed class ImageIntakeWebTests
         Assert.Contains("awaiting definitive instruction", imageIntakePage);
         Assert.Equal($"/Cases?tab=awaiting&selected={detail.Record.Id:D}", BackToCasesHref(imageIntakePage));
         // The attach decision lives on the Cases list; the original file opens
-        // through the kept source route. No received-item page is linked.
+        // through the kept source route.
         Assert.Contains($"href=\"/Cases?tab=awaiting&amp;selected={detail.Record.Id:D}\" data-image-action=\"add-to-case\"", imageIntakePage, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Received/{receiptId:D}/Source\"", imageIntakePage, StringComparison.Ordinal);
-        Assert.DoesNotContain($"href=\"/Received/{receiptId:D}\"", imageIntakePage, StringComparison.Ordinal);
         Assert.DoesNotContain("View received item", imageIntakePage, StringComparison.Ordinal);
         Assert.DoesNotContain("Open in Box", imageIntakePage, StringComparison.Ordinal);
         // This receipt never opened a Triage, so the record has nothing to link to.
         Assert.DoesNotContain("Open Triage", imageIntakePage, StringComparison.Ordinal);
         Assert.Contains("data-record-kind=\"image\"", imageIntakePage, StringComparison.Ordinal);
-
-        using var removed = await client.GetAsync($"/Received/{receiptId:D}");
-        Assert.Equal(HttpStatusCode.NotFound, removed.StatusCode);
     }
 
     [Fact]

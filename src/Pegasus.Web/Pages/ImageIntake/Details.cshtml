@@ -8,7 +8,10 @@
     var awaiting = Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction;
 }
 
-<link rel="stylesheet" href="~/css/image-record.css" asp-append-version="true" />
+@section Styles {
+    <link rel="stylesheet" href="~/css/image-record.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pre-case-images.css" asp-append-version="true" />
+}
 
 <header class="page-header">
     <div class="page-title">
@@ -203,9 +206,16 @@
                             .Select(item =>
                             {
                                 var href = Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
-                                return new GalleryImage(href, href, item.FileName, item.MediaType);
+                                return new GalleryImage(
+                                    href,
+                                    href,
+                                    item.FileName,
+                                    item.MediaType,
+                                    IntakeAssetId: item.AssetId,
+                                    Preparation: item.AssetId is { } assetId ? Model.Preparations.GetValueOrDefault(assetId) : null);
                             })
                             .ToArray();
+                        ViewData["PreCaseImageTags"] = Model.ImageTags;
                     }
                     <partial name="Shared/_ImageGallery" model="gallery" />
                 </div>

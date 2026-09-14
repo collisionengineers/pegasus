@@ -28,14 +28,12 @@ public sealed class LogsModel(
     IAiJobStore aiJobs,
     IListIntakeLog listIntakeLog,
     IReevaluateIntake reevaluateIntake,
+    IRetryIntakeOcr retryIntakeOcr,
     IAllocateIntake allocateIntake) : AdministrationPageModel
 {
     private const string SecurityArea = "Security";
     private const string AiJobArea = "ai_job";
     public const string IntakeTab = "intake";
-
-    /// <summary>The reason Retry OCR records: Core has no separate OCR retry, so it schedules re-evaluation, which reads the retained source again.</summary>
-    public const string RetryOcrReason = "Retry OCR";
 
     [BindProperty(SupportsGet = true)] public string? Tab { get; set; }
     [BindProperty(SupportsGet = true)] public IntakeLogOutcome? IntakeOutcome { get; set; }
@@ -192,18 +190,20 @@ public sealed class LogsModel(
                 cancellationToken),
             "Re-evaluation with current policy was queued.");
 
+    /// <summary>Retry OCR: Core records the retry and the Worker runs the OCR again.</summary>
     public Task<IActionResult> OnPostRetryIntakeOcrAsync(
         Guid receiptId,
         long expectedVersion,
         string operationKey,
+        string? reason,
         string? returnUrl,
         CancellationToken cancellationToken) =>
         ExecuteIntakeActionAsync(
             receiptId,
             returnUrl,
-            RetryOcrReason,
-            actor => reevaluateIntake.ExecuteAsync(
-                new(receiptId, expectedVersion, actor, operationKey, RetryOcrReason),
+            reason,
+            actor => retryIntakeOcr.ExecuteAsync(
+                new(receiptId, expectedVersion, actor, operationKey, reason!.Trim()),
                 cancellationToken),
             "OCR will be retried.");
 

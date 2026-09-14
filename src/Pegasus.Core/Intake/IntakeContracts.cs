@@ -1152,6 +1152,16 @@ public interface IIntakeMutationStore
         DateTimeOffset occurredAtUtc,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Records a staff OCR retry and returns the receipt's last OCR operation to
+    /// pending external work. Refuses when that last attempt did not fail
+    /// (<see cref="IntakeOcrRetryPolicy"/>).
+    /// </summary>
+    Task<IntakeReceipt> ScheduleOcrRetryAsync(
+        RetryIntakeOcrRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken);
+
     Task LinkAsync(
         LinkIntakeRequest request,
         DateTimeOffset occurredAtUtc,

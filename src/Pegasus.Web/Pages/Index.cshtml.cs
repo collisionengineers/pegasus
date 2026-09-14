@@ -377,11 +377,8 @@ public partial class IndexModel(
         LoadedAtUtc = snapshot.AsOfUtc;
         Attention = snapshot.Attention;
         Metrics = snapshot.Metrics;
-        KindCounts = filter is null
-            ? snapshot.Attention.KindCounts
-            : (await getOperationsSnapshot.ExecuteAsync(
-                new NeedsAttentionQuery(actor, Scope, 1, null),
-                cancellationToken)).Attention.KindCounts;
+        // Core counts the chips over the scope before the kind filter: one read.
+        KindCounts = snapshot.Attention.KindCounts;
 
         var items = snapshot.Attention.Items;
         Selected = (selected is { } id ? items.FirstOrDefault(item => item.Id == id) : null)

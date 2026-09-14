@@ -40,8 +40,7 @@ public sealed class MessageModel(
     IReverseIntakeLink reverseIntakeLink,
     IDismissRetainedMail dismissRetainedMail,
     IRestoreRetainedMail restoreRetainedMail,
-    IUnidentifiedStore unidentifiedStore,
-    IImageIntakeQueries imageIntakeQueries) : StaffPageModel
+    IGetRetainedMailAttachmentOutcomes attachmentOutcomes) : StaffPageModel
 {
     /// <summary>
     /// One attachment's outcome in operator words (message planning, 13 September):
@@ -315,7 +314,7 @@ public sealed class MessageModel(
         Detail = detail;
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
-        await LoadAttachmentOutcomesAsync(cancellationToken);
+        await LoadAttachmentOutcomesAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
         if (StaffMailAvailable)
         {
@@ -393,25 +392,30 @@ public sealed class MessageModel(
         });
     }
 
-    private async Task LoadAttachmentOutcomesAsync(CancellationToken cancellationToken)
+    private async Task LoadAttachmentOutcomesAsync(ActionActor actor, CancellationToken cancellationToken)
     {
         if (ActiveSection != "attachments" || Detail.Attachments.Count == 0)
         {
             return;
         }
 
-        var outcome = await MessageOutcomeAsync(cancellationToken);
         var receipt = AssociationReceipt;
         var assets = receipt?.AssetRecords ?? [];
+        // Core decides each attachment's own outcome (Case, Unidentified, Vehicle
+        // images, Could not be read, Processing failed) from its receipt and assets.
+        var outcomes = receipt is null
+            ? []
+            : await attachmentOutcomes.ExecuteAsync(actor, receipt.Id, cancellationToken);
         AttachmentRows = Detail.Attachments
             .Select(attachment =>
             {
                 var asset = assets.FirstOrDefault(item =>
                     item.Kind == IntakeAssetKind.Attachment
                     && string.Equals(item.FileName, attachment.FileName, StringComparison.OrdinalIgnoreCase));
+                var outcome = asset is null ? null : outcomes.FirstOrDefault(item => item.AssetId == asset.Id);
                 return new AttachmentRow(
                     attachment,
-                    outcome,
+                    Describe(outcome, receipt),
                     receipt is not null && asset is not null
                         ? $"/Received/{receipt.Id:D}/Asset/{asset.Id:D}"
                         : null);
@@ -419,59 +423,43 @@ public sealed class MessageModel(
             .ToArray();
     }
 
-    /// <summary>
-    /// The processing outcome the message's attachments share. Intake processes a
-    /// message as one receipt, so every attachment carries the receipt's outcome;
-    /// Core records no per-attachment decision (listed as a change request).
-    /// </summary>
-    private async Task<AttachmentOutcome> MessageOutcomeAsync(CancellationToken cancellationToken)
+    /// <summary>One attachment's outcome in operator words, with the record it opens.</summary>
+    private AttachmentOutcome Describe(RetainedMailAttachmentOutcome? outcome, IntakeReceipt? receipt)
     {
-        if (AssociationReceipt is not { } receipt)
+        if (outcome is null)
         {
             return new("Not yet processed", "neutral");
         }
 
-        if (receipt.CurrentCaseId is { } caseId)
+        var href = outcome.Record is { } record
+            ? record.Kind switch
+            {
+                AttachmentOutcomeRecordKind.Case => $"/Cases/{record.Id:D}",
+                AttachmentOutcomeRecordKind.ImageIntake => $"/VehicleImages/{record.Id:D}",
+                _ => $"/Unidentified/{record.Id:D}"
+            }
+            : null;
+        var linkText = outcome.Record?.Reference;
+        return outcome.Kind switch
         {
-            return new(
-                receipt.AcceptedCaseId == caseId ? "Case created" : "Linked to Case",
-                "green",
-                $"/Cases/{caseId:D}",
-                receipt.CurrentCaseReference);
-        }
-
-        if (receipt.Decision == IntakeDecision.ImageIntakeRegistered
-            && await imageIntakeQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken) is { } images)
-        {
-            return new(
-                "Vehicle images",
-                "green",
-                $"/VehicleImages/{images.Record.Id:D}",
-                images.Record.ImageIntakeReference);
-        }
-
-        var unidentified = await unidentifiedStore.GetByOriginAsync(
-            UnidentifiedOrigin.Receipt(receipt.Id),
-            cancellationToken);
-        var unidentifiedHref = unidentified is null ? null : $"/Unidentified/{unidentified.Id:D}";
-        return receipt.Decision switch
-        {
-            IntakeDecision.TechnicalFailure => new(
-                "Processing failed",
-                "red",
-                unidentifiedHref,
-                unidentified?.Reference,
-                string.IsNullOrWhiteSpace(receipt.FailureReason)
-                    ? OperatorLabels.IntakeFailure(receipt.FailureCode)
-                    : receipt.FailureReason),
-            IntakeDecision.Unsupported or IntakeDecision.OcrRequired => new(
+            AttachmentOutcomeKind.CaseCreated => new("Case created", "green", href, linkText),
+            AttachmentOutcomeKind.LinkedToCase => new("Linked to Case", "green", href, linkText),
+            AttachmentOutcomeKind.VehicleImages => new("Vehicle images", "green", href, linkText),
+            AttachmentOutcomeKind.CouldNotBeRead => new(
                 "Could not be read",
                 "amber",
-                unidentifiedHref,
-                unidentified?.Reference,
-                OperatorLabels.IntakeCannotBecomeCaseReason(receipt.Decision)),
-            _ when Detail.Summary.Classification?.IsTriageRequest == true => new("Triage", "navy"),
-            _ when unidentified is not null => new("Unidentified", "amber", unidentifiedHref, unidentified.Reference),
+                href,
+                linkText,
+                outcome.Reason ?? (receipt is null ? null : OperatorLabels.IntakeCannotBecomeCaseReason(receipt.Decision))),
+            AttachmentOutcomeKind.ProcessingFailed => new(
+                "Processing failed",
+                "red",
+                href,
+                linkText,
+                outcome.Reason ?? OperatorLabels.IntakeFailure(receipt?.FailureCode)),
+            AttachmentOutcomeKind.Triage => new("Triage", "navy"),
+            AttachmentOutcomeKind.Unidentified => new("Unidentified", "amber", href, linkText),
+            AttachmentOutcomeKind.NotYetProcessed => new("Not yet processed", "neutral"),
             _ => new(OutcomeLabel(Detail.Summary), "neutral")
         };
     }
@@ -1027,7 +1015,7 @@ public sealed class MessageModel(
         Detail = detail;
         OutsideListScope = IsOutsideListScope(detail, listFolder);
         await LoadAssociationSafelyAsync(actor, cancellationToken);
-        await LoadAttachmentOutcomesAsync(cancellationToken);
+        await LoadAttachmentOutcomesAsync(actor, cancellationToken);
         await LoadAiJobContextAsync(cancellationToken);
         await LoadRetainedOperationAsync(actor, cancellationToken);
         await LoadCorrespondenceContextAsync(actor, initializeForm: false, cancellationToken);

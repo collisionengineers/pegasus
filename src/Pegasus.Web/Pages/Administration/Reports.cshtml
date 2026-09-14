@@ -1,97 +1,138 @@
 @page
 @model Pegasus.Web.Pages.Administration.ReportsModel
-@{ ViewData["Title"] = "Reports"; ViewData["Eyebrow"] = "Administration"; }
+@{
+    ViewData["Title"] = "Reports";
+    ViewData["Eyebrow"] = "Administration";
+    ViewData["AdminArea"] = "reports";
+    var from = Model.From?.ToString("yyyy-MM-ddTHH:mm");
+    var to = Model.To?.ToString("yyyy-MM-ddTHH:mm");
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+}
 <partial name="Shared/_PageHeader" />
-<div class="admin-layout"><partial name="Shared/_AdminNav" /><div class="stack">
-<section class="panel" aria-labelledby="mi01-title">
-    <div class="panel-head"><div><h2 id="mi01-title">Engineer activity</h2><span class="muted">MI01</span></div></div>
-    <div class="panel-body">
-        <p class="muted">Queries received are credited to the Engineer assigned to the Case. Reports sent are credited to the staff member recorded as the sender.</p>
-        <form method="get" class="filter-bar" aria-label="Engineer activity filters">
-            @* Minutes are the smallest unit this report is bounded by; the default
-               tag-helper format writes seconds and milliseconds into the value,
-               which the picker then shows. The CSV link below already formats to
-               minutes, so the two now agree. *@
-            <div class="field"><label for="report-from">From London</label><input id="report-from" asp-for="From" asp-format="{0:yyyy-MM-ddTHH:mm}" name="from" type="datetime-local" step="60" /></div>
-            <div class="field"><label for="report-to">To London</label><input id="report-to" asp-for="To" asp-format="{0:yyyy-MM-ddTHH:mm}" name="to" type="datetime-local" step="60" /></div>
-            <div class="field"><label for="report-engineer">Person</label><select id="report-engineer" asp-for="EngineerId" name="engineerId"><option value="">All people</option>@foreach (var person in Model.People) { <option value="@person.Id">@person.UserName</option> }</select></div>
-            <button class="btn btn--primary" type="submit">Apply</button>
-            <a class="btn" asp-page="/Administration/Reports" asp-page-handler="Csv" asp-route-from="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" asp-route-to="@Model.To?.ToString("yyyy-MM-ddTHH:mm")" asp-route-engineerId="@Model.EngineerId">Download CSV</a>
-        </form>
-        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
-        <div class="metric-strip metric-strip--2 section-gap" aria-label="Engineer activity totals">
-            <div class="metric"><span class="metric-label">Queries received</span><span class="metric-value">@Model.EngineerResult.Rows.Sum(row => row.QueriesReceived)</span></div>
-            <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">@Model.EngineerResult.Rows.Sum(row => row.ReportsSent)</span></div>
-        </div>
-        <div class="table-wrap section-gap"><table><thead><tr><th>Person</th><th>Queries received</th><th>Reports sent</th></tr></thead><tbody>
-        @foreach (var row in Model.EngineerResult.Rows) { <tr><td>@row.DisplayName</td><td class="tabular">@row.QueriesReceived</td><td class="tabular">@row.ReportsSent</td></tr> }
-        @if (Model.EngineerResult.Rows.Count == 0) { <tr><td colspan="3" class="muted">No engineer activity was recorded for this period.</td></tr> }
-        </tbody></table></div>
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
+        <section class="panel" aria-labelledby="mi01-title">
+            <div class="panel-head"><h2 id="mi01-title">Engineer activity</h2><span class="meta">MI01</span></div>
+            <div class="panel-body">
+                <p class="muted admin-report-note">Queries received are credited to the Engineer assigned to the Case. Reports sent are credited to the staff member recorded as the sender.</p>
+                <form method="get" class="form-grid form-grid--auto admin-report-filter" aria-label="Engineer activity filters">
+                    @* Minutes are the smallest unit this report is bounded by; the default
+                       tag-helper format writes seconds and milliseconds into the value,
+                       which the picker then shows. The CSV link below already formats to
+                       minutes, so the two agree. *@
+                    <div class="field"><label for="report-from">From London</label><input id="report-from" asp-for="From" asp-format="{0:yyyy-MM-ddTHH:mm}" name="from" type="datetime-local" step="60" /></div>
+                    <div class="field"><label for="report-to">To London</label><input id="report-to" asp-for="To" asp-format="{0:yyyy-MM-ddTHH:mm}" name="to" type="datetime-local" step="60" /></div>
+                    <div class="field"><label for="report-engineer">Person</label><select id="report-engineer" asp-for="EngineerId" name="engineerId"><option value="">All people</option>@foreach (var person in Model.People) { <option value="@person.Id">@person.UserName</option> }</select></div>
+                    <div class="cluster">
+                        <button class="btn btn--dark" type="submit">Apply</button>
+                        <a class="btn" asp-page="/Administration/Reports" asp-page-handler="Csv" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
+                    </div>
+                </form>
+                <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+                <div class="metric-strip metric-strip--2 section-gap" aria-label="Engineer activity totals">
+                    <div class="metric"><span class="metric-label">Queries received</span><span class="metric-value">@Model.EngineerResult.Rows.Sum(row => row.QueriesReceived)</span></div>
+                    <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">@Model.EngineerResult.Rows.Sum(row => row.ReportsSent)</span></div>
+                </div>
+                <div class="table-wrap section-gap">
+                    <table class="table table--compact">
+                        <thead><tr><th scope="col">Person</th><th scope="col" class="num">Queries received</th><th scope="col" class="num">Reports sent</th></tr></thead>
+                        <tbody>
+                        @foreach (var row in Model.EngineerResult.Rows) { <tr><td>@row.DisplayName</td><td class="num tabular">@row.QueriesReceived</td><td class="num tabular">@row.ReportsSent</td></tr> }
+                        @if (Model.EngineerResult.Rows.Count == 0) { <tr><td colspan="3" class="muted">No engineer activity was recorded for this period.</td></tr> }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel" aria-labelledby="mi02-title">
+            <div class="panel-head">
+                <h2 id="mi02-title">Reports by Principal</h2>
+                <span class="meta">MI02</span>
+                <div class="panel-actions">
+                    <a class="btn btn--small" asp-page="/Administration/Reports" asp-page-handler="PrincipalCsv" asp-route-from="@from" asp-route-to="@to"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="metric-strip metric-strip--2" aria-label="Reports by Principal totals">
+                    <div class="metric"><span class="metric-label">Reports produced</span><span class="metric-value">@(Model.PrincipalActivity is { } mi02Totals ? mi02Totals.Rows.Sum(row => row.GeneratedArtifacts).ToString() : "Unavailable")</span></div>
+                    <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">@(Model.PrincipalActivity is { } mi02SentTotals ? mi02SentTotals.Rows.Sum(row => row.Sent).ToString() : "Unavailable")</span></div>
+                </div>
+                <div class="table-wrap section-gap">
+                    <table class="table table--compact">
+                        <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">Reports sent</th><th scope="col">Report types</th></tr></thead>
+                        <tbody>
+                        @if (Model.PrincipalActivity is { } mi02)
+                        {
+                            var mi02Rows = mi02.Rows.Where(row => row.GeneratedArtifacts > 0 || row.Sent > 0).ToArray();
+                            @foreach (var row in mi02Rows)
+                            {
+                                <tr>
+                                    <td class="mono">@row.PrincipalCode</td>
+                                    <td class="num tabular">@row.GeneratedArtifacts</td>
+                                    <td class="num tabular">@row.Sent</td>
+                                    <td>@string.Join(", ", row.ArtifactTypes.Where(type => type.Generated > 0).Select(type => $"{OperatorLabels.ReportKind(type.Kind)} {type.Generated}"))</td>
+                                </tr>
+                            }
+                            @if (mi02Rows.Length == 0) { <tr><td colspan="4" class="muted">No reports were recorded for this period.</td></tr> }
+                        }
+                        else
+                        {
+                            <tr><td colspan="4" class="muted">Unavailable</td></tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel" aria-labelledby="mi03-title">
+            <div class="panel-head">
+                <h2 id="mi03-title">Turnaround</h2>
+                <span class="meta">MI03</span>
+                <div class="panel-actions">
+                    <a class="btn btn--small" asp-page="/Administration/Reports" asp-page-handler="TurnaroundCsv" asp-route-from="@from" asp-route-to="@to"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="metric-strip" aria-label="Turnaround totals">
+                    <div class="metric"><span class="metric-label">Cases currently held</span><span class="metric-value">@(Model.PrincipalActivity is { } mi03Totals ? mi03Totals.Rows.Sum(row => row.CurrentHeldCases).ToString() : "Unavailable")</span></div>
+                </div>
+                <div class="table-wrap section-gap">
+                    <table class="table table--compact">
+                        <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Currently held</th><th scope="col">Oldest held since</th><th scope="col">Time to produce</th><th scope="col">Time to ready</th><th scope="col">Time to send</th></tr></thead>
+                        <tbody>
+                        @if (Model.PrincipalActivity is { } mi03)
+                        {
+                            var mi03Rows = mi03.Rows.Where(row =>
+                                row.CurrentHeldCases > 0
+                                || row.AverageReceivedToGeneration.HasValue
+                                || row.AverageReceivedToReady.HasValue
+                                || row.AverageReceivedToSent.HasValue).ToArray();
+                            @foreach (var row in mi03Rows)
+                            {
+                                <tr>
+                                    <td class="mono">@row.PrincipalCode</td>
+                                    <td class="num tabular">@row.CurrentHeldCases</td>
+                                    <td>@OperatorLabels.OfficeTime(row.OldestHeldAtUtc, "—")</td>
+                                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToGeneration, "—")</td>
+                                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToReady, "—")</td>
+                                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
+                                </tr>
+                            }
+                            @if (mi03Rows.Length == 0) { <tr><td colspan="6" class="muted">No holding or turnaround activity was recorded for this period.</td></tr> }
+                        }
+                        else
+                        {
+                            <tr><td colspan="6" class="muted">Unavailable</td></tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
     </div>
-</section>
-<section class="panel" aria-labelledby="mi02-title">
-    <div class="panel-head"><div><h2 id="mi02-title">Reports by Principal</h2><span class="muted">MI02</span></div></div>
-    <div class="panel-body">
-        <a class="btn" asp-page="/Administration/Reports" asp-page-handler="PrincipalCsv" asp-route-from="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" asp-route-to="@Model.To?.ToString("yyyy-MM-ddTHH:mm")">Download CSV</a>
-        <div class="metric-strip metric-strip--2 section-gap" aria-label="Reports by Principal totals">
-            <div class="metric"><span class="metric-label">Reports produced</span><span class="metric-value">@(Model.PrincipalActivity is { } mi02Totals ? mi02Totals.Rows.Sum(row => row.GeneratedArtifacts).ToString() : "Unavailable")</span></div>
-            <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">@(Model.PrincipalActivity is { } mi02SentTotals ? mi02SentTotals.Rows.Sum(row => row.Sent).ToString() : "Unavailable")</span></div>
-        </div>
-        <div class="table-wrap section-gap"><table><thead><tr><th>Principal</th><th>Reports produced</th><th>Reports sent</th><th>Report types</th></tr></thead><tbody>
-        @if (Model.PrincipalActivity is { } mi02)
-        {
-            var mi02Rows = mi02.Rows.Where(row => row.GeneratedArtifacts > 0 || row.Sent > 0).ToArray();
-            @foreach (var row in mi02Rows)
-            {
-                <tr>
-                    <td>@row.PrincipalCode</td>
-                    <td class="tabular">@row.GeneratedArtifacts</td>
-                    <td class="tabular">@row.Sent</td>
-                    <td>@string.Join(", ", row.ArtifactTypes.Where(type => type.Generated > 0).Select(type => $"{OperatorLabels.ReportKind(type.Kind)} {type.Generated}"))</td>
-                </tr>
-            }
-            @if (mi02Rows.Length == 0) { <tr><td colspan="4" class="muted">No reports were recorded for this period.</td></tr> }
-        }
-        else
-        {
-            <tr><td colspan="4" class="muted">Unavailable</td></tr>
-        }
-        </tbody></table></div>
-    </div>
-</section>
-<section class="panel" aria-labelledby="mi03-title">
-    <div class="panel-head"><div><h2 id="mi03-title">Turnaround</h2><span class="muted">MI03</span></div></div>
-    <div class="panel-body">
-        <a class="btn" asp-page="/Administration/Reports" asp-page-handler="TurnaroundCsv" asp-route-from="@Model.From?.ToString("yyyy-MM-ddTHH:mm")" asp-route-to="@Model.To?.ToString("yyyy-MM-ddTHH:mm")">Download CSV</a>
-        <div class="metric-strip section-gap" aria-label="Turnaround totals">
-            <div class="metric"><span class="metric-label">Cases currently held</span><span class="metric-value">@(Model.PrincipalActivity is { } mi03Totals ? mi03Totals.Rows.Sum(row => row.CurrentHeldCases).ToString() : "Unavailable")</span></div>
-        </div>
-        <div class="table-wrap section-gap"><table><thead><tr><th>Principal</th><th>Currently held</th><th>Oldest held since</th><th>Time to produce</th><th>Time to ready</th><th>Time to send</th></tr></thead><tbody>
-        @if (Model.PrincipalActivity is { } mi03)
-        {
-            var mi03Rows = mi03.Rows.Where(row =>
-                row.CurrentHeldCases > 0
-                || row.AverageReceivedToGeneration.HasValue
-                || row.AverageReceivedToReady.HasValue
-                || row.AverageReceivedToSent.HasValue).ToArray();
-            @foreach (var row in mi03Rows)
-            {
-                <tr>
-                    <td>@row.PrincipalCode</td>
-                    <td class="tabular">@row.CurrentHeldCases</td>
-                    <td>@OperatorLabels.OfficeTime(row.OldestHeldAtUtc, "—")</td>
-                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToGeneration, "—")</td>
-                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToReady, "—")</td>
-                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
-                </tr>
-            }
-            @if (mi03Rows.Length == 0) { <tr><td colspan="6" class="muted">No holding or turnaround activity was recorded for this period.</td></tr> }
-        }
-        else
-        {
-            <tr><td colspan="6" class="muted">Unavailable</td></tr>
-        }
-        </tbody></table></div>
-    </div>
-</section>
-</div></div>
+</div>

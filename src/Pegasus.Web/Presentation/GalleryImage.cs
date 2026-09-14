@@ -18,6 +18,10 @@ namespace Pegasus.Web.Presentation;
 /// <paramref name="IsStored"/> is false while the file is still on its way to
 /// durable custody: there is nothing to render yet, so the tile says so rather
 /// than pointing an <c>img</c> at a version that cannot be read.
+///
+/// <paramref name="IntakeAssetId"/> marks a pre-Case image (image record, Triage,
+/// Unidentified): the viewer then offers Crop (Apply / Clear / Cancel) and the
+/// Tag select, and <paramref name="Preparation"/> is what is already recorded.
 /// </summary>
 public sealed record GalleryImage(
     string Href,
@@ -25,4 +29,6 @@ public sealed record GalleryImage(
     string FileName,
     string MediaType,
     string? ThumbnailHref = null,
-    bool IsStored = true);
+    bool IsStored = true,
+    Guid? IntakeAssetId = null,
+    Pegasus.Core.ImageIntake.PreCaseImagePreparation? Preparation = null);

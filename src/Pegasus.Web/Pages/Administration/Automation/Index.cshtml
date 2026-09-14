@@ -15,6 +15,10 @@
         : OperatorLabels.AutomationAdmin.Start;
 }
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+}
+
 @* The rail is the way back, so the header carries the area name and nothing
    else. *@
 <partial name="Shared/_PageHeader" />
@@ -51,7 +55,7 @@
                         </dl>
                         <dl class="fact">
                             <dt>@OperatorLabels.AutomationAdmin.ClientIdentifier</dt>
-                            <dd>@registration.ClientId</dd>
+                            <dd class="mono">@registration.ClientId</dd>
                         </dl>
                         <dl class="fact">
                             <dt>@OperatorLabels.AutomationAdmin.GrantedScopes</dt>
@@ -82,15 +86,15 @@
                     @* The switch posts on its click. Stopping is the
                        destructive half, so only that direction carries the
                        danger styling and its consequence sentence. *@
-                    <form method="post" asp-page-handler="SetEnabled" class="button-row section-gap">
+                    <form method="post" asp-page-handler="SetEnabled" class="cluster mt-2">
                         <input type="hidden" name="TargetEnabled" value="@((!registration.IsEnabled).ToString())" />
                         <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
                         @if (registration.IsEnabled)
                         {
-                            <p class="muted">@OperatorLabels.AutomationAdmin.StopConsequence</p>
+                            <span class="muted">@OperatorLabels.AutomationAdmin.StopConsequence</span>
                         }
                         <button type="submit" class="btn @(registration.IsEnabled ? "btn--danger" : "btn--primary")">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
+                            <svg class="icon" aria-hidden="true"><use href="@(registration.IsEnabled ? "#icon-pause" : "#icon-play")" /></svg>
                             <span>@killSwitchLabel</span>
                         </button>
                     </form>
@@ -133,7 +137,7 @@
 
                     <form method="post" asp-page-handler="SaveAiSettings" class="section-gap stack" autocomplete="off">
                         <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
-                        <div class="grid grid-2">
+                        <div class="form-grid form-grid--3">
                             <div class="field">
                                 <label for="ai-channel-address">@OperatorLabels.AutomationAdmin.ChannelAddress</label>
                                 <input id="ai-channel-address" name="ChannelAddress" maxlength="200"
@@ -148,13 +152,13 @@
                                        step="1" value="@(Model.ChannelTimeoutSeconds ?? connector.TimeoutSeconds)" />
                                 <span asp-validation-for="ChannelTimeoutSeconds" class="field-validation-error"></span>
                             </div>
-                        </div>
-                        <div class="field">
-                            <label for="ai-channel-token">@OperatorLabels.AutomationAdmin.NewChannelToken</label>
-                            <input id="ai-channel-token" name="NewChannelToken" type="password"
-                                   minlength="@AiChannelConnectorRules.MinimumTokenLength"
-                                   maxlength="200" autocomplete="new-password" />
-                            <span asp-validation-for="NewChannelToken" class="field-validation-error"></span>
+                            <div class="field">
+                                <label for="ai-channel-token">@OperatorLabels.AutomationAdmin.NewChannelToken</label>
+                                <input id="ai-channel-token" name="NewChannelToken" type="password"
+                                       minlength="@AiChannelConnectorRules.MinimumTokenLength"
+                                       maxlength="200" autocomplete="new-password" />
+                                <span asp-validation-for="NewChannelToken" class="field-validation-error"></span>
+                            </div>
                         </div>
                         @* asp-for writes the unchecked fallback beside the box,
                            so a cleared checkbox reaches the handler as false. *@
@@ -162,11 +166,7 @@
                             <input asp-for="SendToAiEnabled" type="checkbox" />
                             <span>@OperatorLabels.AutomationAdmin.SendToAiEnabled</span>
                         </label>
-                        <div class="button-row">
-                            <button type="submit" class="btn btn--primary">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                                <span>@OperatorLabels.AutomationAdmin.Save</span>
-                            </button>
+                        <div class="cluster admin-actions-end">
                             @if (connector.TokenHeld)
                             {
                                 <button type="submit" formaction="?handler=ClearChannelToken" formnovalidate class="btn btn--danger">
@@ -174,6 +174,10 @@
                                     <span>@OperatorLabels.AutomationAdmin.RemoveChannelToken</span>
                                 </button>
                             }
+                            <button type="submit" class="btn btn--primary">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                                <span>@OperatorLabels.AutomationAdmin.Save</span>
+                            </button>
                         </div>
                     </form>
                 </div>

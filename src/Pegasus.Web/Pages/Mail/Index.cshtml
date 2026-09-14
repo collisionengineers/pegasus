@@ -17,7 +17,9 @@
     var rowHandler = Model.Dismissed ? "Restore" : "Dismiss";
 }
 
-<link rel="stylesheet" href="~/css/inbox.css" asp-append-version="true" />
+@section Styles {
+    <link rel="stylesheet" href="~/css/inbox.css" asp-append-version="true" />
+}
 
 @* No lede. The filter bar, the rows and the freshness element are the explanation. *@
 <header class="page-header">

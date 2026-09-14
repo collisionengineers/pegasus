@@ -175,6 +175,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         // entities backing the Automation Actor client-credentials ingress.
         builder.UseOpenIddict();
         CustodyModelConfiguration.Configure(builder);
+        PreCaseImagePreparationModelConfiguration.Configure(builder);
         MailboxModelConfiguration.Configure(builder);
         AuditIdentityModelConfiguration.Configure(builder);
         AdministrationPolicyModelConfiguration.Configure(builder);

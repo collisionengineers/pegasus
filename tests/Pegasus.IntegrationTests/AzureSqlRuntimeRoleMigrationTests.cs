@@ -493,8 +493,11 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 .Where(value => value.StartsWith("ImageTags:", StringComparison.Ordinal)
                     || value.StartsWith("DocumentOccurrenceTags:", StringComparison.Ordinal))
                 .ToArray());
+        // The Worker inserts occurrence tags when it carries a pre-Case image's
+        // tags onto the Case (20260914091000_PreCaseImagePreparation); it still
+        // never deletes them.
         Assert.Equal(
-            ["DocumentOccurrenceTags:SELECT", "ImageTags:SELECT"],
+            ["DocumentOccurrenceTags:INSERT", "DocumentOccurrenceTags:SELECT", "ImageTags:SELECT"],
             (await ReadGrantedPermissionsAsync(database, WorkerRole))
                 .Where(value => value.StartsWith("ImageTags:", StringComparison.Ordinal)
                     || value.StartsWith("DocumentOccurrenceTags:", StringComparison.Ordinal))

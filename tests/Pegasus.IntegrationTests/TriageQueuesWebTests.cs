@@ -424,7 +424,6 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.DoesNotContain("blocked-file.msg", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Blocked intake", html, StringComparison.Ordinal);
-        Assert.DoesNotContain($"/Received/{blocked.Id:D}", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Open received item", html, StringComparison.Ordinal);
 
         // Zero open Unidentified items: the scope count reads zero.

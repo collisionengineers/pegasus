@@ -1,57 +1,92 @@
 @page
 @using Pegasus.Core.AiWork
 @model Pegasus.Web.Pages.Administration.AiJobsModel
-@{ ViewData["Title"] = "AI jobs"; ViewData["Eyebrow"] = "Administration"; }
+@{
+    ViewData["Title"] = "AI jobs";
+    ViewData["Eyebrow"] = "Administration";
+    ViewData["AdminArea"] = "ai-jobs";
+    var counts = Model.Result.Counts;
+    var channel = Model.Result.TransportComposed
+        ? (Model.Result.SendToAiSwitchEnabled ? "Active" : "Stopped")
+        : "Unavailable";
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+}
 <partial name="Shared/_PageHeader" />
-<div class="admin-layout"><partial name="Shared/_AdminNav" /><div class="stack">
-@if (Model.StatusMessage is { } message) { <div class="notice" role="status">@message</div> }
-<section class="panel"><div class="panel-head"><h2>AI jobs</h2><span class="muted">@Model.Result.Counts.Active active · @Model.Result.Counts.Failed failed · @(Model.Result.TransportComposed ? (Model.Result.SendToAiSwitchEnabled ? "Active" : "Stopped") : "Unavailable")</span></div>
-<div class="panel-body"><div class="table-wrap"><table><thead><tr><th>Job</th><th>Subject</th><th>Created</th><th>State</th><th>Action</th></tr></thead><tbody>
-@foreach (var job in Model.Result.Jobs)
-{
-    <tr>
-        <td>@OperatorLabels.AiJobs.Kind(job.Kind)</td>
-        <td>@(job.SubjectKind == AiJobSubjectKind.Queue ? OperatorLabels.AiJobs.QueueRecord : job.SubjectReference)</td>
-        <td>@OperatorLabels.OfficeTime(job.CreatedAtUtc, "")</td>
-        <td><partial name="Shared/_StatusChip"
-                     model="@OperatorLabels.AiJobs.State(job.State)"
-                     view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateToneOverride(job.State) }' /></td>
-        <td>
-            @if (!AiJobStates.IsTerminal(job.State))
-            {
-                <form method="post" asp-page-handler="Stop">
-                    <input type="hidden" name="jobId" value="@job.JobId" />
-                    <input type="hidden" name="expectedVersion" value="@job.Version" />
-                    <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-                    <input type="hidden" name="pageNumber" value="@Model.CurrentPage" />
-                    <button class="btn btn--small btn--danger" type="submit">Stop</button>
-                </form>
-            }
-            else
-            {
-                <span>—</span>
-            }
-        </td>
-    </tr>
-}
-@if (Model.Result.Jobs.Count == 0)
-{
-    <tr><td colspan="5" class="muted">No AI jobs are recorded.</td></tr>
-}
-</tbody></table></div>
-@if (Model.CurrentPage > 1 || Model.Result.HasMore)
-{
-    <nav class="pagination" aria-label="AI job pages">
-        @if (Model.CurrentPage > 1)
+<div class="admin-layout">
+    <partial name="Shared/_AdminNav" />
+    <div class="stack">
+        @if (Model.StatusMessage is { } message)
         {
-            <a class="btn btn--small" asp-page="/Administration/AiJobs" asp-route-pageNumber="@(Model.CurrentPage - 1)">Previous</a>
+            <div class="notice" role="status"><span>@message</span></div>
         }
-        <span>Page @Model.CurrentPage</span>
-        @if (Model.Result.HasMore)
-        {
-            <a class="btn btn--small" asp-page="/Administration/AiJobs" asp-route-pageNumber="@(Model.CurrentPage + 1)">Next</a>
-        }
-    </nav>
-}
-</div></section>
-</div></div>
+        <section class="panel" aria-labelledby="ai-jobs-title">
+            <div class="panel-head">
+                <h2 id="ai-jobs-title">AI jobs</h2>
+                <span class="meta" data-ai-jobs-counts>@counts.Active active · @counts.Failed failed · @channel</span>
+            </div>
+            <div class="table-wrap no-border">
+                <table class="table table--compact" data-admin-ai-jobs>
+                    <caption class="sr-only">AI jobs</caption>
+                    <thead><tr><th scope="col">Job</th><th scope="col">Subject</th><th scope="col">Created</th><th scope="col">State</th><th scope="col">Action</th></tr></thead>
+                    <tbody>
+                    @foreach (var job in Model.Result.Jobs)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@OperatorLabels.AiJobs.Kind(job.Kind)</strong>
+                                @if (!string.IsNullOrWhiteSpace(job.Instruction))
+                                {
+                                    <small class="admin-job-detail">@job.Instruction</small>
+                                }
+                            </td>
+                            <td class="mono">@(job.SubjectKind == AiJobSubjectKind.Queue ? OperatorLabels.AiJobs.QueueRecord : job.SubjectReference)</td>
+                            <td class="nowrap">@OperatorLabels.OfficeTime(job.CreatedAtUtc, "")</td>
+                            <td><partial name="Shared/_StatusChip"
+                                         model="@OperatorLabels.AiJobs.State(job.State)"
+                                         view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateToneOverride(job.State) }' /></td>
+                            <td class="row-actions">
+                                @if (!AiJobStates.IsTerminal(job.State))
+                                {
+                                    <form method="post" asp-page-handler="Stop">
+                                        <input type="hidden" name="jobId" value="@job.JobId" />
+                                        <input type="hidden" name="expectedVersion" value="@job.Version" />
+                                        <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+                                        <input type="hidden" name="pageNumber" value="@Model.CurrentPage" />
+                                        <button class="btn btn--small btn--danger" type="submit">Stop</button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <span class="muted">—</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (Model.Result.Jobs.Count == 0)
+                    {
+                        <tr><td colspan="5" class="muted">No AI jobs are recorded.</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            @if (Model.CurrentPage > 1 || Model.Result.HasMore)
+            {
+                <div class="panel-foot">
+                    <nav class="pagination" aria-label="AI job pages">
+                        @if (Model.CurrentPage > 1)
+                        {
+                            <a class="btn btn--small" asp-page="/Administration/AiJobs" asp-route-pageNumber="@(Model.CurrentPage - 1)">Previous</a>
+                        }
+                        <span>Page @Model.CurrentPage</span>
+                        @if (Model.Result.HasMore)
+                        {
+                            <a class="btn btn--small" asp-page="/Administration/AiJobs" asp-route-pageNumber="@(Model.CurrentPage + 1)">Next</a>
+                        }
+                    </nav>
+                </div>
+            }
+        </section>
+    </div>
+</div>

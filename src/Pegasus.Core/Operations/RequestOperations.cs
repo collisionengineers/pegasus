@@ -55,6 +55,12 @@ public sealed record RequestOperationProjection(
     DateTimeOffset? CaseEditLeaseExpiresAtUtc)
 {
     public CaseEditLeaseSnapshot? ActiveEditLease { get; init; }
+
+    /// <summary>Who an upload link was issued to, when the link recorded one.</summary>
+    public string? Recipient { get; init; }
+
+    /// <summary>When an upload link was created.</summary>
+    public DateTimeOffset? CreatedAtUtc { get; init; }
 }
 
 public sealed record RequestOperationsProjection(

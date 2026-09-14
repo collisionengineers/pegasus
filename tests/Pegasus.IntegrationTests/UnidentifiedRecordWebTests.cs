@@ -29,7 +29,6 @@ public sealed class UnidentifiedRecordWebTests
         Assert.Contains("data-unidentified-state=\"open\"", html, StringComparison.Ordinal);
         Assert.Contains("data-unidentified-action=\"close\"", html, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Received/{receiptId:D}/Source\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain($"href=\"/Received/{receiptId:D}\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("View file", html, StringComparison.Ordinal);
     }
 

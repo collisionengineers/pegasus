@@ -104,10 +104,9 @@ public sealed class WorkCentreWebTests
 
         var html = await GetOkAsync(client, "/?kind=held&kind=triage");
 
-        var filtered = Assert.Single(snapshot.Queries, query => query.Kinds is { Count: > 0 });
+        // One read: Core counts the chips over the scope before the kind filter.
+        var filtered = Assert.Single(snapshot.Queries);
         Assert.Equal([NeedsAttentionKind.HeldDecision, NeedsAttentionKind.Triage], filtered.Kinds!.ToArray());
-        // The chip counts come from the scope before the filter.
-        Assert.Contains(snapshot.Queries, query => query.Kinds is null);
         Assert.Matches("data-wc-kind=\"held\">Held<span class=\"n\">3</span>", html);
         Assert.Matches("data-wc-kind=\"triage\">Triage<span class=\"n\">5</span>", html);
         Assert.Contains("class=\"chip on\"", html, StringComparison.Ordinal);
@@ -364,9 +363,8 @@ public sealed class WorkCentreWebTests
             }
 
             var total = TotalCountOverride ?? Items.Length;
-            var counts = query.Kinds is null && UnfilteredKindCounts is not null
-                ? UnfilteredKindCounts
-                : Enum.GetValues<NeedsAttentionKind>().ToDictionary(kind => kind, kind => Items.Count(item => item.Kind == kind));
+            var counts = UnfilteredKindCounts
+                ?? Enum.GetValues<NeedsAttentionKind>().ToDictionary(kind => kind, kind => Items.Count(item => item.Kind == kind));
             var page = new NeedsAttentionPage(Items, query.Page, GetOperationsSnapshot.PageSize, total, counts, OverdueCount, TodayCount, LaterCount);
             return Task.FromResult(new OperationsSnapshot(Now, new IntakeQueueCounts(0, 0), 0, 0, [], new CaseStageCounts(1, 2, 3, 0), Items)
             {

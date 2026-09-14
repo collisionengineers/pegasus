@@ -12,7 +12,9 @@
         : Html.Raw(string.Empty);
 }
 
-<link rel="stylesheet" href="~/css/work-centre.css" asp-append-version="true" />
+@section Styles {
+    <link rel="stylesheet" href="~/css/work-centre.css" asp-append-version="true" />
+}
 
 <div class="work-centre" data-work-centre data-wc-scope="@IndexModel.ScopeSlug(Model.Scope)" data-wc-scope-named="@(Model.ScopeNamed ? "true" : "false")" @sinceAttribute>
 <header class="page-header">

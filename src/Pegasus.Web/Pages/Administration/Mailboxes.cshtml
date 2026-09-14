@@ -46,7 +46,7 @@
                 </button>
             </div>
             <div class="table-wrap no-border">
-                <table class="mailbox-table">
+                <table class="table table--compact mailbox-table">
                     <caption class="sr-only">@OperatorLabels.MailSettings.ApprovedMailboxes</caption>
                     <thead>
                         <tr>
@@ -69,7 +69,7 @@
                             <tr>
                                 <td><strong>@mailbox.Address</strong></td>
                                 <td>@string.Join(", ", mailbox.RouteScopes.Select(OperatorLabels.RouteScope))</td>
-                                <td>@Model.PollStatusFor(mailbox)</td>
+                                <td class="nowrap">@Model.PollStatusFor(mailbox)</td>
                                 <td><partial name="Shared/_StatusChip" model="@OperatorLabels.MailSettings.MailboxState(mailbox.State)" /></td>
                                 <td>
                                     <form method="post" asp-page-handler="EditMailbox">
@@ -100,10 +100,10 @@
         <section class="panel" aria-labelledby="mail-categories-title">
             <div class="panel-head">
                 <h2 id="mail-categories-title">@OperatorLabels.MailSettings.MailCategories</h2>
-                <button type="button" class="btn btn--dark" data-dialog-open="add-mail-category-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>@OperatorLabels.MailSettings.AddCategory</span></button>
+                <button type="button" class="btn btn--small btn--dark" data-dialog-open="add-mail-category-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>@OperatorLabels.MailSettings.AddCategory</span></button>
             </div>
             <div class="table-wrap no-border">
-                <table>
+                <table class="table table--compact">
                     <caption class="sr-only">@OperatorLabels.MailSettings.MailCategories</caption>
                     <thead>
                         <tr>
@@ -124,7 +124,7 @@
                             var displayNameId = $"category-display-name-{category.Id}";
                             var stateId = $"category-state-{category.Id}";
                             <tr>
-                                <td>@category.DisplayName</td>
+                                <td><strong>@category.DisplayName</strong></td>
                                 <td><partial name="Shared/_StatusChip" model="@OperatorLabels.MailSettings.CategoryState(category.State)" /></td>
                                 <td>
                                     <details>

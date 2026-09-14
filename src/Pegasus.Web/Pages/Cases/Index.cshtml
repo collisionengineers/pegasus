@@ -22,7 +22,9 @@
     var noun = isCaseScope || Model.Queue == "awaiting" ? "case" : "item";
 }
 
-<link rel="stylesheet" href="~/css/cases-index.css" asp-append-version="true" />
+@section Styles {
+    <link rel="stylesheet" href="~/css/cases-index.css" asp-append-version="true" />
+}
 
 <header class="page-header">
     <div class="page-title">

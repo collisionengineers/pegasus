@@ -17,7 +17,13 @@ public enum IntakeLogOutcome
     VehicleImages,
     CouldNotBeRead,
     ProcessingFailed,
-    Closed
+    Closed,
+
+    /// <summary>The last allocation attempt failed and can be retried (Retry allocation).</summary>
+    AllocationFailed,
+
+    /// <summary>The last OCR attempt failed (Retry OCR).</summary>
+    OcrFailed
 }
 
 /// <summary>What the receipt became: the Case, Unidentified item, Triage or Image intake it produced.</summary>
@@ -53,7 +59,11 @@ public sealed record IntakeLogRow(
     string? OutcomeReason,
     IntakeLogBecame? Became,
     int ProcessingAttempts,
-    int AllocationAttempts);
+    int AllocationAttempts)
+{
+    /// <summary>The retained message the item came in, so the drawer offers Open message beside Open file.</summary>
+    public Guid? MessageId { get; init; }
+}
 
 public sealed record IntakeLogFilter(
     IntakeLogOutcome? Outcome = null,
@@ -112,15 +122,23 @@ public static class IntakeLogPolicy
     /// The outcome a receipt reads as. A receipt whose Unidentified item was
     /// closed with a reason reads Closed; an unreadable file reads Could not be
     /// read; a processing failure that never produced a decision reads
-    /// Processing failed.
+    /// Processing failed. The two actionable failures read as themselves, each
+    /// with its own retry: a retryable failed last allocation reads Allocation
+    /// failed, and a failed last OCR attempt reads OCR failed.
     /// </summary>
     public static IntakeLogOutcome Outcome(
         IntakeDecision decision,
         bool triageOpened,
         bool unidentifiedClosed,
-        bool processingFailed) =>
+        bool processingFailed,
+        bool allocationFailed = false,
+        bool ocrFailed = false) =>
         processingFailed && decision == IntakeDecision.TechnicalFailure
             ? IntakeLogOutcome.ProcessingFailed
+            : allocationFailed
+            ? IntakeLogOutcome.AllocationFailed
+            : ocrFailed
+            ? IntakeLogOutcome.OcrFailed
             : decision switch
             {
                 IntakeDecision.CaseCreated => IntakeLogOutcome.CaseCreated,

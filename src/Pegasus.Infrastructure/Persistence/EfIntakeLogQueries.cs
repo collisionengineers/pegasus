@@ -97,15 +97,29 @@ internal sealed class EfIntakeLogQueries(
                     .Select(unidentified => new ProducedUnidentified(unidentified.Id, unidentified.Reference, unidentified.State, unidentified.ResolutionTargetKind)).FirstOrDefault(),
                 context.IntakeWorkItems.Where(work => work.ProcessedReceiptId == item.Id).Select(work => work.AttemptCount).FirstOrDefault(),
                 context.IntakeWorkItems.Any(work => work.ProcessedReceiptId == item.Id && work.State == "failed"),
-                context.IntakeAllocationAttempts.Count(attempt => attempt.IntakeReceiptId == item.Id)))
+                context.IntakeAllocationAttempts.Count(attempt => attempt.IntakeReceiptId == item.Id),
+                context.IntakeAllocationAttempts.Where(attempt => attempt.IntakeReceiptId == item.Id)
+                    .OrderByDescending(attempt => attempt.AttemptNumber)
+                    .Select(attempt => attempt.Status)
+                    .FirstOrDefault(),
+                context.IntakeAllocationAttempts.Where(attempt => attempt.IntakeReceiptId == item.Id)
+                    .OrderByDescending(attempt => attempt.AttemptNumber)
+                    .Select(attempt => attempt.RecoveryDisposition)
+                    .FirstOrDefault(),
+                (from asset in context.Set<IntakeAssetEntity>()
+                 join operation in context.Set<IntakeOcrOperationEntity>() on asset.Id equals operation.IntakeAssetId
+                 join work in context.ExternalWorkItems on operation.Id equals work.Id
+                 where asset.IntakeReceiptId == item.Id
+                 orderby work.DueAtUtc descending, operation.Id
+                 // A Failed attempt already re-queued by a person reads as Pending
+                 // (EfIntakeOcrOperationStore.EffectiveState).
+                 select operation.State == nameof(IntakeOcrState.Failed) && work.State != ExternalWorkStatePersistence.Failed
+                     ? nameof(IntakeOcrState.Pending)
+                     : operation.State).FirstOrDefault()))
             .ToListAsync(cancellationToken);
 
         var composed = candidates
-            .Select(candidate => (Candidate: candidate, Outcome: IntakeLogPolicy.Outcome(
-                EfIntakeReceiptStore.ParseDecision(candidate.Decision),
-                candidate.Triage is not null,
-                candidate.Unidentified is { State: nameof(UnidentifiedState.Resolved), ResolutionTargetKind: nameof(UnidentifiedResolutionTargetKind.Closed) },
-                candidate.ProcessingFailed)))
+            .Select(candidate => (Candidate: candidate, Outcome: ComposeOutcome(candidate)))
             .Where(entry => filter.Outcome is null || entry.Outcome == filter.Outcome)
             .ToArray();
         var pageEntries = composed.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
@@ -148,13 +162,7 @@ internal sealed class EfIntakeLogQueries(
                 .ToListAsync(cancellationToken))
             .Select(item => IntakeAllocationState.FromAttempt(EfIntakeAllocationStore.Map(item)))
             .ToArray();
-        var ocrFailed = await (
-                from asset in context.Set<IntakeAssetEntity>().AsNoTracking()
-                join operation in context.Set<IntakeOcrOperationEntity>().AsNoTracking()
-                    on asset.Id equals operation.IntakeAssetId
-                where asset.IntakeReceiptId == receiptId && operation.State == nameof(IntakeOcrState.Failed)
-                select operation.Id)
-            .AnyAsync(cancellationToken);
+        var lastOcr = await EfIntakeOcrOperationStore.FindLastForReceiptAsync(context, receiptId, cancellationToken);
         var readings = ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
             ? await vrmSuggestions.ListForReceiptAsync(receiptId, cancellationToken)
             : [];
@@ -166,7 +174,10 @@ internal sealed class EfIntakeLogQueries(
             new IntakeLogActions(
                 CanReevaluate: true,
                 CanRetryAllocation: attempts.LastOrDefault()?.CanRetry == true,
-                CanRetryOcr: ocrFailed || receipt.Decision == IntakeDecision.OcrRequired));
+                CanRetryOcr: IntakeOcrRetryPolicy.CanRetry(
+                    lastOcr is { } ocr
+                        ? EfIntakeOcrOperationStore.EffectiveState(ocr.Operation.State, ocr.WorkItem.State)
+                        : null)));
     }
 
     private async Task<IntakeLogRow?> RowForAsync(Guid receiptId, CancellationToken cancellationToken)
@@ -190,18 +201,32 @@ internal sealed class EfIntakeLogQueries(
                     .Select(unidentified => new ProducedUnidentified(unidentified.Id, unidentified.Reference, unidentified.State, unidentified.ResolutionTargetKind)).FirstOrDefault(),
                 context.IntakeWorkItems.Where(work => work.ProcessedReceiptId == item.Id).Select(work => work.AttemptCount).FirstOrDefault(),
                 context.IntakeWorkItems.Any(work => work.ProcessedReceiptId == item.Id && work.State == "failed"),
-                context.IntakeAllocationAttempts.Count(attempt => attempt.IntakeReceiptId == item.Id)))
+                context.IntakeAllocationAttempts.Count(attempt => attempt.IntakeReceiptId == item.Id),
+                context.IntakeAllocationAttempts.Where(attempt => attempt.IntakeReceiptId == item.Id)
+                    .OrderByDescending(attempt => attempt.AttemptNumber)
+                    .Select(attempt => attempt.Status)
+                    .FirstOrDefault(),
+                context.IntakeAllocationAttempts.Where(attempt => attempt.IntakeReceiptId == item.Id)
+                    .OrderByDescending(attempt => attempt.AttemptNumber)
+                    .Select(attempt => attempt.RecoveryDisposition)
+                    .FirstOrDefault(),
+                (from asset in context.Set<IntakeAssetEntity>()
+                 join operation in context.Set<IntakeOcrOperationEntity>() on asset.Id equals operation.IntakeAssetId
+                 join work in context.ExternalWorkItems on operation.Id equals work.Id
+                 where asset.IntakeReceiptId == item.Id
+                 orderby work.DueAtUtc descending, operation.Id
+                 // A Failed attempt already re-queued by a person reads as Pending
+                 // (EfIntakeOcrOperationStore.EffectiveState).
+                 select operation.State == nameof(IntakeOcrState.Failed) && work.State != ExternalWorkStatePersistence.Failed
+                     ? nameof(IntakeOcrState.Pending)
+                     : operation.State).FirstOrDefault()))
             .SingleOrDefaultAsync(cancellationToken);
         if (candidate is null)
         {
             return null;
         }
 
-        var outcome = IntakeLogPolicy.Outcome(
-            EfIntakeReceiptStore.ParseDecision(candidate.Decision),
-            candidate.Triage is not null,
-            candidate.Unidentified is { State: nameof(UnidentifiedState.Resolved), ResolutionTargetKind: nameof(UnidentifiedResolutionTargetKind.Closed) },
-            candidate.ProcessingFailed);
+        var outcome = ComposeOutcome(candidate);
         var rows = await MapRowsAsync(context, [(candidate, outcome)], cancellationToken);
         return rows.Single();
     }
@@ -220,7 +245,7 @@ internal sealed class EfIntakeLogQueries(
         var tokens = entries.Select(entry => entry.Candidate.ExternalReceiptToken).Distinct().ToArray();
         var messages = await context.RetainedMailboxMessages.AsNoTracking()
             .Where(item => tokens.Contains(item.ExternalReceiptToken))
-            .Select(item => new { item.ExternalReceiptToken, item.MailboxAddress, item.SenderAddress, item.Subject })
+            .Select(item => new { item.Id, item.ExternalReceiptToken, item.MailboxAddress, item.SenderAddress, item.Subject })
             .ToListAsync(cancellationToken);
         var messagesByToken = messages.GroupBy(item => item.ExternalReceiptToken).ToDictionary(group => group.Key, group => group.First());
         var uploaders = await context.Set<IntakeStagedReceiptEntity>().AsNoTracking()
@@ -286,7 +311,10 @@ internal sealed class EfIntakeLogQueries(
                     : null,
                 became,
                 Math.Max(candidate.ProcessingAttempts, 1),
-                candidate.AllocationAttempts);
+                candidate.AllocationAttempts)
+            {
+                MessageId = message?.Id
+            };
         }).ToArray();
     }
 
@@ -309,5 +337,32 @@ internal sealed class EfIntakeLogQueries(
         ProducedUnidentified? Unidentified,
         int ProcessingAttempts,
         bool ProcessingFailed,
-        int AllocationAttempts);
+        int AllocationAttempts,
+        string? LastAllocationStatus,
+        string? LastAllocationDisposition,
+        string? LastOcrState);
+
+    /// <summary>
+    /// The outcome through Core's one rule, with the two actionable failures
+    /// judged by their own owners: allocation retry by
+    /// <see cref="IntakeAllocationState.CanRetry"/>, OCR retry by
+    /// <see cref="IntakeOcrRetryPolicy"/>.
+    /// </summary>
+    private static IntakeLogOutcome ComposeOutcome(Candidate candidate) =>
+        IntakeLogPolicy.Outcome(
+            EfIntakeReceiptStore.ParseDecision(candidate.Decision),
+            candidate.Triage is not null,
+            candidate.Unidentified is { State: nameof(UnidentifiedState.Resolved), ResolutionTargetKind: nameof(UnidentifiedResolutionTargetKind.Closed) },
+            candidate.ProcessingFailed,
+            allocationFailed: candidate.LastAllocationStatus == "failed"
+                && new IntakeAllocationState(
+                    Guid.Empty,
+                    IntakeAllocationProjectionStatus.FailedRecoverable,
+                    null,
+                    candidate.ReceivedAtUtc,
+                    RecoveryDisposition: candidate.LastAllocationDisposition is { } disposition
+                        ? EfIntakeAllocationStore.ParseRecoveryDisposition(disposition)
+                        : null).CanRetry,
+            ocrFailed: IntakeOcrRetryPolicy.CanRetry(
+                candidate.LastOcrState is { } state ? Enum.Parse<IntakeOcrState>(state) : null));
 }
