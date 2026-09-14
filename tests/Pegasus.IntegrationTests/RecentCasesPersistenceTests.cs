@@ -7,6 +7,8 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class RecentCasesPersistenceTests
 {
+    private static readonly string[] ExpectedAutomationChangeKinds =
+        ["operator_note", "case_field_updated", "audit_case_created"];
     private static readonly DateTimeOffset Since =
         new(2031, 5, 1, 9, 0, 0, TimeSpan.Zero);
 
@@ -32,7 +34,7 @@ public sealed class RecentCasesPersistenceTests
         Assert.Equal(CaseArrival.Manual, Assert.Single(second.Items, item => item.CaseId == ids.Guidance).Arrival);
         Assert.All(
             first.Items.Concat(second.Items).Where(item => item.Kind == RecentCaseRowKind.ChangedByAutomation),
-            item => Assert.Contains(item.ChangeKind, new[] { "operator_note", "case_field_updated", "audit_case_created" }));
+            item => Assert.Contains(item.ChangeKind, ExpectedAutomationChangeKinds));
         Assert.DoesNotContain(
             first.Items.Concat(second.Items).Concat(third.Items),
             item => item.Kind == RecentCaseRowKind.ChangedByAutomation
@@ -95,7 +97,7 @@ public sealed class RecentCasesPersistenceTests
 
     private static CaseEntity Case(
         Guid id,
-        PrincipalEntity principal,
+        SeededPrincipalTestData principal,
         int sequence,
         DateTimeOffset createdAtUtc,
         Guid? originReceiptId = null) => new()
