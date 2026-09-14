@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -64,7 +65,7 @@ public sealed partial class CaseDetailsWebTests
         var overview = OverviewPanel(html);
 
         Assert.Contains("Fact circumstances", overview, StringComparison.Ordinal);
-        Assert.Contains("<dt>Incident date</dt>", overview, StringComparison.Ordinal);
+        Assert.Contains("<label for=\"f-incident-date\">Incident date</label>", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Incident detail", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("Confirmed make Fact model", overview, StringComparison.Ordinal);
         Assert.DoesNotContain("AB12CDE", overview, StringComparison.Ordinal);
@@ -72,11 +73,11 @@ public sealed partial class CaseDetailsWebTests
         // WP6: while the lease is held the vehicle's identity is edited where
         // it is read, still through the record's one Save form.
         Assert.Contains(
-            "id=\"edit-make\" name=\"vehicleMake\" form=\"case-edit-form\" maxlength=\"100\" value=\"Confirmed make\"",
+            "id=\"edit-make\" class=\"fi\" name=\"vehicleMake\" form=\"case-edit-form\" maxlength=\"100\" value=\"Confirmed make\"",
             html,
             StringComparison.Ordinal);
         Assert.Contains(
-            "id=\"edit-model\" name=\"vehicleModel\" form=\"case-edit-form\" maxlength=\"100\" value=\"Fact model\"",
+            "id=\"edit-model\" class=\"fi\" name=\"vehicleModel\" form=\"case-edit-form\" maxlength=\"100\" value=\"Fact model\"",
             html,
             StringComparison.Ordinal);
     }
@@ -138,7 +139,7 @@ public sealed partial class CaseDetailsWebTests
             "Vehicle?handler=RequestVehicleLookup",
             workspace.MutationForm("request-lookup", "Registration on the instruction", ("registration", "AB12 CDE")));
 
-        AssertPrg(requested, store.CaseId);
+        AssertPrg(requested, store.CaseId, "?section=vehicle");
 
         var lookup = Assert.Single(store.LookupRequests);
         AssertClaimant(workspace, lookup.Actor);
@@ -227,12 +228,19 @@ public sealed partial class CaseDetailsWebTests
 
         var html = await ReadOnlyVehicleSectionAsync(store);
 
-        Assert.Equal(1, CountOccurrences(html, "49,089 Miles"));
-        Assert.Contains("<dt>Mileage</dt><dd>49,089 Miles", html, StringComparison.Ordinal);
-        Assert.Contains("aria-label=\"Lookup\"", html, StringComparison.Ordinal);
+        var mileage = MileageCell(html);
+
+        // v26: one odometer figure in the mileage cell, its provenance as a
+        // text tag beside it, and the Mileage source cell reading the same word.
+        Assert.Equal(1, CountOccurrences(html, "49,089"));
+        Assert.Contains("49,089 mi", mileage, StringComparison.Ordinal);
+        Assert.Contains(
+            "<span class=\"src-tag src-tag--lookup\" data-vehicle-mileage-source-read>Lookup</span>",
+            mileage,
+            StringComparison.Ordinal);
         Assert.DoesNotContain("MOT mileage", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Mileage source", html, StringComparison.Ordinal);
         Assert.DoesNotContain("DVLA suggests", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"vehicleMileageSource\"", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -257,10 +265,12 @@ public sealed partial class CaseDetailsWebTests
 
         var html = await ReadOnlyVehicleSectionAsync(store);
 
-        Assert.Contains("<dt>Make</dt><dd>Ford", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>Model</dt><dd>Transit", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>Year</dt><dd>2018", html, StringComparison.Ordinal);
-        Assert.True(CountOccurrences(html, "aria-label=\"Lookup\"") >= 3);
+        // v26: the value cell carries the lookup's text tag rather than an icon.
+        const string lookupTag = "<span class=\"src-tag src-tag--lookup\" data-provenance-word=\"Lookup\">Lookup</span>";
+        Assert.Matches(">Ford\\s*" + Regex.Escape(lookupTag), html);
+        Assert.Matches(">Transit\\s*" + Regex.Escape(lookupTag), html);
+        Assert.Matches(">2018\\s*" + Regex.Escape(lookupTag), html);
+        Assert.True(CountOccurrences(html, "data-provenance-word=\"Lookup\"") >= 3);
     }
 
     /// <summary>
@@ -282,10 +292,10 @@ public sealed partial class CaseDetailsWebTests
             $"/Cases/{staffStore.CaseId:D}?section=vehicle");
 
         Assert.Contains(
-            "id=\"edit-mileage-source\" name=\"vehicleMileageSource\" form=\"case-edit-form\"",
+            "<select id=\"edit-mileage-source\" class=\"fi\" name=\"vehicleMileageSource\" form=\"case-edit-form\">",
             staffHtml,
             StringComparison.Ordinal);
-        Assert.Contains("aria-label=\"Mileage source\"", staffHtml, StringComparison.Ordinal);
+        Assert.Contains("<label for=\"edit-mileage-source\">Mileage source</label>", staffHtml, StringComparison.Ordinal);
         foreach (var code in CaseVehicleMileageSourcePolicy.StaffChoices)
         {
             Assert.Contains(
@@ -330,23 +340,26 @@ public sealed partial class CaseDetailsWebTests
 
         var readOnly = await ReadOnlyVehicleSectionAsync(store);
 
-        Assert.Contains("class=\"field vehicle-history\"", readOnly, StringComparison.Ordinal);
-        Assert.Contains("id=\"case-vehicle-history-title\"", readOnly, StringComparison.Ordinal);
-        Assert.Contains("Vehicle history", readOnly, StringComparison.Ordinal);
+        Assert.Contains("data-vehicle-history>", readOnly, StringComparison.Ordinal);
+        Assert.Contains("<h3>Vehicle history", readOnly, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"edit-vehicle-history\"", readOnly, StringComparison.Ordinal);
 
         using var workspace = await EnterEditModeAsync(store, _ => { });
         var editing = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
 
-        Assert.Contains("class=\"field vehicle-history\"", editing, StringComparison.Ordinal);
-        Assert.Contains("id=\"case-vehicle-history-title\"", editing, StringComparison.Ordinal);
+        Assert.Contains("data-vehicle-history>", editing, StringComparison.Ordinal);
+        Assert.Contains("<h3>Vehicle history", editing, StringComparison.Ordinal);
+        // The history check is an Engineer's field: on this Not ready Case the area
+        // still reads inside the session, and its control joins only With Engineer
+        // (EngineeringEditorsShareTheCaseSave… covers the textarea there).
+        Assert.DoesNotContain("id=\"edit-vehicle-history\"", editing, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// EPIC-011 D7/D22 and ENG-001: Experian is not connected, so its control is
-    /// drawn as a real disabled button with the reason named on it and no
-    /// handler behind it. It is drawn, never claimed. PLAT-061: a
-    /// <c>.gated</c> wrapper with no condition paints an empty pill, so no gate
-    /// on this page may carry an empty one.
+    /// EPIC-011 D7/D22 and ENG-001: Experian is not connected, so the seam is
+    /// named where its control would sit — a <c>.gated</c> pill carrying the
+    /// reason in its text — with no button, no handler and (v26) no
+    /// <c>data-condition</c> tooltip behind it. It is drawn, never claimed.
     /// </summary>
     [Fact]
     public async Task ExperianRendersAsANamedDisabledSeamWithNoHandler()
@@ -355,21 +368,20 @@ public sealed partial class CaseDetailsWebTests
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
-        var seam = GatedSpan(html, OperatorLabels.CaseWorkspace.ExperianSeamCondition);
+        var seam = ExperianSeam(html);
 
         Assert.Contains("class=\"gated\"", seam, StringComparison.Ordinal);
-        Assert.Contains("type=\"button\"", seam, StringComparison.Ordinal);
-        Assert.Contains("disabled", seam, StringComparison.Ordinal);
-        Assert.Contains("aria-disabled=\"true\"", seam, StringComparison.Ordinal);
-        Assert.Contains(OperatorLabels.CaseWorkspace.RunExperianCheck, seam, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.CaseWorkspace.ExperianSeamCondition, seam, StringComparison.Ordinal);
+        Assert.DoesNotContain("<button", seam, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=", seam, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-condition=\"\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-condition", seam, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.CaseWorkspace.RunExperianCheck, html, StringComparison.Ordinal);
     }
 
     /// <summary>
     /// The lookup needs a registration to search on. Without one the control is
-    /// present and disabled with its condition named — legitimate state, not an
-    /// uncomposed seam.
+    /// absent (v26: never disabled with a tooltip), and the head's lookup line
+    /// still says what the lookup has done — nothing yet.
     /// </summary>
     [Fact]
     public async Task RefreshControlsStateTheirConditionWhenNoRegistrationIsRecorded()
@@ -379,8 +391,10 @@ public sealed partial class CaseDetailsWebTests
 
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
 
-        Assert.Contains("data-condition=\"No registration recorded\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-condition=\"\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=RequestVehicleLookup", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-vehicle-lookup>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-condition", html, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.VehicleLookup.NotYetLookedUp, LookupLine(html), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -436,11 +450,10 @@ public sealed partial class CaseDetailsWebTests
         var suggestedHtml = await GetHtmlAsync(
             suggestedWorkspace.Client,
             $"/Cases/{suggestedStore.CaseId:D}?section=vehicle");
-        var suggestedLookup = LookupForm(suggestedHtml);
-
-        Assert.Contains("name=\"registration\"", suggestedLookup, StringComparison.Ordinal);
-        Assert.DoesNotContain("value=\"AB12CDE\"", suggestedLookup, StringComparison.Ordinal);
-        Assert.Contains("disabled", suggestedLookup, StringComparison.Ordinal);
+        // v26: a suggestion is not a registration to search on, and a lookup
+        // that cannot run is absent rather than disabled.
+        Assert.DoesNotContain("handler=RequestVehicleLookup", suggestedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"registration\" value=\"AB12CDE\"", suggestedHtml, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -496,13 +509,10 @@ public sealed partial class CaseDetailsWebTests
 
         var html = await ReadOnlyVehicleSectionAsync(store);
 
-        Assert.Contains(
-            System.Net.WebUtility.HtmlEncode(OperatorLabels.VehicleLookup.OutcomeTitle),
-            html,
-            StringComparison.Ordinal);
+        // v26: the head's one lookup line, with no row title.
         Assert.Contains(
             $"Not found for AB12CDE ({OperatorLabels.OfficeTime(recordedAtUtc)})",
-            html,
+            LookupLine(html),
             StringComparison.Ordinal);
         Assert.DoesNotContain(
             OperatorLabels.VehicleLookup.NotYetLookedUp,
@@ -580,16 +590,36 @@ public sealed partial class CaseDetailsWebTests
         return new(caseId, null, notFound, [notFound], []);
     }
 
-    private static string GatedSpan(string html, string condition)
+    /// <summary>The v26 Experian seam: the head's `.gated` pill and its text.</summary>
+    private static string ExperianSeam(string html)
     {
-        var marker = html.IndexOf(
-            "data-condition=\"" + condition + "\"",
-            StringComparison.Ordinal);
-        Assert.True(marker >= 0, $"No gate states '{condition}'.");
+        var marker = html.IndexOf("data-vehicle-experian-seam", StringComparison.Ordinal);
+        Assert.True(marker >= 0, "The Experian seam is not rendered.");
         var start = html.LastIndexOf('<', marker);
+        // Up to the close of the pill's text span: the icon and the wording.
         var end = html.IndexOf("</span>", marker, StringComparison.Ordinal);
-        Assert.True(end > start, "The gate is not closed.");
+        Assert.True(end > start, "The Experian seam is not closed.");
         return html[start..end];
+    }
+
+    /// <summary>The head's one lookup line (v26): what the latest lookup did.</summary>
+    private static string LookupLine(string html)
+    {
+        var marker = html.IndexOf("data-vehicle-lookup-line>", StringComparison.Ordinal);
+        Assert.True(marker >= 0, "The lookup line is not rendered.");
+        var end = html.IndexOf("</span>", marker, StringComparison.Ordinal);
+        Assert.True(end > marker, "The lookup line is not closed.");
+        return html[marker..end];
+    }
+
+    /// <summary>The v26 mileage read cell, with its provenance tag.</summary>
+    private static string MileageCell(string html)
+    {
+        var marker = html.IndexOf("data-vehicle-mileage-read>", StringComparison.Ordinal);
+        Assert.True(marker >= 0, "The mileage cell is not rendered.");
+        var end = html.IndexOf("</div>", marker, StringComparison.Ordinal);
+        Assert.True(end > marker, "The mileage cell is not closed.");
+        return html[marker..end];
     }
 
     private static string LookupForm(string html)
@@ -605,9 +635,10 @@ public sealed partial class CaseDetailsWebTests
 
     private static string OverviewPanel(string html)
     {
-        const string marker = "<section class=\"panel case-overview-panel\"";
-        var start = html.IndexOf(marker, StringComparison.Ordinal);
-        Assert.True(start >= 0, "The Case overview panel must render.");
+        var host = html.IndexOf("id=\"section-overview\"", StringComparison.Ordinal);
+        Assert.True(host >= 0, "The Case overview panel must render.");
+        var start = html.LastIndexOf("<section", host, StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Case overview panel must be a section.");
 
         var depth = 0;
         var index = start;

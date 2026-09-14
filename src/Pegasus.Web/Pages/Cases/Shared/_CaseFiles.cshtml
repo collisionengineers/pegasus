@@ -3,6 +3,7 @@
 @using Pegasus.Web.Pages.Cases
 @using Pegasus.Web.Presentation
 @using TagLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ImageTags
+@using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
@@ -10,45 +11,66 @@
     var mayEdit = Model.CanEditCaseData;
     var custodyConfirmed = details.CustodyState == CaseCustodyState.Confirmed
         && !string.IsNullOrWhiteSpace(details.CustodyFolderRemoteId);
+    var documentCount = Model.CaseDocumentFiles.Count;
+    var imageCount = Model.CaseImageFiles.Count + Model.ImageIntakes.Sum(intake => Model.ImagesByIntake.GetValueOrDefault(intake.Id, []).Count);
+    var correspondenceCount = details.QueryEmails.Count;
+    var offersUploadRequest = mayEdit && Model.RequestUploadLimits is not null;
+    var headTools = new CaseSectionHeadView(Model, "files");
 }
 
-@* Case Files (EPIC-011 §1.8): one panel with two tabs. Documents is the
-   case's files as rows; Images is every image of the case as a tile it can be
-   tagged, previewed and cropped from. Both tab bodies are rendered, so with no
-   script the section is the two lists one after the other, each under its own
-   heading; script turns the strip on and shows one at a time. Where an image
-   sits in the report stays on the Report section, which is the only place
-   report composition is set. *@
-<div class="stack">
-    <section class="panel" aria-labelledby="case-files-title" data-file-tabs-wrap>
-        <div class="panel-head">
-            <h2 id="case-files-title">@OperatorLabels.CaseWorkspace.FilesPanel</h2>
-            <span class="cluster">
-                <a class="btn" asp-page="/Upload">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-                    <span>@OperatorLabels.CaseWorkspace.AddEvidence</span>
-                </a>
-                @if (custodyConfirmed)
-                {
-                    <a class="btn btn--dark" href="https://app.box.com/folder/@(details.CustodyFolderRemoteId)" target="_blank" rel="noopener">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
-                        <span>Open Box case folder</span>
+@* Files (v26 § Files): one panel, three tabs — Documents, Images and
+   Correspondence — under one primary (Add evidence) and one More menu. Every
+   tab body is rendered, so with no script the section is the three lists one
+   after the other, each under its own heading; script turns the strip on. An
+   image's tags and crop live on its tile; where it sits in the report is the
+   Report section's. *@
+<section class="record-section panel @Model.CollapsedClass("case.files") @Model.ActiveTabClass("files") @(Model.IsEditing && !Model.SectionIsEditable("files") ? "is-locked" : null)" id="section-files" data-section="files" data-collapse="case.files" aria-labelledby="section-files-title" data-file-tabs-wrap>
+    <div class="panel-head">
+        <h2 id="section-files-title">@OperatorLabels.CaseWorkspace.FilesPanel</h2>
+        @if (custodyConfirmed)
+        {
+            <span class="status status--green status--plain" data-custody-chip>@FilesLabels.BoxConfirmed</span>
+        }
+        else
+        {
+            <span class="status @(details.CustodyState == CaseCustodyState.Failed ? "status--red" : "status--amber") status--plain" data-custody-chip>@OperatorLabels.CustodyFolderState(details.CustodyState)</span>
+        }
+        <div class="panel-actions">
+            <a class="btn btn--small btn--primary" asp-page="/Upload" data-add-evidence>
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                <span>@OperatorLabels.CaseWorkspace.AddEvidence</span>
+            </a>
+            <details class="menu" data-menu data-files-menu>
+                <summary class="btn btn--small"><span>@CaseWorkspaceLabels.Frame.More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+                <div class="menu-body">
+                    @if (custodyConfirmed)
+                    {
+                        <a class="btn" href="https://app.box.com/folder/@(details.CustodyFolderRemoteId)" target="_blank" rel="noopener" data-open-in-box>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
+                            <span>@FilesLabels.OpenInBox</span>
+                        </a>
+                    }
+                    <a class="btn" asp-page="/Operations/Index">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-activity" /></svg>
+                        <span>@OperatorLabels.CaseWorkspace.OpenOperations</span>
                     </a>
-                }
-                else
-                {
-                    @* The folder's own state as a value, not an explanation. *@
-                    <partial name="Shared/_StatusChip" model="@OperatorLabels.CustodyFolderState(details.CustodyState)" />
-                }
-                <a class="btn" asp-page="/Operations/Index">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                    <span>@OperatorLabels.CaseWorkspace.OpenOperations</span>
-                </a>
-            </span>
+                    @if (offersUploadRequest)
+                    {
+                        <button type="button" class="btn" data-dialog-open="create-upload-request">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                            <span>@CaseWorkspaceLabels.UploadRequest.Create</span>
+                        </button>
+                    }
+                </div>
+            </details>
+            <partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" />
         </div>
+    </div>
+    <div class="panel-body stack">
         <div class="tabs" role="tablist" aria-label="@OperatorLabels.CaseWorkspace.FilesPanel" data-file-tabs hidden>
-            <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="case-files-documents" data-file-tab="documents">@TagLabels.DocumentsTab</button>
-            <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="case-files-images" data-file-tab="images">@TagLabels.ImagesTab</button>
+            <button type="button" class="tab" role="tab" aria-selected="true" aria-controls="case-files-documents" data-file-tab="documents">@TagLabels.DocumentsTab · @documentCount</button>
+            <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="case-files-images" data-file-tab="images">@TagLabels.ImagesTab · @imageCount</button>
+            <button type="button" class="tab" role="tab" aria-selected="false" aria-controls="case-files-correspondence" data-file-tab="correspondence">@FilesLabels.CorrespondenceTab · @correspondenceCount</button>
         </div>
         <div id="case-files-documents" role="tabpanel" data-file-tab-panel="documents">
             <h3 class="tab-panel-title">@TagLabels.DocumentsTab</h3>
@@ -58,92 +80,98 @@
             <h3 class="tab-panel-title">@TagLabels.ImagesTab</h3>
             <partial name="Cases/Shared/_CaseImages" model="Model" />
         </div>
-    </section>
+        <div id="case-files-correspondence" role="tabpanel" data-file-tab-panel="correspondence">
+            <h3 class="tab-panel-title">@FilesLabels.CorrespondenceTab</h3>
+            <partial name="Cases/Shared/_CaseCorrespondence" model="Model" />
+        </div>
 
-    @if (details.RequestUploadLinks.Count > 0 || mayEdit)
-    {
-        <section class="panel" aria-labelledby="case-upload-requests-title">
-            <div class="panel-head">
-                <h2 id="case-upload-requests-title">@OperatorLabels.CaseWorkspace.UploadRequestsPanel</h2>
-                @if (mayEdit && Model.RequestUploadLimits is { } uploadLimits)
-                {
-                    <button type="button" class="btn btn--primary" data-dialog-open="create-upload-request">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
-                        <span>@CaseWorkspaceLabels.UploadRequest.Create</span>
-                    </button>
-                    <dialog id="create-upload-request" class="dialog">
-                        <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="CreateRequestUploadLink" class="stack">
-                            <div class="dialog-head"><h2>@CaseWorkspaceLabels.UploadRequest.Create</h2><button type="button" class="btn btn--icon" data-dialog-close aria-label="Close">×</button></div>
-                            <input type="hidden" name="id" value="@workflow.CaseId" />
-                            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                            <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                            <div class="field"><label class="req" for="upload-request-recipient">@CaseWorkspaceLabels.UploadRequest.Recipient</label><input id="upload-request-recipient" name="recipient" required maxlength="500" /></div>
-                            <div class="field"><label for="upload-request-reason">@CaseWorkspaceLabels.UploadRequest.Reason</label><textarea id="upload-request-reason" name="reason" rows="2" maxlength="1000"></textarea></div>
-                            <dl class="definition"><dt>@CaseWorkspaceLabels.UploadRequest.Lifetime</dt><dd>@CaseWorkspaceLabels.UploadRequest.Days(uploadLimits.Lifetime)</dd><dt>@CaseWorkspaceLabels.UploadRequest.Files</dt><dd>@uploadLimits.MaximumFileCount</dd><dt>@CaseWorkspaceLabels.UploadRequest.FileSize</dt><dd>@OperatorLabels.FileSize(uploadLimits.MaximumFileBytes)</dd></dl>
-                            <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Create</button></div>
-                        </form>
-                    </dialog>
-                }
-            </div>
-            @if (details.RequestUploadLinks.Count > 0)
-            {
-                <div class="panel-body">
-                    <div class="table-wrap">
-                        <table>
-                            <thead><tr><th>Recipient</th><th>Reason</th><th>State</th><th>Created</th><th>Expires</th><th>Accepted</th>@if (mayEdit){<th>Action</th>}</tr></thead>
-                            <tbody>
-                                @foreach (var request in details.RequestUploadLinks)
-                                {
-                                    <tr>
-                                        <td>@(request.Recipient ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
-                                        <td>@(request.Reason ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
-                                        <td><partial name="Shared/_StatusChip" model="@OperatorLabels.UploadRequestState(request.Status)" /></td>
-                                        <td>@OperatorLabels.OfficeTime(request.CreatedAtUtc)</td>
-                                        <td>@OperatorLabels.OfficeTime(request.ExpiresAtUtc)</td>
-                                        <td>@request.AcceptedFileCount · @OperatorLabels.FileSize(request.AcceptedByteCount)</td>
-                                        @if (mayEdit)
-                                        {
-                                            <td>
-                                                @if (request.RevokedAtUtc is null)
-                                                {
-                                                    <button type="button" class="btn btn--small btn--danger" data-dialog-open="revoke-upload-@request.Id">Withdraw link</button>
-                                                }
-                                            </td>
-                                        }
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                @if (mayEdit)
-                {
-                    @foreach (var request in details.RequestUploadLinks.Where(link => link.RevokedAtUtc is null))
-                    {
-                        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
-                        {
-                            ["DialogId"] = $"revoke-upload-{request.Id}",
-                            ["DialogTitle"] = "Withdraw link",
-                            ["DialogActionUrl"] = Url.Page("/Cases/Custody", "RevokeRequestUploadLink", new { id = workflow.CaseId }),
-                            ["DialogHiddenFields"] = new Dictionary<string, string?>
+        @if (details.RequestUploadLinks.Count > 0)
+        {
+            <div class="sub-panel" data-upload-requests>
+                <h3>@OperatorLabels.CaseWorkspace.UploadRequestsPanel</h3>
+                <div class="table-wrap">
+                    <table class="table table--compact">
+                        <thead><tr><th>@CaseWorkspaceLabels.UploadRequest.Recipient</th><th>@CaseWorkspaceLabels.UploadRequest.Reason</th><th>State</th><th>Created</th><th>Expires</th><th>Accepted</th>@if (mayEdit){<th><span class="sr-only">Action</span></th>}</tr></thead>
+                        <tbody>
+                            @foreach (var request in details.RequestUploadLinks)
                             {
-                                ["id"] = workflow.CaseId.ToString(),
-                                ["requestId"] = request.Id.ToString(),
-                                ["expectedRequestVersion"] = request.Version.ToString(),
-                                ["expectedVersion"] = workflow.Version.ToString(),
-                                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
-                                ["editLeaseToken"] = leaseToken
+                                <tr data-upload-request="@request.Id">
+                                    <td>@(request.Recipient ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
+                                    <td>@(request.Reason ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
+                                    <td><partial name="Shared/_StatusChip" model="@OperatorLabels.UploadRequestState(request.Status)" /></td>
+                                    <td>@OperatorLabels.OfficeTime(request.CreatedAtUtc)</td>
+                                    <td>@OperatorLabels.OfficeTime(request.ExpiresAtUtc)</td>
+                                    <td>@request.AcceptedFileCount · @OperatorLabels.FileSize(request.AcceptedByteCount)</td>
+                                    @if (mayEdit)
+                                    {
+                                        <td class="row-actions">
+                                            @if (request.RevokedAtUtc is null)
+                                            {
+                                                <button type="button" class="btn btn--small btn--danger" data-dialog-open="revoke-upload-@request.Id">@FilesLabels.WithdrawLink</button>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
                             }
-                        })" />
-                    }
-                }
-            }
-        </section>
-    }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+</section>
 
-    @if (details.QueryEmails.Count > 0 || Model.StaffMailAvailable)
+@if (offersUploadRequest && Model.RequestUploadLimits is { } uploadLimits)
+{
+    <div id="create-upload-request" class="dialog-backdrop" data-dialog="create-upload-request" hidden>
+        <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="create-upload-request-title">
+            <div class="dialog-head">
+                <h2 id="create-upload-request-title" tabindex="-1">@CaseWorkspaceLabels.UploadRequest.Create</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="CreateRequestUploadLink">
+                <input type="hidden" name="id" value="@workflow.CaseId" />
+                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <div class="dialog-body stack">
+                    <div class="field"><label class="req" for="upload-request-recipient">@CaseWorkspaceLabels.UploadRequest.Recipient</label><input id="upload-request-recipient" name="recipient" required maxlength="500" data-dialog-initial-focus /></div>
+                    <div class="field"><label for="upload-request-reason">@CaseWorkspaceLabels.UploadRequest.Reason</label><textarea id="upload-request-reason" name="reason" rows="2" maxlength="1000"></textarea></div>
+                    <dl class="audit-facts">
+                        <dt>@CaseWorkspaceLabels.UploadRequest.Lifetime</dt><dd>@CaseWorkspaceLabels.UploadRequest.Days(uploadLimits.Lifetime)</dd>
+                        <dt>@CaseWorkspaceLabels.UploadRequest.Files</dt><dd>@uploadLimits.MaximumFileCount</dd>
+                        <dt>@CaseWorkspaceLabels.UploadRequest.FileSize</dt><dd>@OperatorLabels.FileSize(uploadLimits.MaximumFileBytes)</dd>
+                    </dl>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                    <button type="submit" class="btn btn--primary">Create</button>
+                </div>
+            </form>
+        </section>
+    </div>
+}
+
+@if (mayEdit)
+{
+    @foreach (var request in details.RequestUploadLinks.Where(link => link.RevokedAtUtc is null))
     {
-        <partial name="Cases/Shared/_CaseCorrespondence" model="Model" />
+        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = $"revoke-upload-{request.Id}",
+            ["DialogTitle"] = FilesLabels.WithdrawLink,
+            ["DialogActionUrl"] = Url.Page("/Cases/Custody", "RevokeRequestUploadLink", new { id = workflow.CaseId }),
+            ["DialogHiddenFields"] = new Dictionary<string, string?>
+            {
+                ["id"] = workflow.CaseId.ToString(),
+                ["requestId"] = request.Id.ToString(),
+                ["expectedRequestVersion"] = request.Version.ToString(),
+                ["expectedVersion"] = workflow.Version.ToString(),
+                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
+                ["editLeaseToken"] = leaseToken
+            }
+        })" />
     }
-</div>
+}

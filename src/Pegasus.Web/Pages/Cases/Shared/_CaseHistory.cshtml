@@ -1,21 +1,57 @@
+@*
+    Notes (v26): the Case note form at the top, Record chase beside it, then
+    the one account of the Case — what Pegasus did and what an operator wrote
+    about it are the same kind of record here, and the actor is what tells
+    them apart. No tasks panel (13 September). A note takes no edit lease
+    (CASE-017); a chase carries the lease and is offered while a chase is
+    scheduled.
+*@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Web.Presentation
+@using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
     var leaseToken = Model.LeaseToken;
     var mayEdit = Model.CanEditCaseData;
     var entries = details.History.OrderByDescending(entry => entry.OccurredAtUtc).ToArray();
+    var offersNote = !Model.IsPostReportReadOnly && workflow.Archive is null;
+    var offersChase = mayEdit && workflow.DueWork is { State: Pegasus.Core.Tasks.CaseDueWorkState.Scheduled };
 }
 
-@* One account of the case: what Pegasus did and what an operator wrote about
-   it are the same kind of record here, and the actor is what tells them
-   apart. CASE-028/029 extend this to the merged notes, chase and AI
-   timeline; the entries below are the case history the projection carries
-   today. *@
-<section class="panel" aria-labelledby="case-notes-title">
-    <div class="panel-head"><h2 id="case-notes-title">Notes</h2></div>
+<section class="record-section panel @Model.CollapsedClass("case.notes") @Model.ActiveTabClass("notes") @(Model.IsEditing && !Model.SectionIsEditable("notes") ? "is-locked" : null)" id="section-notes" data-section="notes" data-collapse="case.notes" aria-labelledby="section-notes-title">
+    <div class="panel-head">
+        <h2 id="section-notes-title">Notes</h2>
+        <div class="panel-actions">
+            <partial name="Cases/Shared/_CaseSectionHeadTools" model='new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "notes")' />
+        </div>
+    </div>
     <div class="panel-body stack">
+        @if (offersNote)
+        {
+            <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId"
+                  asp-page-handler="AddNote" class="note-form" data-case-note-form>
+                <input type="hidden" name="id" value="@workflow.CaseId" />
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                <label class="lbl" for="case-note">Case note</label>
+                <textarea id="case-note" name="note" rows="2" required
+                          maxlength="@Pegasus.Core.Cases.AddCaseNote.MaximumLength"></textarea>
+                <div class="button-row">
+                    <button type="submit" class="btn btn--primary">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <span>Add Case note</span>
+                    </button>
+                    @if (offersChase)
+                    {
+                        <button type="button" class="btn" data-dialog-open="case-chase-dialog">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg>
+                            <span>@CaseWorkspaceLabels.Chase.RecordChase</span>
+                        </button>
+                    }
+                </div>
+            </form>
+        }
+
         @if (entries.Length == 0)
         {
             <div class="empty">
@@ -25,77 +61,77 @@
         }
         else
         {
-            <div class="notes-list">
+            <div class="notes-timeline" data-case-history>
                 @foreach (var entry in entries)
                 {
+                    var isNote = entry.EventType == "operator_note";
                     @if (entry.EventType != "case_guidance_applied")
                     {
-                    <article class="note-entry">
-                        <div class="note-meta">
-                            <span>@OperatorLabels.OfficeDate(entry.OccurredAtUtc)</span>
-                            <span>@OperatorLabels.OfficeClock(entry.OccurredAtUtc)</span>
-                            <span>@entry.ActorDisplayName</span>
+                        <div class="note @(isNote ? null : "sys")" data-history-event="@entry.EventType">
+                            <div class="nw"><span>@OperatorLabels.OfficeDate(entry.OccurredAtUtc)</span> <span>@OperatorLabels.OfficeClock(entry.OccurredAtUtc)</span></div>
+                            <div class="nb">
+                                <b>@entry.ActorDisplayName</b>
+                                @if (isNote)
+                                {
+                                    <text> — @entry.Reason</text>
+                                }
+                                else
+                                {
+                                    <text> — @OperatorLabels.HistoryEvent(entry.EventType)</text>
+                                    @if (!string.IsNullOrWhiteSpace(entry.Reason))
+                                    {
+                                        <text> — @entry.Reason</text>
+                                    }
+                                }
+                            </div>
                         </div>
-                        <div class="note-content">
-                            <strong>@OperatorLabels.HistoryEvent(entry.EventType)</strong>
-                            @if (!string.IsNullOrWhiteSpace(entry.Reason))
-                            {
-                                <span> — @entry.Reason</span>
-                            }
-                        </div>
-                    </article>
                     }
                     @foreach (var guidance in entry.Guidance)
                     {
-                        <article class="note-entry">
-                            <div class="note-meta"><span>@OperatorLabels.OfficeDate(entry.OccurredAtUtc)</span><span>@OperatorLabels.OfficeClock(entry.OccurredAtUtc)</span><span>System</span></div>
-                            <div class="note-content"><strong>@OperatorLabels.HistoryEvent(guidance.EventType) · @guidance.OrganizationName</strong><p>@guidance.Text</p></div>
-                        </article>
+                        <div class="note sys" data-history-event="@guidance.EventType">
+                            <div class="nw"><span>@OperatorLabels.OfficeDate(entry.OccurredAtUtc)</span> <span>@OperatorLabels.OfficeClock(entry.OccurredAtUtc)</span></div>
+                            <div class="nb"><b>@guidance.OrganizationName</b> — @OperatorLabels.HistoryEvent(guidance.EventType) — @guidance.Text</div>
+                        </div>
                     }
                 }
             </div>
         }
+    </div>
+</section>
 
-        @if (!Model.IsPostReportReadOnly)
-        {
-            <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId"
-                  asp-page-handler="AddNote" class="stack">
-                <input type="hidden" name="id" value="@workflow.CaseId" />
-                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                <div class="field">
-                    <label class="req" for="case-note">Case note</label>
-                    <textarea id="case-note" name="note" rows="3" required
-                              maxlength="@Pegasus.Core.Cases.AddCaseNote.MaximumLength"></textarea>
-                </div>
-                <div class="button-row">
-                    <button type="submit" class="btn btn--primary">Add Case note</button>
-                </div>
-            </form>
-        }
-
-        @if (mayEdit && workflow.DueWork is { State: Pegasus.Core.Tasks.CaseDueWorkState.Scheduled })
-        {
-            @* A recorded chase is an attributable manual assertion; it does
-               not send correspondence. CASE-029 owns the fuller dialog. *@
-            <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId"
-                  asp-page-handler="RecordManualChase" class="stack section-gap">
+@if (offersChase)
+{
+    @* A recorded chase is an attributable manual assertion; it does not
+       send correspondence. *@
+    <div id="case-chase-dialog" class="dialog-backdrop" data-dialog="case-chase-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-chase-dialog-title">
+            <div class="dialog-head">
+                <h2 id="case-chase-dialog-title" tabindex="-1">@CaseWorkspaceLabels.Chase.RecordChase</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="RecordManualChase">
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
                 <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <div class="grid grid-2">
-                    <div class="field"><label class="req" for="chase-recipient">@CaseWorkspaceLabels.Chase.Recipient</label><input id="chase-recipient" name="recipient" required maxlength="500" /></div>
-                    <div class="field"><label class="req" for="chase-channel">Channel</label><input id="chase-channel" name="channel" required maxlength="100" /></div>
-                    <div class="field"><label for="chase-content">@CaseWorkspaceLabels.Chase.Content</label><input id="chase-content" name="content" maxlength="1000" /></div>
-                    <div class="field"><label class="req" for="chase-outcome">Outcome</label><input id="chase-outcome" name="outcome" required maxlength="500" /></div>
+                <div class="dialog-body stack">
+                    <div class="form-grid form-grid--2">
+                        <div class="field"><label class="req" for="chase-recipient">@CaseWorkspaceLabels.Chase.Recipient</label><input id="chase-recipient" name="recipient" required maxlength="500" data-dialog-initial-focus /></div>
+                        <div class="field"><label class="req" for="chase-channel">Channel</label><input id="chase-channel" name="channel" required maxlength="100" /></div>
+                        <div class="field"><label for="chase-content">@CaseWorkspaceLabels.Chase.Content</label><input id="chase-content" name="content" maxlength="1000" /></div>
+                        <div class="field"><label class="req" for="chase-outcome">Outcome</label><input id="chase-outcome" name="outcome" required maxlength="500" /></div>
+                    </div>
                 </div>
-                <div class="button-row">
-                    <button type="submit" class="btn">
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                    <button type="submit" class="btn btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                         <span>@CaseWorkspaceLabels.Chase.RecordChase</span>
                     </button>
                 </div>
             </form>
-        }
+        </section>
     </div>
-</section>
+}

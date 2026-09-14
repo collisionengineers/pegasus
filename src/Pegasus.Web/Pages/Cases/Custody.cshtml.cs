@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Cases;
@@ -23,8 +25,19 @@ public sealed class CustodyModel(
     ICreateImageTag createImageTag,
     ICreateRequestUploadLink createRequestUploadLink,
     IRevokeRequestUploadLink revokeRequestUploadLink,
+    IGetCase getCase,
+    IAcquireCaseEditLease acquireLease,
     ILogger<CustodyModel> logger) : CaseMutationPageModel(logger)
 {
+    /// <summary>
+    /// Tagging, removing and upload links are immediate posts inside the edit
+    /// session (v25 decision F): after one succeeds the session carries on.
+    /// </summary>
+    protected override (IGetCase Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => (getCase, acquireLease);
+
+    private RedirectToPageResult RedirectToFiles(Guid id) =>
+        RedirectToPage("/Cases/Details", new { id, section = "files" });
+
     public async Task<IActionResult> OnPostRetryCustodyAsync(
         Guid id,
         long expectedVersion,
@@ -68,7 +81,7 @@ public sealed class CustodyModel(
                 "Custody retry was not recorded because the case changed or edit mode was lost.";
         }
 
-        return RedirectToDetails(id);
+        return RedirectToFiles(id);
     }
 
     public Task<IActionResult> OnPostRemoveDocumentAsync(
@@ -93,7 +106,9 @@ public sealed class CustodyModel(
                     expectedVersion,
                     editLeaseToken),
                 cancellationToken),
-            "The document occurrence was logically removed; custody content and history were retained.");
+            "The document occurrence was logically removed; custody content and history were retained.",
+            RedirectToFiles,
+            keepEditing: true);
 
     public Task<IActionResult> OnPostTagImageAsync(
         Guid id,
@@ -118,7 +133,8 @@ public sealed class CustodyModel(
                     editLeaseToken),
                 cancellationToken),
             CaseWorkspaceLabels.ImageTags.WasApplied,
-            RedirectToDetailsFilesImages);
+            RedirectToDetailsFilesImages,
+            keepEditing: true);
 
     public Task<IActionResult> OnPostUntagImageAsync(
         Guid id,
@@ -143,7 +159,8 @@ public sealed class CustodyModel(
                     editLeaseToken),
                 cancellationToken),
             CaseWorkspaceLabels.ImageTags.WasRemoved,
-            RedirectToDetailsFilesImages);
+            RedirectToDetailsFilesImages,
+            keepEditing: true);
 
     /// <summary>
     /// Adds a word to the shared tag vocabulary from the picker on a Case's
@@ -217,7 +234,7 @@ public sealed class CustodyModel(
         {
             RetainProposedValues(id);
             TempData["CaseError"] = "The upload request needs a recipient.";
-            return RedirectToDetails(id);
+            return RedirectToFiles(id);
         }
 
         try
@@ -235,6 +252,7 @@ public sealed class CustodyModel(
                     string.IsNullOrEmpty(reason) ? null : reason),
                 cancellationToken);
             ClearLeaseState();
+            await ReclaimLeaseAsync(id, cancellationToken);
             if (result.Secret is null)
             {
                 TempData["CaseStatus"] =
@@ -265,7 +283,7 @@ public sealed class CustodyModel(
                 "The upload request could not be created because the case changed, edit mode was lost, or requests are unavailable.";
         }
 
-        return RedirectToDetails(id);
+        return RedirectToFiles(id);
     }
 
     public Task<IActionResult> OnPostRevokeRequestUploadLinkAsync(
@@ -292,5 +310,7 @@ public sealed class CustodyModel(
                     expectedVersion,
                     editLeaseToken),
                 cancellationToken),
-            "The upload request was revoked.");
+            "The upload request was revoked.",
+            RedirectToFiles,
+            keepEditing: true);
 }

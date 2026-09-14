@@ -1,335 +1,715 @@
-// Case workspace behaviour. Image preparation and damage are staged in the
-// one Case form; no control in this file creates a separate mutation path.
+// Case record behaviour (v26). Everything here is a convenience on top of
+// markup that already works as plain forms and links; nothing creates a
+// separate mutation path and no business rule lives in the browser.
+//
+// Blocks, in order:
+//   frame       sticky measure, Scroll/Tabs, lazy section bodies, the
+//               section nav, in-place actions (fetch + swap), the edit
+//               session (dirty guard, heartbeat, expiry), pegasus:dirty
+//   sections    the section-owned enhancements (damage clicker, valuation
+//               calculator, estimate grid, report images, files, viewer)
+//
+// Every binder is root-scoped and idempotent so a body mounted later (a lazy
+// section, an in-place swap) joins the same behaviour.
+
+// --- frame ------------------------------------------------------------------
 (function () {
     'use strict';
 
-    function number(value, fallback) {
-        var parsed = Number(value);
-        return Number.isFinite(parsed) ? parsed : fallback;
+    var record = document.querySelector('[data-case-record]');
+    if (!record) {
+        return;
     }
-    function clamp(value) { return Math.max(0, Math.min(1, value)); }
-    function round(value) { return Math.round(value * 10000000) / 10000000; }
 
-    function bindPreparations(root) {
-        var form = document.getElementById('case-edit-form');
-        if (!form) { return; }
-        // No early return on an empty card list: the crop editor is opened
-        // from the evidence viewer too, so window.pegasusOpenCaseCrop has to
-        // exist wherever the one Case form does (U5a).
-        var cards = Array.prototype.slice.call((root || document).querySelectorAll('[data-preparation-card]'));
-        var staged = form.__pegasusPreparationStaged || (form.__pegasusPreparationStaged = {});
-        function cardState(card) {
-            var id = card.getAttribute('data-preparation-occurrence');
-            if (!staged[id]) {
-                staged[id] = {
-                    id: id,
-                    version: number(card.getAttribute('data-preparation-version'), 0),
-                    role: card.getAttribute('data-preparation-role'),
-                    order: number(card.getAttribute('data-preparation-order'), null),
-                    rotation: number(card.getAttribute('data-preparation-rotation'), 0),
-                    left: number(card.getAttribute('data-preparation-crop-left'), 0),
-                    top: number(card.getAttribute('data-preparation-crop-top'), 0),
-                    width: number(card.getAttribute('data-preparation-crop-width'), 1),
-                    height: number(card.getAttribute('data-preparation-crop-height'), 1),
-                    changed: false
-                };
-            }
-            return staged[id];
+    var block = record.querySelector('[data-sticky-block]');
+    var nav = record.querySelector('[data-section-nav]');
+    var main = document.getElementById('case-main');
+    var layoutSwitch = record.querySelector('[data-case-layout-switch]');
+    var layoutButtons = layoutSwitch
+        ? Array.prototype.slice.call(layoutSwitch.querySelectorAll('[data-case-layout]'))
+        : [];
+    var layoutKey = 'pegasus.caseLayout';
+    var layout = 'scroll';
+    var activeKey = record.getAttribute('data-section-current') || 'overview';
+    var fragmentPath = window.location.pathname.replace(/\/+$/, '') + '/Section';
+    var dirty = false;
+    var pendingAnchor = null;
+
+    function links() {
+        return Array.prototype.slice.call(nav.querySelectorAll('[data-section-link]'));
+    }
+    function sections() {
+        return Array.prototype.slice.call(main.querySelectorAll('.record-section'));
+    }
+    function sectionFor(key) {
+        return document.getElementById('section-' + key);
+    }
+    function linkFor(key) {
+        return links().find(function (link) { return link.getAttribute('data-section-link') === key; });
+    }
+
+    // The sticky block's own bottom edge is the reading line, so the offset
+    // is never written down twice. site.js measures the same block into
+    // --sticky-h on the record; this repeats it after an in-place swap.
+    function measure() {
+        record.style.setProperty('--sticky-h', block.offsetHeight + 'px');
+    }
+    function readingLine() {
+        return block.getBoundingClientRect().bottom;
+    }
+
+    // The layout is served in the first paint from the session cookie
+    // "pegasus-case-layout" (data-layout on the record). A session's earlier
+    // choice kept under sessionStorage seeds a missing cookie once.
+    var layoutCookie = 'pegasus-case-layout';
+    function readLayout() {
+        var served = record.getAttribute('data-layout') === 'tabs' ? 'tabs' : 'scroll';
+        var prefs = window.pegasusPreferences;
+        if (!prefs || prefs.read(layoutCookie) !== null) {
+            return served;
         }
-        function updateCard(card) {
-            var value = cardState(card);
-            var role = card.querySelector('[data-preparation-role-select]');
-            var order = card.querySelector('[data-preparation-order]');
-            var image = card.querySelector('[data-preparation-preview-image]');
-            var roleLabel = card.querySelector('[data-preparation-role-label]');
-            var rotationLabel = card.querySelector('[data-preparation-rotation-label]');
-            var cropLabel = card.querySelector('[data-preparation-crop-label]');
-            if (role) { role.value = value.role; }
-            if (order) { order.value = value.order === null ? '' : value.order; order.disabled = value.role !== 'Supporting'; }
-            if (roleLabel) { roleLabel.textContent = value.role.replace(/([A-Z])/g, ' $1').trim(); }
-            if (rotationLabel) { rotationLabel.textContent = value.rotation === 0 ? 'None' : value.rotation + '°'; }
-            if (cropLabel) { cropLabel.textContent = value.width === 1 && value.height === 1 && value.left === 0 && value.top === 0 ? 'Full frame' : 'Custom crop'; }
-            if (image) { image.style.transform = 'rotate(' + value.rotation + 'deg)'; }
+        var legacy = served;
+        try {
+            legacy = window.sessionStorage.getItem(layoutKey) === 'tabs' ? 'tabs' : served;
+        } catch (_) {
+            legacy = served;
         }
-        function sync(id) {
-            Array.prototype.slice.call(document.querySelectorAll('[data-preparation-card]'))
-                .filter(function (card) { return card.getAttribute('data-preparation-occurrence') === id; })
-                .forEach(updateCard);
+        prefs.write(layoutCookie, legacy);
+        return legacy;
+    }
+    function saveLayout() {
+        if (window.pegasusPreferences) {
+            window.pegasusPreferences.write(layoutCookie, layout);
         }
-        function write() {
-            Array.prototype.slice.call(form.querySelectorAll('[data-preparation-hidden]')).forEach(function (element) { element.remove(); });
-            var index = 0;
-            Object.keys(staged).forEach(function (id) {
-                var value = staged[id];
-                if (!value.changed) { return; }
-                [
-                    ['OccurrenceId', value.id], ['ExpectedPreparationVersion', value.version], ['Role', value.role],
-                    ['Order', value.role === 'Supporting' && value.order !== null ? value.order : ''], ['Rotation', value.rotation],
-                    ['CropLeft', round(value.left)], ['CropTop', round(value.top)], ['CropWidth', round(value.width)], ['CropHeight', round(value.height)]
-                ].forEach(function (field) {
-                    var input = document.createElement('input');
-                    input.type = 'hidden'; input.name = 'preparationEdits[' + index + '].' + field[0]; input.value = field[1];
-                    input.setAttribute('data-preparation-hidden', ''); form.appendChild(input);
-                });
-                index += 1;
-            });
-            form.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        cards.forEach(function (card) {
-            if (card.dataset.preparationBound) { updateCard(card); return; }
-            card.dataset.preparationBound = 'true';
-            var value = cardState(card); updateCard(card);
-            var role = card.querySelector('[data-preparation-role-select]');
-            var order = card.querySelector('[data-preparation-order]');
-            if (role) { role.addEventListener('change', function () { value.role = role.value; if (value.role !== 'Supporting') { value.order = null; } value.changed = true; sync(value.id); write(); }); }
-            if (order) { order.addEventListener('change', function () { value.order = Math.max(1, Math.floor(number(order.value, 1))); value.changed = true; sync(value.id); write(); }); }
-            card.querySelectorAll('[data-preparation-rotate]').forEach(function (button) { button.addEventListener('click', function () { value.rotation = (value.rotation + number(button.getAttribute('data-preparation-rotate'), 0) + 360) % 360; value.changed = true; sync(value.id); write(); }); });
-            var reset = card.querySelector('[data-preparation-reset]');
-            if (reset) { reset.addEventListener('click', function () { value.role = 'NotUsed'; value.order = null; value.rotation = 0; value.left = 0; value.top = 0; value.width = 1; value.height = 1; value.changed = true; sync(value.id); write(); }); }
-            var crop = card.querySelector('[data-preparation-crop]');
-            if (crop) { crop.addEventListener('click', function () { window.pegasusOpenCaseCrop(value.id); }); }
+    }
+
+    function bindMounted(root) {
+        (window.pegasusMountBinders || []).forEach(function (bind) { bind(root); });
+    }
+
+    // ---- Scroll / Tabs ----------------------------------------------------
+    function applyScrollState() {
+        nav.removeAttribute('role');
+        links().forEach(function (link) {
+            link.removeAttribute('role');
+            link.removeAttribute('aria-selected');
+            link.removeAttribute('aria-controls');
+            link.removeAttribute('tabindex');
         });
+        sections().forEach(function (host) {
+            host.classList.remove('is-active');
+            host.removeAttribute('role');
+        });
+    }
+    function applyTabState() {
+        nav.setAttribute('role', 'tablist');
+        links().forEach(function (link) {
+            var key = link.getAttribute('data-section-link');
+            var selected = key === activeKey;
+            link.id = 'case-section-tab-' + key;
+            link.setAttribute('role', 'tab');
+            link.setAttribute('aria-controls', 'section-' + key);
+            link.setAttribute('aria-selected', selected ? 'true' : 'false');
+            link.setAttribute('tabindex', selected ? '0' : '-1');
+            link.setAttribute('aria-current', selected ? 'true' : 'false');
+        });
+        sections().forEach(function (host) {
+            var key = host.getAttribute('data-section');
+            host.setAttribute('role', 'tabpanel');
+            host.classList.toggle('is-active', key === activeKey);
+        });
+    }
+    function selectTab(key) {
+        pendingAnchor = null;
+        if (!linkFor(key)) {
+            return;
+        }
+        activeKey = key;
+        applyTabState();
+        var target = sectionFor(key);
+        if (target && target.hasAttribute('data-lazy')) {
+            mount(target, function () { applyTabState(); });
+        }
+        window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+    function setLayout(value, persist) {
+        pendingAnchor = null;
+        layout = value === 'tabs' ? 'tabs' : 'scroll';
+        record.setAttribute('data-layout', layout);
+        if (layoutSwitch) {
+            layoutSwitch.hidden = false;
+        }
+        layoutButtons.forEach(function (button) {
+            button.setAttribute('aria-pressed', button.getAttribute('data-case-layout') === layout ? 'true' : 'false');
+        });
+        if (layout === 'tabs') {
+            applyTabState();
+            selectTab(activeKey);
+        } else {
+            applyScrollState();
+            mountApproaching();
+            spy();
+        }
+        measure();
+        if (persist) {
+            saveLayout();
+        }
+    }
 
-        var dialog = document.querySelector('[data-case-crop-dialog]');
-        if (!dialog || dialog.dataset.cropBound) { return; }
-        dialog.dataset.cropBound = 'true';
-        var stage = dialog.querySelector('[data-case-crop-stage]');
-        var stageCanvas = dialog.querySelector('[data-case-crop-stage-canvas]');
-        var previewCanvas = dialog.querySelector('[data-case-crop-preview]');
-        var selection = dialog.querySelector('[data-case-crop-selection]');
-        var aspect = dialog.querySelector('[data-case-crop-aspect]');
-        var cropStatus = dialog.querySelector('[data-case-crop-status]');
-        var cropSave = dialog.querySelector('[data-case-crop-save]');
-        var source = new Image();
-        var rotatedSource = document.createElement('canvas');
-        var current, entry, drag, imageBox;
-
-        function rotation(value) { return ((value % 360) + 360) % 360; }
-        function sourceSize(value) {
-            var quarterTurn = rotation(value.rotation) % 180 !== 0;
-            return {
-                width: quarterTurn ? source.naturalHeight : source.naturalWidth,
-                height: quarterTurn ? source.naturalWidth : source.naturalHeight
-            };
+    // ---- lazy bodies --------------------------------------------------------
+    function editLeaseToken() {
+        var input = document.querySelector('input[name="editLeaseToken"]');
+        return input ? input.value : '';
+    }
+    function mount(placeholder, then) {
+        var key = placeholder.getAttribute('data-lazy');
+        if (!key) {
+            return;
         }
-        function drawRotatedSource() {
-            if (!source.naturalWidth || !current) { return; }
-            var size = sourceSize(current);
-            rotatedSource.width = size.width;
-            rotatedSource.height = size.height;
-            var context = rotatedSource.getContext('2d');
-            context.save();
-            context.translate(size.width / 2, size.height / 2);
-            context.rotate(rotation(current.rotation) * Math.PI / 180);
-            context.drawImage(source, -source.naturalWidth / 2, -source.naturalHeight / 2);
-            context.restore();
+        var waiting = placeholder.pegasusLazyWaiting || (placeholder.pegasusLazyWaiting = []);
+        if (then) {
+            waiting.push(then);
         }
-        function resizeCanvas(canvas, rect) {
-            var scale = window.devicePixelRatio || 1;
-            canvas.width = Math.max(1, Math.round(rect.width * scale));
-            canvas.height = Math.max(1, Math.round(rect.height * scale));
-            return { context: canvas.getContext('2d'), scale: scale };
+        var attempted = Number(placeholder.dataset.lazyAttemptedAt || 0);
+        if (placeholder.dataset.lazyState === 'loading') {
+            return;
         }
-        function render() {
-            if (!current || !source.naturalWidth) { return; }
-            drawRotatedSource();
-            var stageRect = stage.getBoundingClientRect();
-            var stageDrawing = resizeCanvas(stageCanvas, stageRect);
-            var sourceAspect = rotatedSource.width / rotatedSource.height;
-            var stageAspect = stageRect.width / stageRect.height;
-            var width = sourceAspect > stageAspect ? stageRect.width : stageRect.height * sourceAspect;
-            var height = sourceAspect > stageAspect ? stageRect.width / sourceAspect : stageRect.height;
-            imageBox = { left: (stageRect.width - width) / 2, top: (stageRect.height - height) / 2, width: width, height: height };
-            stageDrawing.context.clearRect(0, 0, stageCanvas.width, stageCanvas.height);
-            stageDrawing.context.drawImage(rotatedSource, imageBox.left * stageDrawing.scale, imageBox.top * stageDrawing.scale, imageBox.width * stageDrawing.scale, imageBox.height * stageDrawing.scale);
-            selection.style.left = imageBox.left + current.left * imageBox.width + 'px';
-            selection.style.top = imageBox.top + current.top * imageBox.height + 'px';
-            selection.style.width = current.width * imageBox.width + 'px';
-            selection.style.height = current.height * imageBox.height + 'px';
-
-            var previewRect = previewCanvas.getBoundingClientRect();
-            var previewDrawing = resizeCanvas(previewCanvas, previewRect);
-            previewDrawing.context.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-            var cropWidth = current.width * rotatedSource.width;
-            var cropHeight = current.height * rotatedSource.height;
-            var displayScale = Math.min(previewCanvas.width / cropWidth, previewCanvas.height / cropHeight);
-            var displayWidth = cropWidth * displayScale;
-            var displayHeight = cropHeight * displayScale;
-            previewDrawing.context.drawImage(rotatedSource,
-                current.left * rotatedSource.width, current.top * rotatedSource.height, cropWidth, cropHeight,
-                (previewCanvas.width - displayWidth) / 2, (previewCanvas.height - displayHeight) / 2, displayWidth, displayHeight);
+        if (placeholder.dataset.lazyState === 'failed' && Date.now() - attempted < 5000) {
+            return;
         }
-        function selectedAspect() { return aspect.value === 'free' ? null : number(aspect.value, 1); }
-        function lockAspect(value, anchor) {
-            var desired = selectedAspect();
-            if (!desired || !source.naturalWidth) { return; }
-            var size = sourceSize(value);
-            var pixelAspect = (value.width * size.width) / (value.height * size.height);
-            if (Math.abs(pixelAspect - desired) < .000001) { return; }
-            if (anchor === 'height') {
-                value.width = value.height * desired * size.height / size.width;
-                if (value.width > 1 - value.left) {
-                    value.width = 1 - value.left;
-                    value.height = value.width * size.width / (desired * size.height);
+        placeholder.dataset.lazyState = 'loading';
+        placeholder.dataset.lazyAttemptedAt = String(Date.now());
+        var headers = { 'Accept': 'text/html' };
+        var lease = editLeaseToken();
+        if (lease) {
+            headers['X-Pegasus-Edit-Lease'] = lease;
+        }
+        fetch(fragmentPath + '?section=' + encodeURIComponent(key), { credentials: 'same-origin', headers: headers })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('section ' + key + ': ' + response.status);
                 }
-            } else {
-                value.height = value.width * size.width / (desired * size.height);
-                if (value.height > 1 - value.top) {
-                    value.height = 1 - value.top;
-                    value.width = value.height * desired * size.height / size.width;
+                return response.text();
+            })
+            .then(function (html) {
+                if (!placeholder.isConnected) {
+                    return;
                 }
+                var parsed = document.createElement('div');
+                parsed.innerHTML = html;
+                var host = parsed.querySelector('.record-section') || parsed.firstElementChild;
+                if (!host) {
+                    throw new Error('section ' + key + ': empty');
+                }
+                placeholder.replaceWith(host);
+                // Binders scan below their root, so the mounted section is
+                // bound through its parent (every binder is idempotent).
+                bindMounted(host.parentElement || host);
+                measure();
+                if (layout === 'tabs') {
+                    applyTabState();
+                } else {
+                    spy();
+                }
+                waiting.splice(0, waiting.length).forEach(function (callback) { callback(host); });
+                settlePendingAnchor();
+            })
+            .catch(function (error) {
+                placeholder.dataset.lazyState = 'failed';
+                placeholder.textContent = 'This section could not be loaded.';
+                waiting.length = 0;
+                settlePendingAnchor();
+                if (window.console && window.console.error) {
+                    window.console.error('Case section failed to load: ' + key, error);
+                }
+            });
+    }
+    function mountApproaching() {
+        if (layout !== 'scroll') {
+            return;
+        }
+        var limit = window.innerHeight * 2.5;
+        main.querySelectorAll('[data-lazy]').forEach(function (placeholder) {
+            if (placeholder.getBoundingClientRect().top < limit) {
+                mount(placeholder);
             }
-            value.width = Math.max(.02, value.width);
-            value.height = Math.max(.02, value.height);
+        });
+    }
+
+    // ---- jumping and the scroll spy ----------------------------------------
+    function lazyBefore(target) {
+        return Array.prototype.filter.call(main.querySelectorAll('[data-lazy]'), function (placeholder) {
+            return (placeholder.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+                && placeholder.dataset.lazyState !== 'failed';
+        });
+    }
+    function settlePendingAnchor() {
+        if (!pendingAnchor || layout !== 'scroll') {
+            return;
         }
-        function close(save) {
-            if (save && current) { current.changed = true; sync(current.id); write(); }
-            else if (entry && current) { Object.assign(current, entry); sync(current.id); }
-            dialog.hidden = true; current = null; entry = null; drag = null;
+        var target = sectionFor(pendingAnchor.key);
+        if (!target || target.dataset.lazyState === 'failed') {
+            pendingAnchor = null;
+            return;
         }
-        function openCrop(card) {
-            current = cardState(card); entry = Object.assign({}, current);
-            imageBox = null; drag = null;
-            selection.hidden = true;
-            cropSave.disabled = true;
-            cropStatus.hidden = false;
-            cropStatus.textContent = 'Loading image…';
-            stageCanvas.getContext('2d').clearRect(0, 0, stageCanvas.width, stageCanvas.height);
-            previewCanvas.getContext('2d').clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-            source.onload = function () {
-                cropStatus.hidden = true;
-                selection.hidden = false;
-                cropSave.disabled = false;
-                render();
-            };
-            source.onerror = function () {
-                cropStatus.hidden = false;
-                cropStatus.textContent = 'The image could not be loaded. Close the crop editor and try again.';
-            };
-            source.src = card.getAttribute('data-preparation-preview');
-            dialog.hidden = false;
-            if (source.complete && source.naturalWidth) { source.onload(); }
+        if (pendingAnchor.predecessors.some(function (placeholder) {
+            return placeholder.isConnected && placeholder.dataset.lazyState !== 'failed';
+        })) {
+            return;
         }
-        window.pegasusOpenCaseCrop = function (occurrenceId) {
-            var card = document.querySelector('[data-preparation-card][data-preparation-occurrence="' + occurrenceId + '"]');
-            if (card) { openCrop(card); }
+        scrollSectionIntoView(target);
+        pendingAnchor = null;
+    }
+    function scrollSectionIntoView(host) {
+        measure();
+        var top = window.scrollY + host.getBoundingClientRect().top - readingLine() - 8;
+        window.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
+    }
+    function focusSection(host) {
+        var heading = host.querySelector('h2');
+        if (!heading) {
+            return;
+        }
+        heading.setAttribute('tabindex', '-1');
+        try { heading.focus({ preventScroll: true }); } catch (_) { heading.focus(); }
+    }
+    function jumpTo(key, focus) {
+        if (layout === 'tabs') {
+            selectTab(key);
+            return;
+        }
+        var target = sectionFor(key);
+        if (!target) {
+            return;
+        }
+        var predecessors = lazyBefore(target);
+        pendingAnchor = predecessors.length ? { key: key, predecessors: predecessors } : null;
+        if (target.hasAttribute('data-lazy')) {
+            mount(target, function (host) {
+                scrollSectionIntoView(host);
+                mountApproaching();
+                if (focus) { focusSection(host); }
+            });
+            return;
+        }
+        scrollSectionIntoView(target);
+        mountApproaching();
+        if (focus) { focusSection(target); }
+    }
+    function spy() {
+        if (layout !== 'scroll') {
+            return;
+        }
+        var hosts = sections();
+        if (!hosts.length) {
+            return;
+        }
+        var line = readingLine() + 16;
+        var current = hosts[0].getAttribute('data-section');
+        hosts.forEach(function (host) {
+            if (host.getBoundingClientRect().top <= line) {
+                current = host.getAttribute('data-section');
+            }
+        });
+        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40) {
+            current = hosts[hosts.length - 1].getAttribute('data-section');
+        }
+        activeKey = current;
+        links().forEach(function (link) {
+            link.setAttribute('aria-current', link.getAttribute('data-section-link') === current ? 'true' : 'false');
+        });
+        record.querySelectorAll('[data-case-section-field]').forEach(function (field) { field.value = current; });
+    }
+    window.pegasusCaseJumpTo = jumpTo;
+
+    nav.addEventListener('click', function (event) {
+        var link = event.target.closest('[data-section-link]');
+        if (!link) {
+            return;
+        }
+        event.preventDefault();
+        jumpTo(link.getAttribute('data-section-link'), true);
+    });
+    nav.addEventListener('keydown', function (event) {
+        if (layout !== 'tabs') {
+            return;
+        }
+        var link = event.target.closest('[data-section-link]');
+        if (!link) {
+            return;
+        }
+        var all = links();
+        var index = all.indexOf(link);
+        var nextIndex;
+        if (event.key === 'ArrowRight') { nextIndex = index + 1; }
+        else if (event.key === 'ArrowLeft') { nextIndex = index - 1; }
+        else if (event.key === 'Home') { nextIndex = 0; }
+        else if (event.key === 'End') { nextIndex = all.length - 1; }
+        else { return; }
+        event.preventDefault();
+        if (nextIndex < 0) { nextIndex = all.length - 1; }
+        if (nextIndex >= all.length) { nextIndex = 0; }
+        all[nextIndex].focus();
+        selectTab(all[nextIndex].getAttribute('data-section-link'));
+    });
+    document.addEventListener('click', function (event) {
+        var jump = event.target.closest('[data-section-jump]');
+        if (!jump || !record.contains(jump)) {
+            return;
+        }
+        event.preventDefault();
+        jumpTo(jump.getAttribute('data-section-jump'), true);
+    });
+    layoutButtons.forEach(function (button) {
+        button.addEventListener('click', function () { setLayout(button.getAttribute('data-case-layout'), true); });
+    });
+
+    var ticking = false;
+    window.addEventListener('scroll', function () {
+        if (ticking) {
+            return;
+        }
+        ticking = true;
+        window.setTimeout(function () {
+            ticking = false;
+            if (layout !== 'scroll') {
+                return;
+            }
+            mountApproaching();
+            spy();
+        }, 80);
+    }, { passive: true });
+    ['wheel', 'touchstart', 'pointerdown', 'keydown'].forEach(function (name) {
+        window.addEventListener(name, function () { pendingAnchor = null; }, { passive: true });
+    });
+    window.addEventListener('resize', function () {
+        pendingAnchor = null;
+        measure();
+        if (layout === 'scroll') {
+            spy();
+        }
+    });
+
+    // ---- the edit session: dirty guard, heartbeat, expiry ------------------
+    function announce(isDirty) {
+        dirty = isDirty;
+        document.dispatchEvent(new CustomEvent('pegasus:dirty', { detail: { dirty: isDirty } }));
+    }
+    function saveForm() {
+        return document.getElementById('case-edit-form');
+    }
+    document.addEventListener('input', function (event) {
+        var control = event.target;
+        var form = control.form || (control.closest ? control.closest('form') : null);
+        // The form carries an <input name="id">, which shadows the form's own
+        // id property, so the attribute is read instead.
+        if (!form || form.getAttribute('id') !== 'case-edit-form') {
+            return;
+        }
+        if (!dirty) {
+            announce(true);
+        }
+    });
+    window.pegasusCaseIsDirty = function () { return dirty; };
+
+    var heartbeat = null;
+    function stopHeartbeat() {
+        if (heartbeat) {
+            window.clearInterval(heartbeat);
+            heartbeat = null;
+        }
+    }
+    function bindHeartbeat() {
+        stopHeartbeat();
+        var form = record.querySelector('[data-case-heartbeat]');
+        var renew = record.querySelector('[data-case-renew]');
+        var line = record.querySelector('[data-lease-line]');
+        if (!form) {
+            return;
+        }
+        var seconds = parseInt(form.getAttribute('data-heartbeat-seconds'), 10);
+        if (!(seconds > 0)) {
+            return;
+        }
+        if (renew) {
+            renew.hidden = true;
+        }
+        function expired() {
+            stopHeartbeat();
+            if (line) {
+                line.textContent = 'Editing expired · changes are not kept';
+                line.classList.add('is-expiring');
+                line.hidden = false;
+            }
+            if (renew) {
+                renew.hidden = false;
+            }
+        }
+        function beat() {
+            if (!heartbeat) {
+                return;
+            }
+            fetch(form.getAttribute('action') || window.location.href, {
+                method: 'POST',
+                body: new FormData(form),
+                credentials: 'same-origin'
+            }).then(function (response) {
+                if (response.status !== 204) {
+                    expired();
+                }
+            }).catch(function () {
+                // One failed beat is not a lost lease; the next beat settles it.
+            });
+        }
+        heartbeat = window.setInterval(beat, seconds * 1000);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) {
+                beat();
+            }
+        });
+    }
+
+    // ---- in-place actions: every form in the record posts by fetch and the
+    //      record's parts are swapped for the response's (v25 decision 3) ----
+    var confirmDialog = document.getElementById('edit-finish-confirm');
+    var confirmResolve = null;
+    function askUnsaved() {
+        if (!confirmDialog) {
+            return Promise.resolve('discard');
+        }
+        return new Promise(function (resolve) {
+            confirmResolve = resolve;
+            confirmDialog.hidden = false;
+            var keep = confirmDialog.querySelector('[data-edit-finish-keep]');
+            if (keep) { keep.focus(); }
+        });
+    }
+    function settleUnsaved(answer) {
+        if (!confirmDialog || !confirmResolve) {
+            return;
+        }
+        confirmDialog.hidden = true;
+        var resolve = confirmResolve;
+        confirmResolve = null;
+        resolve(answer);
+    }
+    if (confirmDialog) {
+        confirmDialog.querySelector('[data-edit-finish-keep]').addEventListener('click', function () { settleUnsaved('keep'); });
+        confirmDialog.querySelector('[data-edit-finish-discard]').addEventListener('click', function () { settleUnsaved('discard'); });
+        confirmDialog.querySelector('[data-edit-finish-save]').addEventListener('click', function () { settleUnsaved('save'); });
+    }
+
+    function anchor() {
+        var line = readingLine() + 8;
+        var best = null;
+        sections().forEach(function (host) {
+            var rect = host.getBoundingClientRect();
+            if (rect.top <= line && rect.bottom > line) {
+                best = { key: host.getAttribute('data-section'), top: rect.top };
+            }
+        });
+        return best;
+    }
+    function keep(saved) {
+        if (!saved) {
+            return;
+        }
+        var host = sectionFor(saved.key);
+        if (!host) {
+            return;
+        }
+        window.scrollBy({ top: host.getBoundingClientRect().top - saved.top, behavior: 'auto' });
+    }
+
+    var swapRoots = ['[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-stale]', '#case-main', '[data-case-aside]', '[data-case-dialogs]', '[data-case-viewer-host]'];
+    function swap(html) {
+        var parsed = new DOMParser().parseFromString(html, 'text/html');
+        var incoming = parsed.querySelector('[data-case-record]');
+        if (!incoming) {
+            return false;
+        }
+        var saved = anchor();
+        var collapsed = {};
+        sections().forEach(function (host) { collapsed[host.getAttribute('data-section')] = host.classList.contains('is-collapsed'); });
+        swapRoots.forEach(function (selector) {
+            var current = document.querySelector(selector);
+            var next = parsed.querySelector(selector);
+            if (!current || !next) {
+                return;
+            }
+            current.replaceWith(next);
+        });
+        ['class', 'data-case-version', 'data-case-editing', 'data-section-current'].forEach(function (name) {
+            var value = incoming.getAttribute(name);
+            if (value === null) { record.removeAttribute(name); } else { record.setAttribute(name, value); }
+        });
+        record.setAttribute('data-layout', layout);
+        main = document.getElementById('case-main');
+        var mainAttributes = parsed.querySelector('main[data-record-kind]');
+        var liveMain = document.querySelector('main#main-content');
+        if (mainAttributes && liveMain) {
+            var glyph = mainAttributes.getAttribute('data-record-glyph');
+            if (glyph) { liveMain.setAttribute('data-record-glyph', glyph); } else { liveMain.removeAttribute('data-record-glyph'); }
+        }
+        // Dialogs first so the openers in the swapped roots find them.
+        ['[data-case-dialogs]', '[data-case-viewer-host]', '[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-stale]', '#case-main', '[data-case-aside]'].forEach(function (selector) {
+            var root = document.querySelector(selector);
+            if (root) { bindMounted(root); }
+        });
+        if (layout === 'tabs') { applyTabState(); } else { applyScrollState(); }
+        measure();
+        keep(saved);
+        announce(false);
+        bindHeartbeat();
+        mountApproaching();
+        spy();
+        var confirmation = document.querySelector('[data-case-notices] [data-confirmation]');
+        if (confirmation && typeof window.pegasusToast === 'function') {
+            var text = confirmation.querySelector('span');
+            if (text) { window.pegasusToast(text.textContent.trim()); }
+        }
+        document.dispatchEvent(new CustomEvent('pegasus:case-swapped'));
+        return true;
+    }
+    window.pegasusCaseSwap = swap;
+
+    function samePage(url) {
+        try {
+            var target = new URL(url, window.location.href);
+            return target.pathname.replace(/\/+$/, '') === window.location.pathname.replace(/\/+$/, '');
+        } catch (_) {
+            return false;
+        }
+    }
+    function submitInPlace(form, submitter) {
+        var body = new FormData(form, submitter && submitter.name ? submitter : undefined);
+        var action = (submitter && submitter.getAttribute('formaction')) || form.getAttribute('action') || window.location.href;
+        var method = ((submitter && submitter.getAttribute('formmethod')) || form.getAttribute('method') || 'get').toUpperCase();
+        var request = { method: method, credentials: 'same-origin', redirect: 'follow', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' } };
+        if (method === 'GET') {
+            var url = new URL(action, window.location.href);
+            new URLSearchParams(body).forEach(function (value, key) { url.searchParams.set(key, value); });
+            action = url.toString();
+        } else {
+            request.body = body;
+        }
+        form.setAttribute('aria-busy', 'true');
+        fetch(action, request).then(function (response) {
+            var landed = response.url || action;
+            if (!samePage(landed)) {
+                window.location.assign(landed);
+                return null;
+            }
+            if (response.status === 403 || response.status === 404) {
+                window.location.assign(landed);
+                return null;
+            }
+            return response.text();
+        }).then(function (html) {
+            if (html === null) {
+                return;
+            }
+            if (!swap(html)) {
+                window.location.reload();
+            }
+        }).catch(function () {
+            // The plain submit is the fallback: nothing here can be worse than
+            // the page the operator already has.
+            form.removeAttribute('aria-busy');
+            form.removeAttribute('data-inplace-submitting');
+            form.submit();
+        });
+    }
+
+    function inPlace(form) {
+        if (form.hasAttribute('target') || form.hasAttribute('data-no-inplace') || form.hasAttribute('data-case-heartbeat')) {
+            return false;
+        }
+        if (form.hasAttribute('data-glass-window')) {
+            return false;
+        }
+        var dialogs = document.querySelector('[data-case-dialogs]');
+        return record.contains(form) || (dialogs && dialogs.contains(form));
+    }
+
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!(form instanceof HTMLFormElement) || !inPlace(form)) {
+            return;
+        }
+        var submitter = event.submitter;
+        if (submitter && (submitter.hasAttribute('formtarget') || submitter.hasAttribute('data-no-inplace'))) {
+            return;
+        }
+        if (form.dataset.inplaceSubmitting === 'true') {
+            return;
+        }
+        event.preventDefault();
+        var isSave = form.getAttribute('id') === 'case-edit-form';
+        var isCancel = form.hasAttribute('data-case-cancel-form');
+        var proceed = function () {
+            form.dataset.inplaceSubmitting = 'true';
+            submitInPlace(form, submitter);
         };
-        dialog.querySelectorAll('[data-case-crop-cancel]').forEach(function (button) { button.addEventListener('click', function () { close(false); }); });
-        cropSave.addEventListener('click', function () { if (!cropSave.disabled) { close(true); } });
-        dialog.querySelector('[data-case-crop-full]').addEventListener('click', function () { if (current) { current.left = 0; current.top = 0; current.width = 1; current.height = 1; render(); } });
-        dialog.querySelector('[data-case-crop-reset]').addEventListener('click', function () { if (current) { Object.assign(current, entry); render(); } });
-        dialog.querySelectorAll('[data-case-crop-rotate]').forEach(function (button) { button.addEventListener('click', function () { if (current) { current.rotation = rotation(current.rotation + number(button.getAttribute('data-case-crop-rotate'), 0)); lockAspect(current, 'width'); render(); } }); });
-        aspect.addEventListener('change', function () { if (current) { lockAspect(current, 'width'); current.left = Math.min(current.left, 1 - current.width); current.top = Math.min(current.top, 1 - current.height); render(); } });
-        selection.addEventListener('pointerdown', function (event) { if (!current || !imageBox) { return; } drag = { x: event.clientX, y: event.clientY, value: Object.assign({}, current), handle: event.target.getAttribute('data-crop-handle') }; selection.setPointerCapture(event.pointerId); event.preventDefault(); });
-        selection.addEventListener('pointermove', function (event) {
-            if (!drag || !current || !imageBox) { return; }
-            var dx = (event.clientX - drag.x) / imageBox.width;
-            var dy = (event.clientY - drag.y) / imageBox.height;
-            var value = drag.value, handle = drag.handle;
-            if (!handle) { current.left = Math.max(0, Math.min(1 - value.width, value.left + dx)); current.top = Math.max(0, Math.min(1 - value.height, value.top + dy)); }
-            else {
-                current.left = value.left; current.top = value.top; current.width = value.width; current.height = value.height;
-                if (handle.indexOf('n') >= 0) { current.top = Math.max(0, Math.min(value.top + value.height - .02, value.top + dy)); current.height = value.top + value.height - current.top; }
-                if (handle.indexOf('e') >= 0) { current.width = Math.max(.02, Math.min(1 - current.left, value.width + dx)); }
-                if (handle.indexOf('w') >= 0) { current.left = Math.max(0, Math.min(value.left + value.width - .02, value.left + dx)); current.width = value.left + value.width - current.left; }
-                if (handle.indexOf('s') >= 0) { current.height = Math.max(.02, Math.min(1 - current.top, value.height + dy)); }
-                lockAspect(current, handle.indexOf('n') >= 0 || handle.indexOf('s') >= 0 ? 'height' : 'width');
-                current.left = Math.min(current.left, 1 - current.width); current.top = Math.min(current.top, 1 - current.height);
-            }
-            render();
-        });
-        selection.addEventListener('pointerup', function () { drag = null; });
-        new ResizeObserver(function () { if (current && !dialog.hidden) { render(); } }).observe(stage);
-    }
-
-    function bindDamage(root) {
-        Array.prototype.slice.call((root || document).querySelectorAll('[data-damage-editor]')).forEach(function (editor) {
-            if (editor.dataset.damageBound) { return; } editor.dataset.damageBound = 'true';
-            var input = editor.querySelector('[data-damage-input]');
-            var editable = editor.getAttribute('data-damage-editable') === 'true';
-            var impacts; try { impacts = JSON.parse(input ? input.value : editor.getAttribute('data-damage-impacts') || '[]'); } catch (_) { impacts = []; }
-            var selected, fields = editor.querySelector('[data-damage-fields]'), empty = editor.querySelector('[data-damage-empty]'), list = editor.querySelector('[data-damage-impact-list]');
-            var labels = {
-                bonnet: 'Bonnet', windscreen: 'Windscreen', roof: 'Roof', rear_screen: 'Rear screen', tailgate: 'Boot / tailgate',
-                front_left_corner: 'Front N/S corner', front_centre: 'Front centre', front_right_corner: 'Front O/S corner',
-                left_front_wing: 'N/S front wing', left_front_door: 'N/S front door', left_rear_door: 'N/S rear door', left_quarter: 'N/S rear quarter',
-                right_front_wing: 'O/S front wing', right_front_door: 'O/S front door', right_rear_door: 'O/S rear door', right_quarter: 'O/S rear quarter',
-                rear_left_corner: 'Rear N/S corner', rear_centre: 'Rear centre', rear_right_corner: 'Rear O/S corner',
-                wheel_left_front: 'Left front wheel', wheel_right_front: 'Right front wheel', wheel_left_rear: 'Left rear wheel', wheel_right_rear: 'Right rear wheel',
-                underside: 'Underside', interior: 'Interior', mechanical: 'Mechanical'
-            };
-            function impact(zone) { return impacts.filter(function (item) { return item.zone === zone; })[0]; }
-            function renderMarkers() { editor.querySelectorAll('[data-damage-marker]').forEach(function (marker) { marker.classList.toggle('is-hidden', !impact(marker.getAttribute('data-damage-marker'))); }); }
-            function persist() { if (input) { input.value = JSON.stringify(impacts); input.dispatchEvent(new Event('input', { bubbles: true })); } renderMarkers(); }
-            function render() { editor.querySelectorAll('[data-damage-zone]').forEach(function (element) { var zone = element.getAttribute('data-damage-zone'); var recorded = impact(zone); var isSvgZone = element.namespaceURI === 'http://www.w3.org/2000/svg'; element.classList.toggle('is-damaged', !!recorded); element.classList.toggle('is-selected', zone === selected); if (isSvgZone && (editable || recorded)) { element.setAttribute('aria-pressed', zone === selected ? 'true' : 'false'); } if (!isSvgZone) { element.hidden = !editable && !recorded; element.disabled = !editable && !recorded; } }); list.innerHTML = ''; impacts.forEach(function (item) { var li = document.createElement('li'); var button = document.createElement('button'); button.type = 'button'; button.className = 'link-button'; button.textContent = (labels[item.zone] || item.zone.replace(/_/g, ' ')) + ' · ' + item.severity; button.addEventListener('click', function () { select(item.zone); }); li.appendChild(button); list.appendChild(li); }); if (!selected) { fields.hidden = true; empty.hidden = false; empty.textContent = editable ? 'Select a vehicle region.' : impacts.length ? 'Select a recorded vehicle region to view its damage.' : 'No damage recorded.'; return; } var current = impact(selected); empty.hidden = true; fields.hidden = false; editor.querySelector('[data-damage-zone-label]').textContent = labels[selected] || selected.replace(/_/g, ' '); if (editable) { editor.querySelector('[data-damage-severity]').value = current ? current.severity : 'light'; editor.querySelector('[data-damage-note]').value = current ? current.note : ''; } else { editor.querySelector('[data-damage-read-severity]').textContent = current ? current.severity : 'Not recorded'; editor.querySelector('[data-damage-read-note]').textContent = current ? current.note : ''; } }
-            function select(zone) { selected = zone; if (editable && !impact(zone)) { impacts.push({ zone: zone, severity: 'light', note: '' }); persist(); } render(); }
-            editor.querySelectorAll('[data-damage-zone]').forEach(function (element) {
-                var zone = element.getAttribute('data-damage-zone');
-                var selectable = editable || impact(zone);
-                var isSvgZone = element.namespaceURI === 'http://www.w3.org/2000/svg';
-                function activate() { if (selectable) { select(zone); } }
-                if (isSvgZone && selectable) {
-                    element.setAttribute('role', 'button');
-                    element.setAttribute('tabindex', '0');
-                    element.setAttribute('aria-label', (editable ? 'Select ' : 'View recorded ') + (labels[zone] || zone.replace(/_/g, ' ')) + ' damage');
-                    element.addEventListener('keydown', function (event) {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            activate();
-                        }
-                    });
+        if (!isSave && dirty && (isCancel || record.getAttribute('data-case-editing') === 'true')) {
+            // Unsaved edits: ask before an action that would lose them
+            // (Cancel, or an immediate post while the session has edits).
+            askUnsaved().then(function (answer) {
+                if (answer === 'keep') {
+                    return;
                 }
-                element.addEventListener('click', activate);
-            });
-            if (editable) { editor.querySelector('[data-damage-severity]').addEventListener('change', function (event) { var current = impact(selected); if (current) { current.severity = event.target.value; persist(); render(); } }); editor.querySelector('[data-damage-note]').addEventListener('input', function (event) { var current = impact(selected); if (current) { current.note = event.target.value; persist(); } }); editor.querySelector('[data-damage-remove]').addEventListener('click', function () { impacts = impacts.filter(function (item) { return item.zone !== selected; }); selected = null; persist(); render(); }); }
-            renderMarkers(); render();
-        });
-    }
-
-    // The Files section's two tabs. Both panels are rendered, so with no
-    // script the section is the two lists one after the other; this turns the
-    // strip on and shows one at a time. The chosen tab rides in the URL hash
-    // through replaceState for an in-page click, but a hash is never sent to
-    // the server, so it cannot survive a form POST on its own: a tag/untag/
-    // create-tag redirect names the tab with a `?section=files` route value
-    // and a `#case-files-images` fragment instead, and this reads both back
-    // on load.
-    function bindFileTabs(root) {
-        Array.prototype.slice.call((root || document).querySelectorAll('[data-file-tabs-wrap]')).forEach(function (wrap) {
-            if (wrap.dataset.fileTabsBound) { return; }
-            var strip = wrap.querySelector('[data-file-tabs]');
-            var panels = Array.prototype.slice.call(wrap.querySelectorAll('[data-file-tab-panel]'));
-            var buttons = strip ? Array.prototype.slice.call(strip.querySelectorAll('[data-file-tab]')) : [];
-            if (!strip || !panels.length || !buttons.length) { return; }
-            wrap.dataset.fileTabsBound = 'true';
-            function show(name, remember) {
-                panels.forEach(function (panel) { panel.hidden = panel.getAttribute('data-file-tab-panel') !== name; });
-                buttons.forEach(function (button) { button.setAttribute('aria-selected', button.getAttribute('data-file-tab') === name ? 'true' : 'false'); });
-                wrap.setAttribute('data-file-tabs-active', name);
-                if (remember && window.history && window.history.replaceState) {
-                    window.history.replaceState(null, '', '#case-files-' + name);
+                if (answer === 'save') {
+                    var save = saveForm();
+                    if (save) {
+                        save.dataset.inplaceSubmitting = 'true';
+                        submitInPlace(save, null);
+                    }
+                    return;
                 }
-            }
-            buttons.forEach(function (button) {
-                button.addEventListener('click', function () { show(button.getAttribute('data-file-tab'), true); });
+                proceed();
             });
-            strip.hidden = false;
-            wrap.classList.add('is-tabbed');
-            // Only an explicit `#case-files-<tab>` fragment picks a tab. A bare
-            // `?section=files` route value with no such fragment (a Refresh or
-            // a section-nav link) is not a request for Images specifically —
-            // it keeps the server-rendered default (Documents). A redirect
-            // that does mean Images (tag/untag/create) always carries the
-            // `#case-files-images` fragment itself (Custody.cshtml.cs
-            // RedirectToDetailsFilesImages), and browsers apply a fragment
-            // from a 302 Location, so that case is handled by fromHash too.
-            var fromHash = (window.location.hash || '').replace('#case-files-', '');
-            show(buttons.some(function (button) { return button.getAttribute('data-file-tab') === fromHash; })
-                ? fromHash
-                : buttons[0].getAttribute('data-file-tab'), false);
-        });
-    }
+            return;
+        }
+        proceed();
+    });
 
+    // Escape while a swap is unwanted nothing; Ctrl+S is site.js's and lands
+    // on #case-edit-form, which the submit listener above intercepts.
+
+    // ---- the section-head Edit posts the ribbon's claim and remembers the
+    //      section so the swapped page keeps the reader where they were ------
+    document.addEventListener('click', function (event) {
+        var edit = event.target.closest('[data-section-edit]');
+        if (!edit || !record.contains(edit)) {
+            return;
+        }
+        var key = edit.getAttribute('data-section-edit');
+        var form = edit.closest('form');
+        var field = form && form.querySelector('input[name="section"]');
+        if (field) {
+            field.value = key;
+        }
+    });
+
+    // ---- init ------------------------------------------------------------------
+    layout = readLayout();
+    measure();
+    setLayout(layout, false);
+    bindHeartbeat();
+    var addressed = new URLSearchParams(window.location.search).get('section');
+    if (addressed && layout === 'scroll' && addressed.trim().toLowerCase() !== 'overview') {
+        jumpTo(addressed.trim().toLowerCase(), false);
+    }
+    var editingNow = record.getAttribute('data-case-editing') === 'true';
+    if (editingNow && window.location.hash === '') {
+        // Landing in an edit session after a full-POST fallback: nothing to move.
+    }
+})();
+
+
+// --- retained helpers: report recipients, the Glass's window and its return ---
+(function () {
+    'use strict';
     function bindReportRecipients(root) {
         root.querySelectorAll('[data-add-report-recipient]').forEach(function (button) {
             if (button.dataset.recipientBound) { return; }
@@ -371,6 +751,1738 @@
         window.location.assign(url);
     };
 
-    bindPreparations(document); bindDamage(document); bindReportRecipients(document); bindFileTabs(document); bindGlassWindow(document);
-    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(function (root) { bindPreparations(root); bindDamage(root); bindReportRecipients(root); bindFileTabs(root); bindGlassWindow(root); });
+    bindReportRecipients(document); bindGlassWindow(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(function (root) { bindReportRecipients(root); bindGlassWindow(root); });
+})();
+
+
+// --- vehicle -----------------------------------------------------------------
+// --- Inspection details and Vehicle (lane A) -------------------------------
+// The Inspect-at choice filling the address input, and the hidden
+// `inspectionMode` it drives, are site.js's CASE-041 block, bound per root
+// through window.pegasusMountBinders, so an in-place swap re-binds them. The
+// lookup and the Save are plain forms the frame posts in place. Nothing here
+// adds behaviour: the Vehicle and Inspection sections read and edit with the
+// shared one-geometry cells alone.
+
+
+// --- damage -----------------------------------------------------------------
+// --- damage: the Plan clicker (v26 § Damage clicker) ------------------------
+// The diagram, the chips, the recorded-zones list and the derived cells are
+// one view of the impacts JSON the Save reads from the hidden input. The
+// page renders all of it server-side; this keeps them in step while the
+// section edits and only names/highlights zones then (D21: absent, not
+// disabled, outside an edit session).
+(function () {
+    'use strict';
+
+    function bind(root) {
+        Array.prototype.slice.call(root.querySelectorAll('[data-damage-editor]')).forEach(function (editor) {
+            if (editor.dataset.damageBound === 'true') {
+                return;
+            }
+            editor.dataset.damageBound = 'true';
+
+            var editable = editor.getAttribute('data-damage-editable') === 'true';
+            var input = editor.querySelector('[data-damage-input]');
+            var readout = editor.querySelector('[data-damage-readout]');
+            var list = editor.querySelector('[data-damage-impact-list]');
+            var locationCell = editor.querySelector('[data-damage-location]');
+            var severityCell = editor.querySelector('[data-damage-severity]');
+            var countCell = editor.querySelector('[data-damage-count]');
+            var words = {
+                multiple: editor.getAttribute('data-damage-multiple') || 'Multiple',
+                absent: editor.getAttribute('data-damage-absent') || 'Not recorded',
+                none: editor.getAttribute('data-damage-none') || 'No damage recorded.',
+                noNote: editor.getAttribute('data-damage-no-note') || 'No note',
+                note: editor.getAttribute('data-damage-note-label') || 'Note',
+                remove: editor.getAttribute('data-damage-remove-label') || 'Remove'
+            };
+            var zones, severities, impacts;
+            try { zones = JSON.parse(editor.getAttribute('data-damage-zones') || '{}'); } catch (_) { zones = {}; }
+            try { severities = JSON.parse(editor.getAttribute('data-damage-severities') || '[]'); } catch (_) { severities = []; }
+            try {
+                impacts = JSON.parse(input ? input.value : (editor.getAttribute('data-damage-impacts') || '[]'));
+                if (!Array.isArray(impacts)) { impacts = []; }
+            } catch (_) { impacts = []; }
+
+            function zoneName(code) {
+                var zone = zones[code];
+                return zone ? zone.n : String(code || '').replace(/_/g, ' ');
+            }
+            function zoneLocation(code) {
+                var zone = zones[code];
+                return zone ? zone.l : zoneName(code);
+            }
+            function severityName(code) {
+                var found = severities.filter(function (item) { return item.k === code; })[0];
+                return found ? found.n : code;
+            }
+            function severityRank(code) {
+                return severities.map(function (item) { return item.k; }).indexOf(code);
+            }
+            function impact(code) {
+                return impacts.filter(function (item) { return item.zone === code; })[0];
+            }
+            function zoneElements() {
+                return Array.prototype.slice.call(editor.querySelectorAll('[data-damage-zone]'));
+            }
+
+            function persist() {
+                if (input) {
+                    input.value = JSON.stringify(impacts);
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            }
+
+            function paintZones() {
+                var order = {};
+                impacts.forEach(function (item, index) { order[item.zone] = index + 1; });
+                zoneElements().forEach(function (element) {
+                    var recorded = impact(element.getAttribute('data-damage-zone'));
+                    element.classList.toggle('is-damaged', !!recorded);
+                    if (recorded) {
+                        element.setAttribute('data-sev', recorded.severity);
+                    } else {
+                        element.removeAttribute('data-sev');
+                    }
+                });
+                editor.querySelectorAll('[data-damage-marker]').forEach(function (marker) {
+                    var number = order[marker.getAttribute('data-damage-marker')];
+                    marker.classList.toggle('is-hidden', !number);
+                    var text = marker.querySelector('text');
+                    if (text && number) {
+                        text.textContent = String(number);
+                    }
+                });
+            }
+
+            function paintDerived() {
+                if (countCell) {
+                    countCell.textContent = String(impacts.length);
+                }
+                if (locationCell) {
+                    var headlines = [];
+                    impacts.forEach(function (item) {
+                        var location = zoneLocation(item.zone);
+                        if (headlines.indexOf(location) < 0) { headlines.push(location); }
+                    });
+                    locationCell.textContent = headlines.length === 0
+                        ? words.absent
+                        : headlines.length === 1
+                            ? headlines[0]
+                            : words.multiple + ' · ' + headlines.join(', ');
+                }
+                if (severityCell) {
+                    var best = null;
+                    impacts.forEach(function (item) {
+                        if (best === null || severityRank(item.severity) > severityRank(best)) {
+                            best = item.severity;
+                        }
+                    });
+                    severityCell.textContent = best === null ? words.absent : severityName(best);
+                }
+            }
+
+            function cell(className, contents) {
+                var span = document.createElement('span');
+                span.className = 'fc';
+                var value = document.createElement('div');
+                value.className = className;
+                value.textContent = contents;
+                span.appendChild(value);
+                return span;
+            }
+
+            function renderList() {
+                if (!list) {
+                    return;
+                }
+                list.innerHTML = '';
+                if (impacts.length === 0) {
+                    var empty = document.createElement('li');
+                    empty.className = 'muted';
+                    empty.setAttribute('data-damage-empty', '');
+                    empty.textContent = words.none;
+                    list.appendChild(empty);
+                    return;
+                }
+                impacts.forEach(function (item, index) {
+                    var row = document.createElement('li');
+                    row.className = 'impact-row';
+                    row.setAttribute('data-damage-row', item.zone);
+
+                    var name = document.createElement('span');
+                    name.className = 'zc';
+                    var badge = document.createElement('i');
+                    badge.className = 'zn';
+                    badge.textContent = String(index + 1);
+                    name.appendChild(badge);
+                    name.appendChild(document.createTextNode(zoneName(item.zone)));
+                    row.appendChild(name);
+
+                    var severityCellRow = cell('fv', severityName(item.severity));
+                    if (editable) {
+                        var select = document.createElement('select');
+                        select.className = 'fi';
+                        select.setAttribute('data-damage-row-severity', '');
+                        select.setAttribute('aria-label', zoneName(item.zone) + ' severity');
+                        severities.forEach(function (severity) {
+                            var option = document.createElement('option');
+                            option.value = severity.k;
+                            option.textContent = severity.n;
+                            option.selected = severity.k === item.severity;
+                            select.appendChild(option);
+                        });
+                        severityCellRow.appendChild(select);
+                    }
+                    row.appendChild(severityCellRow);
+
+                    var noteCellRow = cell('fv' + (item.note ? '' : ' empty'), item.note || words.noNote);
+                    if (editable) {
+                        var note = document.createElement('input');
+                        note.className = 'fi';
+                        note.maxLength = 200;
+                        note.value = item.note || '';
+                        note.placeholder = words.note;
+                        note.setAttribute('data-damage-row-note', '');
+                        note.setAttribute('aria-label', zoneName(item.zone) + ' ' + words.note.toLowerCase());
+                        noteCellRow.appendChild(note);
+                    }
+                    row.appendChild(noteCellRow);
+
+                    if (editable) {
+                        var remove = document.createElement('button');
+                        remove.type = 'button';
+                        remove.className = 'del';
+                        remove.setAttribute('data-damage-row-remove', '');
+                        remove.setAttribute('aria-label', words.remove + ' ' + zoneName(item.zone));
+                        remove.textContent = '×';
+                        row.appendChild(remove);
+                    }
+                    list.appendChild(row);
+                });
+            }
+
+            function render() {
+                paintZones();
+                paintDerived();
+                renderList();
+            }
+
+            function hover(code) {
+                if (!editable) {
+                    return;
+                }
+                if (readout) {
+                    readout.textContent = code ? zoneName(code) : '';
+                }
+                zoneElements().forEach(function (element) {
+                    element.classList.toggle('is-hover', !!code && element.getAttribute('data-damage-zone') === code);
+                });
+                if (list) {
+                    list.querySelectorAll('[data-damage-row]').forEach(function (row) {
+                        row.classList.toggle('is-hover', !!code && row.getAttribute('data-damage-row') === code);
+                    });
+                }
+            }
+
+            function toggle(code) {
+                if (!editable) {
+                    return;
+                }
+                if (impact(code)) {
+                    impacts = impacts.filter(function (item) { return item.zone !== code; });
+                } else {
+                    impacts.push({ zone: code, severity: 'moderate', note: '' });
+                }
+                render();
+                persist();
+            }
+
+            // The zones: click toggles, hover names, keyboard as buttons.
+            zoneElements().forEach(function (element) {
+                var code = element.getAttribute('data-damage-zone');
+                var isSvg = element.namespaceURI === 'http://www.w3.org/2000/svg';
+                if (editable && isSvg) {
+                    element.setAttribute('role', 'button');
+                    element.setAttribute('tabindex', '0');
+                    element.setAttribute('aria-label', zoneName(code));
+                }
+                element.addEventListener('click', function () { toggle(code); });
+                element.addEventListener('keydown', function (event) {
+                    if (!editable || (event.key !== 'Enter' && event.key !== ' ')) {
+                        return;
+                    }
+                    event.preventDefault();
+                    toggle(code);
+                });
+                element.addEventListener('mouseenter', function () { hover(code); });
+                element.addEventListener('mouseleave', function () { hover(null); });
+                element.addEventListener('focus', function () { hover(code); });
+                element.addEventListener('blur', function () { hover(null); });
+            });
+
+            // The list: severity and note write back; hover lights the zone.
+            if (list) {
+                list.addEventListener('change', function (event) {
+                    var select = event.target.closest('[data-damage-row-severity]');
+                    if (!select) {
+                        return;
+                    }
+                    var row = select.closest('[data-damage-row]');
+                    var recorded = row && impact(row.getAttribute('data-damage-row'));
+                    if (recorded) {
+                        recorded.severity = select.value;
+                        paintZones();
+                        paintDerived();
+                        persist();
+                    }
+                });
+                list.addEventListener('input', function (event) {
+                    var note = event.target.closest('[data-damage-row-note]');
+                    if (!note) {
+                        return;
+                    }
+                    var row = note.closest('[data-damage-row]');
+                    var recorded = row && impact(row.getAttribute('data-damage-row'));
+                    if (recorded) {
+                        recorded.note = note.value;
+                        persist();
+                    }
+                });
+                list.addEventListener('click', function (event) {
+                    var remove = event.target.closest('[data-damage-row-remove]');
+                    if (!remove) {
+                        return;
+                    }
+                    var row = remove.closest('[data-damage-row]');
+                    if (row) {
+                        toggle(row.getAttribute('data-damage-row'));
+                    }
+                });
+                list.addEventListener('mouseover', function (event) {
+                    var row = event.target.closest('[data-damage-row]');
+                    hover(row ? row.getAttribute('data-damage-row') : null);
+                });
+                list.addEventListener('mouseleave', function () { hover(null); });
+            }
+
+            // The server rendered the list and the cells; painting the zones
+            // and the markers is what script adds on load.
+            paintZones();
+        });
+    }
+
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
+
+
+// --- valuation -----------------------------------------------------------------
+// --- Valuation: the calculator's preview, basis cards and additions -----------
+// The lines are Core's arithmetic: every change posts the selection to the
+// PreviewValuation handler and the returned partial replaces the lines. The
+// Apply submit itself is the frame's in-place post. Without script the
+// calculator still posts and the applied calculation shows after the redirect.
+(function () {
+    'use strict';
+
+    function bind(root) {
+        root.querySelectorAll('[data-valuation-form]').forEach(function (form) {
+            if (form.dataset.valuationBound === 'true') {
+                return;
+            }
+            form.dataset.valuationBound = 'true';
+            var section = form.closest('.record-section') || document;
+            var host = section.querySelector('[data-valuation-lines-host]');
+            var stamp = form.querySelector('[data-valuation-stamp]');
+            var basisName = section.querySelector('[data-valuation-basis-name]');
+            var apply = section.querySelector('[data-valuation-apply]');
+            var previewUrl = form.getAttribute('data-preview-url');
+            var timer = null;
+            var inFlight = null;
+
+            function belongs(control) {
+                return control && control.form === form;
+            }
+
+            function preview() {
+                if (!previewUrl || !host) {
+                    return;
+                }
+                var body = new FormData(form);
+                if (inFlight) {
+                    inFlight.abort();
+                }
+                inFlight = new AbortController();
+                fetch(previewUrl, {
+                    method: 'POST',
+                    body: body,
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' },
+                    signal: inFlight.signal
+                }).then(function (response) {
+                    if (!response.ok) {
+                        throw new Error('valuation preview: ' + response.status);
+                    }
+                    return response.text();
+                }).then(function (html) {
+                    host.innerHTML = html;
+                }).catch(function () {
+                    // The lines keep their last state; a refused preview
+                    // shows on Apply, which Core answers.
+                });
+            }
+            function schedule() {
+                window.clearTimeout(timer);
+                timer = window.setTimeout(preview, 250);
+            }
+
+            function chooseBasis(radio) {
+                section.querySelectorAll('[data-valuation-card]').forEach(function (card) {
+                    var own = card.querySelector('[data-valuation-basis]');
+                    card.classList.toggle('sel', own === radio);
+                });
+                if (stamp) {
+                    stamp.value = radio.getAttribute('data-stamp') || '';
+                }
+                if (basisName) {
+                    basisName.textContent = 'from ' + (radio.getAttribute('data-source-name') || 'guide') + ' retail';
+                }
+                if (apply) {
+                    apply.disabled = false;
+                }
+            }
+
+            function paintAdditions() {
+                section.querySelectorAll('[data-valuation-add]').forEach(function (row) {
+                    var toggle = row.querySelector('[data-preset-toggle]');
+                    row.classList.toggle('on', !!(toggle && toggle.checked));
+                });
+            }
+
+            section.addEventListener('change', function (event) {
+                var control = event.target;
+                if (!belongs(control)) {
+                    return;
+                }
+                if (control.matches('[data-valuation-basis]') && control.checked) {
+                    chooseBasis(control);
+                }
+                if (control.matches('[data-preset-toggle]')) {
+                    paintAdditions();
+                }
+                schedule();
+            });
+            section.addEventListener('input', function (event) {
+                if (belongs(event.target)) {
+                    schedule();
+                }
+            });
+            // A click anywhere on a card picks it as the basis.
+            section.querySelectorAll('[data-valuation-card]').forEach(function (card) {
+                card.addEventListener('click', function (event) {
+                    var radio = card.querySelector('[data-valuation-basis]');
+                    if (!radio || event.target === radio || radio.checked) {
+                        return;
+                    }
+                    radio.checked = true;
+                    radio.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+            });
+            paintAdditions();
+            var checked = section.querySelector('[data-valuation-basis]:checked');
+            if (checked) {
+                chooseBasis(checked);
+            }
+        });
+
+        // The chosen valuation month is the Add valuation dialog's default too.
+        root.querySelectorAll('[data-valuation-month]').forEach(function (month) {
+            if (month.dataset.valuationMonthBound === 'true') {
+                return;
+            }
+            month.dataset.valuationMonthBound = 'true';
+            month.addEventListener('change', function () {
+                document.querySelectorAll('[data-add-valuation-month]').forEach(function (target) {
+                    target.value = month.value;
+                });
+            });
+        });
+    }
+
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
+
+
+// --- estimate -----------------------------------------------------------------
+// --- Estimate (v26 § Estimate) --------------------------------------------------
+// The grid's trailing blank line, the full-screen presentation toggle, the VAT
+// override reset and the Send to AI target output. Every control is a real
+// form field; the phantom row posts under the same names and the save drops
+// it while it stays blank. Root-scoped binders so a lazily mounted or swapped
+// section joins.
+(function () {
+    'use strict';
+
+    // Which VAT categories a repairer status charges by default — the same
+    // table as EstimateVatPolicy.DefaultFor, read only to show the Overridden
+    // chip and to put the boxes back; Core still decides on Save.
+    var vatDefaults = {
+        Registered: ['Labour', 'Parts', 'Materials', 'Specialist'],
+        NotRegistered: ['Parts', 'Materials'],
+        Unknown: []
+    };
+
+    function bindGrid(form) {
+        var body = form.querySelector('[data-estimate-grid-body]');
+        var template = form.querySelector('[data-estimate-line-template]');
+        if (!body || !template) {
+            return;
+        }
+
+        function rowCount() {
+            return body.querySelectorAll('tr[data-estimate-line]').length;
+        }
+
+        function appendPhantom() {
+            if (body.querySelector('tr[data-estimate-phantom]')) {
+                return;
+            }
+            var fragment = template.content.cloneNode(true);
+            var row = fragment.querySelector('tr');
+            if (!row) {
+                return;
+            }
+            body.appendChild(row);
+        }
+
+        // Typing into the blank line makes it a real line and a fresh blank
+        // line appears beneath it. The remove button's value is the row's
+        // index, which is what the EditLine handler reads.
+        body.addEventListener('input', function (event) {
+            var row = event.target.closest('tr[data-estimate-phantom]');
+            if (!row || !body.contains(row)) {
+                return;
+            }
+            row.classList.remove('phantom');
+            row.removeAttribute('data-estimate-phantom');
+            row.setAttribute('data-estimate-line', '');
+            var remove = row.querySelector('button[name="removeLine"]');
+            if (remove) {
+                remove.value = String(rowCount() - 1);
+            }
+            var quantity = row.querySelector('input[name="lineQuantity"]');
+            var operation = row.querySelector('select[name="lineOperation"]');
+            if (quantity && !quantity.value && operation && operation.value === 'Replace') {
+                quantity.value = '1';
+            }
+            appendPhantom();
+        });
+
+        // The no-script Add line posts a redraw; with script a line is one
+        // keystroke away already, so Add line just focuses the blank line.
+        var add = form.querySelector('[data-estimate-add-line]');
+        if (add) {
+            add.addEventListener('click', function (event) {
+                var phantom = body.querySelector('tr[data-estimate-phantom]');
+                if (!phantom) {
+                    return;
+                }
+                event.preventDefault();
+                var description = phantom.querySelector('input[name="lineDescription"]');
+                if (description) {
+                    description.focus();
+                }
+            });
+        }
+
+        // A phantom row that is still blank at submit is dropped here as well
+        // as by the save, so a removeLine redraw never counts it.
+        form.addEventListener('submit', function () {
+            body.querySelectorAll('tr[data-estimate-phantom]').forEach(function (row) { row.remove(); });
+        });
+
+        appendPhantom();
+    }
+
+    function bindVat(form) {
+        var status = form.querySelector('[data-vat-status]');
+        var boxes = Array.prototype.slice.call(form.querySelectorAll('input[data-vat-category]'));
+        var chip = form.querySelector('[data-vat-overridden]');
+        var reset = form.querySelector('[data-vat-reset]');
+        if (!status || !boxes.length) {
+            return;
+        }
+        function defaults() {
+            return vatDefaults[status.value] || [];
+        }
+        function overridden() {
+            var expected = defaults();
+            return boxes.some(function (box) {
+                return box.checked !== (expected.indexOf(box.getAttribute('data-vat-category')) >= 0);
+            });
+        }
+        function paint() {
+            var over = overridden();
+            if (chip) { chip.hidden = !over; }
+            if (reset) { reset.hidden = !over; }
+        }
+        boxes.forEach(function (box) { box.addEventListener('change', paint); });
+        status.addEventListener('change', paint);
+        if (reset) {
+            reset.addEventListener('click', function () {
+                var expected = defaults();
+                boxes.forEach(function (box) {
+                    box.checked = expected.indexOf(box.getAttribute('data-vat-category')) >= 0;
+                });
+                paint();
+            });
+        }
+        paint();
+    }
+
+    function bindExpand(section) {
+        var button = section.querySelector('[data-estimate-expand]');
+        if (!button) {
+            return;
+        }
+        var use = button.querySelector('use');
+        function apply(on) {
+            section.classList.toggle('is-expanded', on);
+            document.body.classList.toggle('has-expanded', on);
+            var label = on ? button.getAttribute('data-label-close') : button.getAttribute('data-label-expand');
+            button.title = label || '';
+            button.setAttribute('aria-label', label || '');
+            button.setAttribute('aria-pressed', on ? 'true' : 'false');
+            if (use) {
+                use.setAttribute('href', on ? '#icon-x' : '#icon-external-link');
+            }
+            if (on) {
+                section.scrollTop = 0;
+            }
+        }
+        button.addEventListener('click', function () {
+            apply(!section.classList.contains('is-expanded'));
+        });
+        function onKeydown(event) {
+            if (event.key === 'Escape' && section.isConnected && section.classList.contains('is-expanded')) {
+                event.preventDefault();
+                apply(false);
+            }
+        }
+        document.addEventListener('keydown', onKeydown);
+        // A section swapped out of the page must not leave the body expanded.
+        var observer = new MutationObserver(function () {
+            if (!section.isConnected) {
+                document.body.classList.remove('has-expanded');
+                document.removeEventListener('keydown', onKeydown);
+                observer.disconnect();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    function bindRange(root) {
+        root.querySelectorAll('input[type="range"][data-estimate-range]').forEach(function (range) {
+            if (range.dataset.estimateRangeBound === 'true') {
+                return;
+            }
+            range.dataset.estimateRangeBound = 'true';
+            var output = document.getElementById(range.getAttribute('data-estimate-range-output'));
+            var amount = document.getElementById(range.getAttribute('data-estimate-range-amount'));
+            var base = Number(range.getAttribute('data-estimate-range-base'));
+            function render() {
+                var percent = Number(range.value);
+                if (output) {
+                    output.textContent = percent + '%';
+                }
+                if (amount && Number.isFinite(base) && base > 0) {
+                    amount.textContent = Math.round(base * percent / 100).toLocaleString('en-GB', {
+                        style: 'currency', currency: 'GBP', minimumFractionDigits: 2, maximumFractionDigits: 2
+                    });
+                }
+            }
+            range.addEventListener('input', render);
+            render();
+        });
+    }
+
+    function bind(root) {
+        root.querySelectorAll('[data-estimate-section]').forEach(function (section) {
+            if (section.dataset.estimateBound === 'true') {
+                return;
+            }
+            section.dataset.estimateBound = 'true';
+            bindExpand(section);
+            var form = section.querySelector('form[data-estimate-form]');
+            if (form) {
+                bindGrid(form);
+                bindVat(form);
+            }
+        });
+        bindRange(root);
+    }
+
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
+
+
+// --- report -----------------------------------------------------------------
+// --- overview: the claim source select ----------------------------------------
+// Choosing another claim source while editing shows that record's contact line
+// and its "Notes on every Case" at once, from the option's own data attributes
+// (no request); Save records the choice and the server renders the same.
+(function () {
+    'use strict';
+
+    function bind(root) {
+        root.querySelectorAll('[data-claim-source-select]').forEach(function (select) {
+            if (select.dataset.claimSourceBound === 'true') {
+                return;
+            }
+            select.dataset.claimSourceBound = 'true';
+            var section = select.closest('[data-section="overview"]') || document;
+            select.addEventListener('change', function () {
+                var option = select.options[select.selectedIndex];
+                var notes = option ? option.getAttribute('data-notes') || '' : '';
+                var contact = option ? option.getAttribute('data-contact') || '' : '';
+                var contactCell = section.querySelector('[data-claim-source-contact]');
+                if (contactCell) {
+                    contactCell.textContent = contact || '—';
+                    contactCell.classList.toggle('empty', !contact);
+                }
+                var cell = section.querySelector('[data-record-notes="claim-source"], [data-record-notes-slot="claim-source"]');
+                if (cell) {
+                    var text = cell.querySelector('[data-record-notes-text]');
+                    if (text) {
+                        text.textContent = notes;
+                    }
+                    cell.hidden = !notes;
+                }
+            });
+        });
+    }
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
+
+// --- settlement: the Decisions strip -----------------------------------------
+// The outcome and roadworthiness selects show and hide the rows that only
+// apply to them; Accept copies an AI proposal into the row's own control.
+// Every control is a plain form field of #case-edit-form, so without script
+// the rows the server rendered stand and the operator picks the value.
+(function () {
+    'use strict';
+
+    function control(row) {
+        return row ? row.querySelector('select.fi, input.fi, textarea.fi') : null;
+    }
+
+    function bind(root) {
+        root.querySelectorAll('[data-settlement]').forEach(function (section) {
+            if (section.dataset.settlementBound === 'true') {
+                return;
+            }
+            section.dataset.settlementBound = 'true';
+
+            var outcome = control(section.querySelector('[data-decision="assessment.outcome"]'));
+            var legal = control(section.querySelector('[data-decision="assessment.legal_status"]'));
+
+            function show(when, on) {
+                section.querySelectorAll('[data-shown-when="' + when + '"]').forEach(function (element) {
+                    element.hidden = !on;
+                });
+            }
+            // An awaiting AI proposal leaves its control empty until accepted,
+            // so the rows it implies follow the proposal until a person decides.
+            function decided(path, control) {
+                if (control && control.value) {
+                    return control.value;
+                }
+                var awaiting = section.querySelector('[data-proposal="' + path + '"][data-proposal-status="Awaiting"] [data-proposal-value]');
+                return awaiting ? awaiting.getAttribute('data-proposal-value') : '';
+            }
+            function sync() {
+                if (outcome) {
+                    show('total-loss', decided('assessment.outcome', outcome) === 'total_loss');
+                }
+                if (legal) {
+                    show('unroadworthy', decided('assessment.legal_status', legal) === 'unroadworthy');
+                }
+            }
+            if (outcome) { outcome.addEventListener('change', sync); }
+            if (legal) { legal.addEventListener('change', sync); }
+            sync();
+
+            function accept(button) {
+                var path = button.getAttribute('data-accept-proposal');
+                var row = section.querySelector('[data-decision="' + path + '"]');
+                var proposal = row && row.querySelector('[data-proposal-value]');
+                var target = control(row);
+                if (!proposal || !target) {
+                    return;
+                }
+                target.value = proposal.getAttribute('data-proposal-value');
+                target.dispatchEvent(new Event('input', { bubbles: true }));
+                target.dispatchEvent(new Event('change', { bubbles: true }));
+                button.hidden = true;
+            }
+            section.querySelectorAll('[data-accept-proposal]').forEach(function (button) {
+                button.addEventListener('click', function () { accept(button); });
+            });
+            var all = section.querySelector('[data-accept-all-proposals]');
+            if (all) {
+                all.addEventListener('click', function () {
+                    section.querySelectorAll('[data-accept-proposal]').forEach(function (button) {
+                        if (!button.hidden) { accept(button); }
+                    });
+                    all.hidden = true;
+                });
+            }
+        });
+    }
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
+
+// --- report: content switches, the fee-note choice and the draft preview ------
+(function () {
+    'use strict';
+
+    var words = {
+        'report.disclose_guide_source': ['Guide source disclosed', 'Guide source not disclosed'],
+        'report.valuation_commentary': ['valuation commentary', ''],
+        'report.include_unrelated_damage': ['unrelated damage', '']
+    };
+
+    function bind(root) {
+        root.querySelectorAll('[data-report]').forEach(function (section) {
+            if (section.dataset.reportBound === 'true') {
+                return;
+            }
+            section.dataset.reportBound = 'true';
+
+            // The read value stays in step with the three switches.
+            var summary = section.querySelector('[data-report-content]');
+            var switches = Array.prototype.slice.call(section.querySelectorAll('[data-report-switch]'));
+            function read() {
+                if (!summary || !switches.length) {
+                    return;
+                }
+                var parts = [];
+                switches.forEach(function (box) {
+                    var pair = words[box.getAttribute('data-report-switch')] || ['', ''];
+                    var text = box.checked ? pair[0] : pair[1];
+                    if (text) { parts.push(text); }
+                });
+                summary.textContent = parts.join(' · ');
+            }
+            switches.forEach(function (box) { box.addEventListener('change', read); });
+
+            // The preview follows the Include fee note choice, and opens in
+            // the page's document viewer when one is present.
+            var preview = section.querySelector('[data-report-preview]');
+            var feeNote = section.querySelector('[data-include-fee-note]');
+            function previewHref() {
+                if (!preview) {
+                    return '';
+                }
+                var url = new URL(preview.getAttribute('href'), window.location.href);
+                url.searchParams.set('includeFeeNote', feeNote && feeNote.checked ? 'True' : 'False');
+                return url.toString();
+            }
+            if (preview && feeNote) {
+                feeNote.addEventListener('change', function () { preview.setAttribute('href', previewHref()); });
+            }
+            if (preview) {
+                preview.addEventListener('click', function (event) {
+                    var viewer = window.pegasusCaseViewer;
+                    if (!viewer || typeof viewer.openDocument !== 'function') {
+                        return;
+                    }
+                    event.preventDefault();
+                    var href = previewHref();
+                    var menu = preview.closest('details[data-menu]');
+                    if (menu) { menu.open = false; }
+                    viewer.openDocument({
+                        href: href,
+                        name: preview.getAttribute('data-file-name') || 'Report draft',
+                        download: href,
+                        downloadLabel: 'Download draft'
+                    });
+                });
+            }
+        });
+    }
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
+
+
+// --- files -----------------------------------------------------------------
+// --- files: tabs, image preparation staging, tiles, the viewer and crop --------
+// v26 § Files, § Image viewer, § Crop and tag. The crop is a stored rectangle
+// over the rotated source (Core's CaseAssetCrop), staged into the one Case
+// form as preparationEdits[i].* and posted by Save; nothing here writes a
+// file or a mutation of its own. Every binder is root-scoped and idempotent.
+(function () {
+    'use strict';
+
+    // ---- helpers -------------------------------------------------------------
+    function number(value, fallback) {
+        var parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+    function clamp(value, low, high) { return Math.max(low, Math.min(high, value)); }
+    function round7(value) { return Math.round(value * 10000000) / 10000000; }
+    function all(root, selector) { return Array.prototype.slice.call((root || document).querySelectorAll(selector)); }
+    function normalRotation(value) { return ((Math.round(value / 90) * 90) % 360 + 360) % 360; }
+    function isFull(c) { return c.left === 0 && c.top === 0 && c.width === 1 && c.height === 1; }
+    function sameCrop(a, b) {
+        return Math.abs(a.left - b.left) < .0000001 && Math.abs(a.top - b.top) < .0000001
+            && Math.abs(a.width - b.width) < .0000001 && Math.abs(a.height - b.height) < .0000001;
+    }
+    // A rectangle in the rotated source's fractions, re-expressed after a
+    // further quarter turn clockwise (so a selection follows the image while
+    // the operator rotates in the crop editor).
+    function turnRect(r, degrees) {
+        var d = normalRotation(degrees);
+        if (d === 90) { return { left: 1 - (r.top + r.height), top: r.left, width: r.height, height: r.width }; }
+        if (d === 180) { return { left: 1 - r.left - r.width, top: 1 - r.top - r.height, width: r.width, height: r.height }; }
+        if (d === 270) { return { left: r.top, top: 1 - (r.left + r.width), width: r.height, height: r.width }; }
+        return { left: r.left, top: r.top, width: r.width, height: r.height };
+    }
+    // The stored crop is over the rotated source; the <img> element's own
+    // coordinate space is the unrotated one, which clip-path and translate use.
+    function unrotate(c, rotation) { return turnRect(c, 360 - normalRotation(rotation)); }
+    function cropLabel(c) {
+        return isFull(c)
+            ? 'Full frame'
+            : 'Left ' + fmt(c.left) + ' · Top ' + fmt(c.top) + ' · Width ' + fmt(c.width) + ' · Height ' + fmt(c.height);
+        function fmt(v) { return String(Math.round(v * 100) / 100); }
+    }
+    function rotationLabel(r) { return r ? r + '°' : 'None'; }
+    function roleLabel(role) {
+        return { NotUsed: 'Not used', CloseUp: 'Close-up', Overview: 'Overview', Supporting: 'Supporting' }[role] || role;
+    }
+
+    // Lays an <img> out so the crop region (in the rotated source's
+    // fractions) fills the box; the image is expected to sit centred at its
+    // natural aspect (max-width/max-height 100%). Returns nothing; writes the
+    // element's transform and clip-path.
+    function fitImage(img, crop, rotation, boxWidth, boxHeight, zoom) {
+        var rot = normalRotation(rotation);
+        var rotated = rot % 180 !== 0;
+        var W = img.clientWidth, H = img.clientHeight;
+        img.style.clipPath = '';
+        if (!W || !H) {
+            img.style.transform = 'rotate(' + rot + 'deg)';
+            return;
+        }
+        var bw = rotated ? boxHeight : boxWidth;
+        var bh = rotated ? boxWidth : boxHeight;
+        var c = unrotate(crop || { left: 0, top: 0, width: 1, height: 1 }, rot);
+        var k = Math.min(bw / (c.width * W), bh / (c.height * H));
+        if (!Number.isFinite(k) || k <= 0) { k = 1; }
+        var tx = -k * (c.left + c.width / 2 - .5) * W;
+        var ty = -k * (c.top + c.height / 2 - .5) * H;
+        if (!isFull(c)) {
+            img.style.clipPath = 'inset(' + (c.top * 100) + '% ' + ((1 - c.left - c.width) * 100) + '% ' + ((1 - c.top - c.height) * 100) + '% ' + (c.left * 100) + '%)';
+        }
+        img.style.transform = 'rotate(' + rot + 'deg) ' + (zoom ? 'scale(2)' : 'translate(' + tx.toFixed(1) + 'px,' + ty.toFixed(1) + 'px) scale(' + k.toFixed(4) + ')');
+    }
+
+    // ---- Files tabs --------------------------------------------------------------
+    // Both panels are rendered, so with no script the section is the lists one
+    // after the other; script turns the strip on and shows one at a time. The
+    // chosen tab rides in the URL hash (`#case-files-<tab>`), which the Custody
+    // redirects name too, so a tag/untag/create lands back on Images.
+    function bindFileTabs(root) {
+        all(root, '[data-file-tabs-wrap]').forEach(function (wrap) {
+            if (wrap.dataset.fileTabsBound === 'true') { return; }
+            var strip = wrap.querySelector('[data-file-tabs]');
+            var panels = all(wrap, '[data-file-tab-panel]');
+            var buttons = strip ? all(strip, '[data-file-tab]') : [];
+            if (!strip || !panels.length || !buttons.length) { return; }
+            wrap.dataset.fileTabsBound = 'true';
+            function show(name, remember) {
+                panels.forEach(function (panel) { panel.hidden = panel.getAttribute('data-file-tab-panel') !== name; });
+                buttons.forEach(function (button) { button.setAttribute('aria-selected', button.getAttribute('data-file-tab') === name ? 'true' : 'false'); });
+                wrap.setAttribute('data-file-tabs-active', name);
+                if (remember && window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', '#case-files-' + name);
+                }
+            }
+            buttons.forEach(function (button) {
+                button.addEventListener('click', function () { show(button.getAttribute('data-file-tab'), true); });
+            });
+            strip.hidden = false;
+            wrap.classList.add('is-tabbed');
+            var fromHash = (window.location.hash || '').replace('#case-files-', '');
+            show(buttons.some(function (button) { return button.getAttribute('data-file-tab') === fromHash; })
+                ? fromHash
+                : buttons[0].getAttribute('data-file-tab'), false);
+        });
+    }
+
+    // ---- preparation staging ------------------------------------------------------
+    // One state per image occurrence, seeded from the [data-preparation-card]
+    // attributes and kept on the Case form element, so an in-place swap (a
+    // new form) starts clean from what the server now holds.
+    function saveForm() { return document.getElementById('case-edit-form'); }
+    function staged() {
+        var form = saveForm();
+        if (!form) { return null; }
+        return form.__pegasusPreparationStaged || (form.__pegasusPreparationStaged = {});
+    }
+    function cardsFor(id) {
+        return all(document, '[data-preparation-card][data-preparation-occurrence="' + id + '"]');
+    }
+    function seed(card) {
+        var store = staged();
+        if (!store) { return null; }
+        var id = card.getAttribute('data-preparation-occurrence');
+        if (!store[id]) {
+            var crop = {
+                left: number(card.getAttribute('data-preparation-crop-left'), 0),
+                top: number(card.getAttribute('data-preparation-crop-top'), 0),
+                width: number(card.getAttribute('data-preparation-crop-width'), 1),
+                height: number(card.getAttribute('data-preparation-crop-height'), 1)
+            };
+            var role = card.getAttribute('data-preparation-role') || 'NotUsed';
+            store[id] = {
+                id: id,
+                version: number(card.getAttribute('data-preparation-version'), 0),
+                role: role,
+                previousRole: role === 'NotUsed' ? 'Supporting' : role,
+                order: card.getAttribute('data-preparation-order') ? number(card.getAttribute('data-preparation-order'), null) : null,
+                rotation: normalRotation(number(card.getAttribute('data-preparation-rotation'), 0)),
+                crop: crop,
+                stored: { rotation: normalRotation(number(card.getAttribute('data-preparation-rotation'), 0)), crop: { left: crop.left, top: crop.top, width: crop.width, height: crop.height } },
+                preview: card.getAttribute('data-preparation-preview') || '',
+                changed: false
+            };
+        }
+        return store[id];
+    }
+    function get(id) {
+        var store = staged();
+        if (!store) { return null; }
+        if (store[id]) { return store[id]; }
+        var card = cardsFor(id)[0];
+        return card ? seed(card) : null;
+    }
+    function writeHidden() {
+        var form = saveForm();
+        var store = staged();
+        if (!form || !store) { return; }
+        all(form, '[data-preparation-hidden]').forEach(function (element) { element.remove(); });
+        var index = 0;
+        Object.keys(store).forEach(function (id) {
+            var value = store[id];
+            if (!value.changed) { return; }
+            [
+                ['OccurrenceId', value.id], ['ExpectedPreparationVersion', value.version], ['Role', value.role],
+                ['Order', value.role === 'Supporting' && value.order !== null ? value.order : ''], ['Rotation', value.rotation],
+                ['CropLeft', round7(value.crop.left)], ['CropTop', round7(value.crop.top)],
+                ['CropWidth', round7(value.crop.width)], ['CropHeight', round7(value.crop.height)]
+            ].forEach(function (field) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'preparationEdits[' + index + '].' + field[0];
+                input.value = field[1];
+                input.setAttribute('data-preparation-hidden', '');
+                form.appendChild(input);
+            });
+            index += 1;
+        });
+        // The frame's dirty guard listens for input on the form's controls.
+        var marker = form.querySelector('input[name="editLeaseToken"]') || form;
+        marker.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    function isStagedDifferent(value) {
+        return value.rotation !== value.stored.rotation || !sameCrop(value.crop, value.stored.crop);
+    }
+    // Every tile, strip button and card that shows this occurrence follows the
+    // staged state: the thumbnail already shows the saved region; a staged
+    // change draws the full image with the new region over it.
+    function sync(id) {
+        var value = get(id);
+        if (!value) { return; }
+        cardsFor(id).forEach(function (card) {
+            var role = card.querySelector('[data-preparation-role-select]');
+            var order = card.querySelector('[data-preparation-order]');
+            var roleLabelElement = card.querySelector('[data-preparation-role-label]');
+            var rotationLabelElement = card.querySelector('[data-preparation-rotation-label]');
+            var cropLabelElement = card.querySelector('[data-preparation-crop-label]');
+            if (role) { role.value = value.role; }
+            if (order) { order.value = value.order === null ? '' : value.order; order.disabled = value.role !== 'Supporting'; }
+            if (roleLabelElement) { roleLabelElement.textContent = roleLabel(value.role); }
+            if (rotationLabelElement) { rotationLabelElement.textContent = rotationLabel(value.rotation); }
+            if (cropLabelElement) { cropLabelElement.textContent = cropLabel(value.crop); }
+            var box = card.querySelector('[data-preparation-preview-box]');
+            var image = card.querySelector('[data-preparation-preview-image]');
+            if (box && image) { paintTile(box, image, value); }
+        });
+        all(document, '[data-evidence-preparation-occurrence="' + id + '"]').forEach(function (anchor) {
+            var image = anchor.querySelector('img');
+            if (image) { paintTile(anchor, image, value); }
+            var badge = anchor.querySelector('.rot');
+            if (badge) {
+                badge.textContent = value.rotation ? value.rotation + '°' : '';
+                badge.hidden = !value.rotation;
+            }
+        });
+        all(document, '[data-report-image-toggle="' + id + '"]').forEach(function (tile) {
+            tile.classList.toggle('off', value.role === 'NotUsed');
+            var mark = tile.querySelector('.inc');
+            if (mark) { mark.textContent = value.role === 'NotUsed' ? '–' : '✓'; }
+        });
+        if (viewer && viewer.open && viewer.current() && viewer.current().occurrence === id) {
+            viewer.render();
+        }
+    }
+    function paintTile(box, image, value) {
+        if (!isStagedDifferent(value)) {
+            box.classList.remove('is-staged');
+            image.style.transform = '';
+            image.style.clipPath = '';
+            if (image.dataset.plainSrc && image.getAttribute('src') !== image.dataset.plainSrc) {
+                image.setAttribute('src', image.dataset.plainSrc);
+            }
+            return;
+        }
+        if (!image.dataset.plainSrc) { image.dataset.plainSrc = image.getAttribute('src') || ''; }
+        var full = value.preview || box.getAttribute('href') || image.dataset.plainSrc;
+        box.classList.add('is-staged');
+        var draw = function () { fitImage(image, value.crop, value.rotation, box.clientWidth, box.clientHeight, false); };
+        if (image.getAttribute('src') !== full) {
+            image.addEventListener('load', draw, { once: true });
+            image.setAttribute('src', full);
+        } else if (image.complete) {
+            draw();
+        } else {
+            image.addEventListener('load', draw, { once: true });
+        }
+    }
+    function set(id, patch) {
+        var value = get(id);
+        if (!value) { return null; }
+        if (patch.role !== undefined) {
+            if (value.role !== 'NotUsed') { value.previousRole = value.role; }
+            value.role = patch.role;
+            if (value.role !== 'Supporting') { value.order = null; }
+        }
+        if (patch.order !== undefined) { value.order = patch.order === null ? null : Math.max(1, Math.floor(number(patch.order, 1))); }
+        if (patch.rotation !== undefined) { value.rotation = normalRotation(patch.rotation); }
+        if (patch.crop !== undefined) {
+            value.crop = {
+                left: clamp(round7(patch.crop.left), 0, 1), top: clamp(round7(patch.crop.top), 0, 1),
+                width: clamp(round7(patch.crop.width), 0, 1), height: clamp(round7(patch.crop.height), 0, 1)
+            };
+        }
+        value.changed = true;
+        sync(id);
+        writeHidden();
+        return value;
+    }
+    function toggleInReport(id, on) {
+        var value = get(id);
+        if (!value) { return; }
+        set(id, { role: on ? (value.previousRole || 'Supporting') : 'NotUsed' });
+    }
+    window.pegasusCasePreparation = {
+        get: get,
+        set: set,
+        openCrop: function (id) { if (viewer) { viewer.openCrop(id); } },
+        toggleInReport: toggleInReport
+    };
+    window.pegasusOpenCaseCrop = function (id) { window.pegasusCasePreparation.openCrop(id); };
+
+    function bindPreparationCards(root) {
+        all(root, '[data-preparation-card]').forEach(function (card) {
+            if (card.dataset.preparationBound === 'true') { sync(card.getAttribute('data-preparation-occurrence')); return; }
+            card.dataset.preparationBound = 'true';
+            var value = seed(card);
+            if (!value) { return; }
+            sync(value.id);
+            var role = card.querySelector('[data-preparation-role-select]');
+            var order = card.querySelector('[data-preparation-order]');
+            if (role) { role.addEventListener('change', function () { set(value.id, { role: role.value }); }); }
+            if (order) { order.addEventListener('change', function () { set(value.id, { order: order.value === '' ? null : order.value }); }); }
+            all(card, '[data-preparation-rotate]').forEach(function (button) {
+                button.addEventListener('click', function () {
+                    var current = get(value.id);
+                    set(value.id, { rotation: current.rotation + number(button.getAttribute('data-preparation-rotate'), 0) });
+                });
+            });
+            var reset = card.querySelector('[data-preparation-reset]');
+            if (reset) {
+                reset.addEventListener('click', function () {
+                    set(value.id, { role: 'NotUsed', order: null, rotation: 0, crop: { left: 0, top: 0, width: 1, height: 1 } });
+                });
+            }
+        });
+        all(root, '[data-preparation-crop]').forEach(function (button) {
+            if (button.dataset.cropBound === 'true') { return; }
+            button.dataset.cropBound = 'true';
+            button.addEventListener('click', function () {
+                var owner = button.closest('[data-preparation-occurrence]');
+                var id = button.getAttribute('data-preparation-crop-occurrence')
+                    || (owner ? owner.getAttribute('data-preparation-occurrence') : null);
+                if (id) { window.pegasusCasePreparation.openCrop(id); }
+            });
+        });
+        // A report-strip tile toggles inclusion while editing (v26 § Image
+        // viewer); the small view glyph opens the viewer instead.
+        all(root, '[data-report-image-toggle]').forEach(function (tile) {
+            if (tile.dataset.toggleBound === 'true') { return; }
+            tile.dataset.toggleBound = 'true';
+            var id = tile.getAttribute('data-report-image-toggle');
+            tile.addEventListener('click', function (event) {
+                if (event.target.closest('[data-tile-view], .th-view')) { return; }
+                if (!get(id)) { return; }
+                event.preventDefault();
+                event.stopPropagation();
+                toggleInReport(id, tile.classList.contains('off'));
+            }, true);
+        });
+        all(root, '[data-tile-view], .th-view').forEach(function (button) {
+            if (button.dataset.viewBound === 'true') { return; }
+            button.dataset.viewBound = 'true';
+            button.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                var item = button.closest('[data-evidence-item]');
+                if (item && viewer) { viewer.open(item); }
+            });
+        });
+        // Tiles for occurrences whose state was seeded elsewhere (the Damage
+        // strip, the Report strip) follow the staged state too.
+        all(root, '[data-evidence-preparation-occurrence]').forEach(function (anchor) {
+            var id = anchor.getAttribute('data-evidence-preparation-occurrence');
+            if (id && get(id)) { sync(id); }
+        });
+    }
+    window.addEventListener('resize', function () {
+        var store = staged();
+        if (!store) { return; }
+        Object.keys(store).forEach(function (id) { if (isStagedDifferent(store[id])) { sync(id); } });
+    });
+
+    // ---- the viewer -------------------------------------------------------------
+    var viewer = null;
+    function previewKind(value) {
+        var type = String(value || '').split(';')[0].trim().toLowerCase();
+        if (type.indexOf('image/') === 0 && type !== 'image/svg+xml') { return 'image'; }
+        if (type === 'application/pdf') { return 'document'; }
+        return type === 'video/mp4' || type === 'video/quicktime' ? 'video' : '';
+    }
+    function buildViewer(host) {
+        var image = host.querySelector('[data-viewer-image]');
+        var frame = host.querySelector('[data-viewer-document]');
+        var video = host.querySelector('[data-viewer-video]');
+        var stage = host.querySelector('[data-viewer-stage]');
+        var name = host.querySelector('[data-viewer-name]');
+        var tag = host.querySelector('[data-viewer-tag]');
+        var position = host.querySelector('[data-viewer-position]');
+        var viewTools = host.querySelector('[data-viewer-view-tools]');
+        var cropTools = host.querySelector('[data-viewer-crop-tools]');
+        var rotateButton = host.querySelector('[data-viewer-rotate]');
+        var zoomButton = host.querySelector('[data-viewer-zoom]');
+        var zoomLabel = host.querySelector('[data-viewer-zoom-label]');
+        var cropButton = host.querySelector('[data-viewer-crop]');
+        var download = host.querySelector('[data-viewer-download]');
+        var downloadLabel = host.querySelector('[data-viewer-download-label]');
+        var inReportWrap = host.querySelector('[data-viewer-in-report-wrap]');
+        var inReport = host.querySelector('[data-viewer-in-report]');
+        var cropStatus = host.querySelector('[data-viewer-crop-status]');
+        var aspect = host.querySelector('[data-viewer-aspect]');
+        var strip = host.querySelector('[data-viewer-strip]');
+        var downloadDefault = downloadLabel ? downloadLabel.textContent : 'Download';
+
+        var state = { open: false, items: [], index: 0, rotation: 0, zoom: false, invoker: null, crop: null, kind: '' };
+        // The crop editor's working copy: rotation and the selection in the
+        // rotated source's fractions, or null for the whole frame.
+        var crop = { id: null, rotation: 0, selection: null, aspect: 'free', drag: null, layer: null, box: null };
+
+        function current() { return state.items[state.index] || null; }
+        function itemFrom(trigger, extra) {
+            var id = trigger.getAttribute('data-evidence-preparation-occurrence') || '';
+            var img = trigger.querySelector('img');
+            return {
+                href: trigger.getAttribute('href') || '',
+                downloadHref: trigger.getAttribute('data-download-href') || trigger.getAttribute('href') || '',
+                mediaType: trigger.getAttribute('data-media-type') || '',
+                name: trigger.getAttribute('data-file-name') || '',
+                thumb: trigger.getAttribute('data-thumb') || (img ? img.getAttribute('src') : '') || '',
+                tag: trigger.getAttribute('data-tag') || '',
+                occurrence: id,
+                excluded: trigger.classList.contains('off'),
+                downloadLabel: extra && extra.downloadLabel ? extra.downloadLabel : downloadDefault,
+                element: trigger
+            };
+        }
+        function preparable(item) { return !!(item && item.occurrence && get(item.occurrence)); }
+
+        function focusable() {
+            return all(host, 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])').filter(function (element) {
+                return !element.disabled && !element.hidden && element.getClientRects().length > 0 && !element.closest('[hidden]');
+            });
+        }
+        function stageBox() {
+            return { width: stage.clientWidth - 28, height: stage.clientHeight - 28 };
+        }
+        function fit() {
+            var item = current();
+            if (!item || state.kind !== 'image') { return; }
+            var box = stageBox();
+            var rotated = state.rotation % 180 !== 0;
+            image.style.maxWidth = (rotated ? stage.clientHeight : stage.clientWidth) - 28 + 'px';
+            image.style.maxHeight = (rotated ? stage.clientWidth : stage.clientHeight) - 28 + 'px';
+            if (state.crop) {
+                image.style.clipPath = '';
+                image.style.transform = 'rotate(' + state.rotation + 'deg)';
+                placeLayer();
+                return;
+            }
+            var value = preparable(item) ? get(item.occurrence) : null;
+            fitImage(image, value ? value.crop : null, state.rotation, box.width, box.height, state.zoom);
+        }
+        function render() {
+            var item = current();
+            if (!item) { return; }
+            var kind = item.kind || previewKind(item.mediaType);
+            state.kind = kind;
+            name.textContent = item.name;
+            var value = preparable(item) ? get(item.occurrence) : null;
+            tag.textContent = item.tag || '';
+            tag.hidden = !item.tag;
+            position.textContent = state.items.length > 1 ? (state.index + 1) + ' of ' + state.items.length : '';
+            image.hidden = kind !== 'image';
+            frame.hidden = kind !== 'document';
+            video.hidden = kind !== 'video';
+            stage.classList.toggle('is-zoomed', state.zoom && kind === 'image' && !state.crop);
+            stage.classList.toggle('is-cropping', !!state.crop);
+            stage.setAttribute('aria-busy', 'true');
+            if (kind === 'image') {
+                frame.removeAttribute('src'); video.removeAttribute('src');
+                image.alt = item.name;
+                if (image.getAttribute('src') !== item.href) {
+                    image.addEventListener('load', function () { stage.removeAttribute('aria-busy'); fit(); }, { once: true });
+                    image.setAttribute('src', item.href);
+                } else { stage.removeAttribute('aria-busy'); }
+                image.style.clipPath = '';
+                image.style.transform = '';
+                fit();
+                window.requestAnimationFrame(fit);
+            } else if (kind === 'document') {
+                image.removeAttribute('src'); video.removeAttribute('src');
+                frame.title = item.name;
+                frame.addEventListener('load', function () { stage.removeAttribute('aria-busy'); }, { once: true });
+                frame.src = item.href;
+            } else if (kind === 'video') {
+                image.removeAttribute('src'); frame.removeAttribute('src');
+                video.addEventListener('loadedmetadata', function () { stage.removeAttribute('aria-busy'); }, { once: true });
+                video.src = item.href;
+                video.load();
+            } else {
+                stage.removeAttribute('aria-busy');
+            }
+            download.href = item.downloadHref;
+            download.setAttribute('download', item.name);
+            if (downloadLabel) { downloadLabel.textContent = item.downloadLabel || downloadDefault; }
+            rotateButton.hidden = kind !== 'image';
+            zoomButton.hidden = kind !== 'image';
+            if (zoomLabel) { zoomLabel.textContent = state.zoom ? 'Fit' : 'Zoom'; }
+            cropButton.hidden = kind !== 'image' || !value;
+            inReportWrap.hidden = kind !== 'image' || !value;
+            if (value) { inReport.checked = value.role !== 'NotUsed'; }
+            viewTools.hidden = !!state.crop;
+            cropTools.hidden = !state.crop;
+            host.querySelector('[data-viewer-prev]').disabled = state.items.length < 2;
+            host.querySelector('[data-viewer-next]').disabled = state.items.length < 2;
+            renderStrip();
+            if (state.crop) { renderCropTools(); }
+        }
+        function renderStrip() {
+            strip.innerHTML = '';
+            if (state.items.length < 2) { strip.hidden = true; return; }
+            strip.hidden = false;
+            state.items.forEach(function (item, at) {
+                var button = document.createElement('button');
+                button.type = 'button';
+                var value = preparable(item) ? get(item.occurrence) : null;
+                var excluded = value ? value.role === 'NotUsed' : item.excluded;
+                button.className = (at === state.index ? 'on' : '') + (excluded ? ' off' : '');
+                button.setAttribute('aria-label', item.name);
+                button.title = item.name;
+                var kind = item.kind || previewKind(item.mediaType);
+                if (kind === 'image' && item.thumb) {
+                    var thumb = document.createElement('img');
+                    thumb.src = item.thumb;
+                    thumb.alt = '';
+                    button.appendChild(thumb);
+                } else {
+                    button.classList.add('doc');
+                    button.textContent = item.name;
+                }
+                button.addEventListener('click', function () { go(at); });
+                strip.appendChild(button);
+            });
+            var on = strip.querySelector('.on');
+            if (on) { strip.scrollLeft = Math.max(0, on.offsetLeft - strip.clientWidth / 2 + 42); }
+        }
+        function go(at) {
+            if (state.crop) { cancelCrop(); }
+            state.index = (at + state.items.length) % state.items.length;
+            state.zoom = false;
+            var item = current();
+            var value = item && preparable(item) ? get(item.occurrence) : null;
+            state.rotation = value ? value.rotation : 0;
+            render();
+        }
+        function step(offset) { if (state.items.length > 1) { go(state.index + offset); } }
+
+        function open(trigger, extra) {
+            var set = trigger.closest('[data-evidence-set]');
+            state.items = (set ? all(set, '[data-evidence-item]') : [trigger])
+                .filter(function (candidate) { return previewKind(candidate.getAttribute('data-media-type')) !== ''; })
+                .map(function (candidate) { return itemFrom(candidate, extra); });
+            var start = state.items.findIndex(function (item) { return item.element === trigger; });
+            state.invoker = trigger;
+            show(start < 0 ? 0 : start);
+        }
+        function openDocument(options) {
+            state.items = [{
+                href: options.href, downloadHref: options.download || options.href, mediaType: 'application/pdf', kind: 'document',
+                name: options.name || '', thumb: '', tag: '', occurrence: '', excluded: false,
+                downloadLabel: options.downloadLabel || downloadDefault, element: null
+            }];
+            state.invoker = options.invoker || document.activeElement;
+            show(0);
+        }
+        function show(at) {
+            state.open = true;
+            state.crop = null;
+            host.hidden = false;
+            document.body.classList.add('has-viewer');
+            document.addEventListener('keydown', onKeydown, true);
+            go(at);
+            try { host.focus({ preventScroll: true }); } catch (_) { host.focus(); }
+        }
+        function close() {
+            if (state.crop) { cancelCrop(); }
+            state.open = false;
+            host.hidden = true;
+            document.body.classList.remove('has-viewer');
+            document.removeEventListener('keydown', onKeydown, true);
+            image.removeAttribute('src'); frame.removeAttribute('src'); video.removeAttribute('src'); video.load();
+            image.style.transform = ''; image.style.clipPath = '';
+            stage.removeAttribute('aria-busy');
+            if (state.invoker && typeof state.invoker.focus === 'function') { state.invoker.focus(); }
+        }
+        function rotate() {
+            if (state.kind !== 'image' || state.crop) { return; }
+            state.rotation = normalRotation(state.rotation + 90);
+            render();
+        }
+        function zoom() {
+            if (state.kind !== 'image' || state.crop) { return; }
+            state.zoom = !state.zoom;
+            render();
+        }
+
+        // ---- crop on the stage ----
+        function beginCrop() {
+            var item = current();
+            if (!item || !preparable(item) || state.kind !== 'image') { return; }
+            var value = get(item.occurrence);
+            crop.id = item.occurrence;
+            crop.rotation = value.rotation;
+            crop.selection = isFull(value.crop) ? null : { left: value.crop.left, top: value.crop.top, width: value.crop.width, height: value.crop.height };
+            crop.aspect = 'free';
+            crop.drag = null;
+            state.rotation = crop.rotation;
+            state.zoom = false;
+            state.crop = crop;
+            render();
+        }
+        function cancelCrop() {
+            if (!state.crop) { return; }
+            removeLayer();
+            state.crop = null;
+            var value = get(crop.id);
+            state.rotation = value ? value.rotation : 0;
+            render();
+        }
+        function saveCrop() {
+            if (!state.crop) { return; }
+            var selection = crop.selection && crop.selection.width > .02 && crop.selection.height > .02
+                ? crop.selection
+                : { left: 0, top: 0, width: 1, height: 1 };
+            var id = crop.id;
+            removeLayer();
+            state.crop = null;
+            set(id, { rotation: crop.rotation, crop: selection });
+            state.rotation = crop.rotation;
+            render();
+            if (typeof window.pegasusToast === 'function') { window.pegasusToast('The crop was staged. Save the Case to keep it.'); }
+        }
+        function cropRotate(degrees) {
+            if (!state.crop) { return; }
+            if (crop.selection) { crop.selection = turnRect(crop.selection, degrees); }
+            crop.rotation = normalRotation(crop.rotation + degrees);
+            state.rotation = crop.rotation;
+            render();
+        }
+        function cropFull() { if (state.crop) { crop.selection = null; drawSelection(); renderCropTools(); } }
+        function cropReset() {
+            if (!state.crop) { return; }
+            crop.selection = null;
+            crop.rotation = 0;
+            crop.aspect = 'free';
+            if (aspect) { aspect.value = 'free'; }
+            state.rotation = 0;
+            render();
+        }
+        function cropAspect(value) {
+            crop.aspect = value;
+            if (value !== 'free' && crop.selection && crop.layer) {
+                var lw = crop.layer.clientWidth || 4, lh = crop.layer.clientHeight || 3;
+                var d = crop.selection;
+                d.height = d.width * lw / (parseFloat(value) * lh);
+                if (d.top + d.height > 1) { d.height = 1 - d.top; d.width = d.height * parseFloat(value) * lh / lw; }
+                crop.selection = d;
+            }
+            drawSelection();
+            renderCropTools();
+        }
+        function renderCropTools() {
+            if (cropStatus) {
+                cropStatus.textContent = 'Rotation ' + rotationLabel(crop.rotation) + ' · Crop ' + cropLabel(crop.selection || { left: 0, top: 0, width: 1, height: 1 });
+            }
+            if (aspect && aspect.value !== crop.aspect) { aspect.value = crop.aspect; }
+        }
+        function placeLayer() {
+            if (!state.crop) { return; }
+            if (!crop.layer) {
+                var layer = document.createElement('div');
+                layer.className = 'crop-layer';
+                layer.setAttribute('data-viewer-crop-layer', '');
+                var selection = document.createElement('div');
+                selection.className = 'crop-sel';
+                selection.setAttribute('data-viewer-crop-selection', '');
+                ['nw', 'ne', 'sw', 'se'].forEach(function (handle) {
+                    var element = document.createElement('span');
+                    element.className = 'crop-handle crop-handle--' + handle;
+                    element.setAttribute('data-crop-handle', handle);
+                    selection.appendChild(element);
+                });
+                layer.appendChild(selection);
+                stage.appendChild(layer);
+                bindLayer(layer);
+                crop.layer = layer;
+                crop.box = selection;
+            }
+            var r = image.getBoundingClientRect();
+            var s = stage.getBoundingClientRect();
+            crop.layer.style.left = (r.left - s.left) + 'px';
+            crop.layer.style.top = (r.top - s.top) + 'px';
+            crop.layer.style.width = r.width + 'px';
+            crop.layer.style.height = r.height + 'px';
+            drawSelection();
+        }
+        function removeLayer() {
+            if (crop.layer) { crop.layer.remove(); }
+            crop.layer = null;
+            crop.box = null;
+            crop.drag = null;
+        }
+        function drawSelection() {
+            if (!crop.box) { return; }
+            var d = crop.selection || { left: 0, top: 0, width: 1, height: 1 };
+            crop.box.hidden = false;
+            crop.box.style.left = (d.left * 100) + '%';
+            crop.box.style.top = (d.top * 100) + '%';
+            crop.box.style.width = (d.width * 100) + '%';
+            crop.box.style.height = (d.height * 100) + '%';
+            crop.box.classList.toggle('is-full', !crop.selection);
+            renderCropTools();
+        }
+        function bindLayer(layer) {
+            function point(event) {
+                var r = layer.getBoundingClientRect();
+                return [clamp((event.clientX - r.left) / r.width, 0, 1), clamp((event.clientY - r.top) / r.height, 0, 1)];
+            }
+            function clampRect(d) {
+                d.width = Math.min(d.width, 1); d.height = Math.min(d.height, 1);
+                d.left = clamp(d.left, 0, 1 - d.width); d.top = clamp(d.top, 0, 1 - d.height);
+                return d;
+            }
+            layer.addEventListener('pointerdown', function (event) {
+                var p = point(event);
+                var sel = crop.selection;
+                var handle = event.target.getAttribute && event.target.getAttribute('data-crop-handle');
+                layer.setPointerCapture(event.pointerId);
+                if (handle && sel) {
+                    crop.drag = { mode: 'resize', ax: handle.indexOf('w') >= 0 ? sel.left + sel.width : sel.left, ay: handle.indexOf('n') >= 0 ? sel.top + sel.height : sel.top };
+                } else if (sel && p[0] >= sel.left && p[0] <= sel.left + sel.width && p[1] >= sel.top && p[1] <= sel.top + sel.height) {
+                    crop.drag = { mode: 'move', ox: p[0] - sel.left, oy: p[1] - sel.top, width: sel.width, height: sel.height };
+                } else {
+                    crop.drag = { mode: 'draw', sx: p[0], sy: p[1] };
+                    crop.selection = null;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+            });
+            layer.addEventListener('pointermove', function (event) {
+                var g = crop.drag;
+                if (!g) { return; }
+                var p = point(event);
+                var d;
+                if (g.mode === 'move') {
+                    d = { left: p[0] - g.ox, top: p[1] - g.oy, width: g.width, height: g.height };
+                } else {
+                    var ax = g.mode === 'draw' ? g.sx : g.ax, ay = g.mode === 'draw' ? g.sy : g.ay;
+                    d = { left: Math.min(ax, p[0]), top: Math.min(ay, p[1]), width: Math.abs(p[0] - ax), height: Math.abs(p[1] - ay) };
+                    if (crop.aspect !== 'free') {
+                        var A = parseFloat(crop.aspect), lw = layer.clientWidth, lh = layer.clientHeight;
+                        d.height = d.width * lw / (A * lh);
+                        if (p[1] < ay) { d.top = ay - d.height; }
+                    }
+                }
+                crop.selection = clampRect(d);
+                drawSelection();
+            });
+            var end = function () {
+                if (!crop.drag) { return; }
+                crop.drag = null;
+                if (crop.selection && (crop.selection.width < .02 || crop.selection.height < .02)) { crop.selection = null; }
+                drawSelection();
+            };
+            layer.addEventListener('pointerup', end);
+            layer.addEventListener('pointercancel', end);
+            layer.addEventListener('click', function (event) { event.stopPropagation(); });
+        }
+
+        function onKeydown(event) {
+            if (!state.open) { return; }
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                if (state.crop) { cancelCrop(); } else { close(); }
+                return;
+            }
+            if (event.key === 'Tab') {
+                var controls = focusable();
+                if (!controls.length) { return; }
+                var first = controls[0], last = controls[controls.length - 1];
+                if (event.shiftKey && (document.activeElement === first || document.activeElement === host)) {
+                    event.preventDefault(); last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault(); first.focus();
+                }
+                return;
+            }
+            var inField = event.target && event.target.closest && event.target.closest('input, select, textarea');
+            if (event.key === 'Enter' && state.crop && crop.selection) { event.preventDefault(); saveCrop(); return; }
+            if (state.crop || inField) { return; }
+            if (event.key === 'ArrowRight') { event.preventDefault(); step(1); }
+            else if (event.key === 'ArrowLeft') { event.preventDefault(); step(-1); }
+            else if (event.key === 'r' || event.key === 'R') { rotate(); }
+            else if (event.key === 'z' || event.key === 'Z') { zoom(); }
+            else if ((event.key === 'c' || event.key === 'C') && !cropButton.hidden) { beginCrop(); }
+        }
+
+        host.querySelector('[data-viewer-close]').addEventListener('click', close);
+        host.querySelector('[data-viewer-prev]').addEventListener('click', function () { step(-1); });
+        host.querySelector('[data-viewer-next]').addEventListener('click', function () { step(1); });
+        rotateButton.addEventListener('click', rotate);
+        zoomButton.addEventListener('click', zoom);
+        cropButton.addEventListener('click', beginCrop);
+        stage.addEventListener('click', function (event) {
+            if (event.target === stage || event.target === image) { if (!state.crop) { zoom(); } }
+        });
+        inReport.addEventListener('change', function () {
+            var item = current();
+            if (item && preparable(item)) { toggleInReport(item.occurrence, inReport.checked); }
+        });
+        if (aspect) { aspect.addEventListener('change', function () { cropAspect(aspect.value); }); }
+        all(host, '[data-viewer-crop-rotate]').forEach(function (button) {
+            button.addEventListener('click', function () { cropRotate(number(button.getAttribute('data-viewer-crop-rotate'), 90)); });
+        });
+        host.querySelector('[data-viewer-crop-full]').addEventListener('click', cropFull);
+        host.querySelector('[data-viewer-crop-reset]').addEventListener('click', cropReset);
+        host.querySelector('[data-viewer-crop-save]').addEventListener('click', saveCrop);
+        host.querySelector('[data-viewer-crop-cancel]').addEventListener('click', cancelCrop);
+        host.addEventListener('click', function (event) { if (event.target === host) { close(); } });
+        window.addEventListener('resize', function () { if (state.open) { fit(); } });
+
+        return {
+            get open() { return state.open; },
+            current: current,
+            render: render,
+            open: open,
+            openDocument: openDocument,
+            close: close,
+            openCrop: function (id) {
+                var trigger = document.querySelector('[data-evidence-item][data-evidence-preparation-occurrence="' + id + '"]')
+                    || document.querySelector('[data-preparation-card][data-preparation-occurrence="' + id + '"] [data-evidence-item]');
+                if (trigger) {
+                    if (!state.open || !current() || current().occurrence !== id) { open(trigger); }
+                    beginCrop();
+                    return;
+                }
+                // No tile on the page for it (a card only): open the card's own preview.
+                var card = cardsFor(id)[0];
+                var value = get(id);
+                if (!card || !value) { return; }
+                state.items = [{
+                    href: value.preview, downloadHref: value.preview, mediaType: 'image/jpeg', kind: 'image',
+                    name: (card.querySelector('h3') || {}).textContent || '', thumb: '', tag: '', occurrence: id, excluded: value.role === 'NotUsed',
+                    downloadLabel: downloadDefault, element: null
+                }];
+                state.invoker = document.activeElement;
+                show(0);
+                beginCrop();
+            }
+        };
+    }
+    function bindViewer(root) {
+        var host = root.matches && root.matches('[data-case-viewer]')
+            ? root
+            : root.querySelector('[data-case-viewer]');
+        if (host && host.dataset.viewerBound !== 'true') {
+            host.dataset.viewerBound = 'true';
+            viewer = buildViewer(host);
+            window.pegasusCaseViewer = {
+                open: function (trigger) { viewer.open(trigger); },
+                openDocument: function (options) { viewer.openDocument(options); },
+                close: function () { viewer.close(); }
+            };
+        }
+        all(root, '[data-evidence-item]').forEach(function (trigger) {
+            if (trigger.dataset.caseViewerBound === 'true') { return; }
+            trigger.dataset.caseViewerBound = 'true';
+            trigger.addEventListener('click', function (event) {
+                if (!viewer || !previewKind(trigger.getAttribute('data-media-type'))) { return; }
+                if (event.target.closest('[data-tile-view], .th-view')) { return; }
+                event.preventDefault();
+                viewer.open(trigger);
+            });
+        });
+    }
+
+    function bind(root) {
+        bindViewer(root);
+        bindFileTabs(root);
+        bindPreparationCards(root);
+    }
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
 })();

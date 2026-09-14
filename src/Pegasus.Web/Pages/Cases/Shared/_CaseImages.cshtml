@@ -2,166 +2,153 @@
 @using System.Globalization
 @using Microsoft.AspNetCore.Html
 @using Pegasus.Core.Documents
+@using Pegasus.Web.Pages.Cases
 @using Pegasus.Web.Presentation
 @using TagLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ImageTags
+@using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
     var leaseToken = Model.RenderLeaseToken;
     var mayEdit = Model.CanEditCaseData;
-    var mayPrepareImages = mayEdit && details.Data is not null;
-    var preparations = Model.AssetPreparations.ToDictionary(item => item.OccurrenceId);
+    var mayPrepareImages = Model.MayPrepareImages;
     // The Case's own image files: one grid, from the same current-file rule the
-    // Documents tab reads. Not the intake receipt list, which is empty for a
-    // manually created Case and so hid its images entirely. Custody does not
-    // filter this list: an image still being stored, or whose storage failed,
-    // is on the Case, and a tab that showed only confirmed ones left the
-    // operator with no sign of it at all.
-    var images = CaseFiles.Current(details.Documents)
-        .Where(file => file.Occurrence.SemanticRole == DocumentSemanticRole.Image
-            && (file.Version.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
-                || file.Version.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase)))
-        .ToArray();
-    // The picker needs the whole vocabulary; a read-only visit draws chips
-    // only, so DetailsModel does not load it for one.
+    // Documents tab reads. Custody does not filter it: an image still being
+    // stored, or whose storage failed, is on the Case and draws as the
+    // placeholder tile.
+    var images = Model.CaseImageFiles;
     var vocabulary = Model.TagVocabulary;
 
-    // The tile is the image's preparation card: the crop editor and the
-    // Report section's card stage into the same one Case form, so a crop
-    // taken here is the crop the report shows.
+    // The tile is the image's preparation card (v26 § Crop and tag): the crop
+    // taken on the viewer stage, the Report section's card and this tile all
+    // stage into the same one Case form, so a crop taken anywhere is the crop
+    // the report shows.
     IHtmlContent? PreparationMetadata(CaseAssetPreparation? item, string previewHref) =>
         item is null || !mayPrepareImages ? null : new HtmlString($"""data-preparation-card="" data-preparation-occurrence="{item.OccurrenceId:D}" data-preparation-version="{item.PreparationVersion}" data-preparation-role="{item.Role}" data-preparation-order="{item.Order?.ToString(CultureInfo.InvariantCulture) ?? string.Empty}" data-preparation-rotation="{(int)item.Rotation}" data-preparation-crop-left="{item.Crop.Left.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-top="{item.Crop.Top.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-width="{item.Crop.Width.ToString(CultureInfo.InvariantCulture)}" data-preparation-crop-height="{item.Crop.Height.ToString(CultureInfo.InvariantCulture)}" data-preparation-preview="{previewHref}""" + "\"");
 }
 
-@if (images.Length > 0 || Model.ImageIntakes.Count > 0)
+@if (images.Count == 0 && Model.ImageIntakes.Count == 0)
 {
-    <div class="panel-body">
-        <ul class="gallery image-grid" data-evidence-set>
-            @foreach (var file in images)
+    <p class="muted" data-images-empty>@FilesLabels.NoImages</p>
+}
+else
+{
+    <ul class="thumbs image-grid" data-evidence-set data-image-grid>
+        @foreach (var file in images)
+        {
+            var occurrence = file.Occurrence;
+            var version = file.Version;
+            if (version.CustodyStatus != DocumentCustodyStatus.Confirmed)
             {
-                var occurrence = file.Occurrence;
-                var version = file.Version;
-                if (version.CustodyStatus != DocumentCustodyStatus.Confirmed)
-                {
-                    // The image is on the Case but its bytes are not readable:
-                    // still arriving, or storage failed. The tile names the
-                    // file and says which state it is in — the placeholder the
-                    // other galleries already draw — and offers no thumbnail,
-                    // viewer link, tagging or crop, none of which can act on
-                    // content that cannot be read.
-                    <li class="image-tile">
-                        <span class="gallery-item" data-gallery-placeholder>
-                            <span class="gallery-image"></span>
-                            <span class="gallery-caption">
-                                <strong>@version.FileName</strong>
-                                <small>@OperatorLabels.CustodyState(version.CustodyStatus)</small>
-                            </span>
+                @* The image is on the Case but its bytes are not readable:
+                   still arriving, or storage failed. The tile names the file
+                   and its state and offers nothing that would act on content
+                   that cannot be read. *@
+                <li class="image-tile" data-image-tile="@occurrence.Id">
+                    <span class="gallery-item th th--placeholder" data-gallery-placeholder>
+                        <span class="gallery-caption">
+                            <strong>@version.FileName</strong>
+                            <small>@(version.CustodyStatus == DocumentCustodyStatus.Failed ? FilesLabels.StorageNotReady : OperatorLabels.CustodyState(version.CustodyStatus))</small>
                         </span>
-                    </li>
-                    continue;
-                }
-
-                var previewHref = Url.Page(
-                    "/Cases/Documents/Download",
-                    new
-                    {
-                        caseId = workflow.CaseId,
-                        occurrenceId = occurrence.Id,
-                        versionId = version.Id,
-                        inline = true
-                    })!;
-                var downloadHref = Url.Page(
-                    "/Cases/Documents/Download",
-                    new
-                    {
-                        caseId = workflow.CaseId,
-                        occurrenceId = occurrence.Id,
-                        versionId = version.Id
-                    })!;
-                // DOCS-015: the tile asks for the derived rendering; the
-                // viewer and the crop editor keep the full image.
-                var thumbnailHref = Url.Page(
-                    "/Cases/Documents/Download",
-                    new
-                    {
-                        caseId = workflow.CaseId,
-                        occurrenceId = occurrence.Id,
-                        versionId = version.Id,
-                        inline = true,
-                        size = CaseDocumentThumbnails.ThumbSizeToken
-                    })!;
-                var preparation = preparations.GetValueOrDefault(occurrence.Id);
-                var mayCrop = mayPrepareImages && preparation is not null;
-
-                var visibleTags = occurrence.Tags.Take(TagLabels.VisibleChips).ToArray();
-                var hiddenTagCount = occurrence.Tags.Count - visibleTags.Length;
-                <li class="image-tile" @PreparationMetadata(preparation, previewHref)>
-                    <a href="@previewHref"
-                       class="gallery-item"
-                       data-evidence-item
-                       data-download-href="@downloadHref"
-                       data-media-type="@version.MediaType"
-                       data-file-name="@version.FileName"
-                       data-evidence-preparation-occurrence="@(mayCrop ? occurrence.Id.ToString() : null)">
-                        <span class="gallery-image"><img src="@thumbnailHref" alt="@version.FileName" loading="lazy" data-gallery-image @(mayCrop ? new HtmlString("data-preparation-preview-image") : null) /></span>
-                        <span class="gallery-caption"><strong>@version.FileName</strong></span>
-                    </a>
-                    @if (occurrence.Tags.Count > 0)
-                    {
-                        <span class="tag-chips">
-                            @foreach (var tag in visibleTags)
-                            {
-                                <span class="tag-chip tag-chip--@TagLabels.ColourToken(tag.Colour)">@tag.Name</span>
-                            }
-                            @if (hiddenTagCount > 0)
-                            {
-                                <span class="tag-chip tag-chip--more">@TagLabels.MoreChips(hiddenTagCount)</span>
-                            }
-                        </span>
-                    }
-                    @if (mayEdit)
-                    {
-                        <div class="image-tile-actions">
-                            <partial name="Cases/Shared/_CaseImageTagPicker"
-                                     model="@(new CaseImageTagPickerView(
-                                         workflow.CaseId,
-                                         workflow.Version,
-                                         occurrence.Id,
-                                         leaseToken,
-                                         vocabulary,
-                                         occurrence.Tags))" />
-                            @if (mayCrop)
-                            {
-                                <button type="button" class="btn btn--small" data-preparation-crop>@TagLabels.Crop</button>
-                            }
-                        </div>
-                    }
+                    </span>
                 </li>
+                continue;
             }
-            @* The associated Image-initiated Cases' photographs, each naming
-               the intake it arrived on. They are receipts, not case documents,
-               so they carry no tags and no preparation. *@
-            @foreach (var intake in Model.ImageIntakes)
-            {
-                @foreach (var item in Model.ImagesByIntake.GetValueOrDefault(intake.Id, []))
+
+            var previewHref = Model.PreviewUrl(file);
+            var downloadHref = Model.DownloadUrl(file);
+            var thumbnailHref = Model.ThumbnailUrl(file);
+            var preparation = Model.PreparationFor(occurrence.Id);
+            var mayCrop = mayPrepareImages && preparation is not null;
+            var isRotated = preparation is not null && preparation.Rotation != CaseAssetRotation.None;
+            var rotationBadge = isRotated ? ((int)preparation!.Rotation).ToString(CultureInfo.InvariantCulture) + "°" : string.Empty;
+            var firstTag = occurrence.Tags.FirstOrDefault();
+            var visibleTags = occurrence.Tags.Take(TagLabels.VisibleChips).ToArray();
+            var hiddenTagCount = occurrence.Tags.Count - visibleTags.Length;
+            <li class="image-tile" data-image-tile="@occurrence.Id" @PreparationMetadata(preparation, previewHref)>
+                <a href="@previewHref"
+                   class="th"
+                   data-evidence-item
+                   data-download-href="@downloadHref"
+                   data-media-type="@version.MediaType"
+                   data-file-name="@version.FileName"
+                   data-thumb="@thumbnailHref"
+                   data-tag="@firstTag?.Name"
+                   data-evidence-preparation-occurrence="@(mayCrop ? occurrence.Id.ToString() : null)">
+                    <img src="@thumbnailHref" alt="@version.FileName" loading="lazy" data-gallery-image data-tile-image />
+                    @if (firstTag is not null)
+                    {
+                        <span class="tag">@firstTag.Name</span>
+                    }
+                    <span class="rot" data-tile-rotation hidden="@(isRotated ? null : "hidden")">@rotationBadge</span>
+                    <span class="th-name">@version.FileName</span>
+                </a>
+                @if (occurrence.Tags.Count > 0)
+                {
+                    <span class="tag-chips">
+                        @foreach (var tag in visibleTags)
+                        {
+                            <span class="tag-chip tag-chip--@TagLabels.ColourToken(tag.Colour)">@tag.Name</span>
+                        }
+                        @if (hiddenTagCount > 0)
+                        {
+                            <span class="tag-chip tag-chip--more">@TagLabels.MoreChips(hiddenTagCount)</span>
+                        }
+                    </span>
+                }
+                @if (mayEdit)
+                {
+                    <div class="image-tile-actions">
+                        <partial name="Cases/Shared/_CaseImageTagPicker"
+                                 model="@(new CaseImageTagPickerView(
+                                     workflow.CaseId,
+                                     workflow.Version,
+                                     occurrence.Id,
+                                     leaseToken,
+                                     vocabulary,
+                                     occurrence.Tags))" />
+                        @if (mayCrop)
+                        {
+                            <button type="button" class="btn btn--small" data-preparation-crop data-preparation-crop-occurrence="@occurrence.Id">@TagLabels.Crop</button>
+                        }
+                    </div>
+                }
+            </li>
+        }
+    </ul>
+
+    @* The associated Image-initiated Cases' photographs, each naming the
+       intake it arrived on. They are receipts, not case documents, so they
+       carry no tags and no preparation. *@
+    @foreach (var intake in Model.ImageIntakes)
+    {
+        var intakeImages = Model.ImagesByIntake.GetValueOrDefault(intake.Id, []);
+        <div class="sub-panel intake-group" data-intake-group="@intake.Id">
+            <h3>
+                <a asp-page="/ImageIntake/Details" asp-route-id="@intake.Id">@FilesLabels.ImageIntake @intake.ImageIntakeReference</a>
+                <span class="rt">@intakeImages.Count @FilesLabels.Photographs</span>
+            </h3>
+            <ul class="thumbs" data-evidence-set>
+                @foreach (var item in intakeImages)
                 {
                     var href = Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
                     <li class="image-tile">
                         <a href="@href"
-                           class="gallery-item"
+                           class="th"
                            data-evidence-item
                            data-download-href="@href"
                            data-media-type="@item.MediaType"
-                           data-file-name="@item.FileName">
-                            <span class="gallery-image"><img src="@href" alt="@item.FileName" loading="lazy" data-gallery-image /></span>
-                            <span class="gallery-caption"><strong>@item.FileName</strong></span>
+                           data-file-name="@item.FileName"
+                           data-thumb="@href">
+                            <img src="@href" alt="@item.FileName" loading="lazy" data-gallery-image data-tile-image />
+                            <span class="th-name">@item.FileName</span>
                         </a>
                         <div class="image-tile-source">
                             <a asp-page="/ImageIntake/Details" asp-route-id="@intake.Id">@intake.ImageIntakeReference</a>
                         </div>
                     </li>
                 }
-            }
-        </ul>
-    </div>
+            </ul>
+        </div>
+    }
 }

@@ -1,116 +1,324 @@
+@*
+    Damage (v26 § Damage clicker, Plan variant decided 13 September). The
+    workbench is the top-down Plan silhouette drawn as the actual panels, the
+    recorded-zones list beside it, then the tyre and belt cells, the unrelated
+    damage cells and the derived narrative, and the read-only evidence strip.
+    All three drive Core's one zone model (19 panels, 4 wheels, three chips);
+    the recorded impacts travel as the one hidden JSON field the Save reads.
+    The page reads without script: the list and the derived cells are
+    rendered here from the recorded impacts, and script keeps them in step as
+    zones are toggled while the section edits.
+*@
+@using System.Globalization
+@using System.Text.Json
 @using Pegasus.Core.Assessment
+@using Pegasus.Core.Cases
+@using Pegasus.Core.Documents
 @using Pegasus.Web.Presentation
+@using DamageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Damage
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
-    var mayEdit = Model.CanEditEngineering && Model.Case!.Data is not null;
+    var details = Model.Case!;
+    var workflow = details.Workflow;
+    var editable = Model.SectionIsEditable("damage") && details.Data is not null;
     var rawImpacts = Model.AssessmentEditorValue(AssessmentVocabulary.DamageImpacts) ?? "[]";
+    IReadOnlyList<AssessmentImpact> impacts;
+    try
+    {
+        impacts = AssessmentPolicy.ParseImpacts(rawImpacts);
+    }
+    catch (JsonException)
+    {
+        impacts = [];
+    }
     var damageFields = CaseWorkspaceLabels.Editors.Damage;
-    var diagramClass = mayEdit ? "damage-diagram" : "damage-diagram damage-diagram--readonly";
+    var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "damage");
+    // The vocabulary the clicker paints with, handed to script once so the
+    // browser holds no second copy of the zone or severity tables.
+    var zoneTable = JsonSerializer.Serialize(AssessmentVocabulary.DamageZones.ToDictionary(
+        entry => entry.Key,
+        entry => new { n = entry.Value.Display, l = DamageLabels.Location(entry.Value.ImpactLocation) }));
+    var severityTable = JsonSerializer.Serialize(AssessmentVocabulary.DamageSeverities
+        .OrderBy(entry => entry.Value.Rank)
+        .Select(entry => new { k = entry.Key, n = entry.Value.Display }));
+
+    // The derived cells follow the clicker's own rule: one headline location
+    // reads as itself, more than one reads "Multiple · a, b"; the severity is
+    // the highest rank recorded.
+    var headlines = impacts
+        .Select(impact => AssessmentVocabulary.DamageZones.TryGetValue(impact.Zone, out var zone) ? zone.ImpactLocation : impact.Zone)
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
+    var locationText = headlines.Length == 0
+        ? OperatorLabels.CaseWorkspace.AbsentValue
+        : headlines.Length == 1
+            ? DamageLabels.Location(headlines[0])
+            : DamageLabels.Multiple + " · " + string.Join(", ", headlines.Select(DamageLabels.Location));
+    var severityText = impacts.Count == 0
+        ? OperatorLabels.CaseWorkspace.AbsentValue
+        : DamageLabels.SeverityWord(impacts
+            .Select(impact => impact.Severity)
+            .OrderByDescending(code => AssessmentVocabulary.DamageSeverities.TryGetValue(code, out var severity) ? severity.Rank : -1)
+            .First());
+
+    string ZoneName(string code) =>
+        AssessmentVocabulary.DamageZones.TryGetValue(code, out var zone) ? zone.Display : DamageLabels.CodeWord(code);
+    string DisplayValue(string path, string? value)
+    {
+        var definition = AssessmentVocabulary.Definitions[path];
+        if (string.IsNullOrWhiteSpace(value)) return OperatorLabels.CaseWorkspace.AbsentValue;
+        if (definition.Type == AssessmentFieldType.Enumerated) return DamageLabels.CodeWord(value);
+        if (definition.Type == AssessmentFieldType.Money
+            && decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var money))
+        {
+            return "£" + money.ToString("N2", CultureInfo.GetCultureInfo("en-GB"));
+        }
+        return value;
+    }
+
+    // The evidence strip: the Case's own readable image files, the same set
+    // the Files section tiles, read-only here and opening the viewer.
+    var images = CaseFiles.Current(details.Documents)
+        .Where(file => file.Occurrence.SemanticRole == DocumentSemanticRole.Image
+            && file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed
+            && (file.Version.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
+                || file.Version.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase)))
+        .ToArray();
 }
 
-<section class="panel case-damage" aria-labelledby="section-damage-title"
-         data-damage-editor data-damage-editable="@mayEdit.ToString().ToLowerInvariant()" data-damage-impacts="@rawImpacts">
-    <div class="panel-head"><h2 id="section-damage-title">@EngineerLabels.Damage</h2></div>
+<section class="record-section panel @Model.CollapsedClass("case.damage") @Model.ActiveTabClass("damage") case-damage @(Model.IsEditing && !editable ? "is-locked" : null)" id="section-damage" data-section="damage" data-collapse="case.damage" aria-labelledby="section-damage-title"
+         data-damage-editor data-damage-editable="@(editable ? "true" : "false")" data-damage-impacts="@rawImpacts"
+         data-damage-zones="@zoneTable" data-damage-severities="@severityTable" data-damage-multiple="@DamageLabels.Multiple"
+         data-damage-absent="@OperatorLabels.CaseWorkspace.AbsentValue" data-damage-none="@DamageLabels.NoDamageRecorded"
+         data-damage-no-note="@DamageLabels.NoNote" data-damage-note-label="@DamageLabels.Note" data-damage-remove-label="@DamageLabels.Remove">
+    <div class="panel-head">
+        <h2 id="section-damage-title">@EngineerLabels.Damage</h2>
+        <div class="panel-actions"><partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" /></div>
+    </div>
     <div class="panel-body stack">
-        @if (mayEdit)
+        @if (editable)
         {
             <input type="hidden" id="case-damage-impacts" name="damageImpacts" form="case-edit-form" value="@rawImpacts" data-damage-input />
         }
         <div class="damage-workbench">
-            <div class="damage-diagram-wrap">
-                <svg class="@diagramClass" viewBox="@DamageDiagramGeometry.ViewBox" role="group" aria-labelledby="damage-diagram-title damage-diagram-description">
-                    <title id="damage-diagram-title">Vehicle damage diagram</title>
-                    <desc id="damage-diagram-description">@(mayEdit ? "Select a vehicle region to record damage. The controls below cover underside, interior and mechanical damage." : "Select a recorded vehicle region to view its damage.")</desc>
-                    <text class="damage-diagram-label" x="120" y="14" text-anchor="middle">FRONT</text>
-                    @foreach (var wheel in DamageDiagramGeometry.Wheels)
+            <div class="damage-view" data-damage-view>
+                <svg class="damage-diagram" viewBox="@DamagePlanGeometry.ViewBox" role="group" aria-label="@DamageLabels.DiagramLabel">
+                    <defs>
+                        <clipPath id="damage-plan-clip"><path d="@DamagePlanGeometry.BodyPath" /></clipPath>
+                        <linearGradient id="damage-plan-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" /><stop offset="1" stop-color="#eaeef0" /></linearGradient>
+                        <linearGradient id="damage-plan-glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d7dfe4" /><stop offset="1" stop-color="#b9c5cc" /></linearGradient>
+                        <filter id="damage-plan-shadow" x="-20%" y="-10%" width="140%" height="130%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#1a2a33" flood-opacity=".16" /></filter>
+                    </defs>
+                    <text class="damage-diagram-label" x="120" y="8" text-anchor="middle">@DamageLabels.Front</text>
+                    @foreach (var wheel in DamagePlanGeometry.Wheels)
                     {
-                        <rect class="damage-wheel" x="@(wheel.CentreX - 10)" y="@(wheel.CentreY - 22)" width="20" height="44" rx="6" />
+                        <rect class="dv-wheel" x="@(wheel.CentreX - 8)" y="@(wheel.CentreY - 24)" width="16" height="48" rx="5" />
                     }
-                    <path class="damage-vehicle-body" d="@DamageDiagramGeometry.BodyPath" />
-                    <path class="damage-glass" d="@DamageDiagramGeometry.FrontGlassPath" />
-                    <path class="damage-glass" d="@DamageDiagramGeometry.RearGlassPath" />
-                    <path class="damage-structural-path damage-structural-path--strong" d="@DamageDiagramGeometry.StrongStructuralLinesPath" />
-                    <path class="damage-structural-path" d="@DamageDiagramGeometry.StructuralLinesPath" />
-                    <g class="damage-zones">
-                        @foreach (var zone in DamageDiagramGeometry.Zones)
+                    @foreach (var mirror in DamagePlanGeometry.Mirrors)
+                    {
+                        <rect class="dv-mirror" x="@mirror.X" y="@mirror.Y" width="@mirror.Width" height="@mirror.Height" rx="4" />
+                    }
+                    <path class="dv-body" d="@DamagePlanGeometry.BodyPath" fill="url(#damage-plan-body)" filter="url(#damage-plan-shadow)" />
+                    <path class="dv-glass" fill="url(#damage-plan-glass)" d="@DamagePlanGeometry.FrontGlassPath" />
+                    <path class="dv-glass" fill="url(#damage-plan-glass)" d="@DamagePlanGeometry.RearGlassPath" />
+                    <path class="dv-seam" d="@DamagePlanGeometry.SeamPath" />
+                    <path class="dv-seam dv-seam--soft" d="@DamagePlanGeometry.SoftSeamPath" />
+                    @foreach (var lamp in DamagePlanGeometry.FrontLampPaths)
+                    {
+                        <path class="dv-lamp" d="@lamp" />
+                    }
+                    @foreach (var lamp in DamagePlanGeometry.RearLampPaths)
+                    {
+                        <path class="dv-lamp dv-lamp--rear" d="@lamp" />
+                    }
+                    <g class="damage-zones" clip-path="url(#damage-plan-clip)">
+                        @foreach (var zone in DamagePlanGeometry.Zones)
                         {
-                            <path data-damage-zone="@zone.Code" d="@zone.Path" />
+                            <path data-damage-zone="@zone.Code" d="@zone.Path"><title>@ZoneName(zone.Code)</title></path>
                         }
-                        @foreach (var wheel in DamageDiagramGeometry.Wheels)
+                    </g>
+                    <g class="damage-zones">
+                        @foreach (var wheel in DamagePlanGeometry.Wheels)
                         {
-                            <rect data-damage-zone="@wheel.Code" x="@(wheel.CentreX - 10)" y="@(wheel.CentreY - 22)" width="20" height="44" rx="6" />
+                            <rect data-damage-zone="@wheel.Code" x="@(wheel.CentreX - 8)" y="@(wheel.CentreY - 24)" width="16" height="48" rx="5"><title>@ZoneName(wheel.Code)</title></rect>
                         }
                     </g>
                     <g class="damage-markers" aria-hidden="true">
-                        @foreach (var marker in DamageDiagramGeometry.Markers)
+                        @foreach (var zone in DamagePlanGeometry.Zones)
                         {
-                            <g class="damage-marker is-hidden" data-damage-marker="@marker.Code" transform="translate(@(marker.CentreX - 9) @(marker.CentreY - 9))"><circle cx="9" cy="9" r="9" /><path transform="translate(3 3) scale(.5)" d="M14.5 0 3 14h8l-1.5 10L21 9h-8z" /></g>
+                            <g class="damage-marker is-hidden" data-damage-marker="@zone.Code" transform="translate(@zone.MarkerX @zone.MarkerY)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                        }
+                        @foreach (var wheel in DamagePlanGeometry.Wheels)
+                        {
+                            <g class="damage-marker is-hidden" data-damage-marker="@wheel.Code" transform="translate(@wheel.CentreX @wheel.CentreY)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
                         }
                     </g>
-                    <text class="damage-diagram-label" x="120" y="386" text-anchor="middle">REAR</text>
+                    <text class="damage-diagram-label" x="120" y="431" text-anchor="middle">@DamageLabels.Rear</text>
                 </svg>
-                <div class="damage-extra-zones" aria-label="Other vehicle areas">
-                    @foreach (var zone in new[] { "underside", "interior", "mechanical" })
+                <div class="dv-readout" data-damage-readout aria-live="polite"></div>
+                <div class="dv-legend" aria-label="@DamageLabels.Severity">
+                    @foreach (var severity in AssessmentVocabulary.DamageSeverities.OrderBy(entry => entry.Value.Rank))
                     {
-                        <button type="button" class="btn btn--small" data-damage-zone="@zone">@AssessmentVocabulary.DamageZones[zone].Display</button>
+                        <span><i data-sev="@severity.Key"></i>@severity.Value.Display</span>
+                    }
+                </div>
+                <div class="damage-extra" aria-label="@DamageLabels.OtherAreas">
+                    @foreach (var extra in DamagePlanGeometry.ExtraZones)
+                    {
+                        <button type="button" class="btn btn--small" data-damage-zone="@extra">@ZoneName(extra)</button>
                     }
                 </div>
             </div>
-            <div class="damage-editor-panel">
-                <p class="muted" data-damage-empty>Select a vehicle region.</p>
-                <div data-damage-fields hidden>
-                    <h3 data-damage-zone-label></h3>
-                    @if (mayEdit)
-                    {
-                        <div class="field"><label for="damage-severity">Severity</label><select id="damage-severity" data-damage-severity>@foreach (var severity in AssessmentVocabulary.DamageSeverities){<option value="@severity.Key">@severity.Value.Display</option>}</select></div>
-                        <div class="field"><label for="damage-note">Notes</label><textarea id="damage-note" rows="3" maxlength="200" data-damage-note></textarea></div>
-                        <div class="button-row"><button type="button" class="btn btn--danger" data-damage-remove>Remove damage</button></div>
-                    }
-                    else
-                    {
-                        <dl class="detail-list"><div><dt>Severity</dt><dd data-damage-read-severity></dd></div><div><dt>Notes</dt><dd data-damage-read-note></dd></div></dl>
-                    }
+            <div class="damage-facts">
+                <div class="fg g3">
+                    <div class="fc ro"><span class="lbl">@EngineerLabels.ImpactLocation</span><div class="fv derived" data-damage-location>@locationText</div></div>
+                    <div class="fc ro"><span class="lbl">@EngineerLabels.ImpactSeverity</span><div class="fv derived" data-damage-severity>@severityText</div></div>
+                    <div class="fc ro"><span class="lbl">@DamageLabels.RecordedZones</span><div class="fv" data-damage-count>@impacts.Count</div></div>
                 </div>
-                <ul class="damage-impact-list" data-damage-impact-list aria-label="Recorded damage"></ul>
-            </div>
-        </div>
-        <div class="grid grid-2" aria-label="Damage observations">
-            @foreach (var field in damageFields)
-            {
-                var definition = AssessmentVocabulary.Definitions[field.Key];
-                var value = Model.AssessmentEditorValue(field.Key);
-                var name = CaseWorkspaceLabels.Editors.FormName(field.Key);
-                if (Model.CanEditAssessmentField(field.Key))
-                {
-                    <div class="field">
-                        <label for="edit-@field.Key">@field.Value</label>
-                        @if (definition.Type == AssessmentFieldType.Enumerated)
-                        {
-                            <select id="edit-@field.Key" name="@name" form="case-edit-form">
-                                <option value="" selected="@(value is null)"></option>
-                                @foreach (var code in definition.Codes ?? [])
+                <ul class="impact-list" data-damage-impact-list aria-label="@DamageLabels.RecordedZones">
+                    @if (impacts.Count == 0)
+                    {
+                        <li class="muted" data-damage-empty>@DamageLabels.NoDamageRecorded</li>
+                    }
+                    @for (var index = 0; index < impacts.Count; index++)
+                    {
+                        var impact = impacts[index];
+                        <li class="impact-row" data-damage-row="@impact.Zone">
+                            <span class="zc"><i class="zn">@(index + 1)</i>@ZoneName(impact.Zone)</span>
+                            <span class="fc">
+                                @if (editable)
                                 {
-                                    <option value="@code" selected="@(value == code)">@code.Replace('_', ' ')</option>
+                                    <label class="sr-only" for="damage-severity-@index">@DamageLabels.Severity</label>
                                 }
-                            </select>
-                        }
-                        else if (definition.Type == AssessmentFieldType.Money)
+                                <div class="fv">@DamageLabels.SeverityWord(impact.Severity)</div>
+                                @if (editable)
+                                {
+                                    <select id="damage-severity-@index" class="fi" data-damage-row-severity>
+                                        @foreach (var severity in AssessmentVocabulary.DamageSeverities.OrderBy(entry => entry.Value.Rank))
+                                        {
+                                            <option value="@severity.Key" selected="@(severity.Key == impact.Severity)">@severity.Value.Display</option>
+                                        }
+                                    </select>
+                                }
+                            </span>
+                            <span class="fc">
+                                @if (editable)
+                                {
+                                    <label class="sr-only" for="damage-note-@index">@DamageLabels.Note</label>
+                                }
+                                <div class="fv @(string.IsNullOrWhiteSpace(impact.Note) ? "empty" : null)">@(string.IsNullOrWhiteSpace(impact.Note) ? DamageLabels.NoNote : impact.Note)</div>
+                                @if (editable)
+                                {
+                                    <input id="damage-note-@index" class="fi" maxlength="200" value="@impact.Note" placeholder="@DamageLabels.Note" data-damage-row-note />
+                                }
+                            </span>
+                            @if (editable)
+                            {
+                                <button type="button" class="del" data-damage-row-remove aria-label="@DamageLabels.Remove @ZoneName(impact.Zone)">×</button>
+                            }
+                        </li>
+                    }
+                </ul>
+                <div class="sub-panel mt-2"><h3>@DamageLabels.TyresAndBelts</h3>
+                    <div class="fg g4">
+                        @foreach (var field in damageFields.Where(entry => entry.Key != AssessmentVocabulary.DamageUnrelated && entry.Key != AssessmentVocabulary.DamageUnrelatedDeduction))
                         {
-                            <input id="edit-@field.Key" name="@name" form="case-edit-form" type="number" step="0.01" value="@value" maxlength="@definition.MaximumLength" />
+                            var definition = AssessmentVocabulary.Definitions[field.Key];
+                            var value = Model.AssessmentEditorValue(field.Key);
+                            var recorded = Model.AssessmentValue(field.Key) == OperatorLabels.CaseWorkspace.AbsentValue ? null : Model.AssessmentValue(field.Key);
+                            var name = CaseWorkspaceLabels.Editors.FormName(field.Key);
+                            var mayEditField = Model.CanEditAssessmentField(field.Key);
+                            var span = field.Key == AssessmentVocabulary.DamageMaterialTransfer ? "span2" : null;
+                            <div class="fc @span">
+                                @if (mayEditField)
+                                {
+                                    <label for="edit-@field.Key">@field.Value</label>
+                                }
+                                else
+                                {
+                                    <span class="lbl">@field.Value</span>
+                                }
+                                <div class="fv @(recorded is null ? "empty" : null)">@DisplayValue(field.Key, recorded)</div>
+                                @if (mayEditField)
+                                {
+                                    if (definition.Type == AssessmentFieldType.Enumerated)
+                                    {
+                                        <select id="edit-@field.Key" class="fi" name="@name" form="case-edit-form">
+                                            <option value="" selected="@(value is null)"></option>
+                                            @foreach (var code in definition.Codes ?? [])
+                                            {
+                                                <option value="@code" selected="@(value == code)">@DamageLabels.CodeWord(code)</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <input id="edit-@field.Key" class="fi" name="@name" form="case-edit-form" value="@value" maxlength="@definition.MaximumLength" />
+                                    }
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="fg g4 mt-2">
+                    @{
+                        var unrelated = Model.AssessmentEditorValue(AssessmentVocabulary.DamageUnrelated);
+                        var unrelatedRead = Model.AssessmentValue(AssessmentVocabulary.DamageUnrelated);
+                        var deduction = Model.AssessmentEditorValue(AssessmentVocabulary.DamageUnrelatedDeduction);
+                        var deductionRead = Model.AssessmentValue(AssessmentVocabulary.DamageUnrelatedDeduction);
+                        var mayEditUnrelated = Model.CanEditAssessmentField(AssessmentVocabulary.DamageUnrelated);
+                        var mayEditDeduction = Model.CanEditAssessmentField(AssessmentVocabulary.DamageUnrelatedDeduction);
+                    }
+                    <div class="fc span3">
+                        @if (mayEditUnrelated)
+                        {
+                            <label for="edit-@AssessmentVocabulary.DamageUnrelated">@damageFields[AssessmentVocabulary.DamageUnrelated]</label>
+                            <div class="fv @(unrelatedRead == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)">@unrelatedRead</div>
+                            <input id="edit-@AssessmentVocabulary.DamageUnrelated" class="fi" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated)" form="case-edit-form" value="@unrelated" maxlength="@AssessmentVocabulary.Definitions[AssessmentVocabulary.DamageUnrelated].MaximumLength" />
                         }
                         else
                         {
-                            <textarea id="edit-@field.Key" name="@name" form="case-edit-form" rows="3" maxlength="@definition.MaximumLength">@value</textarea>
+                            <span class="lbl">@damageFields[AssessmentVocabulary.DamageUnrelated]</span>
+                            <div class="fv @(unrelatedRead == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)">@unrelatedRead</div>
                         }
                     </div>
-                }
-                else
-                {
-                    <dl class="detail-list"><div><dt>@field.Value</dt><dd>@Model.AssessmentValue(field.Key)</dd></div></dl>
-                }
-            }
+                    <div class="fc">
+                        @if (mayEditDeduction)
+                        {
+                            <label for="edit-@AssessmentVocabulary.DamageUnrelatedDeduction">@damageFields[AssessmentVocabulary.DamageUnrelatedDeduction]</label>
+                            <div class="fv mono @(deductionRead == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)">@DisplayValue(AssessmentVocabulary.DamageUnrelatedDeduction, deductionRead == OperatorLabels.CaseWorkspace.AbsentValue ? null : deductionRead)</div>
+                            <input id="edit-@AssessmentVocabulary.DamageUnrelatedDeduction" class="fi mono" name="@CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelatedDeduction)" form="case-edit-form" type="number" step="0.01" min="0" value="@deduction" />
+                        }
+                        else
+                        {
+                            <span class="lbl">@damageFields[AssessmentVocabulary.DamageUnrelatedDeduction]</span>
+                            <div class="fv mono @(deductionRead == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)">@DisplayValue(AssessmentVocabulary.DamageUnrelatedDeduction, deductionRead == OperatorLabels.CaseWorkspace.AbsentValue ? null : deductionRead)</div>
+                        }
+                    </div>
+                    <div class="fc ro span4"><span class="lbl">@EngineerLabels.IncidentNarrative</span><div class="fv derived @(Model.AssessmentValue(AssessmentVocabulary.NatureOfIncident) == OperatorLabels.CaseWorkspace.AbsentValue ? "empty" : null)" data-damage-narrative>@Model.AssessmentValue(AssessmentVocabulary.NatureOfIncident)</div></div>
+                </div>
+            </div>
         </div>
-        <dl class="detail-list"><div><dt>@EngineerLabels.IncidentNarrative</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.NatureOfIncident)</dd></div></dl>
+        @if (images.Length > 0)
+        {
+            <div class="sub-panel" data-damage-evidence-panel>
+                <h3>@DamageLabels.Images <span class="rt">@images.Length · Files</span></h3>
+                <div class="thumbs evidence" data-damage-evidence data-evidence-set>
+                    @foreach (var file in images)
+                    {
+                        var occurrence = file.Occurrence;
+                        var version = file.Version;
+                        var previewHref = Url.Page("/Cases/Documents/Download", new { caseId = workflow.CaseId, occurrenceId = occurrence.Id, versionId = version.Id, inline = true })!;
+                        var downloadHref = Url.Page("/Cases/Documents/Download", new { caseId = workflow.CaseId, occurrenceId = occurrence.Id, versionId = version.Id })!;
+                        var thumbnailHref = Url.Page("/Cases/Documents/Download", new { caseId = workflow.CaseId, occurrenceId = occurrence.Id, versionId = version.Id, inline = true, size = CaseDocumentThumbnails.ThumbSizeToken })!;
+                        <a class="th" href="@previewHref" data-evidence-item data-download-href="@downloadHref" data-media-type="@version.MediaType" data-file-name="@version.FileName" title="@version.FileName">
+                            <img src="@thumbnailHref" alt="@version.FileName" loading="lazy" data-gallery-image />
+                            <span class="th-name">@version.FileName</span>
+                        </a>
+                    }
+                </div>
+            </div>
+        }
     </div>
 </section>

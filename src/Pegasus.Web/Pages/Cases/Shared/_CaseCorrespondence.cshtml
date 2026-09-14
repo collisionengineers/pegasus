@@ -1,47 +1,53 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Intake
 @using Pegasus.Web.Presentation
-<section class="section-gap" aria-labelledby="case-queries-title">
-    <div class="blockhead">
-        <h2 id="case-queries-title">@OperatorLabels.MailOperationalDestinationLabel(MailOperationalDestination.Queries)</h2>
-        @if (Model.StaffMailAvailable)
-        {
-            <a class="btn" asp-page="/Mail/Compose" asp-route-caseReference="@Model.Case!.Summary.Reference">
-                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                <span>Compose</span>
-            </a>
-        }
-    </div>
-    @if (Model.Case!.QueryEmails.Count == 0)
+@using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
+@{
+    var emails = Model.Case!.QueryEmails;
+}
+
+@* The Files section's Correspondence tab (CASE-009): the retained query mail
+   associated with the Case, and Compose where staff mail is available. *@
+<div class="correspondence" data-correspondence>
+    @if (Model.StaffMailAvailable)
     {
-        <p class="muted">No retained correspondence is associated with this Case.</p>
+        <div class="button-row">
+            <a class="btn btn--small" asp-page="/Mail/Compose" asp-route-caseReference="@Model.Case!.Summary.Reference" data-compose>
+                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                <span>@FilesLabels.Compose</span>
+            </a>
+        </div>
+    }
+    @if (emails.Count == 0)
+    {
+        <p class="muted" data-correspondence-empty>@FilesLabels.NoCorrespondence</p>
     }
     else
     {
-    <div class="table-wrap">
-        <table>
-            <thead>
-                <tr>
-                    <th>@OperatorLabels.CaseWorkspace.Received</th>
-                    <th>@OperatorLabels.CaseWorkspace.Sender</th>
-                    <th>@OperatorLabels.CaseWorkspace.Subject</th>
-                    <th>@OperatorLabels.CaseWorkspace.Classification</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var row in Model.Case!.QueryEmails)
-                {
+        <div class="table-wrap">
+            <table class="table table--compact">
+                <thead>
                     <tr>
-                        <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.ReceivedAtUtc)</time></td>
-                        <td>@(row.EffectiveSenderAddress ?? row.SenderDisplayName ?? row.SenderAddress)</td>
-                        <td>@row.Subject</td>
-                        <td>@OperatorLabels.MailClassification(row.Classification)</td>
-                        <td><a asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId">@OperatorLabels.CaseWorkspace.OpenMessage</a></td>
+                        <th>@OperatorLabels.CaseWorkspace.Received</th>
+                        <th>@OperatorLabels.CaseWorkspace.Sender</th>
+                        <th>@OperatorLabels.CaseWorkspace.Subject</th>
+                        <th>@OperatorLabels.CaseWorkspace.Classification</th>
+                        <th><span class="sr-only">Action</span></th>
                     </tr>
-                }
-            </tbody>
-        </table>
-    </div>
+                </thead>
+                <tbody>
+                    @foreach (var row in emails)
+                    {
+                        <tr data-correspondence-row="@row.RetainedMessageId">
+                            <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.ReceivedAtUtc)</time></td>
+                            <td>@(row.EffectiveSenderAddress ?? row.SenderDisplayName ?? row.SenderAddress)</td>
+                            <td>@row.Subject</td>
+                            <td>@OperatorLabels.MailClassification(row.Classification)</td>
+                            <td class="row-actions"><a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId">@OperatorLabels.CaseWorkspace.OpenMessage</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
     }
-</section>
+</div>

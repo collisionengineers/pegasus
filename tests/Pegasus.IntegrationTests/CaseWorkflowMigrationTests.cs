@@ -163,7 +163,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260913092816_AiJobDraftReadyAt",
                 "20260913094324_WorkCentreLastSeen",
                 "20260913095127_UnidentifiedCouldNotBeRead",
-                "20260913101413_LinkedAuditCase"
+                "20260913101413_LinkedAuditCase",
+                "20260913200000_CaseFieldProposals"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

@@ -1,0 +1,389 @@
+@*
+    Every dialog the Case record's frame opens (v26 § Dialogs). Each is a
+    div-backdrop dialog carrying its own posted form, so every action works as
+    a plain POST without script; site.js opens, contains and closes them from
+    the [data-dialog-open] controls in the ribbon's Actions menu, the Overview
+    Lifecycle actions and the section heads. The section-owned dialogs (Add
+    valuation, Import, Compare, Send to AI, Remove file, Withdraw link, Upload
+    request) live beside their sections.
+*@
+@using System.Globalization
+@using Pegasus.Core.Lifecycle
+@using Pegasus.Core.Reports
+@using Pegasus.Core.Workflow
+@using Pegasus.Web.Presentation
+@using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var details = Model.Case!;
+    var workflow = details.Workflow;
+    var summary = details.Summary;
+    var state = workflow.State;
+    var isClosed = CaseLifecycleRules.IsTerminal(state);
+    var isHeld = state == CaseLifecycleState.Held;
+    var isReview = state == CaseLifecycleState.Review;
+    var isComplete = state == CaseLifecycleState.PostReportComplete;
+    var isQuery = state == CaseLifecycleState.Query;
+    var editing = Model.IsEditing;
+    var editingCaseData = editing && !Model.IsPostReportReadOnly;
+    var data = details.Data;
+    var canHandToEngineer = editingCaseData && isReview
+        && Model.EvaHandoff is { EngineerOptions.Count: > 0 };
+    var canSendToEva = (Model.EvaHandoff?.ReportGenerationPolicy is PrincipalReportGenerationPolicy.EvaZip or PrincipalReportGenerationPolicy.EvaManualApi
+        || Model.EvaHandoff?.CanRetryAutomaticFailure == true)
+        && state is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
+    var canConfirmReportSent = editing
+        && state == CaseLifecycleState.ReportPreparation
+        && details.AvailableReportSentEvidence.Count > 0;
+    var closureOutcomes = Model.AvailableClosureOutcomes;
+    var offersAdverseClosure = editing && closureOutcomes.Count > 0;
+    var today = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow);
+
+    Dictionary<string, string?> LeaseFields() => new()
+    {
+        ["id"] = workflow.CaseId.ToString(),
+        ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
+        ["operationKey"] = Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey(),
+        ["editLeaseToken"] = Model.LeaseToken
+    };
+}
+
+@if (editingCaseData && !isClosed)
+{
+    @if (isHeld)
+    {
+        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "case-release-hold-dialog",
+            ["DialogTitle"] = Frame.ReleaseHold,
+            ["DialogActionUrl"] = Url.Page("/Cases/Workflow", "ReleaseHold", new { id = workflow.CaseId }),
+            ["DialogHiddenFields"] = LeaseFields()
+        })" />
+    }
+    else
+    {
+        @* Place on Hold (13 September): the reason and an optional Review on
+           date, today or later, that the ribbon then reads. *@
+        <div id="case-hold-dialog" class="dialog-backdrop" data-dialog="case-hold-dialog" hidden>
+            <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-hold-dialog-title">
+                <div class="dialog-head">
+                    <h2 id="case-hold-dialog-title" tabindex="-1">@Frame.PlaceOnHold</h2>
+                    <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                    </button>
+                </div>
+                <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="Hold">
+                    <input type="hidden" name="id" value="@workflow.CaseId" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    <div class="dialog-body stack">
+                        <div class="field">
+                            <label class="req" for="case-hold-reason">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
+                            <textarea id="case-hold-reason" name="reason" rows="3" required maxlength="500" data-dialog-initial-focus></textarea>
+                        </div>
+                        <div class="field">
+                            <label for="case-hold-review-on">@Frame.ReviewOn</label>
+                            <input id="case-hold-review-on" name="reviewOn" type="date" min="@today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
+                        </div>
+                    </div>
+                    <div class="dialog-foot">
+                        <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                        <button type="submit" class="btn btn--primary">@Frame.PlaceOnHold</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+    }
+    @if (state == CaseLifecycleState.PostReport)
+    {
+        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "case-complete-dialog",
+            ["DialogTitle"] = Frame.MarkCompleted,
+            ["DialogActionUrl"] = Url.Page("/Cases/Closure", "Complete", new { id = workflow.CaseId }),
+            ["DialogHiddenFields"] = LeaseFields()
+        })" />
+    }
+    @if (state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport)
+    {
+        var returnFields = LeaseFields();
+        returnFields["instructionsComplete"] = data?.Completeness.Values.InstructionComplete.ToString() ?? false.ToString();
+        returnFields["imagesComplete"] = data?.Completeness.Values.ImagesComplete.ToString() ?? false.ToString();
+        returnFields["evidenceReference"] = "case-completeness-projection";
+        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "case-return-review-dialog",
+            ["DialogTitle"] = Frame.ReturnToReview,
+            ["DialogActionUrl"] = Url.Page("/Cases/Workflow", "ReturnToReview", new { id = workflow.CaseId }),
+            ["DialogHiddenFields"] = returnFields
+        })" />
+    }
+    @if (workflow.ReportSentEvidence is { } unlinked && state is not CaseLifecycleState.Held)
+    {
+        var unlinkFields = LeaseFields();
+        unlinkFields["evidenceId"] = unlinked.EvidenceId.ToString();
+        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "case-unlink-evidence-dialog",
+            ["DialogTitle"] = Frame.UnlinkReportEvidence,
+            ["DialogActionUrl"] = Url.Page("/Cases/Tasks", "UnlinkReportEvidence", new { id = workflow.CaseId }),
+            ["DialogHiddenFields"] = unlinkFields
+        })" />
+    }
+    <div id="case-correct-principal-dialog" class="dialog-backdrop" data-dialog="case-correct-principal-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-correct-principal-dialog-title">
+            <div class="dialog-head">
+                <h2 id="case-correct-principal-dialog-title" tabindex="-1">@Frame.CorrectPrincipal</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId"
+                  asp-page-handler="CreateLinkedReplacement">
+                <input type="hidden" name="id" value="@workflow.CaseId" />
+                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <div class="dialog-body stack">
+                    <div class="notice notice--warning">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <span>Record Created in error and create the linked replacement case.</span>
+                    </div>
+                    <div class="field">
+                        <label class="req" for="case-replacement-principal">Replacement principal code</label>
+                        <input id="case-replacement-principal" name="replacementPrincipalCode" required maxlength="100" data-dialog-initial-focus />
+                    </div>
+                    <div class="field">
+                        <label class="req" for="case-replacement-reason">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
+                        <textarea id="case-replacement-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                    <button type="submit" class="btn btn--danger">Create linked replacement</button>
+                </div>
+            </form>
+        </section>
+    </div>
+}
+
+@if (editing && isClosed && workflow.Archive is null)
+{
+    <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+    {
+        ["DialogId"] = "case-archive-dialog",
+        ["DialogTitle"] = Frame.ArchiveCase,
+        ["DialogActionUrl"] = Url.Page("/Cases/Closure", "Archive", new { id = workflow.CaseId }),
+        ["DialogHiddenFields"] = LeaseFields()
+    })" />
+}
+
+@if (offersAdverseClosure)
+{
+    @* Review point 12: which outcome, and why. The chooser lists only the
+       outcomes the page model derived from Core's closure rules for this
+       state, so nothing offered here is refused for being the wrong outcome. *@
+    <div id="case-close-dialog" class="dialog-backdrop" data-dialog="case-close-dialog" hidden>
+        <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-close-dialog-title">
+            <div class="dialog-head">
+                <h2 id="case-close-dialog-title" tabindex="-1">@OperatorLabels.CaseWorkspace.CloseCase</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="Close">
+                <input type="hidden" name="id" value="@workflow.CaseId" />
+                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <div class="dialog-body stack">
+                    <div class="field">
+                        <label class="req" for="case-close-outcome">@OperatorLabels.CaseWorkspace.ClosureOutcome</label>
+                        <select id="case-close-outcome" name="outcome" required data-dialog-initial-focus>
+                            <option value=""></option>
+                            @foreach (var outcome in closureOutcomes)
+                            {
+                                <option value="@outcome">@OperatorLabels.CaseClosure(outcome)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label class="req" for="case-close-reason">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
+                        <textarea id="case-close-reason" name="reason" rows="3" required maxlength="500"></textarea>
+                    </div>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                    <button type="submit" class="btn btn--danger btn--danger-solid">@OperatorLabels.CaseWorkspace.CloseCase</button>
+                </div>
+            </form>
+        </section>
+    </div>
+}
+
+@if (editing && (isComplete || isQuery))
+{
+    <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+    {
+        ["DialogId"] = "case-return-engineer-dialog",
+        ["DialogTitle"] = Frame.ReturnToEngineer,
+        ["DialogActionUrl"] = Url.Page("/Cases/Closure", "ReturnToEngineer", new { id = workflow.CaseId }),
+        ["DialogHiddenFields"] = LeaseFields()
+    })" />
+}
+
+@if (canHandToEngineer)
+{
+    @* The assignment dialog, with Assign to me (P8) for an eligible Engineer
+       when the Case has no Engineer: a second form on the same dialog, so it
+       posts without script too. *@
+    <div id="case-handoff-dialog" class="dialog-backdrop" data-dialog="case-handoff-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-handoff-dialog-title">
+            <div class="dialog-head">
+                <h2 id="case-handoff-dialog-title" tabindex="-1">@CaseWorkspaceLabels.HandToEngineer</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <div class="dialog-body stack">
+                <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId"
+                      asp-page-handler="AssignEngineer" class="stack" id="case-handoff-form">
+                    <input type="hidden" name="id" value="@workflow.CaseId" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    <input type="hidden" name="instructionsComplete" value="@(Model.EvaHandoff!.InstructionsComplete)" />
+                    <input type="hidden" name="imagesComplete" value="@(Model.EvaHandoff!.ImagesComplete)" />
+                    <input type="hidden" name="evidenceReference" value="case-completeness-projection" />
+                    <div class="field">
+                        <label class="req" for="case-handoff-engineer">@OperatorLabels.CaseWorkspace.RibbonEngineer</label>
+                        <select id="case-handoff-engineer" name="engineerId" required data-dialog-initial-focus>
+                            <option value=""></option>
+                            @foreach (var engineer in Model.EvaHandoff!.EngineerOptions)
+                            {
+                                <option value="@engineer.Id">@engineer.Name</option>
+                            }
+                        </select>
+                    </div>
+                </form>
+                @if (Model.CanAssignToMe)
+                {
+                    <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId"
+                          asp-page-handler="AssignToMe" id="case-assign-to-me-form" data-assign-to-me>
+                        <input type="hidden" name="id" value="@workflow.CaseId" />
+                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    </form>
+                }
+            </div>
+            <div class="dialog-foot">
+                @if (Model.CanAssignToMe)
+                {
+                    <button type="submit" form="case-assign-to-me-form" class="btn">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                        <span>@Frame.AssignToMe</span>
+                    </button>
+                }
+                <button type="submit" form="case-handoff-form" class="btn btn--primary">@CaseWorkspaceLabels.HandToEngineer</button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (canSendToEva)
+{
+    <div id="eva-handoff-dialog" class="dialog-backdrop" data-dialog="eva-handoff-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="eva-handoff-dialog-title">
+            <div class="dialog-head">
+                <h2 id="eva-handoff-dialog-title" tabindex="-1">@OperatorLabels.CaseWorkspace.EvaHandoff</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <div class="dialog-body stack">
+                <partial name="Cases/Shared/_EvaHandoff" model="Model.EvaHandoff!" />
+            </div>
+        </section>
+    </div>
+}
+
+@if (canConfirmReportSent)
+{
+    @* D10: the action only confirms detected Sent evidence; nothing here
+       asserts a send. Each detected item offers its own confirmation. *@
+    <div id="case-report-sent-dialog" class="dialog-backdrop" data-dialog="case-report-sent-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-report-sent-dialog-title">
+            <div class="dialog-head">
+                <h2 id="case-report-sent-dialog-title" tabindex="-1">@Frame.MarkReportSent</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <div class="dialog-body stack">
+                @foreach (var evidence in details.AvailableReportSentEvidence)
+                {
+                    <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId"
+                          asp-page-handler="LinkReportEvidence" class="stack">
+                        <input type="hidden" name="id" value="@workflow.CaseId" />
+                        <input type="hidden" name="evidenceId" value="@evidence.EvidenceId" />
+                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        <div class="definition-list">
+                            <dl class="definition"><dt>Mailbox</dt><dd>@evidence.MailboxIdentity</dd></dl>
+                            <dl class="definition"><dt>Sent</dt><dd>@OperatorLabels.OfficeTime(evidence.SentAtUtc)</dd></dl>
+                        </div>
+                        <div class="field">
+                            <label class="req" for="report-sent-reason-@evidence.EvidenceId">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
+                            <input id="report-sent-reason-@evidence.EvidenceId" name="reason" required maxlength="500" />
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" class="btn btn--primary">Confirm detected evidence</button>
+                        </div>
+                    </form>
+                }
+            </div>
+        </section>
+    </div>
+}
+
+@if (Model.CanCreateAudit)
+{
+    @* Create audit (13 September): the facts, the derived reference and one
+       primary. No reason is asked; the action is its own record. *@
+    <div id="case-create-audit-dialog" class="dialog-backdrop" data-dialog="case-create-audit-dialog" hidden>
+        <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-create-audit-dialog-title">
+            <div class="dialog-head">
+                <h2 id="case-create-audit-dialog-title" tabindex="-1">@Frame.CreateAudit</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <form method="post" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-page-handler="CreateAudit">
+                <input type="hidden" name="id" value="@workflow.CaseId" />
+                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                <div class="dialog-body stack">
+                    <dl class="audit-facts">
+                        <dt>@Frame.OriginalCase</dt><dd class="mono">@workflow.Identity.Reference</dd>
+                        <dt>@OperatorLabels.CaseWorkspace.EngineerSections.Outcome</dt><dd>@Model.AssessmentValue(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome).Replace('_', ' ')</dd>
+                        @if (Model.ProposedAuditReference is { } auditReference)
+                        {
+                            <dt>Audit reference</dt><dd class="mono" data-audit-reference>@auditReference</dd>
+                        }
+                    </dl>
+                </div>
+                <div class="dialog-foot">
+                    <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
+                    <button type="submit" class="btn btn--primary" data-dialog-initial-focus>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <span>@Frame.CreateAudit</span>
+                    </button>
+                </div>
+            </form>
+        </section>
+    </div>
+}

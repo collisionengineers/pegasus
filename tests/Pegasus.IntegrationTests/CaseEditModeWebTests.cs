@@ -126,14 +126,10 @@ public sealed partial class CaseDetailsWebTests
             Assert.Matches($"<(input|textarea|select)[^>]*name=\"{Regex.Escape(name)}\"[^>]*form=\"case-edit-form\"", html);
         }
         Assert.Single(Regex.Matches(html, "id=\"case-edit-form\""));
-        // The history check is the Vehicle section's own labelled area rather
+        // The history check is the Vehicle section's own sub-panel rather
         // than a row among the vehicle's facts, in edit mode as in read mode.
-        Assert.Contains("class=\"field vehicle-history\"", html, StringComparison.Ordinal);
-        Assert.Contains("<h3 id=\"case-vehicle-history-title\"", html, StringComparison.Ordinal);
-        Assert.Contains(
-            "aria-labelledby=\"case-vehicle-history-title\"",
-            html,
-            StringComparison.Ordinal);
+        Assert.Contains("data-vehicle-history", html, StringComparison.Ordinal);
+        Assert.Matches("<textarea[^>]*id=\"edit-vehicle-history\"[^>]*form=\"case-edit-form\"", html);
         Assert.DoesNotContain("Saving returns the case to Not ready", html, StringComparison.Ordinal);
         Assert.True(store.MetadataReads > 0);
 
@@ -322,7 +318,9 @@ public sealed partial class CaseDetailsWebTests
         });
         var leased = await workspace.GetWorkspaceAsync();
         var renewKey = HandlerFormInputValue(leased, "RenewLease", "operationKey");
-        Assert.Contains("data-edit-heartbeat", leased, StringComparison.Ordinal);
+        // v26: the record's own heartbeat form (`data-case-heartbeat`), beaten
+        // by case-workspace.js; the Renew editing form stays as the no-script path.
+        Assert.Contains("data-case-heartbeat", leased, StringComparison.Ordinal);
         Assert.Contains(
             $"data-heartbeat-seconds=\"{(int)CaseEditAuthority.HeartbeatInterval.TotalSeconds}\"",
             leased,
@@ -450,28 +448,34 @@ public sealed partial class CaseDetailsWebTests
 
         var editing = await workspace.GetWorkspaceAsync();
 
-        Assert.Equal(1, Occurrences(editing, "case-overview-panel"));
-        Assert.Equal(1, Occurrences(editing, ">Case overview</h2>"));
+        // v26: one geometry for read and edit — the same Overview and
+        // Inspection details sections render in either mode, the value box
+        // and the control sharing each cell.
+        Assert.Equal(1, Occurrences(editing, "id=\"section-overview\""));
+        Assert.Equal(1, Occurrences(editing, ">Overview</h2>"));
         Assert.DoesNotContain("Edit Case data", editing, StringComparison.Ordinal);
-        Assert.Equal(1, Occurrences(editing, OperatorLabels.CaseWorkspace.InspectionAddressPanel + "</h2>"));
+        Assert.Equal(1, Occurrences(editing, CaseWorkspaceLabels.Inspection.SectionTitle + "</h2>"));
         // The editor's groups are the read view's groups.
         foreach (var group in new[] { ">Case</h3>", ">Principal</h3>", ">Claimant</h3>" })
         {
             Assert.Equal(1, Occurrences(editing, group));
         }
         Assert.Contains(
-            "<label for=\"edit-claim-reference\">Claim reference</label>",
+            "<label for=\"f-claim-reference\">Claim reference</label>",
             editing,
             StringComparison.Ordinal);
         Assert.Contains("name=\"claimNumber\"", editing, StringComparison.Ordinal);
-        Assert.Contains("<dt>Our ref</dt><dd>QDOS3100042</dd>", editing, StringComparison.Ordinal);
+        // Our ref is the Case's own immutable reference: an identity cell with
+        // its lock, never a control.
+        Assert.Matches("<span class=\"lbl\">Our ref<svg[^>]*class=\"icon lk\"", editing);
+        Assert.Contains("<div class=\"fv mono\">QDOS3100042</div>", editing, StringComparison.Ordinal);
         Assert.DoesNotContain(">Our ref</label>", editing, StringComparison.Ordinal);
 
         var reading = await ReadCaseAsync(new RecordingCaseDetailsStore());
 
-        Assert.Equal(1, Occurrences(reading, "case-overview-panel"));
-        Assert.Equal(1, Occurrences(reading, ">Case overview</h2>"));
-        Assert.Equal(1, Occurrences(reading, OperatorLabels.CaseWorkspace.InspectionAddressPanel + "</h2>"));
+        Assert.Equal(1, Occurrences(reading, "id=\"section-overview\""));
+        Assert.Equal(1, Occurrences(reading, ">Overview</h2>"));
+        Assert.Equal(1, Occurrences(reading, CaseWorkspaceLabels.Inspection.SectionTitle + "</h2>"));
         Assert.DoesNotContain("name=\"vehicleRegistration\"", reading, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"case-edit-form\"", reading, StringComparison.Ordinal);
     }

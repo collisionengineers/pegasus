@@ -809,7 +809,9 @@ public sealed class AutomationAssessmentIngressTests
         using var page = await staffClient.GetAsync($"/Cases/{caseId:D}");
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);
         var html = await page.Content.ReadAsStringAsync();
-        Assert.Contains("Case locked - AI is editing", html, StringComparison.Ordinal);
+        // v26: the holder is named by the ribbon's colleague chip, with no claim control.
+        Assert.Contains("data-edit-authority", html, StringComparison.Ordinal);
+        Assert.Contains("AI is editing", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain(ClientId, html, StringComparison.OrdinalIgnoreCase);

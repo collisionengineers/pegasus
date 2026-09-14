@@ -1,23 +1,39 @@
+@*
+    Inspection details (v26): the inspection facts as one geometry — type,
+    date, Inspect at, the recorded address with its provenance word, the
+    Principal's default only where the Case holds something else — then the
+    Repairer and Storage sub-panels. Storage per day and the recovery charge
+    live here (v25 decision E); Settlement keeps only the derived charge.
+
+    CASE-038: every control joins the record's one Save form, #case-edit-form,
+    so this section never posts a second whole-record form. The address input
+    is the one entry for `inspectionAddress`; site.js's CASE-041 block fills it
+    from the Inspect-at choice and drives the Overview form's hidden
+    `inspectionMode`.
+*@
 @model Pegasus.Web.Pages.Cases.DetailsModel
+@using System.Globalization
+@using Pegasus.Core.Assessment
 @using Pegasus.Core.Cases
 @using Pegasus.Core.Address
 @using Pegasus.Web.Presentation
+@using InspectionLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Inspection
 @{
     var details = Model.Case!;
-    var workflow = details.Workflow;
     var data = details.Data;
-    var leaseToken = Model.LeaseToken;
     var mayEdit = Model.CanEditCaseData && data is not null;
+    var mayEditMoney = Model.CanEditEngineering;
+    var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "inspection");
 
     var address = data?.Inspection.Address;
     var recorded = address?.Current;
-
     // The Principal's own setting reaches the case as a field value sourced
     // ProviderSetting (CaseDataSnapshotFactory); it is the default until a
     // member of staff records something else.
     var providerDefault = new[] { address?.Confirmed, address?.Fact, address?.Suggestion }
         .FirstOrDefault(value => value?.Source.Kind == CaseDataSourceKind.ProviderSetting);
     var mode = data?.Inspection.Mode.Current;
+    var inspectionDate = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Inspection.InspectionDate)?.Value;
     var storage = data?.Inspection.StorageLocation?.Current;
     var repairerName = data?.Inspection.RepairerName?.Current;
     var repairerAddress = data?.Inspection.RepairerAddress?.Current;
@@ -28,9 +44,9 @@
         && choice.Address is not null
         && string.Equals(choice.Address, recorded.Value, StringComparison.OrdinalIgnoreCase))
         ?? choices.FirstOrDefault(choice => choice.Kind == InspectionAddressChoiceKind.ManualEntry);
-    // What the read view still has to say once the value itself is on the
-    // page: the Principal's default only where the Case does not already hold
-    // it, and the mode only where its words are not the value already shown.
+    // One row per fact: the Principal's default only where the Case does not
+    // already hold it, and the mode only where its words are not the value
+    // already shown.
     var showProviderDefault = providerDefault is not null
         && !string.Equals(providerDefault.Value, recorded?.Value, StringComparison.OrdinalIgnoreCase);
     var modeLabel = mode is null ? null : OperatorLabels.InspectionMode(mode.Value);
@@ -39,8 +55,15 @@
     var isPhysicalAddress = mode?.Value == CaseInspectionMode.PhysicalAddress;
     var addressLines = recorded is null
         ? Array.Empty<string>()
-        : recorded.Value
-            .Split([',', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        : recorded.Value.Split([',', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    var storagePerDay = Model.AssessmentEditorValue(AssessmentVocabulary.SettlementStoragePerDay);
+    var recoveryCharge = Model.AssessmentEditorValue(AssessmentVocabulary.CostRecoveryCharge);
+
+    string Value(string? text) => string.IsNullOrWhiteSpace(text) ? OperatorLabels.CaseWorkspace.AbsentValue : text;
+    string ValueClass(string? text) => string.IsNullOrWhiteSpace(text) ? "fv empty" : "fv";
+    string Money(string? text) => decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)
+        ? "£" + amount.ToString("N2", CultureInfo.GetCultureInfo("en-GB"))
+        : Value(text);
 
     string ChoiceLabel(InspectionAddressChoice choice) => choice.Kind switch
     {
@@ -56,94 +79,34 @@
     };
 }
 
-<div class="stack">
-    @if (!mayEdit)
-    {
-        @* One row per fact the operator cannot derive from the row above it:
-           the recorded address (with the mode beside it only when the mode
-           says something the address does not), the Principal's default only
-           where it differs from what the Case holds, the storage location and
-           the repairer. The chosen source and the mode restated the address
-           itself on an image-based Case, which read as four copies of one
-           value. *@
-        <section class="panel" aria-labelledby="case-inspection-address-title">
-            <div class="panel-head">
-                <h2 id="case-inspection-address-title">@OperatorLabels.CaseWorkspace.InspectionAddressPanel</h2>
+<section class="record-section panel @Model.CollapsedClass("case.inspection") @Model.ActiveTabClass("inspection") @(Model.IsEditing && !Model.SectionIsEditable("inspection") ? "is-locked" : null)" id="section-inspection" data-section="inspection" data-collapse="case.inspection" aria-labelledby="section-inspection-title">
+    <div class="panel-head">
+        <h2 id="section-inspection-title">@InspectionLabels.SectionTitle</h2>
+        <div class="panel-actions">
+            <partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" />
+        </div>
+    </div>
+    <div class="panel-body stack">
+        <div class="fg g4">
+            <div class="fc ro" data-inspection-type>
+                <span class="lbl">@InspectionLabels.InspectionType</span>
+                <div class="@ValueClass(modeLabel)">@Value(modeLabel)</div>
             </div>
-            <div class="panel-body">
-                <div class="definition-list">
-                    <dl class="definition">
-                        <dt>@OperatorLabels.CaseWorkspace.InspectAt</dt>
-                        <dd>
-                            @if (recorded is null)
-                            {
-                                @OperatorLabels.CaseWorkspace.NotRecorded
-                            }
-                            else if (isPhysicalAddress)
-                            {
-                                <div class="address-lines">
-                                    @foreach (var line in addressLines)
-                                    {
-                                        <div>@line</div>
-                                    }
-                                </div>
-                            }
-                            else
-                            {
-                                @recorded.Value
-                            }
-                            @if (recorded is not null)
-                            {
-                                <partial name="Shared/_Provenance" model="recorded.Source" />
-                            }
-                            @if (showModeChip)
-                            {
-                                <partial name="Shared/_StatusChip" model="@modeLabel" />
-                            }
-                        </dd>
-                    </dl>
-                    @if (showProviderDefault)
-                    {
-                        <dl class="definition">
-                            <dt>@OperatorLabels.CaseWorkspace.PrincipalDefaultInspectionAddress</dt>
-                            <dd>@providerDefault!.Value</dd>
-                        </dl>
-                    }
-                    <dl class="definition">
-                        <dt>@OperatorLabels.CaseWorkspace.StorageLocation</dt>
-                        <dd>@(storage?.Value ?? OperatorLabels.CaseWorkspace.NotRecorded)</dd>
-                    </dl>
-                    <dl class="definition">
-                        <dt>@OperatorLabels.CaseWorkspace.Repairer</dt>
-                        <dd>@(repairerName?.Value ?? OperatorLabels.CaseWorkspace.NotRecorded)</dd>
-                    </dl>
-                    <dl class="definition">
-                        <dt>@OperatorLabels.CaseWorkspace.RepairerLocation</dt>
-                        <dd>@(repairerAddress?.Value ?? OperatorLabels.CaseWorkspace.NotRecorded)</dd>
-                    </dl>
-                </div>
+            <div class="fc">
+                @{ Lbl("f-inspection-date", InspectionLabels.InspectionDate); }
+                <div class="@ValueClass(inspectionDate?.ToString("d MMM yyyy"))">@Value(inspectionDate?.ToString("d MMM yyyy"))</div>
+                @if (mayEdit)
+                {
+                    <input id="f-inspection-date" class="fi" name="inspectionDate" form="case-edit-form" type="date"
+                           value="@inspectionDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
+                }
             </div>
-        </section>
-    }
-    else
-    {
-        <section class="panel" aria-labelledby="case-inspection-address-edit-title">
-            <div class="panel-head">
-                <h2 id="case-inspection-address-edit-title">@OperatorLabels.CaseWorkspace.InspectionAddressPanel</h2>
-            </div>
-            <div class="panel-body">
-                @* CASE-038: the record renders every section at once, so a
-                   second whole-record form here would post the case's stored
-                   values over whatever the Overview editor is holding unsaved.
-                   The section contributes its control to the one record form
-                   instead — one edit mode over one lease, one Save. The
-                   Overview form no longer carries a hidden `inspectionAddress`,
-                   so this input is the only entry for that name and the address
-                   shown here is the address that is saved. *@
-                <div class="form-grid form-grid--2 case-inspection-form">
-                <div class="field">
-                    <label for="inspection-address-choice">@OperatorLabels.CaseWorkspace.InspectAt</label>
-                    <select id="inspection-address-choice" data-inspection-address-choice form="case-edit-form">
+            <div class="fc" data-inspection-choice-cell>
+                @{ Lbl("inspection-address-choice", OperatorLabels.CaseWorkspace.InspectAt); }
+                <div class="@ValueClass(selectedChoice is null ? null : ChoiceLabel(selectedChoice))">@(selectedChoice is null ? OperatorLabels.CaseWorkspace.AbsentValue : ChoiceLabel(selectedChoice))</div>
+                @if (mayEdit)
+                {
+                    <select id="inspection-address-choice" class="fi" data-inspection-address-choice form="case-edit-form">
                         @foreach (var choice in choices)
                         {
                             var label = ChoiceLabel(choice);
@@ -152,50 +115,139 @@
                                     disabled="@(!choice.IsAvailable ? "disabled" : null)">@label@(!choice.IsAvailable ? OperatorLabels.CaseWorkspace.NotRecordedSuffix : null)</option>
                         }
                     </select>
+                }
+            </div>
+            <div class="fc" data-inspection-address-field data-inspection-address>
+                @{ Lbl("inspection-address", OperatorLabels.CaseWorkspace.InspectionAddressPanel); }
+                <div class="@ValueClass(recorded?.Value)" data-inspection-address-read>
+                    @if (recorded is null)
+                    {
+                        @OperatorLabels.CaseWorkspace.NotRecorded
+                    }
+                    else if (isPhysicalAddress)
+                    {
+                        <div class="address-lines">
+                            @foreach (var line in addressLines)
+                            {
+                                <div>@line</div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <span>@recorded.Value</span>
+                    }
+                    @if (recorded is not null)
+                    {
+                        var (word, _) = OperatorLabels.Provenance(recorded.Source);
+                        <span class="src-tag" data-provenance-word="@word">@(recorded.Source.Kind == CaseDataSourceKind.ProviderSetting ? OperatorLabels.CaseWorkspace.PrincipalDefaultInspectionAddress : word)</span>
+                    }
+                    @if (showModeChip)
+                    {
+                        <span class="status status--navy status--plain">@modeLabel</span>
+                    }
                 </div>
-                <div class="field field-wide" data-inspection-address-field>
-                    <label for="inspection-address">@OperatorLabels.CaseWorkspace.InspectionAddressPanel</label>
-                    <input id="inspection-address" name="inspectionAddress" form="case-edit-form"
+                @if (mayEdit)
+                {
+                    <input id="inspection-address" class="fi" name="inspectionAddress" form="case-edit-form"
                            maxlength="1000" value="@recorded?.Value" data-inspection-address-input />
+                }
+            </div>
+            @* Rendered whenever the Principal has a default; shown by the CASE-041
+               block only while the choice is image based, and by the read view
+               only where the recorded address differs from it. *@
+            <div class="fc ro" data-inspection-provider-default hidden="@(showProviderDefault ? null : "hidden")">
+                <span class="lbl">@OperatorLabels.CaseWorkspace.PrincipalDefaultInspectionAddress</span>
+                <div class="@ValueClass(providerDefault?.Value)">@Value(providerDefault?.Value)</div>
+            </div>
+        </div>
+
+        <div class="sub-panel" data-inspection-repairer><h3>@OperatorLabels.CaseWorkspace.Repairer</h3>
+            <div class="fg g4">
+                <div class="fc">
+                    @{ Lbl("repairer-directory", OperatorLabels.CaseWorkspace.RepairerDirectory); }
+                    @{
+                        var linkedRepairer = Model.RepairerChoices.FirstOrDefault(contact => contact.OrganizationId == linkedRepairerId);
+                        var linkedLabel = linkedRepairer?.Name ?? (linkedRepairerId is null ? OperatorLabels.CaseWorkspace.NotLinked : data?.Workspace?.Repairer?.Name);
+                    }
+                    <div class="fv">@Value(linkedLabel)</div>
+                    @if (mayEdit)
+                    {
+                        <select id="repairer-directory" class="fi" name="repairerDirectoryId" form="case-edit-form">
+                            <option value="">@OperatorLabels.CaseWorkspace.NotLinked</option>
+                            @foreach (var contact in Model.RepairerChoices)
+                            {
+                                <option value="@contact.OrganizationId"
+                                        selected="@(contact.OrganizationId == linkedRepairerId ? "selected" : null)">@contact.Name</option>
+                            }
+                        </select>
+                    }
                 </div>
-                <div class="field field-wide" data-inspection-provider-default hidden>
-                    <span class="label">@OperatorLabels.CaseWorkspace.PrincipalDefaultInspectionAddress</span>
-                    <span class="value">@providerDefault?.Value</span>
+                <div class="fc">
+                    @{ Lbl("repairer-name", OperatorLabels.CaseWorkspace.Repairer); }
+                    <div class="@ValueClass(repairerName?.Value)">@Value(repairerName?.Value)</div>
+                    @if (mayEdit)
+                    {
+                        <input id="repairer-name" class="fi" name="repairerName" form="case-edit-form" maxlength="300" value="@repairerName?.Value" />
+                    }
                 </div>
-                <div class="field">
-                    <label for="storage-location">@OperatorLabels.CaseWorkspace.StorageLocation</label>
-                    <input id="storage-location" name="storageLocation" form="case-edit-form"
-                           maxlength="1000" value="@storage?.Value" />
-                </div>
-                @* INTK-058: the Case's repairer. Selecting a maintained
-                   Contacts organisation copies its name and address onto the
-                   Case; leaving it unlinked keeps the extracted or keyed
-                   text. Either way the Save is the staff confirmation, and
-                   the confirmed address is what the Inspect-at repairer
-                   option offers. *@
-                <div class="field">
-                    <label for="repairer-directory">@OperatorLabels.CaseWorkspace.RepairerDirectory</label>
-                    <select id="repairer-directory" name="repairerDirectoryId" form="case-edit-form">
-                        <option value="">@OperatorLabels.CaseWorkspace.NotLinked</option>
-                        @foreach (var contact in Model.RepairerChoices)
-                        {
-                            <option value="@contact.OrganizationId"
-                                    selected="@(contact.OrganizationId == linkedRepairerId ? "selected" : null)">@contact.Name</option>
-                        }
-                    </select>
-                </div>
-                <div class="field">
-                    <label for="repairer-name">@OperatorLabels.CaseWorkspace.Repairer</label>
-                    <input id="repairer-name" name="repairerName" form="case-edit-form"
-                           maxlength="300" value="@repairerName?.Value" />
-                </div>
-                <div class="field field-wide">
-                    <label for="repairer-address">@OperatorLabels.CaseWorkspace.RepairerLocation</label>
-                    <input id="repairer-address" name="repairerAddress" form="case-edit-form"
-                           maxlength="1000" value="@repairerAddress?.Value" />
-                </div>
+                <div class="fc span2">
+                    @{ Lbl("repairer-address", InspectionLabels.Address); }
+                    <div class="@ValueClass(repairerAddress?.Value)">@Value(repairerAddress?.Value)</div>
+                    @if (mayEdit)
+                    {
+                        <input id="repairer-address" class="fi" name="repairerAddress" form="case-edit-form" maxlength="1000" value="@repairerAddress?.Value" />
+                    }
                 </div>
             </div>
-        </section>
+        </div>
+
+        <div class="sub-panel" data-inspection-storage><h3>@InspectionLabels.Storage</h3>
+            <div class="fg g4">
+                <div class="fc span2">
+                    @{ Lbl("storage-location", OperatorLabels.CaseWorkspace.StorageLocation); }
+                    <div class="@ValueClass(storage?.Value)">@Value(storage?.Value)</div>
+                    @if (mayEdit)
+                    {
+                        <input id="storage-location" class="fi" name="storageLocation" form="case-edit-form" maxlength="1000" value="@storage?.Value" />
+                    }
+                </div>
+                <div class="fc">
+                    @{ LblWhen(mayEditMoney, "edit-storage-per-day", InspectionLabels.StoragePerDay); }
+                    <div class="@ValueClass(storagePerDay) mono">@Money(storagePerDay)</div>
+                    @if (mayEditMoney)
+                    {
+                        <input type="number" step="0.01" min="0" id="edit-storage-per-day" class="fi mono" name="storagePerDay" form="case-edit-form" value="@storagePerDay" />
+                    }
+                </div>
+                <div class="fc">
+                    @{ LblWhen(mayEditMoney, "edit-recovery-charge", OperatorLabels.CaseWorkspace.EngineerSections.RecoveryCharge); }
+                    <div class="@ValueClass(recoveryCharge) mono">@Money(recoveryCharge)</div>
+                    @if (mayEditMoney)
+                    {
+                        <input type="number" step="0.01" min="0" id="edit-recovery-charge" class="fi mono" name="recoveryCharge" form="case-edit-form" value="@recoveryCharge" />
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@functions {
+    // The cell's label: a real <label> for the control while editing, the
+    // same words as a plain caption while reading.
+    private void Lbl(string id, string text) =>
+        LblWhen(Model.CanEditCaseData && Model.Case!.Data is not null, id, text);
+
+    private void LblWhen(bool editable, string id, string text)
+    {
+        if (editable)
+        {
+            <label for="@id">@text</label>
+        }
+        else
+        {
+            <span class="lbl">@text</span>
+        }
     }
-</div>
+}

@@ -71,9 +71,16 @@ public sealed partial class AssessmentReportDraftWebTests
             new FakeRenderer([1]),
             generateReport: recorder);
         using var client = Client(factory);
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+        // v26: Generate report is the head's primary inside the edit session;
+        // the Include fee note choice sits in the More menu, bound to that
+        // form, so it still posts as the form's own field.
+        var html = await EnterEditModeAsync(client, caseId);
 
-        Assert.Contains("name=\"includeFeeNote\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-generate-report", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "name=\"includeFeeNote\" value=\"true\" form=\"case-generate-report-form\" data-include-fee-note",
+            html,
+            StringComparison.Ordinal);
         Assert.Contains(
             Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.IncludeFeeNote,
             html,
@@ -234,6 +241,39 @@ public sealed partial class AssessmentReportDraftWebTests
             Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.SendObservedSent,
             reloaded,
             StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// v26: the Report section's lease-carrying controls render inside the
+    /// page-wide edit session, entered through the ribbon's Edit Case claim.
+    /// </summary>
+    private static async Task<string> EnterEditModeAsync(HttpClient client, Guid caseId)
+    {
+        var initial = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+        using var claim = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(initial),
+                ("id", caseId.ToString("D")),
+                ("expectedVersion", InputValue(initial, "expectedVersion")),
+                ("operationKey", InputValue(initial, "operationKey")),
+                ("section", "report")));
+        Assert.Equal(HttpStatusCode.Redirect, claim.StatusCode);
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+        Assert.Contains("data-case-editing=\"true\"", editing, StringComparison.Ordinal);
+        return editing;
+    }
+
+    private static string InputValue(string html, string name)
+    {
+        var tag = System.Text.RegularExpressions.Regex.Match(
+            html,
+            $"<input[^>]*name=\"{System.Text.RegularExpressions.Regex.Escape(name)}\"[^>]*>",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        Assert.True(tag.Success, $"The page must render an input named {name}.");
+        var value = System.Text.RegularExpressions.Regex.Match(tag.Value, "value=\"(?<value>[^\"]*)\"");
+        Assert.True(value.Success, $"The input {name} must have a value.");
+        return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
     private static HttpClient Client(WebApplicationFactory<Program> factory)

@@ -322,14 +322,18 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         string editLeaseToken,
         string commandName,
         Func<ActionActor, Task> execute,
-        string successMessage) =>
+        string successMessage,
+        Func<Guid, RedirectToPageResult>? redirect = null,
+        bool keepEditing = false) =>
         ExecuteCommandAsync(
             id,
             editLeaseToken,
             commandName,
             execute,
             successMessage,
-            "The case action was not applied because the case changed, edit mode was lost, or the action is not permitted.");
+            "The case action was not applied because the case changed, edit mode was lost, or the action is not permitted.",
+            redirect,
+            keepEditing);
 
     /// <summary>
     /// A command on one item the case carries (a document, an upload request); a refusal names
@@ -341,7 +345,8 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         string commandName,
         Func<ActionActor, Task> execute,
         string successMessage,
-        Func<Guid, RedirectToPageResult>? redirect = null) =>
+        Func<Guid, RedirectToPageResult>? redirect = null,
+        bool keepEditing = false) =>
         ExecuteCommandAsync(
             id,
             editLeaseToken,
@@ -349,7 +354,51 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
             execute,
             successMessage,
             "The case action was not applied because the item is unavailable, changed, or not part of this case.",
-            redirect);
+            redirect,
+            keepEditing);
+
+    /// <summary>
+    /// The lease-reading pair an immediate post needs to keep the operator's
+    /// edit session open after the store consumed the lease it carried (v25
+    /// decision F). A page that offers such posts supplies them; a page that
+    /// does not leaves them null and its commands end the session as before.
+    /// </summary>
+    protected virtual (IGetCase Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => null;
+
+    /// <summary>
+    /// Claims a fresh lease on the Case's new version and stores it, so the
+    /// redirected page is still in the edit session. A refused reclaim is not
+    /// an error: the page simply reads. Archived and terminal Cases are never
+    /// reclaimed.
+    /// </summary>
+    protected async Task ReclaimLeaseAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (LeaseReclaim is not { } reclaim || !TryGetActor(out var actor))
+        {
+            return;
+        }
+
+        try
+        {
+            var current = await reclaim.Cases.ExecuteAsync(new(id, actor), cancellationToken);
+            if (current is null || current.Workflow.Archive is not null
+                || Pegasus.Core.Lifecycle.CaseLifecycleRules.IsTerminal(current.Workflow.State))
+            {
+                return;
+            }
+            var operationKey = NewOperationKey();
+            var lease = await reclaim.Leases.ExecuteAsync(
+                new(id, current.Workflow.Version, actor, operationKey),
+                cancellationToken);
+            StoreClaimLeaseOperation(id, operationKey);
+            StoreLeaseAuthority(id, lease.Token);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "reclaim_lease", exception);
+            ClearLeaseState();
+        }
+    }
 
     private async Task<IActionResult> ExecuteCommandAsync(
         Guid id,
@@ -358,7 +407,8 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         Func<ActionActor, Task> execute,
         string successMessage,
         string failureMessage,
-        Func<Guid, RedirectToPageResult>? redirect = null)
+        Func<Guid, RedirectToPageResult>? redirect = null,
+        bool keepEditing = false)
     {
         redirect ??= RedirectToDetails;
         if (!TryGetActor(out var actor))
@@ -370,6 +420,10 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageM
         {
             await execute(actor);
             ClearLeaseState();
+            if (keepEditing)
+            {
+                await ReclaimLeaseAsync(id, CancellationToken.None);
+            }
             TempData[StatusTempDataKey] = successMessage;
         }
         catch (StaffAuthorizationException)

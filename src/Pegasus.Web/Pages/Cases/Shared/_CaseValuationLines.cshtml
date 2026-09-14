@@ -1,0 +1,42 @@
+@*
+    The valuation calculator's ordered lines (v25 decision 8), rendered from
+    Core's own calculation: guide retail, commercial VAT, previous total loss,
+    each addition, the condition deduction, the proposal. The PreviewValuation
+    handler returns this for every change the calculator posts; null means the
+    posted selection could not be calculated (no basis card, or deductions
+    beyond the value).
+*@
+@using System.Globalization
+@using Pegasus.Core.Assessment
+@using ValuationLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Valuation
+@model Pegasus.Core.Assessment.ValuationCalculation?
+@{
+    string Money(decimal value) => ValuationCalculationPolicy.FormatMoney(value);
+}
+<div class="lines" data-valuation-lines>
+    @if (Model is null)
+    {
+        <div class="ln"><span class="muted">@ValuationLabels.ChooseBasis</span></div>
+    }
+    else
+    {
+        <div class="ln"><span>@ValuationLabels.GuideRetail</span><b>@Money(Model.GuideRetailValue)</b></div>
+        @if (Model.CommercialVatApplied)
+        {
+            <div class="ln"><span>@ValuationLabels.CommercialVat 20 %</span><b>+ @Money(Model.CommercialVatAmount)</b></div>
+        }
+        @if (Model.PriorTotalLossPercentage is { } percentage)
+        {
+            <div class="ln"><span>@ValuationLabels.PreviousTotalLoss −@((percentage * 100m).ToString("0", CultureInfo.InvariantCulture)) %</span><b>− @Money(Model.PriorTotalLossAmount)</b></div>
+        }
+        @foreach (var addition in Model.Additions)
+        {
+            <div class="ln"><span>@addition.Label</span><b>+ @Money(addition.Amount)</b></div>
+        }
+        @if (Model.ConditionDeduction > 0m)
+        {
+            <div class="ln"><span>@ValuationLabels.ConditionDeduction</span><b>− @Money(Model.ConditionDeduction)</b></div>
+        }
+        <div class="ln tot"><span>@ValuationLabels.ProposedEngineersValue</span><b data-valuation-proposal>@Money(Model.Proposal)</b></div>
+    }
+</div>
