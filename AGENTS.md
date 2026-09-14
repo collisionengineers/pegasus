@@ -102,6 +102,9 @@ Obsolete documentation-parser contracts do not justify retaining incorrect docs.
   approve a concrete window outside typical usage. The release is incomplete
   until approved new Web/Worker bytes are explicitly active, healthy and smoked;
   never revive old bytes after destructive SQL begins.
+- For a first App Service destructive cutover, the old Container App source and
+  active revisions are approval-bound and it is inactive, ingress-disabled and
+  unserved before SQL; provision the new App Service only after migration.
 - A closed feature or composition gate is not delivery. An inert UI preview may
   exist only where its accepted interface contract permits it.
 
