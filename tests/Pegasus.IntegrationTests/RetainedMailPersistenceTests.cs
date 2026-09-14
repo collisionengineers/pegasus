@@ -641,8 +641,8 @@ public sealed class RetainedMailPersistenceTests
             details.QueryEmails.Select(item => item.Subject));
         Assert.Equal(ReceivedAtUtc.AddMinutes(5), details.QueryEmails[0].ReceivedAtUtc);
         Assert.Equal("sender@example.invalid", details.QueryEmails[0].SenderAddress);
-        Assert.Equal(ReceivedMailFamily.Billing, details.QueryEmails[0].Classification.ReceivedFamily);
-        Assert.Equal("billing-query", details.QueryEmails[0].Classification.Subtype);
+        Assert.Equal(ReceivedMailFamily.Billing, details.QueryEmails[0].Classification!.ReceivedFamily);
+        Assert.Equal("billing-query", details.QueryEmails[0].Classification!.Subtype);
         Assert.Equal("second@example.invalid", details.QueryEmails[2].SenderAddress);
         Assert.DoesNotContain(details.QueryEmails, item => item.Subject is
             "Other case" or "Case update" or "Reversed" or "Unassociated");

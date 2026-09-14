@@ -6,8 +6,9 @@
     var emails = Model.Case!.QueryEmails;
 }
 
-@* The Files section's Correspondence tab (CASE-009): the retained query mail
-   associated with the Case, and Compose where staff mail is available. *@
+@* The Files section's Correspondence tab (CASE-009): every retained email
+   associated with the Case - polled mail and uploaded .eml files - and
+   Compose where staff mail is available. *@
 <div class="correspondence" data-correspondence>
     @if (Model.StaffMailAvailable)
     {
@@ -42,7 +43,7 @@
                             <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.ReceivedAtUtc)</time></td>
                             <td>@(row.EffectiveSenderAddress ?? row.SenderDisplayName ?? row.SenderAddress)</td>
                             <td>@row.Subject</td>
-                            <td>@OperatorLabels.MailClassification(row.Classification)</td>
+                            <td>@(row.Classification is { } classification ? OperatorLabels.MailClassification(classification) : OperatorLabels.CaseWorkspace.AbsentValue)</td>
                             <td class="row-actions"><a class="btn btn--small" asp-page="/Mail/Message" asp-route-id="@row.RetainedMessageId">@OperatorLabels.CaseWorkspace.OpenMessage</a></td>
                         </tr>
                     }

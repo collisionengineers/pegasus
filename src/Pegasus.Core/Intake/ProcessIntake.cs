@@ -22,7 +22,8 @@ public sealed class ProcessIntake(
     IRegisterUnidentified? registerUnidentified = null,
     IProviderSubmissionBindings? providerSubmissionBindings = null,
     IRetainedInstructionAnalysisStore? retainedInstructionAnalysisStore = null,
-    RetainIncomingArtifact? retainIncomingArtifact = null)
+    RetainIncomingArtifact? retainIncomingArtifact = null,
+    IRetainedMailboxMessageStore? retainedMessages = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
 
@@ -285,6 +286,7 @@ public sealed class ProcessIntake(
             RecordFailureTelemetry(activity, "persistence_failure", started);
             throw;
         }
+        await RetainUploadedCorrespondenceAsync(safeSource, sourceHash, readResult, cancellationToken);
         await RetainHoldingAssetsAsync(receipt, cancellationToken);
         await RecordAutomaticAuditEvidenceAsync(
             receipt,
@@ -294,6 +296,32 @@ public sealed class ProcessIntake(
         await RegisterUnidentifiedIfTerminalAsync(receipt, cancellationToken);
         RecordTelemetry(activity, receipt, DecisionCode(receipt.Decision), started);
         return receipt;
+    }
+
+    /// <summary>
+    /// An uploaded email is correspondence: it is retained the way a polled
+    /// message is, under the upload scope, so the Case's Correspondence tab
+    /// lists it and the mail viewer opens it. A polled message is retained by
+    /// the mailbox poll itself; a source that is not an email has nothing to
+    /// retain here. Retention is idempotent on the source bytes, so a replay
+    /// is a no-op.
+    /// </summary>
+    private async Task RetainUploadedCorrespondenceAsync(
+        IntakeSource source,
+        string sourceHash,
+        IntakeSourceReadResult readResult,
+        CancellationToken cancellationToken)
+    {
+        if (retainedMessages is null
+            || source.SourceIdentity.Channel != IntakeSourceChannel.ManualUpload
+            || readResult.RootEmail is not { } email)
+        {
+            return;
+        }
+
+        await retainedMessages.RetainAsync(
+            UploadedCorrespondence.Retained(source, sourceHash, email, timeProvider.GetUtcNow()),
+            cancellationToken);
     }
 
     private async Task RetainHoldingAssetsAsync(
