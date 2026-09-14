@@ -153,7 +153,7 @@ public sealed partial class CaseDetailsWebTests
         });
         var html = await workspace.GetWorkspaceAsync();
         foreach (var path in CaseWorkspaceLabels.Editors.Settlement.Keys.Concat(CaseWorkspaceLabels.Editors.Report.Keys)
-                     .Append(AssessmentVocabulary.HistoryCheck))
+                     .Append(AssessmentVocabulary.HistoryCheck).Append(AssessmentVocabulary.VehicleCondition))
         {
             var name = CaseWorkspaceLabels.Editors.FormName(path);
             // Administrator includes engineering authority; every editor uses
@@ -173,6 +173,8 @@ public sealed partial class CaseDetailsWebTests
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementExcess), "0"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementClaimantVatRegistered), "false"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.HistoryCheck), ""),
+            // The Vehicle section renders this select in every engineering edit form.
+            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.VehicleCondition), "good"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.EngineersComments), "Engineer comments recorded"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportDateOverride), "false"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportIncludeUnrelatedDamage), "false"),
@@ -187,6 +189,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal("0", saved.Settlement!.AssessmentFields![AssessmentVocabulary.SettlementExcess]);
         Assert.Equal("false", saved.Settlement.AssessmentFields[AssessmentVocabulary.SettlementClaimantVatRegistered]);
         Assert.Null(saved.Vehicle!.AssessmentFields![AssessmentVocabulary.HistoryCheck]);
+        Assert.Equal("good", saved.Vehicle.AssessmentFields[AssessmentVocabulary.VehicleCondition]);
         Assert.Equal("Engineer comments recorded", saved.Report!.AssessmentFields![AssessmentVocabulary.EngineersComments]);
         Assert.Equal("false", saved.Report.AssessmentFields[AssessmentVocabulary.ReportDateOverride]);
         Assert.Equal(new DateOnly(2031, 5, 6), saved.Report.ReportDate);
