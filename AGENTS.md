@@ -105,6 +105,8 @@ Obsolete documentation-parser contracts do not justify retaining incorrect docs.
 - For a first App Service destructive cutover, the old Container App source and
   active revisions are approval-bound and it is inactive, ingress-disabled and
   unserved before SQL; provision the new App Service only after migration.
+- Deploying a ZIP to a deliberately stopped Web App uses `--restart false`
+  and `--track-status false`; activation is a separate release step.
 - A closed feature or composition gate is not delivery. An inert UI preview may
   exist only where its accepted interface contract permits it.
 

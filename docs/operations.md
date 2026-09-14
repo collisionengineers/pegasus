@@ -4,6 +4,75 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 51 — 14 September 2026 (deployment live; recovery validated)
+
+Release 51 deployed the reviewed mailbox-reactivation correction to the Linux
+App Service Web host. Mailbox recovery, the generation-3 subscription and poll,
+and full production smoke passed. The delivery trace reported zero records for
+the pause; recent delivery records can lag, so this does not guarantee that no
+mail arrived.
+
+| Observation | Value |
+| --- | --- |
+| Source and package | Version `0.1.0-alpha.1`, source `bdc85085cb5478b5bdf013a30b95059bff451b59`; manifest SHA-256 `54C5FB94B6FA4F880210070A85C5AE74F20EFE207225792780387ADE8C8519B7`; server package `20260914130353.zip` SHA-256 `2DFE8E88CD54950A11C88E23A0485FA6543CDA1EF4ABAA226DA4C02C70343852`, equal to the approved `web.zip`. |
+| Public origin | `https://pegasus-prod-web-252ow37gij.azurewebsites.net/` on the existing UK South B1 Linux plan; the Worker remains Flex Consumption. |
+| Promotion and CI | Main and dev were atomically fast-forwarded to the source. PR 748 merged at `2026-09-14T12:55:54Z`; CI `34841859467` passed every SQL group and coverage check on the exact deployed tree. Its earlier CI `34841313504` failed with `CS0136` local-name conflicts; the correction was included in the passed source and the failure log remains retained. Main CI `34846154877` passed its distinct “Require main history to be contained in dev” check. No local tests duplicated the passing PR CI. |
+| Schema and preflight | The schema remained at `20260914100000_WidenDocumentContentCacheVariant`; B1 UK South remained limit 3. Packaging and read-only preflight Build, Artifact, and PreProvision each exited 0. |
+| Deployment | The Release 51 driver exited 0 at `2026-09-14T13:09:05Z`. Web deployment `808f1ecc-3bdb-4afa-a65a-804cc184c4f5` succeeded at `2026-09-14T13:04:09Z`; the Web App is `Running` on `DOTNETCORE|10.0`. Worker deployment `e9b5082a-6b48-4a7e-b9f9-9845364e9edc` and its configuration smoke passed. |
+| Mailbox | The UI re-enable succeeded with state `Approved`, inbound `true`, sent `false`, and staff send `false`, proving fresh Web Inbox access. The mailbox is version 8, generation 3, activated at `2026-09-14T13:09:31.4060206Z`; the UI shows `Approved` and last completed at 14:10 UK. |
+| Subscription and poll | Subscription `8ae31eda-21a9-4558-8e21-29b16dc09888` is generation 3 `Active`, maintained at `2026-09-14T13:10:00.178085Z`, and expires at `2026-09-20T13:10:00.178085Z`. The generation-3 poll completed at `2026-09-14T13:10:06.1157293Z`; its start boundary equals activation and it had no failures. Worker URL: `https://pegasus-prod-web-252ow37gij.azurewebsites.net/hooks/microsoft-graph/mail`. |
+| Smoke | All production smoke checks passed, exiting 0 at `2026-09-14T13:12:24.6169651Z`. |
+| Pause trace | The complete pause from `2026-09-14T11:37:22.417Z` to `2026-09-14T13:09:31.4060206Z` lasted 5,528.989 seconds (1 hour 32 minutes 8.989 seconds). Exchange reported zero delivery records at `2026-09-14T13:13:41.8177179Z`; this has the explicit recent-delivery latency caveat. No backfill was performed. |
+| External clients | The server URL and MCP metadata are verified. External MCP client reconnections are operator-owned and outside this task, and do not block the release record. |
+| Evidence | `artifacts/releases/release-51-bdc85085` retains the approved packet, manifest, ZIPs, bundle, CI/readiness/approval evidence, `deployment-readback.json`, `deployment-result.json`, `mailbox-ui-recovery.json`, `mailbox-recovery-readback-20260914T131113680Z.json`, `mailbox-pause-delivery-readback.json`, and `smoke-result.json`. |
+
+## Release 50 — 14 September 2026 (historical App Service cutover)
+
+Release 50 moved the Web host from the retiring Container App to the Linux App
+Service Web App. It completed the destructive schema route and initial App
+Service activation. The interrupted mailbox refresh below was subsequently
+recovered by Release 51.
+
+| Observation | Value |
+| --- | --- |
+| Candidate and approval | Source `3ce266fecd1ecf710d0abbdad2241717f2b54978`, version `0.1.0-alpha.1`; procedure commit `da7036dec0d4837acadc9aee124d9ad977e50bcd`. Alex approved the exact packet, targets, manifest, and a 30-minute Web/Worker outage. |
+| Manifest and evidence | Manifest SHA-256 `D18501F7AF0B32D1E2857C139C86D7A28F03F8A49D854F5EE81A6D4CE2D3579D`; schema 3 with `win-x64` / `efbundle.exe`. The approved packet, manifest, artifacts, phase logs and interrupted-refresh evidence remain at `artifacts/releases/release-50-3ce266fe`. |
+| Containment and migration | The retiring Container App source was `37d00f4c2fc6f106554e69ab4e8c3590939c25b7`, with approved active revision `pegasus-prod-web-252ow37gij--37d00f4c2fc6`. Fresh containment left no active old revisions or replicas, ingress disabled, and the old URL unserved. All 13 migrations through `20260914100000_WidenDocumentContentCacheVariant` applied. The route was destructive/non-additive because `LinkedAuditCase` replaced the unfiltered Case sequence uniqueness index with the linked-Audit filtered form. Runtime bootstrap verified 705 catalogued permission/denial rows and 487 effective runtime DML rows. |
+| Outage and staging | Worker outage began `2026-09-14T11:06:50.9505668Z`; polling resumed at `2026-09-14T11:28:22Z`, about 21 minutes 31 seconds later. Web outage began `2026-09-14T11:10:33.8157183Z`; startup was observed at `2026-09-14T11:27:49.183Z`, about 17 minutes 15 seconds later. Both disabled Worker smokes passed and `worker.zip` deployment `37477644-fb2f-409c-b883-a68cab04496b` staged before containment. These initial outages were within the approved 30-minute window. |
+| Provision and activation | Phase 4 provision `pegasus-prod-1789384475` created the UK South B1 Linux plan and Web App. Web ZIP deployment `b639667d-e0bc-463c-b143-1ef0dce051b0` completed successfully while the Web App was intentionally stopped. The Phase 4 wrapper exited 1 only because CLI status tracking waited for that intentionally stopped app; server-side completion was confirmed, its owned poller ended, and no ZIP was reuploaded. Activation deployment `pegasus-prod-1789385054` then succeeded. |
+| Hostname read-back | `Glass__CallbackBaseUri` and `AutomationMcp__PublicOrigin` read `https://pegasus-prod-web-252ow37gij.azurewebsites.net/`. MCP protected-resource metadata named that origin for resource and authorization server; `azd-web-output-readback.json` verified the same four Web output keys in primary and release environments. |
+
+### Interrupted mailbox refresh and recovered route
+
+- The approved mailbox Disable save succeeded at `2026-09-14T11:37:22.417Z`.
+  Its re-enable attempt at `2026-09-14T11:40:36.570Z` failed with “The address
+  could not be found in the mail system.” Read-only SQL then showed `Disabled`,
+  version 7, mailbox generation 2, and the generation-1 subscription `Active`.
+  The mailbox existed and its identity was unchanged by migration.
+- The Web managed identity received `403` from
+  `GET /v1.0/users/instructions%40collisionengineers.co.uk` and had zero
+  Microsoft Graph directory app-role assignments. The approved `User.ReadBasic.All`
+  role-assignment POST failed `403 Authorization_RequestDenied` at
+  `2026-09-14T11:45:38Z`; no successful directory grant was recorded. Two
+  device-authentication attempts completed as the Digital Operator without
+  Global or Privileged Role Administrator authentication. This directory route
+  was disposed and superseded; no further privileged sign-in was pending.
+- Exchange read-back showed the Digital Operator's Exchange Administrator route,
+  no Web service principal, and a Worker service principal with
+  `Application Mail.Read` scoped only to `Pegasus Production Instructions
+  Mailbox`, filtered to `instructions@collisionengineers.co.uk`. The scoped
+  Exchange Web service-principal registration and `Application Mail.Read` grant
+  then completed with exit 0. Its authorization test was in scope for
+  `instructions@collisionengineers.co.uk` and out of scope for `desk`; no
+  directory, mailbox-write, or mail-send grant was added. Release 51 used that
+  route to restore fresh Web Inbox access and re-enable the unchanged mailbox.
+- The initial full smoke preceded the failed mailbox toggle and did not prove a
+  new mailbox generation or webhook. The previous failure and permission-route
+  evidence remains retained in `mailbox-refresh-readback.json`,
+  `mailbox-directory-read-approval.json`, `mailbox-directory-read-grant.log`,
+  `exchange-mailbox-access-readback.json`, `web-exchange-mailbox-read-grant.json`,
+  and `web-exchange-mailbox-read-grant.log`.
+
 ## Release 49 — 11 September 2026
 
 Every Glass's session situation handled on the Case record (PR 736): a

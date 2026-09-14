@@ -1,11 +1,13 @@
 # Source architecture
 
-Source structure updated for the 10 September 2026 operator-findings
-rectification (Release 44): image tags replace the Third-party vehicle flag,
-Case document previews and thumbnails read through the content cache, record
-edit scopes re-claim and release themselves, and vehicle lookup runs at Case
-creation. Refresh it when the source structure changes. [Operations](operations.md) owns dated
-deployed observations and exact runtime identities.
+Source structure includes ADR-0049's Linux App Service Web composition: the
+Web host is a framework-dependent Linux x64 `web.zip` deployed to a
+`DOTNETCORE|10.0` App Service Web App, while the Worker remains a Flex
+Consumption Function App. `infra/modules/platform.bicep` supplies the Web
+plan, App Service configuration and managed identity; the release route deploys
+the package with `az webapp deploy`. Refresh this document when source
+structure changes. [Operations](operations.md) owns dated deployed observations
+and exact runtime identities.
 
 The corrective change updates intake OCR, estimate import, Contacts, edit
 ownership and Case/report workflows; it retains the dependency direction below.
