@@ -70,6 +70,24 @@ internal static class CaseMutationGuard
             nowUtc);
     }
 
+    public static void RequireHeartbeat(
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        string editLeaseToken)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        ArgumentNullException.ThrowIfNull(actor);
+        CaseEditAuthority.RequireHeartbeat(
+            workflow.CaseId,
+            workflow.Version,
+            actor,
+            editLeaseToken,
+            RetainedHolderKind(workflow.EditLeaseHolderKind),
+            workflow.EditLeaseHolder,
+            !string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash),
+            MatchesRetainedHash(workflow.EditLeaseTokenHash, editLeaseToken));
+    }
+
     public static void ClearLease(CaseWorkflowEntity workflow)
     {
         ArgumentNullException.ThrowIfNull(workflow);
