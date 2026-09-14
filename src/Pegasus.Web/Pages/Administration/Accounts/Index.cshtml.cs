@@ -306,10 +306,10 @@ public sealed class IndexModel(
 
         try
         {
-            var lease = await editScopes.HeartbeatAsync(
+            await editScopes.HeartbeatAsync(
                 new(EditScopeKind.StaffAccount, staffId, actor, editLeaseToken),
                 cancellationToken);
-            return new JsonResult(new { expiresAtUtc = lease.ExpiresAtUtc });
+            return new NoContentResult();
         }
         catch (EditScopeConflictException)
         {

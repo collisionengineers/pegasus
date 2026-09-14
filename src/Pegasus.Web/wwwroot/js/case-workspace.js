@@ -472,7 +472,7 @@
         function expired() {
             stopHeartbeat();
             if (line) {
-                line.textContent = 'Editing expired · changes are not kept';
+                line.textContent = line.getAttribute('data-lease-expired-text') || '';
                 line.classList.add('is-expiring');
                 line.hidden = false;
             }
@@ -791,7 +791,9 @@
             form.dataset.inplaceSubmitting = 'true';
             submitInPlace(form, submitter);
         };
-        if (!isSave && dirty) {
+        // Cancel is the operator discarding: it needs no second question.
+        var isCancel = form.hasAttribute('data-case-cancel-form');
+        if (!isSave && dirty && !isCancel) {
             askUnsaved().then(function (answer) {
                 if (answer === 'keep') {
                     return;
@@ -806,6 +808,10 @@
                 proceed();
             });
             return;
+        }
+        if (isCancel) {
+            dirtyEditors.clear();
+            announce(false);
         }
         proceed();
     });

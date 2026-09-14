@@ -21,7 +21,7 @@ public sealed partial class DetailsModel
     public IReadOnlyList<CaseFile> CaseImageFiles =>
         Case is null ? [] : [.. CaseFiles.Current(Case.Documents).Where(IsCaseImage)];
 
-    /// <summary>The images whose bytes can be read: the viewer's set and the evidence strips.</summary>
+    /// <summary>The images whose bytes can be read: the viewer's set and the Report strip.</summary>
     public IReadOnlyList<CaseFile> ViewableCaseImages =>
         [.. CaseImageFiles.Where(file => file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed)];
 

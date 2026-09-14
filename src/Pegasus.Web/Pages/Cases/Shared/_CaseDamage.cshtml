@@ -2,7 +2,8 @@
     Damage (v26 § Damage clicker, Plan variant decided 13 September). The
     workbench is the top-down Plan silhouette drawn as the actual panels, the
     recorded-zones list beside it, then the tyre and belt cells, the unrelated
-    damage cells and the derived narrative, and the read-only evidence strip.
+    damage cells and the derived narrative; the Case's images live only under
+    Files.
     All three drive Core's one zone model (19 panels, 4 wheels, three chips);
     the recorded impacts travel as the one hidden JSON field the Save reads.
     The page reads without script: the list and the derived cells are
@@ -13,7 +14,6 @@
 @using System.Text.Json
 @using Pegasus.Core.Assessment
 @using Pegasus.Core.Cases
-@using Pegasus.Core.Documents
 @using Pegasus.Web.Presentation
 @using DamageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Damage
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
@@ -76,15 +76,6 @@
         }
         return value;
     }
-
-    // The evidence strip: the Case's own readable image files, the same set
-    // the Files section tiles, read-only here and opening the viewer.
-    var images = CaseFiles.Current(details.Documents)
-        .Where(file => file.Occurrence.SemanticRole == DocumentSemanticRole.Image
-            && file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed
-            && (file.Version.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
-                || file.Version.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase)))
-        .ToArray();
 }
 
 <section class="record-section panel @Model.CollapsedClass("case.damage") @Model.ActiveTabClass("damage") case-damage @(Model.IsEditing && !editable ? "is-locked" : null)" id="section-damage" data-section="damage" data-collapse="case.damage" aria-labelledby="section-damage-title"
@@ -300,25 +291,5 @@
                 </div>
             </div>
         </div>
-        @if (images.Length > 0)
-        {
-            <div class="sub-panel" data-damage-evidence-panel>
-                <h3>@DamageLabels.Images <span class="rt">@images.Length · Files</span></h3>
-                <div class="thumbs evidence" data-damage-evidence data-evidence-set>
-                    @foreach (var file in images)
-                    {
-                        var occurrence = file.Occurrence;
-                        var version = file.Version;
-                        var previewHref = Url.Page("/Cases/Documents/Download", new { caseId = workflow.CaseId, occurrenceId = occurrence.Id, versionId = version.Id, inline = true })!;
-                        var downloadHref = Url.Page("/Cases/Documents/Download", new { caseId = workflow.CaseId, occurrenceId = occurrence.Id, versionId = version.Id })!;
-                        var thumbnailHref = Url.Page("/Cases/Documents/Download", new { caseId = workflow.CaseId, occurrenceId = occurrence.Id, versionId = version.Id, inline = true, size = CaseDocumentThumbnails.ThumbSizeToken })!;
-                        <a class="th" href="@previewHref" data-evidence-item data-download-href="@downloadHref" data-media-type="@version.MediaType" data-file-name="@version.FileName" title="@version.FileName">
-                            <img src="@thumbnailHref" alt="@version.FileName" loading="lazy" data-gallery-image />
-                            <span class="th-name">@version.FileName</span>
-                        </a>
-                    }
-                </div>
-            </div>
-        }
     </div>
 </section>
