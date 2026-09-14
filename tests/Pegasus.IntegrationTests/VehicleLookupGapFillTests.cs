@@ -209,7 +209,7 @@ public sealed class VehicleLookupGapFillTests
                 SnapshotHash = new string('1', 64),
                 SnapshotJson = "{\"operationKey\":\"seed-generation-superseded\"}",
                 TemplateVersion = "assessment-report/v1",
-                RendererVersion = "playwright/v1",
+                RendererVersion = "renderer/v1",
                 State = nameof(CaseReportGenerationState.Confirmed),
                 GeneratedAtUtc = FixedUtcNow,
                 Version = 1
@@ -222,7 +222,7 @@ public sealed class VehicleLookupGapFillTests
                 SnapshotHash = new string('2', 64),
                 SnapshotJson = "{\"operationKey\":\"seed-generation-current\"}",
                 TemplateVersion = "assessment-report/v1",
-                RendererVersion = "playwright/v1",
+                RendererVersion = "renderer/v1",
                 State = nameof(CaseReportGenerationState.Confirmed),
                 GeneratedAtUtc = FixedUtcNow.AddMinutes(1),
                 Version = 1

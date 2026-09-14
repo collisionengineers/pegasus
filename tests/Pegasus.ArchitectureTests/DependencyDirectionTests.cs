@@ -182,7 +182,7 @@ public sealed class DependencyDirectionTests
         var port = typeof(Pegasus.Core.Reports.IAssessmentReportRenderer);
 
         Assert.DoesNotContain(core.GetReferencedAssemblies(), x =>
-            x.Name is "Scriban" or "Microsoft.Playwright" or "PdfSharp");
+            x.Name is "QuestPDF" or "SkiaSharp" or "UglyToad.PdfPig");
         Assert.Single(infrastructure.GetTypes(), type =>
             !type.IsAbstract && port.IsAssignableFrom(type));
         Assert.DoesNotContain(infrastructure.GetTypes(), type =>

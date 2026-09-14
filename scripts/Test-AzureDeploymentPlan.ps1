@@ -164,7 +164,6 @@ function Test-ArtifactManifest {
     }
 
     Assert-ZipRoot -ArchivePath (Join-Path $manifestDirectory 'worker.zip') -RequiredRoot '.azurefunctions/'
-    Assert-ZipRoot -ArchivePath (Join-Path $manifestDirectory 'web.zip') -RequiredRoot '.playwright/'
 
     if (
         $manifest.webImage.repository -ne 'pegasus/web' -or
@@ -226,10 +225,10 @@ Assert-Text $platformBicep "Graph__ChangeNotificationUrl'[\s\S]*?/hooks/microsof
 Assert-Text $platformBicep "ApprovedInboxPollSchedule'[\s\S]*?value:\s*'0 \*/5 \* \* \* \*'" 'Approved Inbox polling must be five-minute recovery, not the ordinary intake path.'
 # Raised from 0.5 vCPU / 1 GiB on the operator's decision (2026-08-19,
 # DELIV-012) when the report renderer began running in process in this
-# container per ADR-0028: headless Chromium shares the app's CPU and memory,
-# Container Apps hard-OOM-kills rather than throttling, and the app runs a
-# single always-warm replica. The exact pair stays asserted so a later change
-# cannot drift the sizing silently.
+# container: the renderer shares the app's CPU and memory, Container Apps
+# hard-OOM-kills rather than throttling, and the app runs a single always-warm
+# replica. The exact pair stays asserted so a later change cannot drift the
+# sizing silently.
 Assert-Text $platformBicep "cpu:\s*json\('1\.0'\)[\s\S]*?memory:\s*'2Gi'" 'The Web Container App must use 1.0 vCPU and 2 GiB.'
 Assert-Text $platformBicep "sku:\s*\{\s*name:\s*'Basic'\s*\}[\s\S]*?adminUserEnabled:\s*false" 'The production ACR must be Basic with admin credentials disabled.'
 Assert-Text $platformBicep "roleDefinitionId:\s*acrPullRole" 'The Web identity must receive AcrPull at the production ACR.'

@@ -33,7 +33,7 @@ never renumbered or reused.
 | [ADR-0012](0012-conservative-mot-mileage-estimation.md) | Conservative MOT mileage estimation | superseded | — | — |
 | [ADR-0013](0013-qdos-alpha-implementation-contract.md) | QDOS alpha implementation contract | accepted | ADR-0029 | — |
 | [ADR-0014](0014-local-to-production-deployment.md) | Local-to-production deployment only | accepted | — | — |
-| [ADR-0015](0015-host-web-on-container-apps-consumption.md) | Host Pegasus Web on Azure Container Apps Consumption | accepted | — | — |
+| [ADR-0015](0015-host-web-on-container-apps-consumption.md) | Host Pegasus Web on Azure Container Apps Consumption | superseded | ADR-0049 | — |
 | [ADR-0016](0016-standalone-desktop-email-evaluator.md) | Standalone local desktop email evaluator | accepted | — | — |
 | [ADR-0018](0018-provider-inspection-mode-database-setting.md) | Provider-determined inspection mode as a database setting | accepted | — | — |
 | [ADR-0019](0019-in-process-onnx-vrm-recognition.md) | In-process ONNX VRM recognition engine | accepted | — | — |
@@ -45,7 +45,7 @@ never renumbered or reused.
 | [ADR-0025](0025-integrate-renderer-and-extractor-into-the-application.md) | Integrate the report renderer and document extractor into the application, not into standalone packages | accepted | — | RPT-01, RPT-02, RPT-03, RPT-04, RPT-05, INT-10, INT-11, INT-12 |
 | [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md) | Enable Automation MCP by explicit deployment configuration | accepted | — | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
 | [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md) | Authorization code with PKCE for external MCP connectors | accepted | ADR-0041 | MCP-01, MCP-02, MCP-03, MCP-04, MCP-06 |
-| [ADR-0028](0028-run-integrated-renderer-in-web-container-app.md) | Run the integrated report renderer in the Web Container App | accepted | — | EXT-08, RPT-01, RPT-02 |
+| [ADR-0028](0028-run-integrated-renderer-in-web-container-app.md) | Run the integrated report renderer in the Web Container App | superseded | ADR-0049, ADR-0050 | EXT-08, RPT-01, RPT-02 |
 | [ADR-0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection | accepted | ADR-0045 | INT-17, INT-28 |
 | [ADR-0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | accepted | ADR-0046 (partial) | — |
 | [ADR-0031](0031-automation-actor-contract-without-eva-export-tools.md) | Automation Actor contract without EVA export tools | accepted | — | MCP-06, AI-09 |
@@ -66,6 +66,8 @@ never renumbered or reused.
 | [ADR-0046](0046-destructive-migration-runtime-shutdown.md) | Destructive migration runtime shutdown | accepted | — | — |
 | [ADR-0047](0047-scanned-instruction-ocr-only.md) | OCR only for incoming scanned instructions | accepted | — | INT-16 |
 | [ADR-0048](0048-principal-report-generation-policies.md) | Principal report-generation policies | accepted | — | EXT-04 |
+| [ADR-0049](0049-host-web-on-app-service-code-deploy.md) | Host Pegasus Web on an App Service Web App by code deployment | accepted | — | EXT-08 |
+| [ADR-0050](0050-questpdf-report-renderer.md) | Render reports with QuestPDF inside the application | accepted | — | EXT-08, RPT-01, RPT-02 |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
 is intentional and the number is not reused.
