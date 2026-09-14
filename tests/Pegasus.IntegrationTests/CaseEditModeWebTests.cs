@@ -19,6 +19,41 @@ namespace Pegasus.IntegrationTests;
 /// </summary>
 public sealed partial class CaseDetailsWebTests
 {
+    [Fact]
+    public async Task CaseSaveKeepsEditingAndIdentifiesOnlyTheCommittedCommand()
+    {
+        var store = new RecordingCaseDetailsStore { AcceptWorkspaceSaves = true };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ISaveCaseWorkspace>(services, store));
+        var before = store.CaseVersion;
+        using var response = await workspace.Client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
+            Form(workspace.AntiforgeryToken,
+                ("expectedVersion", before.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("claimNumber", "CLM-42")));
+        AssertPrg(response, store.CaseId);
+        Assert.Single(store.Saves);
+        Assert.Equal(2, store.Claims.Count);
+        Assert.Equal(before + 1, store.Claims[1].ExpectedVersion);
+        var after = await workspace.GetWorkspaceAsync();
+        Assert.Contains("data-case-editing=\"true\"", after, StringComparison.Ordinal);
+        AssertEditorCommit(after, "case-edit-form", DetailsModelOperationKey, before);
+        Assert.DoesNotContain("data-editor-commit=\"{", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
+    }
+
+    private static void AssertEditorCommit(string html, string editor, string operationKey, long expectedVersion)
+    {
+        var attribute = System.Text.RegularExpressions.Regex.Match(html, "data-editor-commit=\"(?<value>[^\"]+)\"");
+        Assert.True(attribute.Success);
+        using var json = System.Text.Json.JsonDocument.Parse(System.Net.WebUtility.HtmlDecode(attribute.Groups["value"].Value));
+        var commit = json.RootElement;
+        Assert.Equal(editor, commit.GetProperty("editor").GetString());
+        Assert.Equal(operationKey, commit.GetProperty("operationKey").GetString());
+        Assert.Equal(expectedVersion, commit.GetProperty("expectedVersion").GetInt64());
+        Assert.Equal(expectedVersion + 1, commit.GetProperty("version").GetInt64());
+    }
+
     [Theory]
     [InlineData("Engineer", false, true)]
     [InlineData("User", false, false)]
@@ -118,7 +153,7 @@ public sealed partial class CaseDetailsWebTests
         });
         var html = await workspace.GetWorkspaceAsync();
         foreach (var path in CaseWorkspaceLabels.Editors.Settlement.Keys.Concat(CaseWorkspaceLabels.Editors.Report.Keys)
-                     .Append(AssessmentVocabulary.HistoryCheck))
+                     .Append(AssessmentVocabulary.HistoryCheck).Append(AssessmentVocabulary.VehicleCondition))
         {
             var name = CaseWorkspaceLabels.Editors.FormName(path);
             // Administrator includes engineering authority; every editor uses
@@ -138,6 +173,8 @@ public sealed partial class CaseDetailsWebTests
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementExcess), "0"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementClaimantVatRegistered), "false"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.HistoryCheck), ""),
+            // The Vehicle section renders this select in every engineering edit form.
+            (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.VehicleCondition), "good"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.EngineersComments), "Engineer comments recorded"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportDateOverride), "false"),
             (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.ReportIncludeUnrelatedDamage), "false"),
@@ -152,6 +189,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal("0", saved.Settlement!.AssessmentFields![AssessmentVocabulary.SettlementExcess]);
         Assert.Equal("false", saved.Settlement.AssessmentFields[AssessmentVocabulary.SettlementClaimantVatRegistered]);
         Assert.Null(saved.Vehicle!.AssessmentFields![AssessmentVocabulary.HistoryCheck]);
+        Assert.Equal("good", saved.Vehicle.AssessmentFields[AssessmentVocabulary.VehicleCondition]);
         Assert.Equal("Engineer comments recorded", saved.Report!.AssessmentFields![AssessmentVocabulary.EngineersComments]);
         Assert.Equal("false", saved.Report.AssessmentFields[AssessmentVocabulary.ReportDateOverride]);
         Assert.Equal(new DateOnly(2031, 5, 6), saved.Report.ReportDate);

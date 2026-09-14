@@ -2716,7 +2716,8 @@ public sealed partial class CaseDetailsWebTests
 
         public Guid CaseId { get; } = Guid.NewGuid();
 
-        public long CaseVersion { get; } = 7;
+        public long CaseVersion { get; private set; } = 7;
+        public bool AcceptWorkspaceSaves { get; init; }
 
         /// <summary>The workflow state the projection reports; Not ready unless a test says otherwise.</summary>
         public CaseLifecycleState State { get; set; } = CaseLifecycleState.NotReady;
@@ -2928,6 +2929,11 @@ public sealed partial class CaseDetailsWebTests
             cancellationToken.ThrowIfCancellationRequested();
             ThrowNextFailure();
             Saves.Add(request);
+            if (AcceptWorkspaceSaves)
+            {
+                CaseVersion++;
+                return Task.FromResult(new SaveCaseWorkspaceResult(CreateData(), EngineeringAssessment(), null, false));
+            }
             throw new CaseVersionConflictException(CaseId, request.ExpectedVersion, CaseVersion + 1);
         }
 

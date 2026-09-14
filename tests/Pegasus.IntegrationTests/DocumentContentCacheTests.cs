@@ -354,6 +354,41 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task SevenDecimalCropVariantWarmsAndExpiresAsItsOwnCacheEntry()
+    {
+        var estate = await Estate.CreateDocumentAsync("prepared thumbnail"u8.ToArray());
+        await using (estate)
+        {
+            var versionId = estate.Request.VersionId!.Value;
+            var variant = CaseDocumentThumbnails.VariantToken(
+                CaseAssetRotation.None,
+                new CaseAssetCrop(0.1234567m, 0.1234567m, 0.1234567m, 0.1234567m));
+            var rendering = "prepared thumbnail rendering"u8.ToArray();
+            await using var scope = estate.Database.CreateAsyncScope();
+            var cache = new DocumentThumbnailCache(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                new CacheContainer(estate.Blob),
+                estate.Clock);
+
+            await cache.WriteAsync(versionId, variant, rendering, CancellationToken.None);
+            estate.Clock.Advance(TimeSpan.FromHours(5));
+
+            Assert.Equal(
+                rendering,
+                await cache.TryReadAsync(estate.Request.Actor, versionId, variant, CancellationToken.None));
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                var entry = await db.Set<DocumentContentCacheEntryEntity>().SingleAsync();
+                Assert.Equal(variant, entry.Variant);
+                Assert.Equal(estate.Clock.GetUtcNow().AddHours(24), entry.ExpiresAtUtc);
+            }
+
+            estate.Clock.Advance(TimeSpan.FromHours(24));
+            Assert.Null(await cache.TryReadAsync(estate.Request.Actor, versionId, variant, CancellationToken.None));
+        }
+    }
+
+    [Fact]
     public async Task ColdProviderFailureDoesNotPublishCacheState()
     {
         var estate = await Estate.CreateAsync("cold provider failure"u8.ToArray());

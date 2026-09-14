@@ -88,9 +88,8 @@ public sealed class CaseVehicleSaveWebTests
             Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
         }
 
-        var clearedAvailable = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
-        await ClaimLeaseAsync(client, caseId, clearedAvailable);
         var clearing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Contains("data-case-editing=\"true\"", clearing, StringComparison.Ordinal);
         Assert.Equal("Ford", InputValue(clearing, "vehicleMake"));
         using (var clear = await client.PostAsync(
                    $"/Cases/{caseId:D}?handler=Save",
@@ -105,9 +104,8 @@ public sealed class CaseVehicleSaveWebTests
             Assert.Equal(HttpStatusCode.Redirect, clear.StatusCode);
         }
 
-        var unchangedAvailable = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
-        await ClaimLeaseAsync(client, caseId, unchangedAvailable);
         var unchanged = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Contains("data-case-editing=\"true\"", unchanged, StringComparison.Ordinal);
         Assert.Equal(string.Empty, InputValue(unchanged, "vehicleMake"));
         using (var save = await client.PostAsync(
                    $"/Cases/{caseId:D}?handler=Save",
@@ -168,6 +166,7 @@ public sealed class CaseVehicleSaveWebTests
         var caseId = await AcceptCaseAsync(
             factory, "accept-case-vehicle-mileage-typed", withMileage: false);
         using var client = CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
 
         await SaveMileageAsync(client, caseId, "51234", "Recorded the mileage read at inspection.");
 
@@ -192,6 +191,7 @@ public sealed class CaseVehicleSaveWebTests
         var caseId = await AcceptCaseAsync(
             factory, "accept-case-vehicle-mileage-cleared", withMileage: false);
         using var client = CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
         await SaveMileageAsync(client, caseId, "51234", "Recorded the mileage read at inspection.");
 
         await SaveMileageAsync(
@@ -249,9 +249,8 @@ public sealed class CaseVehicleSaveWebTests
         string mileage,
         string reason)
     {
-        var available = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
-        await ClaimLeaseAsync(client, caseId, available);
         var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Contains("data-case-editing=\"true\"", editing, StringComparison.Ordinal);
         using var save = await client.PostAsync(
             $"/Cases/{caseId:D}?handler=Save",
             Form(

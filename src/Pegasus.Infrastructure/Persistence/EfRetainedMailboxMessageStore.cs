@@ -268,6 +268,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 && item.ExternalReceiptToken == entity.ExternalReceiptToken)
             .Select(item => new
             {
+                item.Id,
                 Classification = item.MailClassificationDecision!.Outcome,
                 Route = item.MailRouteDecision!.Disposition,
                 EffectiveSenderAddress = item.MailRouteDecision!.EffectiveSenderAddress,
@@ -325,18 +326,39 @@ internal sealed class EfRetainedMailboxMessageStore(
         var body = receipt?.BodySearchText
             ?? StaffForwardBodyCleaner.Clean(entity.BodyPlainText ?? string.Empty, isStaffForward);
 
-        var searchableAttachments = await context.IntakeReceipts
-            .AsNoTracking()
-            .Where(item => item.SourceChannel == "mailbox"
-                && item.ExternalReceiptToken == entity.ExternalReceiptToken)
-            .SelectMany(item => item.SearchDocuments)
-            .Where(item => item.AttachmentFileName != null && item.Text != null)
-            .Select(item => item.AttachmentOrdinal)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-        var searchableOrdinals = searchableAttachments.Where(item => item is not null)
-            .Select(item => item!.Value)
+        var attachmentDocuments = receipt is null
+            ? []
+            : await context.Set<IntakeSearchDocumentEntity>().AsNoTracking()
+                .Where(item => item.IntakeReceiptId == receipt.Id
+                    && item.AttachmentOrdinal != null)
+                .Select(item => new
+                {
+                    Ordinal = item.AttachmentOrdinal!.Value,
+                    item.SourceLabel,
+                    IsSearchable = item.AttachmentFileName != null && item.Text != null
+                })
+                .ToListAsync(cancellationToken);
+        var searchableOrdinals = attachmentDocuments.Where(item => item.IsSearchable)
+            .Select(item => item.Ordinal)
             .ToHashSet();
+        var attachmentAssets = receipt is null
+            ? []
+            : await context.Set<IntakeAssetEntity>().AsNoTracking()
+                .Where(item => item.IntakeReceiptId == receipt.Id
+                    && item.Kind == "attachment")
+                .Select(item => new { item.Id, item.SourceLabel })
+                .ToListAsync(cancellationToken);
+        var sourceLabelsByOrdinal = attachmentDocuments
+            .GroupBy(item => item.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(item => item.SourceLabel).Distinct(StringComparer.Ordinal).ToArray());
+        var assetIdsBySourceLabel = attachmentAssets
+            .GroupBy(item => item.SourceLabel, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(item => item.Id).Distinct().ToArray(),
+                StringComparer.Ordinal);
 
         return new(
             summary,
@@ -352,7 +374,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                     item.FileName,
                     item.MediaType,
                     item.ContentLength,
-                    searchableOrdinals.Contains(item.Ordinal)))
+                    searchableOrdinals.Contains(item.Ordinal),
+                    IntakeAssetId(item.Ordinal, sourceLabelsByOrdinal, assetIdsBySourceLabel)))
                 .ToArray(),
             thread,
             ParseFolderScope(entity.FolderScope),
@@ -573,6 +596,22 @@ internal sealed class EfRetainedMailboxMessageStore(
         target.Reason = source.Reason;
         target.PolicyKey = source.PolicyKey;
         target.PolicyVersion = source.PolicyVersion;
+    }
+
+    private static Guid? IntakeAssetId(
+        int attachmentOrdinal,
+        Dictionary<int, string[]> sourceLabelsByOrdinal,
+        Dictionary<string, Guid[]> assetIdsBySourceLabel)
+    {
+        if (!sourceLabelsByOrdinal.TryGetValue(attachmentOrdinal, out var sourceLabels)
+            || sourceLabels.Length != 1
+            || !assetIdsBySourceLabel.TryGetValue(sourceLabels[0], out var assetIds)
+            || assetIds.Length != 1)
+        {
+            return null;
+        }
+
+        return assetIds[0];
     }
 
     private static string SerializeSnapshot(MailClassificationResult value) =>

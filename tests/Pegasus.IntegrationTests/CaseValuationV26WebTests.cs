@@ -235,6 +235,7 @@ public sealed partial class CaseDetailsWebTests
         var after = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
         Assert.Contains("data-case-editing=\"true\"", after, StringComparison.Ordinal);
         Assert.Equal(store.LeaseToken, InputValue(after, "editLeaseToken"));
+        AssertEditorCommit(after, "case-valuation-form", operationKey, applied.ExpectedVersion);
     }
 
     /// <summary>The one input carrying <paramref name="name"/> and <paramref name="hook"/>.</summary>
