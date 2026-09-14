@@ -9,6 +9,11 @@
    image. A file that has not reached durable custody yet has no image to ask
    for and renders as a placeholder naming it, rather than as a broken tile
    that changes on reload. *@
+@if (Model.Count > 0 && Model.Any(image => image.IntakeAssetId is not null)
+    && TempData[Pegasus.Web.Pages.PreCaseImages.IndexModel.ErrorKey] is string preCaseError)
+{
+    <div class="notice notice--danger" role="alert" data-precase-error><span>@preCaseError</span></div>
+}
 @if (Model.Count > 0)
 {
     <ul class="gallery" data-evidence-set>
@@ -24,6 +29,43 @@
                             <small>Storing…</small>
                         </span>
                     </span>
+                }
+                else if (image.IntakeAssetId is { } assetId)
+                {
+                    @* A pre-Case image: the viewer offers Crop and the Tag select, and
+                       reads what is already recorded from these attributes. *@
+                    var preparation = image.Preparation ?? Pegasus.Core.ImageIntake.PreCaseImagePreparation.Original(assetId);
+                    var culture = System.Globalization.CultureInfo.InvariantCulture;
+                    var crop = preparation.Crop;
+                    <a href="@image.Href"
+                       class="gallery-item"
+                       data-evidence-item
+                       data-download-href="@image.DownloadHref"
+                       data-media-type="@image.MediaType"
+                       data-file-name="@image.FileName"
+                       data-precase-asset="@assetId"
+                       data-precase-version="@preparation.Version"
+                       data-precase-rotation="@((int)preparation.Rotation)"
+                       data-precase-crop="@(crop.IsFull ? string.Empty : string.Join(',', new[] { crop.Left, crop.Top, crop.Width, crop.Height }.Select(value => value.ToString(culture))))"
+                       data-precase-tags="@string.Join(',', preparation.Tags.Select(tag => tag.TagId.ToString("D")))">
+                        <span class="gallery-image"><img src="@(image.ThumbnailHref ?? image.Href)" alt="@image.FileName" loading="lazy" data-gallery-image /></span>
+                        <span class="gallery-caption">
+                            <strong>@image.FileName</strong>
+                            @if (preparation.IsPrepared)
+                            {
+                                <small class="precase-badge" data-precase-cropped>@OperatorLabels.PreCaseImages.Cropped</small>
+                            }
+                            @if (preparation.Tags.Count > 0)
+                            {
+                                <span class="precase-tags" data-precase-tag-chips>
+                                    @foreach (var tag in preparation.Tags)
+                                    {
+                                        <span class="tag-chip tag-chip--@tag.Colour.ToString().ToLowerInvariant()">@tag.Name</span>
+                                    }
+                                </span>
+                            }
+                        </span>
+                    </a>
                 }
                 else
                 {

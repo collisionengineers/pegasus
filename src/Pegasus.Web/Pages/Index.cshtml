@@ -1,197 +1,471 @@
 @page
 @model IndexModel
+@using Pegasus.Core.AiWork
+@using Pegasus.Core.Operations
 @using Pegasus.Web.Presentation
+@using Labels = Pegasus.Web.Presentation.OperatorLabels.WorkCentre
 @{
     ViewData["Title"] = "Work Centre";
-
-    // Refreshing reruns the queries and keeps the selected work item, not
-    // the first row of the list.
-    ViewData["RefreshFields"] = new Dictionary<string, string?>
-    {
-        ["selected"] = Model.Selected?.Id.ToString()
-    };
+    var returnUrl = Model.PageUrl(selected: Model.Selected?.Id);
+    var sinceAttribute = Model.DividerUtc is { } dividerAt
+        ? Html.Raw($" data-wc-since=\"{dividerAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture)}\"")
+        : Html.Raw(string.Empty);
 }
 
-@* No lede. The metrics and the work list are the page; a sentence describing
-   them would be the page narrating itself. *@
+@section Styles {
+    <link rel="stylesheet" href="~/css/work-centre.css" asp-append-version="true" />
+}
+
+<div class="work-centre" data-work-centre data-wc-scope="@IndexModel.ScopeSlug(Model.Scope)" data-wc-scope-named="@(Model.ScopeNamed ? "true" : "false")" @sinceAttribute>
 <header class="page-header">
     <div class="page-title">
-        <p class="eyebrow">Office-wide work</p>
-        <h1>Work Centre</h1>
+        <p class="eyebrow">@Labels.Eyebrow</p>
+        <h1>@Labels.Title</h1>
     </div>
     <div class="page-actions">
-        <partial name="Shared/_FreshnessBanner" model="(DateTimeOffset?)Model.LoadedAtUtc" />
+        @if (Model.LoadedAtUtc is { } loaded)
+        {
+            <span class="wc-updated" data-wc-updated><time datetime="@loaded.ToString("O")">@Labels.Updated(loaded)</time></span>
+        }
         <a class="btn btn--primary" asp-page="/Cases/Create">
             <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-            <span>Create Case</span>
+            <span>@Labels.CreateCase</span>
         </a>
+        @* A plain GET: the page works without script. The script refreshes the
+           same regions in place on focus and every five minutes (P5). *@
+        <form method="get" action="/" class="wc-refresh-form">
+            <input type="hidden" name="scope" value="@IndexModel.ScopeSlug(Model.Scope)" />
+            @foreach (var kind in Model.Kinds)
+            {
+                <input type="hidden" name="kind" value="@NeedsAttentionPresentation.KindSlug(kind)" />
+            }
+            @if (Model.CurrentPage > 1)
+            {
+                <input type="hidden" name="page" value="@Model.CurrentPage" />
+            }
+            @if (Model.Selected is { } refreshSelected)
+            {
+                <input type="hidden" name="selected" value="@refreshSelected.Id" />
+            }
+            <button type="submit" class="btn" data-wc-refresh>
+                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                <span>@Labels.Refresh</span>
+            </button>
+        </form>
     </div>
 </header>
 
-@if (Model.IsUnavailable)
+@if (Model.StatusMessage is { } status)
+{
+    <div class="notice notice--success" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+        <span>@status</span>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+}
+@if (Model.ErrorMessage is { } error)
+{
+    <div class="notice notice--danger" role="alert">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>@error</span>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+}
+
+@if (Model.IsUnavailable || Model.Attention is null || Model.Metrics is null)
 {
     <div class="notice notice--warning" role="status">
         <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-        <span>Work Centre is unavailable. Refresh to run the live queues again.</span>
+        <span>@Labels.Unavailable</span>
     </div>
 }
 else
 {
-<section class="metric-section work-centre-metrics" aria-labelledby="work-metrics-title">
-    <h2 id="work-metrics-title" class="section-label">Work requiring attention</h2>
-    <div class="metric-strip metric-strip--5">
-        @* Every metric opens the exact filtered list behind it, and 0 renders
-           as 0. Blocked links to the Unidentified tab, where Blocked intake
-           rows carry their own chip (D14) — the two meanings stay distinct. *@
-        <a class="metric" data-value="not_ready" asp-page="/Cases/Index" asp-route-tab="not_ready">
-            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg><span>Not ready</span></span>
-            <span class="metric-value">@Model.CaseStages.NotReady</span>
-        </a>
-        <a class="metric" data-value="review" asp-page="/Cases/Index" asp-route-tab="review">
-            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>Review</span></span>
-            <span class="metric-value">@Model.CaseStages.Review</span>
-        </a>
-        <a class="metric" data-value="held" asp-page="/Cases/Index" asp-route-tab="held">
-            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg><span>Held</span></span>
-            <span class="metric-value">@Model.CaseStages.Held</span>
-        </a>
-        <a class="metric" data-value="unidentified" asp-page="/Cases/Index" asp-route-tab="unidentified">
-            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg><span>Unidentified</span></span>
-            <span class="metric-value">@Model.UnidentifiedCount</span>
-        </a>
-        <a class="metric" data-value="blocked" asp-page="/Cases/Index" asp-route-tab="unidentified">
-            <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span>Blocked</span></span>
-            <span class="metric-value">@Model.Counts.BlockedIntake</span>
-        </a>
+    var attention = Model.Attention;
+    var metrics = Model.Metrics;
+    <section class="metric-section" aria-label="Work requiring attention">
+        <div class="metric-strip metric-strip--4 wc-metrics">
+            @* Every metric opens the exact Cases tab behind it; 0 renders as 0.
+               Blocked is not an operator concept any more (D7). *@
+            <a class="metric" data-value="not_ready" asp-page="/Cases/Index" asp-route-tab="not_ready">
+                <span class="metric-label"><span>Not ready</span></span>
+                <span class="metric-value">@metrics.NotReady</span>
+            </a>
+            <a class="metric" data-value="review" asp-page="/Cases/Index" asp-route-tab="review">
+                <span class="metric-label"><span>Review</span></span>
+                <span class="metric-value">@metrics.Review</span>
+            </a>
+            <a class="metric" data-value="held" asp-page="/Cases/Index" asp-route-tab="held">
+                <span class="metric-label"><span>Held</span></span>
+                <span class="metric-value">@metrics.Held</span>
+            </a>
+            <a class="metric" data-value="unidentified" asp-page="/Cases/Index" asp-route-tab="unidentified">
+                <span class="metric-label"><span>Unidentified</span></span>
+                <span class="metric-value">@metrics.Unidentified</span>
+            </a>
+        </div>
+    </section>
+
+    <div class="pane-layout pane-layout--2 wc-panes">
+        <section class="pane" aria-labelledby="wc-attention-title" data-wc-attention>
+            <header class="pane-head">
+                <h2 id="wc-attention-title">@Labels.NeedsAttention</h2>
+                <span class="meta">@Labels.Items(attention.TotalCount)</span>
+                <div class="wc-switch" role="group" aria-label="Scope">
+                    @foreach (var option in new[] { NeedsAttentionScope.Office, NeedsAttentionScope.Mine })
+                    {
+                        <a href="@Model.PageUrl(scope: option, page: 1)" data-wc-scope-link="@IndexModel.ScopeSlug(option)"
+                           aria-current="@(option == Model.Scope ? "true" : "false")">@(option == NeedsAttentionScope.Mine ? Labels.Mine : Labels.Office)</a>
+                    }
+                </div>
+            </header>
+            <nav class="chips wc-filters" aria-label="Kinds">
+                @foreach (var kind in NeedsAttentionPresentation.ChipOrder)
+                {
+                    var on = Model.Kinds.Contains(kind);
+                    <a class="chip @(on ? "on" : null)" href="@Model.PageUrl(kinds: Model.ToggledKinds(kind), page: 1)"
+                       aria-current="@(on ? "true" : "false")" data-wc-kind="@NeedsAttentionPresentation.KindSlug(kind)">@Labels.KindChip(kind)<span class="n">@Model.KindCounts.GetValueOrDefault(kind)</span></a>
+                }
+                @if (Model.Kinds.Count > 0)
+                {
+                    <a class="chip chip--clear" href="@Model.PageUrl(kinds: Array.Empty<NeedsAttentionKind>(), page: 1)">@Labels.AllKinds</a>
+                }
+            </nav>
+            <div class="row-list pane-scroll wc-list" data-row-list>
+                @if (attention.TotalCount == 0)
+                {
+                    <div class="wc-none" data-wc-empty>@Labels.NothingNeedsAttention</div>
+                }
+                else
+                {
+                    foreach (var group in NeedsAttentionPresentation.Groups)
+                    {
+                        var total = group switch
+                        {
+                            NeedsAttentionPriority.Overdue => attention.OverdueCount,
+                            NeedsAttentionPriority.Today => attention.TodayCount,
+                            _ => attention.LaterCount
+                        };
+                        var rows = attention.Items.Where(item => item.Priority == group).ToArray();
+                        <div class="wc-group" data-wc-group="@NeedsAttentionPresentation.DueTone(group)"><h3>@Labels.Group(group, total)</h3></div>
+                        if (rows.Length == 0)
+                        {
+                            <div class="wc-none">@Labels.GroupEmpty(group)</div>
+                        }
+                        foreach (var item in rows)
+                        {
+                            var received = Labels.ReceivedText(item.Received, Model.NowUtc);
+                            <a class="row-button" href="@Model.PageUrl(selected: item.Id)" data-wc-row="@item.Id"
+                               data-wc-row-kind="@NeedsAttentionPresentation.KindSlug(item.Kind)"
+                               aria-current="@(Model.Selected?.Id == item.Id ? "true" : "false")">
+                                <span class="title">@NeedsAttentionPresentation.RowTitle(item)</span>
+                                <span class="sub">@NeedsAttentionPresentation.RowDetail(item)</span>
+                                <span class="side">
+                                    <span class="wc-due wc-due--@NeedsAttentionPresentation.DueTone(item.Priority)">@Labels.DueText(item.Due, Model.NowUtc)</span>
+                                    <span>@NeedsAttentionPresentation.OwnerLabel(item)@(received is null ? null : " · " + received)</span>
+                                </span>
+                            </a>
+                        }
+                    }
+                }
+            </div>
+            <div class="pagination" data-wc-paging>
+                <span>@Labels.AttentionPaging(attention.Page, attention.TotalPages)</span>
+                <div class="button-row">
+                    @if (attention.Page > 1)
+                    {
+                        <a class="btn btn--small" href="@Model.PageUrl(page: attention.Page - 1)">@Labels.Previous</a>
+                    }
+                    @if (attention.Page < attention.TotalPages)
+                    {
+                        <a class="btn btn--small" href="@Model.PageUrl(page: attention.Page + 1)">@Labels.Next</a>
+                    }
+                </div>
+            </div>
+        </section>
+
+        <section class="pane" aria-labelledby="wc-today-title" data-wc-today>
+            <header class="pane-head">
+                <h2 id="wc-today-title">@Labels.Today</h2>
+                <span class="meta">@Labels.SelectedWork</span>
+            </header>
+            <div class="pane-body detail-canvas">
+                @if (Model.Selected is { } selected)
+                {
+                    <div class="wc-today-head">
+                        <div>
+                            <p class="eyebrow">@Labels.KindChip(selected.Kind) · @NeedsAttentionPresentation.ReferenceLabel(selected)</p>
+                            <h3>@NeedsAttentionPresentation.RowTitle(selected)</h3>
+                        </div>
+                        @if (selected.Priority == NeedsAttentionPriority.Overdue)
+                        {
+                            <span class="status status--red">@Labels.DueText(selected.Due, Model.NowUtc)</span>
+                        }
+                        else if (selected.Priority == NeedsAttentionPriority.Today)
+                        {
+                            <span class="status status--amber">@Labels.Today</span>
+                        }
+                    </div>
+                    <dl class="fact-grid wc-facts">
+                        @foreach (var fact in NeedsAttentionPresentation.Facts(selected, Model.NowUtc))
+                        {
+                            <div class="fact">
+                                <dt>@fact.Label</dt>
+                                <dd class="@(fact.Mono ? "mono" : null)">@(string.IsNullOrWhiteSpace(fact.Value) ? Labels.NotRecorded : fact.Value)</dd>
+                            </div>
+                        }
+                    </dl>
+                    <div class="wc-today-actions" data-wc-actions>
+                        @if (selected.Kind == NeedsAttentionKind.UnassignedEngineer && Model.Assignment is not null)
+                        {
+                            <a class="btn btn--dark" href="@Model.PageUrl(selected: selected.Id, assign: true)" data-wc-dialog="wc-assign-dialog">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                                <span>@Labels.AssignEngineer</span>
+                            </a>
+                        }
+                        else if (!string.IsNullOrWhiteSpace(selected.Route))
+                        {
+                            <a class="btn btn--dark" href="@selected.Route">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                                <span>@NeedsAttentionPresentation.ActionLabel(selected)</span>
+                            </a>
+                        }
+                        @if (Model.CanTakeSelected)
+                        {
+                            var takeHandler = selected.Kind == NeedsAttentionKind.Triage ? "AssignTriageToMe" : "AssignToMe";
+                            <form method="post" asp-page="/Index" asp-page-handler="@takeHandler" data-wc-take>
+                                @if (selected.Kind == NeedsAttentionKind.Triage)
+                                {
+                                    <input type="hidden" name="triageId" value="@selected.Id" />
+                                }
+                                else
+                                {
+                                    <input type="hidden" name="caseId" value="@selected.Id" />
+                                }
+                                <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                                <button type="submit" class="btn">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                                    <span>@Labels.AssignToMe</span>
+                                </button>
+                            </form>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="wc-none">@Labels.SelectAnItem</div>
+                }
+            </div>
+        </section>
     </div>
+}
+
+<section class="panel wc-section" id="wc-new-cases" aria-labelledby="wc-new-cases-title" data-wc-new-cases>
+    <div class="panel-head">
+        <h2 id="wc-new-cases-title">@Labels.NewCases</h2>
+        @if (Model.NewCases is { } feedMeta)
+        {
+            <span class="meta">@Labels.NewCasesMeta(feedMeta.Page.TotalCount)</span>
+        }
+    </div>
+    @if (Model.NewCasesUnavailable || Model.NewCases is null)
+    {
+        <div class="notice notice--warning" role="status">
+            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+            <span>@Labels.NewCasesUnavailable</span>
+        </div>
+    }
+    else
+    {
+        var feed = Model.NewCases;
+        var rows = feed.Page.Items;
+        var divider = Model.DividerUtc;
+        var anyNewer = divider is { } line && rows.Any(row => row.OccurredAtUtc > line);
+        var divided = false;
+        <div class="row-list wc-list">
+            @if (rows.Count == 0)
+            {
+                <div class="wc-none">@Labels.NoNewCases</div>
+            }
+            @foreach (var row in rows)
+            {
+                if (!divided && anyNewer && row.OccurredAtUtc <= divider)
+                {
+                    divided = true;
+                    <div class="wc-divider" data-wc-divider><span>@Labels.SinceYouLastLooked</span></div>
+                }
+                var changed = row.Kind == RecentCaseRowKind.ChangedByAutomation;
+                var subParts = new[] { row.Registration, row.Claimant, row.Principal, changed ? OperatorLabels.HistoryEvent(row.ChangeKind) : null }
+                    .Where(part => !string.IsNullOrWhiteSpace(part));
+                <a class="row-button" asp-page="/Cases/Details" asp-route-id="@row.CaseId" data-wc-new-case="@(changed ? "changed" : "new")">
+                    <span class="title">@row.Reference@(changed ? " · " + Labels.ChangedByAutomation : null)</span>
+                    <span class="sub">@string.Join(" · ", subParts)</span>
+                    <span class="side">
+                        <span class="status status--@Labels.ArrivalTone(row.Arrival)" data-wc-arrival>@Labels.Arrival(row.Arrival)</span>
+                        <time datetime="@row.OccurredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.OccurredAtUtc)</time>
+                    </span>
+                </a>
+            }
+        </div>
+        <div class="pagination">
+            <span>@Labels.NewCasesPaging(feed.Page.Page, feed.Page.TotalPages)</span>
+            <div class="button-row">
+                @if (feed.Page.Page > 1)
+                {
+                    <a class="btn btn--small" href="@Model.PageUrl(selected: Model.Selected?.Id, newPage: feed.Page.Page - 1, fragment: "wc-new-cases")">@Labels.Previous</a>
+                }
+                @if (feed.Page.Page < feed.Page.TotalPages)
+                {
+                    <a class="btn btn--small" href="@Model.PageUrl(selected: Model.Selected?.Id, newPage: feed.Page.Page + 1, fragment: "wc-new-cases")">@Labels.Next</a>
+                }
+            </div>
+        </div>
+    }
 </section>
 
-<section class="pane-layout integrated-home integrated-home--expanded @(Model.NeedsAttention.Count == 0 ? "pane-layout--empty" : null)" aria-label="Integrated work centre">
-    <div class="pane">
-        <div class="pane-head">
-            <div><h2>Needs attention</h2><span class="muted">@Model.NeedsAttention.Count</span></div>
+<section class="panel wc-section" id="wc-ai-jobs" aria-labelledby="wc-ai-jobs-title" data-wc-ai-jobs>
+    <div class="panel-head">
+        <h2 id="wc-ai-jobs-title">@Labels.AiJobsTitle</h2>
+        @if (!Model.AiJobsUnavailable)
+        {
+            <span class="meta">@Labels.AiJobsMeta(Model.AiJobs.Count(row => row.Job.State == AiJobState.DraftReady), Model.AiJobs.Count(row => row.Job.State == AiJobState.Failed))</span>
+        }
+    </div>
+    @if (Model.AiJobsUnavailable)
+    {
+        <div class="notice notice--warning" role="status">
+            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+            <span>@Labels.AiJobsUnavailable</span>
         </div>
-        @* Selection is a link to this page with ?selected=, so the detail
-           pane's controls are live server-rendered controls, not clones the
-           shell's script never wired; data-row-list gives the arrow keys. *@
-        <div class="pane-body pane-scroll" data-row-list>
-            @if (Model.NeedsAttention.Count == 0)
-            {
-                <div class="empty work-centre-empty">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
-                    <h3>Nothing is listed in Needs attention.</h3>
-                    <p>Open a work queue above to review recorded items.</p>
-                </div>
-            }
-            else foreach (var item in Model.NeedsAttention)
-            {
-                <a class="work-item" asp-page="/Index" asp-route-selected="@item.Id"
-                   aria-selected="@(Model.Selected?.Id == item.Id ? "true" : "false")">
-                    <span class="work-item-head">
-                        <span>
-                            <span class="row-meta">@OperatorLabels.NeedsAttentionKind(item.Kind) · @NeedsAttentionPresentation.ReferenceLabel(item)</span>
-                            <h3>@NeedsAttentionPresentation.TitleLabel(item)</h3>
-                        </span>
-                        @{
-                            ViewData["StatusTone"] = OperatorLabels.NeedsAttentionPriorityTone(item.Priority);
-                        }
-                        <partial name="Shared/_StatusChip" model="@OperatorLabels.NeedsAttentionPriority(item.Priority)" />
-                    </span>
-                    @if (NeedsAttentionPresentation.DetailLabel(item) is { } detail)
+    }
+    else if (Model.AiJobs.Count == 0)
+    {
+        <div class="wc-none">@Labels.NoAiJobs</div>
+    }
+    else
+    {
+        <div class="wc-table">
+            <table class="table">
+                <thead>
+                    <tr><th scope="col">Job</th><th scope="col">Record</th><th scope="col">Started by</th><th scope="col">Created</th><th scope="col">State</th><th scope="col"><span class="sr-only">Action</span></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Model.AiJobs)
                     {
-                        <p>@detail</p>
+                        var job = row.Job;
+                        var recordPage = AiJobActions.RecordPage(job.SubjectKind);
+                        <tr data-wc-job="@job.JobId" data-wc-job-state="@job.State">
+                            <td><strong>@OperatorLabels.AiJobs.Kind(job.Kind)</strong><br /><small class="muted">@job.Instruction</small></td>
+                            <td class="mono">
+                                @if (recordPage is not null && job.SubjectId is { } subjectId)
+                                {
+                                    <a asp-page="@recordPage" asp-route-id="@subjectId">@job.SubjectReference</a>
+                                }
+                                else
+                                {
+                                    <span>@OperatorLabels.AiJobs.QueueRecord</span>
+                                }
+                            </td>
+                            <td>@row.StartedBy</td>
+                            <td><time datetime="@job.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(job.CreatedAtUtc)</time></td>
+                            <td>
+                                <partial name="Shared/_StatusChip" model="@OperatorLabels.AiJobs.State(job.State)"
+                                         view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.AiJobs.StateToneOverride(job.State) }' />
+                                @if (job.State == AiJobState.Taken && job.LeaseExpiresAtUtc is { } leaseExpires)
+                                {
+                                    <br /><small class="muted">@Labels.LeaseExpires(leaseExpires)</small>
+                                }
+                            </td>
+                            <td>
+                                <div class="row-actions">
+                                    @if (row.Draft is { } draft)
+                                    {
+                                        <a class="btn btn--small btn--dark" href="@draft.Route">@Labels.AiDraftAction(draft.Action.ToString())</a>
+                                    }
+                                    @if (row.CanComplete)
+                                    {
+                                        <form method="post" asp-page="/Index" asp-page-handler="CompleteAiJob">
+                                            <input type="hidden" name="jobId" value="@job.JobId" />
+                                            <input type="hidden" name="expectedVersion" value="@job.Version" />
+                                            <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                            <input type="hidden" name="returnUrl" value="@Model.PageUrl(selected: Model.Selected?.Id, fragment: "wc-ai-jobs")" />
+                                            <button type="submit" class="btn btn--small">@OperatorLabels.AiJobs.CompleteJob</button>
+                                        </form>
+                                    }
+                                    @if (job.State == AiJobState.Failed)
+                                    {
+                                        <span class="wc-failed">@(string.IsNullOrWhiteSpace(job.ClosureReason) ? Labels.NoReasonRecorded : job.ClosureReason)</span>
+                                        @if (job.SubjectKind == AiJobSubjectKind.Case && job.SubjectId is { } failedCaseId)
+                                        {
+                                            <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@failedCaseId">@Labels.OpenCase</a>
+                                        }
+                                    }
+                                </div>
+                            </td>
+                        </tr>
                     }
-                    <span class="work-item-foot">
-                        <span>@item.Owner</span>
-                        @if (item.Due is { } due)
-                        {
-                            <span><time datetime="@due.ToString("O")">@OperatorLabels.OfficeDate(due)</time></span>
-                        }
-                        else if (item.Received is { } received)
-                        {
-                            <span>Received <time datetime="@received.ToString("O")">@OperatorLabels.OfficeDate(received)</time></span>
-                        }
-                    </span>
-                </a>
-            }
+                </tbody>
+            </table>
         </div>
-    </div>
-    <div class="pane">
-        <div class="pane-head">
-            <div>
-                <h2 class="today-pane-title">Today</h2>
-                <span class="muted">Selected work</span>
-            </div>
-            @if (Model.Selected is { } head)
-            {
-                <a class="btn btn--small" asp-page="@NeedsAttentionPresentation.RecordPage(head.Kind)" asp-route-id="@NeedsAttentionPresentation.RecordRouteId(head)">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
-                    <span>Open full record</span>
-                </a>
-            }
-        </div>
-        <div class="detail-canvas">
-            @if (Model.Selected is { } selected)
-            {
-                var tone = OperatorLabels.NeedsAttentionPriorityTone(selected.Priority);
-                <article class="work-detail">
-                    <div class="cluster cluster--between cluster--start">
-                        <div>
-                            <p class="eyebrow">@OperatorLabels.NeedsAttentionKind(selected.Kind) · <span id="selected-reference">@NeedsAttentionPresentation.ReferenceLabel(selected)</span></p>
-                            <h2>@NeedsAttentionPresentation.TitleLabel(selected)</h2>
-                            @if (NeedsAttentionPresentation.DetailLabel(selected) is { } lead)
-                            {
-                                <p class="work-detail-lead">@lead</p>
-                            }
-                        </div>
-                        @{
-                            ViewData["StatusTone"] = tone;
-                        }
-                        <partial name="Shared/_StatusChip" model="@OperatorLabels.NeedsAttentionPriority(selected.Priority)" />
-                    </div>
-                    <div class="notice section-gap @(tone == "red" ? "notice--danger" : tone == "amber" ? "notice--warning" : null)">
-                        <svg class="icon" aria-hidden="true"><use href="#@(tone == "red" ? "icon-alert-triangle" : "icon-info")" /></svg>
-                        <div>
-                            <strong>Why this needs attention</strong>
-                            <div>@NeedsAttentionPresentation.ReasonLabel(selected)</div>
-                        </div>
-                    </div>
-                    <div class="section-gap fact-grid">
-                        <dl class="fact"><dt>Source</dt><dd>@NeedsAttentionPresentation.SourceLabel(selected)</dd></dl>
-                        <dl class="fact"><dt>Owner</dt><dd>@selected.Owner</dd></dl>
-                        <dl class="fact"><dt>Last recorded outcome</dt><dd>@selected.LastOutcome</dd></dl>
-                        <dl class="fact"><dt>Due</dt><dd>@(selected.Due is { } factDue ? OperatorLabels.OfficeDate(factDue) : null)</dd></dl>
-                    </div>
-                    <section class="panel section-gap">
-                        <div class="panel-head"><h3>Next permitted action</h3></div>
-                        <div class="panel-body">
-                            <div class="button-row">
-                                <a class="btn btn--dark" asp-page="@NeedsAttentionPresentation.RecordPage(selected.Kind)" asp-route-id="@NeedsAttentionPresentation.RecordRouteId(selected)">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                                    <span>@NeedsAttentionPresentation.ActionLabel(selected.Kind)</span>
-                                </a>
-                                @* Hidden until the shell's script confirms a
-                                   clipboard: an inert Copy button is worse
-                                   than none, and the reference stays
-                                   selectable text either way. *@
-                                <button type="button" class="btn" data-copy-target="selected-reference" hidden>
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg>
-                                    <span>Copy reference</span>
-                                </button>
-                            </div>
-                        </div>
-                    </section>
-                </article>
-            }
-            else
-            {
-                <div class="empty work-centre-empty work-centre-empty--detail">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
-                    <h2>No work item selected</h2>
-                    <p>Select an item from Needs attention when one is listed.</p>
-                </div>
-            }
-        </div>
-    </div>
+    }
 </section>
+
+@if (Model.Assignment is { } assignment)
+{
+    var openOnLoad = Model.OpenAssignment ? Html.Raw(" data-dialog-open-on-load=\"true\"") : Html.Raw(" hidden");
+    <div id="wc-assign-dialog" class="dialog-backdrop" data-dialog="wc-assign-dialog" @openOnLoad>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="wc-assign-title">
+            <div class="dialog-head">
+                <h2 id="wc-assign-title" tabindex="-1">@Labels.AssignEngineer · @assignment.Reference</h2>
+                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                </button>
+            </div>
+            <div class="dialog-body stack">
+                <dl class="fact-grid">
+                    <div class="fact"><dt>Registration</dt><dd class="mono">@(assignment.Registration ?? Labels.NotRecorded)</dd></div>
+                    <div class="fact"><dt>Claimant</dt><dd>@(assignment.Claimant ?? Labels.NotRecorded)</dd></div>
+                    <div class="fact"><dt>Principal</dt><dd>@(assignment.Principal ?? Labels.NotRecorded)</dd></div>
+                    <div class="fact"><dt>@Labels.Engineer</dt><dd>@(assignment.EngineerName ?? Labels.NotRecorded)</dd></div>
+                </dl>
+                <form method="post" asp-page="/Index" asp-page-handler="AssignEngineer" id="wc-assign-form" class="stack">
+                    <input type="hidden" name="caseId" value="@assignment.CaseId" />
+                    <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                    <input type="hidden" name="returnUrl" value="@returnUrl" />
+                    <div class="field">
+                        <label class="req" for="wc-assign-engineer">@Labels.Engineer</label>
+                        <select id="wc-assign-engineer" name="engineerId" required data-dialog-initial-focus>
+                            <option value="">@Labels.ChooseEngineer</option>
+                            @foreach (var engineer in assignment.Engineers)
+                            {
+                                <option value="@engineer.Id">@engineer.Name</option>
+                            }
+                        </select>
+                    </div>
+                </form>
+                @if (assignment.CanAssignToMe)
+                {
+                    <form method="post" asp-page="/Index" asp-page-handler="AssignToMe" id="wc-assign-me-form">
+                        <input type="hidden" name="caseId" value="@assignment.CaseId" />
+                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                        <input type="hidden" name="returnUrl" value="@returnUrl" />
+                    </form>
+                }
+            </div>
+            <div class="dialog-foot">
+                @if (assignment.CanAssignToMe)
+                {
+                    <button type="submit" form="wc-assign-me-form" class="btn">@Labels.AssignToMe</button>
+                }
+                <button type="button" class="btn" data-dialog-close>Cancel</button>
+                <button type="submit" form="wc-assign-form" class="btn btn--primary">@(assignment.EngineerName is null ? Labels.Assign : Labels.Reassign)</button>
+            </div>
+        </section>
+    </div>
+}
+</div>
+
+@section Scripts {
+    <script src="~/js/work-centre.js" asp-append-version="true"></script>
 }

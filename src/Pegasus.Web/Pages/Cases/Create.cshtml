@@ -136,29 +136,53 @@ else
 <header class="page-header">
     <div class="page-title">
         <p class="eyebrow">New case</p>
-        <h1>From @Model.Receipt.SourceFileName</h1>
+        <h1>Create case</h1>
     </div>
     <div class="page-actions">
-        <a class="btn" asp-page="/Upload">
-            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-            <span>Upload another</span>
+        <a class="btn" asp-page="/Cases/Index">
+            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+            <span>Cancel</span>
         </a>
     </div>
 </header>
 
+@* Seeded values say where they came from in one line; the file and the message
+   open from here, never a received-item page. *@
+<div class="notice notice--info" data-create-seeded>
+    <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+    <span>Seeded from <strong>@Model.Receipt.SourceFileName</strong></span>
+    <a class="btn btn--small" href="@Model.OpenFileHref" target="_blank" rel="noopener" data-create-action="open-file">Open file</a>
+    @if (Model.SourceMessageId is { } seedMessageId)
+    {
+        <a class="btn btn--small" href="/Inbox/@seedMessageId.ToString("D")" data-create-action="open-message">Open message</a>
+    }
+</div>
+
+@if (Model.CreateError is { } createError)
+{
+    <div class="notice notice--danger" role="alert">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>@createError</span>
+    </div>
+}
+
 @if (Model.RefusalMessage is { } refusal)
 {
-    <section class="panel" aria-labelledby="refusal-title">
+    <section class="panel" aria-labelledby="refusal-title" data-create-refusal>
         <div class="panel-head">
             <h2 id="refusal-title">This item cannot become a case</h2>
         </div>
-        <div class="panel-body stack">
+        <div class="panel-section stack">
             <div class="notice notice--danger" role="alert">
                 <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
                 <span>@refusal</span>
             </div>
             <div class="cluster">
-                <a class="btn" asp-page="/Intake/Details" asp-route-id="@Model.Receipt.Id">Open the received item</a>
+                @if (Model.SourceMessageId is { } refusalMessageId)
+                {
+                    <a class="btn" href="/Inbox/@refusalMessageId.ToString("D")">Open message</a>
+                }
+                <a class="btn" href="@Model.OpenFileHref" target="_blank" rel="noopener">Open file</a>
             </div>
         </div>
     </section>
@@ -333,7 +357,7 @@ else
                 @* One committed action, and the way out beside it. *@
                 <div class="cluster">
                     <button type="submit" class="btn btn--primary">Accept and create case</button>
-                    <a class="btn" asp-page="/Intake/Details" asp-route-id="@Model.ReceiptId">Reject proposal</a>
+                    <a class="btn" asp-page="/Cases/Index">Cancel</a>
                 </div>
             </div>
         </section>

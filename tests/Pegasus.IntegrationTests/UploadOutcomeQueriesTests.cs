@@ -69,8 +69,8 @@ public sealed class UploadOutcomeQueriesTests
         Assert.Contains("AB12CDE-01", result.Message, StringComparison.Ordinal);
         Assert.NotNull(result.PrimaryAction);
         Assert.Equal($"/Cases/Details/{caseId:D}", result.PrimaryAction!.Url);
-        Assert.NotNull(result.SecondaryAction);
-        Assert.Equal($"/Received/{receiptId:D}", result.SecondaryAction!.Url);
+        // No received-item page exists to reverse from (received file D2).
+        Assert.Null(result.SecondaryAction);
     }
 
     [Fact]

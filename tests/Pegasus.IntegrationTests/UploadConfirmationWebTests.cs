@@ -500,8 +500,9 @@ public sealed class UploadConfirmationWebTests
             var refreshedPage = await IntakeWebDriver.GetHtmlAsync(
                 attachmentClient, $"/Upload/Group/{groupId:D}");
             Assert.DoesNotContain("Confirm and add the submission", refreshedPage, StringComparison.Ordinal);
-            Assert.Contains("Review this file", refreshedPage, StringComparison.Ordinal);
-            Assert.Contains("/Received/", refreshedPage, StringComparison.Ordinal);
+            // No receipt links on the upload confirmation (received-file page removed,
+            // 13 September): the member left open is no longer offered "Review this file".
+            Assert.DoesNotContain("Review this file", refreshedPage, StringComparison.Ordinal);
         }
         var confirmationPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.DoesNotContain("could not be added", confirmationPage, StringComparison.Ordinal);

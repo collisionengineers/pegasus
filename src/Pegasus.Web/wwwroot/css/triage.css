@@ -1,0 +1,14 @@
+/* Triage record (v26, shots 54, s10): the v26 ribbon over the live record
+   panels. Linked from Pages/Triage/Details.cshtml only. */
+
+.triage-record { background: var(--surface); border: 1px solid var(--line); }
+.triage-record .ribbon { padding: 0 16px; border-bottom: 1px solid var(--line); flex-wrap: wrap; height: auto; min-height: 56px; }
+.triage-record .ribbon-facts { flex-wrap: wrap; min-width: 0; }
+.triage-record .ribbon-value { overflow-wrap: anywhere; }
+.triage-record .record-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.triage-record .record-bar form { margin: 0; }
+
+@media (max-width: 760px) {
+    .triage-record .record-bar { padding: 10px; }
+    .triage-record .record-bar-end { margin-left: 0; }
+}

@@ -162,7 +162,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260913094324_WorkCentreLastSeen",
                 "20260913095127_UnidentifiedCouldNotBeRead",
                 "20260913101413_LinkedAuditCase",
-                "20260913200000_CaseFieldProposals"
+                "20260913200000_CaseFieldProposals",
+                "20260914091000_PreCaseImagePreparation"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

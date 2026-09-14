@@ -785,7 +785,8 @@ public sealed class StaffCorrespondenceWebTests
             new(seeded.MailboxId, seeded.MailboxGeneration),
             new StableAttachmentResolver());
         using var client = CreateClient(factory);
-        var listContext = $"mailbox={seeded.MailboxId:D}&folder=inbox&pageNumber=2&unread=true&sort=oldest";
+        // No unread scope: the v26 Inbox has no Unread filter (read state is not a queue).
+        var listContext = $"mailbox={seeded.MailboxId:D}&folder=inbox&pageNumber=2&sort=oldest";
         using var get = await client.GetAsync($"/Inbox/{seeded.MessageId:D}?compose=forward&{listContext}");
         Assert.Equal(HttpStatusCode.OK, get.StatusCode);
         var html = await get.Content.ReadAsStringAsync();
@@ -799,7 +800,6 @@ public sealed class StaffCorrespondenceWebTests
             ["pageNumber"] = InputValue(html, "pageNumber"),
             ["search"] = InputValue(html, "search"),
             ["queue"] = InputValue(html, "queue"),
-            ["unread"] = InputValue(html, "unread"),
             ["sort"] = InputValue(html, "sort"),
             ["compose"] = InputValue(html, "compose"),
             ["CorrespondenceOperationKey"] = InputValue(html, "CorrespondenceOperationKey"),
@@ -824,7 +824,6 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal("2", InputValue(searchHtml, "pageNumber"));
         Assert.Equal(string.Empty, InputValue(searchHtml, "search"));
         Assert.Equal(string.Empty, InputValue(searchHtml, "queue"));
-        Assert.Equal("true", InputValue(searchHtml, "unread"));
         Assert.Equal("oldest", InputValue(searchHtml, "sort"));
         Assert.Equal("selected@example.invalid", InputValue(searchHtml, "CorrespondenceTo"));
         Assert.Equal("copy@example.invalid", InputValue(searchHtml, "CorrespondenceCc"));
@@ -838,7 +837,6 @@ public sealed class StaffCorrespondenceWebTests
         draft["pageNumber"] = InputValue(searchHtml, "pageNumber");
         draft["search"] = InputValue(searchHtml, "search");
         draft["queue"] = InputValue(searchHtml, "queue");
-        draft["unread"] = InputValue(searchHtml, "unread");
         draft["sort"] = InputValue(searchHtml, "sort");
         draft["compose"] = InputValue(searchHtml, "compose");
         draft["CorrespondenceOperationKey"] = InputValue(searchHtml, "CorrespondenceOperationKey");
@@ -869,7 +867,6 @@ public sealed class StaffCorrespondenceWebTests
         Assert.Equal("2", InputValue(selectedHtml, "pageNumber"));
         Assert.Equal(string.Empty, InputValue(selectedHtml, "search"));
         Assert.Equal(string.Empty, InputValue(selectedHtml, "queue"));
-        Assert.Equal("true", InputValue(selectedHtml, "unread"));
         Assert.Equal("oldest", InputValue(selectedHtml, "sort"));
         Assert.Equal(draft["CorrespondenceOperationKey"], InputValue(selectedHtml, "CorrespondenceOperationKey"));
         Assert.Equal("selected@example.invalid", InputValue(selectedHtml, "CorrespondenceTo"));

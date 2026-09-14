@@ -123,9 +123,8 @@ public interface IUploadOutcomeQueries
 /// <summary>
 /// Builds the confirmation-surface decision for one uploaded file from the
 /// data the intake pipeline already recorded. Reads only — every action it
-/// offers routes to the existing page that performs it (<c>/Received/{id}</c>
-/// i.e. Intake/Details for attach-with-override and reversal,
-/// <c>/Cases/Create</c> for a new Instruction-initiated case,
+/// offers routes to the existing page that performs it (the upload surface's
+/// own attach decision, <c>/Cases/Create</c> for a new Instruction-initiated case,
 /// <c>/VehicleImages/{id}</c> and <c>/Unidentified/{id}</c> for their own
 /// existing surfaces) rather than re-implementing any of those mutations.
 /// </summary>
@@ -211,7 +210,7 @@ public sealed class UploadOutcomeQueries(
                     receipt.CurrentCaseReference,
                     receipt.AssociationWasStaffDecision),
                 new("Open case", $"/Cases/Details/{caseId:D}"),
-                new("Not the right case?", $"/Received/{receiptId:D}"));
+                null);
         }
 
         // Not gated on the ImageIntakeRegistered decision alone: a member of
@@ -361,7 +360,7 @@ public sealed class UploadOutcomeQueries(
                 UploadOutcomeKind.PossibleMatch,
                 "Possible matching cases found",
                 "More than one case could match this. Review the candidates and choose where it belongs.",
-                new("Review and attach", $"/Received/{receipt.Id:D}"),
+                null,
                 null,
                 new UploadOutcomeAttach(receipt.Id, receipt.Version));
         }
@@ -387,7 +386,7 @@ public sealed class UploadOutcomeQueries(
             UploadOutcomeKind.CannotBecomeCase,
             "Could not become a case",
             OperatorLabels.IntakeCannotBecomeCaseReason(receipt.Decision),
-            new("View", $"/Received/{receipt.Id:D}"),
+            new("Open file", $"/Received/{receipt.Id:D}/Source"),
             null);
     }
 

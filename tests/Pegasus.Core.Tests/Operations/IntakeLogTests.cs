@@ -22,6 +22,79 @@ public sealed class IntakeLogTests
         IntakeDecision decision, bool triageOpened, bool unidentifiedClosed, bool processingFailed, IntakeLogOutcome expected) =>
         Assert.Equal(expected, IntakeLogPolicy.Outcome(decision, triageOpened, unidentifiedClosed, processingFailed));
 
+    [Theory]
+    [InlineData(IntakeDecision.CaseCreated, false, true, false, IntakeLogOutcome.AllocationFailed)]
+    [InlineData(IntakeDecision.NeedsSorting, false, false, true, IntakeLogOutcome.OcrFailed)]
+    [InlineData(IntakeDecision.OcrRequired, false, true, true, IntakeLogOutcome.AllocationFailed)]
+    [InlineData(IntakeDecision.TechnicalFailure, true, true, true, IntakeLogOutcome.ProcessingFailed)]
+    [InlineData(IntakeDecision.TechnicalFailure, false, false, true, IntakeLogOutcome.OcrFailed)]
+    public void FailedAllocationAndFailedOcrAreDistinctOutcomesAfterProcessingFailure(
+        IntakeDecision decision, bool processingFailed, bool allocationFailed, bool ocrFailed, IntakeLogOutcome expected) =>
+        Assert.Equal(
+            expected,
+            IntakeLogPolicy.Outcome(decision, triageOpened: false, unidentifiedClosed: false, processingFailed, allocationFailed, ocrFailed));
+
+    [Theory]
+    [InlineData(IntakeOcrState.Failed, true)]
+    [InlineData(IntakeOcrState.Pending, false)]
+    [InlineData(IntakeOcrState.Processing, false)]
+    [InlineData(IntakeOcrState.RetryScheduled, false)]
+    [InlineData(IntakeOcrState.Unknown, false)]
+    [InlineData(IntakeOcrState.Completed, false)]
+    public void OcrCanBeRetriedOnlyWhenTheLastAttemptFailed(IntakeOcrState lastState, bool expected)
+    {
+        Assert.Equal(expected, IntakeOcrRetryPolicy.CanRetry(lastState));
+        Assert.False(IntakeOcrRetryPolicy.CanRetry(null));
+    }
+
+    [Fact]
+    public async Task RetryOcrRequiresStaffCaseworkAReasonAndAnOperationKey()
+    {
+        var store = new RecordingMutationStore();
+        var sut = new RetryIntakeOcr(store, TimeProvider.System);
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var receiptId = Guid.NewGuid();
+
+        await sut.ExecuteAsync(new RetryIntakeOcrRequest(receiptId, 4, staff, "retry-ocr-1", "The provider was down."));
+        var recorded = Assert.Single(store.OcrRetries);
+        Assert.Equal(receiptId, recorded.ReceiptId);
+        Assert.Equal(4, recorded.ExpectedVersion);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => sut.ExecuteAsync(new RetryIntakeOcrRequest(receiptId, 4, staff, "retry-ocr-2", " ")));
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => sut.ExecuteAsync(new RetryIntakeOcrRequest(Guid.Empty, 4, staff, "retry-ocr-3", "Reason")));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(
+            () => sut.ExecuteAsync(new RetryIntakeOcrRequest(receiptId, 4, ActionActor.SystemWorker("intake-processing"), "retry-ocr-4", "Reason")));
+        Assert.Single(store.OcrRetries);
+    }
+
+    private sealed class RecordingMutationStore : IIntakeMutationStore
+    {
+        public List<RetryIntakeOcrRequest> OcrRetries { get; } = [];
+
+        public Task<IntakeReceipt> ScheduleOcrRetryAsync(RetryIntakeOcrRequest request, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken)
+        {
+            OcrRetries.Add(request);
+            return Task.FromResult<IntakeReceipt>(null!);
+        }
+
+        public Task<IntakeReceipt> ResolveAsync(ResolveIntakeRequest request, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IntakeReceipt> ScheduleReevaluationAsync(ReevaluateIntakeRequest request, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task LinkAsync(LinkIntakeRequest request, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task ReverseLinkAsync(ReverseIntakeLinkRequest request, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task AutoLinkAsync(AutomaticIntakeLinkRequest request, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
     [Fact]
     public async Task TheIntakeLogIsForAdministratorsOnly()
     {

@@ -17,9 +17,28 @@ public sealed class DetailsModel(
     IImageIntakeStore imageIntakeStore,
     ITriageQueries triageQueries,
     IEditScopeLeases editScopes,
-    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder) : StaffPageModel
+    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
+    IGetPreCaseImagePreparations getPreparations,
+    Pegasus.Core.Documents.IReadImageTagVocabulary tagVocabulary,
+    Pegasus.Core.Intake.GetRetainedMail? getRetainedMail = null) : StaffPageModel
 {
     public ImageIntakeDetail Detail { get; private set; } = null!;
+
+    /// <summary>Each image's recorded crop and tags, by its asset (pre-Case crop and tag, v26).</summary>
+    public IReadOnlyDictionary<Guid, PreCaseImagePreparation> Preparations { get; private set; } =
+        new Dictionary<Guid, PreCaseImagePreparation>();
+
+    /// <summary>The tag vocabulary the viewer's Tag select offers.</summary>
+    public IReadOnlyList<Pegasus.Core.Documents.ImageTag> ImageTags { get; private set; } = [];
+
+    /// <summary>The Inbox message the images came in, when they came by e-mail (Open message).</summary>
+    public Guid? SourceMessageId { get; private set; }
+
+    /// <summary>Open file: the retained original through the kept source route, never the receipt page.</summary>
+    public string OpenFileHref => $"/Received/{Detail.Record.Origin.ReceiptId:D}/Source";
+
+    /// <summary>Add to an existing case: the Cases list's Awaiting instruction attach owns the decision.</summary>
+    public string AddToCaseHref => $"/Cases?tab=awaiting&selected={Detail.Record.Id:D}";
 
     public IReadOnlyList<ImageIntakeLifecycleEvent> History { get; private set; } = [];
 
@@ -64,6 +83,14 @@ public sealed class DetailsModel(
 
         Detail = detail;
         Images = await imageIntakeStore.ListImagesAsync(id, cancellationToken);
+        if (TryGetActor(out var preparationActor))
+        {
+            Preparations = await getPreparations.ExecuteAsync(
+                preparationActor,
+                Images.Where(image => image.AssetId is not null).Select(image => image.AssetId!.Value).ToArray(),
+                cancellationToken);
+            ImageTags = await tagVocabulary.ListAsync(cancellationToken);
+        }
         History = await imageIntakeStore.ListHistoryAsync(id, cancellationToken);
         Suggestions = await vrmSuggestionStore.ListForReceiptAsync(
             detail.Record.Origin.ReceiptId,
@@ -77,6 +104,21 @@ public sealed class DetailsModel(
         Triage = await triageQueries.GetByOriginReceiptAsync(
             detail.Record.Origin.ReceiptId,
             cancellationToken);
+        if (getRetainedMail is not null
+            && detail.Record.Origin.SourceIdentity.Channel == Pegasus.Core.Intake.IntakeSourceChannel.Mailbox
+            && TryGetActor(out var actor))
+        {
+            SourceMessageId = (await getRetainedMail.ExecuteByOriginReceiptAsync(
+                actor,
+                detail.Record.Origin.ReceiptId,
+                cancellationToken))?.Summary.Id;
+        }
+
+        ViewData["WorkingSetRecord"] = new Pegasus.Web.Presentation.WorkingSetRecord(
+            $"/VehicleImages/{id:D}",
+            Pegasus.Web.Presentation.WorkingSetRecord.Kinds.Image,
+            detail.Record.ImageIntakeReference,
+            detail.Record.NormalizedVehicleRegistration);
         return Page();
     }
 

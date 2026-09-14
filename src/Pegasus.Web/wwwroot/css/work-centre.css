@@ -1,0 +1,67 @@
+/* Work Centre (v26): page-specific rules composed on the shared shell tokens.
+   Linked from Pages/Index.cshtml only. */
+
+.work-centre .metric-strip--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.work-centre .metric-section { margin-bottom: 12px; }
+
+.wc-updated { font-size: 12px; color: var(--muted); margin-right: 4px; white-space: nowrap; }
+.wc-refresh-form { margin: 0; }
+
+.wc-panes .pane-head { gap: 10px; }
+.wc-panes .pane-head .meta { font-size: 12px; color: var(--muted); margin-left: auto; }
+
+.wc-switch { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: var(--radius); padding: 2px; background: var(--surface); }
+.wc-switch a { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 2px; font-size: 11.5px; color: var(--muted); text-decoration: none; }
+.wc-switch a:hover { color: var(--ink); text-decoration: none; }
+.wc-switch a[aria-current="true"] { background: var(--nav-2); color: var(--nav-text); }
+
+.wc-filters { padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+
+.wc-group { position: sticky; top: 0; z-index: 1; padding: 6px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.wc-group h3 { margin: 0; font-size: 10.5px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--quiet); }
+.wc-none { padding: 10px 12px; font-size: 12px; color: var(--quiet); border-bottom: 1px solid var(--line); }
+
+.wc-list .row-button { text-decoration: none; }
+.wc-list .row-button:hover { text-decoration: none; }
+.wc-list .row-button[aria-current="true"] { background: var(--navy-bg); border-left-color: var(--red); }
+
+.wc-due { font-weight: 600; font-size: 12px; color: var(--ink); }
+.wc-due--overdue { color: var(--red); }
+.wc-due--today { color: var(--amber); }
+
+.wc-today-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.wc-today-head .eyebrow { margin: 0 0 2px; }
+.wc-today-head h3 { margin: 0; font-size: 16px; }
+.wc-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wc-facts .fact { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.wc-facts .fact:nth-child(3n) { border-right: 0; }
+.wc-facts .fact:nth-last-child(-n+3) { border-bottom: 0; }
+.wc-facts dd { margin: 4px 0 0; }
+.wc-today-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.wc-today-actions form { margin: 0; }
+
+.wc-section { margin-top: 12px; }
+.wc-divider { display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+.wc-divider span { font-size: 10.5px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--quiet); white-space: nowrap; }
+.wc-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+.wc-table { overflow-x: auto; }
+.wc-table .row-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.wc-table .row-actions form { margin: 0; }
+.wc-failed { font-size: 12px; color: var(--muted); margin-right: 8px; }
+
+@media (max-width: 980px) {
+    .work-centre .pane-layout--2 { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 760px) {
+    .work-centre .metric-strip--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .work-centre .metric-strip--4 .metric:nth-child(2n) { border-right: 0; }
+    .work-centre .metric-strip--4 .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+    .wc-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .wc-facts .fact:nth-child(3n) { border-right: 1px solid var(--line); }
+    .wc-facts .fact:nth-child(2n) { border-right: 0; }
+    .wc-facts .fact:nth-last-child(-n+3) { border-bottom: 1px solid var(--line); }
+    .wc-facts .fact:nth-last-child(-n+2) { border-bottom: 0; }
+    .wc-panes .pane-head { flex-wrap: wrap; }
+}

@@ -4,8 +4,16 @@
 @{
     var summary = Model.Detail.Summary;
     ViewData["Title"] = Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary);
+    // A message joins the working set with its subject as the tab reference and no registration.
+    ViewData["WorkingSetRecord"] = new WorkingSetRecord(
+        $"/Inbox/{summary.Id:D}",
+        WorkingSetRecord.Kinds.Message,
+        Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary));
     var dossier = Model.Detail.Classification;
     var isClassified = Model.Detail.ClassificationOutcome == Pegasus.Core.Intake.MailClassificationOutcome.Classified;
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/inbox.css" asp-append-version="true" />
 }
 
 <header class="page-header">
@@ -21,26 +29,33 @@
                 <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
                    asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                    asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-                   asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-                   asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply">Reply</a>
+                   asp-route-queue="@Model.QueueFilter"                    asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply">Reply</a>
                 <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
                    asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                    asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-                   asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-                   asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply-all">Reply all</a>
+                   asp-route-queue="@Model.QueueFilter"                    asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="reply-all">Reply all</a>
             }
             <a class="btn" asp-page="/Mail/Message" asp-route-id="@summary.Id"
                asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
-               asp-route-queue="@Model.QueueFilter" asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-               asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="forward">Forward</a>
+               asp-route-queue="@Model.QueueFilter"                asp-route-sort="@(Model.OldestFirst ? "oldest" : null)" asp-route-compose="forward">Forward</a>
         }
+        <form method="post" asp-page-handler="@(Model.IsDismissed ? "Restore" : "Dismiss")" asp-route-id="@summary.Id"
+              asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+              asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+              asp-route-queue="@Model.QueueFilter" asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+              data-message-dismissal="@(Model.IsDismissed ? "restore" : "dismiss")">
+            <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
+            <button class="btn" type="submit">
+                <svg class="icon" aria-hidden="true"><use href="@(Model.IsDismissed ? "#icon-undo" : "#icon-x")" /></svg>
+                <span>@(Model.IsDismissed ? OperatorLabels.Inbox.Restore : OperatorLabels.Inbox.Dismiss)</span>
+            </button>
+        </form>
         <a class="btn" asp-page="/Mail/Index"
            asp-route-mailbox="@Model.MailboxFilter"
            asp-route-folder="@Model.FolderRouteValue"
            asp-route-search="@Model.SearchTerm"
            asp-route-queue="@Model.QueueFilter"
-           asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
            asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
            asp-route-pageNumber="@Model.PageRouteValue">
             <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
@@ -97,8 +112,7 @@
                           asp-route-pageNumber="@Model.PageRouteValue"
                           asp-route-search="@Model.SearchTerm"
                           asp-route-queue="@Model.QueueFilter"
-                          asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-                          asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                                                    asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                           asp-route-section="@Model.ActiveSection">
                         <input type="hidden" name="operationKey"
                                value="@($"query-response:{Pegasus.Web.Pages.StaffPageModel.NewOperationKey()}")" />
@@ -126,15 +140,13 @@
            asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
            asp-route-search="@Model.SearchTerm"
            asp-route-queue="@Model.QueueFilter"
-           asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                      asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
            aria-current="@(Model.ActiveSection == "message" ? "page" : null)">Message</a>
         <a class="tab" asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
            asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
            asp-route-search="@Model.SearchTerm"
            asp-route-queue="@Model.QueueFilter"
-           asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                      asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
            asp-route-section="attachments"
            aria-current="@(Model.ActiveSection == "attachments" ? "page" : null)">
             Attachments
@@ -147,8 +159,7 @@
            asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
            asp-route-search="@Model.SearchTerm"
            asp-route-queue="@Model.QueueFilter"
-           asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-           asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                      asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
            asp-route-section="thread"
            aria-current="@(Model.ActiveSection == "thread" ? "page" : null)">Thread</a>
         @if (Model.AssociationReceipt is not null)
@@ -157,8 +168,7 @@
                asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
                asp-route-search="@Model.SearchTerm"
                asp-route-queue="@Model.QueueFilter"
-               asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-               asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                              asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                asp-route-section="case"
                aria-current="@(Model.ActiveSection == "case" ? "page" : null)">Case</a>
         }
@@ -243,8 +253,7 @@
                         <input type="hidden" name="pageNumber" value="@Model.PageRouteValue" />
                         <input type="hidden" name="search" value="@Model.SearchTerm" />
                         <input type="hidden" name="queue" value="@Model.QueueFilter" />
-                        <input type="hidden" name="unread" value="@(Model.UnreadOnly ? "true" : null)" />
-                        <input type="hidden" name="sort" value="@(Model.OldestFirst ? "oldest" : null)" />
+                                                <input type="hidden" name="sort" value="@(Model.OldestFirst ? "oldest" : null)" />
                         <input type="hidden" name="compose" value="@correspondenceMode" />
                         <input type="hidden" asp-for="CorrespondenceOperationKey" />
                         <input type="hidden" asp-for="ExpectedCorrespondenceCaseVersion" />
@@ -472,8 +481,7 @@
                                         <form method="post" asp-page-handler="MoveToRecommendedFolder" asp-route-id="@summary.Id"
                                               asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
                                               asp-route-search="@Model.SearchTerm" asp-route-queue="@Model.QueueFilter"
-                                              asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-                                              asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                                                                                            asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                                               asp-route-pageNumber="@Model.PageNumber">
                                             <input type="hidden" name="ExpectedClassificationVersion" value="@recoveryClassificationVersion" />
                                             <input type="hidden" name="ExpectedRecommendationPolicyKey" value="@recoveryPolicyKey" />
@@ -529,28 +537,44 @@
             }
             else
             {
-                <div class="table-wrap">
-                    <table>
+                <div class="table-wrap message-attachments">
+                    <table class="table table--compact" data-message-attachments>
                         <thead>
                             <tr>
                                 <th scope="col">File</th>
                                 <th scope="col">Type</th>
                                 <th scope="col">Size</th>
-                                <th scope="col">Search content</th>
-                                <th scope="col">Retention</th>
+                                <th scope="col">Outcome</th>
+                                <th scope="col"><span class="sr-only">Open</span></th>
                             </tr>
                         </thead>
                         <tbody>
-                        @foreach (var attachment in Model.Detail.Attachments)
+                        @foreach (var row in Model.AttachmentRows)
                         {
-                            <tr>
-                                <td>@attachment.FileName</td>
-                                <td>@attachment.MediaType</td>
-                                <td class="tabular">@OperatorLabels.FileSize(attachment.ContentLength)</td>
-                                <td>@OperatorLabels.AttachmentSearchability(attachment.IsSearchable)</td>
-                                @* The row exists because the attachment was kept, so
-                                   retention is a fact of the row rather than a lookup. *@
-                                <td><partial name="Shared/_StatusChip" model="@("Retained")" /></td>
+                            <tr data-attachment-outcome="@row.Outcome.Label">
+                                <td><strong>@row.Attachment.FileName</strong></td>
+                                <td>@row.Attachment.MediaType</td>
+                                <td class="tabular">@OperatorLabels.FileSize(row.Attachment.ContentLength)</td>
+                                <td>
+                                    <span class="attachment-outcome">
+                                        <partial name="Shared/_StatusChip" model="@row.Outcome.Label"
+                                                 view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = row.Outcome.Tone }' />
+                                        @if (row.Outcome.Reason is { } outcomeReason)
+                                        {
+                                            <span class="attachment-reason">@outcomeReason</span>
+                                        }
+                                        @if (row.Outcome.Href is { } outcomeHref)
+                                        {
+                                            <a class="mono" href="@outcomeHref">@(row.Outcome.LinkText ?? row.Outcome.Label)</a>
+                                        }
+                                    </span>
+                                </td>
+                                <td class="row-actions">
+                                    @if (row.ViewerHref is { } viewerHref)
+                                    {
+                                        <a class="btn btn--small" href="@viewerHref" target="_blank" rel="noopener">@OperatorLabels.Inbox.OpenFile</a>
+                                    }
+                                </td>
                             </tr>
                         }
                         </tbody>
@@ -575,8 +599,7 @@
                        asp-route-folder="@Model.FolderRouteValue"
                        asp-route-search="@Model.SearchTerm"
                        asp-route-queue="@Model.QueueFilter"
-                       asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-                       asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                                              asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                        asp-route-pageNumber="@Model.PageRouteValue"
                        aria-current="@(entry.Id == summary.Id ? "page" : null)">
                         <span class="row-top">
@@ -638,8 +661,7 @@
                                             pageNumber = Model.PageNumber,
                                             search = Model.SearchTerm,
                                             queue = Model.QueueFilter,
-                                            unread = Model.UnreadOnly ? "true" : null,
-                                            sort = Model.OldestFirst ? "oldest" : null
+                                                                                        sort = Model.OldestFirst ? "oldest" : null
                                         });
                                     var unlinkDialogData = new ViewDataDictionary(ViewData)
                                     {
@@ -666,8 +688,7 @@
                                     <form method="post" asp-page-handler="PrepareUnlinkCase" asp-route-id="@summary.Id"
                                           asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
                                           asp-route-search="@Model.SearchTerm" asp-route-queue="@Model.QueueFilter"
-                                          asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-                                          asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                                                                                    asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                                           asp-route-pageNumber="@Model.PageNumber">
                                         <input type="hidden" name="caseId" value="@currentCase.Summary.CaseId" />
                                         <input type="hidden" name="expectedIntakeVersion" value="@associationReceipt.Version" />
@@ -724,8 +745,7 @@
                         <input type="hidden" name="pageNumber" value="@Model.PageRouteValue" />
                         <input type="hidden" name="search" value="@Model.SearchTerm" />
                         <input type="hidden" name="queue" value="@Model.QueueFilter" />
-                        <input type="hidden" name="unread" value="@(Model.UnreadOnly ? "true" : null)" />
-                        <input type="hidden" name="sort" value="@(Model.OldestFirst ? "oldest" : null)" />
+                                                <input type="hidden" name="sort" value="@(Model.OldestFirst ? "oldest" : null)" />
                         <input type="hidden" name="section" value="case" />
                         <div class="field">
                             <label for="association-case-query">Case/PO, registration, claimant or claim number</label>
@@ -749,8 +769,7 @@
                                        asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                                        asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
                                        asp-route-queue="@Model.QueueFilter"
-                                       asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-                                       asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                                                                              asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                                        asp-route-section="case"
                                        asp-route-caseQuery="@Model.CaseQuery" asp-route-targetCaseId="@candidate.CaseId"
                                        aria-current="@(Model.TargetCase?.Summary.CaseId == candidate.CaseId ? "page" : null)">
@@ -808,8 +827,7 @@
                                                 pageNumber = Model.PageNumber,
                                                 search = Model.SearchTerm,
                                                 queue = Model.QueueFilter,
-                                                unread = Model.UnreadOnly ? "true" : null,
-                                                sort = Model.OldestFirst ? "oldest" : null
+                                                                                                sort = Model.OldestFirst ? "oldest" : null
                                             });
                                         var linkDialogData = new ViewDataDictionary(ViewData)
                                         {
@@ -833,8 +851,7 @@
                                         <form method="post" asp-page-handler="PrepareLinkCase" asp-route-id="@summary.Id"
                                               asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
                                               asp-route-search="@Model.SearchTerm" asp-route-queue="@Model.QueueFilter"
-                                              asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-                                              asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                                                                                            asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                                               asp-route-pageNumber="@Model.PageNumber"
                                               asp-route-caseQuery="@Model.CaseQuery" asp-route-targetCaseId="@targetCase.Summary.CaseId">
                                             <input type="hidden" name="caseId" value="@targetCase.Summary.CaseId" />
@@ -867,8 +884,7 @@
                   asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
                   asp-route-search="@Model.SearchTerm"
                   asp-route-queue="@Model.QueueFilter"
-                  asp-route-unread="@(Model.UnreadOnly ? "true" : null)"
-                  asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
+                                    asp-route-sort="@(Model.OldestFirst ? "oldest" : null)"
                   asp-route-pageNumber="@Model.PageNumber">
                 <input type="hidden" asp-for="ExpectedClassificationVersion" value="@correctionDossier.Version" />
                 <div class="dialog-body stack">
@@ -934,8 +950,7 @@
                         pageNumber = Model.PageNumber,
                         search = Model.SearchTerm,
                         queue = Model.QueueFilter,
-                        unread = Model.UnreadOnly ? "true" : null,
-                        sort = Model.OldestFirst ? "oldest" : null,
+                                                sort = Model.OldestFirst ? "oldest" : null,
                         expectedClassificationVersion = moveDossier.Version,
                         expectedRecommendationPolicyKey = dialogRecommendation.PolicyKey,
                         expectedRecommendationPolicyVersion = dialogRecommendation.PolicyVersion,

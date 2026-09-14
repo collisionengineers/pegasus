@@ -73,6 +73,8 @@
     <title>@ViewData["Title"] · Pegasus</title>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/case-workspace.css" asp-append-version="true" />
+    @* A page's own stylesheet loads here, in the head, before first paint. *@
+    @await RenderSectionAsync("Styles", required: false)
 </head>
 <body>
     <partial name="Shared/_LucideSprite" />

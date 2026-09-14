@@ -314,23 +314,8 @@ public sealed class IntakeWebNegativeTests
         _ = await IntakeWebDriver.ProcessQueuedAsync(factory, first);
         var firstId = await IntakeWebDriver.SoleReceiptIdAsync(factory);
         Assert.Equal(canonicalToken, (await GetAsync(factory, firstId)).SourceIdentity.ExternalReceiptToken);
-        Assert.Single(await ListAllAsync(factory));
-
-        using var replayReview = await client.GetAsync($"/Received/{firstId:D}");
-        var replayHtml = await replayReview.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, replayReview.StatusCode);
-        Assert.Contains("unknown.bin", replayHtml, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task MissingReviewReceiptReturnsNotFound()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        using var response = await client.GetAsync($"/Received/{Guid.NewGuid()}");
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var sole = Assert.Single(await ListAllAsync(factory));
+        Assert.Equal("unknown.bin", sole.SourceFileName);
     }
 
     [Fact]
@@ -365,7 +350,9 @@ public sealed class IntakeWebNegativeTests
             null,
             null), CancellationToken.None);
 
-        using var response = await client.GetAsync($"/Received/{record.Id}");
+        // The seeded Create screen prints the retained file name and the
+        // refusal reason; both must reach the page encoded.
+        using var response = await client.GetAsync($"/Cases/Create?receiptId={record.Id}");
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

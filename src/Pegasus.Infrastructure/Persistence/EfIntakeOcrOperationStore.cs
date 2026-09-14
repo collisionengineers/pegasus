@@ -375,6 +375,131 @@ public sealed class EfIntakeOcrOperationStore(
             result?.AnalysisCompleted ?? false);
     }
 
+    /// <summary>
+    /// A receipt's last OCR operation — the one whose durable work was most
+    /// recently due — with its paired external-work row, both tracked.
+    /// </summary>
+    internal static async Task<(IntakeOcrOperationEntity Operation, ExternalWorkItemEntity WorkItem)?> FindLastForReceiptAsync(
+        PegasusDbContext context,
+        Guid receiptId,
+        CancellationToken cancellationToken)
+    {
+        var last = await (
+                from asset in context.Set<IntakeAssetEntity>()
+                join operation in context.Set<IntakeOcrOperationEntity>() on asset.Id equals operation.IntakeAssetId
+                join work in context.Set<ExternalWorkItemEntity>() on operation.Id equals work.Id
+                where asset.IntakeReceiptId == receiptId
+                orderby work.DueAtUtc descending, operation.Id
+                select new { Operation = operation, Work = work })
+            .FirstOrDefaultAsync(cancellationToken);
+        return last is null ? null : (last.Operation, last.Work);
+    }
+
+    /// <summary>
+    /// The state a person sees for a receipt's last OCR attempt. A Failed
+    /// operation whose work item has already been re-queued is a retry waiting
+    /// for the Worker: it reads as Pending, so it is neither offered again nor
+    /// listed under OCR failed.
+    /// </summary>
+    internal static IntakeOcrState EffectiveState(string operationState, string workItemState)
+    {
+        var state = Enum.Parse<IntakeOcrState>(operationState);
+        return state == IntakeOcrState.Failed && workItemState != ExternalWorkStatePersistence.Failed
+            ? IntakeOcrState.Pending
+            : state;
+    }
+
+    /// <summary>
+    /// Web's half of a person's retry of a failed operation
+    /// (<see cref="IntakeOcrRetryPolicy"/>): only the external-work row changes.
+    /// It becomes due now with a fresh attempt count, and the Worker's dispatch
+    /// runs it through <see cref="ProcessIntakeOcr"/>. Web holds no UPDATE on
+    /// IntakeOcrOperations and cannot process OCR.
+    /// </summary>
+    internal static void RequeueForStaffRetry(ExternalWorkItemEntity workItem, DateTimeOffset nowUtc)
+    {
+        workItem.State = ExternalWorkStatePersistence.Pending;
+        workItem.DueAtUtc = nowUtc;
+        workItem.AttemptCount = 0;
+        workItem.LeaseToken = null;
+        workItem.LeaseExpiresAtUtc = null;
+        workItem.CompletedAtUtc = null;
+        workItem.FailureCode = null;
+        workItem.FailureReason = null;
+    }
+
+    public async Task<IntakeOcrOperation?> ResumeRequestedRetryAsync(
+        Guid operationId,
+        long expectedVersion,
+        CancellationToken cancellationToken)
+    {
+        if (operationId == Guid.Empty)
+        {
+            throw new ArgumentException("An OCR operation identifier is required.", nameof(operationId));
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+        var entity = await context.Set<IntakeOcrOperationEntity>()
+            .SingleOrDefaultAsync(item => item.Id == operationId, cancellationToken)
+            ?? throw new IntakeOcrOperationConflictException();
+        if (entity.Version != expectedVersion)
+        {
+            throw new IntakeOcrOperationConflictException();
+        }
+
+        var workItem = await context.Set<ExternalWorkItemEntity>()
+            .SingleOrDefaultAsync(item => item.Id == operationId, cancellationToken)
+            ?? throw new InvalidOperationException(
+                "The paired external work item row does not exist for the OCR operation.");
+        if (entity.State != nameof(IntakeOcrState.Failed)
+            || workItem.State is ExternalWorkStatePersistence.Failed or ExternalWorkStatePersistence.Completed)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return null;
+        }
+
+        ResetOperationForStaffRetry(entity, workItem);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(entity);
+    }
+
+    /// <summary>
+    /// The Worker's half of a person's retry: the operation returns to Pending
+    /// with a fresh attempt budget. Provider output already retained is kept, so
+    /// a failed analysis is re-applied from it rather than charged again. Without
+    /// output, the recorded submission is cleared and the pages are sent afresh;
+    /// the person's recorded reason is the authority for that.
+    /// </summary>
+    private static void ResetOperationForStaffRetry(
+        IntakeOcrOperationEntity entity,
+        ExternalWorkItemEntity workItem)
+    {
+        var envelope = Envelope(entity.QualifiedPagesJson);
+        var keepsOutput = entity.ResultJson is not null;
+        entity.QualifiedPagesJson = JsonSerializer.Serialize(
+            envelope with
+            {
+                AttemptCount = 0,
+                SubmitAttemptedAtUtc = null,
+                SubmittedAtUtc = keepsOutput ? envelope.SubmittedAtUtc : null
+            },
+            SerializerOptions);
+        entity.State = nameof(IntakeOcrState.Pending);
+        entity.LastError = null;
+        entity.RetryAtUtc = null;
+        if (!keepsOutput)
+        {
+            entity.ProviderOperationId = null;
+            entity.ResponseSha256 = null;
+            workItem.ExternalReceipt = null;
+        }
+
+        entity.Version++;
+    }
+
     private static int[] Pages(string qualifiedPagesJson) => Envelope(qualifiedPagesJson).Pages;
 
     private static OperationEnvelope Envelope(string qualifiedPagesJson) =>

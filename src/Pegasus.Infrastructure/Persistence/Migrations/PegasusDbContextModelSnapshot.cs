@@ -4627,6 +4627,94 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("IntakeAssets", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeAssetPreparationEntity", b =>
+                {
+                    b.Property<Guid>("IntakeAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("CropHeight")
+                        .HasPrecision(8, 7)
+                        .HasColumnType("decimal(8,7)");
+
+                    b.Property<decimal?>("CropLeft")
+                        .HasPrecision(8, 7)
+                        .HasColumnType("decimal(8,7)");
+
+                    b.Property<decimal?>("CropTop")
+                        .HasPrecision(8, 7)
+                        .HasColumnType("decimal(8,7)");
+
+                    b.Property<decimal?>("CropWidth")
+                        .HasPrecision(8, 7)
+                        .HasColumnType("decimal(8,7)");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset>("PreparedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("PreparedByKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("PreparedBySubjectId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<short>("RotationDegrees")
+                        .HasColumnType("smallint");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("IntakeAssetId");
+
+                    b.ToTable("IntakeAssetPreparations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_IntakeAssetPreparations_Crop", "([CropLeft] IS NULL AND [CropTop] IS NULL AND [CropWidth] IS NULL AND [CropHeight] IS NULL) OR ([CropLeft] BETWEEN 0 AND 1 AND [CropTop] BETWEEN 0 AND 1 AND [CropWidth] > 0 AND [CropWidth] <= 1 AND [CropHeight] > 0 AND [CropHeight] <= 1 AND [CropLeft] + [CropWidth] <= 1 AND [CropTop] + [CropHeight] <= 1)");
+
+                            t.HasCheckConstraint("CK_IntakeAssetPreparations_Rotation", "[RotationDegrees] IN (0, 90, 180, 270)");
+                        });
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeAssetTagEntity", b =>
+                {
+                    b.Property<Guid>("IntakeAssetId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TagId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AppliedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("AppliedByKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<string>("AppliedBySubjectId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("IntakeAssetId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("IntakeAssetTags", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeCaseMatchDecisionEntity", b =>
                 {
                     b.Property<Guid>("IntakeReceiptId")
@@ -8921,6 +9009,30 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("IntakeReceipt");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeAssetPreparationEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.IntakeAssetEntity", null)
+                        .WithMany()
+                        .HasForeignKey("IntakeAssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeAssetTagEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.IntakeAssetEntity", null)
+                        .WithMany()
+                        .HasForeignKey("IntakeAssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.ImageTagEntity", null)
+                        .WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeCaseMatchDecisionEntity", b =>

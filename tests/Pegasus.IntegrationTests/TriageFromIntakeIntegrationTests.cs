@@ -244,8 +244,15 @@ public sealed class TriageFromIntakeIntegrationTests
             Assert.Equal(UnidentifiedState.Open, open.State);
         }
 
-        // The action is offered on the receipt the Unidentified item links to.
-        var offered = await IntakeWebDriver.GetHtmlAsync(client, $"/Received/{receiptId}");
+        // The action is offered on the Unidentified record (received file D2).
+        Guid unidentifiedId;
+        await using (var lookup = factory.Services.CreateAsyncScope())
+        {
+            unidentifiedId = Assert.IsType<UnidentifiedItem>(
+                await lookup.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
+                    .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None)).Id;
+        }
+        var offered = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{unidentifiedId:D}");
         Assert.Contains("handler=OpenTriage", offered, StringComparison.Ordinal);
         Assert.Contains("Open the Triage", offered, StringComparison.Ordinal);
 
@@ -256,7 +263,7 @@ public sealed class TriageFromIntakeIntegrationTests
             ["vehicleRegistration"] = "vn64 wng",
             ["operationKey"] = Guid.NewGuid().ToString("N")
         });
-        using var opened = await client.PostAsync($"/Received/{receiptId}?handler=OpenTriage", form);
+        using var opened = await client.PostAsync($"/Unidentified/{unidentifiedId:D}?handler=OpenTriage", form);
         Assert.Equal(HttpStatusCode.Redirect, opened.StatusCode);
 
         await using var after = factory.Services.CreateAsyncScope();
@@ -288,7 +295,7 @@ public sealed class TriageFromIntakeIntegrationTests
 
         // The receipt now has its destination, so the action is not offered a
         // second time and no second Triage can be opened from the screen.
-        var settled = await IntakeWebDriver.GetHtmlAsync(client, $"/Received/{receiptId}");
+        var settled = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{unidentifiedId:D}");
         Assert.DoesNotContain("handler=OpenTriage", settled, StringComparison.Ordinal);
     }
 }

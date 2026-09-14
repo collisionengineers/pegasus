@@ -32,8 +32,21 @@ public sealed class IndexModel(
     IUnidentifiedStore unidentifiedStore,
     IEvaSubmissionQueries evaSubmissionQueries,
     IStaffAccountQueries staffAccounts,
-    TimeProvider timeProvider) : StaffPageModel
+    TimeProvider timeProvider,
+    IListIntakeLog listIntakeLog) : StaffPageModel
 {
+    /// <summary>
+    /// Failed intake (Received file D2, 13 September), one row per failure kind:
+    /// failed allocation (Retry allocation), failed OCR (Retry OCR) and other
+    /// processing failures (Re-evaluate). The Intake log is Administrators only,
+    /// so the rows are read (and rendered) only for an Administrator; the actions
+    /// post to the one owner, Administration › Logs.
+    /// </summary>
+    public IReadOnlyList<IntakeLogDetail> FailedIntake { get; private set; } = [];
+
+    /// <summary>The failure kinds Operations lists, in the order it lists them.</summary>
+    public static readonly IReadOnlyList<IntakeLogOutcome> FailureKinds =
+        [IntakeLogOutcome.AllocationFailed, IntakeLogOutcome.OcrFailed, IntakeLogOutcome.ProcessingFailed];
     private const string PreservedReasonKey = "OperationsRequestReason";
     private const string PreservedRequestIdKey = "OperationsRequestReasonId";
 
@@ -124,6 +137,7 @@ public sealed class IndexModel(
             ServiceHealthPolicy.MaximumEvaFailures,
             cancellationToken);
         AiJobs = await ReadAiJobsAsync(nowUtc, cancellationToken);
+        FailedIntake = await ReadFailedIntakeAsync(actor, cancellationToken);
         // Started by is a name, never a stored subject id: the ledger keeps the
         // raw actor, so the usernames are resolved once for the whole list.
         jobCreatorNames = await ActorDisplayNames.ResolveStaffNamesAsync(
@@ -478,6 +492,34 @@ public sealed class IndexModel(
             .OrderByDescending(job => job.CreatedAtUtc)
             .ThenByDescending(job => job.JobId)
             .ToArray();
+    }
+
+    private async Task<IReadOnlyList<IntakeLogDetail>> ReadFailedIntakeAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        if (!StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ViewOperationalReports))
+        {
+            return [];
+        }
+
+        var details = new List<IntakeLogDetail>();
+        foreach (var kind in FailureKinds)
+        {
+            var page = await listIntakeLog.ExecuteAsync(
+                actor,
+                new IntakeLogFilter(Outcome: kind),
+                1,
+                cancellationToken);
+            foreach (var row in page.Items)
+            {
+                if (await listIntakeLog.GetAsync(actor, row.ReceiptId, cancellationToken) is { } detail)
+                {
+                    details.Add(detail);
+                }
+            }
+        }
+        return details;
     }
 
     private static bool ReachedTerminalToday(AiJobRecord job, string today)

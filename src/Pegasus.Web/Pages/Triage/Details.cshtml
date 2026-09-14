@@ -31,6 +31,11 @@
     }
 }
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/triage.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pre-case-images.css" asp-append-version="true" />
+}
+
 <header class="page-header">
     <div class="page-title">
         <p class="eyebrow">Triage</p>
@@ -54,27 +59,39 @@
 
 @if (!string.IsNullOrWhiteSpace(Model.Message))
 {
-    <div class="notice mb-2" role="status" aria-live="polite">
+    <div class="notice notice--info mb-2" role="status" aria-live="polite">
         <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
         <span>@Model.Message</span>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
     </div>
 }
 
-<article class="record">
-    <div class="record-ribbon triage-ribbon" aria-label="Triage identity">
-        <div class="ribbon-item ribbon-ref"><div class="ribbon-label">Triage</div><div class="ribbon-value">@reference</div></div>
-        <div class="ribbon-item"><div class="ribbon-label">Registration</div><div class="ribbon-value">@record.NormalizedVehicleRegistration</div></div>
-        <div class="ribbon-item"><div class="ribbon-label">Source</div><div class="ribbon-value">@DetailsModel.SourceChannelLabel(record.Origin.SourceIdentity.Channel)</div></div>
-        <div class="ribbon-item"><div class="ribbon-label">Opened</div><div class="ribbon-value">@OperatorLabels.OfficeDate(Model.Triage.CreatedAtUtc)</div></div>
-        <div class="ribbon-item"><div class="ribbon-label">State</div><div class="ribbon-value"><partial name="Shared/_StatusChip" model="@DetailsModel.StateLabel(record.State)" /></div></div>
+<article class="record triage-record" data-triage-record data-triage-state="@record.State">
+    <div class="ribbon triage-ribbon" aria-label="Triage identity">
+        <div class="ribbon-facts">
+            <div class="ribbon-item ribbon-ref"><span class="ribbon-label">Triage</span><span class="ribbon-value mono">@reference</span></div>
+            <div class="ribbon-item"><span class="ribbon-label">Registration</span><span class="ribbon-value mono">@record.NormalizedVehicleRegistration</span></div>
+            <div class="ribbon-item"><span class="ribbon-label">Source</span><span class="ribbon-value">@DetailsModel.SourceChannelLabel(record.Origin.SourceIdentity.Channel)</span></div>
+            <div class="ribbon-item"><span class="ribbon-label">Opened</span><span class="ribbon-value">@OperatorLabels.OfficeDate(Model.Triage.CreatedAtUtc)</span></div>
+            <div class="ribbon-item"><span class="ribbon-label">Assignee</span><span class="ribbon-value">@(Model.AssigneeName ?? "Unassigned")</span></div>
+        </div>
+        <div class="ribbon-chips"><partial name="Shared/_StatusChip" model="@DetailsModel.StateLabel(record.State)" /></div>
     </div>
-    <div class="record-accent"></div>
 
     @* The contract's action bar: what the record is and who holds it. The
        assignment controls sit beside the assignee they change. *@
     <div class="record-bar triage-record-actions">
-        <span class="eyebrow">Triage</span>
-        <span class="muted">@(record.AssigneeId is null ? "Unassigned" : "Assigned")</span>
+        @if (mutable && Model.CanAssignToMe)
+        {
+            <form method="post" asp-page-handler="AssignToMe" asp-route-id="@record.Id" data-triage-assign-to-me>
+                <input type="hidden" name="expectedVersion" value="@record.Version" />
+                <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+                <button type="submit" class="btn">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                    <span>Assign to me</span>
+                </button>
+            </form>
+        }
         @if (!Model.IsEditing)
         {
             <form method="post" asp-page-handler="Edit" asp-route-id="@record.Id" class="record-bar-end">
@@ -334,10 +351,20 @@
                         </div>
                     }
                     <div class="button-row">
-                        <a class="btn" asp-page="/Intake/Details" asp-route-id="@record.Origin.ReceiptId">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
-                            <span>@Model.ViewSourceLabel</span>
-                        </a>
+                        @if (Model.SourceMessageId is { } sourceMessageId)
+                        {
+                            <a class="btn" href="/Inbox/@sourceMessageId.ToString("D")" data-triage-action="open-message">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+                                <span>Open message</span>
+                            </a>
+                        }
+                        @if (!Model.SourceIsEmail)
+                        {
+                            <a class="btn" href="@Model.OpenFileHref" target="_blank" rel="noopener" data-triage-action="open-file">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                                <span>Open file</span>
+                            </a>
+                        }
                         @* INTK-059: recording the known principal is casework, not a
                            lifecycle transition (mirrors Image Intake), so this is
                            never gated on `mutable` — a completed or cancelled
@@ -369,9 +396,12 @@
                                 href,
                                 href,
                                 asset.FileName,
-                                asset.MediaType);
+                                asset.MediaType,
+                                IntakeAssetId: asset.Id,
+                                Preparation: Model.Preparations.GetValueOrDefault(asset.Id));
                         })
                         .ToArray();
+                    ViewData["PreCaseImageTags"] = Model.ImageTags;
                 }
                 <partial name="Shared/_ImageGallery" model="triageGallery" />
             </section>
