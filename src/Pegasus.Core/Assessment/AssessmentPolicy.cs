@@ -392,6 +392,29 @@ public static class AssessmentPolicy
         return items;
     }
 
+    /// <summary>
+    /// A vehicle identification number as ISO 3779 writes it: seventeen
+    /// characters, digits and the letters A–Z except I, O and Q (never used,
+    /// to avoid confusion with 1 and 0). Spaces are removed and letters
+    /// upper-cased before the check, so a VIN typed in groups is accepted.
+    /// </summary>
+    public static string Vin(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        var canonical = string.Concat(value.Where(character => !char.IsWhiteSpace(character)))
+            .ToUpperInvariant();
+        if (canonical.Length != 17
+            || canonical.Any(character => !char.IsAsciiDigit(character)
+                && !(char.IsAsciiLetterUpper(character) && character is not ('I' or 'O' or 'Q'))))
+        {
+            throw new ArgumentException(
+                "A VIN is 17 characters: digits and the letters A–Z except I, O and Q.",
+                nameof(value));
+        }
+
+        return canonical;
+    }
+
     private static string? NormalizeValue(AssessmentFieldDefinition definition, string? rawValue)
     {
         if (string.IsNullOrWhiteSpace(rawValue))
@@ -400,6 +423,11 @@ public static class AssessmentPolicy
         }
 
         var value = rawValue.Trim();
+        if (definition.Path == AssessmentVocabulary.VehicleVin)
+        {
+            return Vin(value);
+        }
+
         if (value.Length > definition.MaximumLength)
         {
             throw new ArgumentOutOfRangeException(

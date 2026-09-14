@@ -129,7 +129,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Contains("1 Depot Road", page, StringComparison.Ordinal);
         Assert.DoesNotContain("case-inspection-address-form", page, StringComparison.Ordinal);
         Assert.Contains(
-            "id=\"inspection-address\" name=\"inspectionAddress\" form=\"case-edit-form\"",
+            "id=\"inspection-address\" class=\"fi\" name=\"inspectionAddress\" form=\"case-edit-form\"",
             page,
             StringComparison.Ordinal);
         Assert.Equal(

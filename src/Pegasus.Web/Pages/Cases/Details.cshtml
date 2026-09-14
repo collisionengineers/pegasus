@@ -4,10 +4,12 @@
    fragment response is never a candidate for the record's own snapshot
    states and every other handler keeps the query-string form. *@
 @using System.Globalization
+@using Pegasus.Core.AiWork
 @using Pegasus.Core.Lifecycle
 @using Pegasus.Core.Reports
 @using Pegasus.Core.Workflow
 @using Pegasus.Web.Presentation
+@using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
     ViewData["Title"] = Model.Case is null ? "Case" : $"Case {Model.Case.Workflow.Identity.Reference}";
@@ -38,19 +40,18 @@
     var workflow = details.Workflow;
     var summary = details.Summary;
     var state = workflow.State;
-    var stage = OperatorLabels.CaseStage(state);
     var isClosed = CaseLifecycleRules.IsTerminal(state);
     var isHeld = state == CaseLifecycleState.Held;
     var isReview = state == CaseLifecycleState.Review;
     var isComplete = state == CaseLifecycleState.PostReportComplete;
     var isQuery = state == CaseLifecycleState.Query;
-    var editing = !string.IsNullOrWhiteSpace(Model.LeaseToken) && workflow.Archive is null;
+    var editing = Model.IsEditing;
     var editingCaseData = editing && !Model.IsPostReportReadOnly;
-    var canHandToEngineer = editingCaseData && isReview
-        && Model.EvaHandoff is { EngineerOptions.Count: > 0 };
     var registration = string.IsNullOrWhiteSpace(summary.Registration)
         ? "No registration"
         : summary.Registration!;
+    var canHandToEngineer = editingCaseData && isReview
+        && Model.EvaHandoff is { EngineerOptions.Count: > 0 };
     var canSendToEva = (Model.EvaHandoff?.ReportGenerationPolicy is PrincipalReportGenerationPolicy.EvaZip or PrincipalReportGenerationPolicy.EvaManualApi
         || Model.EvaHandoff?.CanRetryAutomaticFailure == true)
         && state is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
@@ -60,33 +61,49 @@
     var canConfirmReportSent = editing
         && state == CaseLifecycleState.ReportPreparation
         && details.AvailableReportSentEvidence.Count > 0;
+    var canMarkCompleted = editing && state == CaseLifecycleState.PostReport;
+    var canReturnToReview = editingCaseData
+        && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
+    var canReturnToEngineer = editing && (isComplete || isQuery);
+    var canArchive = editing && isClosed && workflow.Archive is null;
     // Review point 12: the adverse dispositions Core will accept for this
-    // state, decided in the page model from Core's own closure rules. The
-    // record only asks whether any exist; a closed Case has none and reads
-    // its recorded outcome instead.
+    // state, decided in the page model from Core's own closure rules.
     var closureOutcomes = Model.AvailableClosureOutcomes;
     var offersAdverseClosure = editing && closureOutcomes.Count > 0;
-    var offersMoreActions = editingCaseData && !isClosed;
-    // The adverse group ends the bar. It carries the end alignment itself only
-    // when the More actions menu, which normally carries it, is not drawn.
-    var adverseGroupClass = offersMoreActions
-        ? "record-bar-adverse"
-        : "record-bar-adverse record-bar-end";
+    var offersHoldGroup = editingCaseData && !isClosed;
+    var offersCreateAudit = Model.CanCreateAudit;
+    // The menu shows outside an edit session only when an item that needs
+    // no lease is available (Send to EVA); everything else joins it inside.
+    var offersActionsMenu = canSendToEva || canHandToEngineer || canConfirmReportSent || canMarkCompleted
+        || canReturnToReview || canReturnToEngineer || canArchive || offersHoldGroup
+        || offersCreateAudit || offersAdverseClosure;
     ViewData["WorkingSetRecord"] = new WorkingSetRecord(
         $"/Cases/{summary.CaseId:D}",
         WorkingSetRecord.Kinds.Case,
         workflow.Identity.Reference,
-        summary.Registration);
+        summary.Registration,
+        Model.WorkingSetGlyph);
+    var staleGeneration = Model.CurrentReportGeneration is { State: CaseReportGenerationState.Stale };
+    var next = Model.NextAction;
+    var outcome = Model.AssessmentEditorValue(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome)
+        ?? Model.Assessment?.Field(Pegasus.Core.Assessment.AssessmentVocabulary.Outcome)?.Value;
+    var salvageCategory = Model.Assessment?.Field(Pegasus.Core.Assessment.AssessmentVocabulary.SalvageCategory)?.Value;
+    var legalStatus = Model.Assessment?.Field(Pegasus.Core.Assessment.AssessmentVocabulary.LegalStatus)?.Value;
+    var engineerValue = Model.EngineerValue;
+    var repairCost = Model.RepairCostIncVat;
+    var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "overview");
+    string FormatMoney(decimal value) => "£" + value.ToString("N2", CultureInfo.GetCultureInfo("en-GB"));
 }
 
-@* The record carries its own identity in the sticky ribbon below, so the page
-   renders no separate header that would scroll away from it. *@
+@* The record's notices sit above the card; each carries the shared dismiss. *@
+<div data-case-notices>
 @if (TempData["CaseStatus"] is string caseStatus
     && !(editing && caseStatus == "Edit mode is active."))
 {
     <div class="notice notice--success mb-2" role="status" data-confirmation>
         <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
         <span>@caseStatus</span>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
     </div>
 }
 @if (TempData["CaseError"] is string caseError)
@@ -94,660 +111,405 @@
     <div class="notice notice--danger mb-2" role="alert">
         <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
         <span>@caseError</span>
+        <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
     </div>
 }
 @if (TempData["CaseRequestSecret"] is string requestSecret)
 {
-    <section class="panel form-panel" aria-labelledby="case-request-secret-title">
+    <section class="panel form-panel mb-2" aria-labelledby="case-request-secret-title">
         <h2 id="case-request-secret-title" class="section-label">Copy this secret now</h2>
         <p>It is shown once and is not available from case history.</p>
         <input value="@requestSecret" readonly aria-label="One-time request secret" />
     </section>
 }
+</div>
 
-<article class="record">
-    @* Three rows travel together as the record scrolls (D29): the identity
-       ribbon with the record's own two controls, the one action row (which
-       carries the edit state and its Cancel/Save), and the section jump-nav.
-       A colleague's edit adds the thin presence line between the first two. *@
-    <div class="case-sticky" data-case-sticky>
-    <div class="case-identity">
-    <div class="record-ribbon" aria-label="Case identity">
-        @* The record's own heading now that the page carries no separate
-           header: the reference stays the page's one h1. *@
-        <div class="ribbon-item ribbon-ref">
-            <div class="ribbon-label">Case workspace · @registration</div>
-            <h1 class="ribbon-value">@workflow.Identity.Reference</h1>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonRegistration</div>
-            <div class="ribbon-value">@registration</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonClaimant</div>
-            <div class="ribbon-value">@(string.IsNullOrWhiteSpace(summary.Claimant) ? OperatorLabels.CaseWorkspace.AbsentValue : summary.Claimant)</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonPrincipal</div>
-            <div class="ribbon-value">@workflow.Identity.PrincipalCode</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonEngineer</div>
-            <div class="ribbon-value">@(Model.EngineerDisplayName ?? OperatorLabels.CaseWorkspace.AbsentValue)</div>
-        </div>
-        @* CASE-040 supplies the sign-off Engineer itself; the frame carries its
-           ribbon label and the record's ordinary absent value. *@
-        <div class="ribbon-item">
-            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.SignOffEngineer</div>
-            <div class="ribbon-value">@Model.SignOffEngineerDisplayName</div>
-        </div>
-        <div class="ribbon-item">
-            <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonState</div>
-            <div class="ribbon-value"><partial name="Shared/_StatusChip" model="@stage" /></div>
-        </div>
-    </div>
-    @* The two record-frame controls, at the ribbon's end so they cost no row
-       of their own. Refresh reruns this query on the section the operator is
-       looking at, not the Overview. *@
-    <div class="case-identity-tools">
-        <a class="btn btn--icon" asp-page="/Cases/Index" title="Back to Cases" aria-label="Back to Cases">
-            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-            <span class="sr-only">Back to Cases</span>
-        </a>
-        <form method="get" data-refresh-form>
-            <input type="hidden" name="section" value="@Model.Section" />
-            <button type="submit" class="btn btn--icon" title="Refresh" aria-label="Refresh">
-                <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                <span class="sr-only">Refresh</span>
-            </button>
-        </form>
-    </div>
-    </div>
-
-    @* Presence: who else is editing the case. No time is printed — an open
-       editor keeps their own edit active, so any moment named here would be
-       stale as soon as it was read. This operator's own edit is the badge in
-       the action row, not a strip. *@
-    @if (!Model.ViewerHoldsEditAuthority && details.ActiveEditLease is not null && Model.EditAuthorityHolder is { } holder)
-    {
-        <div class="presence-strip" role="status">
-            <span class="presence-dot" aria-hidden="true"></span>
-            <span data-edit-authority>@EditModeDisplay.HeldBy(holder, false)</span>
-        </div>
-    }
-
-    @* The bar carries the actions valid now; each posts to the Core action
-       that owns it. Lease-carrying actions render only in edit context,
-       because Core refuses them without it. *@
-    <div class="record-bar">
-        @if (editing)
-        {
-            <form method="post" asp-page-handler="ReleaseLease" id="case-finish-editing-form" data-edit-toggle-off hidden>
-                <input type="hidden" name="id" value="@summary.CaseId" />
-                <input type="hidden" name="operationKey" value="@Model.ReleaseLeaseOperationKey" />
-                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-            </form>
-            @* Script hides this and beats instead; without script it is how
-               editing is kept. *@
-            <form method="post" asp-page-handler="RenewLease" data-edit-renew>
-                <input type="hidden" name="id" value="@summary.CaseId" />
-                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@Model.RenewLeaseOperationKey" />
-                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                <button type="submit" class="btn">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
-                    <span>Renew editing</span>
-                </button>
-            </form>
-            <partial name="Shared/_EditHeartbeat" view-data='new ViewDataDictionary(ViewData) { ["HeartbeatCaseId"] = summary.CaseId, ["HeartbeatLeaseToken"] = Model.LeaseToken }' />
-            @if (editingCaseData)
-            {
-                @* Cancel and Save are the two ways out of an edit: Cancel ends
-                   the edit (asking first when values are unsaved), Save opens
-                   the reason dialog for the single Case form. The badge marks
-                   the state the row is in, so no second row is needed. *@
-                <span class="case-edit-badge"><partial name="Shared/_StatusChip" model='@("Editing")' /></span>
-                <button type="submit" form="case-finish-editing-form" class="btn">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                    <span>Cancel</span>
-                </button>
-                <button type="button" class="btn btn--primary" data-dialog-open="case-save-reason-dialog" data-case-save-reason>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
-                    <span>Save</span>
-                </button>
-            }
-        }
-        else if (Model.CanRecoverLease || details.ActiveEditLease is null)
-        {
-            @* One control, whether or not this operator's own earlier lease is
-               still live: the claim replays it (EfCaseWorkflowStore.ClaimAsync
-               returns the retained token for the same operation key), so a
-               holder who came back to the Case is never asked to recover
-               something they never lost. A colleague's live lease still renders
-               no control at all. *@
-            <form method="post" asp-page-handler="ClaimLease">
-                <input type="hidden" name="id" value="@summary.CaseId" />
-                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
-                <button type="submit" class="btn btn--dark">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
-                    <span>@(Model.IsPostReportReadOnly ? "Enable return" : "Edit Case")</span>
-                </button>
-            </form>
-        }
-        @if (workflow.OriginalCaseId is { } originalCaseId)
-        {
-            <a class="btn" asp-page="/Cases/Details" asp-route-id="@originalCaseId">Original case</a>
-        }
-        @if (workflow.ReplacementCaseId is { } replacementCaseId)
-        {
-            <a class="btn" asp-page="/Cases/Details" asp-route-id="@replacementCaseId">Replacement case</a>
-        }
-        @if (canHandToEngineer)
-        {
-            <button type="button" class="btn btn--primary" data-dialog-open="case-handoff-dialog">
-                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-                <span>@CaseWorkspaceLabels.HandToEngineer</span>
-            </button>
-        }
-        @if (canSendToEva)
-        {
-            @* Progressive enhancement, matching _CaseEstimate's delete-estimate
-               trigger: a real link to the fallback page the dialog's own form
-               posts to (/Cases/Eva/Send), so the handoff is reachable with
-               script disabled and enhanced into a dialog when it is not. *@
-            <a class="btn" asp-page="/Cases/Eva/Send" asp-route-caseId="@workflow.CaseId" data-dialog-open="eva-handoff-dialog">
-                <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                <span>@OperatorLabels.CaseWorkspace.SendToEva</span>
-            </a>
-        }
-        @if (canConfirmReportSent)
-        {
-            <button type="button" class="btn btn--primary" data-dialog-open="case-report-sent-dialog">
-                <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
-                <span>Mark report sent</span>
-            </button>
-        }
-        @if (editing && state == CaseLifecycleState.PostReport)
-        {
-            <button type="button" class="btn btn--primary" data-dialog-open="case-complete-dialog">
-                <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-                <span>Mark completed</span>
-            </button>
-        }
-        @if ((isComplete || isQuery) && editing)
-        {
-            <button type="button" class="btn" data-dialog-open="case-return-engineer-dialog">
-                <svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg>
-                <span>Return to Engineer</span>
-            </button>
-        }
-        @if (offersMoreActions)
-        {
-            @* Less frequent lifecycle and custody work stays close to the
-               record without competing with the edit and current workflow
-               action. The existing posts and dialog targets remain intact. *@
-            <details class="case-more-actions record-bar-end">
-                <summary class="btn case-more-actions-toggle">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
-                    <span>More actions</span>
-                </summary>
-                <div class="case-more-actions-menu">
-                    @if (!isClosed)
+<article class="record case-record @(editing ? "is-editing" : null)" id="case-record" data-case-record
+         data-case-id="@summary.CaseId" data-case-version="@workflow.Version"
+         data-layout="@Pegasus.Web.Presentation.ShellPreferences.CaseLayout(HttpContext.Request)" data-section-current="@Model.Section"
+         data-case-editing="@(editing ? "true" : "false")">
+    @* The sticky block (v26 frame rule 1): the 56px ribbon and the 40px
+       section row, measured by the shared helper into --sticky-h. *@
+    <div class="sticky-block" data-sticky-block>
+        <div class="ribbon" aria-label="Case identity">
+            <div class="ribbon-facts" data-case-ribbon-facts>
+                <div class="ribbon-item ribbon-ref">
+                    <div class="ribbon-label">Case workspace · @registration</div>
+                    <h1 class="ribbon-value">@workflow.Identity.Reference</h1>
+                </div>
+                <div class="ribbon-item">
+                    <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonClaimant</div>
+                    <div class="ribbon-value"><span>@(string.IsNullOrWhiteSpace(summary.Claimant) ? OperatorLabels.CaseWorkspace.AbsentValue : summary.Claimant)</span></div>
+                </div>
+                <div class="ribbon-item">
+                    <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonPrincipal</div>
+                    <div class="ribbon-value"><span>@workflow.Identity.PrincipalCode</span></div>
+                </div>
+                <div class="ribbon-item">
+                    <div class="ribbon-label">@OperatorLabels.CaseWorkspace.RibbonEngineer</div>
+                    <div class="ribbon-value"><span>@(Model.EngineerDisplayName ?? OperatorLabels.CaseWorkspace.AbsentValue)</span></div>
+                </div>
+                <div class="ribbon-chips" aria-label="@OperatorLabels.CaseWorkspace.RibbonState" data-case-ribbon-chips>
+                    <partial name="Shared/_StatusChip" model="@Model.StateChipText" />
+                    @if (Model.CaseTypeChip is { } caseTypeChip)
                     {
-                        @if (isHeld)
-                        {
-                            <button type="button" class="btn" data-dialog-open="case-release-hold-dialog">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
-                                <span>Release Hold</span>
-                            </button>
-                        }
-                        else
-                        {
-                            <button type="button" class="btn" data-dialog-open="case-hold-dialog">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
-                                <span>Place on Hold</span>
-                            </button>
-                        }
-                        <form method="post" asp-page="/Cases/Custody" asp-route-id="@summary.CaseId"
-                              asp-page-handler="CreateRequestUploadLink">
-                            <input type="hidden" name="id" value="@summary.CaseId" />
-                            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                            <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                            <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                            <button type="submit" class="btn">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
-                                <span>Create upload link</span>
-                            </button>
-                        </form>
-                        <button type="button" class="btn btn--danger" data-dialog-open="case-correct-principal-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                            <span>Correct principal</span>
-                        </button>
+                        <span class="status status--navy status--plain" data-case-type-chip>@caseTypeChip</span>
+                    }
+                    @if (workflow.Archive is not null)
+                    {
+                        <span class="status status--red status--plain">@Frame.Archived</span>
+                    }
+                    @if (Model.ColleagueIsEditing && Model.EditAuthorityHolder is { } holder)
+                    {
+                        <span class="status status--navy status--plain" data-edit-authority>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
+                            @EditModeDisplay.HolderName(holder) is editing
+                        </span>
                     }
                 </div>
-            </details>
-        }
-        @if (offersAdverseClosure)
+            </div>
+            <div class="ribbon-actions" data-case-ribbon-actions>
+                @if (Model.AuditCase is { } auditCase)
+                {
+                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@auditCase.CaseId" data-audit-link>@Frame.AuditCase @auditCase.Reference</a>
+                }
+                @if (Model.OriginalCase is { } originalAudit)
+                {
+                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@originalAudit.CaseId" data-original-link>@Frame.OriginalCase @originalAudit.Reference</a>
+                }
+                @if (workflow.OriginalCaseId is { } originalCaseId)
+                {
+                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@originalCaseId">@Frame.OriginalCase</a>
+                }
+                @if (workflow.ReplacementCaseId is { } replacementCaseId)
+                {
+                    <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@replacementCaseId">@Frame.ReplacementCase</a>
+                }
+                @if (editing)
+                {
+                    <span class="lease-line" data-lease-line hidden></span>
+                    <form method="post" asp-page-handler="ReleaseLease" id="case-finish-editing-form" data-case-cancel-form hidden>
+                        <input type="hidden" name="id" value="@summary.CaseId" />
+                        <input type="hidden" name="operationKey" value="@Model.ReleaseLeaseOperationKey" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
+                    </form>
+                    @* Script hides this and beats instead; without script it is
+                       how editing is kept. *@
+                    <form method="post" asp-page-handler="RenewLease" data-case-renew>
+                        <input type="hidden" name="id" value="@summary.CaseId" />
+                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                        <input type="hidden" name="operationKey" value="@Model.RenewLeaseOperationKey" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        <button type="submit" class="btn btn--small">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                            <span>@Frame.RenewEditing</span>
+                        </button>
+                    </form>
+                    <form method="post" asp-page-handler="HeartbeatLease" data-case-heartbeat
+                          data-heartbeat-seconds="@((int)CaseEditAuthority.HeartbeatInterval.TotalSeconds)" hidden>
+                        <input type="hidden" name="id" value="@summary.CaseId" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    </form>
+                    <span class="status status--navy status--plain case-edit-badge">@Frame.Editing</span>
+                    <button type="submit" form="case-finish-editing-form" class="btn" data-case-cancel>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                        <span>@Frame.Cancel</span>
+                    </button>
+                    @if (editingCaseData && details.Data is not null)
+                    {
+                        <button type="submit" form="case-edit-form" class="btn btn--primary" data-case-save>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                            <span>@Frame.Save</span>
+                        </button>
+                    }
+                }
+                else if (Model.OwnLeaseHeldElsewhere || details.ActiveEditLease is null)
+                {
+                    @* One control, whether or not this operator's own earlier lease is
+                       still live: the claim replays it (EfCaseWorkflowStore.ClaimAsync
+                       returns the retained token for the same operation key). A
+                       person's own second window reads Take over; a colleague's live
+                       lease renders no control at all. *@
+                    <form method="post" asp-page-handler="ClaimLease" data-case-edit-form>
+                        <input type="hidden" name="id" value="@summary.CaseId" />
+                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                        <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
+                        <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
+                        <button type="submit" class="btn btn--dark" data-case-edit>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+                            <span>@(Model.OwnLeaseHeldElsewhere ? Frame.TakeOver : Model.IsPostReportReadOnly ? Frame.EnableReturn : Frame.EditCase)</span>
+                        </button>
+                    </form>
+                }
+                @if (offersActionsMenu)
+                {
+                    <details class="menu" data-menu data-case-actions>
+                        <summary class="btn"><span>@Frame.Actions</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+                        <div class="menu-body">
+                            @if (canHandToEngineer)
+                            {
+                                <button type="button" class="btn" data-dialog-open="case-handoff-dialog">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                                    <span>@CaseWorkspaceLabels.HandToEngineer</span>
+                                </button>
+                            }
+                            @if (canSendToEva)
+                            {
+                                @* A real link to the fallback page the dialog's own form
+                                   posts to (/Cases/Eva/Send), so the handoff is reachable
+                                   with script disabled and enhanced into a dialog. *@
+                                <a class="btn" asp-page="/Cases/Eva/Send" asp-route-caseId="@workflow.CaseId" data-dialog-open="eva-handoff-dialog">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                                    <span>@OperatorLabels.CaseWorkspace.SendToEva</span>
+                                </a>
+                            }
+                            @if (canConfirmReportSent)
+                            {
+                                <button type="button" class="btn" data-dialog-open="case-report-sent-dialog">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+                                    <span>@Frame.MarkReportSent</span>
+                                </button>
+                            }
+                            @if (canMarkCompleted)
+                            {
+                                <button type="button" class="btn" data-dialog-open="case-complete-dialog">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                                    <span>@Frame.MarkCompleted</span>
+                                </button>
+                            }
+                            @if (canReturnToReview)
+                            {
+                                <button type="button" class="btn" data-dialog-open="case-return-review-dialog">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                                    <span>@Frame.ReturnToReview</span>
+                                </button>
+                            }
+                            @if (canReturnToEngineer)
+                            {
+                                <button type="button" class="btn" data-dialog-open="case-return-engineer-dialog">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+                                    <span>@Frame.ReturnToEngineer</span>
+                                </button>
+                            }
+                            @if (canArchive)
+                            {
+                                <button type="button" class="btn" data-dialog-open="case-archive-dialog">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+                                    <span>@Frame.ArchiveCase</span>
+                                </button>
+                            }
+                            @if (offersHoldGroup || offersCreateAudit)
+                            {
+                                @if (canHandToEngineer || canSendToEva || canConfirmReportSent || canMarkCompleted || canReturnToReview || canReturnToEngineer || canArchive)
+                                {
+                                    <div class="menu-sep"></div>
+                                }
+                                @if (offersHoldGroup)
+                                {
+                                    @if (isHeld)
+                                    {
+                                        <button type="button" class="btn" data-dialog-open="case-release-hold-dialog">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
+                                            <span>@Frame.ReleaseHold</span>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="btn" data-dialog-open="case-hold-dialog">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
+                                            <span>@Frame.PlaceOnHold</span>
+                                        </button>
+                                    }
+                                    <form method="post" asp-page="/Cases/Custody" asp-route-id="@summary.CaseId"
+                                          asp-page-handler="CreateRequestUploadLink">
+                                        <input type="hidden" name="id" value="@summary.CaseId" />
+                                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                                        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                        <button type="submit" class="btn">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
+                                            <span>@Frame.CreateUploadLink</span>
+                                        </button>
+                                    </form>
+                                    <button type="button" class="btn" data-dialog-open="case-correct-principal-dialog">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                                        <span>@Frame.CorrectPrincipal</span>
+                                    </button>
+                                }
+                                @if (offersCreateAudit)
+                                {
+                                    <button type="button" class="btn" data-dialog-open="case-create-audit-dialog" data-create-audit>
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                                        <span>@Frame.CreateAudit</span>
+                                    </button>
+                                }
+                            }
+                            @if (offersAdverseClosure)
+                            {
+                                @* Review point 12: an adverse disposition is not a step
+                                   in the workflow, so it stands apart below a divider in
+                                   red. It closes the Case; it never deletes one. *@
+                                <div class="menu-sep"></div>
+                                <button type="button" class="btn btn--danger" data-dialog-open="case-close-dialog">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                                    <span>@OperatorLabels.CaseWorkspace.CloseCase</span>
+                                </button>
+                            }
+                        </div>
+                    </details>
+                }
+            </div>
+        </div>
+        <div class="section-row">
+            <nav class="section-nav" aria-label="@OperatorLabels.CaseWorkspace.SectionNav" data-section-nav>
+                @foreach (var entry in OperatorLabels.CaseWorkspace.Sections)
+                {
+                    <a class="section-link" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
+                       asp-route-section="@entry.Key" asp-fragment="section-@entry.Key" data-section-link="@entry.Key"
+                       aria-current="@(Model.Section == entry.Key ? "true" : "false")">
+                        <svg class="icon" aria-hidden="true"><use href="#@entry.Icon" /></svg>
+                        <span>@entry.Label</span>
+                    </a>
+                }
+            </nav>
+            <div class="section-tools">
+                @* Refresh reruns this query on the section the operator is
+                   looking at, not the Overview. *@
+                <form method="get" data-refresh-form data-case-refresh>
+                    <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
+                    <button type="submit" class="btn btn--icon btn--small" title="@Frame.Refresh" aria-label="@Frame.Refresh">
+                        <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                    </button>
+                </form>
+                <div class="layout-switch" role="group" aria-label="Case layout" data-case-layout-switch hidden>
+                    <button type="button" data-case-layout="scroll" aria-pressed="true">@Frame.Scroll</button>
+                    <button type="button" data-case-layout="tabs" aria-pressed="false">@Frame.Tabs</button>
+                </div>
+            </div>
+        </div>
+        <div data-case-stale>
+        @if (staleGeneration)
         {
-            @* Review point 12: an adverse disposition is not a step in the
-               workflow, so it stands alone at the end of the bar in the solid
-               danger style rather than among the progression actions. It
-               closes the Case; it never deletes one, and the reference and
-               history stay. *@
-            <div class="@adverseGroupClass" role="group"
-                 aria-label="@OperatorLabels.CaseWorkspace.AdverseActions">
-                <button type="button" class="btn btn--danger btn--danger-solid" data-dialog-open="case-close-dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                    <span>@OperatorLabels.CaseWorkspace.CloseCase</span>
-                </button>
+            <div class="stale-bar" role="status" data-dismissable data-stale-bar>
+                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                <span>@CaseWorkspaceLabels.ReportDelivery.GenerationStaleNotice</span>
+                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="report" asp-fragment="section-report" data-section-jump="report">Open Report</a>
+                <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
             </div>
         }
+        </div>
     </div>
 
-    <partial name="Cases/Shared/_CaseWorkspaceNav" model="Model" />
-    </div>
-
-    <div class="case-workspace">
-        <div class="case-main" id="case-main">
-            @* The ten sections in their fixed order (D30), each under the
-               stable host `section-<key>` the jump-nav addresses. A body a
-               later lane owns is a heading here; a body below the fold is
-               fetched as the reader approaches it. Files is safe to defer
-               during editing because it contributes no fields to the record's
-               one Save form. *@
+    <div class="workspace">
+        <div class="workspace-main" id="case-main">
+            @* The ten sections in their fixed order (D30), each a panel whose
+               id the section nav addresses. A body below the fold is fetched
+               as the reader approaches it; the fragment is the section itself. *@
             @foreach (var entry in OperatorLabels.CaseWorkspace.Sections)
             {
                 if (Model.SectionIsDeferred(entry.Key))
                 {
-                    <section class="case-section section-placeholder" id="section-@entry.Key"
+                    <section class="record-section panel section-placeholder @Model.ActiveTabClass(entry.Key)" id="section-@entry.Key"
                              data-section="@entry.Key" data-lazy="@entry.Key"
                              aria-label="@entry.Label"></section>
                     continue;
                 }
 
-                <section class="case-section" id="section-@entry.Key" data-section="@entry.Key">
-                    @if (entry.Key == "overview")
-                    {
-                        @* One panel of Case facts per mode: the editor mirrors
-                           the read view group for group, so the two correspond
-                           and neither is shown twice. *@
-                        <partial name="Cases/Shared/_CaseWorkflow" model="Model" />
-                        @if (!(Model.CanEditCaseData && details.Data is not null))
-                        {
-                            <partial name="Cases/Shared/_CaseSummary" model="Model" />
-                        }
-                    }
-                    else if (entry.Key == "inspection")
-                    {
+                switch (entry.Key)
+                {
+                    case "overview":
+                        <partial name="Cases/Shared/_CaseOverview" model="Model" />
+                        break;
+                    case "inspection":
                         <partial name="Cases/Shared/_CaseInspectionAddress" model="Model" />
-                    }
-                    else if (entry.Key == "vehicle")
-                    {
+                        break;
+                    case "vehicle":
                         <partial name="Cases/Shared/_CaseVehicle" model="Model" />
-                    }
-                    else if (entry.Key == "damage")
-                    {
+                        break;
+                    case "damage":
                         <partial name="Cases/Shared/_CaseDamage" model="Model" />
-                    }
-                    else if (entry.Key == "valuation")
-                    {
+                        break;
+                    case "valuation":
                         <partial name="Cases/Shared/_CaseValuation" model="Model" />
-                    }
-                    else if (entry.Key == "estimate")
-                    {
+                        break;
+                    case "estimate":
                         <partial name="Cases/Shared/_CaseEstimate" model="Model" />
-                    }
-                    else if (entry.Key == "settlement")
-                    {
+                        break;
+                    case "settlement":
                         <partial name="Cases/Shared/_CaseSettlement" model="Model" />
-                    }
-                    else if (entry.Key == "report")
-                    {
+                        break;
+                    case "report":
                         <partial name="Cases/Shared/_CaseReport" model="Model" />
-                    }
-                    else if (entry.Key == "files")
-                    {
+                        break;
+                    case "files":
                         <partial name="Cases/Shared/_CaseFiles" model="Model" />
-                    }
-                    else if (entry.Key == "notes")
-                    {
+                        break;
+                    case "notes":
                         <partial name="Cases/Shared/_CaseHistory" model="Model" />
-                    }
-                    else
-                    {
-                        @* Valuation (CASE-029) renders into this host when its
-                           lane builds it. *@
-                        <section class="panel">
-                            <div class="panel-head"><h2 id="section-@(entry.Key)-title">@entry.Label</h2></div>
-                        </section>
-                    }
-                </section>
+                        break;
+                }
             }
         </div>
 
-        <aside class="case-context stack" aria-label="Case context">
-            <section class="context-card">
-                <div class="panel-head"><h2>Current position</h2></div>
+        @* The aside (v25 decision 7): Figures and Next action. Current
+           position is gone because the ribbon carries it. *@
+        <aside class="workspace-aside" aria-label="Case context" data-case-aside>
+            <section class="panel context-card" data-figures>
+                <div class="panel-head"><h2>@Frame.Figures</h2></div>
                 <div class="panel-body">
-                    <div class="decision-row"><span>State</span><strong><partial name="Shared/_StatusChip" model="@stage" /></strong></div>
-                    <div class="decision-row"><span>Due</span><strong>@(workflow.DueWork?.DueBy?.ToString("d MMM yyyy") ?? OperatorLabels.CaseWorkspace.AbsentValue)</strong></div>
-                    <div class="decision-row"><span>Engineer</span><strong>@(Model.EngineerDisplayName ?? "Unassigned")</strong></div>
-                    <div class="decision-row"><span>@OperatorLabels.CaseWorkspace.SignOffEngineer</span><strong>@Model.SignOffEngineerDisplayName</strong></div>
-                    <div class="decision-row">
-                        <span>Editing</span>
-                        <strong>
-                            @if (Model.ViewerHoldsEditAuthority)
+                    @if (outcome is not null || legalStatus is not null)
+                    {
+                        <div class="fig-chips">
+                            @if (outcome is not null)
                             {
-                                @:You
+                                var outcomeText = outcome == "total_loss" && !string.IsNullOrWhiteSpace(salvageCategory)
+                                    ? $"Total loss · Cat {salvageCategory}"
+                                    : OperatorLabels.Humanise(outcome);
+                                <span class="status @(outcome == "total_loss" ? "status--red" : "status--blue")" data-outcome-chip>@outcomeText</span>
                             }
-                            else if (Model.EditAuthorityHolder is { } authorityHolder)
+                            @if (legalStatus is not null)
                             {
-                                @EditModeDisplay.HolderName(authorityHolder)
+                                <span class="status @(legalStatus == "unroadworthy" ? "status--amber" : "status--neutral")" data-legal-chip>@OperatorLabels.Humanise(legalStatus)</span>
                             }
-                            else
-                            {
-                                @:Available
-                            }
-                        </strong>
+                        </div>
+                    }
+                    <dl class="figures">
+                        <div class="figure figure--big"><dt>@Frame.RepairCostIncVat</dt><dd class="mono">@(repairCost is { } cost ? FormatMoney(cost) : "—")</dd></div>
+                        <div class="figure"><dt>@Frame.EngineersValue</dt><dd class="mono">@(engineerValue is { } ev ? FormatMoney(ev) : "—")</dd></div>
+                        <div class="figure"><dt>@Frame.RepairCostOfValue</dt><dd class="mono">@(repairCost is { } c && engineerValue is { } v && v > 0 ? $"{Math.Round(c / v * 100)}%" : "—")</dd></div>
+                    </dl>
+                </div>
+            </section>
+            <section class="panel context-card" data-next-action>
+                <div class="panel-head"><h2>@Frame.NextAction</h2></div>
+                <div class="panel-body">
+                    @foreach (var draft in Model.AiDrafts)
+                    {
+                        var (label, action) = draft.Action switch
+                        {
+                            AiDraftAction.ReviewEstimate => ("Estimate draft ready", Frame.ReviewEstimate),
+                            AiDraftAction.OpenQuery => ("Query response draft ready", Frame.OpenQuery),
+                            _ => ("Unidentified resolution draft ready", Frame.Review)
+                        };
+                        <div class="next-row ai-next" data-ai-draft="@draft.Job.JobId">
+                            <span><span class="src-tag src-tag--ai">AI</span> @label</span>
+                            <a class="btn btn--small btn--primary" href="@draft.Route">@action</a>
+                        </div>
+                    }
+                    <div class="next-row">
+                        <span data-next-label>@next.Label</span>
+                        <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId" asp-route-section="@next.SectionKey" asp-fragment="section-@next.SectionKey" data-section-jump="@next.SectionKey">@OperatorLabels.CaseWorkspace.Sections.First(section => section.Key == next.SectionKey).Label</a>
                     </div>
                 </div>
             </section>
-            @if (Model.OutstandingRequirements is { Count: > 0 } requirements)
-            {
-                var primary = requirements[0];
-                <section class="context-card">
-                    <div class="panel-head"><h2>Next action</h2></div>
-                    <div class="panel-body stack">
-                        <div class="notice notice--warning">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                            <span>@primary.Title</span>
-                        </div>
-                        <a class="btn btn--dark" asp-page="/Cases/Details" asp-route-id="@summary.CaseId" asp-route-section="notes">Open Notes</a>
-                    </div>
-                </section>
-            }
         </aside>
     </div>
 </article>
 
-<partial name="Shared/_EvidenceViewer" />
-<partial name="Cases/Shared/_CaseCropDialog" />
+<div data-case-viewer-host><partial name="Cases/Shared/_CaseViewer" model="Model" /></div>
 <partial name="Shared/_EditFinishConfirm" />
-
-@if (editingCaseData)
-{
-    <div class="dialog-backdrop" data-dialog="case-save-reason-dialog" hidden>
-        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-save-reason-dialog-title">
-            <div class="dialog-head">
-                <h2 id="case-save-reason-dialog-title" tabindex="-1">Save Case changes</h2>
-                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                </button>
-            </div>
-            <div class="dialog-body stack">
-                <div class="field">
-                    <label class="req" for="case-save-reason">Reason for changes</label>
-                    <textarea id="case-save-reason" name="reason" form="case-edit-form" rows="3" required maxlength="500"></textarea>
-                </div>
-            </div>
-            <div class="dialog-foot">
-                <button type="button" class="btn" data-dialog-close>Keep editing</button>
-                <button type="submit" form="case-edit-form" class="btn btn--primary">Save changes</button>
-            </div>
-        </section>
-    </div>
-}
-
-@if (editingCaseData && !isClosed)
-{
-    @if (isHeld)
-    {
-        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
-        {
-            ["DialogId"] = "case-release-hold-dialog",
-            ["DialogTitle"] = "Release Hold",
-            ["DialogActionUrl"] = Url.Page("/Cases/Workflow", "ReleaseHold", new { id = workflow.CaseId }),
-            ["DialogHiddenFields"] = new Dictionary<string, string?>
-            {
-                ["id"] = workflow.CaseId.ToString(),
-                ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
-                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
-                ["editLeaseToken"] = Model.LeaseToken
-            }
-        })" />
-    }
-    else
-    {
-        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
-        {
-            ["DialogId"] = "case-hold-dialog",
-            ["DialogTitle"] = "Place on Hold",
-            ["DialogActionUrl"] = Url.Page("/Cases/Workflow", "Hold", new { id = workflow.CaseId }),
-            ["DialogHiddenFields"] = new Dictionary<string, string?>
-            {
-                ["id"] = workflow.CaseId.ToString(),
-                ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
-                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
-                ["editLeaseToken"] = Model.LeaseToken
-            }
-        })" />
-    }
-    @if (state == CaseLifecycleState.PostReport)
-    {
-        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
-        {
-            ["DialogId"] = "case-complete-dialog",
-            ["DialogTitle"] = "Mark completed",
-            ["DialogActionUrl"] = Url.Page("/Cases/Closure", "Complete", new { id = workflow.CaseId }),
-            ["DialogHiddenFields"] = new Dictionary<string, string?>
-            {
-                ["id"] = workflow.CaseId.ToString(),
-                ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
-                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
-                ["editLeaseToken"] = Model.LeaseToken
-            }
-        })" />
-    }
-}
-@if (editingCaseData && !isClosed)
-{
-    <div class="dialog-backdrop" data-dialog="case-correct-principal-dialog" hidden>
-            <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-correct-principal-dialog-title">
-                <div class="dialog-head">
-                    <h2 id="case-correct-principal-dialog-title" tabindex="-1">Correct principal</h2>
-                    <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                    </button>
-                </div>
-                <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId"
-                      asp-page-handler="CreateLinkedReplacement">
-                    <input type="hidden" name="id" value="@workflow.CaseId" />
-                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                    <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                    <div class="dialog-body stack">
-                        <div class="notice notice--warning">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                            <span>Record Created in error and create the linked replacement case.</span>
-                        </div>
-                        <div class="field">
-                            <label class="req" for="case-replacement-principal">Replacement principal code</label>
-                            <input id="case-replacement-principal" name="replacementPrincipalCode" required maxlength="100" />
-                        </div>
-                        <div class="field">
-                            <label class="req" for="case-replacement-reason">Reason for action</label>
-                            <textarea id="case-replacement-reason" name="reason" rows="3" required maxlength="500"></textarea>
-                        </div>
-                    </div>
-                    <div class="dialog-foot">
-                        <button type="submit" class="btn btn--danger">Create linked replacement</button>
-                    </div>
-                </form>
-            </section>
-    </div>
-}
-
-@if (offersAdverseClosure)
-{
-    @* Review point 12: the adverse disposition is collected in one compact
-       dialog — which outcome, and why — and posts to the Closure handler that
-       already owns the named terminal outcomes. The chooser lists only the
-       outcomes the page model derived from Core's closure rules for this
-       state, so nothing offered here is refused for being the wrong outcome.
-       Created in error and E-mail unlinked are not among them: each is reached
-       through its own action, which Core requires. *@
-    <div class="dialog-backdrop" data-dialog="case-close-dialog" hidden>
-        <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-close-dialog-title">
-            <div class="dialog-head">
-                <h2 id="case-close-dialog-title" tabindex="-1">@OperatorLabels.CaseWorkspace.CloseCase</h2>
-                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                </button>
-            </div>
-            <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId"
-                  asp-page-handler="Close">
-                <input type="hidden" name="id" value="@workflow.CaseId" />
-                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                <div class="dialog-body stack">
-                    <div class="field">
-                        <label class="req" for="case-close-outcome">@OperatorLabels.CaseWorkspace.ClosureOutcome</label>
-                        <select id="case-close-outcome" name="outcome" required data-dialog-initial-focus>
-                            <option value=""></option>
-                            @foreach (var outcome in closureOutcomes)
-                            {
-                                <option value="@outcome">@OperatorLabels.CaseClosure(outcome)</option>
-                            }
-                        </select>
-                    </div>
-                    <div class="field">
-                        <label class="req" for="case-close-reason">@OperatorLabels.CaseWorkspace.ReasonForAction</label>
-                        <textarea id="case-close-reason" name="reason" rows="3" required maxlength="500"></textarea>
-                    </div>
-                </div>
-                <div class="dialog-foot">
-                    <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
-                    <button type="submit" class="btn btn--danger btn--danger-solid">@OperatorLabels.CaseWorkspace.CloseCase</button>
-                </div>
-            </form>
-        </section>
-    </div>
-}
-
-@if (editing && (isComplete || isQuery))
-{
-    <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
-    {
-        ["DialogId"] = "case-return-engineer-dialog",
-        ["DialogTitle"] = "Return to Engineer",
-        ["DialogActionUrl"] = Url.Page("/Cases/Closure", "ReturnToEngineer", new { id = workflow.CaseId }),
-        ["DialogHiddenFields"] = new Dictionary<string, string?>
-        {
-            ["id"] = workflow.CaseId.ToString(),
-            ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
-            ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
-            ["editLeaseToken"] = Model.LeaseToken
-        }
-    })" />
-}
-
-@if (canHandToEngineer)
-{
-    <div class="dialog-backdrop" data-dialog="case-handoff-dialog" hidden>
-        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-handoff-dialog-title">
-            <div class="dialog-head">
-                <h2 id="case-handoff-dialog-title" tabindex="-1">@CaseWorkspaceLabels.HandToEngineer</h2>
-                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                </button>
-            </div>
-            <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId"
-                  asp-page-handler="AssignEngineer" class="dialog-body stack">
-                <input type="hidden" name="id" value="@workflow.CaseId" />
-                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                <input type="hidden" name="instructionsComplete" value="@(Model.EvaHandoff!.InstructionsComplete)" />
-                <input type="hidden" name="imagesComplete" value="@(Model.EvaHandoff!.ImagesComplete)" />
-                <input type="hidden" name="evidenceReference" value="case-completeness-projection" />
-                <div class="field">
-                    <label class="req" for="case-handoff-engineer">@OperatorLabels.CaseWorkspace.RibbonEngineer</label>
-                    <select id="case-handoff-engineer" name="engineerId" required data-dialog-initial-focus>
-                        <option value=""></option>
-                        @foreach (var engineer in Model.EvaHandoff!.EngineerOptions)
-                        {
-                            <option value="@engineer.Id">@engineer.Name</option>
-                        }
-                    </select>
-                </div>
-                <div class="button-row">
-                    <button type="submit" class="btn btn--primary">@CaseWorkspaceLabels.HandToEngineer</button>
-                </div>
-            </form>
-        </section>
-    </div>
-}
-
-@if (canSendToEva)
-{
-    <div class="dialog-backdrop" data-dialog="eva-handoff-dialog" hidden>
-        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="eva-handoff-dialog-title">
-            <div class="dialog-head">
-                <h2 id="eva-handoff-dialog-title" tabindex="-1">@OperatorLabels.CaseWorkspace.EvaHandoff</h2>
-                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                </button>
-            </div>
-            <div class="dialog-body stack">
-                <partial name="Cases/Shared/_EvaHandoff" model="Model.EvaHandoff!" />
-            </div>
-        </section>
-    </div>
-}
-
-@if (canConfirmReportSent)
-{
-    @* D10: the action only confirms detected Sent evidence; nothing here
-       asserts a send. Each detected item offers its own confirmation, and the
-       retained identifiers the evidence record carries stay internal — the
-       mailbox and the authoritative time are what an operator reads. *@
-    <div class="dialog-backdrop" data-dialog="case-report-sent-dialog" hidden>
-        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-report-sent-dialog-title">
-            <div class="dialog-head">
-                <h2 id="case-report-sent-dialog-title" tabindex="-1">Mark report sent</h2>
-                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                </button>
-            </div>
-            <div class="dialog-body stack">
-                @foreach (var evidence in details.AvailableReportSentEvidence)
-                {
-                    <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId"
-                          asp-page-handler="LinkReportEvidence" class="stack">
-                        <input type="hidden" name="id" value="@workflow.CaseId" />
-                        <input type="hidden" name="evidenceId" value="@evidence.EvidenceId" />
-                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                        <div class="definition-list">
-                            <dl class="definition"><dt>Mailbox</dt><dd>@evidence.MailboxIdentity</dd></dl>
-                            <dl class="definition"><dt>Sent</dt><dd>@OperatorLabels.OfficeTime(evidence.SentAtUtc)</dd></dl>
-                        </div>
-                        <div class="field">
-                            <label class="req" for="report-sent-reason-@evidence.EvidenceId">Reason for action</label>
-                            <input id="report-sent-reason-@evidence.EvidenceId" name="reason" required maxlength="500" />
-                        </div>
-                        <div class="button-row">
-                            <button type="submit" class="btn btn--primary">Confirm detected evidence</button>
-                        </div>
-                    </form>
-                }
-            </div>
-        </section>
-    </div>
-}
+<div data-case-dialogs><partial name="Cases/Shared/_CaseDialogs" model="Model" /></div>
 
 @* B08: the Case record's own progressive enhancements. site.js is the shell's
    and stays untouched; everything here is a convenience on top of markup that

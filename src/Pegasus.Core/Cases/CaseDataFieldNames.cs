@@ -71,6 +71,10 @@ public static class CaseDataFieldNames
     public const string PrincipalNotes = "principal_notes";
     public const string ClaimSourceNotes = "claim_source_notes";
 
+    // Notes from client (v26 accident band): free text the client sent about
+    // the Case, saved with the Case beside the accident circumstances.
+    public const string ClientNotes = "client_notes";
+
     public static readonly string[] All =
     [
         WorkProviderCode,
@@ -127,6 +131,7 @@ public static class CaseDataFieldNames
         InspectionContactEmailAddress,
         InspectionNotes,
         PrincipalNotes,
-        ClaimSourceNotes
+        ClaimSourceNotes,
+        ClientNotes
     ];
 }

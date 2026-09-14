@@ -69,6 +69,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<CaseDueChaserEntity> CaseDueChasers => Set<CaseDueChaserEntity>();
     internal DbSet<CaseAssessmentFieldEntity> CaseAssessmentFields =>
         Set<CaseAssessmentFieldEntity>();
+    internal DbSet<CaseFieldProposalEntity> CaseFieldProposals => Set<CaseFieldProposalEntity>();
     internal DbSet<CaseEstimateLineEntity> CaseEstimateLines => Set<CaseEstimateLineEntity>();
     internal DbSet<CaseRepairSpecificationEntity> CaseRepairSpecifications =>
         Set<CaseRepairSpecificationEntity>();
@@ -186,6 +187,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         EvaSubmissionModelConfiguration.Configure(builder);
         AutomaticEvaReviewSubmissionModelConfiguration.Configure(builder);
         AssessmentModelConfiguration.Configure(builder);
+        CaseFieldProposalModelConfiguration.Configure(builder);
         PrincipalCredentialModelConfiguration.Configure(builder);
         ProviderSubmissionModelConfiguration.Configure(builder);
         IntakeAllocationModelConfiguration.Configure(builder);

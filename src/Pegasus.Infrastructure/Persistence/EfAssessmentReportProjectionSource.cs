@@ -150,7 +150,8 @@ internal sealed class EfAssessmentReportProjectionSource(
                     signOffEngineer.Signature,
                     signOffEngineer.SignatureContentType),
             Guides: guides,
-            ValuationCommentary: latestApplied?.Reason);
+            ValuationCommentary: AssessmentReportProjection.ValuationCommentaryOf(
+                workspace.Assessment, latestApplied?.Reason));
 
         var readiness = new CaseReportReadinessInput(
             workspace.Assessment,

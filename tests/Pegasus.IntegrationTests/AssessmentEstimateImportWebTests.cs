@@ -54,7 +54,9 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var client = CreateEngineerClient(factory);
         var fixture = AudatexEstimateFixture.Build();
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        // v26: the section's controls render inside the page-wide edit session.
+        var html = await EnterEditModeAsync(client, caseId);
+        Assert.Contains("data-estimate-import", html, StringComparison.Ordinal);
         Assert.Contains("Import estimate", html, StringComparison.Ordinal);
         var operationKey = NewOperationKey();
 
@@ -86,11 +88,12 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(RecordingStores.CaseVersion + 1, estimate.ExpectedVersion);
         // Retaining the document was itself a case mutation, so it ended edit mode and moved the
         // version; the draft is the second half of one action and re-enters on the operator's
-        // behalf. That single re-claim is the only one the import still makes.
-        Assert.Equal("lease-1", estimate.EditLeaseToken);
-        Assert.Equal(
-            RecordingStores.CaseVersion + 1,
-            Assert.Single(store.LeaseClaims).ExpectedVersion);
+        // behalf (lease-2). v25 decision F: the import is an immediate post inside the
+        // session, so after the draft consumed that lease the record reclaims once more
+        // (lease-3) and the operator is still editing.
+        Assert.Equal("lease-2", estimate.EditLeaseToken);
+        Assert.Equal(3, store.LeaseClaims.Count);
+        Assert.Equal(RecordingStores.CaseVersion + 1, store.LeaseClaims[1].ExpectedVersion);
         Assert.Equal(operationKey, estimate.OperationKey);
         Assert.NotNull(estimate.Lines);
         Assert.Equal(6, estimate.Lines!.Count);
@@ -99,9 +102,9 @@ public sealed partial class AssessmentEstimateImportWebTests
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate={store.LastCreatedEstimateId:D}");
         Assert.Contains(CaseWorkspaceLabels.EstimateImport.Imported, afterHtml, StringComparison.Ordinal);
         Assert.All(store.CurrentDraft!.Lines, line => Assert.Null(line.ConfirmedBy));
-        Assert.Null(store.ActiveLease);
-        Assert.DoesNotContain("value=\"lease-1\"", afterHtml, StringComparison.Ordinal);
-        Assert.Contains("Edit Case", afterHtml, StringComparison.Ordinal);
+        Assert.NotNull(store.ActiveLease);
+        Assert.Contains("value=\"lease-3\"", afterHtml, StringComparison.Ordinal);
+        Assert.Contains("data-case-editing=\"true\"", afterHtml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -119,13 +122,12 @@ public sealed partial class AssessmentEstimateImportWebTests
         var retained = Assert.IsType<CaseFile>(store.RetainedDocument);
         var estimateId = store.LastCreatedEstimateId;
         var importedVersion = store.WorkflowVersion;
+        // v25 decision F: the import keeps the session — after the draft consumed the
+        // import's own lease (lease-1) the record reclaimed lease-2, so the browser is
+        // still editing without claiming again.
         html = await GetHtmlAsync(client, imported.Headers.Location!.OriginalString);
-        using var claimed = await client.PostAsync($"/Cases/{caseId:D}?handler=ClaimLease&section=estimate", Form(
-            AntiforgeryValue(html), ("id", caseId.ToString("D")),
-            ("expectedVersion", importedVersion.ToString(CultureInfo.InvariantCulture)), ("operationKey", NewOperationKey())));
-        Assert.Equal(HttpStatusCode.Redirect, claimed.StatusCode);
-        html = await GetHtmlAsync(client, claimed.Headers.Location!.OriginalString);
         Assert.Contains("value=\"lease-2\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-case-editing=\"true\"", html, StringComparison.Ordinal);
         var activeLease = store.ActiveLease;
 
         using var replay = await client.PostAsync($"/Cases/{caseId:D}?handler=CompleteEstimateImport&section=estimate", Form(
@@ -169,9 +171,9 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(HttpStatusCode.Redirect, importResponse.StatusCode);
         var imported = Assert.Single(store.SavedEstimates);
         var draft = Assert.IsType<RepairSpecificationVersion>(store.CurrentDraft);
-        var editorHtml = await GetHtmlAsync(
-            client,
-            $"/Cases/{caseId:D}?section=estimate&estimate={draft.SpecificationId:D}");
+        // The import consumed the session; the editor renders inside a new one (v26).
+        var editorHtml = await EnterEditModeAsync(
+            client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
         var fields = new List<KeyValuePair<string, string>>
         {
             new("__RequestVerificationToken", AntiforgeryValue(editorHtml)),
@@ -450,7 +452,13 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        // v26: in read mode Import is the section's claim form (it opens the
+        // edit session first); inside the session it is the dialog's link.
+        var readHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        Assert.Contains("handler=ClaimLease", ControlFor(readHtml, "data-estimate-import"), StringComparison.Ordinal);
+        Assert.DoesNotContain("import-estimate-dialog", readHtml, StringComparison.Ordinal);
+
+        var html = await EnterEditModeAsync(client, caseId);
         Assert.Contains(
             $"href=\"/Cases/{caseId:D}?section=estimate&amp;dialog=import-estimate\"",
             html,
@@ -461,7 +469,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             $"/Cases/{caseId:D}?section=estimate&dialog=import-estimate");
         var dialog = Regex.Match(
             staticTarget,
-            "<div class=\"dialog-backdrop\" data-dialog=\"import-estimate-dialog\"[^>]*>",
+            "<div[^>]*class=\"dialog-backdrop\" data-dialog=\"import-estimate-dialog\"[^>]*>",
             RegexOptions.CultureInvariant);
         Assert.True(dialog.Success, "The static target must render the import dialog.");
         Assert.DoesNotContain("hidden=", dialog.Value, StringComparison.Ordinal);
@@ -477,7 +485,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate={draft.SpecificationId:D}");
+        var html = await EnterEditModeAsync(client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
+        Assert.Contains("data-estimate-use", html, StringComparison.Ordinal);
         Assert.Contains("Use estimate", html, StringComparison.Ordinal);
         var operationKey = NewOperationKey();
 
@@ -495,13 +504,17 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(draft.SpecificationId, use.EstimateId);
         Assert.Equal(RecordingStores.CaseVersion, use.ExpectedVersion);
         Assert.Equal(RecordingStores.HeldLeaseToken, use.EditLeaseToken);
-        Assert.Empty(store.LeaseClaims);
+        // v25 decision F: an immediate post keeps the session — the page's own
+        // entry claim, then the reclaim after the acceptance consumed it.
+        Assert.Equal(2, store.LeaseClaims.Count);
+        Assert.NotNull(store.ActiveLease);
 
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate={draft.SpecificationId:D}");
         Assert.Contains(
             "The estimate is now the case's current estimate.",
             WebUtility.HtmlDecode(afterHtml),
             StringComparison.Ordinal);
+        Assert.Contains("data-case-editing=\"true\"", afterHtml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -672,11 +685,11 @@ public sealed partial class AssessmentEstimateImportWebTests
         // The percentages round-trip as percentages, not as the fractions Core
         // validates.
         Assert.Contains(
-            "name=\"estimateDiscountParts\" type=\"number\" min=\"0\" max=\"100\" step=\"0.01\" inputmode=\"decimal\" class=\"tabular\" value=\"12.5\"",
+            "name=\"estimateDiscountParts\" type=\"number\" min=\"0\" max=\"100\" step=\"0.01\" inputmode=\"decimal\" value=\"12.5\"",
             reloaded,
             StringComparison.Ordinal);
         Assert.Contains(
-            "name=\"estimateDiscountOverall\" type=\"number\" min=\"0\" max=\"100\" step=\"0.01\" inputmode=\"decimal\" class=\"tabular\" value=\"2.5\"",
+            "name=\"estimateDiscountOverall\" type=\"number\" min=\"0\" max=\"100\" step=\"0.01\" inputmode=\"decimal\" value=\"2.5\"",
             reloaded,
             StringComparison.Ordinal);
     }
@@ -697,7 +710,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate=new");
+        var html = await EnterEditModeAsync(client, caseId, "?section=estimate&estimate=new");
         // A new estimate opens on Unknown, charging VAT on nothing.
         Assert.Contains(
             "<option value=\"Unknown\" selected=\"selected\">Unknown</option>",
@@ -769,13 +782,16 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var client = CreateEngineerClient(factory);
 
         Assert.True(draft.Details.VatPolicy.BlocksAcceptance);
-        var html = await GetHtmlAsync(
-            client, $"/Cases/{caseId:D}?section=estimate&estimate={draft.SpecificationId:D}");
+        var html = await EnterEditModeAsync(
+            client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
 
-        Assert.Contains(
-            $"<span class=\"gated\" data-condition=\"{CaseWorkspaceLabels.EstimateVat.UnknownStatusCondition}\">",
-            html,
-            StringComparison.Ordinal);
+        // v26: the condition is stated once as a plain pill beside where the
+        // control would be — absent, not disabled, and never a tooltip.
+        var pillAt = html.IndexOf("data-estimate-use-condition", StringComparison.Ordinal);
+        Assert.True(pillAt >= 0, "The Use estimate condition pill must render.");
+        var pill = html[pillAt..html.IndexOf("</span>", html.IndexOf("<span>", pillAt, StringComparison.Ordinal), StringComparison.Ordinal)];
+        Assert.Contains(CaseWorkspaceLabels.EstimateVat.UnknownStatusCondition, pill, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-condition=", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=SetCurrentEstimate", html, StringComparison.Ordinal);
 
         // The same estimate with its status recorded offers the live control.
@@ -833,9 +849,10 @@ public sealed partial class AssessmentEstimateImportWebTests
         var dialog = html[start..end];
         Assert.Contains("<h2 id=\"compare-estimates-dialog-title\" tabindex=\"-1\">Compare estimates</h2>", dialog, StringComparison.Ordinal);
         Assert.Contains("Repairer draft", dialog, StringComparison.Ordinal);
-        Assert.Contains("Engineer current &#xB7; Current", dialog, StringComparison.Ordinal);
-        Assert.Contains(">Draft</td>", dialog, StringComparison.Ordinal);
-        Assert.Contains(">Accepted</td>", dialog, StringComparison.Ordinal);
+        Assert.Contains("Engineer current", dialog, StringComparison.Ordinal);
+        // The state reads as a chip: Current for the accepted current estimate.
+        Assert.Contains(">Draft</span>", dialog, StringComparison.Ordinal);
+        Assert.Contains(">Current</span>", dialog, StringComparison.Ordinal);
         Assert.Contains("&#xA3;620.20", dialog, StringComparison.Ordinal);
         Assert.Contains("&#xA3;124.04", dialog, StringComparison.Ordinal);
         Assert.Contains("&#xA3;744.24", dialog, StringComparison.Ordinal);
@@ -874,7 +891,8 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
+        var html = await EnterEditModeAsync(client, caseId);
+        Assert.Contains("data-estimate-duplicate", html, StringComparison.Ordinal);
         Assert.Contains("Duplicate", html, StringComparison.Ordinal);
         var operationKey = NewOperationKey();
 
@@ -892,10 +910,12 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(draft.SpecificationId, duplicate.EstimateId);
         Assert.Equal(RecordingStores.CaseVersion, duplicate.ExpectedVersion);
         Assert.Equal(RecordingStores.HeldLeaseToken, duplicate.EditLeaseToken);
-        Assert.Empty(store.LeaseClaims);
+        // The entry claim and the reclaim that keeps the session (v25 F).
+        Assert.Equal(2, store.LeaseClaims.Count);
 
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         Assert.Contains("The estimate was duplicated.", afterHtml, StringComparison.Ordinal);
+        Assert.Contains("data-case-editing=\"true\"", afterHtml, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -1188,6 +1208,62 @@ public sealed partial class AssessmentEstimateImportWebTests
         values.Select(value => new KeyValuePair<string, string>(value.Name, value.Value));
 
     private static string NewOperationKey() => Guid.NewGuid().ToString("N");
+
+    /// <summary>
+    /// v26: the Estimate section's controls render inside the page-wide edit
+    /// session, so a test that reads them enters it the way the operator does
+    /// — the ribbon's Edit Case claim — and reads the page again.
+    /// </summary>
+    private static async Task<string> EnterEditModeAsync(
+        HttpClient client, Guid caseId, string query = "?section=estimate")
+    {
+        var initial = await GetHtmlAsync(client, $"/Cases/{caseId:D}{query}");
+        using var claim = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(initial),
+                ("id", caseId.ToString("D")),
+                ("expectedVersion", InputValue(initial, "expectedVersion")),
+                ("operationKey", InputValue(initial, "operationKey")),
+                ("section", "estimate")));
+        Assert.Equal(HttpStatusCode.Redirect, claim.StatusCode);
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}{query}");
+        Assert.Contains("data-case-editing=\"true\"", editing, StringComparison.Ordinal);
+        return editing;
+    }
+
+    /// <summary>The first rendered input of that name, as the browser would post it.</summary>
+    private static string InputValue(string html, string name)
+    {
+        var tag = Regex.Match(
+            html,
+            $"<input[^>]*name=\"{Regex.Escape(name)}\"[^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(tag.Success, $"The page must render an input named {name}.");
+        var value = ValueRegex().Match(tag.Value);
+        Assert.True(value.Success, $"The input {name} must have a value.");
+        return WebUtility.HtmlDecode(value.Groups["value"].Value);
+    }
+
+    /// <summary>
+    /// The element carrying a v26 hook, widened to its enclosing form when it
+    /// sits in one, so a test can read which handler a control posts to.
+    /// </summary>
+    private static string ControlFor(string html, string hook)
+    {
+        var at = html.IndexOf(hook, StringComparison.Ordinal);
+        Assert.True(at >= 0, $"The page must render [{hook}].");
+        var formStart = html.LastIndexOf("<form", at, StringComparison.Ordinal);
+        var formEnd = formStart >= 0 ? html.IndexOf("</form>", formStart, StringComparison.Ordinal) : -1;
+        if (formStart >= 0 && formEnd > at)
+        {
+            return html[formStart..(formEnd + "</form>".Length)];
+        }
+
+        var start = html.LastIndexOf('<', at);
+        var end = html.IndexOf('>', at);
+        return html[start..(end + 1)];
+    }
 
     /// <summary>
     /// The estimate header's VAT policy and discounts as the browser posts

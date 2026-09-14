@@ -170,7 +170,12 @@ public sealed class ImageViewingWebTests
             $"/Cases/{caseId:D}?section=files");
         Assert.Contains(expectedSource, casePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("AB12CDE-01", casePage, StringComparison.Ordinal);
-        Assert.Contains("data-evidence-viewer", casePage, StringComparison.Ordinal);
+        // v26 § Image viewer: the Case record carries its own full-screen
+        // viewer rather than the shell's dialog; the intake photographs join
+        // its filmstrip through the same evidence-set contract.
+        Assert.Contains("data-case-viewer", casePage, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-evidence-viewer", casePage, StringComparison.Ordinal);
+        Assert.Contains("data-intake-group", casePage, StringComparison.Ordinal);
         // A read-only section with nothing recorded is absent, not an
         // empty-state panel (docs/design/README.md, 2026-08-20).
         Assert.DoesNotContain(

@@ -11,7 +11,8 @@ public sealed record ReportImagePreparationView(
     bool MayPrepare,
     IReadOnlyList<CaseAssetPreparation> Items,
     IReadOnlyDictionary<Guid, string> FileNames,
-    IReadOnlyDictionary<Guid, string> PreviewUrls)
+    IReadOnlyDictionary<Guid, string> PreviewUrls,
+    IReadOnlyDictionary<Guid, string> ThumbnailUrls)
 {
     public static ReportImagePreparationView Files(DetailsModel page) =>
         Create(page, "files", page.AssetPreparations);
@@ -37,11 +38,12 @@ public sealed record ReportImagePreparationView(
             // U5a: preparation follows the Case edit lease, not the
             // engineering window. Gating it on CanEditEngineering is why a
             // Review-state Case offered no Crop anywhere.
-            page.CanEditCaseData && details.Data is not null,
+            page.MayPrepareImages,
             items,
             files.ToDictionary(file => file.Occurrence.Id, file => file.Version.FileName),
-            files.ToDictionary(
-                file => file.Occurrence.Id,
-                file => $"/Cases/{details.Workflow.CaseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}&inline=true"));
+            files.ToDictionary(file => file.Occurrence.Id, page.PreviewUrl),
+            // The tile rendering, which already shows the saved region
+            // (v26 crop and tag); the staged region is drawn over it.
+            files.ToDictionary(file => file.Occurrence.Id, page.ThumbnailUrl));
     }
 }

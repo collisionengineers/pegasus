@@ -1,0 +1,46 @@
+@*
+    The trailing controls every Case section head carries (v26 frame rules
+    3-4): Edit when the section could edit and no session is open, the one
+    availability sentence while a session keeps the section reading, and the
+    collapse chevron the shared panel component folds with. Rendered at the
+    end of the head's .panel-actions; the section's own primary and menu come
+    before it.
+
+    Model: the page and the section key.
+*@
+@using Pegasus.Web.Presentation
+@model Pegasus.Web.Pages.Cases.CaseSectionHeadView
+@{
+    var owner = Model.Page;
+    var key = Model.Key;
+    var availability = owner.SectionAvailability(key);
+    var collapsed = owner.CollapsedClass("case." + key) is not null;
+}
+@if (owner.SectionOffersEdit(key))
+{
+    <form method="post" asp-page="/Cases/Details" asp-page-handler="ClaimLease" asp-route-id="@owner.Case!.Workflow.CaseId" data-case-edit-form>
+        <input type="hidden" name="id" value="@owner.Case!.Workflow.CaseId" />
+        <input type="hidden" name="expectedVersion" value="@owner.Case!.Workflow.Version" />
+        <input type="hidden" name="operationKey" value="@owner.ClaimLeaseOperationKey" />
+        <input type="hidden" name="section" value="@key" />
+        <button type="submit" class="btn btn--small" data-section-edit="@key">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+            <span>@CaseWorkspaceLabels.Frame.Edit</span>
+        </button>
+    </form>
+}
+@if (availability is not null)
+{
+    <span class="gated avail" data-section-availability="@key">
+        <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
+        <span>@availability</span>
+    </span>
+}
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle
+        aria-expanded="@(collapsed ? "false" : "true")"
+        aria-label="@(collapsed ? CaseWorkspaceLabels.Frame.ExpandSection : CaseWorkspaceLabels.Frame.CollapseSection)"
+        data-label-collapse="@CaseWorkspaceLabels.Frame.CollapseSection"
+        data-label-expand="@CaseWorkspaceLabels.Frame.ExpandSection"
+        title="@CaseWorkspaceLabels.Frame.CollapseSection">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg>
+</button>

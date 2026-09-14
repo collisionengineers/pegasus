@@ -1,73 +1,249 @@
+@*
+    Settlement (v26 § Settlement). The figures strip, then the Decisions strip
+    (manager's v24 decision folded in: Outcome, Engineer's Value, Salvage
+    category and value, Roadworthiness and the unroadworthy reason in one
+    place; the Proposed column only when a reviewed AI proposal exists), then
+    the settlement money, the costs/hire/delays sub-panel and the seven
+    salvage fields. One geometry for read and edit: every editable value is a
+    .fc cell whose control joins the record's one Save form.
+*@
+@using System.Globalization
 @using Pegasus.Core.Assessment
 @using Pegasus.Core.Reports
 @using Pegasus.Web.Presentation
+@using SettlementLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Settlement
 @using EngineerLabels = Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.EngineerSections
 @model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var editing = Model.SectionIsEditable("settlement");
+    var labels = CaseWorkspaceLabels.Editors.Settlement;
+    var engineerValue = Model.EngineerValue;
+    var repairCost = Model.RepairCostIncVat;
+    var salvage = Model.SalvageValueFigure;
+    var isTotalLoss = Model.IsTotalLoss;
+    var isUnroadworthy = Model.IsUnroadworthy;
+    var hasProposal = Model.HasProposedDecisions;
+    var awaiting = Model.AwaitingDecisionCount;
+    var outcome = Model.RecordedOutcome;
+    var equity = engineerValue is { } ev ? ev - (salvage ?? 0m) : (decimal?)null;
 
-<section class="panel" aria-labelledby="section-settlement-title">
-    <div class="panel-head"><h2 id="section-settlement-title">@EngineerLabels.Settlement</h2></div>
-    <div class="panel-body">
-        <div class="grid grid-2">
-            @foreach (var field in CaseWorkspaceLabels.Editors.Settlement)
+    string Money(decimal? value) => value is { } figure ? Pegasus.Web.Pages.Cases.DetailsModel.FormatPounds(figure) : "—";
+}
+
+<section class="record-section panel @Model.CollapsedClass("case.settlement") @Model.ActiveTabClass("settlement") @(Model.IsEditing && !Model.SectionIsEditable("settlement") ? "is-locked" : null)" id="section-settlement" data-section="settlement" data-collapse="case.settlement" aria-labelledby="section-settlement-title"
+         data-settlement data-settlement-outcome="@outcome" data-settlement-editable="@(editing ? "true" : "false")">
+    <div class="panel-head">
+        <h2 id="section-settlement-title">@EngineerLabels.Settlement</h2>
+        <div class="panel-actions">
+            <partial name="Cases/Shared/_CaseSectionHeadTools" model='new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "settlement")' />
+        </div>
+    </div>
+    <div class="panel-body stack">
+        @* The figures the decision produces, from the Engineer's Value, the
+           recorded salvage value and the Current estimate's printed total. *@
+        <div class="metric-strip" data-settlement-figures>
+            @if (isTotalLoss)
             {
-                var definition = AssessmentVocabulary.Definitions[field.Key];
-                var value = Model.AssessmentEditorValue(field.Key);
-                var name = CaseWorkspaceLabels.Editors.FormName(field.Key);
-                if (Model.CanEditAssessmentField(field.Key))
-                {
-                    <div class="field">
-                        <label for="edit-@field.Key">@field.Value</label>
-                        @if (definition.Type == AssessmentFieldType.Flag)
-                        {
-                            <select id="edit-@field.Key" name="@name" form="case-edit-form">
-                                <option value="" selected="@(value is null)"></option>
-                                <option value="true" selected="@(value == "true")">Yes</option>
-                                <option value="false" selected="@(value == "false")">No</option>
-                            </select>
-                        }
-                        else if (definition.Type == AssessmentFieldType.Enumerated)
-                        {
-                            <select id="edit-@field.Key" name="@name" form="case-edit-form">
-                                <option value="" selected="@(value is null)"></option>
-                                @foreach (var code in definition.Codes ?? [])
-                                {
-                                    <option value="@code" selected="@(value == code)">@code.Replace('_', ' ')</option>
-                                }
-                            </select>
-                        }
-                        else
-                        {
-                            <input id="edit-@field.Key" name="@name" form="case-edit-form" value="@value"
-                                   type="@(definition.Type == AssessmentFieldType.Date ? "date" : definition.Type is AssessmentFieldType.Money or AssessmentFieldType.WholeNumber ? "number" : "text")"
-                                   step="@(definition.Type == AssessmentFieldType.Money ? "0.01" : null)" maxlength="@definition.MaximumLength" />
-                        }
-                    </div>
-                }
-                else
-                {
-                    <dl class="detail-list"><div><dt>@field.Value</dt><dd>@Model.AssessmentValue(field.Key)</dd></div></dl>
-                }
-            }
-            @if (Model.CanEditEngineering)
-            {
-                <div class="field"><label for="edit-storage-per-day">Storage per day</label><input type="number" step="0.01" id="edit-storage-per-day" name="storagePerDay" form="case-edit-form" value="@Model.AssessmentEditorValue(AssessmentVocabulary.SettlementStoragePerDay)" /></div>
-                <div class="field"><label for="edit-recovery-charge">Recovery charge</label><input type="number" step="0.01" id="edit-recovery-charge" name="recoveryCharge" form="case-edit-form" value="@Model.AssessmentEditorValue(AssessmentVocabulary.CostRecoveryCharge)" /></div>
+                <div class="metric"><span class="metric-label">@SettlementLabels.EngineersValue</span><span class="metric-value">@Money(engineerValue)</span>@if (engineerValue is null){<span class="metric-meta">@SettlementLabels.ApplyInValuationMeta</span>}</div>
+                <div class="metric"><span class="metric-label">@SettlementLabels.SalvageValue</span><span class="metric-value">@Money(salvage)</span></div>
+                <div class="metric"><span class="metric-label">@SettlementLabels.Equity</span><span class="metric-value red">@Money(equity)</span><span class="metric-meta">@SettlementLabels.EquityMeta</span></div>
+                <div class="metric"><span class="metric-label">@SettlementLabels.RepairCostIncVat</span><span class="metric-value">@Money(repairCost)</span><span class="metric-meta">@(repairCost is { } cost && engineerValue is { } value && cost > value ? SettlementLabels.ExceedsEngineersValue : SettlementLabels.FromCurrentEstimate)</span></div>
             }
             else
             {
-                <dl class="detail-list">
-                    <div><dt>Storage per day</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.SettlementStoragePerDay)</dd></div>
-                    <div><dt>@EngineerLabels.RecoveryCharge</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.CostRecoveryCharge)</dd></div>
-                </dl>
+                <div class="metric"><span class="metric-label">@SettlementLabels.EngineersValue</span><span class="metric-value">@Money(engineerValue)</span>@if (engineerValue is null){<span class="metric-meta">@SettlementLabels.ApplyInValuationMeta</span>}</div>
+                <div class="metric"><span class="metric-label">@SettlementLabels.LabourHours</span><span class="metric-value">@(Model.LabourHours is { } hours ? hours.ToString("0.00", CultureInfo.InvariantCulture) : "—")</span></div>
+                <div class="metric"><span class="metric-label">@(outcome == "cash_in_lieu" ? SettlementLabels.CashInLieu : SettlementLabels.RepairCostIncVat)</span><span class="metric-value red">@Money(repairCost)</span><span class="metric-meta">@SettlementLabels.FromCurrentEstimate</span></div>
+                <div class="metric"><span class="metric-label">@SettlementLabels.RepairCostOfValue</span><span class="metric-value">@(repairCost is { } c && engineerValue is { } v && v > 0 ? $"{Math.Round(c / v * 100)}%" : "—")</span></div>
             }
         </div>
-        <dl class="detail-list">
-            <div><dt>Repair total</dt><dd>@(Model.AcceptedSpecification is { } estimate ? ReportRepairCosts.For(estimate).Total.ToString("0.00") : OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
-            <div><dt>Repair days</dt><dd>@(Model.AcceptedSpecification?.Details.RepairDays?.ToString() ?? OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
-            <div><dt>Engineer's Value</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.ValueEngineer)</dd></div>
-            <div><dt>Equity</dt><dd>@(Model.Settlement?.Equity.ToString("0.00") ?? OperatorLabels.CaseWorkspace.AbsentValue)</dd></div>
-            <div><dt>@EngineerLabels.StorageCharge</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.CostStorageCharge)</dd></div>
-            <div><dt>@EngineerLabels.RepairerVatRegistered</dt><dd>@Model.AssessmentValue(AssessmentVocabulary.CostRepairerVatRegistered)</dd></div>
-        </dl>
+
+        @* The Decisions strip. The Proposed column draws only when a decision
+           field holds the Automation actor's unconfirmed value; Accept copies
+           it into the control (script) — without script the operator picks
+           the same value from the control beside it. *@
+        <div class="decisions @(hasProposal ? "has-proposal" : null)" data-decisions>
+            <div class="dec-head">
+                <h3>@SettlementLabels.Decisions</h3>
+                @if (hasProposal)
+                {
+                    <span class="muted" data-decisions-meta>@awaiting @SettlementLabels.AwaitingReview · @SettlementLabels.AiProposal</span>
+                }
+                @if (hasProposal && editing && awaiting > 0)
+                {
+                    <button type="button" class="btn btn--small" data-accept-all-proposals>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                        <span>@SettlementLabels.AcceptAll</span>
+                    </button>
+                }
+            </div>
+            @{ await DecisionRow(AssessmentVocabulary.Outcome, labels[AssessmentVocabulary.Outcome], false); }
+            <div class="dec" data-decision="@AssessmentVocabulary.ValueEngineer">
+                <span class="dl">@SettlementLabels.EngineersValue</span>
+                @if (hasProposal)
+                {
+                    var valueProposal = Model.ProposalFor(AssessmentVocabulary.ValueEngineer);
+                    <div class="prop" data-proposal="@AssessmentVocabulary.ValueEngineer" data-proposal-status="@valueProposal?.Status">
+                        @if (valueProposal is not null)
+                        {
+                            <span>@Pegasus.Web.Pages.Cases.DetailsModel.DisplayAssessmentValue(AssessmentVocabulary.ValueEngineer, valueProposal.ProposedValue)</span>
+                            <span class="src-tag src-tag--ai">AI</span>
+                            <span class="status @Pegasus.Web.Pages.Cases.DetailsModel.ProposalStatusClass(valueProposal.Status)">@Pegasus.Web.Pages.Cases.DetailsModel.ProposalStatusWord(valueProposal.Status)</span>
+                            @if (editing && valueProposal.Status == CaseFieldProposalStatus.Awaiting)
+                            {
+                                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId" asp-route-section="valuation" asp-fragment="section-valuation" data-section-jump="valuation">@SettlementLabels.ApplyInValuation</a>
+                            }
+                        }
+                    </div>
+                }
+                <div class="fc ro">
+                    <span class="lbl">@SettlementLabels.EngineersValue</span>
+                    <div class="fv mono" data-decision-engineer-value>
+                        <span>@Money(engineerValue)</span>
+                        <a class="src-tag" asp-page="/Cases/Details" asp-route-id="@Model.Case!.Workflow.CaseId" asp-route-section="valuation" asp-fragment="section-valuation" data-section-jump="valuation">@SettlementLabels.ValuationLink</a>
+                    </div>
+                </div>
+            </div>
+            @{ await DecisionRow(AssessmentVocabulary.SalvageCategory, labels[AssessmentVocabulary.SalvageCategory], !isTotalLoss, "total-loss");
+                await DecisionRow(AssessmentVocabulary.SalvageValue, labels[AssessmentVocabulary.SalvageValue], !isTotalLoss, "total-loss");
+                await DecisionRow(AssessmentVocabulary.LegalStatus, labels[AssessmentVocabulary.LegalStatus], false);
+            }
+            <div class="dec wide" data-decision="@AssessmentVocabulary.UnroadworthyReason" data-shown-when="unroadworthy" hidden="@(isUnroadworthy ? null : "hidden")">
+                <span class="dl">@labels[AssessmentVocabulary.UnroadworthyReason]</span>
+                @{ Proposal(AssessmentVocabulary.UnroadworthyReason);
+                    await Field(AssessmentVocabulary.UnroadworthyReason, labels[AssessmentVocabulary.UnroadworthyReason], multi: true); }
+            </div>
+        </div>
+
+        <div class="fg g4">
+            @{ await Field(AssessmentVocabulary.SettlementExcess, labels[AssessmentVocabulary.SettlementExcess]);
+                await Field(AssessmentVocabulary.SettlementBetterment, labels[AssessmentVocabulary.SettlementBetterment]);
+            }
+        </div>
+
+        <div class="sub-panel"><h3>@SettlementLabels.CostsHireDelays</h3>
+            <div class="fg g4">
+                @{ await Field(AssessmentVocabulary.SettlementReserve, labels[AssessmentVocabulary.SettlementReserve]);
+                    await Field(AssessmentVocabulary.SettlementDiminution, labels[AssessmentVocabulary.SettlementDiminution]);
+                    await Field(AssessmentVocabulary.SettlementHireStart, labels[AssessmentVocabulary.SettlementHireStart]);
+                    await Field(AssessmentVocabulary.SettlementHireDailyCost, labels[AssessmentVocabulary.SettlementHireDailyCost]);
+                    await Field(AssessmentVocabulary.SettlementRepairDelays, labels[AssessmentVocabulary.SettlementRepairDelays]);
+                    await Field(AssessmentVocabulary.SettlementReportDelay, labels[AssessmentVocabulary.SettlementReportDelay]);
+                    await Field(AssessmentVocabulary.SettlementClaimantVatRegistered, labels[AssessmentVocabulary.SettlementClaimantVatRegistered]);
+                }
+                <div class="fc ro"><span class="lbl">@SettlementLabels.StorageCharge</span><div class="fv mono derived @(Model.AssessmentIsAbsent(AssessmentVocabulary.CostStorageCharge) ? "empty" : null)">@Model.AssessmentDisplay(AssessmentVocabulary.CostStorageCharge)</div></div>
+                <div class="fc ro"><span class="lbl">@SettlementLabels.RepairDays</span><div class="fv derived @(Model.AcceptedSpecification?.Details.RepairDays is null ? "empty" : null)">@(Model.AcceptedSpecification?.Details.RepairDays?.ToString(CultureInfo.InvariantCulture) ?? OperatorLabels.CaseWorkspace.AbsentValue)@if (Model.AcceptedSpecification?.Details.RepairDays is not null){<span class="src-tag">@SettlementLabels.CurrentEstimate</span>}</div></div>
+            </div>
+        </div>
+
+        <div class="sub-panel" data-shown-when="total-loss" hidden="@(isTotalLoss ? null : "hidden")"><h3>@SettlementLabels.Salvage</h3>
+            <div class="fg g4">
+                @{ await Field(AssessmentVocabulary.SettlementSalvageAt, labels[AssessmentVocabulary.SettlementSalvageAt]);
+                    await Field(AssessmentVocabulary.SettlementSalvageAgent, labels[AssessmentVocabulary.SettlementSalvageAgent]);
+                    await Field(AssessmentVocabulary.SettlementSalvageAgentReference, labels[AssessmentVocabulary.SettlementSalvageAgentReference]);
+                    await Field(AssessmentVocabulary.SettlementSalvageMoved, labels[AssessmentVocabulary.SettlementSalvageMoved]);
+                    await Field(AssessmentVocabulary.SettlementSalvageOwnerRetains, labels[AssessmentVocabulary.SettlementSalvageOwnerRetains]);
+                    await Field(AssessmentVocabulary.SettlementSalvageValueAgreed, labels[AssessmentVocabulary.SettlementSalvageValueAgreed]);
+                    await Field(AssessmentVocabulary.SettlementSalvageSettled, labels[AssessmentVocabulary.SettlementSalvageSettled]);
+                }
+            </div>
+        </div>
     </div>
 </section>
+
+@functions {
+    // One decision row: the label column, the Proposed column when the strip
+    // carries proposals, and the cell itself.
+    private async Task DecisionRow(string path, string label, bool hidden, string? shownWhen = null)
+    {
+        <div class="dec" data-decision="@path" data-shown-when="@shownWhen" hidden="@(hidden ? "hidden" : null)">
+            <span class="dl">@label</span>
+            @{ Proposal(path); }
+            @{ await Field(path, label); }
+        </div>
+    }
+
+    // The Proposed column's cell: the AI's value, its tag and the derived
+    // status (Awaiting / Accepted / Corrected); Accept only while it awaits a
+    // decision and the field edits. Drawn only when the strip carries proposals.
+    private void Proposal(string path)
+    {
+        if (!Model.HasProposedDecisions)
+        {
+            return;
+        }
+        var proposal = Model.ProposalFor(path);
+        var editable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(path);
+        <div class="prop" data-proposal="@path" data-proposal-status="@proposal?.Status">
+            @if (proposal is not null)
+            {
+                <span data-proposal-value="@proposal.ProposedValue">@Pegasus.Web.Pages.Cases.DetailsModel.DisplayAssessmentValue(path, proposal.ProposedValue)</span>
+                <span class="src-tag src-tag--ai">AI</span>
+                <span class="status @Pegasus.Web.Pages.Cases.DetailsModel.ProposalStatusClass(proposal.Status)">@Pegasus.Web.Pages.Cases.DetailsModel.ProposalStatusWord(proposal.Status)</span>
+                @if (editable && proposal.Status == CaseFieldProposalStatus.Awaiting)
+                {
+                    <button type="button" class="btn btn--small" data-accept-proposal="@path"><span>@SettlementLabels.Accept</span></button>
+                }
+            }
+        </div>
+    }
+
+    // One assessment cell on the vocabulary's own type: a Yes/No select for a
+    // flag, the codes for an enumeration, a money/number/date input, a text
+    // input or textarea. The control renders only while the field edits.
+    private async Task Field(string path, string label, bool multi = false, string? extraClass = null)
+    {
+        var definition = AssessmentVocabulary.Definitions[path];
+        var editable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(path);
+        var value = Model.AssessmentEditorValue(path);
+        var raw = Model.Assessment?.Field(path)?.Value;
+        var absent = string.IsNullOrWhiteSpace(raw);
+        var name = CaseWorkspaceLabels.Editors.FormName(path);
+        var id = "f-" + path.Replace('.', '-').Replace('_', '-');
+        var mono = definition.Type is AssessmentFieldType.Money or AssessmentFieldType.WholeNumber;
+        var isMulti = multi || (definition.Type == AssessmentFieldType.Text && definition.MaximumLength > 500);
+        <div class="fc @extraClass" data-field="@path">
+            @if (editable)
+            {
+                <label for="@id">@label</label>
+            }
+            else
+            {
+                <span class="lbl">@label</span>
+            }
+            <div class="fv @(mono ? "mono" : null) @(isMulti ? "multi" : null) @(absent ? "empty" : null)">@Model.AssessmentDisplay(path)</div>
+            @if (editable)
+            {
+                if (definition.Type == AssessmentFieldType.Flag)
+                {
+                    <select id="@id" class="fi" name="@name" form="case-edit-form">
+                        <option value="" selected="@(value is null)"></option>
+                        <option value="true" selected="@(value == "true")">Yes</option>
+                        <option value="false" selected="@(value == "false")">No</option>
+                    </select>
+                }
+                else if (definition.Type == AssessmentFieldType.Enumerated)
+                {
+                    <select id="@id" class="fi" name="@name" form="case-edit-form">
+                        <option value="" selected="@(value is null)"></option>
+                        @foreach (var code in definition.Codes ?? [])
+                        {
+                            <option value="@code" selected="@(value == code)">@Pegasus.Web.Pages.Cases.DetailsModel.CodeWords(code)</option>
+                        }
+                    </select>
+                }
+                else if (isMulti)
+                {
+                    <textarea id="@id" class="fi" name="@name" form="case-edit-form" maxlength="@definition.MaximumLength">@value</textarea>
+                }
+                else
+                {
+                    <input id="@id" class="fi @(mono ? "mono" : null)" name="@name" form="case-edit-form" value="@value"
+                           type="@(definition.Type == AssessmentFieldType.Date ? "date" : mono ? "number" : "text")"
+                           step="@(definition.Type == AssessmentFieldType.Money ? "0.01" : definition.Type == AssessmentFieldType.WholeNumber ? "1" : null)"
+                           maxlength="@(definition.Type == AssessmentFieldType.Text ? definition.MaximumLength : null)" />
+                }
+            }
+        </div>
+    }
+}

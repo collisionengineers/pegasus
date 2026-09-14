@@ -751,6 +751,113 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal(demoted.Version, (await harness.GetRequiredDataAsync()).Version);
     }
 
+    /// <summary>
+    /// Phase 5b: an Automation value on a decision field is recorded as an
+    /// Awaiting proposal in the same save; the staff save that records the
+    /// field resolves it — the same value Accepted, another value Corrected —
+    /// and a field nobody proposed carries no proposal.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomationProposalIsAcceptedOrCorrectedByTheStaffSaveThatRecordsTheField()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var engineer = Engineer(harness);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.ReportPreparation)}, AssignedEngineerId = {Guid.Parse(engineer.SubjectId)} WHERE CaseId = {harness.CaseId}");
+        }
+        var automation = ActionActor.Automation("pegasus-automation");
+        var initial = await harness.GetRequiredDataAsync();
+        var aiLease = await harness.AcquireLeaseAsync(initial.Version, automation, "proposal-ai-lease");
+        await harness.WorkspaceStore.SaveAsync(Request(harness, initial.Version, aiLease.Token, "proposal-ai-save", automation) with
+        {
+            Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.Outcome] = "repairable",
+                [AssessmentVocabulary.LegalStatus] = "roadworthy"
+            })
+        }, default);
+
+        var queries = new EfCaseFieldProposalQueries(harness.Factory);
+        Assert.All(
+            await queries.ListForCaseAsync(harness.CaseId, default),
+            proposal => Assert.Equal(CaseFieldProposalStatus.Awaiting, proposal.Status));
+
+        var afterAi = await harness.GetRequiredDataAsync();
+        var staffLease = await harness.AcquireLeaseAsync(afterAi.Version, engineer, "proposal-staff-lease");
+        await harness.WorkspaceStore.SaveAsync(Request(harness, afterAi.Version, staffLease.Token, "proposal-staff-save", engineer) with
+        {
+            Settlement = new(new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [AssessmentVocabulary.Outcome] = "repairable",
+                [AssessmentVocabulary.LegalStatus] = "unroadworthy",
+                [AssessmentVocabulary.UnroadworthyReason] = "Brake line severed",
+                [AssessmentVocabulary.SettlementExcess] = "250.00"
+            })
+        }, default);
+
+        var proposals = (await queries.ListForCaseAsync(harness.CaseId, default)).ToDictionary(item => item.FieldPath);
+        Assert.Equal(2, proposals.Count);
+        Assert.Equal(CaseFieldProposalStatus.Accepted, proposals[AssessmentVocabulary.Outcome].Status);
+        Assert.Equal(CaseFieldProposalStatus.Corrected, proposals[AssessmentVocabulary.LegalStatus].Status);
+        Assert.Equal("roadworthy", proposals[AssessmentVocabulary.LegalStatus].ProposedValue);
+        Assert.Equal(engineer.SubjectId, proposals[AssessmentVocabulary.LegalStatus].ResolvedBy);
+    }
+
+    /// <summary>
+    /// Phase 5b: a changed claim source must be an active Claim source record
+    /// when the save commits; a deactivated one or an organisation without the
+    /// role leaves the Case unchanged. Notes from client save with the Case.
+    /// </summary>
+    [Fact]
+    public async Task AChangedClaimSourceMustBeAnActiveClaimSourceAndNotesFromClientSaveWithTheCase()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var inactiveId = Guid.NewGuid();
+        var repairerId = Guid.NewGuid();
+        var activeId = Guid.NewGuid();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            context.Organizations.AddRange(
+                new() { Id = inactiveId, Name = "Retired source", Version = 1, Active = false, ContactRoles = [new() { Role = "claim_source" }] },
+                new() { Id = repairerId, Name = "A repairer", Version = 1, Active = true, ContactRoles = [new() { Role = "repairer" }] },
+                new() { Id = activeId, Name = "Acme Claims", Version = 3, Active = true, ContactRoles = [new() { Role = "claim_source" }] });
+            await context.SaveChangesAsync();
+        }
+
+        // A refused save changes nothing, so the one lease stays live and the
+        // version stays put for the next attempt.
+        var before = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(before.Version, harness.StaffActor, "claim-source-lease");
+        foreach (var (id, name) in new[] { (inactiveId, "Retired source"), (repairerId, "A repairer") })
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => harness.WorkspaceStore.SaveAsync(
+                Request(harness, before.Version, lease.Token, $"refused-save-{id:N}") with
+                {
+                    Overview = Overview("Jane Example") with { ClaimSource = new(id, 1, name, null, null, null) }
+                }, default));
+            Assert.Equal(before.Version, (await harness.GetRequiredDataAsync()).Version);
+        }
+
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, before.Version, lease.Token, "accepted-source-save") with
+            {
+                Overview = Overview("Jane Example") with
+                {
+                    ClaimSource = new(activeId, 3, "Acme Claims", "A Handler", null, null),
+                    ClientNotes = "The claimant says the car was parked.\n\nPhotos to follow."
+                }
+            }, default);
+
+        Assert.Equal(activeId, saved.Data.Workspace!.ClaimSource!.ClaimSourceId);
+        Assert.Equal("The claimant says the car was parked.\n\nPhotos to follow.", saved.Data.Workspace.ClientNotes);
+        var history = await new EfCaseQueryStore(harness.Factory, harness.TimeProvider)
+            .ListHistoryByCursorAsync(harness.CaseId, null, null, 20, default);
+        Assert.Contains(history, entry => entry.Reason?.Contains("Claim source: Acme Claims", StringComparison.Ordinal) == true
+            && entry.Reason.Contains("Client notes", StringComparison.Ordinal));
+    }
+
     private static ActionActor Engineer(Harness harness) => ActionActor.Staff(
         Guid.Parse(harness.StaffActor.SubjectId),
         [StaffRole.Engineer]);
