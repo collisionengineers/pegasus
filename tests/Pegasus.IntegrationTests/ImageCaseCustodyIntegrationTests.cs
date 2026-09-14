@@ -131,10 +131,21 @@ public sealed class ImageCaseCustodyIntegrationTests
 
         // Merge into a formal case: the transition enqueues the fold and
         // commits regardless of external storage availability.
-        var caseId = await SeedCaseAsync(services, memberReceiptIds[0], "IMG26001");
+        var originalCaseId = await SeedCaseAsync(services, memberReceiptIds[0], "IMG26001");
+        var caseId = await SeedCaseAsync(
+            services, memberReceiptIds[0], "a.IMG26001", originalCaseId);
         var caseCustody = services.GetRequiredService<ICaseCustody>();
-        var caseRoot = await caseCustody.CreateCaseRootAsync(
-            caseId, "IMG26001", $"img-case-root:{caseId:N}", CancellationToken.None);
+        await caseCustody.CreateCaseRootAsync(
+            originalCaseId, "IMG26001", $"img-case-root:{originalCaseId:N}", CancellationToken.None);
+        var caseRoot = await caseCustody.CreateLinkedAuditCaseRootAsync(
+            caseId,
+            "a.IMG26001",
+            originalCaseId,
+            "IMG26001",
+            "0123456789ABCDEFGHJKMNPQRS",
+            $"img-case-root:{caseId:N}",
+            null,
+            CancellationToken.None);
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
@@ -217,7 +228,13 @@ public sealed class ImageCaseCustodyIntegrationTests
         // image-case folder is gone.
         Assert.False(Directory.Exists(custodyRootDirectory));
         var caseImagesDirectory = Path.Combine(
-            factory.ArtifactDirectory, "custody", "cases", caseId.ToString("N"), "images");
+            factory.ArtifactDirectory,
+            "custody",
+            "cases",
+            originalCaseId.ToString("N"),
+            "cases",
+            caseId.ToString("N"),
+            "images");
         Assert.Equal(
             pngBytes,
             await File.ReadAllBytesAsync(Path.Combine(
@@ -371,7 +388,8 @@ public sealed class ImageCaseCustodyIntegrationTests
     private static async Task<Guid> SeedCaseAsync(
         IServiceProvider services,
         Guid originReceiptId,
-        string reference)
+        string reference,
+        Guid? auditOfCaseId = null)
     {
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -386,8 +404,10 @@ public sealed class ImageCaseCustodyIntegrationTests
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {now})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {reference}, {lineageId}, {true}, {0L})");
+        var caseType = auditOfCaseId is null ? "inspection" : "audit";
+        var auditReference = auditOfCaseId is null ? null : reference;
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {"not_ready"}, {"pending"}, {originReceiptId}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
+            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, AuditReference, Type, InitialState, CustodyState, OriginIntakeReceiptId, AuditOfCaseId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {auditReference}, {caseType}, {"not_ready"}, {"pending"}, {originReceiptId}, {auditOfCaseId}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
         return caseId;
@@ -410,7 +430,9 @@ public sealed class ImageCaseCustodyIntegrationTests
         public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
             Guid caseId,
             string caseReference,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken,
+            Guid? parentCaseId = null,
+            string? parentCaseReference = null) =>
             Task.FromException<CaseCustodyRoot>(failure());
 
         public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(

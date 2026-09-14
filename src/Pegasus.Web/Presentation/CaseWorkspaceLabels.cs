@@ -162,6 +162,7 @@ public static class CaseWorkspaceLabels
         public static string? Label(string field)
         {
             if (field == FormName(AssessmentVocabulary.HistoryCheck)) return "Vehicle history";
+            if (field == FormName(AssessmentVocabulary.VehicleCondition)) return "Pre-incident condition";
             foreach (var entry in Settlement.Concat(Report).Concat(Damage).Concat(Vehicle))
             {
                 if (field == FormName(entry.Key)) return entry.Value;
@@ -178,7 +179,8 @@ public static class CaseWorkspaceLabels
 
         public static bool IsAssessmentField(string path) =>
             Settlement.ContainsKey(path) || Report.ContainsKey(path) || Damage.ContainsKey(path)
-            || Vehicle.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck;
+            || Vehicle.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck
+            || path == AssessmentVocabulary.VehicleCondition;
     }
 
     /// <summary>

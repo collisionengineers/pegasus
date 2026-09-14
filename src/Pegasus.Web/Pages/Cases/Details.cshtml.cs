@@ -90,6 +90,18 @@ public sealed partial class DetailsModel(
     RequestUploadLimits? requestUploadLimits = null,
     IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
 {
+    public string? CommittedEditorCommand => TempData["CaseEditorCommit"] as string;
+
+    private void RecordEditorCommit(string editor, string operationKey, long expectedVersion)
+    {
+        // These three commands each complete exactly one guarded Case mutation.
+        // Use its expected version, not a later read which may include another write.
+        TempData["CaseEditorCommit"] = JsonSerializer.Serialize(new
+        {
+            editor, operationKey, expectedVersion, version = checked(expectedVersion + 1)
+        });
+    }
+
     public bool StaffMailAvailable => staffMailSend is not null
         && staffMailSend is not UnavailableStaffMailSend;
     /// <summary>
@@ -1307,10 +1319,16 @@ public sealed partial class DetailsModel(
                     nameof(vehicleYear), nameof(vehicleMileage), nameof(vehicleMileageUnit),
                     nameof(vehicleMileageSource) }.Any(Posted)
                     || assessmentFields.ContainsKey(AssessmentVocabulary.HistoryCheck)
+                    || assessmentFields.ContainsKey(AssessmentVocabulary.VehicleCondition)
                     || vehicleIdentityFields.Count > 0;
-                if (assessmentFields.TryGetValue(AssessmentVocabulary.HistoryCheck, out var historyCheck))
+                // The history check and pre-incident condition are Engineer
+                // fields the Vehicle section renders; they travel with its request.
+                foreach (var path in new[] { AssessmentVocabulary.HistoryCheck, AssessmentVocabulary.VehicleCondition })
                 {
-                    vehicleIdentityFields[AssessmentVocabulary.HistoryCheck] = historyCheck;
+                    if (assessmentFields.TryGetValue(path, out var vehicleFinding))
+                    {
+                        vehicleIdentityFields[path] = vehicleFinding;
+                    }
                 }
                 var impacts = !Posted(nameof(damageImpacts))
                     ? null
@@ -1368,9 +1386,11 @@ public sealed partial class DetailsModel(
                         Submitted(nameof(signOffEngineerId), signOffEngineerId, current.Workflow.SignOffEngineerId),
                         Submitted(nameof(reportDate), reportDate, recordedDate))
                 }, cancellationToken);
+                RecordEditorCommit("case-edit-form", operationKey, expectedVersion);
             },
             "Case saved.",
-            caseId => RedirectToSection(caseId, section));
+            caseId => RedirectToSection(caseId, section),
+            keepEditing: true);
 
     private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
 
@@ -2088,6 +2108,7 @@ public sealed partial class DetailsModel(
                     SelectedRateCardVersion = selectedRateCard.Version
                 },
                 cancellationToken);
+            RecordEditorCommit("case-estimate-form", operationKey, expectedVersion.Value);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
             TempData["CaseStatus"] = "The estimate was saved.";

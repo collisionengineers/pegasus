@@ -145,6 +145,46 @@ public sealed class LocalCaseCustodyAtomicWriteTests
             auditFolder.Replace('/', Path.DirectorySeparatorChar))));
     }
 
+    [Fact]
+    public async Task LinkedAuditRootUsesAndRequiresTheOriginalCaseHierarchy()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var custody = scope.ServiceProvider.GetRequiredService<ICaseCustody>();
+        var originalCaseId = Guid.NewGuid();
+        var auditCaseId = Guid.NewGuid();
+        var original = await custody.CreateCaseRootAsync(
+            originalCaseId,
+            "QDOS31004",
+            $"case-custody:{originalCaseId:N}:root",
+            CancellationToken.None);
+        var audit = await custody.CreateLinkedAuditCaseRootAsync(
+            auditCaseId,
+            "a.QDOS31004",
+            originalCaseId,
+            original.Reference,
+            "0123456789ABCDEFGHJKMNPQRS",
+            $"audit-custody:{auditCaseId:N}:root",
+            null,
+            CancellationToken.None);
+
+        var resolved = await custody.GetExistingCaseRootAsync(
+            auditCaseId,
+            audit.Reference,
+            CancellationToken.None,
+            originalCaseId,
+            original.Reference);
+
+        Assert.Equal(audit, resolved);
+        Assert.Equal(
+            $"cases/{originalCaseId:N}/cases/{auditCaseId:N}",
+            audit.RemoteId);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => custody.GetExistingCaseRootAsync(
+            auditCaseId,
+            audit.Reference,
+            CancellationToken.None));
+    }
+
     private sealed class CancelOnFirstReadArtifactStore(
         ReadOnlyMemory<byte> content,
         CancellationTokenSource cancellationSource) : IIntakeArtifactStore
