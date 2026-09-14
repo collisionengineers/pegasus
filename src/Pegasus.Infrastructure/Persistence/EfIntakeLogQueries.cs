@@ -77,45 +77,7 @@ internal sealed class EfIntakeLogQueries(
                         || (message.Subject != null && message.Subject.Contains(text)))));
         }
 
-        var candidates = await query
-            .OrderByDescending(item => item.ReceivedAtUtc)
-            .ThenByDescending(item => item.Id)
-            .Take(MaximumCandidates)
-            .Select(item => new Candidate(
-                item.Id,
-                item.ReceivedAtUtc,
-                item.SourceChannel,
-                item.ExternalReceiptToken,
-                item.SourceFileName,
-                item.Decision,
-                item.FailureReason ?? item.DecisionReason,
-                item.InstructionDraft == null ? null : item.InstructionDraft.SuggestedPrincipalCode,
-                item.Assets.Where(asset => asset.Kind == "source" && asset.Disposition == "source").Select(asset => (Guid?)asset.Id).FirstOrDefault(),
-                context.Triage.Where(triage => triage.OriginReceiptId == item.Id).Select(triage => new Produced(triage.Id, triage.Reference)).FirstOrDefault(),
-                context.Set<ImageIntakeEntity>().Where(intake => intake.OriginReceiptId == item.Id).Select(intake => new Produced(intake.Id, intake.ImageIntakeReference)).FirstOrDefault(),
-                context.Set<UnidentifiedItemEntity>().Where(unidentified => unidentified.OriginId == item.Id)
-                    .Select(unidentified => new ProducedUnidentified(unidentified.Id, unidentified.Reference, unidentified.State, unidentified.ResolutionTargetKind)).FirstOrDefault(),
-                context.IntakeWorkItems.Where(work => work.ProcessedReceiptId == item.Id).Select(work => work.AttemptCount).FirstOrDefault(),
-                context.IntakeWorkItems.Any(work => work.ProcessedReceiptId == item.Id && work.State == "failed"),
-                context.IntakeAllocationAttempts.Count(attempt => attempt.IntakeReceiptId == item.Id),
-                context.IntakeAllocationAttempts.Where(attempt => attempt.IntakeReceiptId == item.Id)
-                    .OrderByDescending(attempt => attempt.AttemptNumber)
-                    .Select(attempt => attempt.Status)
-                    .FirstOrDefault(),
-                context.IntakeAllocationAttempts.Where(attempt => attempt.IntakeReceiptId == item.Id)
-                    .OrderByDescending(attempt => attempt.AttemptNumber)
-                    .Select(attempt => attempt.RecoveryDisposition)
-                    .FirstOrDefault(),
-                (from asset in context.Set<IntakeAssetEntity>()
-                 join operation in context.Set<IntakeOcrOperationEntity>() on asset.Id equals operation.IntakeAssetId
-                 join work in context.ExternalWorkItems on operation.Id equals work.Id
-                 where asset.IntakeReceiptId == item.Id
-                 orderby work.DueAtUtc descending, operation.Id
-                 // A Failed attempt already re-queued by a person reads as Pending
-                 // (EfIntakeOcrOperationStore.EffectiveState).
-                 select operation.State == nameof(IntakeOcrState.Failed) && work.State != ExternalWorkStatePersistence.Failed
-                     ? nameof(IntakeOcrState.Pending)
-                     : operation.State).FirstOrDefault()))
+        var candidates = await Candidates(context, Newest(query))
             .ToListAsync(cancellationToken);
 
         var composed = candidates
@@ -127,19 +89,71 @@ internal sealed class EfIntakeLogQueries(
         return new IntakeLogPage(rows, page, pageSize, composed.Length);
     }
 
+    /// <remarks>
+    /// Failed intake is the number of receipts whose composed outcome is a
+    /// retryable failure (<see cref="IntakeLogPolicy.IsRetryableFailure"/>) — the
+    /// rows Operations lists — judged by the same composition as the list, over
+    /// the same bounded newest candidates.
+    /// </remarks>
     public async Task<IntakeLogCounts> GetCountsAsync(CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var work = await context.IntakeWorkItems.AsNoTracking()
+        var candidates = await Candidates(context, Newest(context.IntakeReceipts.AsNoTracking()))
+            .ToListAsync(cancellationToken);
+        var pending = await context.IntakeWorkItems.AsNoTracking()
             .GroupBy(item => item.State)
-            .Select(group => new { State = group.Key, Count = group.Count(), OldestDueAtUtc = group.Min(item => item.DueAtUtc) })
+            .Select(group => new { State = group.Key, OldestDueAtUtc = group.Min(item => item.DueAtUtc) })
             .ToListAsync(cancellationToken);
         return new IntakeLogCounts(
-            work.Where(item => EfIntakeWorkStore.ParseState(item.State) == IntakeWorkState.Failed).Sum(item => item.Count),
-            work.Where(item => EfIntakeWorkStore.ParseState(item.State) is not IntakeWorkState.Failed and not IntakeWorkState.Completed)
+            candidates.Count(candidate => IntakeLogPolicy.IsRetryableFailure(ComposeOutcome(candidate))),
+            pending.Where(item => EfIntakeWorkStore.ParseState(item.State) is not IntakeWorkState.Failed and not IntakeWorkState.Completed)
                 .Select(item => (DateTimeOffset?)item.OldestDueAtUtc)
                 .Min());
     }
+
+    private static IQueryable<IntakeReceiptEntity> Newest(IQueryable<IntakeReceiptEntity> query) =>
+        query
+            .OrderByDescending(item => item.ReceivedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Take(MaximumCandidates);
+
+    /// <summary>The one projection every read composes its outcome from.</summary>
+    private static IQueryable<Candidate> Candidates(PegasusDbContext context, IQueryable<IntakeReceiptEntity> query) =>
+        query.Select(item => new Candidate(
+            item.Id,
+            item.ReceivedAtUtc,
+            item.SourceChannel,
+            item.ExternalReceiptToken,
+            item.SourceFileName,
+            item.Decision,
+            item.FailureReason ?? item.DecisionReason,
+            item.InstructionDraft == null ? null : item.InstructionDraft.SuggestedPrincipalCode,
+            item.Assets.Where(asset => asset.Kind == "source" && asset.Disposition == "source").Select(asset => (Guid?)asset.Id).FirstOrDefault(),
+            context.Triage.Where(triage => triage.OriginReceiptId == item.Id).Select(triage => new Produced(triage.Id, triage.Reference)).FirstOrDefault(),
+            context.Set<ImageIntakeEntity>().Where(intake => intake.OriginReceiptId == item.Id).Select(intake => new Produced(intake.Id, intake.ImageIntakeReference)).FirstOrDefault(),
+            context.Set<UnidentifiedItemEntity>().Where(unidentified => unidentified.OriginId == item.Id)
+                .Select(unidentified => new ProducedUnidentified(unidentified.Id, unidentified.Reference, unidentified.State, unidentified.ResolutionTargetKind)).FirstOrDefault(),
+            context.IntakeWorkItems.Where(work => work.ProcessedReceiptId == item.Id).Select(work => work.AttemptCount).FirstOrDefault(),
+            context.IntakeWorkItems.Any(work => work.ProcessedReceiptId == item.Id && work.State == "failed"),
+            context.IntakeAllocationAttempts.Count(attempt => attempt.IntakeReceiptId == item.Id),
+            context.IntakeAllocationAttempts.Where(attempt => attempt.IntakeReceiptId == item.Id)
+                .OrderByDescending(attempt => attempt.AttemptNumber)
+                .Select(attempt => attempt.Status)
+                .FirstOrDefault(),
+            context.IntakeAllocationAttempts.Where(attempt => attempt.IntakeReceiptId == item.Id)
+                .OrderByDescending(attempt => attempt.AttemptNumber)
+                .Select(attempt => attempt.RecoveryDisposition)
+                .FirstOrDefault(),
+            (from asset in context.Set<IntakeAssetEntity>()
+             join operation in context.Set<IntakeOcrOperationEntity>() on asset.Id equals operation.IntakeAssetId
+             join work in context.ExternalWorkItems on operation.Id equals work.Id
+             where asset.IntakeReceiptId == item.Id
+             orderby work.DueAtUtc descending, operation.Id
+             // A Failed attempt already re-queued by a person reads as Pending
+             // (EfIntakeOcrOperationStore.EffectiveState).
+             select operation.State == nameof(IntakeOcrState.Failed) && work.State != ExternalWorkStatePersistence.Failed
+                 ? nameof(IntakeOcrState.Pending)
+                 : operation.State).FirstOrDefault()));
 
     public async Task<IntakeLogDetail?> GetAsync(Guid receiptId, CancellationToken cancellationToken)
     {
@@ -183,43 +197,7 @@ internal sealed class EfIntakeLogQueries(
     private async Task<IntakeLogRow?> RowForAsync(Guid receiptId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var candidate = await context.IntakeReceipts.AsNoTracking()
-            .Where(item => item.Id == receiptId)
-            .Select(item => new Candidate(
-                item.Id,
-                item.ReceivedAtUtc,
-                item.SourceChannel,
-                item.ExternalReceiptToken,
-                item.SourceFileName,
-                item.Decision,
-                item.FailureReason ?? item.DecisionReason,
-                item.InstructionDraft == null ? null : item.InstructionDraft.SuggestedPrincipalCode,
-                item.Assets.Where(asset => asset.Kind == "source" && asset.Disposition == "source").Select(asset => (Guid?)asset.Id).FirstOrDefault(),
-                context.Triage.Where(triage => triage.OriginReceiptId == item.Id).Select(triage => new Produced(triage.Id, triage.Reference)).FirstOrDefault(),
-                context.Set<ImageIntakeEntity>().Where(intake => intake.OriginReceiptId == item.Id).Select(intake => new Produced(intake.Id, intake.ImageIntakeReference)).FirstOrDefault(),
-                context.Set<UnidentifiedItemEntity>().Where(unidentified => unidentified.OriginId == item.Id)
-                    .Select(unidentified => new ProducedUnidentified(unidentified.Id, unidentified.Reference, unidentified.State, unidentified.ResolutionTargetKind)).FirstOrDefault(),
-                context.IntakeWorkItems.Where(work => work.ProcessedReceiptId == item.Id).Select(work => work.AttemptCount).FirstOrDefault(),
-                context.IntakeWorkItems.Any(work => work.ProcessedReceiptId == item.Id && work.State == "failed"),
-                context.IntakeAllocationAttempts.Count(attempt => attempt.IntakeReceiptId == item.Id),
-                context.IntakeAllocationAttempts.Where(attempt => attempt.IntakeReceiptId == item.Id)
-                    .OrderByDescending(attempt => attempt.AttemptNumber)
-                    .Select(attempt => attempt.Status)
-                    .FirstOrDefault(),
-                context.IntakeAllocationAttempts.Where(attempt => attempt.IntakeReceiptId == item.Id)
-                    .OrderByDescending(attempt => attempt.AttemptNumber)
-                    .Select(attempt => attempt.RecoveryDisposition)
-                    .FirstOrDefault(),
-                (from asset in context.Set<IntakeAssetEntity>()
-                 join operation in context.Set<IntakeOcrOperationEntity>() on asset.Id equals operation.IntakeAssetId
-                 join work in context.ExternalWorkItems on operation.Id equals work.Id
-                 where asset.IntakeReceiptId == item.Id
-                 orderby work.DueAtUtc descending, operation.Id
-                 // A Failed attempt already re-queued by a person reads as Pending
-                 // (EfIntakeOcrOperationStore.EffectiveState).
-                 select operation.State == nameof(IntakeOcrState.Failed) && work.State != ExternalWorkStatePersistence.Failed
-                     ? nameof(IntakeOcrState.Pending)
-                     : operation.State).FirstOrDefault()))
+        var candidate = await Candidates(context, context.IntakeReceipts.AsNoTracking().Where(item => item.Id == receiptId))
             .SingleOrDefaultAsync(cancellationToken);
         if (candidate is null)
         {

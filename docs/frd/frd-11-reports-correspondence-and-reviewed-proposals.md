@@ -55,6 +55,13 @@ for a repairable Audit or `ap.{Case/PO}` for a total-loss Audit. Those identity
 facts travel through the shared Core-owned report contract; they do not select
 or create a separate physical report family.
 
+For Inspection + Audit, the Inspection report is produced on the Inspection
+Case and the Audit report on the linked Audit Case that Create audit makes
+([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
+Each Case generates, approves and sends its own report under its own
+reference; the Audit Case's report never overwrites or reissues the
+Inspection report.
+
 Missing, conflicting, ambiguous, stale, or cross-case Audit outcome or
 reference evidence fails closed before rendering. Audit must not introduce a
 second template, wording, layout, report model, conservative/maximised
@@ -149,9 +156,15 @@ report family. Native Hand to Engineer opens engineering work without an EVA
 export; EVA is optional and does not gate report readiness.
 
 Settlement and Report editors use the Case's one workspace Save and share its
-reason, expected version, and edit lease. Report records Engineer comments,
+expected version and edit lease; a save needs no reason
+([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)).
+Report records Engineer comments,
 agreed fee, description lines, an eligible Sign-off Engineer, the existing
-content switches, and report-date override. Vehicle History is edited once in
+content switches, and report-date override. Beside the valuation commentary
+switch it records the **valuation commentary** text (up to 4,000 characters).
+With the switch on, the report prints that text when it is recorded, otherwise
+the applied valuation's reason, and readiness accepts either; with the switch
+off neither prints. Vehicle History is edited once in
 Vehicle. Unsubmitted accepted values remain unchanged; explicit clears and
 false values are submitted values. Switching off the date override does not
 clear an unsubmitted recorded date. Validation and concurrency refusals retain
@@ -222,6 +235,19 @@ report approval and outward dispatch remain human
 acts, so no model, skill, prompt, or external source ever issues an accepted
 case, engineering, economic, legal, or report outcome.
 
+On the Settlement decision fields — Outcome, Engineer's Value, Salvage
+category, Salvage value, Roadworthiness and the unroadworthy reason — Pegasus
+keeps the latest Automation-recorded value of each field as a proposal with a
+status. It reads **Awaiting** until staff record that field; a staff value that
+matches the proposal resolves it **Accepted**, and a different value or a clear
+resolves it **Corrected**, recording who resolved it. A resolved proposal stays
+resolved until the next Automation value for that field. The Settlement section
+shows the Proposed column only when a proposal exists, offers Accept (and
+Accept all) only while a proposal is Awaiting and the Case is being edited, and
+offers Apply in Valuation on the Engineer's Value row instead, because that
+value is adopted only through an explicit valuation Apply. A Save that leaves an
+Awaiting field untouched leaves it Awaiting.
+
 Durable Send to AI work has stable request, hand-off, reply, and disposition
 identities. Stale work cannot overwrite a newer case/evidence version;
 duplicate, expired, or cancelled requests are idempotent or inert outcomes of
@@ -244,11 +270,11 @@ creation.
 
 | Kind | Started from | Input | Result | Staff confirmation |
 | --- | --- | --- | --- | --- |
-| Estimate | Estimate section `Send to Claude` (With Engineer or onwards) | Direction text and an optional target percentage of the recorded Engineer's Value — 0 to 80 %, no default, its amount shown as it is derived from that value, proposal guidance only and never an accepted figure (D24); refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An Engineer accepts the draft (`Use estimate`), which makes it the Current estimate |
+| Estimate | Estimate section `Send to AI` (With Engineer or onwards) | Direction text and an optional target percentage of the recorded Engineer's Value — 0 to 80 %, no default, its amount shown as it is derived from that value, proposal guidance only and never an accepted figure (D24); refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An Engineer accepts the draft (`Use estimate`), which makes it the Current estimate |
 | Unidentified resolution | Operations `Send Unidentified to AI` for one U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
 | Query response | A retained post-report query linked to a Case | The message reference only | Draft reply text | Offered to the composer or Case notes; never sent automatically |
 | Unidentified-queue pass | An external scheduler through the Actor `create` tool — Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item the pass examined | As Unidentified resolution, per item |
-| MarketResearch | Select Market Research on the Case Valuation screen | The Case and its valuation context; external Claude Cowork uses the Pegasus connector plus research tools outside this repository | Research files attached to the Case through the connector, with attributable evidence and optional source-labelled valuation entries | The Automation Actor marks the job Completed after attachment; no staff completion gate and no automatic adoption as the Engineer's Value |
+| MarketResearch | **AI market research** in the Case record's Valuation section, while editing, for the chosen Valuation month; the section shows a "Researching · {month}" card while the job is Queued or Taken, and a re-run replaces the card | The Case and its valuation context; external Claude Cowork uses the Pegasus connector plus research tools outside this repository | Research files attached to the Case through the connector, with attributable evidence and optional source-labelled valuation entries | The Automation Actor marks the job Completed after attachment; no staff completion gate and no automatic adoption as the Engineer's Value |
 
 **States.** Reviewed proposals follow `Queued` → `Taken` → `Draft ready` →
 `Completed`. MarketResearch follows `Queued` → `Taken` → `Completed` after
@@ -293,7 +319,7 @@ reference.
 the Stop/Start automation control; that control is the ADR-0026 kill switch,
 so stopping automation also stops the ledger. The Operations panel is the live
 work queue; the recorded history of the same jobs is
-[Action Logs](frd-04-parties-accounts-and-access.md#permanent-action-history),
+[Action logs](frd-04-parties-accounts-and-access.md#permanent-action-history),
 where an AI job row's Reference opens the Case or Unidentified record the job
 names.
 

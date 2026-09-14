@@ -30,7 +30,8 @@
             @if (Model.IntakeCounts is { } counts)
             {
                 <div class="figures logs-figures" data-intake-counts>
-                    <a class="figure logs-figure" href="@Model.IntakeUrl(page: 1, outcome: IntakeLogOutcome.ProcessingFailed)">
+                    @* Every retryable intake failure: Operations lists each one with its own retry. *@
+                    <a class="figure logs-figure" href="/Operations">
                         <span class="label">@OperatorLabels.IntakeLog.FailedIntake</span>
                         <span class="value" data-failed-intake>@counts.FailedIntake</span>
                     </a>

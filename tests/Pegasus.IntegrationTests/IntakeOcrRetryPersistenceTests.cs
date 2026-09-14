@@ -72,6 +72,10 @@ public sealed class IntakeOcrRetryPersistenceTests
         Assert.True((await log.GetAsync(administrator, receiptId, CancellationToken.None))!.Actions.CanRetryOcr);
         var ocrFailed = await log.ExecuteAsync(administrator, new IntakeLogFilter(Outcome: IntakeLogOutcome.OcrFailed), 1, CancellationToken.None);
         Assert.Contains(ocrFailed.Items, row => row.ReceiptId == receiptId && row.Outcome == IntakeLogOutcome.OcrFailed);
+        // The Failed intake head-line count includes a failed OCR attempt, not
+        // only failed processing work (the database is per test, so this is the
+        // one failure).
+        Assert.Equal(1, (await log.CountsAsync(administrator, CancellationToken.None)).FailedIntake);
 
         var retry = services.GetRequiredService<IRetryIntakeOcr>();
         var key = Guid.NewGuid().ToString("N");
@@ -110,8 +114,10 @@ public sealed class IntakeOcrRetryPersistenceTests
             CancellationToken.None);
         Assert.NotNull(claim);
 
-        // A re-queued retry is no longer offered, even before the Worker runs it.
+        // A re-queued retry is no longer offered, even before the Worker runs it,
+        // and no longer counts as failed intake.
         Assert.False((await log.GetAsync(administrator, receiptId, CancellationToken.None))!.Actions.CanRetryOcr);
+        Assert.Equal(0, (await log.CountsAsync(administrator, CancellationToken.None)).FailedIntake);
 
         // The Worker resumes the requested retry: the operation returns to
         // Pending with a fresh attempt budget, once.

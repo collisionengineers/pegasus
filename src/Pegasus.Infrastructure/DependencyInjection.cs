@@ -150,6 +150,10 @@ public static class DependencyInjection
         services.AddScoped<IGetPreCaseImagePreparations>(provider => provider.GetRequiredService<PreCaseImagePreparations>());
         services.AddScoped<ISavePreCaseImageCrop>(provider => provider.GetRequiredService<PreCaseImagePreparations>());
         services.AddScoped<ITagPreCaseImage>(provider => provider.GetRequiredService<PreCaseImagePreparations>());
+        // The prepared tile of a pre-Case image: the Case gallery's rendering over
+        // the authorised intake read (Download and Open file keep the original).
+        services.AddSingleton<IRenderImageThumbnail, ImageThumbnailRenderer>();
+        services.AddScoped<IReadPreCaseImageThumbnail, ReadPreCaseImageThumbnail>();
         services.AddScoped<IGetUnidentifiedItemContext, GetUnidentifiedItemContext>();
         services.AddScoped<ReconcileUnidentifiedDestinations>();
         services.AddScoped<EfTriageStore>();

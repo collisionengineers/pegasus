@@ -212,6 +212,7 @@
                                     item.FileName,
                                     item.MediaType,
                                     IntakeAssetId: item.AssetId,
+                                    IntakeReceiptId: item.ReceiptId,
                                     Preparation: item.AssetId is { } assetId ? Model.Preparations.GetValueOrDefault(assetId) : null);
                             })
                             .ToArray();

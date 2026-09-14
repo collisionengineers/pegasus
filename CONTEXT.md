@@ -41,12 +41,12 @@ Source evidence of a vehicle other than the Case vehicle, identified from reliab
 _Avoid_: Wrong image, unrelated evidence
 
 **Audit**:
-An Audit Case is instructed work to review another engineering firm’s original report. A definitive instruction creates the normal Case/PO without confirmation on automatic intake routes; manual upload requires explicit staff acceptance first under [FRD-02](docs/frd/frd-02-intake-and-source-identity.md). Its lowercase `a.` or `ap.` Audit reference is derived later only from an unambiguous repairable or total-loss assessment in that original report.
+An Audit Case is instructed work to review another engineering firm’s original report. A definitive instruction creates the normal Case/PO without confirmation on automatic intake routes; manual upload requires explicit staff acceptance first under [FRD-02](docs/frd/frd-02-intake-and-source-identity.md). Its lowercase `a.` or `ap.` Audit reference is derived later only from an unambiguous repairable or total-loss assessment in that original report. An Audit Case is also created from an Inspection + Audit Case (below).
 _Avoid_: Triage, sorting
 
 **Inspection + Audit**:
-One Case in which Collision Engineers completes its standard Inspection and then carries out a distinct Audit of that Inspection. The Audit retains its own identity, evidence, and acceptance boundary.
-_Avoid_: Combined report, two-spec Inspection
+An Inspection Case and a linked Audit Case. Collision Engineers completes its standard Inspection on the Inspection Case; once a report has been generated there, Create audit creates the Audit Case with its own `a.` or `ap.` reference, which carries the Audit’s own identity, evidence, report and acceptance boundary.
+_Avoid_: Combined report, two-spec Inspection, second reference on the Inspection
 
 **Triage**:
 A separate pre-Case assessment with a global increasing T-reference. Completion
@@ -54,15 +54,11 @@ records a decided outcome; Reply with outcome is optional editable email.
 It allocates no normal Case/PO and does not provide definitive instructions.
 
 **Unidentified**:
-Safely retained material or an inseparable submission group whose identity, meaning, ownership or destination cannot be established. It receives an immutable U-reference under FRD-02. It is distinct from Triage, Blocked intake, incomplete Audit evidence, Image Intake and a formal Case in Not ready.
-_Avoid_: Triage, Blocked intake
-
-**Blocked intake**:
-A pre-Case failure boundary where required processing, identity, limits, custody, or evidence is incomplete or unsafe.
-_Avoid_: Unidentified, Triage
+Safely retained material or an inseparable submission group that has not become a Case, Triage or Image intake: its identity, meaning, ownership or destination cannot be established, or it could not be read. It receives an immutable U-reference and a reason under FRD-02; material that could not be read carries the reason Could not be read with its file kind. Readable material that must not become a Case is closed with a reason, and a closed item can be reopened. It is distinct from Triage, incomplete Audit evidence, Image Intake and a formal Case in Not ready.
+_Avoid_: Triage, Blocked, Blocked intake
 
 **Held**:
-A nonterminal Case state that pauses progression and recurring chasers pending a named staff resolution. A cancellation message creates `Held pending staff decision`; it does not itself cancel the Case.
+A nonterminal Case state that pauses progression and recurring chasers pending a named staff resolution. A hold may carry a Review on date, which is when it is next due for a decision. A cancellation message creates `Held pending staff decision`; it does not itself cancel the Case.
 _Avoid_: Cancelled, closed
 
 **Created in error**:
@@ -96,12 +92,12 @@ The Operations activity count of `First sent to Engineer` proxy events within th
 _Avoid_: First sent to Engineer (the per-Case event), reports sent
 
 **New cases today**:
-The Operations metric for instructed Cases created since Europe/London midnight, including Cases later completed or given a cancellation/rejection disposition that day and excluding Image intakes, Triage, `Unidentified`, and `Blocked intake`.
+The Operations metric for instructed Cases created since Europe/London midnight, including Cases later completed or given a cancellation/rejection disposition that day and excluding Image intakes, Triage and `Unidentified`.
 _Avoid_: In today, Due today, received today
 
 **Not ready**:
 A created Case state for an instructed Case whose ordinary business details, required source images, or other progression requirements remain incomplete. Image quality and coverage assessments are advisory and never make a Case `Not ready`; pre-Case Image intake is not a Case state.
-_Avoid_: Unidentified, Blocked intake
+_Avoid_: Unidentified
 
 **Review**:
 A Case state in which staff manually review its readiness and accepted evidence before Engineer-queue eligibility or direct Engineer assignment.
@@ -138,15 +134,15 @@ operator sees, not on how the code is named.
 
 | Domain term | Interface term |
 | --- | --- |
-| Intake receipt | Received item |
+| Intake receipt | Received file (an Intake log row) |
 | Intake queues | E-mail activity |
-| Blocked intake | Blocked |
 | Image intake | Vehicle images |
 | Image Intake Reference | Image reference |
 | State (case filter) | Case stage |
 
 The word “intake” never appears in operator-facing text (operator decision
-2026-08-04). `Review` and `Ready to review` denote the Case stage only.
+2026-08-04), except the Administrator's **Intake log** tab name (13 September
+2026). `Review` and `Ready to review` denote the Case stage only.
 
 
 **Completed / Query**:

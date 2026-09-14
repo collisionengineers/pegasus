@@ -260,7 +260,8 @@ public sealed class QdosIntakeWebTests
             predicate.Key == "direct.principal-identity" && predicate.Matched);
 
         Assert.False(string.IsNullOrWhiteSpace(caseReference));
-        Assert.Contains($"<h1>{caseReference}</h1>", html, StringComparison.Ordinal);
+        // The Case record states its reference in the v26 ribbon heading.
+        Assert.Contains($"<h1 class=\"ribbon-value\">{caseReference}</h1>", html, StringComparison.Ordinal);
         Assert.Contains(caseReference, html, StringComparison.Ordinal);
     }
 

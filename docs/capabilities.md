@@ -46,7 +46,7 @@ A listed identity does not imply current activation or acceptance.
 | INT-21 | Human-reviewed extraction cohort, holdout, and field-level accuracy reporting | [Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity) |
 | INT-22 | Automatic identification of the correct principal/provider | [Matching conflicts and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) |
 | INT-23 | Unidentified queue with immutable U-references for uncertain or unsupported intake | [Unidentified destination and reference](frd/frd-02-intake-and-source-identity.md#unidentified-destination-and-reference) |
-| INT-24 | Manual `Blocked intake` filter with reason, warning, resolve, and retry | [Mandatory pre-case gates](frd/frd-02-intake-and-source-identity.md#mandatory-pre-case-gates) |
+| INT-24 | Material that cannot become a Case: Unidentified Close with reason and Reopen, Could not be read items, and Retry allocation, Retry OCR and Re-evaluate on Operations and the Intake log | [Mandatory pre-case gates](frd/frd-02-intake-and-source-identity.md#mandatory-pre-case-gates) |
 | INT-25 | Automatic case creation from definitive authorised intake | [Matching conflicts and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) |
 | INT-26 | Manual case creation through the same business rules | [Matching conflicts and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) |
 | INT-27 | Registration-based provisional identity for image-led work | [Ways intake starts](frd/frd-02-intake-and-source-identity.md#ways-intake-starts) |
@@ -68,7 +68,7 @@ A listed identity does not imply current activation or acceptance.
 | CASE-01 | Every active QDOS case type can travel end to end from intake through accepted case workflow to successful EVA export/handoff | [Requirements](frd/frd-01-case-identity-and-lifecycle.md#case-identity-and-lifecycle) |
 | CASE-02 | Inspection cases | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
 | CASE-03 | Standalone Audit cases | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
-| CASE-04 | Inspection + Audit cases and secondary Audit reference | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
+| CASE-04 | Inspection + Audit: an Inspection Case and its linked Audit Case with its own `a.`/`ap.` reference, created by Create audit | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
 | CASE-07 | Shared principal/year case sequence | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-08 | Repairable `a.` and total-loss `ap.` Audit references | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-09 | Case principal and reference immutability after allocation | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
@@ -95,7 +95,7 @@ A listed identity does not imply current activation or acceptance.
 | CASE-34 | Inspect at as a fast-update choice (Image Based Assessment, Claimant address, Repairer location, Storage location, previous addresses used for this Principal, Manual entry) and a storage location on the Case | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | UI-01 | Operations dashboard/cockpit | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-02 | Case queues for Not ready, Review, and Held | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
-| UI-03 | QDOS-alpha e-mail activity for Unidentified and Blocked | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
+| UI-03 | QDOS-alpha e-mail activity for Unidentified, including closed and could-not-be-read items | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-04 | New cases today, Sent to Engineer, and Reports sent day/week activity | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-05 | Click-through filtered work queues | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-06 | Last-good time, distinct current/stale/partial/unavailable/failed states, auditable reconciliation, and manual refresh | [Dashboard freshness and reconciliation](frd/frd-12-operator-experience.md#dashboard-freshness-and-reconciliation) |
@@ -104,7 +104,7 @@ A listed identity does not imply current activation or acceptance.
 | UI-09 | Full case workspace | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-11 | Accounts, Contacts, mailbox allowlist, and configuration workspace | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
 | UI-13 | Accessible keyboard, screen-reader, focus, contrast, and error behavior | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
-| UI-16 | Integrated Operations Workspace shell: one persistent rail (Work Centre, Inbox, Upload, Cases, Search, Operations, Administration) with live counts, Work Centre needs-attention work, Cases queue groups, workspace tabs, command palette and breakpoints | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) |
+| UI-16 | Integrated Operations Workspace shell: one persistent rail (Work Centre, Inbox, Upload, Cases, Search, Operations, Administration) with live counts and rail collapse, Work Centre needs-attention work, personal notifications, Cases queue groups, the working-set strip of open records, command palette and breakpoints | [Shell and routes](frd/frd-12-operator-experience.md#shell-and-routes) |
 | UI-17 | Case record with Scroll and Tabs display modes over one edit form, sticky identity/action/section navigation in Scroll, lazily rendered sections, `?section=` jumps, and the ten sections Overview, Inspection, Vehicle, Damage, Valuation, Estimate, Settlement, Report, Files, Notes; the Engineer workbench lives in the Damage, Valuation, Estimate, Settlement and Report sections, always viewable and read-only once Complete; `/Cases/{id}/Assessment` is a 301 | [Case workspace](frd/frd-12-operator-experience.md#case-workspace) |
 | UI-18 | Awaiting instruction (the Image-initiated Cases still awaiting an instruction) as a Pre-Case queue on Cases beside Triage | [Cases: queues and filters](frd/frd-12-operator-experience.md#cases-queues-and-filters) |
 | UI-19 | Service health is Administration-only; Operations shows a one-line partial-data notice linking to it and carries no service health table | [Operations](frd/frd-12-operator-experience.md#operations) |

@@ -55,11 +55,11 @@ complete WCAG conformance, subjective usability, or operator acceptance.
 Every actionable search result or queue row is a full-row keyboard-focusable
 link or button with visible action affordance. At constrained desktop width,
 a long Case/PO, Image Intake Reference, or U-reference moves to a labelled
-second line instead of overlapping the received timestamp. Inbox and intake
-rows always show received date above received time, and show the precise
-processing outcome — such as `Case created`, `Image intake registered`,
-`Associated with Case`, `Unidentified`, or `Blocked intake` — rather than a
-generic `New`. One semantic action or state has one consistent icon across
+second line instead of overlapping the received timestamp. Inbox and Intake
+log rows always show received date above received time, and show the precise
+processing outcome — such as `Case created`, `Vehicle images`,
+`Linked to Case`, `Unidentified`, `Could not be read` or `Closed` — rather than
+a generic `New`. One semantic action or state has one consistent icon across
 Pegasus; no decorative or generated replacement icon is used.
 
 Every drawn control maps to a named handler. A disabled control is permitted
@@ -72,7 +72,7 @@ no explanatory copy
 ### Shell and routes
 
 Every authenticated page renders one shell: a persistent rail, a utility
-bar, the workspace-tab strip and the page content. The rail carries, in
+bar, the working-set strip of open records and the page content. The rail carries, in
 order, **Work Centre** (`/`), **Inbox** (`/Inbox`), **Upload** (`/Upload`),
 **Cases** (`/Cases`), **Search** (`/Search`), **Operations**
 (`/Operations`) and — for administrators only — **Administration**
@@ -83,33 +83,60 @@ The current route is marked by more than colour. The rail foot shows the
 freshness line and the signed-in account (name, role, account dialog with
 session start, idle lock, sign out).
 
+The rail foot also carries **Collapse**, which folds the rail to icons and
+counts (labels become titles) and back; the choice is remembered per browser
+and painted by the server on the next page. Below 980px, where the rail lies
+down, there is no collapse.
+
 The utility bar carries the page freshness text, the global search input
 (Enter or Ctrl K opens the command palette), **New case** opening the direct
-staff creation form, and notifications. Upload and Inbox retain their named
+staff creation form, and the bell. Upload and Inbox retain their named
 navigation; Case upload links remain contextual actions.
-A notification-query failure must not block the page unless it represents
-cancellation or failed authorization. The dialog shows `Notifications
-unavailable.` without placeholder or stale rows, and the failure is logged.
+
+The bell is the signed-in person's own notifications, never office-wide work
+or queue counts, with the unread count on it (absent at zero). A notification
+is raised for exactly these causes: an AI draft is ready on a Case (to the
+Case's Engineer, otherwise to whoever started the job; Market research never
+raises one); a Case is assigned to an Engineer (to that Engineer); and a Case
+an Engineer is assigned to is edited by someone else, receives an e-mail or
+receives a query (to that Engineer). Nobody is notified of their own act, and
+there is no e-mail notification. The dialog lists notifications newest first
+with the Case reference, registration, the cause in operator words, when, and
+Unread until opened; opening one marks it read and goes to its place; **Mark
+all read** marks every one read. Notifications are kept for 30 days and then
+drop off. A notification-query failure must not block the page unless it
+represents cancellation or failed authorization. The dialog shows
+`Notifications unavailable.` without placeholder or stale rows, and the
+failure is logged.
 **Create Case** opens direct staff creation with the identity-critical Case
-facts and no fictional intake receipt or source provenance. When opened from a
-received item, the same form uses that existing receipt and the normal intake
-allocation path rather than creating a second allocation route (D26,
-[FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)).
+facts and no fictional intake receipt or source provenance. When opened from an
+Unidentified item or an upload decision, the same form uses that existing
+receipt and the normal intake allocation path rather than creating a second
+allocation route (D26,
+[FRD-02](frd-02-intake-and-source-identity.md#ways-intake-starts)); a file that
+cannot become a Case is refused with the reason and Open message / Open file.
 A skip link precedes the rail; toasts announce in a live region; every
 dialog traps focus and inerts the page behind it.
 
 | Route | Purpose | Replaces |
 | --- | --- | --- |
-| `/` | Work Centre — needs-attention work and the metric strip | Dashboard |
-| `/Inbox`, `/Inbox/{id}` | Retained mail list and message ([FRD-08](frd-08-email-mailbox-and-background-processing.md)) | — |
+| `/` | Work Centre — metrics, Needs attention, Today, New cases, AI jobs | Dashboard |
+| `/Inbox`, `/Inbox/{id}` | Retained mail list and message ([FRD-08](frd-08-email-mailbox-and-background-processing.md), § Inbox) | — |
 | `/Upload`, `/Uploads/{token}` | Staff upload and the public upload request ([FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface)); first successful file acceptance starts a fixed non-sliding 15-minute add/replace session, closed by explicit finalisation or expiry (D20) | — |
 | `/Cases` | Queues: workflow, pre-Case work and exceptions | Queues (`/Triage`) |
-| `/Cases/{id}` | Case record — one scrolling page of ten sections; `?section=` jumps (D29, D30) | Case workspace side-nav sections; the Assessment page |
+| `/Cases/{id}` | Case record — one page of ten sections in Scroll (default) or Tabs; `?section=` jumps (D29, D30) | Case workspace side-nav sections; the Assessment page |
 | `/Cases/{id}/Assessment` | Permanent redirect to `/Cases/{id}?section=estimate` (D30) | Engineer assessment page |
 | `/Search` | Advanced search (`UI-07`) | Cases list |
-| `/Triage/{id}`, `/Unidentified/{id}` | Triage and Unidentified detail | — |
-| `/Operations` | AI jobs, attention, upload links, EVA handoffs; a one-line partial-data notice links to Administration Service health (D37) | Operations Service health table |
+| `/Triage/{id}`, `/Unidentified/{id}`, `/VehicleImages/{id}` | Triage, Unidentified and image records | The received-file page |
+| `/Received/{id}/Source`, `/Received/{id}/Image`, `/Received/{id}/Asset/{assetId}` | Open file: the retained original, served to authorised staff only | — |
+| `/Operations` | AI jobs, attention (including failed intake for Administrators), upload links, EVA handoffs; a one-line partial-data notice links to Administration Service health (D37) | Operations Service health table |
 | `/Administration`, `/Administration/...` | Administration areas, including Contacts and Principal settings | Separate Principal and Claim Source areas |
+| `/Administration/Logs` | Action logs and Intake log tabs (§ Administration); `/Administration/ActionLogs` answers a permanent redirect keeping its query | Action Logs |
+
+There is no received-file page: its history is the Intake log, its technical
+actions are on Operations and the Intake log, and its outcome is stated on its
+message, its upload and the record it became
+([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
 
 `/Triage` and `/Unidentified` are permanent redirects to `/Cases?tab=triage`
 and `/Cases?tab=unidentified`, kept for existing links and bookmarks rather
@@ -123,33 +150,79 @@ sections on the Case record, not a page of its own.
 
 ### Work Centre
 
-The Work Centre shows office-wide work: a metric strip of five counts —
-Not ready, Review, Held, Unidentified, Blocked — each an exact link to its
-Cases tab (`/Cases?tab=…`). Blocked links to `/Cases?tab=unidentified`,
-where Blocked intake items are surfaced with their own state chip; there is
-no separate Blocked tab. The Unidentified tab count, and the rail Cases sum,
-count Unidentified items only; Blocked intake rows are listed in that tab
-uncounted, with their own `Blocked intake` chip, so the two meanings stay
-distinct. Then a two-pane needs-attention list and detail. A
-needs-attention item is exactly one of these five kinds, each derived from
-a Core query, never from fixture or placeholder data:
+The Work Centre (`/`) shows office-wide work. Its head reads "Updated HH:MM"
+with **Create Case** and **Refresh**. The page also refreshes itself when its
+browser tab regains focus after 30 seconds away and every five minutes, never
+while a dialog is open or a field has focus; a refresh does not mark New cases
+as seen.
 
-- **Case** — a chase that is due, a readiness blocker, or an outstanding
-  requirement;
-- **Held decision** — a Case on hold whose hold needs a decision;
-- **Mail** — an Unidentified item;
-- **Triage** — a Triage record without a finding;
-- **External work** — retryable failed external work.
+**Metrics.** Four counts — Not ready, Review, Held, Unidentified — each an
+exact link to its Cases tab (`/Cases?tab=…`) and counting everything
+regardless of paging. A failed read renders its unavailable state, never `0`.
 
-Failed AI jobs are not a needs-attention kind; they surface on Operations
-(§ Operations).
+**Needs attention** is one list. An item is exactly one of these kinds, each
+derived from a Core query, never from fixture or placeholder data, and each
+with a due instant:
 
-Each item shows its kind and reference, title, priority, owner and due
-value. Selecting an item shows the reason it needs attention (a label and
-the Core-derived value only), the source, owner, last recorded outcome and
-due facts, and the single next permitted action (Open Case, Open Triage,
-Open Operations, Review source) plus copy-reference. `Blocked` is the exact
-interface wording for the `Blocked intake` boundary and remains pre-case.
+| Kind | Item | Due instant |
+| --- | --- | --- |
+| Case | A missing-material chase | The next chase time, else the end of its Due by date |
+| Held | A held Case awaiting its decision | The end of the hold's Review on date, else Held decision target after the hold was placed |
+| Review | A Case in Review | Review target after it entered Review |
+| Unassigned | A Case in Review with no Engineer | Review target after it entered Review |
+| Unidentified | An open Unidentified item | Unidentified target after it was received |
+| Triage | A Triage record without a finding | Triage target after it opened |
+| AI draft | An AI job in Draft ready, except Market research | AI draft target after the draft was written |
+
+The targets are workflow settings (§ Administration). These rules are fixed,
+not settings: calendar days, never working days; the day boundary is midnight
+Europe/London; a target of 0 means due by the next midnight after the event;
+**Overdue** means due at or before now and **Due today** means due before the
+next midnight. A settings change applies from the next read and rewrites no
+recorded date. Failed external work (custody, vehicle lookup, intake OCR) is
+never a Needs attention item: it is on Operations, whose rail badge counts
+retryable failed external work. Where a failure blocks a person's work, the
+record says so where it is used ("Lookup failed", "Storage not ready").
+
+**Office and Mine.** A switch above the list: Office is every item; Mine is
+the items the signed-in person owns plus unowned items of kinds they can take.
+Engineers open on Mine and everyone else on Office, and the choice is
+remembered per browser. **Kind chips** — Case, Held, Review, Unassigned,
+Unidentified, Triage, AI draft — filter the list, several at once, each showing
+its count over the whole scope before the filter, with All kinds to clear.
+
+The list is grouped under **Overdue (n)**, **Due today (n)** and **Later (n)**,
+each with its own empty state ("Nothing overdue"), and ordered by due instant,
+earliest first and undated last, then received, then reference. A row shows its
+title, kind, reference and detail, its due text in words ("2 days overdue",
+"Due today", "Due Fri", "Due 24 Sep") coloured by group, its owner, and
+"Received 3 d ago"; there is no priority chip on a row. The list is paged at
+50 — "Page 1 of N · earliest due first" with Previous and Next — and nothing is
+silently dropped.
+
+**Today pane.** The selected item's kind and reference, title, a chip only
+when Overdue (red, with how late) or Due today (amber), its facts, and a next
+action that does the action: Assign Engineer opens the assignment dialog on
+the Work Centre, Review Case opens the Case, Open Triage opens the Triage, and
+an AI draft offers its per-kind action. **Assign to me** is offered on an
+Unassigned item to an Engineer and on a Triage item without an assignee, where
+Core would accept it.
+
+**New cases.** Every Case created in the last 7 calendar days, newest first,
+whatever created it: reference, registration, claimant, principal and an
+arrival chip (Manual, E-mail, Provider API, Automation). A "Since you last
+looked" divider marks what is new for this person, and opening the Work Centre
+records the look. A change the Automation actor makes to an existing Case
+appears as a "Changed by automation" row naming the change. The section is
+paged.
+
+**AI jobs.** The office's unfinished AI jobs — Queued, Taken with its lease
+expiry, Draft ready — and those that failed in the same 7 days, excluding
+Market research: kind and detail, record, started by, created, state, and the
+Draft ready action defined per kind in
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)
+(Review estimate, Open query, Review, Complete job). A failed job shows its
+reason with Open Case; Cancel stays on Operations.
 
 ### Cases: queues and filters
 
@@ -193,39 +266,44 @@ derived from the retained receipt's source channel and content type, not a
 separate stored field. Completed and Query are reversible workflow states. Cancellation, rejection
 and Created in error are recorded dispositions, not terminally Closed Cases.
 
-Unidentified detail shows the kind/received/reason facts, the retained file
-or message by its operator-meaningful handle, one link to the underlying
-retained material — **View email** or **View file**, chosen by media kind —
-and chronological history. **Link to Case** is the primary action, opening a
-compact dialog; **Create Case**, **Register images** and **Close** remain as
-named alternatives inside that same dialog (Destination: add to an existing
-Case, create a Case from an accepted instruction, register an
-Image-initiated Case, or close with a reason). There is no "Resolution" or
-"Resolve material" framing in the UI; the dialog is titled with the item's
-own U-reference. Exact U-reference search returns both open and resolved
-items as a distinct result type and never treats U<n> as a Case, Audit, or
-Image Intake reference. The underlying operation is staff-authorised,
-antiforgery protected, version-checked, idempotent by operation key, and
-requires a supported destination and reason. A stale version is a
-non-destructive conflict; a replay shows the original result. The permanent
-U-reference and origin remain visible after resolution.
+The Unidentified tab shows **Open items** or, through its Show choice,
+**Closed items**, each closed row reading "Closed · reason". It lists
+Unidentified items only; there is no blocked row.
 
-A Received item (intake receipt) shows one effective state after
-association: once linked, its Decision panel and list rows read **Linked to
-Case** regardless of the decision that first proposed a Case; there is no
-separate "Ready for case allocation" state once association exists. Before
-association, the panel heading is **Decision** and shows the current decision
-label and, where the receipt names an existing draft, the **Link to Case**
-control.
+The Unidentified record (`/Unidentified/{id}`) joins the working set and
+carries a ribbon of reference, received, kind, source and state (Open, Closed
+or Resolved). An item that could not be read says "Could not be read · {file
+kind}" with its bounded detail. Its actions are **Open file** (the retained
+original), **Open message** (when it came by e-mail), **Request again** (a
+reply to that message), **Link to Case** (a dialog searching viable Cases;
+linking claims that Case's edit lease), **Create case** (from its receipt),
+**Register images** (the registration prefilled from an agreeing reading,
+with a reason) and **Close with reason** (free text). Where Core allows it the
+record also offers **Open the Triage**, lists registration readings with
+Dismiss (reason), and on a closed item shows the outcome with **Reopen**
+(reason). An image on the item offers crop and tag (§ Case workspace, Files).
+There is no "Resolution" or "Resolve material" framing in the UI. Exact
+U-reference search returns both open and resolved items as a distinct result
+type and never treats U<n> as a Case, Audit, or Image Intake reference. Every
+action is staff-authorised, antiforgery protected, idempotent by operation key
+and version-checked where the record has a version, and requires its reason
+where the action records one. A stale version is a non-destructive conflict;
+a replay shows the original result. The permanent U-reference and origin
+remain visible after closure or resolution.
+
+A received file has no page of its own
+([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)):
+once linked, it reads **Linked to Case** in the Intake log and on its message,
+regardless of the decision that first proposed a Case.
 
 Triage detail carries the determinations (roadworthiness, repair outcome),
 the source facts, a `History` view that merges durable events with append-only
 attributable notes in chronological order, and a `Files` view of the retained
 sources, their attachments and the linked vehicle images with view and download
 (D25). A correction is a new note; there is no note edit, no note delete and no
-upload action on Triage. Its single retained source link reads **View email**
-or **View file**, chosen by media kind, replacing a former generic "View
-retained source". **Assign to Engineer** is a button opening a compact dialog
+upload action on Triage. Its retained source opens with **Open message** when
+it came by e-mail, otherwise **Open file**; **Assign to me** is offered where the
+Triage has no assignee and the operator may take it. **Assign to Engineer** is a button opening a compact dialog
 (engineer select, Assign/Cancel); assignment records no reason, while the
 determination reason and other meaningful Triage decisions keep their
 required reasons ([FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence)).
@@ -234,6 +312,18 @@ Completion records the decided outcome. Optional
 the sent correspondence attaches to the Triage and is never a completion gate.
 The existing server-side transitions remain
 reachable where a handler exists ([FRD-03](frd-03-triage.md)).
+
+### Inbox
+
+`/Inbox` lists retained mail by scope — All incoming, Receiving work, Case
+updates, Pre-instructions, Unidentified, Sent Items and Dismissed. There is no
+Unread scope; an unread row stays bold. The filters are mailbox, folder and
+**Category** (destinations and approved categories). A row and the message
+record offer **Dismiss**, which moves the message to Dismissed and out of every
+other scope without moving it in Outlook, and **Restore** from Dismissed brings
+it back; both are always allowed. The message record joins the working set,
+and its Attachments tab states each attachment's own outcome
+([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
 
 ### Search
 
@@ -251,21 +341,30 @@ Staff-closed.
 
 ### Case workspace
 
-`/Cases/{id}` is one scrolling page (D29) with no separate page header: three
-rows travel together as the record scrolls — a sticky identity ribbon
-(Case/PO, registration, claimant, principal, state, with Engineer and
-Sign-off Engineer beside it — D31, plus small Back to Cases and Refresh icon
-buttons at the ribbon's end), one sticky action row (Edit Case, or while
-editing Cancel and Save with a small Editing badge, then the progression
-action(s) permitted for the state, then More actions and Close case), and a
-sticky section jump-nav whose current entry follows the scroll position. A
-thin presence strip appears between the ribbon and the action row only while
-another account holds the Case edit lease; the holder's own edit is shown by
-the Editing badge, not a strip. `?section=` jumps to a section; sections
-below the fold render lazily. The refined Scroll/Tabs choice uses the same
-section hosts and one edit form. Tabs hide inactive sections without
-discarding loaded values; Scroll remains the no-script fallback. The
-sections, in order, are **Overview**,
+`/Cases/{id}` is one record page (D29) with no separate page header and joins
+the working set. Two rows travel together as the record scrolls: the
+**ribbon** — the Case/PO as the page heading under "Case workspace ·
+registration", claimant, principal and Engineer; chips for state (a held Case
+reads "Held · review on {date}" when its hold has a review date), Case type
+(Audit, Inspection + Audit) and, while another account holds the edit lease,
+"{name} is editing" with a lock and no take-over control; the links between an
+Audit Case and its original; then Edit Case, or while editing the Editing
+badge, Cancel and Save; and the one **Actions** menu — and the **section row**
+of section links whose current entry follows the scroll position, Refresh,
+and the Scroll/Tabs switch. Scroll is the default in every state; a Tabs
+choice lasts for the browser session and is painted by the server, as is each
+section's folded state, which is remembered per browser. `?section=` jumps to
+a section; sections below the fold render lazily. Tabs hide inactive sections
+without discarding loaded values; Scroll remains the no-script fallback. Every
+editable section head carries its own Edit, which enters the one page-wide
+edit session without moving the page, one availability label when the state
+does not allow editing, and a fold chevron. An aside beside the sections holds
+Figures (outcome and legal chips and three figures) and Next action (AI drafts
+ready on the Case with their per-kind action, and the next permitted action
+with a link to its section); below 1441px it folds into a strip above the
+sections. Actions post in place and the record's parts are refreshed without a
+navigation; an unsaved edit is confirmed before Cancel or an immediate action.
+The sections, in order, are **Overview**,
 **Inspection**, **Vehicle**, **Damage**, **Valuation**, **Estimate**,
 **Settlement**, **Report**, **Files**, **Notes**. Every
 section is always viewable; the Engineer sections — Damage, Valuation,
@@ -282,13 +381,21 @@ show exactly one panel per mode; the edit-mode Overview form uses the label
 Make and Model inputs move to the Vehicle section's own edit state rather
 than appearing on Overview.
 
-The action bar offers only actions the Core use cases permit for the current
-state: Edit Case, one global Save/Cancel while editing, Renew editing when
-needed without script, or the holder
-when another account holds the lease ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery));
-Place on Hold / Release Hold; Create upload link; **Hand to Engineer** in
-Review while editing — its dialog selects an eligible Engineer and the one
-handoff assigns them and enters With Engineer. Handoff is review; there is
+The ribbon offers Edit Case, one global Save and Cancel while editing, and
+Renew editing when needed without script; a colleague's lease shows only who
+holds it ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)),
+and **Take over** appears only for the operator's own lease held in another
+window. The one **Actions** menu offers only what the Core use cases permit for
+the current state: **Hand to Engineer** in Review while editing — its dialog
+selects an eligible Engineer or **Assign to me**, and the one handoff assigns
+them and enters With Engineer; **Send to EVA**; **Mark report sent**; **Mark
+completed**; **Return to Review** or **Return to Engineer**; **Archive**;
+**Place on Hold** (reason and optional Review on date) or **Release Hold**;
+**Create upload link**; **Correct principal**; **Create audit** on an
+Inspection + Audit Case once a report has been generated
+([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity));
+and, after a separator and in red, **Close case**. Outside an edit session the
+menu appears only when Send to EVA is available. Handoff is review; there is
 no reviewed checkbox or separate Start report preparation action.
 The Principal's report-generation policy determines EVA work: **EVA ZIP**
 offers the export, **manual EVA API** offers Send via API, and **automatic EVA
@@ -310,17 +417,23 @@ error` (**Correct principal**) and `E-mail unlinked` keep their own dedicated
 actions and are never offered by this dialog; `PostReportComplete` remains the
 ordinary **Mark completed** progression, not part of Close case. Closing never
 deletes a Case ([FRD-01](frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence)).
-Holds, releases, corrections and a return to engineering record a reason. Editing shows a sticky bar
-with the lease text, an unsaved marker, Discard and Save; saving in Review
-warns first; a stale version shows the current and proposed values as a
-non-destructive conflict.
+Holds, releases, corrections and a return to engineering record a reason. A
+Case save needs no reason; its history line names the changed fields. While
+editing, the lease line shows its expiry, the working-set tab carries the
+unsaved marker, and a stale version shows the current and proposed values as
+a non-destructive conflict.
 
 - Overview: the workflow position (Not ready → Review → With Engineer →
   Completed ⇄ Query, with Held as an exception badge), outstanding requirements — the
   named unmet items of the versioned instruction- and image-completeness sets,
   each with title, source, reason and resolve action, and never a percentage
-  (D23) — the edit form (claimant, Our ref, registration, make,
-  model, accident circumstances) and the work, party and accident facts.
+  (D23) — the Case, Principal and Claimant columns of cells (identity cells
+  read with a lock while the rest edits), the Claim source chosen from the
+  active Claim Source contacts, and a Notes band: the Principal's and the Claim
+  source's Notes on every Case, read-only and absent when the record has none
+  ([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
+  beside this Case's own Principal and Claim source notes; then Accident
+  circumstances beside Notes from client.
 - Inspection: the recorded inspect-at value with its fast-update choice —
   Image Based Assessment, Claimant address, Repairer location, Storage
   location, previous addresses used for this principal, Manual entry; an
@@ -341,7 +454,11 @@ non-destructive conflict.
   A **DVLA & MOT lookup** outcome line states what the lookup itself did
   (looked up and current, or a failure reason), separately from whether it
   ever filled a field.
-- Damage: the zone list with severity and note per zone; tyres and
+- Damage: the **Plan** clicker — a top-down silhouette drawn as the panels over
+  the 19 panel and 4 wheel zones, with Underside, Interior and Mechanical
+  chips, five graded severity fills with a legend, and numbered markers that
+  match the recorded-zones list; hovering names a zone only while editable.
+  Then the zone list with severity and note per zone; tyres and
   seat belts per corner, spare tyre and centre belt; unrelated damage with
   its deduction; paint or material transfer; impact location and severity
   shown as derived values (D39,
@@ -350,8 +467,14 @@ non-destructive conflict.
   values, plus guide month per entry (`CASE-029`), and Add valuation
   (`EXT-10`); sources are Glass's valuation, Brego and Super CAP manual entries,
   Cazana (disabled seam), Engineer's Value and AI market research (automation
-  only) (D40); requesting AI market research creates a `MarketResearch` job (D35,
+  only) (D40). While editing, a **Valuation month** and one button per source
+  run the valuation for that month: Glass's, Brego and Super CAP are present but
+  inert until a provider exists, and **AI market research** creates a
+  `MarketResearch` job and shows a "Researching · {month}" card until it
+  completes, a re-run replacing the card (D35,
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)).
+  Read mode shows only applied increases; the calculator applies presets and
+  custom lines through Core.
 - Estimate: the estimate set and raw estimate import (§ Assessment).
 - Settlement: outcome, category, salvage value, excess, betterment, claimant
   VAT registered, reserve, equity (derived), repair duration and delays,
@@ -392,12 +515,24 @@ non-destructive conflict.
     uses ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)):
     unavailable once the Case reaches Completed or Query, and never on an
     archived Case, but no longer tied to With Engineer or report
-    preparation — a Review-state Case now shows Crop. An image-intake
-    photograph carries no tags and no Crop — it is a receipt, not yet a
-    Case document.
+    preparation — a Review-state Case now shows Crop. Images open in a
+    full-screen viewer (title, tag, position, Rotate, Zoom, Download, In
+    report while editing, and a filmstrip); Crop happens on the viewer stage.
+    A crop is a stored rectangle: the tile and the report show the cropped
+    region and Download returns the original.
+  - Pre-Case images (an image record, a Triage or an Unidentified item) carry
+    the same stored crop, rotation and tags, always editable there with the
+    casework right and the image's own version: the viewer offers Crop (Apply,
+    Clear, Cancel) and the Tag select, the tile shows the cropped region with a
+    Cropped badge and its tag chips, and the viewer draws the recorded region
+    over the original. When the image becomes a Case document the crop,
+    rotation and tags are carried onto that occurrence.
 - Notes: Case notes, business events, chase outcomes and AI events merged
-  newest first, each with date, time and actor; Add Case note and Record
-  chase while editing ([FRD-01](frd-01-case-identity-and-lifecycle.md#due-work-chasing-and-action-history)).
+  newest first, each with date, time and actor; Add Case note at the top
+  without an edit session, and Record chase as a dialog while a chase is
+  scheduled and the lease is held
+  ([FRD-01](frd-01-case-identity-and-lifecycle.md#due-work-chasing-and-action-history)).
+  There is no Case tasks panel.
 
 The case list and persistent identity area expose due/overdue state, while
 the workspace keeps the missing-material reason, next chase, last recorded
@@ -425,7 +560,7 @@ prices both panel and paint hours. Its own VAT percentage defaults to 20 and
 applies to selected discounted Labour, Parts, Materials and Specialist
 categories. Unknown repairer VAT blocks Use as Current until staff record an
 explicit status or categories (D9, D17); no comparison or savings figure is
-shown. It also carries Send to Claude, which creates an `AI-10`
+shown. It also carries Send to AI, which creates an `AI-10`
 [AI Job List](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)
 `Estimate` job (disabled without an Engineer's Value) rather than the
 distinct, DevelopmentOffline-only `AI-09` transport; the report-draft
@@ -457,11 +592,17 @@ capability: it retains no source artifact, hash or parser provenance.
 `/Operations` shows, with a partial-data notice when any query is not
 current: the **AI Job List** (`AI-10`: kind, record, started by, created,
 state, next action, Send Unidentified to AI) — started by names the staff
-username or the Automation client name by the same resolution Action Logs
-uses, never a raw subject identifier; **Attention required**
-(retryable external work with attempts, failure and Retry); **Active upload
-links** (recipient, last activity, accepted, expiry, state, Withdraw); and
-**EVA handoffs** (route, Engineer, state, result). Service health is
+username or the Automation client name by the same resolution Action logs
+uses, never a raw subject identifier; **Attention required** (retryable
+external work with attempts, failure and Retry, and for Administrators the
+failed intake: each received file under its failure kind — Allocation failed,
+OCR failed, Processing failed — offering only its own action, Retry allocation,
+Retry OCR or Re-evaluate, each with a reason, through the Logs handlers
+([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)));
+**Active upload links** (Case, recipient, created, last activity, files,
+expiry, state, Withdraw); and **EVA handoffs** (route, Engineer, state,
+result). Operations stays open to Engineers and Users. Its rail badge counts
+retryable failed external work and is absent at zero. Service health is
 Administration-only; Operations carries no service health table, and its
 one-line partial-data notice links to Administration Service health (D37).
 
@@ -469,7 +610,7 @@ one-line partial-data notice links to Administration Service health (D37).
 
 `/Administration` carries **Accounts**, **Contacts**, **Workflow
 configuration**, **Mail settings**, **Valuation presets**, **Service health**,
-**Action Logs**, **Reports** and **AI jobs**; Automation appears only when its
+**Logs**, **Reports** and **AI jobs**; Automation appears only when its
 capability is composed. Contacts is the one directory for Principals, Claim
 Sources, Repairers, Storage and Third Party Engineers. Principal-specific
 settings are part of that Contact record; there are no separate Principal or
@@ -486,7 +627,8 @@ The existing policy and non-reversible hashing apply and forced change is set
 for the next sign-in. The stored secret cannot subsequently be retrieved (D15,
 [FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)).
 
-**Action Logs** names who acted rather than a raw identifier: a staff subject
+**Logs** (`/Administration/Logs`) has two tabs. **Action logs** names who
+acted rather than a raw identifier: a staff subject
 resolves to their username, an unresolvable staff id (a deleted account)
 reads **Former staff**, the Automation client renders as an **AI** chip with
 its registered client name, and Worker-attributed work reads **Pegasus**. A
@@ -496,6 +638,15 @@ no actor kind and is labelled by its event type instead of a guessed user. An
 kind. An AI job row links through to the Case or Unidentified record it acted
 on. Time values and the From/To period pickers display and accept only
 whole minutes; recorded storage keeps its existing sub-second precision.
+
+The **Intake log** tab lists one row per received file — received, source,
+item (opening the original), outcome with its reason, what it became, and
+attempts — with head-line counts (Failed intake, linking to Operations, and
+the oldest pending intake), filters (search, outcome, source, principal,
+from, to), paging and a row drawer with the retained original, Open message
+where it came by e-mail, the processing evidence and the technical actions
+that apply
+([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)).
 
 **Reports** shares one London period filter across MI-01 Engineer activity,
 MI-02 Reports by Principal (per-Principal report counts by type) and MI-03
@@ -519,6 +670,11 @@ underlying key kept only as a hover title.
 image-completeness rules as required/not-required items with exact blockers,
 and the chase interval as one global whole-calendar-day value (1 to 365,
 default 7, Europe/London), where `Held` preserves the remaining time (D23).
+Beside it sit the Work Centre due targets, each whole calendar days from 0 to
+365: Unidentified target (default 0, due by the midnight after receipt),
+Triage target (1), Held decision target (7), Review target (1) and AI draft
+target (1). The read view lists the six settings as "Chase interval · 7 days"
+and so on; the edit form names each range when a value is refused.
 It has no staff instruction-review or image-review settings. The default view
 shows current values; Edit claims the configuration, Save applies it on the
 click, and Cancel discards changes. It also holds labour-rate-card administration: the
@@ -541,12 +697,17 @@ Review-gated transitions calculate completeness from persisted facts inside
 the transaction. A submitted readiness claim or staff-confirmation checkbox is
 not authority; those checkboxes are retired (CASE-046, PLAT-072).
 
-### Workspace tabs, command palette and keyboard
+### Working set, command palette and keyboard
 
-The tab strip holds the Work Centre plus one closable tab per open Case
-record, at most four, evicting the least recently used. Tabs are a
-browser-local convenience only: they never carry state, are never shared
-between accounts or devices, and their absence changes nothing.
+The working-set strip holds open records only: a Case, Triage, Unidentified
+item, image record or message joins it when opened and leaves when its tab is
+closed. There is no Work Centre tab and no "+ Open" tab; with nothing open the
+strip is absent. Each tab shows the reference and registration (a message its
+subject) and its state — unsaved edits, a Glass's session open, or a colleague
+holding the record. Six tabs are shown and the rest sit in an "N more" menu;
+closing the current record returns to the Work Centre. The set is a
+browser-local convenience only: it carries no record state, is never shared
+between accounts or devices, and its absence changes nothing.
 
 The command palette (Ctrl K, the global search field, the Open button)
 finds Cases, references and routes by typing and opens the selection.
@@ -582,8 +743,8 @@ No required evidence or action is hidden at any width or at 200% zoom.
 
 Case states and transition meanings are owned by
 [FRD-01](frd-01-case-identity-and-lifecycle.md). Completed and Query are
-reversible work states; no terminal Closed presentation is permitted. `Audit`, `Triage`,
-`Blocked intake` and `Unidentified` keep their settled meanings.
+reversible work states; no terminal Closed presentation is permitted. `Audit`,
+`Triage` and `Unidentified` keep their settled meanings.
 
 ### Upload
 
@@ -642,7 +803,7 @@ where required.
 
 `New cases today` counts every instructed Case created in the current
 Europe/London calendar day, including a Case later completed or given a cancellation/rejection disposition that day. It
-excludes Image-initiated Cases, Triage, Unidentified, and `Blocked intake`.
+excludes Image-initiated Cases, Triage and Unidentified.
 The Unidentified count is the exact count of open Unidentified items and
 links to that queue. These are separate from `Due today`, `Sent to
 Engineer`, and `Reports sent`. `Due by` and overdue/chaser work remain a
@@ -707,8 +868,8 @@ authorities.
   and nothing else; when the seam has no ticket the control is absent.
 - A lost or expired edit lease surfaces the holder and disables
   Save; a stale version is a non-destructive conflict.
-- Tabs and palette history that cannot be read are treated as empty; the
-  page renders correctly with none.
+- A working set or palette history that cannot be read is treated as empty;
+  the page renders correctly with none.
 - A redirect from a removed route keeps the query it was given.
 
 ## Acceptance evidence
@@ -717,8 +878,8 @@ Acceptance covers every rail route and its count, both redirects,
 the removed `/VehicleImages` list, the Cases rail
 groups and filters, the Work Centre kinds against Core queries, the
 `/Cases/{id}/Assessment` redirect and the read-only rule in Completed
-(D30), the eleven Case record sections and the `?section=` jump (D29), the
-tab limit and eviction. Authenticated Web tests cover server-owned behavior;
+(D30), the ten Case record sections and the `?section=` jump (D29), and the
+working set's six tabs and its "N more" menu. Authenticated Web tests cover server-owned behavior;
 they do not establish client-side interaction or visual correctness.
 The Case record whole-page drop remains the one
 accepted pointer-only exception (D16); ordinary keyboard accessibility remains

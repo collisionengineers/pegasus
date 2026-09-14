@@ -96,6 +96,16 @@ The Principal section of a Contact carries:
   active; a revoked credential may be reissued, which starts a new secret and
   clears the revocation.
 
+A Principal and a Claim Source contact each carry **Notes on every Case**:
+free text stored once on the organisation. The Case record's Overview shows
+the Principal notes and the Claim source notes read-only in its Notes band,
+absent when the record has none, beside that Case's own editable notes. The
+Claim source is chosen on the Case from the active Claim Source contacts, or
+none; the Case keeps a snapshot of the chosen name and contact, its notes
+follow the chosen record, and a changed choice must still be an active Claim
+Source when the Case is saved. Notes are not added to Repairer, Storage or Third
+Party Engineer contacts.
+
 Every change is a permanent action-history event with actor, time, operation
 identity, and before/after values. Routine settings changes do not require a
 generic reason; retain one only where the action's policy requires it.
@@ -151,7 +161,7 @@ flagged accounts are offered as a Case's Sign-off Engineer
 reports render the flagged account's tuple
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation)).
 Every change to the flag, qualifications or signature image is a permanent
-action-history event read in Action Logs. The initial Sign-off Engineer
+action-history event read in Action logs. The initial Sign-off Engineer
 accounts are A Patterson, N O'Reilly and E Mawdsley (Andy, Neil, Ed). Andy is
 the default; Neil's qualifications are recorded later by an Administrator,
 and until then his reports print the name without a qualification line. The
@@ -163,7 +173,7 @@ Permanent business history records every business mutation; download/export; mat
 
 Sign-ins and authentication failures remain in the security log. Routine views, searches, refreshes, polling, retries, lease renewal/expiry/heartbeat, and adapter mechanics remain content-safe telemetry.
 
-**Action Logs** is the one administration view over permanent action
+**Action logs** (Administration › Logs) is the one administration view over permanent action
 history and the security log. It is filtered by search text, Area, Actor,
 Result, From, and To, sorted newest first with a sort toggle, and shows Time,
 Actor, Area, Action, Reference, and Result per row. Account access changes, role
