@@ -721,8 +721,17 @@
             || !form.querySelector('input[name="editLeaseToken"]')) {
             return;
         }
+        var wasClean = dirtyForm === null;
         dirtyForm = form;
+        if (wasClean) {
+            announce(true);
+        }
     });
+    // The working-set tab carries an amber dot while the record holds
+    // unsaved edits (v26 § Working set).
+    function announce(dirty) {
+        document.dispatchEvent(new CustomEvent('pegasus:dirty', { detail: { dirty: dirty } }));
+    }
     // Root-scoped and idempotent so a lazily mounted Case section's
     // lease-carrying forms join the guard instead of escaping it.
     function bind(root) {
@@ -733,7 +742,7 @@
                 return;
             }
             form.dataset.dirtyGuardBound = 'true';
-            form.addEventListener('submit', function () { dirtyForm = null; });
+            form.addEventListener('submit', function () { dirtyForm = null; announce(false); });
         });
     }
     bind(document);
@@ -1775,26 +1784,50 @@
     filter();
 })();
 
-// --- Workspace tabs -----------------------------------------------------------
-// One closable tab per record opened, remembered per browser in
-// localStorage "pegasus.workspaceTabs" as [{href,label,at}], at most four,
-// least recently used first out. A page announces itself as a record with
-// main[data-workspace-record][data-workspace-href][data-workspace-label].
+// --- Working set (v26 § Working set) -------------------------------------------
+// The strip above the record holds the open records only: Cases and the
+// pre-Case records (Triage, Unidentified, image record, message). A page that
+// is a record announces itself on main[data-record-kind] with
+// data-record-href, -ref, -reg and -glyph, joins the set on load and leaves it
+// by its ×; six tabs show and the rest sit in a "N more" menu. The set is per
+// browser under localStorage "pegasus.workingSet" as
+// [{href,kind,ref,reg,glyph,state}] — a convenience that carries no state the
+// server owns. A record with unsaved edits dispatches `pegasus:dirty`
+// (detail.dirty true/false) and its tab carries the amber dot until the page
+// saves, cancels or reloads. With nothing open the strip is absent.
 (function () {
     'use strict';
-    var strip = document.querySelector('[data-workspace-tabs]');
+    var strip = document.querySelector('[data-working-set]');
     if (!strip) {
         return;
     }
-    var KEY = 'pegasus.workspaceTabs';
-    var MAX = 4;
-    var opener = strip.querySelector('[data-workspace-open]');
+    var KEY = 'pegasus.workingSet';
+    var SHOWN = 6;
+    var MAX = 12;
+    var KIND_ICON = {
+        'case': 'folder',
+        'triage': 'clipboard-list',
+        'unidentified': 'alert-circle',
+        'image': 'image',
+        'message': 'mail'
+    };
+    var GLYPH = {
+        'dirty': { className: 'st st--dirty', title: 'Unsaved changes' },
+        'glass-open': { className: 'st st--glass', icon: 'zap', title: 'Glass’s session open' },
+        'lease-colleague': { className: 'st st--held', icon: 'lock', title: 'A colleague is editing' }
+    };
+    var currentPath = pathOf(window.location.pathname);
+
+    function pathOf(href) {
+        return String(href || '').split('#')[0].split('?')[0].replace(/\/+$/, '').toLowerCase();
+    }
 
     function read() {
         try {
             var stored = JSON.parse(window.localStorage.getItem(KEY) || '[]');
             return Array.isArray(stored) ? stored.filter(function (tab) {
-                return tab && typeof tab.href === 'string' && typeof tab.label === 'string';
+                return tab && typeof tab.href === 'string' && tab.href.charAt(0) === '/'
+                    && typeof tab.ref === 'string' && tab.ref.length > 0;
             }) : [];
         } catch (error) {
             return [];
@@ -1805,14 +1838,14 @@
         try {
             window.localStorage.setItem(KEY, JSON.stringify(tabs));
         } catch (error) {
-            // Storage refused (private mode, quota): the strip still renders
-            // this page's own record for the session.
+            // Storage refused (private mode, quota): the strip still shows
+            // this page's own record for the visit.
         }
     }
 
-    function icon(name) {
+    function icon(name, className) {
         var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-        svg.setAttribute('class', 'icon');
+        svg.setAttribute('class', className || 'icon');
         svg.setAttribute('aria-hidden', 'true');
         var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
         use.setAttribute('href', '#icon-' + name);
@@ -1820,57 +1853,387 @@
         return svg;
     }
 
-    function render(tabs) {
-        strip.querySelectorAll('.workspace-tab--record').forEach(function (tab) { tab.remove(); });
-        var current = window.location.pathname.toLowerCase();
+    function text(tag, className, value) {
+        var element = document.createElement(tag);
+        element.className = className;
+        element.textContent = value;
+        return element;
+    }
+
+    function glyph(tab) {
+        var spec = GLYPH[tab.state] || null;
+        if (!spec) {
+            return null;
+        }
+        var mark = document.createElement('span');
+        mark.className = spec.className;
+        mark.title = spec.title;
+        mark.setAttribute('role', 'img');
+        mark.setAttribute('aria-label', spec.title);
+        if (spec.icon) {
+            mark.appendChild(icon(spec.icon));
+        }
+        return mark;
+    }
+
+    function label(tab, target) {
+        target.appendChild(icon(KIND_ICON[tab.kind] || 'folder'));
+        target.appendChild(text('span', 'ref', tab.ref));
+        if (tab.reg) {
+            target.appendChild(text('span', 'reg', tab.reg));
+        }
+        var mark = glyph(tab);
+        if (mark) {
+            target.appendChild(mark);
+        }
+    }
+
+    function isCurrent(tab) {
+        return pathOf(tab.href) === currentPath;
+    }
+
+    function closeButton(tab) {
+        var close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'tab-close';
+        close.setAttribute('aria-label', 'Close ' + tab.ref + (tab.reg ? ' · ' + tab.reg : ''));
+        close.appendChild(icon('x'));
+        close.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            close_(tab);
+        });
+        return close;
+    }
+
+    function tabElement(tab) {
+        var active = isCurrent(tab);
+        var wrapper = document.createElement('div');
+        wrapper.className = 'workspace-tab' + (active ? ' is-active' : '');
+        wrapper.setAttribute('data-href', tab.href);
+        var link = document.createElement('a');
+        link.className = 'workspace-tab-link';
+        link.href = tab.href;
+        if (active) {
+            link.setAttribute('aria-current', 'page');
+        }
+        label(tab, link);
+        wrapper.appendChild(link);
+        wrapper.appendChild(closeButton(tab));
+        return wrapper;
+    }
+
+    function moreMenu(tabs) {
+        var details = document.createElement('details');
+        details.className = 'tabs-more menu';
+        details.setAttribute('data-menu', '');
+        var summary = document.createElement('summary');
+        summary.appendChild(document.createTextNode(tabs.length + ' more'));
+        summary.appendChild(icon('chevron-down'));
+        details.appendChild(summary);
+        var body = document.createElement('div');
+        body.className = 'menu-body menu-body--start';
         tabs.forEach(function (tab) {
-            var isActive = current === tab.href.split('?')[0].toLowerCase();
-            var wrapper = document.createElement('div');
-            wrapper.className = 'workspace-tab workspace-tab--record' + (isActive ? ' is-active' : '');
-            var link = document.createElement('a');
-            link.className = 'workspace-tab-link';
-            link.href = tab.href;
-            if (isActive) {
-                link.setAttribute('aria-current', 'page');
+            var row = document.createElement('a');
+            row.href = tab.href;
+            row.setAttribute('data-href', tab.href);
+            if (isCurrent(tab)) {
+                row.setAttribute('aria-current', 'page');
             }
-            link.appendChild(icon('folder-open'));
-            var label = document.createElement('span');
-            label.textContent = tab.label;
-            link.appendChild(label);
-            var close = document.createElement('button');
-            close.type = 'button';
-            close.className = 'workspace-tab-close';
-            close.setAttribute('aria-label', 'Close ' + tab.label);
-            close.appendChild(icon('x'));
-            close.addEventListener('click', function () {
-                var remaining = read().filter(function (candidate) { return candidate.href !== tab.href; });
-                write(remaining);
-                if (isActive) {
-                    window.location.assign('/');
-                    return;
-                }
-                render(remaining);
-            });
-            wrapper.append(link, close);
-            strip.insertBefore(wrapper, opener);
+            row.appendChild(icon(KIND_ICON[tab.kind] || 'folder'));
+            row.appendChild(text('span', '', tab.ref + (tab.reg ? ' · ' + tab.reg : '')));
+            var mark = glyph(tab);
+            if (mark) {
+                row.appendChild(mark);
+            }
+            body.appendChild(row);
+        });
+        details.appendChild(body);
+        // The menu opens under its left edge unless that would run off the
+        // viewport, when it opens under its right edge instead.
+        details.addEventListener('toggle', function () {
+            if (!details.open) {
+                return;
+            }
+            body.classList.remove('menu-body--end');
+            if (body.getBoundingClientRect().right > document.documentElement.clientWidth - 8) {
+                body.classList.add('menu-body--end');
+            }
+        });
+        return details;
+    }
+
+    function render(tabs) {
+        strip.textContent = '';
+        if (tabs.length === 0) {
+            strip.hidden = true;
+            document.body.classList.remove('has-working-set');
+            return;
+        }
+        var shown = tabs.slice(0, SHOWN);
+        var more = tabs.slice(SHOWN);
+        // The record on screen always has a visible tab: when it sits past
+        // the sixth it takes the last shown slot for this render only.
+        var currentIndex = tabs.findIndex(isCurrent);
+        if (currentIndex >= SHOWN) {
+            more = tabs.slice(SHOWN).filter(function (tab) { return !isCurrent(tab); });
+            more.unshift(shown[SHOWN - 1]);
+            shown[SHOWN - 1] = tabs[currentIndex];
+        }
+        shown.forEach(function (tab) { strip.appendChild(tabElement(tab)); });
+        if (more.length > 0) {
+            strip.appendChild(moreMenu(more));
+        }
+        strip.hidden = false;
+        document.body.classList.add('has-working-set');
+    }
+
+    function close_(tab) {
+        var remaining = read().filter(function (candidate) { return pathOf(candidate.href) !== pathOf(tab.href); });
+        write(remaining);
+        if (isCurrent(tab)) {
+            window.location.assign('/');
+            return;
+        }
+        render(remaining);
+    }
+
+    // Middle-click closes a tab, as a browser tab does.
+    strip.addEventListener('auxclick', function (event) {
+        if (event.button !== 1) {
+            return;
+        }
+        var host = event.target.closest('[data-href]');
+        if (!host) {
+            return;
+        }
+        var href = host.getAttribute('data-href');
+        var tab = read().find(function (candidate) { return candidate.href === href; });
+        if (tab) {
+            event.preventDefault();
+            close_(tab);
+        }
+    });
+
+    // This page's record joins the set (or refreshes its entry in place):
+    // the server's glyph is the state on every load, which also clears a
+    // dirty dot the page no longer holds.
+    var main = document.querySelector('main[data-record-kind]');
+    var tabs = read();
+    if (main && main.getAttribute('data-record-href') && main.getAttribute('data-record-ref')) {
+        var entry = {
+            href: main.getAttribute('data-record-href'),
+            kind: main.getAttribute('data-record-kind') || 'case',
+            ref: main.getAttribute('data-record-ref'),
+            reg: main.getAttribute('data-record-reg') || '',
+            glyph: main.getAttribute('data-record-glyph') || '',
+            state: main.getAttribute('data-record-glyph') || ''
+        };
+        currentPath = pathOf(entry.href);
+        var at = tabs.findIndex(function (tab) { return pathOf(tab.href) === currentPath; });
+        if (at === -1) {
+            tabs.push(entry);
+        } else {
+            tabs[at] = entry;
+        }
+        while (tabs.length > MAX) {
+            var oldest = tabs.findIndex(function (tab) { return !isCurrent(tab); });
+            tabs.splice(oldest === -1 ? 0 : oldest, 1);
+        }
+        write(tabs);
+    }
+
+    document.addEventListener('pegasus:dirty', function (event) {
+        var dirty = !(event.detail && event.detail.dirty === false);
+        var set = read();
+        var tab = set.find(isCurrent);
+        if (!tab) {
+            return;
+        }
+        tab.state = dirty ? 'dirty' : (tab.glyph || '');
+        write(set);
+        render(set);
+    });
+
+    // Another window of the same browser opened or closed a record.
+    window.addEventListener('storage', function (event) {
+        if (event.key === KEY) {
+            render(read());
+        }
+    });
+
+    render(tabs);
+})();
+
+// --- Rail collapse (v25 C3) ----------------------------------------------------
+// The Collapse control at the rail's foot narrows it to icons and counts;
+// the choice is per browser under localStorage "pegasus.rail". A collapsed
+// link carries its label as a title so the name is still readable.
+(function () {
+    'use strict';
+    var shell = document.querySelector('[data-app-shell]');
+    var toggle = document.querySelector('[data-rail-toggle]');
+    if (!shell || !toggle) {
+        return;
+    }
+    var KEY = 'pegasus.rail';
+    var links = Array.prototype.slice.call(shell.querySelectorAll('.primary-nav .nav-link'));
+    var collapseLabel = toggle.getAttribute('data-label-collapse') || 'Collapse navigation';
+    var expandLabel = toggle.getAttribute('data-label-expand') || 'Expand navigation';
+
+    function stored() {
+        try {
+            return window.localStorage.getItem(KEY) === 'collapsed';
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function apply(collapsed) {
+        shell.classList.toggle('rail-collapsed', collapsed);
+        toggle.setAttribute('aria-expanded', String(!collapsed));
+        toggle.setAttribute('aria-label', collapsed ? expandLabel : collapseLabel);
+        toggle.title = collapsed ? expandLabel : '';
+        links.forEach(function (link) {
+            var name = link.querySelector('span:not(.nav-count)');
+            if (collapsed && name) {
+                link.title = name.textContent.trim();
+            } else {
+                link.removeAttribute('title');
+            }
         });
     }
 
-    var tabs = read();
-    var main = document.querySelector('main[data-workspace-record]');
-    if (main) {
-        var href = main.getAttribute('data-workspace-href');
-        var label = main.getAttribute('data-workspace-label');
-        if (href && label) {
-            tabs = tabs.filter(function (tab) { return tab.href !== href; });
-            tabs.push({ href: href, label: label, at: Date.now() });
-            while (tabs.length > MAX) {
-                tabs.shift();
-            }
-            write(tabs);
+    var collapsed = stored();
+    apply(collapsed);
+    toggle.addEventListener('click', function () {
+        collapsed = !collapsed;
+        apply(collapsed);
+        try {
+            window.localStorage.setItem(KEY, collapsed ? 'collapsed' : 'open');
+        } catch (error) {
+            // The rail still narrows for this page when storage is refused.
         }
+    });
+})();
+
+// --- Menus, dismissable notices, collapsible panels, sticky measure ---------------
+// Frame helpers every page composes (v26 frame rules). Each works on data
+// attributes so the markup stays a plain <details>, <button> or <section>:
+//   details[data-menu]       one open at a time; Escape or an outside click closes
+//   [data-dismiss]           removes the enclosing .notice (or [data-dismissable])
+//   [data-collapse="key"]    a panel whose [data-collapse-toggle] folds its body,
+//                            remembered under localStorage "pegasus.collapsed.<key>"
+//   [data-sticky-block]      measured into --sticky-h on its parent element
+(function () {
+    'use strict';
+
+    function openMenus() {
+        return Array.prototype.slice.call(document.querySelectorAll('details[data-menu][open]'));
     }
-    render(tabs);
+
+    document.addEventListener('toggle', function (event) {
+        var menu = event.target;
+        if (!menu || !menu.matches || !menu.matches('details[data-menu]') || !menu.open) {
+            return;
+        }
+        openMenus().forEach(function (other) {
+            if (other !== menu && !other.contains(menu)) {
+                other.open = false;
+            }
+        });
+    }, true);
+
+    document.addEventListener('click', function (event) {
+        openMenus().forEach(function (menu) {
+            if (!menu.contains(event.target)) {
+                menu.open = false;
+            }
+        });
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape') {
+            return;
+        }
+        var open = openMenus();
+        if (open.length === 0) {
+            return;
+        }
+        open.forEach(function (menu) {
+            menu.open = false;
+            var summary = menu.querySelector('summary');
+            if (summary && menu.contains(document.activeElement)) {
+                summary.focus();
+            }
+        });
+    });
+
+    document.addEventListener('click', function (event) {
+        var control = event.target.closest('[data-dismiss]');
+        if (!control) {
+            return;
+        }
+        var host = control.closest('[data-dismissable], .notice');
+        if (host) {
+            host.remove();
+        }
+    });
+
+    function bindCollapsible(root) {
+        root.querySelectorAll('[data-collapse]').forEach(function (panel) {
+            if (panel.dataset.collapseBound === 'true') {
+                return;
+            }
+            var toggle = panel.querySelector('[data-collapse-toggle]');
+            if (!toggle) {
+                return;
+            }
+            panel.dataset.collapseBound = 'true';
+            var key = 'pegasus.collapsed.' + panel.getAttribute('data-collapse');
+            var collapseLabel = toggle.getAttribute('aria-label') || 'Collapse section';
+            var expandLabel = toggle.getAttribute('data-label-expand') || 'Expand section';
+
+            function apply(collapsed) {
+                panel.classList.toggle('is-collapsed', collapsed);
+                toggle.setAttribute('aria-expanded', String(!collapsed));
+                toggle.setAttribute('aria-label', collapsed ? expandLabel : collapseLabel);
+            }
+
+            var collapsed = false;
+            try {
+                collapsed = window.localStorage.getItem(key) === '1';
+            } catch (error) {
+                collapsed = false;
+            }
+            apply(collapsed);
+            toggle.addEventListener('click', function () {
+                collapsed = !collapsed;
+                apply(collapsed);
+                try {
+                    window.localStorage.setItem(key, collapsed ? '1' : '0');
+                } catch (error) {
+                    // The fold still applies for this page.
+                }
+            });
+        });
+    }
+    bindCollapsible(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindCollapsible);
+
+    var block = document.querySelector('[data-sticky-block]');
+    if (block) {
+        var host = block.parentElement;
+        var measure = function () {
+            host.style.setProperty('--sticky-h', block.offsetHeight + 'px');
+        };
+        measure();
+        window.addEventListener('resize', measure);
+        if ('ResizeObserver' in window) {
+            new ResizeObserver(measure).observe(block);
+        }
+        window.pegasusStickyHeight = function () { return block.getBoundingClientRect().bottom; };
+    }
 })();
 
 // --- Case record: Scroll/Tabs, lazy bodies and sticky geometry ---------------

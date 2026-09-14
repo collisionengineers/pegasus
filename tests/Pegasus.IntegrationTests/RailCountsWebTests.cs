@@ -14,8 +14,9 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// PLAT-003 / PLAT-029: the operator rail's Cases count must show the real
 /// Not ready + Review + Held total (the already-deployed stage aggregate),
-/// and a route with no established figure (Inbox, Operations) must render no
-/// count at all rather than a stale zero.
+/// a route with no established figure (Inbox) must render no count at all
+/// rather than a stale zero, and Operations (v26, 13 September) carries the
+/// retryable-failure badge only while it is above zero.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class RailCountsWebTests
@@ -41,14 +42,47 @@ public sealed class RailCountsWebTests
         Assert.True(casesMatch.Success, "Cases rail count markup not found.");
         Assert.Equal(1, int.Parse(casesMatch.Groups[1].Value, CultureInfo.InvariantCulture));
 
-        // Inbox and Operations have no established figure to reuse
-        // (research.md): their rail links must carry no nav-count span at all.
+        // Inbox has no established figure to reuse (research.md): its rail
+        // link must carry no nav-count span at all. Operations' badge counts
+        // retryable failures, and with none there is nothing to signal.
         Assert.False(
             Regex.IsMatch(html, "Inbox</span>\\s*<span class=\"nav-count\""),
             "Inbox must render no count until a real figure exists for it.");
         Assert.False(
             Regex.IsMatch(html, "Operations</span>\\s*<span class=\"nav-count\""),
-            "Operations must render no count until a real figure exists for it.");
+            "Operations must render no badge while nothing is retryable.");
+    }
+
+    [Fact]
+    public async Task OperationsCarriesTheRetryableFailureBadgeWhenAboveZero()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetOperationsBadge>();
+                services.AddSingleton<IGetOperationsBadge>(new FixedOperationsBadge(3));
+            }));
+        using var client = factory.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost:7139")
+            });
+
+        using var response = await client.GetAsync("/Search");
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var badge = Regex.Match(html, "Operations</span>\\s*<span class=\"nav-count\"[^>]*>(\\d+)</span>");
+        Assert.True(badge.Success, "Operations rail badge markup not found.");
+        Assert.Equal(3, int.Parse(badge.Groups[1].Value, CultureInfo.InvariantCulture));
+    }
+
+    private sealed class FixedOperationsBadge(int count) : IGetOperationsBadge
+    {
+        public Task<int> ExecuteAsync(Pegasus.Core.Identity.ActionActor actor, CancellationToken cancellationToken = default) =>
+            Task.FromResult(count);
     }
 
     [Fact]
