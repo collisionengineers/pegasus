@@ -405,6 +405,17 @@ public sealed partial class CaseDetailsWebTests
         // the case's real edit state, so nothing is said here.
         Assert.Equal(HttpStatusCode.Conflict, lost.StatusCode);
 
+        // A faulted store says nothing about the lease: the answer is the fault itself, never
+        // the 409 the browser would read as the lease being gone.
+        store.NextFailure = new InvalidOperationException("The lease store is unavailable.");
+        using var faulted = await workspace.Client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=HeartbeatLease",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("editLeaseToken", store.LeaseToken)));
+        Assert.Equal(HttpStatusCode.InternalServerError, faulted.StatusCode);
+
         using var unprotected = await workspace.Client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=HeartbeatLease",
             new FormUrlEncodedContent(new Dictionary<string, string>
