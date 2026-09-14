@@ -134,9 +134,9 @@
             </form>
             @if (!row.IsCurrentOperator)
             {
-                @* Each action posts on its click; there is no confirmation
-                   step and no reason to type. *@
-                var adverse = new[] { (account.IsEnabled ? "Disable" : "Enable", account.IsEnabled ? "btn btn--danger" : "btn"), ("Delete", "btn btn--danger") };
+                @* Each action posts on its click with no reason to type. Delete
+                   alone confirms first: the row is removed, not disabled. *@
+                var adverse = new[] { (account.IsEnabled ? "Disable" : "Enable", account.IsEnabled ? "btn btn--danger" : "btn") };
                 var routine = account.IsEnabled ? new[] { ("ForceLogout", "Force logout"), ("ResetPassword", "Reset password") } : [];
                 <div class="dialog-foot">
                     <div class="left">
@@ -144,6 +144,7 @@
                         {
                             <form method="post" asp-page-handler="@handler"><input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="expectedVersion" value="@Model.SettingsPostVersion" /><input type="hidden" name="editLeaseToken" value="@Model.SettingsLeaseToken" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" /><button type="submit" class="@buttonClass">@handler</button></form>
                         }
+                        <button type="button" class="btn btn--danger" data-dialog-open="@settingsId-delete">Delete</button>
                     </div>
                     @foreach (var (handler, label) in routine)
                     {
@@ -153,6 +154,16 @@
             }
         </section>
     </div>
+    @if (!row.IsCurrentOperator)
+    {
+        <dialog id="@settingsId-delete" aria-labelledby="@settingsId-delete-title">
+            <form method="post" asp-page-handler="Delete" class="stack">
+                <h2 id="@settingsId-delete-title" tabindex="-1" data-dialog-initial-focus>Delete @account.UserName</h2>
+                <input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="expectedVersion" value="@Model.SettingsPostVersion" /><input type="hidden" name="editLeaseToken" value="@Model.SettingsLeaseToken" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                <div class="button-row"><button class="btn" type="button" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger">Delete</button></div>
+            </form>
+        </dialog>
+    }
 
     @* Beaconed as the page unloads so an operator who navigates away is not
        refused by their own lease when they come back. *@
