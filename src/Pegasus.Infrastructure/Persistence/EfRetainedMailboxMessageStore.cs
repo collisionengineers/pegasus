@@ -600,8 +600,8 @@ internal sealed class EfRetainedMailboxMessageStore(
 
     private static Guid? IntakeAssetId(
         int attachmentOrdinal,
-        IReadOnlyDictionary<int, string[]> sourceLabelsByOrdinal,
-        IReadOnlyDictionary<string, Guid[]> assetIdsBySourceLabel)
+        Dictionary<int, string[]> sourceLabelsByOrdinal,
+        Dictionary<string, Guid[]> assetIdsBySourceLabel)
     {
         if (!sourceLabelsByOrdinal.TryGetValue(attachmentOrdinal, out var sourceLabels)
             || sourceLabels.Length != 1
