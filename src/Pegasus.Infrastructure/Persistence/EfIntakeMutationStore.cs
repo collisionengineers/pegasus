@@ -1468,7 +1468,7 @@ internal sealed class EfIntakeMutationStore(
             receipt.Version,
             normalizedRegistration,
             registrationCaseIds,
-            message.MailboxId.ToString("D"),
+            (message.MailboxId ?? UploadedCorrespondence.MailboxId).ToString("D"),
             message.ConversationIdentity,
             threadCaseIds);
     }
