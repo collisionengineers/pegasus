@@ -234,6 +234,24 @@ public sealed class WorkCentreWebTests
     }
 
     [Fact]
+    public async Task RefreshHandlerMarksTheWholeFragmentFailedWhenEverySectionReadFails()
+    {
+        using var host = Host(
+            new FakeSnapshot { Throw = true },
+            new FakeRecentCases { Throw = true },
+            new FakeAiJobs { Throw = true });
+        using var client = Client(host);
+
+        var html = await GetOkAsync(client, "/?handler=Refresh&refresh=true");
+
+        Assert.Contains("data-wc-refresh-outcome=\"failed\"", html, StringComparison.Ordinal);
+        Assert.Contains(">Refresh unavailable</span>", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"attention\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"new-cases\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"ai-jobs\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AiJobsListDraftReadyTakenQueuedAndFailedWithPerKindActions()
     {
         var caseId = Guid.NewGuid();
@@ -422,9 +440,16 @@ public sealed class WorkCentreWebTests
 
         public DateTimeOffset? LastSeen { get; init; }
 
-        public Task<RecentCasesFeed> ExecuteAsync(ActionActor actor, int page, bool markSeen, CancellationToken cancellationToken)
+        public bool Throw { get; init; }
+
+        public Task<RecentCasesFeed> ExecuteAsync(ActionActor actor, int page, bool markSeen,
+            CancellationToken cancellationToken, DateTimeOffset? asOfUtc = null)
         {
             Calls.Add((page, markSeen));
+            if (Throw)
+            {
+                throw new InvalidOperationException("recent cases failed");
+            }
             return Task.FromResult(new RecentCasesFeed(
                 new RecentCasesPage(Rows, page, RecentCasesPolicy.PageSize, Rows.Count),
                 RecentCasesPolicy.WindowStart(Now),
@@ -438,7 +463,12 @@ public sealed class WorkCentreWebTests
 
         public List<AiJobRecord> Recent { get; } = [];
 
-        public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) => Task.FromResult(Open);
+        public bool Throw { get; init; }
+
+        public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) =>
+            Throw
+                ? Task.FromException<IReadOnlyList<AiJobRecord>>(new InvalidOperationException("AI jobs failed"))
+                : Task.FromResult(Open);
 
         public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>(Recent);
