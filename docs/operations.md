@@ -4,6 +4,33 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Retired Container Apps resources — 15 September 2026
+
+After the Release 50 App Service cutover and the subsequent successful Releases
+51 and 52, the operator approved final removal of the retained Container Apps
+rollback resources. The retired `pegasus-prod-web-252ow37gij` Container App was
+already unserved, with no ingress, active revision or replica. The authorised
+cleanup deleted it, then the empty
+`pegasus-prod-aca-env-252ow37gij` managed environment, then the obsolete
+`pegasusprodacr252ow37gij` registry. Every deletion exited zero and an
+independent Azure inventory read-back found none of those three resource types;
+the same-name `Microsoft.Web/sites` App Service remains.
+
+Two earlier cleanup-script preflights exited one before any Azure write: the
+first constructed the version URI incorrectly and the second queried the
+Function App state at the wrong Azure CLI property path. The corrected dry run
+passed every precondition and reached `ShouldProcess` before the successful
+authorised execution.
+
+After deletion, the App Service `/health/ready` endpoint returned 200 and
+`/diagnostics/version` reported source
+`38051586856eb2b4a00b964de842a2e7bcdee555`, version `0.1.0-alpha.1`. The Flex
+Consumption Worker remained `Running`. Full production smoke exited zero: the
+deployed Web package SHA-256 matched Release 52, Worker activation was
+`approved-live-worker`, and intake liveness passed with the last poll at
+`2026-09-15T10:05:03Z`. No application package, schema, configuration, mailbox,
+storage, SQL, Box or Outlook state changed.
+
 ## Test-estate reset — 15 September 2026
 
 The operator-approved production reset removed 56 blobs (10,633,488 bytes)
