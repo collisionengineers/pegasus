@@ -290,6 +290,7 @@ public sealed class CaseDocumentDownloadWebTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.True(response.Headers.CacheControl!.NoStore);
         Assert.Null(response.Headers.ETag);
+        Assert.Equal(0, ports.PreparationReads);
         Assert.Equal(0, ports.ThumbnailReads);
         Assert.Equal(0, ports.LogicalReads);
     }
