@@ -1,4 +1,5 @@
 {
+  "workflow_notice": "Historical evidence only. Kanmer recommendations are superseded on 2026-09-15. Use the current operator task and PR/CI records; do not reapply this plan.",
   "latest_findings": {
     "1": [
       "Patch",

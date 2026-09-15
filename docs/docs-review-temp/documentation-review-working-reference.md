@@ -1,5 +1,10 @@
 # Pegasus documentation investigation and recommendations
 
+Superseded workflow guidance (15 September 2026): Kanmer is not used.
+The current operator task owns scope and coordination; PR review and CI
+record delivery evidence. Kanmer recommendations below are retained only as
+historical evidence and must not be executed or reinstated.
+
 Temporary working reference · 8 September 2026 · not governing documentation.
 
 Prepared at the operator's explicit request, without creating or updating a

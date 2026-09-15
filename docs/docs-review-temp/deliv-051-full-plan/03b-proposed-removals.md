@@ -1,5 +1,10 @@
 # Removals
 
+Superseded workflow guidance (15 September 2026): Kanmer is not used.
+The current operator task owns scope and coordination; PR review and CI
+record delivery evidence. Kanmer recommendations below are retained only as
+historical evidence and must not be executed or reinstated.
+
 Temporary working reference for DELIV-051. Amended from the operator answers on 2026-09-08. Canonical documents now carry the requirements; this folder is not an additional authority.
 
 | Removed file |
