@@ -318,7 +318,7 @@ internal sealed class IntegrationTestAuthenticationHandler(
 
 internal static partial class IntakeWebDriver
 {
-    public static HttpClient CreateClient(IntakeWebApplicationFactory factory) => factory.CreateClient(
+    public static HttpClient CreateClient(WebApplicationFactory<Program> factory) => factory.CreateClient(
         new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,

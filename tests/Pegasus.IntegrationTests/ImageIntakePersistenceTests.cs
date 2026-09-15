@@ -441,7 +441,7 @@ public sealed class ImageIntakePersistenceTests
             CancellationToken.None);
         Assert.Equal([record.Id], galleryByIntake.Keys);
         Assert.Equal(memberReceiptIds, galleryByIntake[record.Id]
-            .Select(image => image.IntakeReceiptId));
+            .Select(image => image.ReceiptId));
         Assert.Empty(await queries.ListImagesAsync([], CancellationToken.None));
         foreach (var memberId in memberReceiptIds)
         {

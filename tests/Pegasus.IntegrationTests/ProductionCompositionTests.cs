@@ -373,9 +373,8 @@ public sealed class ProductionCompositionTests
         {
         }
 
-        var timing = Assert.Single(channel.Sent
-            .OfType<EventTelemetry>()
-            .Where(item => item.Name == "Pegasus.Document.Read"));
+        var timing = Assert.Single(channel.Sent.OfType<EventTelemetry>(),
+            item => item.Name == "Pegasus.Document.Read");
         Assert.IsAssignableFrom<ISupportSampling>(timing);
         Assert.Equal("document.preview", timing.Properties["phase"]);
         Assert.Equal(["phase"], timing.Properties.Keys);
