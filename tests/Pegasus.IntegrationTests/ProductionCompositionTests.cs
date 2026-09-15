@@ -379,7 +379,8 @@ public sealed class ProductionCompositionTests
                 && item.Context.Operation.ParentId == request.Id);
         Assert.IsAssignableFrom<ISupportSampling>(timing);
         Assert.Equal("document.preview", timing.Properties["phase"]);
-        Assert.Equal(["phase"], timing.Properties.Keys);
+        Assert.Equal("Production", timing.Properties["AspNetCoreEnvironment"]);
+        Assert.Equal(2, timing.Properties.Count);
         Assert.True(timing.Metrics["durationMs"] >= 0);
         Assert.Equal(["durationMs"], timing.Metrics.Keys);
         Assert.Equal(request.TraceId.ToHexString(), timing.Context.Operation.Id);

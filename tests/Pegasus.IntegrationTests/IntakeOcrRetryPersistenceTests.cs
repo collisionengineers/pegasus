@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
@@ -187,7 +188,7 @@ public sealed class IntakeOcrRetryPersistenceTests
         PrincipalCode = "TEST",
         ActorKind = "Staff",
         ActorSubjectId = Guid.NewGuid().ToString("D"),
-        ActorRolesJson = "[\"Administrator\"]",
+        ActorRolesJson = JsonSerializer.Serialize(new[] { StaffRole.Administrator }),
         OperationKey = $"intake-allocation-fixture:{Guid.NewGuid():N}",
         CommandHash = new string('a', 64),
         Reason = "Fixture allocation attempt.",
