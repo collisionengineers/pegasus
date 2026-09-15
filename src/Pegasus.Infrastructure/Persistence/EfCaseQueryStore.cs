@@ -31,9 +31,10 @@ public sealed class EfCaseQueryStore(
             .Take(query.PageSize + 1)
             .ToArrayAsync(cancellationToken);
         var hasNextPage = page.Length > query.PageSize;
+        var now = timeProvider.GetUtcNow();
         var items = page
             .Take(query.PageSize)
-            .Select(MapSearchItem)
+            .Select(item => MapSearchItem(item, now))
             .ToArray();
 
         return new(
@@ -85,7 +86,8 @@ public sealed class EfCaseQueryStore(
         var page = await tieBroken
             .Take(fetchCount)
             .ToArrayAsync(cancellationToken);
-        return page.Select(MapSearchItem).ToArray();
+        var now = timeProvider.GetUtcNow();
+        return page.Select(item => MapSearchItem(item, now)).ToArray();
     }
 
     private static bool IsDescendingOrder(CaseSearchOrder order) => order switch
@@ -416,7 +418,7 @@ public sealed class EfCaseQueryStore(
                 : null);
 
         return new CaseDetails(
-            MapSearchItem(summaryRow),
+            MapSearchItem(summaryRow, timeProvider.GetUtcNow()),
             MapWorkflow(workflow),
             activeLease,
             documents,
@@ -471,7 +473,7 @@ public sealed class EfCaseQueryStore(
                 cancellationToken);
 
         return new CaseHeader(
-            MapSearchItem(summaryRow),
+            MapSearchItem(summaryRow, timeProvider.GetUtcNow()),
             MapWorkflow(workflow),
             ResolveActiveLease(workflow, timeProvider.GetUtcNow()),
             documentCount,
@@ -575,7 +577,10 @@ public sealed class EfCaseQueryStore(
             ImagesComplete = caseEntity.ImagesComplete,
             HoldReviewOn = workflow.HoldReviewOn,
             HeldAtUtc = workflow.HeldAtUtc,
-            StateEnteredAtUtc = workflow.StateEnteredAtUtc
+            StateEnteredAtUtc = workflow.StateEnteredAtUtc,
+            EditLeaseHolder = workflow.EditLeaseHolder,
+            EditLeaseHolderKind = workflow.EditLeaseHolderKind,
+            EditLeaseExpiresAtUtc = workflow.EditLeaseExpiresAtUtc
         };
 
     private static async Task<IReadOnlyList<CaseDocument>> ReadDocumentsAsync(
@@ -834,7 +839,7 @@ public sealed class EfCaseQueryStore(
         Guidance = ReadGuidance(item).ToArray()
     };
 
-    private static CaseSearchItem MapSearchItem(SearchRow item) => new(
+    private static CaseSearchItem MapSearchItem(SearchRow item, DateTimeOffset now) => new(
         item.CaseId,
         item.Reference,
         item.AuditReference,
@@ -858,8 +863,22 @@ public sealed class EfCaseQueryStore(
         ImagesComplete = item.ImagesComplete,
         HoldReviewOn = item.HoldReviewOn,
         HeldAtUtc = item.HeldAtUtc,
-        StateEnteredAtUtc = item.StateEnteredAtUtc
+        StateEnteredAtUtc = item.StateEnteredAtUtc,
+        EditingStaffId = EditingStaffId(item, now)
     };
+
+    /// <summary>
+    /// The staff holder of a live lease, by <see cref="ResolveActiveLease"/>'s
+    /// rule; an automation holder or a lapsed lease is nobody editing.
+    /// </summary>
+    private static Guid? EditingStaffId(SearchRow item, DateTimeOffset now) =>
+        item.EditLeaseHolder is { } holder
+            && item.EditLeaseExpiresAtUtc is { } expiresAtUtc
+            && CaseEditAuthority.IsHeld(expiresAtUtc, now)
+            && CaseMutationGuard.RetainedHolderKind(item.EditLeaseHolderKind) == ActorKind.Staff
+            && Guid.TryParse(holder, out var staffId)
+                ? staffId
+                : null;
 
     internal static CaseType ParseCaseType(string value)
     {
@@ -1080,5 +1099,8 @@ public sealed class EfCaseQueryStore(
         public DateOnly? HoldReviewOn { get; init; }
         public DateTimeOffset? HeldAtUtc { get; init; }
         public DateTimeOffset? StateEnteredAtUtc { get; init; }
+        public string? EditLeaseHolder { get; init; }
+        public string? EditLeaseHolderKind { get; init; }
+        public DateTimeOffset? EditLeaseExpiresAtUtc { get; init; }
     }
 }

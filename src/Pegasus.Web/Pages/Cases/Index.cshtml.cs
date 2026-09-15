@@ -237,9 +237,9 @@ public sealed class IndexModel(
         "awaiting" => ["Image reference", "Registration", "Received", "Images", "Source"],
         "unidentified" when ShowingClosed => ["Reference", "Received", "Material", "Outcome", "Source"],
         "unidentified" => ["Reference", "Received", "Material", "Reason", "Source"],
-        "not_ready" => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "Missing"],
-        "with_engineer" => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "Engineer"],
-        _ => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "State"]
+        "not_ready" => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "Missing", CaseWorkspaceLabels.Frame.Editing],
+        "with_engineer" => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "Engineer", CaseWorkspaceLabels.Frame.Editing],
+        _ => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "State", CaseWorkspaceLabels.Frame.Editing]
     };
 
     public bool HasPreviousPage { get; private set; }
@@ -578,7 +578,10 @@ public sealed class IndexModel(
         CancellationToken cancellationToken) =>
         await ActorDisplayNames.ResolveStaffNamesAsync(
             _staffAccounts,
-            items.Where(item => item.EngineerId is not null).Select(item => item.EngineerId!.Value).Distinct(),
+            items.SelectMany(item => new[] { item.EngineerId, item.EditingStaffId })
+                .Where(id => id is not null)
+                .Select(id => id!.Value)
+                .Distinct(),
             cancellationToken);
 
     /// <summary>
@@ -715,7 +718,12 @@ public sealed class IndexModel(
                 item.NextChaseAtUtc is { } chase
                     ? new Cell(OperatorLabels.OfficeDate(chase), chase < now ? CellKind.Late : CellKind.Text)
                     : Cell.Empty,
-                last
+                last,
+                // Who holds the Case's edit lease right now, so nobody opens a
+                // Case only to find it taken (D2 of the 15 September walk).
+                Cell.Of(item.EditingStaffId is { } editing
+                    ? ActorDisplayNames.Resolve(ActorKind.Staff, editing.ToString("D"), engineers)
+                    : null)
             ],
             item.ReceivedAtUtc,
             $"/Cases/{item.CaseId:D}",

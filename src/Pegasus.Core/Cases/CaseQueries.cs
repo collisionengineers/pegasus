@@ -88,6 +88,12 @@ public sealed record CaseSearchItem(
     /// <summary>The hold's review date when the Case is Held with one, so a list can read "Held · review on 24 Sep".</summary>
     public DateOnly? HoldReviewOn { get; init; }
 
+    /// <summary>
+    /// The member of staff whose edit lease on the Case is live, so a list can
+    /// say who is editing it before anyone opens it; null when nobody is.
+    /// </summary>
+    public Guid? EditingStaffId { get; init; }
+
     /// <summary>When the current hold was placed; null unless the Case is Held.</summary>
     public DateTimeOffset? HeldAtUtc { get; init; }
 
