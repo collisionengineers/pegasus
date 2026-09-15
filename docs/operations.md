@@ -4,6 +4,31 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Test-estate reset — 15 September 2026
+
+The operator-approved production reset removed 56 blobs (10,633,488 bytes)
+from `pegcustody252ow37gij/transient-intake` and 345 rows across 91
+intake/case tables. The checked SQL transaction reported 397 affected rows,
+left all 91 target tables empty, and committed the mailbox cutoff
+`2026-09-15T08:37:24.1701441Z` without changing mailbox approval or activation
+times.
+
+The reset retained the sole `alex` Administrator account and removed `andrew`,
+`claudeuiverification`, `engineertest`, and `test1`, including four role rows
+and 42 attributable security events. Post-checks found no remaining account
+traces. The QDOS 2026 counter changed from 9 to 0, so the next allocation is
+`QDOS26001`; Image Intake remained at seven sequence rows, Triage remained
+empty, and Unidentified remained at one sequence row. All 37 preserve-list
+entries were present, 38 tables were effectively preserved, and 481 preserved
+rows remained after the transaction.
+
+The Worker was stopped for the operation and returned to `Running` afterward.
+Independent read-back found zero target blobs and rows, one `alex` account,
+zero removed-account traces, and QDOS still at zero. Authenticated Web checks
+showed zero cases requiring attention, zero recent cases, and zero Inbox
+messages. The authentication ring, `box-links`, `pegtrans252ow37gij`, Outlook,
+Graph, and Box were untouched.
+
 ## Release 52 — 15 September 2026 (deployment live)
 
 Release 52 deployed the 14–15 September live-walk batch (PRs 749–758) to the
