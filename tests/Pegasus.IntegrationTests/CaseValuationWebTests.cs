@@ -127,8 +127,13 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IAcquireCaseEditLease>(services, store);
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
+                Substitute<IGetAssessmentWorkspace>(services, store);
                 substitutePorts(services);
             }));
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions

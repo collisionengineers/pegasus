@@ -220,6 +220,7 @@ public sealed partial class CaseDetailsWebTests
     /// </summary>
     private sealed class DamageSource(string impacts) :
         IGetCase,
+        IGetCasePageFrame,
         IGetAssessmentAccess,
         IGetAssessmentWorkspace,
         ICaseReportSnapshotSource,
@@ -230,11 +231,13 @@ public sealed partial class CaseDetailsWebTests
         public void Substitute(IServiceCollection services)
         {
             services.RemoveAll<IGetCase>();
+            services.RemoveAll<IGetCasePageFrame>();
             services.RemoveAll<IGetAssessmentAccess>();
             services.RemoveAll<IGetAssessmentWorkspace>();
             services.RemoveAll<ICaseReportSnapshotSource>();
             services.RemoveAll<IListCaseEstimates>();
             services.AddSingleton<IGetCase>(this);
+            services.AddSingleton<IGetCasePageFrame>(this);
             services.AddSingleton<IGetAssessmentAccess>(this);
             services.AddSingleton<IGetAssessmentWorkspace>(this);
             services.AddSingleton<ICaseReportSnapshotSource>(this);
@@ -288,6 +291,24 @@ public sealed partial class CaseDetailsWebTests
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDetails?>(query.CaseId == CaseId ? Details() : null);
+
+        Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            if (query.CaseId != CaseId)
+            {
+                return Task.FromResult<CasePageFrame?>(null);
+            }
+
+            var details = Details();
+            return Task.FromResult<CasePageFrame?>(new(
+                new(details.Summary, details.Workflow, details.ActiveEditLease),
+                details.Documents,
+                details.AvailableReportSentEvidence,
+                details.RecordNotes,
+                details.Data!));
+        }
 
         public Task<AssessmentAccessState?> ExecuteAsync(
             GetAssessmentAccessQuery query,

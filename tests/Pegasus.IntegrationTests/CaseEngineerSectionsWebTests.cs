@@ -31,12 +31,14 @@ public sealed class CaseEngineerSectionsWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCasePageFrame>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<ICaseReportSnapshotSource>();
                 services.RemoveAll<IListCaseEstimates>();
                 services.RemoveAll<ISendToAiControl>();
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetAssessmentAccess>(source);
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
                 services.AddSingleton<ICaseReportSnapshotSource>(source);
@@ -91,12 +93,14 @@ public sealed class CaseEngineerSectionsWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCasePageFrame>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<ICaseReportSnapshotSource>();
                 services.RemoveAll<IListCaseEstimates>();
                 services.RemoveAll<ISendToAiControl>();
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetCasePageFrame>(source);
                 services.AddSingleton<IGetAssessmentAccess>(source);
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
                 services.AddSingleton<ICaseReportSnapshotSource>(source);
@@ -119,6 +123,7 @@ public sealed class CaseEngineerSectionsWebTests
 
     private sealed class EngineerSectionSource :
         IGetCase,
+        IGetCasePageFrame,
         IGetAssessmentAccess,
         IGetAssessmentWorkspace,
         ICaseReportSnapshotSource,
@@ -194,6 +199,18 @@ public sealed class CaseEngineerSectionsWebTests
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDetails?>(query.CaseId == CaseId ? details : null);
+
+        Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CasePageFrame?>(query.CaseId == CaseId
+                ? new(
+                    new(details.Summary, details.Workflow, details.ActiveEditLease),
+                    details.Documents,
+                    details.AvailableReportSentEvidence,
+                    details.RecordNotes,
+                    details.Data!)
+                : null);
 
         public Task<AssessmentAccessState?> ExecuteAsync(
             GetAssessmentAccessQuery query,

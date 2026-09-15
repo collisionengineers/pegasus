@@ -221,6 +221,7 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {

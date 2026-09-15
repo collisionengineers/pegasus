@@ -147,9 +147,21 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCasePageFrame>();
+                services.RemoveAll<IGetAssessmentWorkspace>();
+                services.RemoveAll<IGetCaseVehicleSection>();
+                services.RemoveAll<IGetCaseValuationSection>();
+                services.RemoveAll<IGetCaseNotesSection>();
+                services.RemoveAll<IGetCaseFilesSection>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<IRecordCaseReportApproval>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCasePageFrame>(store);
+                services.AddSingleton<IGetAssessmentWorkspace>(store);
+                services.AddSingleton<IGetCaseVehicleSection>(store);
+                services.AddSingleton<IGetCaseValuationSection>(store);
+                services.AddSingleton<IGetCaseNotesSection>(store);
+                services.AddSingleton<IGetCaseFilesSection>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<IRecordCaseReportApproval>(store);
             }));
@@ -243,6 +255,12 @@ public sealed partial class CaseDetailsWebTests
 
     private sealed class ApprovalCaseDetailsStore :
         IGetCase,
+        IGetCasePageFrame,
+        IGetAssessmentWorkspace,
+        IGetCaseVehicleSection,
+        IGetCaseValuationSection,
+        IGetCaseNotesSection,
+        IGetCaseFilesSection,
         IAcquireCaseEditLease,
         IRecordCaseReportApproval
     {
@@ -265,9 +283,7 @@ public sealed partial class CaseDetailsWebTests
         public List<ClaimCaseEditLeaseRequest> Claims { get; } = [];
         public List<RecordCaseReportApprovalRequest> Approvals { get; } = [];
 
-        public Task<CaseDetails?> ExecuteAsync(
-            GetCaseQuery query,
-            CancellationToken cancellationToken)
+        private CaseDetails Details()
         {
             var identity = new CaseIdentity(CaseId, "QDOS", 2031, 42, "QDOS3100042");
             var workflow = new CaseWorkflowRecord(
@@ -310,10 +326,83 @@ public sealed partial class CaseDetailsWebTests
                 [],
                 [])
             {
+                Data = AssessmentWorkspaceTestData.Create(Assessment(workflow)).Data,
                 ReportApprovedByDisplayName = approval is null ? null : ApproverDisplayName
             };
-            return Task.FromResult<CaseDetails?>(details);
+            return details;
         }
+
+        public Task<CaseDetails?> ExecuteAsync(
+            GetCaseQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseDetails?>(query.CaseId == CaseId ? Details() : null);
+
+        private CaseAssessmentProjection Assessment(CaseWorkflowRecord workflow) => new(
+            CaseId,
+            workflow.Identity.Reference,
+            workflow.Version,
+            workflow.State,
+            null,
+            [],
+            [],
+            new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
+
+        private CaseSectionFrame Frame()
+        {
+            var details = Details();
+            return new(details.Summary, details.Workflow, details.ActiveEditLease);
+        }
+
+        Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            if (query.CaseId != CaseId)
+            {
+                return Task.FromResult<CasePageFrame?>(null);
+            }
+
+            var details = Details();
+            return Task.FromResult<CasePageFrame?>(new(
+                new(details.Summary, details.Workflow, details.ActiveEditLease),
+                details.Documents,
+                details.AvailableReportSentEvidence,
+                details.RecordNotes,
+                details.Data!));
+        }
+
+        Task<AssessmentWorkspace?> IGetAssessmentWorkspace.ExecuteAsync(
+            GetAssessmentWorkspaceQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<AssessmentWorkspace?>(null);
+
+        Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseVehicleSection?>(query.CaseId == CaseId
+                ? new(Frame(), query.Data!, null, null)
+                : null);
+
+        Task<CaseValuationSection?> IGetCaseValuationSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseValuationSection?>(query.CaseId == CaseId
+                ? new(Frame(), query.Data!, null)
+                : null);
+
+        Task<CaseNotesSection?> IGetCaseNotesSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseNotesSection?>(query.CaseId == CaseId
+                ? new(Frame(), [])
+                : null);
+
+        Task<CaseFilesSection?> IGetCaseFilesSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseFilesSection?>(query.CaseId == CaseId
+                ? new(Frame(), query.Documents ?? [], null, CaseCustodyState.Pending, [], [])
+                : null);
 
         Task<CaseEditLease> IAcquireCaseEditLease.ExecuteAsync(
             ClaimCaseEditLeaseRequest request,
