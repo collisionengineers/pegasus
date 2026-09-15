@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -216,7 +217,7 @@ public sealed class WorkCentreWebTests
         Assert.Equal((3, false), Assert.Single(feed.Calls));
         Assert.Contains("name=\"refresh\" value=\"true\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"newPage\" value=\"3\"", html, StringComparison.Ordinal);
-        Assert.Contains($"name=\"since\" value=\"{lastSeen:O}\"", html, StringComparison.Ordinal);
+        Assert.Contains($"name=\"since\" value=\"{HtmlEncoder.Default.Encode($"{lastSeen:O}")}\"", html, StringComparison.Ordinal);
     }
 
     [Fact]

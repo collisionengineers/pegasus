@@ -329,7 +329,7 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Contains(">U777</a>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(jobId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
         var missingJobRow = ActionLogRow(html, "ai_job_missing_subject");
-        Assert.Contains("—", missingJobRow, StringComparison.Ordinal);
+        Assert.Contains("&#x2014;", missingJobRow, StringComparison.Ordinal);
         Assert.DoesNotContain(missingJobId.ToString("D"), missingJobRow, StringComparison.OrdinalIgnoreCase);
     }
 

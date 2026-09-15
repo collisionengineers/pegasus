@@ -186,7 +186,7 @@ public sealed class IntakeOcrRetryPersistenceTests
         ExpectedReceiptVersion = 0,
         PrincipalCode = "TEST",
         ActorKind = "Staff",
-        ActorSubjectId = "fixture-seeder",
+        ActorSubjectId = Guid.NewGuid().ToString("D"),
         ActorRolesJson = "[\"Administrator\"]",
         OperationKey = $"intake-allocation-fixture:{Guid.NewGuid():N}",
         CommandHash = new string('a', 64),
