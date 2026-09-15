@@ -546,9 +546,10 @@ internal sealed class CachedDocumentContentStore(
                 },
                 cancellationToken);
         }
-        catch (RequestFailedException exception) when (exception.Status == 412)
+        catch (RequestFailedException exception) when (exception.Status is 409 or 412)
         {
-            // A concurrent miss published the same logical identity. Verify it below.
+            // A concurrent miss published the same logical identity (Azure answers an
+            // If-None-Match: * loser with 409 BlobAlreadyExists, a fake with 412). Verify it below.
         }
         var properties = await blob.GetPropertiesAsync(cancellationToken: cancellationToken);
         if (properties.Value.ContentLength != source.Length

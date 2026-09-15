@@ -37,6 +37,12 @@ public sealed partial class SourceModel(
         {
             return Forbid();
         }
+        catch (FileNotFoundException)
+        {
+            // Durable custody has not confirmed the bytes yet: the receipt is
+            // still being filed, so there is nothing to serve, not a fault.
+            return NotFound();
+        }
         catch (IntakeArtifactIntegrityException exception)
         {
             LogIntakeSourceIntegrityFailure(logger, id, exception);
