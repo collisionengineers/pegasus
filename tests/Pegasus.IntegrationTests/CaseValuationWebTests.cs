@@ -20,7 +20,7 @@ public sealed partial class CaseDetailsWebTests
     /// rewrites it with a fresher version it read for itself.
     /// </summary>
     [Fact]
-    public async Task AddValuationForwardsTheSubmittedVersionAndDetailsUnchanged()
+    public async Task SaveValuationForwardsTheSubmittedVersionAndDetailsUnchanged()
     {
         var store = new RecordingCaseDetailsStore();
         var valuations = new RecordingValuationSaver();
@@ -30,13 +30,11 @@ public sealed partial class CaseDetailsWebTests
         const string operationKey = "0f0e0d0c0b0a09080706050403020100";
 
         using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=AddValuation",
+            $"/Cases/{store.CaseId:D}?handler=SaveValuation",
             workspace.MutationForm(
                 operationKey,
                 "ignored: the handler names its own reason",
                 ("source", nameof(ValuationSource.Glasses)),
-                ("date", "2031-05-06"),
-                ("time", "09:30"),
                 ("guideMonth", "2031-05"),
                 ("mileage", "42000"),
                 ("retailValue", "12500.00"),
@@ -52,16 +50,14 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(2, store.Claims.Count);
         Assert.All(store.Claims, claim => Assert.Equal(store.Claims[0].Actor.SubjectId, claim.Actor.SubjectId));
         Assert.Equal(store.LeaseToken, InputValue(await workspace.GetWorkspaceAsync(), "editLeaseToken"));
-        Assert.Equal(
-            new ValuationDetails(
-                ValuationSource.Glasses,
-                new DateOnly(2031, 5, 6),
-                new TimeOnly(9, 30),
-                42_000,
-                12_500m,
-                10_250m,
-                new DateOnly(2031, 5, 1)),
-            save.Details);
+        // The card records the moment it was saved; the boxes carry the rest.
+        Assert.Equal(ValuationSource.Glasses, save.Details.Source);
+        Assert.Equal(42_000, save.Details.Mileage);
+        Assert.Equal(12_500m, save.Details.RetailValue);
+        Assert.Equal(10_250m, save.Details.TradeValue);
+        Assert.Equal(new DateOnly(2031, 5, 1), save.Details.GuideMonth);
+        var today = Pegasus.Core.LondonCalendar.DateAt(DateTimeOffset.UtcNow);
+        Assert.InRange(save.Details.Date, today.AddDays(-1), today.AddDays(1));
     }
 
     /// <summary>
@@ -83,7 +79,7 @@ public sealed partial class CaseDetailsWebTests
         valuations.NextFailure = new CaseVersionConflictException(store.CaseId, staleVersion, store.CaseVersion);
 
         using var response = await workspace.Client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=AddValuation",
+            $"/Cases/{store.CaseId:D}?handler=SaveValuation",
             Form(
                 workspace.AntiforgeryToken,
                 ("id", store.CaseId.ToString("D")),
@@ -91,8 +87,6 @@ public sealed partial class CaseDetailsWebTests
                 ("operationKey", "1f1e1d1c1b1a19181716151413121110"),
                 ("editLeaseToken", store.LeaseToken),
                 ("source", nameof(ValuationSource.Glasses)),
-                ("date", "2031-05-06"),
-                ("time", "09:30"),
                 ("mileage", "42000"),
                 ("retailValue", "12500.00"),
                 ("tradeValue", "10250.00")));

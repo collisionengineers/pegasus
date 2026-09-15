@@ -1,13 +1,16 @@
 @*
-    Valuation (v26): the guide cards, the calculator on the Core policy
-    shape (v25 decision 8) and the applied-history row. While editing, the
-    Valuation month and one Get valuation button per source sit above the
-    cards, and every guide card carries its own; a guide source posts to
-    GetValuation, AI market research starts the existing job. Read mode
-    shows values only: the cards, the applied calculation and its increases.
-    The preview lines are Core's own arithmetic, fetched by script from the
-    PreviewValuation handler; without script the Apply posts and the applied
-    calculation is shown after the redirect.
+    Valuation (v26, one route since 15 September): the guide cards, the
+    calculator on the Core policy shape (v25 decision 8) and the
+    applied-history row. While editing, Glass's, Brego and Super CAP are each
+    one entry card with month, mileage, retail and trade boxes: Get valuation
+    asks the connected provider and fills the boxes, Save records the card
+    (the same source and month replaces), and a figure typed by hand saves
+    the same way. The Valuation month and AI market research above the cards
+    start the existing research job. Read mode shows values only: the cards,
+    the applied calculation and its increases. The preview lines are Core's
+    own arithmetic, fetched by script from the PreviewValuation handler;
+    without script the Apply posts and the applied calculation is shown after
+    the redirect.
 *@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using System.Globalization
@@ -28,15 +31,21 @@
     var calculation = editable ? Model.DefaultCalculation : applied?.Calculation;
     var appliedAdditions = applied?.Calculation.Additions ?? [];
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "valuation");
-    var manualSources = Enum.GetValues<ValuationSource>()
-        .Where(ValuationPolicy.IsManuallyRecordable)
-        .ToArray();
     var guideSources = new[] { ValuationSource.Glasses, ValuationSource.Brego, ValuationSource.SuperCap };
+    // While editing the three guide sources are entry cards; their recorded
+    // cards stand behind the entry (latest first) rather than beside it.
+    var listedGuides = editable
+        ? guides.Where(valuation => !guideSources.Contains(valuation.Details.Source)).ToArray()
+        : guides.ToArray();
 
-    string GetValuationAction(ValuationSource source) => source == ValuationSource.AiMarketResearch
-        ? Url.Page("/Cases/Details", "StartMarketResearch", new { id = caseId })!
-        : Url.Page("/Cases/Details", "GetValuation", new { id = caseId, source })!;
-    var now = Pegasus.Core.LondonCalendar.TimeAt(DateTimeOffset.UtcNow);
+    string GetValuationAction(ValuationSource source) =>
+        Url.Page("/Cases/Details", "GetValuation", new { id = caseId, source })!;
+    CaseValuation? LatestRecorded(ValuationSource source) => guides
+        .Where(valuation => valuation.Details.Source == source)
+        .OrderByDescending(valuation => valuation.Details.Date)
+        .ThenByDescending(valuation => valuation.Details.Time)
+        .ThenByDescending(valuation => valuation.RecordedAtUtc)
+        .FirstOrDefault();
     var acceptedMileage = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(details.Data?.Vehicle.Mileage)?.Value;
     var basisName = basis is null ? null : ValuationLabels.SourceLabel(basis.Details.Source);
     var appliedBasis = applied is null
@@ -75,9 +84,9 @@
     <div class="panel-body stack">
         @if (editable)
         {
-            @* One form carries the month, the lease, the version and the
-               operation key for every Get valuation button: AI market research
-               runs the existing job, each guide source posts to GetValuation. *@
+            @* The research form carries the month, the lease, the version and
+               the operation key; AI market research runs the existing job for
+               that month. The guide sources are entry cards below. *@
             <div class="val-tools" data-valuation-tools>
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="StartMarketResearch" asp-route-id="@caseId"
                       id="case-market-research-form" data-valuation-research-form>
@@ -91,25 +100,73 @@
                 </div>
                 <span class="val-get">
                     <span class="lbl">@ValuationLabels.GetValuation</span>
-                    @foreach (var guideSource in guideSources)
-                    {
-                        <button type="submit" form="case-market-research-form" formaction="@GetValuationAction(guideSource)" class="btn btn--small" data-valuation-source="@ValuationLabels.SourceSlug(guideSource)"><span>@ValuationLabels.SourceLabel(guideSource)</span></button>
-                    }
                     <button type="submit" form="case-market-research-form" class="btn btn--small" data-valuation-source="ai-market-research">
                         <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
                         <span>@ValuationLabels.SourceLabel(ValuationSource.AiMarketResearch)</span>
                     </button>
                 </span>
-                <span class="spacer"></span>
-                <button type="button" class="btn btn--small" data-dialog-open="add-valuation">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-                    <span>@ValuationLabels.AddValuation</span>
-                </button>
             </div>
         }
 
         <div class="guides" data-valuation-cards>
-            @foreach (var valuation in guides)
+            @if (editable)
+            {
+                @foreach (var source in guideSources)
+                {
+                    var slug = ValuationLabels.SourceSlug(source);
+                    var recorded = LatestRecorded(source);
+                    var prefill = Model.ValuationPrefill(source);
+                    var entrySelected = recorded is not null && basis is not null && basis.ValuationId == recorded.ValuationId;
+                    var retail = prefill?.RetailValue ?? recorded?.Details.RetailValue;
+                    var trade = prefill?.TradeValue ?? recorded?.Details.TradeValue;
+                    var mileage = prefill?.Mileage ?? recorded?.Details.Mileage ?? acceptedMileage;
+                    var month = (prefill?.GuideMonth ?? recorded?.Details.GuideMonth)?.ToString("yyyy-MM", CultureInfo.InvariantCulture) ?? Model.ValuationMonth;
+                    @* One form per source: Save records the boxes, Get valuation
+                       posts the same boxes to GetValuation and comes back with
+                       the provider's figures in them. The Basis radio belongs to
+                       the calculator's form, as on a recorded card. *@
+                    <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveValuation" asp-route-id="@caseId" asp-route-section="valuation"
+                          class="valuation-card entry @(entrySelected ? "sel" : null)"
+                          data-valuation-entry="@slug"
+                          data-valuation-source-card="@source"
+                          data-valuation-card="@(recorded?.ValuationId.ToString("D") ?? slug)"
+                          data-retail="@(recorded?.Details.RetailValue.ToString("0.00", CultureInfo.InvariantCulture))"
+                          data-trade="@(recorded?.Details.TradeValue.ToString("0.00", CultureInfo.InvariantCulture))">
+                        <input type="hidden" name="id" value="@caseId" />
+                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                        <input type="hidden" name="source" value="@source" />
+                        <h3>
+                            <span>@ValuationLabels.SourceLabel(source)</span>
+                            @if (recorded is not null)
+                            {
+                                <label class="pick">
+                                    <input type="radio" name="selection.GuideValuationId" value="@recorded.ValuationId"
+                                           form="case-valuation-form" checked="@(entrySelected ? "checked" : null)"
+                                           data-valuation-basis
+                                           data-stamp="@Pegasus.Web.Pages.Cases.DetailsModel.StampOf(recorded).ToString("o", CultureInfo.InvariantCulture)"
+                                           data-source-name="@ValuationLabels.SourceLabel(source)" />
+                                    @ValuationLabels.Basis
+                                </label>
+                            }
+                            <button type="submit" formaction="@GetValuationAction(source)" class="btn btn--small btn--ghost" data-valuation-source="@slug"><span>@ValuationLabels.GetValuation</span></button>
+                        </h3>
+                        <div class="figs">
+                            <label>@ValuationLabels.Retail<input class="fi mono" type="number" min="0" step="0.01" name="retailValue" required value="@retail?.ToString("0.00", CultureInfo.InvariantCulture)" data-valuation-retail /></label>
+                            <label>@ValuationLabels.Trade<input class="fi mono" type="number" min="0" step="0.01" name="tradeValue" required value="@trade?.ToString("0.00", CultureInfo.InvariantCulture)" data-valuation-trade /></label>
+                        </div>
+                        <div class="meta">
+                            <label>@ValuationLabels.GuideMonth<input class="fi" type="month" name="guideMonth" value="@month" data-valuation-entry-month /></label>
+                            <label>@ValuationLabels.Mileage<input class="fi mono" type="number" min="0" name="mileage" required value="@mileage?.ToString(CultureInfo.InvariantCulture)" data-valuation-mileage /></label>
+                        </div>
+                        <div class="entry-actions">
+                            <button type="submit" class="btn btn--small btn--primary" data-valuation-save="@slug"><span>@Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame.Save</span></button>
+                        </div>
+                    </form>
+                }
+            }
+            @foreach (var valuation in listedGuides)
             {
                 var isAi = valuation.Details.Source == ValuationSource.AiMarketResearch;
                 if (isAi && pending is not null)
@@ -140,9 +197,9 @@
                                        data-source-name="@ValuationLabels.SourceLabel(valuation.Details.Source)" />
                                 @ValuationLabels.Basis
                             </label>
-                            @if (valuation.Details.Source != ValuationSource.EngineersValue)
+                            @if (isAi)
                             {
-                                <button type="submit" form="case-market-research-form" formaction="@GetValuationAction(valuation.Details.Source)" class="btn btn--small btn--ghost" data-valuation-card-get="@ValuationLabels.SourceSlug(valuation.Details.Source)"><span>@ValuationLabels.GetValuation</span></button>
+                                <button type="submit" form="case-market-research-form" class="btn btn--small btn--ghost" data-valuation-card-get="@ValuationLabels.SourceSlug(valuation.Details.Source)"><span>@ValuationLabels.GetValuation</span></button>
                             }
                         }
                     </h3>
@@ -164,7 +221,7 @@
                     <div class="meta">@ValuationLabels.Researching · @Model.PendingMarketResearchMonth</div>
                 </div>
             }
-            @if (guides.Count == 0 && pending is null)
+            @if (!editable && guides.Count == 0 && pending is null)
             {
                 <div class="valuation-card" data-valuation-empty>
                     <h3><span>@ValuationLabels.SectionTitle</span></h3>
@@ -336,71 +393,3 @@
         </div>
     </div>
 </section>
-
-@if (editable)
-{
-    @* Add valuation: the live manual dialog on the live field set. AI market
-       research is not manually recordable (ValuationPolicy), so it is not a
-       source here; Cazana stays the disabled seam option. *@
-    <div id="add-valuation" class="dialog-backdrop" data-dialog="add-valuation" hidden>
-        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="add-valuation-title">
-            <div class="dialog-head">
-                <h2 id="add-valuation-title" tabindex="-1">@ValuationLabels.AddValuation</h2>
-                <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                </button>
-            </div>
-            <form method="post" asp-page="/Cases/Details" asp-page-handler="AddValuation" asp-route-id="@caseId" asp-route-section="valuation" data-add-valuation-form>
-                <input type="hidden" name="id" value="@caseId" />
-                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                <div class="dialog-body stack">
-                    <div class="form-grid form-grid--2">
-                        <div class="field">
-                            <label class="req" for="valuation-source">@ValuationLabels.Source</label>
-                            <select id="valuation-source" name="source" required data-dialog-initial-focus>
-                                @foreach (var source in manualSources)
-                                {
-                                    <option value="@source">@ValuationLabels.SourceLabel(source)</option>
-                                }
-                                <option value="@ValuationSource.Cazana" disabled>@ValuationLabels.SourceLabel(ValuationSource.Cazana) · @ValuationLabels.CazanaCondition</option>
-                            </select>
-                        </div>
-                        <div class="field">
-                            <label for="valuation-guide-month">@ValuationLabels.GuideMonth</label>
-                            <input id="valuation-guide-month" name="guideMonth" type="month" value="@Model.ValuationMonth" data-add-valuation-month />
-                        </div>
-                        <div class="field">
-                            <label class="req" for="valuation-mileage">@ValuationLabels.Mileage</label>
-                            <input id="valuation-mileage" name="mileage" type="number" min="0" required value="@acceptedMileage?.ToString(CultureInfo.InvariantCulture)" />
-                        </div>
-                        <div class="field">
-                            <label class="req" for="valuation-date">@ValuationLabels.Date</label>
-                            <input id="valuation-date" name="date" type="date" required value="@now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
-                        </div>
-                        <div class="field">
-                            <label class="req" for="valuation-time">@ValuationLabels.Time</label>
-                            <input id="valuation-time" name="time" type="time" required value="@now.ToString("HH:mm", CultureInfo.InvariantCulture)" />
-                        </div>
-                        <div class="field">
-                            <label class="req" for="valuation-retail">@ValuationLabels.Retail</label>
-                            <input id="valuation-retail" name="retailValue" type="number" min="0" step="0.01" required placeholder="£" />
-                        </div>
-                        <div class="field">
-                            <label class="req" for="valuation-trade">@ValuationLabels.Trade</label>
-                            <input id="valuation-trade" name="tradeValue" type="number" min="0" step="0.01" required placeholder="£" />
-                        </div>
-                    </div>
-                </div>
-                <div class="dialog-foot">
-                    <button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button>
-                    <button type="submit" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
-                        <span>@ValuationLabels.Add</span>
-                    </button>
-                </div>
-            </form>
-        </section>
-    </div>
-}

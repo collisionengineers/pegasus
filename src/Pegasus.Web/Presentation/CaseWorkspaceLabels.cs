@@ -463,8 +463,6 @@ public static class CaseWorkspaceLabels
     public static class Valuation
     {
         public const string SectionTitle = "Valuation";
-        public const string AddValuation = "Add valuation";
-        public const string CazanaCondition = "not a live source";
         public static string NotConnected(ValuationSource source) => SourceLabel(source) + " is not connected";
         public static string CazanaSeam => NotConnected(ValuationSource.Cazana);
         public const string AbsentGuideMonth = "Not recorded";
@@ -496,10 +494,6 @@ public static class CaseWorkspaceLabels
         public const string NotApplied = "Not applied";
         public const string GuideMonth = "Guide month";
         public const string Mileage = "Mileage";
-        public const string Date = "Date";
-        public const string Time = "Time";
-        public const string Source = "Source";
-        public const string Add = "Add";
         public const string Listings = "listings";
         public const string ChooseBasis = "Choose a basis card to calculate.";
         public const string GuideRetail = "Guide retail";
