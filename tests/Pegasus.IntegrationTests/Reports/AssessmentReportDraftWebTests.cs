@@ -340,6 +340,11 @@ public sealed partial class AssessmentReportDraftWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCasePageFrame>();
+                services.RemoveAll<IGetCaseVehicleSection>();
+                services.RemoveAll<IGetCaseValuationSection>();
+                services.RemoveAll<IGetCaseNotesSection>();
+                services.RemoveAll<IGetCaseFilesSection>();
                 services.RemoveAll<IGetCaseAssessment>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
@@ -370,6 +375,26 @@ public sealed partial class AssessmentReportDraftWebTests
                     services.AddSingleton(sendPreparedReport);
                 }
                 services.AddSingleton(getCase);
+                if (getCase is IGetCasePageFrame pageFrame)
+                {
+                    services.AddSingleton(pageFrame);
+                }
+                if (getCase is IGetCaseVehicleSection vehicleSection)
+                {
+                    services.AddSingleton(vehicleSection);
+                }
+                if (getCase is IGetCaseValuationSection valuationSection)
+                {
+                    services.AddSingleton(valuationSection);
+                }
+                if (getCase is IGetCaseNotesSection notesSection)
+                {
+                    services.AddSingleton(notesSection);
+                }
+                if (getCase is IGetCaseFilesSection filesSection)
+                {
+                    services.AddSingleton(filesSection);
+                }
                 services.AddSingleton<IGetCaseAssessment>(new FakeGetCaseAssessment(assessment));
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
                 services.AddSingleton<IGetAssessmentWorkspace>(new FakeGetAssessmentWorkspace(
@@ -508,7 +533,14 @@ public sealed partial class AssessmentReportDraftWebTests
     [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ValueRegex();
 
-    private sealed class FakeGetCase(Guid caseId) : IGetCase, IAcquireCaseEditLease
+    private sealed class FakeGetCase(Guid caseId) :
+        IGetCase,
+        IGetCasePageFrame,
+        IGetCaseVehicleSection,
+        IGetCaseValuationSection,
+        IGetCaseNotesSection,
+        IGetCaseFilesSection,
+        IAcquireCaseEditLease
     {
         private CaseEditLeaseSnapshot? activeLease;
 
@@ -524,10 +556,81 @@ public sealed partial class AssessmentReportDraftWebTests
         }
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
+            => Task.FromResult(Details(query.CaseId));
+
+        Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
         {
-            if (query.CaseId != caseId)
+            var details = Details(query.CaseId);
+            return Task.FromResult<CasePageFrame?>(details is null
+                ? null
+                : new(
+                    new(details.Summary, details.Workflow, details.ActiveEditLease),
+                    details.Documents,
+                    details.AvailableReportSentEvidence,
+                    details.RecordNotes,
+                    details.Data!));
+        }
+
+        Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = Details(query.CaseId);
+            return Task.FromResult<CaseVehicleSection?>(details is null
+                ? null
+                : new(
+                    new(details.Summary, details.Workflow, details.ActiveEditLease),
+                    query.AssessmentWorkspace?.Data ?? details.Data!,
+                    null,
+                    query.AssessmentWorkspace?.Assessment));
+        }
+
+        Task<CaseValuationSection?> IGetCaseValuationSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = Details(query.CaseId);
+            return Task.FromResult<CaseValuationSection?>(details is null
+                ? null
+                : new(
+                    new(details.Summary, details.Workflow, details.ActiveEditLease),
+                    query.AssessmentWorkspace?.Data ?? details.Data!,
+                    query.AssessmentWorkspace?.Assessment));
+        }
+
+        Task<CaseNotesSection?> IGetCaseNotesSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = Details(query.CaseId);
+            return Task.FromResult<CaseNotesSection?>(details is null
+                ? null
+                : new(new(details.Summary, details.Workflow, details.ActiveEditLease), []));
+        }
+
+        Task<CaseFilesSection?> IGetCaseFilesSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = Details(query.CaseId);
+            return Task.FromResult<CaseFilesSection?>(details is null
+                ? null
+                : new(
+                    new(details.Summary, details.Workflow, details.ActiveEditLease),
+                    details.Documents,
+                    null,
+                    CaseCustodyState.Pending,
+                    [],
+                    []));
+        }
+
+        private CaseDetails? Details(Guid requestedCaseId)
+        {
+            if (requestedCaseId != caseId)
             {
-                return Task.FromResult<CaseDetails?>(null);
+                return null;
             }
 
             var identity = new CaseIdentity(caseId, "QDOS", 2026, 42, "QDOS-2026-00042");
@@ -538,9 +641,15 @@ public sealed partial class AssessmentReportDraftWebTests
                 caseId, identity.Reference, null, CaseType.Inspection, "Approved Principal",
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
                 DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
+            var assessment = new CaseAssessmentProjection(
+                caseId, identity.Reference, workflow.Version, workflow.State, null, [], [],
+                new(null, null, null, null, null, null, "tbc", null, null, null, null));
             CaseDetails details = new(
-                summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [], []);
-            return Task.FromResult<CaseDetails?>(details);
+                summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [], [])
+            {
+                Data = AssessmentWorkspaceTestData.Create(assessment).Data,
+            };
+            return details;
         }
     }
 

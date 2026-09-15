@@ -421,12 +421,20 @@ public sealed partial class SendToAiIntegrationTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCasePageFrame>();
+                services.RemoveAll<IGetCaseVehicleSection>();
+                services.RemoveAll<IGetCaseValuationSection>();
+                services.RemoveAll<IGetCaseNotesSection>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ICreateAiJob>();
                 services.RemoveAll<ISendToAiControl>();
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetCasePageFrame>(source);
+                services.AddSingleton<IGetCaseVehicleSection>(source);
+                services.AddSingleton<IGetCaseValuationSection>(source);
+                services.AddSingleton<IGetCaseNotesSection>(source);
                 services.AddSingleton<IAcquireCaseEditLease>(source);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
@@ -566,7 +574,14 @@ public sealed partial class SendToAiIntegrationTests
             CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
-    private sealed class FakeGetCase(Guid caseId) : IGetCase, IGetAssessmentWorkspace, IAcquireCaseEditLease
+    private sealed class FakeGetCase(Guid caseId) :
+        IGetCase,
+        IGetCasePageFrame,
+        IGetCaseVehicleSection,
+        IGetCaseValuationSection,
+        IGetCaseNotesSection,
+        IGetAssessmentWorkspace,
+        IAcquireCaseEditLease
     {
         private CaseEditLeaseSnapshot? activeLease;
 
@@ -597,8 +612,61 @@ public sealed partial class SendToAiIntegrationTests
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
                 DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
             CaseDetails details = new(
-                summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [], []);
+                summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [], [])
+            {
+                Data = CreateData()
+            };
             return Task.FromResult<CaseDetails?>(details);
+        }
+
+        async Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            return details is null
+                ? null
+                : new(
+                    new(details.Summary, details.Workflow, details.ActiveEditLease),
+                    details.Documents,
+                    details.AvailableReportSentEvidence,
+                    details.RecordNotes,
+                    details.Data!);
+        }
+
+        async Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            return details is null
+                ? null
+                : new(
+                    CreateFrame(details),
+                    query.AssessmentWorkspace?.Data ?? query.Data ?? details.Data!,
+                    null,
+                    query.AssessmentWorkspace?.Assessment ?? CreateAssessment());
+        }
+
+        async Task<CaseValuationSection?> IGetCaseValuationSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            return details is null
+                ? null
+                : new(
+                    CreateFrame(details),
+                    query.AssessmentWorkspace?.Data ?? query.Data ?? details.Data!,
+                    query.AssessmentWorkspace?.Assessment ?? CreateAssessment());
+        }
+
+        async Task<CaseNotesSection?> IGetCaseNotesSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            return details is null ? null : new(CreateFrame(details), details.History);
         }
 
         public async Task<AssessmentWorkspace?> ExecuteAsync(
@@ -610,7 +678,15 @@ public sealed partial class SendToAiIntegrationTests
             {
                 return null;
             }
-            IReadOnlyList<AssessmentFieldValue> fields =
+            return AssessmentWorkspaceTestData.Create(details, CreateAssessment());
+        }
+
+        private CaseAssessmentProjection CreateAssessment() => new(
+            caseId,
+            "QDOS-2026-00042",
+            7,
+            CaseLifecycleState.ReportPreparation,
+            null,
             [
                 new(
                     AssessmentVocabulary.ValueEngineer,
@@ -620,11 +696,13 @@ public sealed partial class SendToAiIntegrationTests
                     DateTimeOffset.UtcNow,
                     "engineer-1",
                     DateTimeOffset.UtcNow)
-            ];
-            var assessment = new CaseAssessmentProjection(
-                caseId, "QDOS-2026-00042", 7, CaseLifecycleState.ReportPreparation, null,
-                fields, [], new(null, null, null, null, null, null, "tbc", null, null, null, null));
-            return AssessmentWorkspaceTestData.Create(details, assessment);
-        }
+            ],
+            [],
+            new(null, null, null, null, null, null, "tbc", null, null, null, null));
+
+        private CaseDataProjection CreateData() => AssessmentWorkspaceTestData.Create(CreateAssessment()).Data;
+
+        private static CaseSectionFrame CreateFrame(CaseDetails details) =>
+            new(details.Summary, details.Workflow, details.ActiveEditLease);
     }
 }

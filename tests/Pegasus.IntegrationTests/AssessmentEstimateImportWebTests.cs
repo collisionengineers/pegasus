@@ -1117,6 +1117,10 @@ public sealed partial class AssessmentEstimateImportWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCasePageFrame>();
+                services.RemoveAll<IGetCaseVehicleSection>();
+                services.RemoveAll<IGetCaseValuationSection>();
+                services.RemoveAll<IGetCaseNotesSection>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<IRepairSpecificationStore>();
@@ -1130,6 +1134,10 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.RemoveAll<IDiscardEstimate>();
                 services.RemoveAll<ISetCurrentEstimate>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCasePageFrame>(store);
+                services.AddSingleton<IGetCaseVehicleSection>(store);
+                services.AddSingleton<IGetCaseValuationSection>(store);
+                services.AddSingleton<IGetCaseNotesSection>(store);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
                 services.AddSingleton<IGetAssessmentWorkspace>(store);
                 services.AddSingleton<IRepairSpecificationStore>(store);
@@ -1320,7 +1328,8 @@ public sealed partial class AssessmentEstimateImportWebTests
     /// assert exactly what the page handed to each store.
     /// </summary>
     private sealed class RecordingStores(Guid caseId)
-        : IGetCase, IGetAssessmentWorkspace, IRepairSpecificationStore, IAddCaseDocument,
+        : IGetCase, IGetCasePageFrame, IGetCaseVehicleSection, IGetCaseValuationSection,
+          IGetCaseNotesSection, IGetAssessmentWorkspace, IRepairSpecificationStore, IAddCaseDocument,
           IGetCaseDocumentMetadata, IReadLogicalDocumentVersion,
           IAcquireCaseEditLease, IListCaseEstimates, ISaveEstimate, IDuplicateEstimate,
           IDiscardEstimate, ISetCurrentEstimate
@@ -1384,8 +1393,61 @@ public sealed partial class AssessmentEstimateImportWebTests
                 summary, workflow, ActiveLease,
                 RetainedDocument is { } retained
                     ? [new CaseDocument(retained.Version.DocumentId, caseId, [retained.Occurrence], [retained.Version])] : [],
-                null, CaseCustodyState.Pending, [], [], []);
+                null, CaseCustodyState.Pending, [], [], [])
+            {
+                Data = CreateData(workflow.Version)
+            };
             return Task.FromResult<CaseDetails?>(details);
+        }
+
+        async Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            return details is null
+                ? null
+                : new(
+                    CreateFrame(details),
+                    details.Documents,
+                    details.AvailableReportSentEvidence,
+                    details.RecordNotes,
+                    details.Data!);
+        }
+
+        async Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            return details is null
+                ? null
+                : new(
+                    CreateFrame(details),
+                    query.AssessmentWorkspace?.Data ?? query.Data ?? details.Data!,
+                    null,
+                    query.AssessmentWorkspace?.Assessment ?? CreateAssessment(details));
+        }
+
+        async Task<CaseValuationSection?> IGetCaseValuationSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            return details is null
+                ? null
+                : new(
+                    CreateFrame(details),
+                    query.AssessmentWorkspace?.Data ?? query.Data ?? details.Data!,
+                    query.AssessmentWorkspace?.Assessment ?? CreateAssessment(details));
+        }
+
+        async Task<CaseNotesSection?> IGetCaseNotesSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            return details is null ? null : new(CreateFrame(details), details.History);
         }
 
         public async Task<AssessmentWorkspace?> ExecuteAsync(
@@ -1397,18 +1459,33 @@ public sealed partial class AssessmentEstimateImportWebTests
             {
                 return null;
             }
-            var assessment = new CaseAssessmentProjection(
+            return AssessmentWorkspaceTestData.Create(
+                details, CreateAssessment(details), CurrentDraft, CurrentAccepted);
+        }
+
+        private CaseAssessmentProjection CreateAssessment(CaseDetails details) => new(
+            caseId,
+            details.Summary.Reference,
+            details.Workflow.Version,
+            CaseLifecycleState.Review,
+            null,
+            [],
+            [],
+            new(null, null, null, null, null, null, "tbc", null, null, null, null));
+
+        private CaseDataProjection CreateData(long version) =>
+            AssessmentWorkspaceTestData.Create(new CaseAssessmentProjection(
                 caseId,
-                details.Summary.Reference,
-                CaseVersion,
+                "QDOS-2026-00042",
+                version,
                 CaseLifecycleState.Review,
                 null,
                 [],
                 [],
-                new(null, null, null, null, null, null, "tbc", null, null, null, null));
-            return AssessmentWorkspaceTestData.Create(
-                details, assessment, CurrentDraft, CurrentAccepted);
-        }
+                new(null, null, null, null, null, null, "tbc", null, null, null, null))).Data;
+
+        private static CaseSectionFrame CreateFrame(CaseDetails details) =>
+            new(details.Summary, details.Workflow, details.ActiveEditLease);
 
         public Task<RepairSpecificationVersion> StartDraftAsync(
             StartRepairSpecificationDraftRequest request, CancellationToken cancellationToken)
