@@ -376,18 +376,17 @@ public sealed class EfImageIntakeStore(
     private static async Task<IReadOnlyDictionary<Guid, IReadOnlyList<(int Ordinal, Guid ProcessedReceiptId)>>>
         ResolveGroupMemberReceiptsAsync(
             PegasusDbContext context,
-            IReadOnlyCollection<Guid> submissionGroupIds,
+            Guid[] submissionGroupIds,
             CancellationToken cancellationToken)
     {
-        if (submissionGroupIds.Count == 0)
+        if (submissionGroupIds.Length == 0)
         {
             return new Dictionary<Guid, IReadOnlyList<(int Ordinal, Guid ProcessedReceiptId)>>();
         }
 
-        var ids = submissionGroupIds.ToArray();
         var rows = await (
             from member in context.IntakeSubmissionGroupMembers.AsNoTracking()
-            where ids.Contains(member.GroupId)
+            where submissionGroupIds.Contains(member.GroupId)
             from evaluation in context.IntakeEvaluations.AsNoTracking()
                 .Where(evaluation => evaluation.StagedReceiptId == member.StagedReceiptId)
                 .OrderByDescending(evaluation => evaluation.Revision).Take(1)
@@ -420,7 +419,7 @@ public sealed class EfImageIntakeStore(
         return OrderedImageReceiptIds(originReceiptId, members.Select(pair => pair.ProcessedReceiptId));
     }
 
-    private static IReadOnlyList<Guid> OrderedImageReceiptIds(Guid originReceiptId, IEnumerable<Guid> members)
+    private static Guid[] OrderedImageReceiptIds(Guid originReceiptId, IEnumerable<Guid> members)
     {
         var ordered = members.ToList();
         if (!ordered.Contains(originReceiptId))
