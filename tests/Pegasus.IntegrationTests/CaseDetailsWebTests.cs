@@ -1089,7 +1089,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.True(directVehicleQuery.HasAssessmentWorkspace);
         Assert.Same(assessmentWorkspace.Workspace, directVehicleQuery.AssessmentWorkspace);
         Assert.Same(assessment, Assert.Single(store.VehicleSectionAssessments));
-        Assert.Contains("Diesel", directVehicle, StringComparison.Ordinal);
+        Assert.Contains("diesel", directVehicle, StringComparison.Ordinal);
         Assert.Contains("src-tag--lookup", directVehicle, StringComparison.Ordinal);
 
         var lazyVehicle = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Section?section=vehicle");
@@ -1098,7 +1098,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.False(lazyVehicleQuery.HasAssessmentWorkspace);
         Assert.Null(lazyVehicleQuery.AssessmentWorkspace);
         Assert.Same(assessment, store.VehicleSectionAssessments.Last());
-        Assert.Contains("Diesel", lazyVehicle, StringComparison.Ordinal);
+        Assert.Contains("diesel", lazyVehicle, StringComparison.Ordinal);
         Assert.Contains("src-tag--lookup", lazyVehicle, StringComparison.Ordinal);
 
         assessmentWorkspace.Reset();

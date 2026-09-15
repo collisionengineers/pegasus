@@ -67,6 +67,10 @@ public sealed partial class CaseDetailsWebTests
         {
             Substitute<IGetCase>(services, store);
             Substitute<IGetCasePageFrame>(services, store);
+            Substitute<IGetCaseVehicleSection>(services, store);
+            Substitute<IGetCaseValuationSection>(services, store);
+            Substitute<IGetCaseNotesSection>(services, store);
+            Substitute<IGetCaseFilesSection>(services, store);
             Substitute<IAcquireCaseEditLease>(services, store);
             Substitute<IGetAssessmentAccess>(services, store);
             Substitute<IGetAssessmentWorkspace>(services, store);
@@ -567,7 +571,11 @@ public sealed partial class CaseDetailsWebTests
 
         Task<AssessmentWorkspace?> IGetAssessmentWorkspace.ExecuteAsync(
             GetAssessmentWorkspaceQuery query, CancellationToken cancellationToken) =>
-            Task.FromResult<AssessmentWorkspace?>(AssessmentWorkspaceTestData.Create(EngineeringAssessment()));
+            Task.FromResult<AssessmentWorkspace?>(AssessmentWorkspaceTestData.Create(EngineeringAssessment()) with
+            {
+                Data = DataOverride ?? CreateData(),
+                LatestVehicleObservation = VehicleLookupEvidence?.LatestObservation
+            });
 
         Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
             Guid caseId, ActionActor actor, CancellationToken cancellationToken)
