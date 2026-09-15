@@ -176,6 +176,9 @@ public sealed class CaseDocumentDownloadWebTests
 
         Assert.Equal(HttpStatusCode.NotModified, response.StatusCode);
         Assert.Equal(ThumbnailValidator, response.Headers.ETag!.Tag);
+        Assert.True(response.Headers.CacheControl!.Private);
+        Assert.Equal(TimeSpan.FromDays(7), response.Headers.CacheControl.MaxAge);
+        Assert.Equal(1, ports.PreparationReads);
         Assert.Equal(0, ports.ThumbnailReads);
         Assert.Equal(0, ports.LogicalReads);
     }

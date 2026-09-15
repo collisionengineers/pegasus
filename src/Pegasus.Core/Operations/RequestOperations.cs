@@ -97,10 +97,11 @@ public sealed class GetRequestOperations(
 
     public async Task<RequestOperationsProjection> ExecuteAsync(
         ActionActor actor,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        DateTimeOffset? asOfUtc = null)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        var nowUtc = timeProvider.GetUtcNow();
+        var nowUtc = asOfUtc ?? timeProvider.GetUtcNow();
         var projection = await store.GetAsync(
             MaximumItems,
             nowUtc,
