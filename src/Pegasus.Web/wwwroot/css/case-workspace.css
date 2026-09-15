@@ -453,7 +453,7 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .case-viewer .icon-button:hover{background:rgba(255,255,255,.12)}
 .case-viewer-inc{display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;padding:0 4px 0 8px;border-left:1px solid rgba(255,255,255,.14);margin-left:4px;cursor:pointer}
 .case-viewer-inc input{accent-color:var(--red)}
-.case-viewer-select{width:auto;min-height:0;flex:none;height:28px;font-size:12px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:3px;padding:0 6px}
+.case-viewer-select{flex:none;height:28px;font-size:12px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:3px;padding:0 6px}
 .case-viewer-select option{color:#000}
 .case-viewer-nav{background:none;border:0;color:#fff;opacity:.6;cursor:pointer;display:grid;place-items:center}
 .case-viewer-nav:hover{opacity:1}

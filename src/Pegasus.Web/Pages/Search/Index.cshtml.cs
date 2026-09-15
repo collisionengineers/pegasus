@@ -119,6 +119,7 @@ public sealed partial class IndexModel(
         string Vehicle,
         string ProviderReference,
         string Engineer,
+        string Editing,
         string Due,
         string NextAction,
         IReadOnlyList<OperatorLabels.CaseRequirement> Outstanding);
@@ -293,8 +294,9 @@ public sealed partial class IndexModel(
     {
         var items = Results?.Items ?? [];
         var engineerIds = items
-            .Where(item => item.EngineerId is not null)
-            .Select(item => item.EngineerId!.Value)
+            .SelectMany(item => new[] { item.EngineerId, item.EditingStaffId })
+            .Where(id => id is not null)
+            .Select(id => id!.Value)
             .Distinct()
             .ToArray();
         var engineerNames = engineerIds.Length == 0
@@ -325,6 +327,9 @@ public sealed partial class IndexModel(
                 item.EngineerId is { } engineerId
                     ? ActorDisplayNames.Resolve(ActorKind.Staff, engineerId.ToString("D"), engineerNames)
                     : "Unassigned",
+                item.EditingStaffId is { } editing
+                    ? ActorDisplayNames.Resolve(ActorKind.Staff, editing.ToString("D"), engineerNames)
+                    : string.Empty,
                 item.NextChaseAtUtc is { } chase ? OperatorLabels.OfficeDate(chase) : "Not recorded",
                 outstanding.Count > 0 ? outstanding[0].Resolve : "Not recorded",
                 outstanding);
