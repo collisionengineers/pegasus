@@ -675,8 +675,9 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             {
                 if (Content is not null)
                 {
+                    // What Azure answers an If-None-Match: * upload that lost the race.
                     return Task.FromException<Response<BlobContentInfo>>(
-                        new RequestFailedException(412, "condition"));
+                        new RequestFailedException(409, "The specified blob already exists.", "BlobAlreadyExists", null));
                 }
                 using var m=new MemoryStream();
                 content.CopyTo(m);

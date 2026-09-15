@@ -589,7 +589,7 @@ public sealed class DetailsModel(
             cancellationToken);
         EvidenceImages = receipt is null
             ? []
-            : InstructionEvidenceImages.Select(receipt.AssetRecords);
+            : InstructionEvidenceImages.Servable(receipt.AssetRecords);
         if (EvidenceImages.Count > 0)
         {
             Preparations = await getPreparations.ExecuteAsync(
