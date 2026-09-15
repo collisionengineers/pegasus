@@ -2,7 +2,7 @@
 
 **Updated:** 15 September 2026
 
-**Status:** Ready for implementation; no application changes delivered by this plan.
+**Status:** Implementation in progress in `perf/navigation`; verification and delivery are pending.
 
 **Source reviewed:** `59ad1b3424071fd0eb018dd7f06aaaedc1c187b2`.
 
@@ -11,7 +11,8 @@
 This temporary operator-requested plan replaces the performance report and
 incorporates its confirmed review. Application source and infrastructure were
 unchanged between those two revisions. Recheck affected source before starting;
-record each implementation's actual baseline and candidate revisions.
+record each implementation's actual baseline and candidate revisions. The
+implementation baseline is `3a393da927f9294c1c4fc2ebdee0b7e0136e571e`.
 
 ## 1. Outcome and boundaries
 
@@ -208,7 +209,7 @@ week-long cached representation. Fresh snapshots after a save use the new URL.
 ### W3 — Give Case interaction one owner and scope its stylesheet
 
 Make `case-workspace.js` the sole owner of Case Scroll/Tabs, section loading,
-navigation and scroll tracking. Remove the overlapping Case controller from
+navigation and scroll tracking. Remove the obsolete Case controller from
 `site.js`; retain generic shell binders and any still-required sticky sizing.
 Consolidate layout state and sticky offsets around the server-backed Case
 controller contract.
@@ -224,7 +225,7 @@ place that rule with the existing shared component styles rather than leaving
 the complete Case stylesheet global.
 
 Keep the current prefetch distance for the first comparison; do not change
-loading policy while removing competing controllers. Retain the shared SVG
+loading policy while removing the obsolete controller. Retain the shared SVG
 sprite, current font files/coverage, image encoding and compression policy in
 this delivery. They are measured follow-ups, not automatic asset rewrites.
 
@@ -412,6 +413,39 @@ Keep these outside the initial implementation:
 
 Stop after these delivery requirements pass. Remaining speculative optimizations
 become evidence-backed follow-ups rather than expanding the current change.
+
+## 6. Implementation record
+
+This section is temporary task evidence; the resulting PR and CI records own
+delivery evidence, and canonical documentation owns the implemented structure.
+
+- Baseline saved and pushed to `dev`: `3a393da92`.
+- Work Centre fragment refresh: `55f99bd0e`; independent review identified
+  transport/malformed-response freshness, all-failed status and retained
+  assignment-dialog defects. Corrections are in `70f407c7d` and await execution.
+- Case controller and stylesheet scope: `ece490e8b`.
+- Sampled server phase telemetry: `4ecc47b81`. Events use the existing
+  Application Insights pipeline; only allowlisted phase and duration are added.
+  Actual ingestion volume and daily-cap headroom still require observation.
+- Bounded workspace batches and complete counts: `248d13a22`.
+- Focused Case reads and image identity: `d701ba340`. Independent source review
+  cleared the corrected workspace reuse, Files body and render-lease checks;
+  real SQL and browser execution remain pending.
+
+**Corrected audit claim:** the old `site.js` controller required
+`[data-case-sticky]`, which the current Details markup does not supply. It was
+inactive. Its removal reduces shipped code and leaves one maintained controller;
+the previous claim that both controllers caused duplicate requests was not
+supported. No measured improvement may be attributed to eliminating duplicate
+mounts without evidence.
+
+The isolated baseline uses the frozen source above, Windows development
+hosting and synthetic LocalDB/custody data. It cannot establish Box latency,
+Linux App Service attribution, production ingestion cost or office capacity.
+Those limits remain explicit in the comparison and W6 recommendation. The
+offline composition also omits the production original/thumbnail Blob cache;
+its server reads derive thumbnails each time. Cache-state correctness is
+verified separately through the existing cache integration fixtures.
 
 ### Technical references
 
