@@ -5,7 +5,10 @@ Web host is a framework-dependent Linux x64 `web.zip` deployed to a
 `DOTNETCORE|10.0` App Service Web App, while the Worker remains a Flex
 Consumption Function App. `infra/modules/platform.bicep` supplies the Web
 plan, App Service configuration and managed identity; the release route deploys
-the package with `az webapp deploy`. Refresh this document when source
+the package with `az webapp deploy`. Both hosts configure SQL Server through
+`Pegasus.Infrastructure.Persistence.PegasusSqlServer.Configure`, whose
+execution strategy retries transient faults outside a store transaction and
+runs once inside one (Release 52). Refresh this document when source
 structure changes. [Operations](operations.md) owns dated deployed observations
 and exact runtime identities.
 
