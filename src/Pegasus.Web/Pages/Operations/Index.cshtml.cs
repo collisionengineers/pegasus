@@ -133,8 +133,8 @@ public sealed class IndexModel(
         // Capture the instant once, then let their unrelated reads overlap.
         var operationsTask = getRequestOperations.ExecuteAsync(
             actor,
-            cancellationToken,
-            asOfUtc: nowUtc);
+            asOfUtc: nowUtc,
+            cancellationToken: cancellationToken);
         var evaActivityTask = evaSubmissionQueries.GetActivityAsync(cancellationToken);
         var evaFailuresTask = evaSubmissionQueries.GetRecentFailuresAsync(
             nowUtc - ServiceHealthPolicy.EvaRecentFailureWindow,

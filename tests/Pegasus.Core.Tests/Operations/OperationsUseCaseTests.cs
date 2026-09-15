@@ -82,7 +82,7 @@ public sealed class OperationsUseCaseTests
         var actor = StaffActor();
         var workId = Guid.NewGuid();
 
-        var projection = await query.ExecuteAsync(actor, CancellationToken.None);
+        var projection = await query.ExecuteAsync(actor, cancellationToken: CancellationToken.None);
         var result = await retry.ExecuteAsync(
             new(workId, 4, actor, "external-retry"),
             CancellationToken.None);
@@ -110,8 +110,8 @@ public sealed class OperationsUseCaseTests
 
         var result = await query.ExecuteAsync(
             StaffActor(),
-            CancellationToken.None,
-            asOfUtc: capturedBeforeExpiryUtc);
+            asOfUtc: capturedBeforeExpiryUtc,
+            cancellationToken: CancellationToken.None);
 
         Assert.Equal(capturedBeforeExpiryUtc, projectionStore.AsOfUtc);
         Assert.NotEqual(expiryUtc.AddTicks(1), projectionStore.AsOfUtc);

@@ -374,7 +374,7 @@ public sealed class GetServiceHealth(
             dispatch.LatestCompletedAtUtc,
             ServiceHealthDependency.Worker));
 
-        var operations = await requestOperations.ExecuteAsync(actor, cancellationToken);
+        var operations = await requestOperations.ExecuteAsync(actor, asOfUtc: nowUtc, cancellationToken: cancellationToken);
         rows.AddRange(ServiceHealthPolicy.ExternalWorkRows(operations.Items));
 
         var evaActivity = await evaSubmissions.GetActivityAsync(cancellationToken);

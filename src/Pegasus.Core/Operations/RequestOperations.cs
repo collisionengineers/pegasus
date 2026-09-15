@@ -97,8 +97,8 @@ public sealed class GetRequestOperations(
 
     public async Task<RequestOperationsProjection> ExecuteAsync(
         ActionActor actor,
-        CancellationToken cancellationToken = default,
-        DateTimeOffset? asOfUtc = null)
+        DateTimeOffset? asOfUtc = null,
+        CancellationToken cancellationToken = default)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         var nowUtc = asOfUtc ?? timeProvider.GetUtcNow();
