@@ -13,6 +13,10 @@ PR712 is open and ready for independent review against dev at e8bc3fcb47b2b47e40
 
 ## Remediation round 1
 
-- [ ] Close F-001 complete group validation and real POST regression; preserve retries.
-- [ ] Close F-002 summaries and expose Glass launch precondition without behavioral changes.
-- [ ] Record granted focused evidence and new-head CI, update report, push same PR and return to Review.
+- [x] Close F-001 complete group validation and real POST regression; preserve retries.
+- [x] Close F-002 summaries and expose Glass launch precondition without behavioral changes.
+- [x] Record granted focused evidence and new-head CI, update report, push same PR and return to Review.
+
+## Current remediation handoff
+
+Exact PR712 head02ed9e6921096510dfee077adf3777f6a3714632 published after incorporation of independently merged713. Local40focusedPASS at0172; only inherited architecturetest changed since. Finalhead CI34301291385 queued/running, not PASS. Oldea4aeSQL2sameSHAretryPASS19m58+coveragePASS; all prior failures preserved. Independent delta review and exactmergeproof remain required. No deployment.

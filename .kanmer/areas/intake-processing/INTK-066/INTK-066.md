@@ -2,7 +2,7 @@
 id: INTK-066
 type: ticket
 title: Confirm viable Case destinations directly from manual upload
-status: implementing
+status: review
 area: intake-processing
 assignee: codex-mcp-client
 profile: feature
@@ -13,14 +13,14 @@ stageEntered:
 taken_at: '2026-09-08T17:48:42.856Z'
 branch: INTK-066-manual-upload-confirmation
 worktree: .worktrees/INTK-066
-claim_expires_at: '2026-09-09T02:11:37.494Z'
+claim_expires_at: '2026-09-09T02:26:23.993Z'
 claim_controller: codex-mcp-client
 review_round: 1
 lease_id: eef8e3c2-cb07-4588-a7f9-5cb09a3433fc
-lease_revision: 91
+lease_revision: 92
 lease_workspace: 'worktree:c:\users\alex\documents\github\pegasus\.worktrees\intk-066'
 lease_phase: implementing
-lease_heartbeat_at: '2026-09-09T01:41:37.494Z'
+lease_heartbeat_at: '2026-09-09T01:56:23.993Z'
 labels: []
 links:
   - DELIV-056
@@ -29,6 +29,12 @@ links:
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 commits:
+  - 02ed9e6921096510dfee077adf3777f6a3714632
+  - 0172c0b726c2665acc824425d02c00359d0e5a02
+  - 22be131fe8b7c1d05e7a63cb55d5ca44ac625402
+  - 41b61f5934fba1920906245d4014fcc0a3376e95
+  - ea4ae262ed471f72f60dfb3157fc7e70ca130bcc
+  - de45919d7a9d1478b8066065783bb4fb3039bb2f
   - e8bc3fcb47b2b47e405c806d17314cccefc71e26
   - 6c58bdf1cfa5f238d505956e9ab4e59a9eb32035
   - 684ddce42c6a8535d603adb54354c9b3c2bca6b5
@@ -55,7 +61,7 @@ capture_decided_at: '2026-09-08T17:31:49.444Z'
 capture_decided_by: codex-mcp-client
 archived: false
 created: '2026-09-08T15:28:34.215Z'
-updated: '2026-09-09T01:41:37.494Z'
+updated: '2026-09-09T01:58:44.006Z'
 ---
 
 ## Observation

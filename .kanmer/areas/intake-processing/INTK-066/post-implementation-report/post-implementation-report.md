@@ -1,5 +1,38 @@
 # Post-implementation report — INTK-066
 
+## Remediation round 1 — current handoff
+
+Current candidate: `02ed9e6921096510dfee077adf3777f6a3714632`, clean recorded `.worktrees/INTK-066`, branch `INTK-066-manual-upload-confirmation`, same PR712 to configured `dev`. Integration base now includes separately reviewed PR711 and corrective PR713, ending at `d6ef56a6a8ce1c5faeed0cbe56644ce033a4ae75`. The incoming correction changes only the architecture contract test; no application or Integration-test input changed from verified `0172c0b726c2665acc824425d02c00359d0e5a02`. Current PR diff is 158 files; the prior full-file census below remains historical, with the additional two summary documents and diagnostic test described here.
+
+The operator subsequently authorized getting PR711/712 ready and merging independently approved changes to dev, then continuing this work without kanmer-auto. This supersedes earlier no-merge handoff language only for authorized integration after independent review; no main promotion, deployment or live-provider operation is authorized.
+
+### Finding dispositions and exact authored delta
+
+- F-001: `de45919d7a9d1478b8066065783bb4fb3039bb2f` requires a complete declared group and full server-owned roster before POST, preserving original confirmation values. `41b61f5934fba1920906245d4014fcc0a3376e95` restores completed Open case navigation while keeping unsettled members compact. `22be131fe8b7c1d05e7a63cb55d5ca44ac625402` preflights all receipts before new links, requires the identical committed prefix and viable/current pending members, then retains per-link concurrency and honest runtime partial failure. `0172c0b726c2665acc824425d02c00359d0e5a02` fixes the new fixture's required CancellationToken argument.
+- F-002: CONTEXT and FRD-01 now qualify automatic allocation with the approved manual-confirmation exception.
+- F-003: the Glass callback test now explicitly asserts launch Active and reports state/failure code before completing. No Glass production behavior, timeout or retry was changed; actual Glass root-cause work remains CASE-047. Earlier CI failure is retained, not retrospectively declared transient.
+
+Seven authored remediation files: `CONTEXT.md`; `docs/frd/frd-01-case-identity-and-lifecycle.md`; `src/Pegasus.Web/Pages/UploadGroupStatus.cshtml`; `src/Pegasus.Web/Pages/UploadGroupStatus.cshtml.cs`; `src/Pegasus.Web/Presentation/UploadCaseDecision.cs`; `tests/Pegasus.IntegrationTests/UploadConfirmationWebTests.cs`; `tests/Pegasus.IntegrationTests/GlassRepairEstimateGatewayTests.cs`. The architecture-test correction was authored and merged separately under PLAT-046/PR713, not absorbed into this ticket.
+
+### Retained verification attempts
+
+Sole-host evidence is in the preserved execution history and current execution handoff.
+
+- ea4ae: locked restore/Release build passed; 37 focused tests passed, plus documentation and diff checks. This intermediate UI had a subsequently corrected completed-navigation gap.
+- 41b61f: Integration Release build passed (0 warnings/errors, 48.24s); 37 focused tests passed, including both completed-navigation/replay variants. Later full-roster preflight remained unaccepted at this head.
+- 22be: build FAIL, exit 1, 44.40s, CS7036 missing cancellationToken at UploadConfirmationWebTests.cs686. No tests ran. This failure is preserved.
+- 0172: Integration Release build passed (exit0, 0 warnings/errors, 46.23s). Focused HTTP/query/group/Glass cohort passed 40/40, no skips, 2m16s. TRX `artifacts/verification-0172/intk066-0172.trx` proves all eight processing/failed/missing/stale/conflicting-member variants and both full/partial replay plus completed navigation. Prior Glass callback passed 104.6ms. Documentation links (141 files), placement and diff checks passed.
+- Same 0172 TRX: `AttachAddsAnUnmatchedInstructionUploadToTheChosenCaseAndReplaysSafely` passed 5.1543188s. This covers the real accepted destination workflow missing on pre-712 dev; `da6ff8e16815100e42da65e60df3e45a3cced2d2` changed both production behavior and its expectation while retaining actual association, reviewed input, Open case and replay assertions.
+- Old ea4ae CI34297588681 attempt1 FAIL: inherited architecture parser defect (fixed separately in PR713); SQL2 `InspectionAddressSuggestionTests.SearchCapsAtTwentyEvenWithManyMatchingDirectoryEntries` seed SaveChanges timeout and 30m10s job timeout. SQL1 and SQL3 passed. No full SQL2/Glass CI pass claim; no proven transient classification. Root's single same-SHA SQL2 retry (attempt2, job102304114617) passed in19m58s; sql-integration-coverage passed. The run's unit failure remains the separately corrected architecture test; the original timeout remains recorded. Final-candidate CI follows; no unproved Glass root-cause claim.
+- PR713's unchanged old upload UI/browser and SQL3 failures were explicitly deferred to this existing ticket by its independent reviewer, not waived or relabelled green. This candidate implements the manual-destination workflow and operator-approved browser-suite removal.
+
+### Remaining handoff and integrated evidence
+
+Published exact candidate02ed9e6921096510dfee077adf3777f6a3714632 to existing PR712 without force after the same-SHA retry completed. GitHub head readback matches. Final-candidate CI34301291385 is queued/running, not yet PASS. Hand off Implementing to Review after gate readback. Independent delta review is limited to prior findings, changed lines/direct contracts and tests; no self-approval. Final-candidate CI and exact-merge proof remain required. No final CI or integrated PASS is claimed here.
+
+The original implementation report follows, retained as historical evidence; its older head and no-merge statements are superseded by this current handoff where explicitly stated.
+
+
 ## Outcome and current authority
 
 Implemented explicit manual-upload destination confirmation and editable new-Case proposal acceptance/rejection. ManualUpload never silently associates or allocates Case/PO before staff acceptance. Existing Mailbox/Provider automatic intake remains on its existing route. Single/group decisions use shared viable destinations, actual route membership, reviewed versions, reason, staff authorization, lease/concurrency and identical-decision replay. Existing awaiting-image queue and Mail Case search remain wired.
