@@ -158,6 +158,9 @@ public sealed class UnidentifiedContractsTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<UnidentifiedQueueRow>>([]);
 
+        public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
         public Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(
             Guid unidentifiedItemId,
             CancellationToken cancellationToken = default) =>
@@ -264,6 +267,7 @@ public sealed class CloseUnidentifiedTests
         public Task<UnidentifiedItem?> GetByOriginAsync(UnidentifiedOrigin origin, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<UnidentifiedItem>> ListAsync(UnidentifiedState? state = UnidentifiedState.Open, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(UnidentifiedMediaKind? mediaKind, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) => Task.FromResult(0);
         public Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(Guid unidentifiedItemId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

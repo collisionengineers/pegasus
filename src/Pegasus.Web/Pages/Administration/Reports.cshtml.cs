@@ -64,6 +64,10 @@ public sealed class ReportsModel(
         if (!TryGetActor(out var actor)) return false;
         var to = To is { } localTo ? LondonCalendar.ToUtc(localTo) : timeProvider.GetUtcNow();
         var from = From is { } localFrom ? LondonCalendar.ToUtc(localFrom) : to.AddDays(-31);
+        // The per-Principal report is factory-backed and independent. The
+        // account list and Engineer report share the scoped staff context, so
+        // they remain serial while this separate report is in flight.
+        var principalTask = principalActivityReport.ExecuteAsync(actor, from, to, cancellationToken);
         try
         {
             var people = await staffAccounts.ListAsync(0, 100, cancellationToken);
@@ -83,7 +87,7 @@ public sealed class ReportsModel(
 
         try
         {
-            PrincipalActivity = await principalActivityReport.ExecuteAsync(actor, from, to, cancellationToken);
+            PrincipalActivity = await principalTask;
         }
         catch (ArgumentOutOfRangeException)
         {

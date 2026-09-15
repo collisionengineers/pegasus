@@ -901,6 +901,9 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             Task.FromResult<IReadOnlyList<UnidentifiedItem>>(
                 Items.Where(item => state is null || item.State == state).ToArray());
 
+        public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Items.Count(item => item.State == UnidentifiedState.Open));
+
         public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(
             UnidentifiedMediaKind? mediaKind,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -1056,6 +1059,9 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
 
+        public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
+            Task.FromResult(0);
+
         public Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
 
@@ -1075,6 +1081,12 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             bool? associated,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
+
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>> ListImagesAsync(
+            IReadOnlyCollection<Guid> imageIntakeIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>>(
+                new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>());
 
         public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<ImageIntakeDetail?>(null);

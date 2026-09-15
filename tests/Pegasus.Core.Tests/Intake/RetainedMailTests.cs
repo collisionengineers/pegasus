@@ -804,6 +804,14 @@ public sealed class RetainedMailTests
             return Task.FromResult(0);
         }
 
+        public Task<IReadOnlyList<int>> CountManyAsync(
+            IReadOnlyList<MailWorkspaceScope> scopes,
+            CancellationToken cancellationToken)
+        {
+            CountedScopes.AddRange(scopes);
+            return Task.FromResult<IReadOnlyList<int>>(scopes.Select(_ => 0).ToArray());
+        }
+
         public Task<RetainedMailDetail?> GetAsync(
             Guid id,
             CancellationToken cancellationToken,

@@ -159,6 +159,135 @@ public sealed class ExternalCredentialIsolationTests
             default)).Configured);
     }
 
+    [Fact]
+    public async Task GetManyReturnsConfiguredEmptyAndDisabledStatusesWithoutCredentialSecrets()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureServices: IdentityPersistenceTestServices.Configure);
+        await using var context = await database.CreateContextAsync();
+        var administratorId = Guid.NewGuid();
+        var configuredId = Guid.NewGuid();
+        var replacedId = Guid.NewGuid();
+        var disabledId = Guid.NewGuid();
+        var emptyId = Guid.NewGuid();
+        var engineerId = Guid.NewGuid();
+        await CreateEnabledUsersAsync(
+            database,
+            administratorId,
+            configuredId,
+            replacedId,
+            disabledId,
+            emptyId,
+            engineerId);
+        var store = new EfPerUserExternalCredentialStore(
+            context,
+            new EphemeralDataProtectionProvider(),
+            TimeProvider.System);
+        var administrator = ActionActor.Staff(administratorId, [StaffRole.Administrator]);
+
+        var configuredLease = await ClaimStaffAccountAsync(database, configuredId, administrator);
+        var configured = await store.ReplaceAsync(
+            administrator,
+            configuredId,
+            ExternalCredentialProvider.GlassRepairEstimate,
+            0,
+            configuredLease.RecordVersion,
+            configuredLease.Token,
+            "configured-user",
+            "configured-secret",
+            true,
+            default);
+        var replacedFirstLease = await ClaimStaffAccountAsync(database, replacedId, administrator);
+        var replacedFirst = await store.ReplaceAsync(
+            administrator,
+            replacedId,
+            ExternalCredentialProvider.GlassRepairEstimate,
+            0,
+            replacedFirstLease.RecordVersion,
+            replacedFirstLease.Token,
+            "replaced-user",
+            "replaced-first-secret",
+            true,
+            default);
+        var replacedSecondLease = await ClaimStaffAccountAsync(database, replacedId, administrator);
+        var replaced = await store.ReplaceAsync(
+            administrator,
+            replacedId,
+            ExternalCredentialProvider.GlassRepairEstimate,
+            replacedFirst.Version,
+            replacedSecondLease.RecordVersion,
+            replacedSecondLease.Token,
+            "replaced-user",
+            "replaced-second-secret",
+            true,
+            default);
+        var disabledLease = await ClaimStaffAccountAsync(database, disabledId, administrator);
+        var disabled = await store.ReplaceAsync(
+            administrator,
+            disabledId,
+            ExternalCredentialProvider.GlassRepairEstimate,
+            0,
+            disabledLease.RecordVersion,
+            disabledLease.Token,
+            "disabled-user",
+            "disabled-secret",
+            false,
+            default);
+        var requestedIds = new[] { configuredId, emptyId, disabledId, replacedId, configuredId };
+
+        var statuses = await store.GetManyAsync(
+            administrator,
+            requestedIds,
+            ExternalCredentialProvider.GlassRepairEstimate,
+            default);
+
+        Assert.Equal(4, statuses.Count);
+        Assert.Equal(
+            (true, true, "configured-user", configured.CredentialGeneration, configured.Version),
+            (statuses[configuredId].Configured,
+                statuses[configuredId].Enabled,
+                statuses[configuredId].Username,
+                statuses[configuredId].CredentialGeneration,
+                statuses[configuredId].Version));
+        Assert.Equal(
+            (true, true, "replaced-user", replaced.CredentialGeneration, replaced.Version),
+            (statuses[replacedId].Configured,
+                statuses[replacedId].Enabled,
+                statuses[replacedId].Username,
+                statuses[replacedId].CredentialGeneration,
+                statuses[replacedId].Version));
+        Assert.Equal(replacedFirst.CredentialGeneration + 1, statuses[replacedId].CredentialGeneration);
+        Assert.Equal(
+            (true, false, "disabled-user", disabled.CredentialGeneration, disabled.Version),
+            (statuses[disabledId].Configured,
+                statuses[disabledId].Enabled,
+                statuses[disabledId].Username,
+                statuses[disabledId].CredentialGeneration,
+                statuses[disabledId].Version));
+        Assert.Equal(
+            (false, false, (string?)null, 0L, 0L),
+            (statuses[emptyId].Configured,
+                statuses[emptyId].Enabled,
+                statuses[emptyId].Username,
+                statuses[emptyId].CredentialGeneration,
+                statuses[emptyId].Version));
+        Assert.All(statuses.Values, status => Assert.Equal(
+            ExternalCredentialProvider.GlassRepairEstimate,
+            status.Provider));
+        var serializedStatuses = System.Text.Json.JsonSerializer.Serialize(statuses.Values);
+        Assert.DoesNotContain("configured-secret", serializedStatuses, StringComparison.Ordinal);
+        Assert.DoesNotContain("replaced-first-secret", serializedStatuses, StringComparison.Ordinal);
+        Assert.DoesNotContain("replaced-second-secret", serializedStatuses, StringComparison.Ordinal);
+        Assert.DoesNotContain("disabled-secret", serializedStatuses, StringComparison.Ordinal);
+
+        var engineer = ActionActor.Staff(engineerId, [StaffRole.Engineer]);
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => store.GetManyAsync(
+            engineer,
+            requestedIds,
+            ExternalCredentialProvider.GlassRepairEstimate,
+            default));
+    }
+
     private static async Task CreateEnabledUsersAsync(
         LocalDbTestDatabase database,
         params Guid[] userIds)

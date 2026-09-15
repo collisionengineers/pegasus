@@ -52,6 +52,8 @@ public sealed partial class RailCountsPageFilter(
     TimeProvider timeProvider,
     ILogger<RailCountsPageFilter> logger) : IAsyncPageFilter
 {
+    private static readonly object CaseCountsKey = new();
+
     private readonly IDashboardQueries dashboardQueries =
         dashboardQueries ?? throw new ArgumentNullException(nameof(dashboardQueries));
     private readonly IListTriage listTriage =
@@ -82,21 +84,12 @@ public sealed partial class RailCountsPageFilter(
                 out var actor))
         {
             var cancellationToken = context.HttpContext.RequestAborted;
-            var stagesTask = dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
-            var triageTask = listTriage.ExecuteAsync(new(actor, State: null, Page: 1, PageSize: 1), cancellationToken);
-            var unidentifiedTask = unidentifiedStore.ListQueueAsync(null, cancellationToken);
-            await Task.WhenAll(stagesTask, triageTask, unidentifiedTask);
-
-            var stages = stagesTask.Result;
+            var caseCounts = TryGetCaseCounts(context.HttpContext, out var loadedCounts)
+                ? loadedCounts
+                : await LoadCaseCountsAsync(actor, cancellationToken);
             var railCounts = new Dictionary<string, int>
             {
-                ["Cases"] = stages.NotReady
-                    + stages.Review
-                    + stages.WithEngineer
-                    + stages.Held
-                    + stages.AwaitingInstruction
-                    + triageTask.Result.TotalCount
-                    + unidentifiedTask.Result.Count
+                ["Cases"] = caseCounts.Total
             };
             if (await OperationsBadgeAsync(actor, cancellationToken) is > 0 and var badge)
             {
@@ -117,6 +110,61 @@ public sealed partial class RailCountsPageFilter(
                 pageModel.ViewData["NotificationsUnavailable"] = true;
             }
         }
+    }
+
+    /// <summary>
+    /// Carries the Cases page's already-read totals through this one request to
+    /// the post-handler shell filter. It is never a cross-request cache.
+    /// </summary>
+    public static void SetCaseCounts(
+        HttpContext context,
+        CaseStageCounts stages,
+        int triageCount,
+        int unidentifiedCount)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        context.Items[CaseCountsKey] = new CaseRailCounts(stages, triageCount, unidentifiedCount);
+    }
+
+    private static bool TryGetCaseCounts(HttpContext context, out CaseRailCounts counts)
+    {
+        if (context.Items.TryGetValue(CaseCountsKey, out var value)
+            && value is CaseRailCounts result)
+        {
+            counts = result;
+            return true;
+        }
+
+        counts = default!;
+        return false;
+    }
+
+    private async Task<CaseRailCounts> LoadCaseCountsAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        var stagesTask = dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
+        var triageTask = listTriage.CountAsync(
+            actor,
+            state: null,
+            cancellationToken: cancellationToken);
+        var unidentifiedTask = unidentifiedStore.CountOpenAsync(cancellationToken);
+        await Task.WhenAll(stagesTask, triageTask, unidentifiedTask);
+        return new(stagesTask.Result, triageTask.Result, unidentifiedTask.Result);
+    }
+
+    private sealed record CaseRailCounts(
+        CaseStageCounts Stages,
+        int TriageCount,
+        int UnidentifiedCount)
+    {
+        public int Total => Stages.NotReady
+            + Stages.Review
+            + Stages.WithEngineer
+            + Stages.Held
+            + Stages.AwaitingInstruction
+            + TriageCount
+            + UnidentifiedCount;
     }
 
     /// <summary>

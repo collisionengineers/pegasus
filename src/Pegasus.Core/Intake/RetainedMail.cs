@@ -410,6 +410,10 @@ public interface IRetainedMailQueries
         MailWorkspaceScope scope,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<int>> CountManyAsync(
+        IReadOnlyList<MailWorkspaceScope> scopes,
+        CancellationToken cancellationToken);
+
     Task<RetainedMailDetail?> GetAsync(
         Guid id,
         CancellationToken cancellationToken,
@@ -463,6 +467,18 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
         ArgumentNullException.ThrowIfNull(scope);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         return await queries.CountAsync(Normalize(scope), cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<int>> CountManyAsync(
+        ActionActor actor,
+        IReadOnlyList<MailWorkspaceScope> scopes,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(scopes);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return await queries.CountManyAsync(
+            scopes.Select(scope => Normalize(scope)).ToArray(),
+            cancellationToken);
     }
 
     public async Task<RetainedMailCursorPage> ExecuteCursorAsync(

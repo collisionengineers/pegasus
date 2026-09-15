@@ -449,17 +449,20 @@ public sealed class IndexModel(
         var accounts = await listStaffAccounts.ExecuteAsync(new(actor, PageSize: ListStaffAccounts.MaximumPageSize), cancellationToken);
         HasMoreAccounts = accounts.HasMoreAccounts;
         var currentOperatorId = Guid.TryParse(actor.SubjectId, out var id) ? id : (Guid?)null;
+        var glassByAccount = await externalCredentials.GetManyAsync(
+            actor,
+            accounts.Accounts.Select(account => account.Id).ToArray(),
+            ExternalCredentialProvider.GlassRepairEstimate,
+            cancellationToken);
         var rows = new List<StaffAccountRow>(accounts.Accounts.Count);
         foreach (var account in accounts.Accounts)
         {
             // Decision M (v26): the Glass's column puts each account's credential on
             // the list; the credential itself is still managed from the account.
-            var glass = await externalCredentials.GetAsync(
-                actor,
-                account.Id,
-                ExternalCredentialProvider.GlassRepairEstimate,
-                cancellationToken);
-            rows.Add(new StaffAccountRow(account, account.Id == currentOperatorId, glass));
+            rows.Add(new StaffAccountRow(
+                account,
+                account.Id == currentOperatorId,
+                glassByAccount.GetValueOrDefault(account.Id)));
         }
         Rows = rows;
     }

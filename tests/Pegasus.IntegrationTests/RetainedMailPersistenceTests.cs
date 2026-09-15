@@ -537,6 +537,69 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task CountManyMatchesEachInboxRailScopeAndKeepsDuplicateAndEmptyScopePositions()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var fixtures = new[]
+        {
+            ("batch-receiving", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"), [], "fixture", "test", 1)),
+            ("batch-queries", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query"), [], "fixture", "test", 1)),
+            ("batch-triage", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.PreInstructionEmails, "triage-request"), [], "fixture", "test", 1)),
+            ("batch-unidentified", MailClassificationResult.Unclassified([], "fixture", "test", 1)),
+            ("batch-dismissed", MailClassificationResult.Unclassified([], "fixture", "test", 1))
+        };
+        foreach (var (key, classification) in fixtures)
+        {
+            var message = Message(key, subject: key);
+            await RetainAsync(database, message);
+            await StoreClassifiedReceiptAsync(database, message, classification);
+        }
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            var dismissed = await context.RetainedMailboxMessages.SingleAsync(item =>
+                item.ImmutableMessageId == "batch-dismissed");
+            dismissed.DismissedAtUtc = ReceivedAtUtc.AddMinutes(1);
+            dismissed.DismissedBySubjectId = "fixture-staff";
+            await context.SaveChangesAsync();
+        }
+
+        // The seven Mail/Index scope-rail queries, then a duplicate and an empty
+        // scope to pin CountMany's positional contract.
+        IReadOnlyList<MailWorkspaceScope> scopes =
+        [
+            new(null, MailFolderScope.Inbox),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.ReceivingWork),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.Queries),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.Triage),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.Unidentified),
+            new(null, MailFolderScope.Sent),
+            new(null, MailFolderScope.Inbox, DismissedOnly: true),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.Queries),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.Other)
+        ];
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        var individualCounts = new int[scopes.Count];
+        for (var index = 0; index < scopes.Count; index++)
+        {
+            individualCounts[index] = await queries.CountAsync(scopes[index], CancellationToken.None);
+        }
+
+        var batchCounts = await queries.CountManyAsync(scopes, CancellationToken.None);
+
+        Assert.Equal([4, 1, 1, 1, 1, 0, 1, 1, 0], individualCounts);
+        Assert.Equal(individualCounts, batchCounts);
+        Assert.Equal(batchCounts[2], batchCounts[7]);
+        Assert.Equal(0, batchCounts[8]);
+    }
+
+    [Fact]
     public async Task CaseQueryStoreProjectsCurrentlyLinkedQueryMailNewestFirst()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();

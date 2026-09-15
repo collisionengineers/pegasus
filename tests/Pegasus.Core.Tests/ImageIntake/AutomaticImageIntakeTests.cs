@@ -699,6 +699,18 @@ public sealed class AutomaticImageIntakeTests
                 .Where(ImageIntakeLifecycleRules.IsImageOnlyMaterial)
                 .Select(receipt => new ImageIntakeImage(receipt.Id, receipt.SourceFileName, receipt.MediaType)).ToArray());
 
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>> ListImagesAsync(
+            IReadOnlyCollection<Guid> imageIntakeIds,
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyList<ImageIntakeImage> images = ReceiptQueries.Receipts
+                .Where(ImageIntakeLifecycleRules.IsImageOnlyMaterial)
+                .Select(receipt => new ImageIntakeImage(receipt.Id, receipt.SourceFileName, receipt.MediaType))
+                .ToArray();
+            return Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>>(
+                imageIntakeIds.Distinct().ToDictionary(imageIntakeId => imageIntakeId, _ => images));
+        }
+
         public Task<ImageIntakeRecord> MergeAsync(MergeImageInitiatedCaseRequest request, CancellationToken cancellationToken)
         {
             Assert.All(ReceiptQueries.Receipts.Where(ImageIntakeLifecycleRules.IsImageOnlyMaterial),

@@ -105,6 +105,34 @@ internal sealed class EfRetainedMailboxMessageStore(
         return await BuildMatches(context, scope).CountAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<int>> CountManyAsync(
+        IReadOnlyList<MailWorkspaceScope> scopes,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scopes);
+        if (scopes.Count == 0)
+        {
+            return [];
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        IQueryable<int>? union = null;
+        for (var index = 0; index < scopes.Count; index++)
+        {
+            var scopeIndex = index;
+            var rows = BuildMatches(context, scopes[index]).Select(_ => scopeIndex);
+            union = union is null ? rows : union.Concat(rows);
+        }
+
+        var grouped = await union!
+            .GroupBy(index => index)
+            .Select(group => new { Index = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.Index, item => item.Count, cancellationToken);
+        return Enumerable.Range(0, scopes.Count)
+            .Select(index => grouped.GetValueOrDefault(index))
+            .ToArray();
+    }
+
     public async Task<RetainedMailPage> ListAsync(
         MailWorkspaceScope scope,
         int page,

@@ -156,6 +156,9 @@ public sealed class AssignToMeTests
         public Task<IReadOnlyList<TriageSummary>> ListAsync(TriageState? state, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
+            Task.FromResult(0);
+
         public Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<TriageDetail?>(id == current.Id
                 ? new TriageDetail(current, DateTimeOffset.UnixEpoch, [], [], [], [])
