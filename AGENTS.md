@@ -20,11 +20,11 @@ read 2026-09-08.
   profiles do not grant permissions or override parent runtime policy.
 - All host test/build work, including focused commands, verification scripts,
   and packaging, is serialized behind one explicit current
-  host-slot owner. Each such assignment names the canonical
-  `<ticket>/scratch/execution.md` host-slot record. Before running, the owner
-  reads it and refuses a missing, stale, ambiguous, wrong-host, wrong-input, or
-  non-owner slot; it also checks other active execution contexts and host
-  processes. All host sessions share that record, with no second active record;
+  host-slot owner. Record the owner, host, frozen inputs and handoffs in the
+  current operator task context, with a pointer shared by participating sessions.
+  Before running, the owner refuses a missing, stale, ambiguous, wrong-host,
+  wrong-input or non-owner grant; it also checks other active execution contexts
+  and host processes. All host sessions share that record;
   process absence or a profile never grants a slot. The current owner records
   explicit idle before transfer, then the primary rereads and records the next
   owner. Static reads and Git diff inspection may overlap.
@@ -122,4 +122,5 @@ Current Markdown additions and renames use the index-routed canonical location
 and must pass the base..head `scripts/Test-MarkdownPlacement.ps1` placement gate.
 The current operator task owns scope and authorization. Use PR review and CI
 for delivery evidence, and name one verifier for heavy checks on this host.
-Kanmer is disabled; do not require its board, claims or gates.
+Kanmer is removed from the Codex workflow; do not require its board, claims,
+skills or gates. Historical tickets and retired plans are provenance only.
