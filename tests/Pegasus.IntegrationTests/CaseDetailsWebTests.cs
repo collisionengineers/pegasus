@@ -42,6 +42,11 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
             }));
@@ -81,6 +86,11 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
                 Substitute<IEvaSubmissionQueries>(services, evaStores);
                 Substitute<IEvaSubmissionModeStore>(services, evaStores);
             }));
@@ -188,6 +198,7 @@ public sealed partial class CaseDetailsWebTests
                 Substitute<IGetCaseValuationSection>(services, store);
                 Substitute<IGetCaseNotesSection>(services, store);
                 Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -239,6 +250,11 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -289,6 +305,11 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -337,6 +358,11 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -393,6 +419,11 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -567,6 +598,11 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -781,6 +817,11 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -1155,6 +1196,11 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -1189,6 +1235,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 Substitute<IStaffAccountQueries>(services,
                     new StubStaffAccounts(Guid.NewGuid(), "Engineer", StaffRole.Engineer));
@@ -1339,6 +1386,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<IRecordManualCaseChase>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<IRecordManualCaseChase>(store);
             }));
@@ -1449,6 +1497,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<ITransitionCase>();
                 services.RemoveAll<IAssignCaseEngineer>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<IHoldCase>(store);
                 services.AddSingleton<IReleaseCase>(store);
@@ -1532,6 +1581,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -1682,6 +1732,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
@@ -1738,6 +1789,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
@@ -1787,6 +1839,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
@@ -1850,6 +1903,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -1884,6 +1938,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
@@ -1947,6 +2002,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -1988,6 +2044,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -2040,6 +2097,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -2078,6 +2136,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
                     new StubEditAuthorityHolders("r.hughes"));
             }));
@@ -2111,6 +2170,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
                     new StubEditAuthorityHolders(displayName: null));
             }));
@@ -2153,6 +2213,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
                     new StubEditAuthorityHolders(displayName: null, isAutomation: true));
             }));
@@ -2187,6 +2248,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.RemoveAll<IDescribeCaseEditAuthorityHolder>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
                 services.AddSingleton<IDescribeCaseEditAuthorityHolder>(
@@ -2446,6 +2508,7 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -2857,6 +2920,17 @@ public sealed partial class CaseDetailsWebTests
     [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ValueRegex();
 
+    private static void SubstituteDetailsPageReaders(
+        IServiceCollection services,
+        RecordingCaseDetailsStore store)
+    {
+        Substitute<IGetCasePageFrame>(services, store);
+        Substitute<IGetCaseVehicleSection>(services, store);
+        Substitute<IGetCaseValuationSection>(services, store);
+        Substitute<IGetCaseNotesSection>(services, store);
+        Substitute<IGetCaseFilesSection>(services, store);
+        Substitute<IGetAssessmentWorkspace>(services, store);
+    }
     private sealed class CountingAssessmentWorkspace(AssessmentWorkspace workspace) : IGetAssessmentWorkspace
     {
         public AssessmentWorkspace Workspace { get; } = workspace;

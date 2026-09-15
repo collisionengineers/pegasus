@@ -41,6 +41,8 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
                 Substitute<ICaseAssetPreparationQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -81,6 +83,8 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
                 Substitute<ICaseAssetPreparationQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -146,6 +150,8 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
                 Substitute<ICaseAssetPreparationQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -405,6 +411,8 @@ public sealed partial class CaseDetailsWebTests
             {
                 Substitute<IGetCase>(services, store);
                 Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
                 Substitute<ICaseAssetPreparationQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions

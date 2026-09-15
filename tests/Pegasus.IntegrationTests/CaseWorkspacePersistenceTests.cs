@@ -34,7 +34,25 @@ public sealed class CaseWorkspacePersistenceTests
         var occurrenceId = Guid.NewGuid();
         await using (var context = await harness.Factory.CreateDbContextAsync())
         {
+            var workflow = await context.CaseWorkflows.SingleAsync(
+                row => row.CaseId == harness.CaseId);
             context.AddRange(
+                new CaseWorkflowEventEntity
+                {
+                    Id = Guid.NewGuid(),
+                    CaseId = harness.CaseId,
+                    Workflow = workflow,
+                    EventType = "operator_note",
+                    OperationKey = "focused-page-history",
+                    RequestHash = new string('e', 64),
+                    ActorKind = nameof(ActorKind.Staff),
+                    ActorSubjectId = harness.StaffActor.SubjectId,
+                    ActorRolesJson = "[\"User\"]",
+                    Reason = "Focused page history fixture.",
+                    OccurredAtUtc = harness.TimeProvider.GetUtcNow(),
+                    BeforeVersion = workflow.Version,
+                    AfterVersion = workflow.Version
+                },
                 new CaseDocumentEntity
                 {
                     Id = documentId,
