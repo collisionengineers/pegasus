@@ -10,20 +10,22 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The v26 Valuation section on the one Case workspace: while editing, the
-/// Valuation month and one Get valuation button per source sit above the
-/// guide cards and on each card (Glass's, Brego and Super CAP post to
-/// GetValuation; AI market research starts the existing job for the month),
-/// a pending job shows as a Researching card, and Apply as Engineer's Value
-/// posts the calculator's selection to the Core policy shape.
+/// The v26 Valuation section on the one Case workspace: while editing,
+/// Glass's, Brego and Super CAP are each one entry card whose Get valuation
+/// fills its boxes from the connected provider and whose Save records them
+/// (one route to a card), the Valuation month and AI market research start
+/// the existing job for the month, a pending job shows as a Researching
+/// card, and Apply as Engineer's Value posts the calculator's selection to
+/// the Core policy shape.
 /// </summary>
 public sealed partial class CaseDetailsWebTests
 {
     /// <summary>
-    /// The Get valuation tools render only inside the edit session: the month
-    /// input defaults to the current month and joins the research form, and
-    /// every source button submits that form: the three guide sources to
-    /// GetValuation, AI market research to the research handler.
+    /// The edit session renders the month input on the research form, the AI
+    /// market research button, and one entry card per guide source: its own
+    /// form posting SaveValuation with month, mileage, retail and trade boxes,
+    /// and a Get valuation button posting the same boxes to GetValuation.
+    /// There is no Add valuation dialog.
     /// </summary>
     [Fact]
     public async Task WhileEditingTheValuationSectionOffersTheMonthTheGuideSourcesAndTheResearchForm()
@@ -44,12 +46,22 @@ public sealed partial class CaseDetailsWebTests
 
         foreach (var (source, name) in new[] { ("glasses", "Glasses"), ("brego", "Brego"), ("super-cap", "SuperCap") })
         {
+            var card = EntryCard(html, source);
+            Assert.Contains("handler=SaveValuation", card, StringComparison.Ordinal);
+            foreach (var box in new[] { "retailValue", "tradeValue", "mileage", "guideMonth" })
+            {
+                Assert.Contains($"name=\"{box}\"", card, StringComparison.Ordinal);
+            }
+            Assert.Contains($"name=\"source\" value=\"{name}\"", card, StringComparison.Ordinal);
             var button = ButtonTag(html, source);
             Assert.Contains("type=\"submit\"", button, StringComparison.Ordinal);
-            Assert.Contains("form=\"case-market-research-form\"", button, StringComparison.Ordinal);
             Assert.Contains("handler=GetValuation", button, StringComparison.Ordinal);
             Assert.Contains("source=" + name, button, StringComparison.Ordinal);
+            Assert.DoesNotContain("form=", button, StringComparison.Ordinal);
+            ButtonTagByHook(html, $"data-valuation-save=\"{source}\"");
         }
+        Assert.DoesNotContain("add-valuation", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=AddValuation", html, StringComparison.Ordinal);
         var research = ButtonTag(html, "ai-market-research");
         Assert.Contains("type=\"submit\"", research, StringComparison.Ordinal);
         Assert.Contains("form=\"case-market-research-form\"", research, StringComparison.Ordinal);
@@ -275,11 +287,12 @@ public sealed partial class CaseDetailsWebTests
 
     /// <summary>
     /// A connected provider is asked for the Case's accepted registration and
-    /// mileage in the posted month, and its figures become a guide card through
-    /// the one valuation save; each guide card then carries its own button.
+    /// mileage in the posted month, and its figures fill that source's entry
+    /// card; nothing is recorded until the card is saved, and the edit session
+    /// continues.
     /// </summary>
     [Fact]
-    public async Task GetValuationWithAConnectedProviderRecordsTheQuoteAsAGuideCard()
+    public async Task GetValuationWithAConnectedProviderFillsTheSourcesCardAndRecordsNothing()
     {
         var store = new RecordingCaseDetailsStore();
         var valuation = new RecordingValuationSection(store.CaseId);
@@ -307,18 +320,30 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal("AB12CDE", asked.Registration);
         Assert.Equal(42_000L, asked.Mileage);
         Assert.Equal(new DateOnly(2026, 8, 1), asked.GuideMonth);
-        var saved = Assert.Single(valuation.Saved);
-        Assert.Equal(ValuationSource.Brego, saved.Details.Source);
-        Assert.Equal(13_250m, saved.Details.RetailValue);
-        Assert.Equal(11_000m, saved.Details.TradeValue);
-        Assert.Equal(new DateOnly(2026, 8, 1), saved.Details.GuideMonth);
-        Assert.Equal(operationKey, saved.OperationKey);
-        Assert.Equal(store.LeaseToken, saved.EditLeaseToken);
+        Assert.Empty(valuation.Saved);
 
         var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
-        var cardButton = ButtonTagByHook(html, "data-valuation-card-get=\"brego\"");
-        Assert.Contains("handler=GetValuation", cardButton, StringComparison.Ordinal);
-        Assert.Contains("form=\"case-market-research-form\"", cardButton, StringComparison.Ordinal);
+        Assert.Contains("data-case-editing=\"true\"", html, StringComparison.Ordinal);
+        Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
+        var card = EntryCard(html, "brego");
+        Assert.Contains("name=\"retailValue\" required value=\"13250.00\"", card, StringComparison.Ordinal);
+        Assert.Contains("name=\"tradeValue\" required value=\"11000.00\"", card, StringComparison.Ordinal);
+        Assert.Contains("name=\"guideMonth\" value=\"2026-08\"", card, StringComparison.Ordinal);
+        Assert.Contains("name=\"mileage\" required value=\"42000\"", card, StringComparison.Ordinal);
+        // The figures were held for one redraw only.
+        var again = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=valuation");
+        Assert.DoesNotContain("value=\"13250.00\"", EntryCard(again, "brego"), StringComparison.Ordinal);
+    }
+
+    /// <summary>One source's entry card: the form from its opening tag to its closing tag.</summary>
+    private static string EntryCard(string html, string source)
+    {
+        var card = Regex.Match(
+            html,
+            $"<form[^>]*data-valuation-entry=\"{Regex.Escape(source)}\"[^>]*>.*?</form>",
+            RegexOptions.CultureInvariant | RegexOptions.Singleline);
+        Assert.True(card.Success, $"The Valuation section must render the entry card for '{source}'.");
+        return card.Value;
     }
 
     /// <summary>The one input carrying <paramref name="name"/> and <paramref name="hook"/>.</summary>

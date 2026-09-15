@@ -172,6 +172,11 @@
 #section-valuation .valuation-card .figs b{display:block;font-family:var(--mono);font-size:13.5px;color:var(--ink);font-weight:650}
 #section-valuation .valuation-card .figs b.derived{color:var(--quiet)}
 #section-valuation .valuation-card .meta{margin-top:6px;font-size:11px;color:var(--muted)}
+/* An entry card (v26, 15 September): the source's figures in boxes, typed or filled by Get valuation, saved by the card. */
+#section-valuation .valuation-card.entry .figs label,#section-valuation .valuation-card.entry .meta label{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);min-width:0}
+#section-valuation .valuation-card.entry .meta{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#section-valuation .valuation-card.entry input.fi{width:100%;min-height:28px;padding:3px 7px;font-size:12.5px;border-color:var(--line-strong)}
+#section-valuation .valuation-card.entry .entry-actions{display:flex;justify-content:flex-end;margin-top:8px}
 #section-valuation .valuation-card.is-pending .meta::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:valspin .8s linear infinite}
 @keyframes valspin{to{transform:rotate(360deg)}}
 #section-valuation .valuation-card .gated{margin-left:0}

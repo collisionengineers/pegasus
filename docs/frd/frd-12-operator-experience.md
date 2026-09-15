@@ -475,16 +475,17 @@ a non-destructive conflict.
   shown as derived values (D39,
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md#damage-record)).
 - Valuation: each entry with source, date, time, mileage, retail and trade
-  values, plus guide month per entry (`CASE-029`), and Add valuation
-  (`EXT-10`); sources are Glass's valuation, Brego and Super CAP manual entries,
-  Cazana (disabled seam), Engineer's Value and AI market research (automation
-  only) (D40). While editing, a **Valuation month** and one button per source
-  run the valuation for that month, on the row and on each guide card:
-  Glass's, Brego and Super CAP post the source to one Get valuation handler,
-  which records the connected provider's guide figures as a card and answers
-  with a notice while that source has no provider, and **AI market
-  research** creates a
-  `MarketResearch` job and shows a "Researching · {month}" card until it
+  values, plus guide month per entry (`CASE-029`, `EXT-10`); sources are
+  Glass's, Brego and Super CAP guide cards, Cazana (disabled seam),
+  Engineer's Value and AI market research (automation only) (D40). While
+  editing, each guide source is one card with month, mileage, retail and
+  trade boxes, **Get valuation**, which asks the connected provider for the
+  Case's accepted registration and mileage in that month and fills the boxes
+  (a notice while that source has no provider), and **Save**, which records
+  the card; the same source and month replaces the earlier card, and a typed
+  figure saves the same way. A **Valuation month** and **AI market
+  research** above the cards create a
+  `MarketResearch` job and show a "Researching · {month}" card until it
   completes, a re-run replacing the card (D35,
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)).
   Read mode shows only applied increases; the calculator applies presets and

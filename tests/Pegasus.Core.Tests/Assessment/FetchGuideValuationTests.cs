@@ -12,15 +12,13 @@ public sealed class FetchGuideValuationTests
     public async Task ASourceWithoutAConnectedProviderIsRefusedBeforeTheCaseIsRead()
     {
         var caseData = new RecordingCaseData();
-        var saves = new RecordingSaveValuation();
-        var fetch = new FetchGuideValuation([], caseData, saves, TimeProvider.System);
+        var fetch = new FetchGuideValuation([], caseData);
 
         var refusal = await Assert.ThrowsAsync<GuideValuationProviderUnavailableException>(() =>
             fetch.ExecuteAsync(Request(ValuationSource.Glasses), default));
 
         Assert.Equal(ValuationSource.Glasses, refusal.ValuationSource);
         Assert.Equal(0, caseData.Reads);
-        Assert.Empty(saves.Saved);
     }
 
     [Theory]
@@ -29,8 +27,7 @@ public sealed class FetchGuideValuationTests
     [InlineData(ValuationSource.Cazana)]
     public async Task OnlyAGuideSourceCanBeFetched(ValuationSource source)
     {
-        var fetch = new FetchGuideValuation(
-            [], new RecordingCaseData(), new RecordingSaveValuation(), TimeProvider.System);
+        var fetch = new FetchGuideValuation([], new RecordingCaseData());
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             fetch.ExecuteAsync(Request(source), default));
@@ -39,8 +36,7 @@ public sealed class FetchGuideValuationTests
     [Fact]
     public async Task AnActorWithoutCaseworkOrAnEmptyKeyIsRefused()
     {
-        var fetch = new FetchGuideValuation(
-            [], new RecordingCaseData(), new RecordingSaveValuation(), TimeProvider.System);
+        var fetch = new FetchGuideValuation([], new RecordingCaseData());
         var reader = ActionActor.SystemWorker("valuation-worker");
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
@@ -66,18 +62,6 @@ public sealed class FetchGuideValuationTests
         {
             Reads++;
             return Task.FromResult<CaseDataProjection?>(null);
-        }
-    }
-
-    private sealed class RecordingSaveValuation : ISaveValuation
-    {
-        public List<SaveValuationRequest> Saved { get; } = [];
-
-        public Task<CaseValuation> ExecuteAsync(SaveValuationRequest request, CancellationToken cancellationToken)
-        {
-            Saved.Add(request);
-            return Task.FromResult(new CaseValuation(
-                Guid.NewGuid(), request.CaseId, request.Details, request.Actor.SubjectId, DateTimeOffset.UtcNow));
         }
     }
 }
