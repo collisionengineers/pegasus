@@ -1,6 +1,6 @@
 ---
 name: pegasus-wipe-intake-data
-description: Sterilize the Pegasus production estate between test rounds — clear the Azure Blob artifacts and SQL rows that any form of intake (email, image, manual upload) generates or stores, leaving identity, mailbox configuration and sequence state intact. Use whenever an operator asks to wipe, clear, reset or sterilize test/intake data.
+description: Sterilize the Pegasus production estate between test rounds — clear intake-generated Blob and SQL data, with an explicit full test-estate option that retains only alex and restarts the current QDOS counter. Use whenever an operator asks to wipe, clear, reset or sterilize test/intake data.
 ---
 
 # Wiping Pegasus intake-generated data
@@ -9,9 +9,9 @@ Intake (Outlook mail, image intake, manual upload) writes to exactly two
 places: Azure Blob Storage (the artifact bytes) and Azure SQL (everything the
 Web UI actually renders — cases, receipts, retained mail, documents). Both
 must be cleared together, or cases and emails keep showing in the UI even
-after the blobs are gone. This has been run five times
-(`docs/operations.md`); use the script below rather than re-deriving the
-preserve list or account names by hand.
+after the blobs are gone. Prior runs are recorded in `docs/operations.md`; use
+the script below rather than re-deriving the preserve list or account names by
+hand.
 
 ## The estate
 
@@ -32,12 +32,19 @@ touches a subset of it.
   content-addressed `sha256/*` store and in-flight `staging/*` blobs. There
   is no case/date prefix in the path, so the whole container is always the
   target.
-- **The 87 non-preserved SQL tables found by the latest dry run** — everything intake and case-handling
-  writes: `Cases`, `CaseDocuments`, `CaseHistory`, `IntakeReceipts`,
+- **Every non-preserved SQL table reported by the fresh dry run** — everything
+  intake and case-handling writes: `Cases`, `CaseDocuments`, `CaseHistory`,
+  `IntakeReceipts`,
   `IntakeStagedReceipts`, `IntakeAssets`, `RetainedMailboxMessages`,
   `RetainedMailboxAttachments`, `DocumentVersions`/`DocumentOccurrences`,
   `Triage`/`UnidentifiedItems`, `ActionHistory`, and the rest of the
   intake/case pipeline.
+
+With `-ResetTestEstate`, the same transaction also removes every account except
+the single `alex` Administrator, including its Identity children, OpenIddict
+authorizations/tokens and `SecurityEvents` where the removed account is the
+subject or actor. It resets only the current London-year QDOS case sequence to
+zero, so the next allocation is `QDOSyy001`.
 
 ## What never gets touched, and why
 
@@ -50,7 +57,7 @@ touches a subset of it.
   runtime storage (`app-package`, `azure-webjobs-*`, work queues). Intake wake
   and work identifiers do live here; the wipe leaves them intact. On resume,
   queued mail notifications must use the new persisted receive-time cutoff.
-- **The SQL preserve list** (33 named tables + `ApprovedMailbox*`) — identity/auth
+- **For an ordinary wipe, the SQL preserve list** — identity/auth
   (`AspNet*`, `OpenIddict*`), mailbox configuration and Graph subscriptions,
   `Organizations*`/`Principals*`, `ProviderDomain*`/
   `ProviderReferences`, `WorkflowConfigurations`, `SendToAiControl`,
@@ -73,10 +80,18 @@ messages whose occurrence identities the wipe removed.
    pwsh ./scripts/Invoke-IntakeDataWipe.ps1
    ```
    Prints the current blob count/size and the SQL table/row breakdown to be
-   wiped. The current dry run found 121 tables: 34 preserved and 87 to wipe.
-   This *is* the fresh inventory the live-operation approval matrix
+   wiped. This *is* the fresh inventory the live-operation approval matrix
    requires — always re-run it immediately before executing, never reuse a
    stale count.
+
+   For the full test-estate reset, use:
+   ```powershell
+   pwsh ./scripts/Invoke-IntakeDataWipe.ps1 -ResetTestEstate
+   ```
+   It additionally prints the retained `alex` account, every account and trace
+   count to remove, and the QDOS sequence that would restart. It refuses unless
+   exactly one `alex` account exists with the Administrator role and QDOS has
+   exactly one sequence lineage.
 
 2. **Get explicit approval** naming the exact targets — *clear all blobs in
    `pegcustody252ow37gij/transient-intake` and delete rows from the N
@@ -85,6 +100,11 @@ messages whose occurrence identities the wipe removed.
    `docs/runbook.md`'s live-operation approval matrix ("Change or use an
    Azure service") this needs approval before running with `-Execute` —
    plan approval alone is not enough.
+
+   Approval for `-ResetTestEstate` must also name every reported non-`alex`
+   account, its attributable trace counts, and the reported current-year QDOS
+   sequence reset. Approval for an ordinary wipe does not authorize those
+   additional writes.
 
 3. **Execute (only after approval):** stop the exact Worker app for the
    approved maintenance window and exclude application writes. The script
@@ -100,12 +120,18 @@ messages whose occurrence identities the wipe removed.
    old notifications and delta resets cannot re-ingest pre-cutoff mail;
    newly received or forwarded mail remains eligible.
 
+   Use `-ResetTestEstate -Execute` only when the expanded targets were included
+   in the immediately preceding approval.
+
 4. **Verify:** the script's own post-run output reports blobs remaining
    (expect 0) and "Wiped tables still holding rows" (expect 0), plus an
    exact before/after comparison of every value in the four reference-sequence
    tables (`CaseSequences`/`ImageIntakeSequences`/`TriageSequences`/
    `UnidentifiedSequences`) and the `ValuationPresets` row count (expect 0
-   changes). Reload the
+   changes). The expanded reset instead expects only its inventoried QDOS row
+   to become zero and verifies that `alex` is the sole remaining account with
+   no attributable OpenIddict or security-event rows for deleted account IDs.
+   Reload the
    Pegasus Web UI and confirm no cases/emails remain — that's the actual
    end-to-end signal an operator cares about.
 
@@ -125,5 +151,7 @@ messages whose occurrence identities the wipe removed.
 - Skip the preserve-list self-check — if it throws ("Preserve list has
   missing tables"), stop and investigate schema drift rather than editing
   the list to make it pass.
+- Use `-ResetTestEstate` to select arbitrary retained users or principals. It
+  has one bounded meaning: retain `alex` and reset current-year QDOS only.
 - Call Outlook, Graph, or Box from this process — the wipe is Azure-only by
   design; mailbox/Box cleanup is a separate, differently-approved operation.
