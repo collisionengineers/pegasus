@@ -83,7 +83,7 @@ public sealed class CaseWorkspacePersistenceTests
             .UseSqlServer(connectionString)
             .AddInterceptors(new RejectingQueryReadInterceptor("[CaseWorkflowEvents]"))
             .Options;
-        using var pageFactory = new PooledDbContextFactory<PegasusDbContext>(pageOptions);
+        var pageFactory = new PooledDbContextFactory<PegasusDbContext>(pageOptions);
         var frame = await new EfCaseQueryStore(pageFactory, harness.TimeProvider)
             .GetPageFrameAsync(harness.CaseId, CancellationToken.None);
 
@@ -91,7 +91,7 @@ public sealed class CaseWorkspacePersistenceTests
             .UseSqlServer(connectionString)
             .AddInterceptors(new RejectingQueryReadInterceptor("[CaseAssessmentFields]"))
             .Options;
-        using var filesFactory = new PooledDbContextFactory<PegasusDbContext>(filesOptions);
+        var filesFactory = new PooledDbContextFactory<PegasusDbContext>(filesOptions);
         var filesStore = new EfCaseQueryStore(filesFactory, harness.TimeProvider);
         var directFiles = await filesStore.GetFilesSectionAsync(
             harness.CaseId,
