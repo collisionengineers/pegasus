@@ -2,7 +2,7 @@
 
 **Updated:** 15 September 2026
 
-**Status:** Implementation in progress in `perf/navigation`; verification and delivery are pending.
+**Status:** Implemented in `perf/navigation`. [PR #761](https://github.com/collisionengineers/pegasus/pull/761) owns current verification, remediation and promotion status; deployment requires separate operator approval.
 
 **Source reviewed:** `59ad1b3424071fd0eb018dd7f06aaaedc1c187b2`.
 
@@ -420,17 +420,137 @@ This section is temporary task evidence; the resulting PR and CI records own
 delivery evidence, and canonical documentation owns the implemented structure.
 
 - Baseline saved and pushed to `dev`: `3a393da92`.
-- Work Centre fragment refresh: `55f99bd0e`; independent review identified
-  transport/malformed-response freshness, all-failed status and retained
-  assignment-dialog defects. Corrections are in `70f407c7d` and await execution.
-- Case controller and stylesheet scope: `ece490e8b`.
-- Sampled server phase telemetry: `4ecc47b81`. Events use the existing
-  Application Insights pipeline; only allowlisted phase and duration are added.
-  Actual ingestion volume and daily-cap headroom still require observation.
-- Bounded workspace batches and complete counts: `248d13a22`.
-- Focused Case reads and image identity: `d701ba340`. Independent source review
-  cleared the corrected workspace reuse, Files body and render-lease checks;
-  real SQL and browser execution remain pending.
+- W1 fragment refresh: `55f99bd0e`, with failure/freshness/dialog corrections
+  in `70f407c7d`.
+- W3 Case controller and stylesheet scope: `ece490e8b`.
+- W0 sampled server phase telemetry: `4ecc47b81`; events retain the existing
+  ingestion pipeline, sampling and allowlisted phase/duration fields.
+- W5 bounded batches and complete counts: `248d13a22`, with one captured
+  Operations time boundary and distinct Query/Complete shell totals.
+- W2/W4 focused Case reads and image identity: `d701ba340`; empty `prep`
+  rejection was corrected in `5525ad5dc`.
+- Integrated verification exposed a W4 editing regression: Report preparation
+  controls depended on a loaded Files section, although Files is deferred
+  during editing. `5ae17a436` makes the current edit authority sufficient.
+  The existing image-card tests caught it; save still validates the live lease,
+  Case/preparation versions, occurrence ownership and confirmed source custody.
+- `c09f4d230` completes focused-reader composition in assessment, estimate,
+  AI, report and cross-Case test fixtures. Independent review found and resolved
+  missing edit-mode readers and an inconsistent partial Vehicle projection.
+
+### Retained measurement identity
+
+The fixed baseline is `3a393da927f9294c1c4fc2ebdee0b7e0136e571e`; the measured
+read-mode candidate is `47d741674bfbd72ff67c9148c0d8e80761d6db42`. Later changes
+above affect leased Report controls and test fixtures, and require their own
+final verification. Runs use Windows `CEALEX-MAY25`, .NET 10.0.302 Debug local
+hosting, Chrome profile Alexander at 929 × 861/DPR 1, and one offline
+Administrator. The data is a checksum-verified LocalDB backup and thirteen
+synthetic custody files: three Case shapes, ten images in the larger Case,
+101 eligible Operations failures and 101 unrelated Image intakes.
+
+Raw sanitized evidence is retained locally under
+`artifacts/performance/operator-20260915/`: `baseline-complete.json`,
+`candidate-complete.json`, SQL counter snapshots, lifecycle logs, trace/counter
+files and read-only production inventory. These ignored artifacts are not
+public links. The PR records reproducible findings and source/test/CI evidence.
+
+### W0–W5 browser results
+
+- Navigation: 360 complete/error-free observations per version, thirty on each
+  of twelve routes. Candidate Operations shows all 101 failures; baseline
+  stopped at 100. Operations median/p95 TTFB changes from 71.8/98.6 ms to
+  33.3/39.5 ms; median page load changes from 466.9 to 236.5 ms.
+- Inbox, Logs and Case median timings improve; Reports is broadly unchanged.
+  Initial small Cases/Work Centre increases did not recur in a retained
+  ninety-navigation repeat. Report these as variable comparisons, not uniform
+  performance wins or an SLA. Sample extrema remain in the raw data.
+- Sections: 480 retained observations per version, thirty per combination of
+  Vehicle/Valuation/Files/Notes, direct/lazy and Scroll/Tabs, with no failures.
+  Candidate lazy Resource Timing is lower in all eight cells. Examples:
+  Files/Scroll median/p95 31.2/54.1 → 22.8/26.8 ms and Vehicle/Tabs
+  30.7/68.2 → 18.1/27.1 ms.
+- Driver-observed Files/Notes readiness is not a valid interaction comparison:
+  twenty additional instrumented clicks identify 1.08–1.10 seconds before the
+  DOM click in the driver. Warm click-to-mount is approximately 56–69 ms;
+  one cold Files request/mount is retained at 323/333 ms. Baseline lacks that
+  click instrumentation, so no cross-version interaction-speed claim follows.
+- Refresh: all sixty candidate automatic refreshes apply content and advance
+  update time; baseline applies none. All sixty manual GET refreshes pass.
+  Automatic transfer falls from roughly 37.4 KB full pages to 8.6 KB fragments.
+  Live failure injection verifies transport/full-HTML/malformed/all-failed
+  rejection, partial retention, unchanged failed timestamps, field/dialog and
+  late-focus deferral, plus simultaneous-trigger deduplication. The no-script
+  manual form also completes with `refresh=true` and `since`.
+- Images: Report/Files addresses are identical for all ten confirmed images,
+  versus none on baseline. Ninety candidate retrievals succeed; browser-cache
+  reads transfer zero bytes. After a crop/rotation update, stale/absent addresses
+  return current bytes with no-store, current preparation alone is immutable,
+  and empty/negative preparation values return non-cacheable 400 responses.
+- Keyboard arrow/Home/End navigation, lazy failure/retry with preserved focus,
+  narrow layout, forced colours and reduced motion were exercised. Reflow was
+  inspected at 200% CSS scale; native browser-zoom shortcuts were not supported
+  by the automation surface. Final edit-mode checks cover the later Report fix.
+- Two concurrent streams each complete thirty Case HTML requests without errors;
+  they share one offline identity and do not establish multi-user capacity.
+
+### W6 profile and cost interpretation
+
+Five fresh Web processes per version give candidate cold TTFB median/ranges:
+Health 2,332 ms (1,962–2,565), Reports 291 ms (286–308), large Case 2,013 ms
+(1,946–2,028). Baseline medians are 2,574, 513 and 2,933 ms respectively.
+The process boundary is controlled; OS file cache is not. Browser cache-disable
+was requested, but cross-navigation asset-cache equivalence was not independently
+established, so cold paint/load/transfer differences are not attributed to code.
+The local stack ready median is 18.1 seconds versus 23.6 seconds, with the
+baseline launcher failures retained separately.
+
+Separate sixty-second managed profiles begin after readiness. All four candidate
+first-use requests finish with 200. Candidate process-wide interval totals are
+132.4 MB allocated, 112 ms GC pause, 5.385 seconds JIT compilation and 9.344
+seconds user-plus-system CPU; observed working set spans 194.6–286.3 MB.
+Baseline totals are 137.5 MB, 148 ms, 6.718 seconds and 10.969 seconds, with
+working set 197.1–303.3 MB. Different idle intervals and an extra baseline 404
+prevent strict profile A/B attribution. Sampled thread time is mainly waits,
+not CPU utilisation or a per-request explanation.
+
+Keep ReadyToRun disabled. The local profile does not justify a release packaging
+change or identify JIT as the sole delay. Any later experiment needs the isolated
+equivalent Linux host, authorization, cost allowance and numeric budgets in W6;
+Worker publishing remains unchanged.
+
+Supporting SQL cache-counter windows show 19,666 → 11,812 calls and
+368,879 → 77,912 logical reads, but their workloads differ: baseline includes
+thirty discarded Operations attempts; candidate includes twelve warm-up requests.
+Do not present these as exact per-route counts or an equal-workload percentage.
+No SQL text was retained. Browser captures show about 57–63 KB less resource
+transfer on warm navigation; Work Centre HTML itself adds 747 bytes for status
+metadata. Fixed B1/S0 charges do not decrease merely because work decreases.
+
+Read-only production inventory found 31 cache objects/entries totalling
+33,033,764 bytes, no eligible expired entries, active leases or cleanup outcomes
+at that observation. The workspace and component retain their 0.5 GB caps;
+the lagged workspace usage window records 134.5 MB. This is baseline inventory,
+not candidate ingestion cost or exact remaining headroom. Local hosting omits
+Box and the production Blob cache. Real provider timing, cache-state cost and
+candidate ingestion volume remain post-approval operational observations.
+
+### W7 review and delivery evidence
+
+The [direct review](https://github.com/collisionengineers/pegasus/pull/761#issuecomment-5685329260)
+records source and test links. Subsequent review cleared the Report-control fix
+and fixture deltas without weakening authority or custody assertions. Earlier
+builds, focused failures and the full CI failure remain retained. The first full
+CI enumerated all SQL shards and reported 48 failed rows across 43 methods;
+the fixes above address their causes. The final focused selection contains
+51 expected rows, including the existing Report image-control boundaries.
+The PR's current checks and follow-up review findings own the final executed
+results and merge decision; authored tests and static review alone are not a pass.
+
+Promotion is authorized by the operator task only after blocking issues clear.
+Deployment remains a separate decision tied to the prepared exact-SHA release
+manifest, hashes and Azure targets. No production mutation was part of the
+measurements above.
 
 **Corrected audit claim:** the old `site.js` controller required
 `[data-case-sticky]`, which the current Details markup does not supply. It was
