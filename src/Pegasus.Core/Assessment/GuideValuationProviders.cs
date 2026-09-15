@@ -56,33 +56,28 @@ public sealed record FetchGuideValuationRequest(
 
 /// <summary>
 /// Get valuation for one guide source: asks that source's provider for the
-/// Case's registration and mileage in the chosen month and records the
-/// answer as a guide card through the one valuation save, so a fetched card
-/// and a hand-entered card are the same record.
+/// Case's registration and mileage in the chosen month and answers with the
+/// figures. The figures fill the source's card, where the Engineer reads,
+/// corrects and saves them; the save is the one route to a record, so a
+/// fetched figure and a typed one are the same record.
 /// </summary>
 public interface IFetchGuideValuation
 {
-    Task<CaseValuation> ExecuteAsync(
+    Task<GuideValuationQuote> ExecuteAsync(
         FetchGuideValuationRequest request,
         CancellationToken cancellationToken);
 }
 
 public sealed class FetchGuideValuation(
     IEnumerable<IGuideValuationProvider> providers,
-    ICaseDataQueries caseData,
-    ISaveValuation saveValuation,
-    TimeProvider timeProvider) : IFetchGuideValuation
+    ICaseDataQueries caseData) : IFetchGuideValuation
 {
     private readonly IReadOnlyList<IGuideValuationProvider> _providers =
         [.. providers ?? throw new ArgumentNullException(nameof(providers))];
     private readonly ICaseDataQueries _caseData =
         caseData ?? throw new ArgumentNullException(nameof(caseData));
-    private readonly ISaveValuation _saveValuation =
-        saveValuation ?? throw new ArgumentNullException(nameof(saveValuation));
-    private readonly TimeProvider _timeProvider =
-        timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
-    public async Task<CaseValuation> ExecuteAsync(
+    public async Task<GuideValuationQuote> ExecuteAsync(
         FetchGuideValuationRequest request,
         CancellationToken cancellationToken)
     {
@@ -130,26 +125,7 @@ public sealed class FetchGuideValuation(
             new(request.Actor, request.CaseId, registration, mileage, Accepted(data.Vehicle.MileageUnit)?.Value, guideMonth),
             cancellationToken);
         ArgumentNullException.ThrowIfNull(quote);
-
-        var nowUtc = _timeProvider.GetUtcNow();
-        var recordedAt = LondonCalendar.TimeAt(nowUtc);
-        return await _saveValuation.ExecuteAsync(
-            new SaveValuationRequest(
-                request.CaseId,
-                request.ExpectedVersion,
-                request.Actor,
-                request.OperationKey.Trim(),
-                "Valuation fetched.",
-                request.EditLeaseToken,
-                new ValuationDetails(
-                    request.Source,
-                    DateOnly.FromDateTime(recordedAt),
-                    TimeOnly.FromDateTime(recordedAt),
-                    quote.Mileage,
-                    quote.RetailValue,
-                    quote.TradeValue,
-                    quote.GuideMonth)),
-            cancellationToken);
+        return quote;
     }
 
     /// <summary>The accepted value of a Case field: confirmed, else the intake fact; never a suggestion.</summary>

@@ -1356,11 +1356,13 @@
                     schedule();
                 }
             });
-            // A click anywhere on a card picks it as the basis.
+            // A click anywhere on a card picks it as the basis; a click on one
+            // of an entry card's own controls is the operator typing, not choosing.
             section.querySelectorAll('[data-valuation-card]').forEach(function (card) {
                 card.addEventListener('click', function (event) {
                     var radio = card.querySelector('[data-valuation-basis]');
-                    if (!radio || event.target === radio || radio.checked) {
+                    if (!radio || event.target === radio || radio.checked
+                        || (event.target.closest && event.target.closest('input,button,select,label,a'))) {
                         return;
                     }
                     radio.checked = true;
@@ -1374,18 +1376,6 @@
             }
         });
 
-        // The chosen valuation month is the Add valuation dialog's default too.
-        root.querySelectorAll('[data-valuation-month]').forEach(function (month) {
-            if (month.dataset.valuationMonthBound === 'true') {
-                return;
-            }
-            month.dataset.valuationMonthBound = 'true';
-            month.addEventListener('change', function () {
-                document.querySelectorAll('[data-add-valuation-month]').forEach(function (target) {
-                    target.value = month.value;
-                });
-            });
-        });
     }
 
     bind(document);
