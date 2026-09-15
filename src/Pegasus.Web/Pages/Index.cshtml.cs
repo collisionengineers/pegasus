@@ -79,6 +79,9 @@ public partial class IndexModel(
 
     public RecentCasesFeed? NewCases { get; private set; }
 
+    /// <summary>When the current New cases content was successfully read.</summary>
+    public DateTimeOffset? NewCasesLoadedAtUtc { get; private set; }
+
     /// <summary>Where the "since you last looked" line falls; a refresh keeps the line the page opened with.</summary>
     public DateTimeOffset? DividerUtc { get; private set; }
 
@@ -86,7 +89,13 @@ public partial class IndexModel(
 
     public IReadOnlyList<WorkCentreAiJobRow> AiJobs { get; private set; } = [];
 
+    /// <summary>When the current AI jobs content was successfully read.</summary>
+    public DateTimeOffset? AiJobsLoadedAtUtc { get; private set; }
+
     public bool AiJobsUnavailable { get; private set; }
+
+    /// <summary>True when one or more independently rendered live sections could not be read.</summary>
+    public bool HasReadFailure => IsUnavailable || NewCasesUnavailable || AiJobsUnavailable;
 
     [TempData(Key = "WorkCentreStatus")]
     public string? StatusMessage { get; set; }
@@ -107,63 +116,43 @@ public partial class IndexModel(
         [FromQuery(Name = "page")] int page = 1,
         int newPage = 1)
     {
-        if (!TryGetActor(out var actor))
+        var refusal = await LoadAsync(scope, kind, selected, assign, refresh, since, page, newPage, cancellationToken);
+        return refusal ?? Page();
+    }
+
+    /// <summary>
+    /// Refreshes only the Work Centre body. The global rail filter intentionally
+    /// ignores this <see cref="PartialViewResult"/>, because the response never
+    /// renders the shell.
+    /// </summary>
+    public async Task<IActionResult> OnGetRefreshAsync(
+        string? scope,
+        [FromQuery(Name = "kind")] string[]? kind,
+        Guid? selected,
+        string? since,
+        CancellationToken cancellationToken,
+        [FromQuery(Name = "page")] int page = 1,
+        int newPage = 1)
+    {
+        // A refresh is never the one-shot instruction to reopen an assignment
+        // dialog. The current display may retain a dismissed dialog's selection.
+        var refusal = await LoadAsync(
+            scope,
+            kind,
+            selected,
+            assign: false,
+            refresh: true,
+            since: since,
+            page: page,
+            newPage: newPage,
+            cancellationToken: cancellationToken);
+        if (refusal is not null)
         {
-            return Forbid();
+            return refusal;
         }
 
-        NowUtc = timeProvider.GetUtcNow();
-        var namedScope = ParseScope(scope);
-        ScopeNamed = namedScope is not null;
-        Scope = namedScope ?? DefaultScope(actor);
-        Kinds = NeedsAttentionPresentation.ParseKinds(kind);
-        CurrentPage = Math.Max(1, page);
-        NewCasesPage = Math.Max(1, newPage);
-
-        try
-        {
-            await ReadAttentionAsync(actor, selected, assign, cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            // A failed live read is not an empty queue: no zero is rendered as a fact.
-            LogSectionFailed(logger, "needs_attention", exception);
-            IsUnavailable = true;
-        }
-
-        try
-        {
-            NewCases = await listRecentCases.ExecuteAsync(
-                actor,
-                NewCasesPage,
-                markSeen: NewCasesPage == 1 && !refresh,
-                cancellationToken);
-            DividerUtc = refresh
-                && DateTimeOffset.TryParse(since, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var carried)
-                    ? carried
-                    : NewCases.LastSeenUtc;
-        }
-        catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
-        {
-            LogSectionFailed(logger, "new_cases", exception);
-            NewCasesUnavailable = true;
-        }
-
-        try
-        {
-            AiJobs = await ReadAiJobsAsync(cancellationToken);
-        }
-        catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
-        {
-            LogSectionFailed(logger, "ai_jobs", exception);
-            AiJobsUnavailable = true;
-        }
-
-        return Page();
+        LogRefreshOutcome(logger, !IsUnavailable, !NewCasesUnavailable, !AiJobsUnavailable);
+        return Partial("_WorkCentreBody", this);
     }
 
     /// <summary>
@@ -355,6 +344,79 @@ public partial class IndexModel(
     private static NeedsAttentionScope DefaultScope(ActionActor actor) =>
         actor.Roles.Contains(StaffRole.Engineer) ? NeedsAttentionScope.Mine : NeedsAttentionScope.Office;
 
+    /// <summary>Loads the full-page and fragment models through one set of reads.</summary>
+    private async Task<IActionResult?> LoadAsync(
+        string? scope,
+        string[]? kind,
+        Guid? selected,
+        bool assign,
+        bool refresh,
+        string? since,
+        int page,
+        int newPage,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        NowUtc = timeProvider.GetUtcNow();
+        var namedScope = ParseScope(scope);
+        ScopeNamed = namedScope is not null;
+        Scope = namedScope ?? DefaultScope(actor);
+        Kinds = NeedsAttentionPresentation.ParseKinds(kind);
+        CurrentPage = Math.Max(1, page);
+        NewCasesPage = Math.Max(1, newPage);
+
+        try
+        {
+            await ReadAttentionAsync(actor, selected, assign, cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            // A failed live read is not an empty queue: no zero is rendered as a fact.
+            LogSectionFailed(logger, "needs_attention", exception);
+            IsUnavailable = true;
+        }
+
+        try
+        {
+            NewCases = await listRecentCases.ExecuteAsync(
+                actor,
+                NewCasesPage,
+                markSeen: NewCasesPage == 1 && !refresh,
+                cancellationToken);
+            NewCasesLoadedAtUtc = timeProvider.GetUtcNow();
+            DividerUtc = refresh
+                && DateTimeOffset.TryParse(since, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var carried)
+                    ? carried
+                    : NewCases.LastSeenUtc;
+        }
+        catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
+        {
+            LogSectionFailed(logger, "new_cases", exception);
+            NewCasesUnavailable = true;
+        }
+
+        try
+        {
+            AiJobs = await ReadAiJobsAsync(cancellationToken);
+            AiJobsLoadedAtUtc = timeProvider.GetUtcNow();
+        }
+        catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
+        {
+            LogSectionFailed(logger, "ai_jobs", exception);
+            AiJobsUnavailable = true;
+        }
+
+        return null;
+    }
+
     private async Task ReadAttentionAsync(
         ActionActor actor,
         Guid? selected,
@@ -542,6 +604,9 @@ public partial class IndexModel(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Work Centre section {Section} could not be read.")]
     private static partial void LogSectionFailed(ILogger logger, string section, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Work Centre refresh sections: attention={Attention}, newCases={NewCases}, aiJobs={AiJobs}.")]
+    private static partial void LogRefreshOutcome(ILogger logger, bool attention, bool newCases, bool aiJobs);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Work Centre command {CommandName} failed for {RecordId}.")]
     private static partial void LogCommandFailed(ILogger logger, string commandName, Guid recordId, Exception exception);
