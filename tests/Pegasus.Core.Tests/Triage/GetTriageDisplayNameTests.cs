@@ -132,6 +132,9 @@ public sealed class GetTriageDisplayNameTests
         ITriageQueries,
         ITriageResponseEvidenceCandidateQueries
     {
+        public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<TriageSummary>> ListAsync(
             TriageState? state,
             CancellationToken cancellationToken) =>

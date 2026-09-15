@@ -240,6 +240,9 @@ public sealed class TriageReplayTests
 
     private sealed class ReplayStore : ITriageStore
     {
+        public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public TriageRecord? CreationResult { get; init; }
         public List<TriageCaseLinkCandidate> PairingCandidates { get; init; } = [];
         public List<ActionActor> PairingActors { get; } = [];
