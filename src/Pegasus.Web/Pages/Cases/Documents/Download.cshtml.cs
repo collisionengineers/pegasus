@@ -198,6 +198,14 @@ public sealed partial class DownloadModel(
         var thumbnailAddressIsCurrent = !wantsThumbnail;
         if (wantsThumbnail)
         {
+            // Model binding maps both a missing key and ?prep= to null.
+            // An omitted version supports uncached reads; an empty supplied
+            // version is malformed and must stop before reading content.
+            var preparationWasSupplied = Request.Query.ContainsKey("prep");
+            if (preparationWasSupplied && string.IsNullOrEmpty(prep))
+            {
+                return InvalidThumbnailPreparation();
+            }
             if (!TryParsePreparationVersion(prep, out var requestedPreparationVersion))
             {
                 return InvalidThumbnailPreparation();
@@ -218,7 +226,7 @@ public sealed partial class DownloadModel(
             // snapshot it rendered. In particular, a hand-written or retained
             // old URL without prep= must not become the cacheable version-zero
             // representation merely because no preparation exists yet.
-            thumbnailAddressIsCurrent = prep is not null
+            thumbnailAddressIsCurrent = preparationWasSupplied
                 && requestedPreparationVersion == currentPreparationVersion;
         }
         if (thumbnailAddressIsCurrent
