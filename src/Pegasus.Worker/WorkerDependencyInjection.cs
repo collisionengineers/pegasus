@@ -202,7 +202,7 @@ public static class WorkerDependencyInjection
     {
         var connectionString = configuration.GetConnectionString("Pegasus")
             ?? throw new InvalidOperationException("Connection string 'Pegasus' is required.");
-        options.UseSqlServer(connectionString);
+        PegasusSqlServer.Configure(options, connectionString);
     }
 
     private static string GetOfflineArtifactRoot(

@@ -60,6 +60,17 @@ public static class InstructionEvidenceImages
     }
 
     /// <summary>
+    /// The evidence images whose bytes can be served now. A photograph whose
+    /// custody hand-over is still pending, or was refused, has nothing behind
+    /// its tile yet, so a page that draws tiles leaves it out; completeness
+    /// (<see cref="Select"/>) still counts it, because the receipt carried it.
+    /// </summary>
+    public static IReadOnlyList<IntakeAssetRecord> Servable(
+        IEnumerable<IntakeAssetRecord> assets) =>
+        [.. Select(assets).Where(asset => asset.CustodyState
+            is not (IncomingArtifactCustodyState.Pending or IncomingArtifactCustodyState.Failed))];
+
+    /// <summary>
     /// Whether an image is shaped like a photograph rather than a banner.
     /// Fails open: an image whose dimensions were not recorded is judged on
     /// the other rules alone, because refusing to show a genuine
