@@ -774,14 +774,18 @@ in the approved design:
 
 **Narrowed 2026-09-01 (D21).** An excluded capability is absent, never drawn as
 a disabled control. The direct Audatex service-launch control is removed on
-that rule (ENG-030); the Valuation section's per-source Get valuation buttons
-(Glass's, Brego, Super CAP) are present by the operator's 14 September 2026
-instruction, post to one handler, and answer with a notice for a source with
-no connected provider. This does not
+that rule (ENG-030). By the operator's 15 September 2026 instruction the
+Valuation section has one route to a guide card: while editing, Glass's,
+Brego and Super CAP are each one card with editable month, mileage, retail
+and trade boxes, a Get valuation button that looks the figures up and fills
+the boxes (answering with a notice while that source has no connected
+provider), and Save, which records the card; the boxes are typed by hand
+just as well. There is no separate Add valuation dialog. This does not
 remove the Estimate section's selected configured-Engineer Glass's
-repair-estimate launch (D03). Glass's and Audatex file import stays in scope
-through the whole-page drop, and manual valuation records include Glass's,
-Brego, Super CAP and Engineer's Value; Cazana remains the disabled seam.
+repair-estimate launch (D03); a connected Glass's valuation provider
+supersedes D03's "records no Glass's valuation". Glass's and Audatex file
+import stays in scope through the whole-page drop; Cazana remains the
+disabled seam.
 
 Every other uncomposed capability stays absent: no inert card, no
 "Unavailable" placeholder, no unlinked route. A disabled seam carries its
