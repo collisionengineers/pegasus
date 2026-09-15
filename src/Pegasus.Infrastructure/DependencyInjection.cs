@@ -446,6 +446,13 @@ public static class DependencyInjection
         services.AddScoped<IListCaseHistoryByCursor, ListCaseHistoryByCursor>();
         services.AddScoped<IGetCaseHeader, GetCaseHeader>();
         services.AddScoped<IGetCase, GetCase>();
+        services.AddScoped<IGetCasePageFrame, GetCasePageFrame>();
+        services.AddScoped<IGetCaseVehicleSection, GetCaseVehicleSection>();
+        services.AddScoped<IGetCaseValuationSection, GetCaseValuationSection>();
+        services.AddScoped<IGetCaseNotesSection, GetCaseNotesSection>();
+        services.AddScoped<IGetCaseFilesSection, GetCaseFilesSection>();
+        services.AddScoped<IValidateCaseRenderLease, ValidateCaseRenderLease>();
+        services.AddScoped<IListCaseReferences, ListCaseReferences>();
         services.AddScoped<EfCaseDataStore>();
         services.AddScoped<ICaseDataStore>(
             provider => provider.GetRequiredService<EfCaseDataStore>());

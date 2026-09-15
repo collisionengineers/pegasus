@@ -290,99 +290,7 @@ public sealed class EfCaseQueryStore(
             .ThenBy(item => item.Id)
             .Take(100)
             .ToArrayAsync(cancellationToken);
-        var querySelection = MailOperationalDestinationPolicy.Query(
-            MailOperationalDestination.Queries);
-        var queryFamilies = querySelection.Families
-            .Select(MailTaxonomy.CategoryName)
-            .ToArray();
-        var exactQuery = querySelection.ExactClassification;
-        var exactDirection = exactQuery?.Direction.ToString().ToLowerInvariant();
-        var associatedReceiptIds = context.IntakeManualAssociations
-            .AsNoTracking()
-            .Where(item => item.CaseId == query.CaseId)
-            .Select(item => item.IntakeReceiptId)
-            .Union(context.CaseIntakeLinks
-                .AsNoTracking()
-                .Where(item => item.CaseId == query.CaseId)
-                .Select(item => item.IntakeReceiptId));
-        // Correspondence is the mailbox's query mail associated with the Case
-        // and every .eml a member of staff uploaded to it; an upload carries
-        // its classification where one was recorded.
-        var classifiedQueryReceipts = await context.IntakeReceipts
-            .AsNoTracking()
-            .Where(item => associatedReceiptIds.Contains(item.Id)
-                && ((item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)
-                        && item.MailClassificationDecision != null
-                        && item.MailClassificationDecision.Outcome == "classified"
-                        && ((item.MailClassificationDecision.Direction == "received"
-                                && item.MailClassificationDecision.Family != null
-                                && queryFamilies.Contains(item.MailClassificationDecision.Family))
-                            || (exactQuery != null
-                                && item.MailClassificationDecision.OtherName == null
-                                && item.MailClassificationDecision.Direction == exactDirection
-                                && item.MailClassificationDecision.Family == exactQuery.Name
-                                && item.MailClassificationDecision.Subtype == exactQuery.Subtype)))
-                    || item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload)))
-            .Select(item => new
-            {
-                item.Id,
-                item.ExternalReceiptToken,
-                Classification = item.MailClassificationDecision,
-                EffectiveSenderAddress = item.MailRouteDecision == null
-                    ? null
-                    : item.MailRouteDecision.EffectiveSenderAddress
-            })
-            .ToArrayAsync(cancellationToken);
-        var queryAssociations = await CurrentIntakeAssociations.ReadAsync(
-            context,
-            classifiedQueryReceipts.Select(item => item.Id).ToArray(),
-            cancellationToken);
-        var linkedQueryReceipts = classifiedQueryReceipts
-            .Where(item => queryAssociations.Current.TryGetValue(item.Id, out var association)
-                && association.CaseId == query.CaseId)
-            .ToArray();
-        var linkedQueryTokens = linkedQueryReceipts
-            .Select(item => item.ExternalReceiptToken)
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-        var retainedQueryMessages = linkedQueryTokens.Length == 0
-            ? []
-            : await context.RetainedMailboxMessages
-                .AsNoTracking()
-                .Where(item => linkedQueryTokens.Contains(item.ExternalReceiptToken))
-                .Select(item => new
-                {
-                    item.Id,
-                    item.ExternalReceiptToken,
-                    item.ReceivedAtUtc,
-                    item.SenderDisplayName,
-                    item.SenderAddress,
-                    item.Subject,
-                    item.SourceSha256
-                })
-                .ToArrayAsync(cancellationToken);
-        var queryReceiptByToken = linkedQueryReceipts.ToDictionary(
-            item => item.ExternalReceiptToken,
-            StringComparer.Ordinal);
-        var queryEmails = retainedQueryMessages
-            .Select(item =>
-            {
-                var receipt = queryReceiptByToken[item.ExternalReceiptToken];
-                return new CaseQueryEmail(
-                    item.Id,
-                    item.ReceivedAtUtc,
-                    receipt.EffectiveSenderAddress,
-                    item.SenderDisplayName,
-                    item.SenderAddress,
-                    item.Subject,
-                    receipt.Classification is null
-                        ? null
-                        : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification).Category,
-                    item.SourceSha256);
-            })
-            .OrderByDescending(item => item.ReceivedAtUtc)
-            .ThenBy(item => item.RetainedMessageId)
-            .ToArray();
+        var queryEmails = await ReadQueryEmailsAsync(context, query.CaseId, cancellationToken);
         var historyEntities = await context.CaseWorkflowEvents
             .AsNoTracking()
             .Where(item => item.CaseId == query.CaseId)
@@ -397,25 +305,7 @@ public sealed class EfCaseQueryStore(
             .Take(200)
             .ToArray();
         var activeLease = ResolveActiveLease(workflow, timeProvider.GetUtcNow());
-        // The record notes are read live from the organisations, never from the Case:
-        // the Principal's own, and the Claim source the Case currently names.
-        var claimSourceId = await context.CaseDataFields.AsNoTracking()
-            .Where(item => item.CaseId == query.CaseId
-                && item.FieldName == CaseDataFieldNames.ClaimSourceId
-                && item.ValueKind == CaseDataCodes.Confirmed)
-            .Select(item => item.Value)
-            .FirstOrDefaultAsync(cancellationToken);
-        var recordNotes = new CaseRecordNotes(
-            await context.Organizations.AsNoTracking()
-                .Where(item => item.Id == workflow.Case.Principal.OrganizationId)
-                .Select(item => item.NotesOnEveryCase)
-                .FirstOrDefaultAsync(cancellationToken),
-            Guid.TryParse(claimSourceId, out var claimSourceOrganizationId)
-                ? await context.Organizations.AsNoTracking()
-                    .Where(item => item.Id == claimSourceOrganizationId)
-                    .Select(item => item.NotesOnEveryCase)
-                    .FirstOrDefaultAsync(cancellationToken)
-                : null);
+        var recordNotes = await ReadRecordNotesAsync(context, workflow, query.CaseId, cancellationToken);
 
         return new CaseDetails(
             MapSearchItem(summaryRow, timeProvider.GetUtcNow()),
@@ -481,6 +371,182 @@ public sealed class EfCaseQueryStore(
             openTaskCount);
     }
 
+    public async Task<CaseSectionFrame?> GetSectionFrameAsync(
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workflow = await context.CaseWorkflows
+            .AsNoTracking()
+            .Include(item => item.Case)
+                .ThenInclude(item => item.Principal)
+            .Include(item => item.ReportApproval)
+            .Include(item => item.ReportSentEvidence)
+            .Include(item => item.DueWork)
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+        if (workflow is null)
+        {
+            return null;
+        }
+
+        var summary = MapSearchItem(await SearchRows(context)
+            .SingleAsync(item => item.CaseId == caseId, cancellationToken), timeProvider.GetUtcNow());
+        return new(summary, MapWorkflow(workflow), ResolveActiveLease(workflow, timeProvider.GetUtcNow()));
+    }
+
+    /// <summary>
+    /// The first-response frame excludes every lazily mounted body. Documents
+    /// remain because the always-rendered Report section consumes them.
+    /// </summary>
+    public async Task<CasePageFrameData?> GetPageFrameAsync(
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workflow = await context.CaseWorkflows
+            .AsNoTracking()
+            .Include(item => item.Case)
+                .ThenInclude(item => item.Principal)
+            .Include(item => item.ReportApproval)
+            .Include(item => item.ReportSentEvidence)
+            .Include(item => item.DueWork)
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+        if (workflow is null)
+        {
+            return null;
+        }
+
+        var summary = MapSearchItem(await SearchRows(context)
+            .SingleAsync(item => item.CaseId == caseId, cancellationToken), timeProvider.GetUtcNow());
+        var documents = await ReadDocumentsAsync(context, caseId, cancellationToken);
+        var availableReportSentEvidence = await context.CaseReportSentEvidence
+            .AsNoTracking()
+            .Where(item => item.CaseId == null && item.DiscoveredByKind == nameof(ActorKind.SystemWorker))
+            .OrderByDescending(item => item.SentAtUtc)
+            .ThenBy(item => item.Id)
+            .Take(100)
+            .ToArrayAsync(cancellationToken);
+        var recordNotes = await ReadRecordNotesAsync(context, workflow, caseId, cancellationToken);
+        var frame = new CaseSectionFrame(summary, MapWorkflow(workflow), ResolveActiveLease(workflow, timeProvider.GetUtcNow()));
+        return new(frame, documents, availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(), recordNotes);
+    }
+
+    /// <summary>
+    /// The Notes body has its own read so a mounted section does not materialize
+    /// documents, correspondence or other Case bodies merely to show history.
+    /// Actor names are deliberately resolved in Core, where the actor policy
+    /// already lives.
+    /// </summary>
+    public async Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryAsync(
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entities = await context.CaseWorkflowEvents
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .OrderByDescending(item => item.OccurredAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Take(200)
+            .ToArrayAsync(cancellationToken);
+        return entities
+            .Select(MapHistoryEntry)
+            .OrderByDescending(item => item.OccurredAtUtc)
+            .ThenByDescending(item => item.EntryId)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// A reference-only projection for bounded operational rows.  It avoids
+    /// loading the full Case header, workflow or any document/history body.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<Guid, string>> GetReferencesAsync(
+        IReadOnlyCollection<Guid> caseIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(caseIds);
+        if (caseIds.Count == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var ids = caseIds.Distinct().ToArray();
+        var rows = await context.Set<CaseEntity>()
+            .AsNoTracking()
+            .Where(item => ids.Contains(item.Id))
+            .Select(item => new { item.Id, item.Reference })
+            .ToArrayAsync(cancellationToken);
+        return rows.ToDictionary(item => item.Id, item => item.Reference);
+    }
+
+    /// <summary>
+    /// The Files body projection.  It shares the document mapping used by the
+    /// full Case read, but deliberately omits history, tasks, chaser, custody
+    /// preparations and record notes.
+    /// </summary>
+    public async Task<CaseFilesSectionData?> GetFilesSectionAsync(
+        Guid caseId,
+        bool includeDocuments,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workflow = await context.CaseWorkflows
+            .AsNoTracking()
+            .Include(item => item.Case)
+                .ThenInclude(item => item.Principal)
+            .Include(item => item.ReportApproval)
+            .Include(item => item.ReportSentEvidence)
+            .Include(item => item.DueWork)
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+        if (workflow is null)
+        {
+            return null;
+        }
+
+        var summary = MapSearchItem(await SearchRows(context)
+            .SingleAsync(item => item.CaseId == caseId, cancellationToken), timeProvider.GetUtcNow());
+        IReadOnlyList<CaseDocument> documents = includeDocuments
+            ? await ReadDocumentsAsync(context, caseId, cancellationToken)
+            : [];
+        var requestUploadLinks = await context.Set<RequestUploadLinkEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .OrderByDescending(item => item.CreatedAtUtc)
+            .ThenBy(item => item.Id)
+            .Take(100)
+            .Select(item => new CaseRequestUploadSummary(
+                item.Id, item.Status, item.CreatedAtUtc, item.ExpiresAtUtc, item.RevokedAtUtc,
+                item.AcceptedFileCount, item.AcceptedByteCount, item.Version, item.Recipient, item.Reason))
+            .ToArrayAsync(cancellationToken);
+        var queryEmails = await ReadQueryEmailsAsync(context, caseId, cancellationToken);
+        var frame = new CaseSectionFrame(summary, MapWorkflow(workflow), ResolveActiveLease(workflow, timeProvider.GetUtcNow()));
+        return new(frame, documents, workflow.Case.CustodyRootRemoteId,
+            ParseCustodyState(workflow.Case.CustodyState), requestUploadLinks,
+            queryEmails);
+    }
+
+    public async Task<CaseRenderLeaseValidation?> GetRenderLeaseValidationAsync(
+        Guid caseId,
+        string presentedToken,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var workflow = await context.CaseWorkflows
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+        return workflow is null
+            ? null
+            : new(
+                workflow.CaseId,
+                workflow.Version,
+                CaseMutationGuard.RetainedHolderKind(workflow.EditLeaseHolderKind),
+                workflow.EditLeaseHolder,
+                workflow.EditLeaseExpiresAtUtc,
+                !string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash),
+                CaseMutationGuard.MatchesRetainedHash(workflow.EditLeaseTokenHash, presentedToken));
+    }
+
     /// <summary>
     /// The one rule for whether a case's edit lease is live, shared by
     /// <see cref="GetAsync"/> and <see cref="GetHeaderAsync"/> (CASE-047,
@@ -508,6 +574,104 @@ public sealed class EfCaseQueryStore(
         _ => throw new InvalidDataException(
             $"Unknown persisted case custody state '{value}'.")
     };
+
+    private static async Task<CaseRecordNotes> ReadRecordNotesAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var claimSourceId = await context.CaseDataFields.AsNoTracking()
+            .Where(item => item.CaseId == caseId
+                && item.FieldName == CaseDataFieldNames.ClaimSourceId
+                && item.ValueKind == CaseDataCodes.Confirmed)
+            .Select(item => item.Value)
+            .FirstOrDefaultAsync(cancellationToken);
+        return new(
+            await context.Organizations.AsNoTracking()
+                .Where(item => item.Id == workflow.Case.Principal.OrganizationId)
+                .Select(item => item.NotesOnEveryCase)
+                .FirstOrDefaultAsync(cancellationToken),
+            Guid.TryParse(claimSourceId, out var claimSourceOrganizationId)
+                ? await context.Organizations.AsNoTracking()
+                    .Where(item => item.Id == claimSourceOrganizationId)
+                    .Select(item => item.NotesOnEveryCase)
+                    .FirstOrDefaultAsync(cancellationToken)
+                : null);
+    }
+
+    private static async Task<IReadOnlyList<CaseQueryEmail>> ReadQueryEmailsAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var querySelection = MailOperationalDestinationPolicy.Query(MailOperationalDestination.Queries);
+        var queryFamilies = querySelection.Families.Select(MailTaxonomy.CategoryName).ToArray();
+        var exactQuery = querySelection.ExactClassification;
+        var exactDirection = exactQuery?.Direction.ToString().ToLowerInvariant();
+        var associatedReceiptIds = context.IntakeManualAssociations.AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .Select(item => item.IntakeReceiptId)
+            .Union(context.CaseIntakeLinks.AsNoTracking()
+                .Where(item => item.CaseId == caseId)
+                .Select(item => item.IntakeReceiptId));
+        var classifiedReceipts = await context.IntakeReceipts.AsNoTracking()
+            .Where(item => associatedReceiptIds.Contains(item.Id)
+                && ((item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox)
+                        && item.MailClassificationDecision != null
+                        && item.MailClassificationDecision.Outcome == "classified"
+                        && ((item.MailClassificationDecision.Direction == "received"
+                                && item.MailClassificationDecision.Family != null
+                                && queryFamilies.Contains(item.MailClassificationDecision.Family))
+                            || (exactQuery != null
+                                && item.MailClassificationDecision.OtherName == null
+                                && item.MailClassificationDecision.Direction == exactDirection
+                                && item.MailClassificationDecision.Family == exactQuery.Name
+                                && item.MailClassificationDecision.Subtype == exactQuery.Subtype)))
+                    || item.SourceChannel == EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload)))
+            .Select(item => new
+            {
+                item.Id,
+                item.ExternalReceiptToken,
+                Classification = item.MailClassificationDecision,
+                EffectiveSenderAddress = item.MailRouteDecision == null ? null : item.MailRouteDecision.EffectiveSenderAddress
+            })
+            .ToArrayAsync(cancellationToken);
+        var associations = await CurrentIntakeAssociations.ReadAsync(
+            context, classifiedReceipts.Select(item => item.Id).ToArray(), cancellationToken);
+        var linkedReceipts = classifiedReceipts
+            .Where(item => associations.Current.TryGetValue(item.Id, out var association) && association.CaseId == caseId)
+            .ToArray();
+        var tokens = linkedReceipts.Select(item => item.ExternalReceiptToken).Distinct(StringComparer.Ordinal).ToArray();
+        var messages = tokens.Length == 0
+            ? []
+            : await context.RetainedMailboxMessages.AsNoTracking()
+                .Where(item => tokens.Contains(item.ExternalReceiptToken))
+                .Select(item => new
+                {
+                    item.Id,
+                    item.ExternalReceiptToken,
+                    item.ReceivedAtUtc,
+                    item.SenderDisplayName,
+                    item.SenderAddress,
+                    item.Subject,
+                    item.SourceSha256
+                })
+                .ToArrayAsync(cancellationToken);
+        var receiptByToken = linkedReceipts.ToDictionary(item => item.ExternalReceiptToken, StringComparer.Ordinal);
+        return messages.Select(item =>
+            {
+                var receipt = receiptByToken[item.ExternalReceiptToken];
+                return new CaseQueryEmail(item.Id, item.ReceivedAtUtc, receipt.EffectiveSenderAddress,
+                    item.SenderDisplayName, item.SenderAddress, item.Subject,
+                    receipt.Classification is null ? null
+                        : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification).Category,
+                    item.SourceSha256);
+            })
+            .OrderByDescending(item => item.ReceivedAtUtc)
+            .ThenBy(item => item.RetainedMessageId)
+            .ToArray();
+    }
 
     private static IQueryable<SearchRow> SearchRows(PegasusDbContext context) =>
         from workflow in context.CaseWorkflows.AsNoTracking()

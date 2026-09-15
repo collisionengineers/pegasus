@@ -66,6 +66,7 @@ public sealed partial class CaseDetailsWebTests
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
             Substitute<IGetCase>(services, store);
+            Substitute<IGetCasePageFrame>(services, store);
             Substitute<IAcquireCaseEditLease>(services, store);
             Substitute<IGetAssessmentAccess>(services, store);
             Substitute<IGetAssessmentWorkspace>(services, store);

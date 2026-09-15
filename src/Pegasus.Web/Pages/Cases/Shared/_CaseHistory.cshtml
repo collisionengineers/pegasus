@@ -10,11 +10,11 @@
 @using Pegasus.Web.Presentation
 @using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
 @{
-    var details = Model.Case!;
-    var workflow = details.Workflow;
+    var section = Model.NotesSection;
+    var workflow = section?.Frame.Workflow ?? Model.Case!.Workflow;
     var leaseToken = Model.LeaseToken;
     var mayEdit = Model.CanEditCaseData;
-    var entries = details.History.OrderByDescending(entry => entry.OccurredAtUtc).ToArray();
+    var entries = (section?.History ?? []).OrderByDescending(entry => entry.OccurredAtUtc).ToArray();
     var offersNote = !Model.IsPostReportReadOnly && workflow.Archive is null;
     var offersChase = mayEdit && workflow.DueWork is { State: Pegasus.Core.Tasks.CaseDueWorkState.Scheduled };
 }

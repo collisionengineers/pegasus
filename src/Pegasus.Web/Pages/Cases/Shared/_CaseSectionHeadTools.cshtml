@@ -18,9 +18,9 @@
 }
 @if (owner.SectionOffersEdit(key))
 {
-    <form method="post" asp-page="/Cases/Details" asp-page-handler="ClaimLease" asp-route-id="@owner.Case!.Workflow.CaseId" data-case-edit-form>
-        <input type="hidden" name="id" value="@owner.Case!.Workflow.CaseId" />
-        <input type="hidden" name="expectedVersion" value="@owner.Case!.Workflow.Version" />
+    <form method="post" asp-page="/Cases/Details" asp-page-handler="ClaimLease" asp-route-id="@owner.CurrentWorkflow!.CaseId" data-case-edit-form>
+        <input type="hidden" name="id" value="@owner.CurrentWorkflow!.CaseId" />
+        <input type="hidden" name="expectedVersion" value="@owner.CurrentWorkflow!.Version" />
         <input type="hidden" name="operationKey" value="@owner.ClaimLeaseOperationKey" />
         <input type="hidden" name="section" value="@key" />
         <button type="submit" class="btn btn--small" data-section-edit="@key">

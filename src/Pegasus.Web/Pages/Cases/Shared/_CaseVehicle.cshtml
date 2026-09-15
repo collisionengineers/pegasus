@@ -15,9 +15,10 @@
 @using Pegasus.Web.Presentation
 @using VehicleLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Vehicle
 @{
-    var details = Model.Case!;
-    var workflow = details.Workflow;
-    var data = details.Data;
+    var section = Model.VehicleSection;
+    var workflow = section?.Frame.Workflow ?? Model.Case!.Workflow;
+    var summary = section?.Frame.Summary ?? Model.Case!.Summary;
+    var data = section?.Data ?? Model.Case!.Data;
     var leaseToken = Model.LeaseToken;
     var mayEdit = Model.CanEditCaseData;
     // The record's one Save form is rendered by the Overview section, and only
@@ -32,7 +33,7 @@
     var registration = registrationValue?.Value
         // The list-summary value is only the identity when no Case-data
         // projection is available.
-        ?? (data is null ? details.Summary.Registration : null);
+        ?? (data is null ? summary.Registration : null);
     var makeValue = data?.Vehicle.Make.Confirmed ?? data?.Vehicle.Make.Fact;
     var modelValue = data?.Vehicle.Model.Confirmed ?? data?.Vehicle.Model.Fact;
     var yearValue = data?.Vehicle.Year.Confirmed ?? data?.Vehicle.Year.Fact;
@@ -57,7 +58,7 @@
     var canEditHistory = Model.CanEditAssessmentField(AssessmentVocabulary.HistoryCheck);
     // What the lookup itself did, so one that ran and found nothing is never
     // read as one that never ran (WP8).
-    var observation = details.VehicleEvidence?.LatestObservation;
+    var observation = section?.LatestVehicleObservation;
     var lookupLine = VehicleLabels.LookupLine(observation);
     var offersLookup = mayEdit && !string.IsNullOrWhiteSpace(registration);
 

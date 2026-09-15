@@ -34,6 +34,12 @@ namespace Pegasus.Web.Pages.Cases;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed partial class DetailsModel(
     IGetCase getCase,
+    IGetCasePageFrame getCasePageFrame,
+    IGetCaseVehicleSection getCaseVehicleSection,
+    IGetCaseValuationSection getCaseValuationSection,
+    IGetCaseNotesSection getCaseNotesSection,
+    IGetCaseFilesSection getCaseFilesSection,
+    IListCaseReferences listCaseReferences,
     IGetAssessmentAccess getAssessmentAccess,
     IGetAssessmentWorkspace getAssessmentWorkspace,
     ICaseReportSnapshotSource reportSnapshotSource,
@@ -87,6 +93,7 @@ public sealed partial class DetailsModel(
     IListAppliedValuations listAppliedValuations,
     ICaseFieldProposalQueries fieldProposals,
     ILogger<DetailsModel> logger,
+    IValidateCaseRenderLease? validateCaseRenderLease = null,
     ISubmitCaseToEva? submitCaseToEva = null,
     RequestUploadLimits? requestUploadLimits = null,
     IStaffMailSend? staffMailSend = null) : CaseMutationPageModel(logger)
@@ -283,7 +290,27 @@ public sealed partial class DetailsModel(
     public sealed record CaseRequirement(string Title, string Source, string? Why);
 
 
-    public CaseDetails? Case { get; private set; }
+    public CasePageFrame? Case { get; private set; }
+
+    /// <summary>
+    /// A mounted body carries its own narrow projection. The full GET carries
+    /// <see cref="CasePageFrame"/>, which contains only the first response's
+    /// persistent bodies. A fragment never synthesizes a page frame merely to
+    /// satisfy one section's markup.
+    /// </summary>
+    public CaseVehicleSection? VehicleSection { get; private set; }
+    public CaseValuationSection? ValuationSection { get; private set; }
+    public CaseNotesSection? NotesSection { get; private set; }
+    public CaseFilesSection? FilesSection { get; private set; }
+
+    public CaseSectionFrame? SectionFrame => VehicleSection?.Frame
+        ?? ValuationSection?.Frame
+        ?? NotesSection?.Frame
+        ?? FilesSection?.Frame;
+
+    public CaseWorkflowRecord? CurrentWorkflow => Case?.Workflow ?? SectionFrame?.Workflow;
+    public CaseSearchItem? CurrentSummary => Case?.Summary ?? SectionFrame?.Summary;
+    public CaseEditLeaseSnapshot? CurrentEditLease => Case?.ActiveEditLease ?? SectionFrame?.ActiveEditLease;
 
     /// <summary>
     /// Whether the Engineer sections are read-only: the one Core access rule
@@ -433,12 +460,12 @@ public sealed partial class DetailsModel(
             ? value
             : Labels.CaseWorkspace.AbsentValue;
 
-    public bool IsPostReportReadOnly => Case?.Workflow.State is
+    public bool IsPostReportReadOnly => CurrentWorkflow?.State is
         CaseLifecycleState.PostReportComplete or CaseLifecycleState.Query;
 
     public bool CanEditCaseData => !IsPostReportReadOnly
         && !string.IsNullOrWhiteSpace(RenderLeaseToken)
-        && Case?.Workflow.Archive is null;
+        && CurrentWorkflow?.Archive is null;
 
     public bool CanEditEngineering => CanEditCaseData && AssessmentCanOpen && !AssessmentIsReadOnly;
 
@@ -693,9 +720,10 @@ public sealed partial class DetailsModel(
             return NotFound();
         }
 
+        using var activity = DocumentReadTelemetry.Start("web.case.main");
         try
         {
-            Case = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+            Case = await getCasePageFrame.ExecuteAsync(new(id, actor), cancellationToken);
             if (Case is null)
             {
                 return NotFound();
@@ -708,15 +736,17 @@ public sealed partial class DetailsModel(
                 cancellationToken);
             AssessmentIsReadOnly = assessmentAccess?.IsReadOnly ?? true;
             AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
-            await LoadEngineerSectionsAsync(id, actor, estimate, dialog, cancellationToken);
             // The lease decides how much of the record is rendered now, so it is
-            // restored before the section-specific loads are chosen.
+            // restored before deciding which section bodies render directly.
             RestoreLeaseState(id, actor, Case.ActiveEditLease);
             if (LeaseToken is not null)
             {
                 // Only this page renders a manual renew control, so only it needs that key.
                 RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
             }
+            var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
+            await LoadDirectSectionsAsync(id, actor, workspace, cancellationToken);
+            await LoadEngineerSectionsAsync(id, actor, workspace, estimate, dialog, cancellationToken);
             if (CanEditCaseData)
             {
                 ClaimSourceChoices = await contactDirectory.ListByRoleAsync(
@@ -773,12 +803,12 @@ public sealed partial class DetailsModel(
     private async Task LoadEngineerSectionsAsync(
         Guid id,
         ActionActor actor,
+        AssessmentWorkspace? workspace,
         string? estimate,
         string? dialog,
         CancellationToken cancellationToken)
     {
         ActorIsEngineer = actor.IsInRole(StaffRole.Engineer);
-        var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
         if (workspace is null)
         {
             await EvaluateEngineerSectionConditionsAsync(cancellationToken);
@@ -850,8 +880,11 @@ public sealed partial class DetailsModel(
                 var live = await glassSessions.GetLiveForUserAsync(staffId, cancellationToken);
                 if (live is not null && live.CaseId != id)
                 {
-                    var other = await getCase.ExecuteAsync(new(live.CaseId, actor), cancellationToken);
-                    GlassSessionElsewhere = new(live, other?.Summary.Reference ?? live.CaseId.ToString("D"));
+                    var references = await listCaseReferences.ExecuteAsync(
+                        new(actor, [live.CaseId]), cancellationToken);
+                    GlassSessionElsewhere = new(
+                        live,
+                        references.GetValueOrDefault(live.CaseId, live.CaseId.ToString("D")));
                 }
             }
         }
@@ -954,25 +987,56 @@ public sealed partial class DetailsModel(
             return NotFound();
         }
 
+        using var activity = DocumentReadTelemetry.Start("web.case.fragment." + key);
         try
         {
-            Case = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-            if (Case is null)
-            {
-                return NotFound();
-            }
             SectionFilter = key;
-            // Fragments do not load the engineer workspace, but Files can
-            // render report-image controls. Resolve the same access decision
-            // as the full record before those controls are considered; an
-            // absent result stays read-only.
-            if (key == "files")
+            // A mounted body uses its own focused read. The full response uses
+            // its bounded page frame; neither path materializes every Case body.
+            switch (key)
             {
-                var assessmentAccess = await getAssessmentAccess.ExecuteAsync(
-                    new(id, actor),
-                    cancellationToken);
+                case "vehicle":
+                    VehicleSection = await getCaseVehicleSection.ExecuteAsync(new(id, actor), cancellationToken);
+                    if (VehicleSection is null)
+                    {
+                        return NotFound();
+                    }
+                    Assessment = VehicleSection.Assessment;
+                    break;
+                case "valuation":
+                    ValuationSection = await getCaseValuationSection.ExecuteAsync(new(id, actor), cancellationToken);
+                    if (ValuationSection is null)
+                    {
+                        return NotFound();
+                    }
+                    Assessment = ValuationSection.Assessment;
+                    break;
+                case "notes":
+                    NotesSection = await getCaseNotesSection.ExecuteAsync(new(id, actor), cancellationToken);
+                    if (NotesSection is null)
+                    {
+                        return NotFound();
+                    }
+                    break;
+                case "files":
+                    FilesSection = await getCaseFilesSection.ExecuteAsync(new(id, actor), cancellationToken);
+                    if (FilesSection is null)
+                    {
+                        return NotFound();
+                    }
+                    break;
+            }
+
+            // The access decision is used solely to render the section's
+            // current controls. An absent answer fails closed. It neither
+            // restores cookies nor grants a lease; every POST repeats Core
+            // authorization against the live record.
+            if (key is "vehicle" or "valuation" or "files")
+            {
+                var assessmentAccess = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
                 AssessmentIsReadOnly = assessmentAccess?.IsReadOnly ?? true;
                 AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
+                ActorIsEngineer = actor.IsInRole(StaffRole.Engineer);
             }
             // A mounted body is an asynchronous GET. It must not read or write
             // cookie-backed TempData: its response can otherwise race a Claim,
@@ -981,8 +1045,9 @@ public sealed partial class DetailsModel(
             // Files keeps its supported controls. It is rendering data only;
             // the POST handlers remain the authority boundary.
             if (!string.IsNullOrWhiteSpace(renderLeaseToken)
-                && Case.ActiveEditLease is { } activeLease
-                && CaseEditAuthority.IsHolder(activeLease.HolderKind, activeLease.Holder, actor))
+                && validateCaseRenderLease is not null
+                && await validateCaseRenderLease.ExecuteAsync(
+                    new(id, actor, renderLeaseToken), cancellationToken))
             {
                 fragmentLeaseToken = renderLeaseToken;
             }
@@ -1030,14 +1095,60 @@ public sealed partial class DetailsModel(
 
     private async Task LoadIntakeGalleriesAsync(CancellationToken cancellationToken)
     {
-        var imagesByIntake = new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
-        foreach (var intake in ImageIntakes)
+        ImagesByIntake = await imageIntakeQueries.ListImagesAsync(
+            ImageIntakes.Select(intake => intake.Id).ToArray(),
+            cancellationToken);
+    }
+
+    private async Task LoadDirectSectionsAsync(
+        Guid id,
+        ActionActor actor,
+        AssessmentWorkspace? workspace,
+        CancellationToken cancellationToken)
+    {
+        var query = new GetCaseSectionQuery(
+            id,
+            actor,
+            workspace,
+            HasAssessmentWorkspace: true,
+            Data: Case!.Data,
+            Documents: Case.Documents);
+        foreach (var key in LazySectionViews.Keys.Where(key => !SectionIsDeferred(key)))
         {
-            imagesByIntake[intake.Id] = await imageIntakeQueries.ListImagesAsync(
-                intake.Id,
-                cancellationToken);
+            switch (key)
+            {
+                case "vehicle":
+                    VehicleSection = await getCaseVehicleSection.ExecuteAsync(query, cancellationToken);
+                    if (VehicleSection is null)
+                    {
+                        throw new InvalidOperationException("The Case vehicle section is unavailable.");
+                    }
+                    Assessment ??= VehicleSection.Assessment;
+                    break;
+                case "valuation":
+                    ValuationSection = await getCaseValuationSection.ExecuteAsync(query, cancellationToken);
+                    if (ValuationSection is null)
+                    {
+                        throw new InvalidOperationException("The Case valuation section is unavailable.");
+                    }
+                    Assessment ??= ValuationSection.Assessment;
+                    break;
+                case "files":
+                    FilesSection = await getCaseFilesSection.ExecuteAsync(query, cancellationToken);
+                    if (FilesSection is null)
+                    {
+                        throw new InvalidOperationException("The Case files section is unavailable.");
+                    }
+                    break;
+                case "notes":
+                    NotesSection = await getCaseNotesSection.ExecuteAsync(query, cancellationToken);
+                    if (NotesSection is null)
+                    {
+                        throw new InvalidOperationException("The Case notes section is unavailable.");
+                    }
+                    break;
+            }
         }
-        ImagesByIntake = imagesByIntake;
     }
 
     public Task<IActionResult> OnPostClaimLeaseAsync(

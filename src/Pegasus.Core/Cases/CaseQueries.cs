@@ -1,5 +1,6 @@
 using System.Globalization;
 using Pegasus.Core.Actors;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
@@ -220,6 +221,94 @@ public sealed record GetCaseQuery(Guid CaseId, ActionActor Actor);
 /// </summary>
 public sealed record GetCaseHeaderQuery(Guid CaseId, ActionActor Actor);
 
+/// <summary>
+/// The common identity, workflow and live-lease facts every lazily rendered
+/// Case section needs.  It deliberately has no body collections: each section
+/// supplies only its own content.
+/// </summary>
+public sealed record CaseSectionFrame(
+    CaseSearchItem Summary,
+    CaseWorkflowRecord Workflow,
+    CaseEditLeaseSnapshot? ActiveEditLease);
+
+/// <summary>
+/// The already-authorized page inputs a directly rendered body may reuse. A
+/// fragment leaves these absent and obtains the same content through its
+/// focused reader.
+/// </summary>
+public sealed record GetCaseSectionQuery(
+    Guid CaseId,
+    ActionActor Actor,
+    AssessmentWorkspace? AssessmentWorkspace = null,
+    bool HasAssessmentWorkspace = false,
+    CaseDataProjection? Data = null,
+    IReadOnlyList<CaseDocument>? Documents = null);
+
+/// <summary>
+/// The Case page's first-response frame. It keeps the identity, workflow,
+/// accepted data and report files that the permanently rendered page consumes,
+/// but deliberately excludes deferred section bodies.
+/// </summary>
+public sealed record CasePageFrame(
+    CaseSectionFrame Frame,
+    IReadOnlyList<CaseDocument> Documents,
+    IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
+    CaseRecordNotes RecordNotes,
+    CaseDataProjection Data)
+{
+    public CaseSearchItem Summary => Frame.Summary;
+    public CaseWorkflowRecord Workflow => Frame.Workflow;
+    public CaseEditLeaseSnapshot? ActiveEditLease => Frame.ActiveEditLease;
+}
+
+/// <summary>The persistence half of <see cref="CasePageFrame"/>.</summary>
+public sealed record CasePageFrameData(
+    CaseSectionFrame Frame,
+    IReadOnlyList<CaseDocument> Documents,
+    IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
+    CaseRecordNotes RecordNotes);
+
+public sealed record CaseVehicleSection(
+    CaseSectionFrame Frame,
+    CaseDataProjection Data,
+    VehicleLookupObservation? LatestVehicleObservation,
+    CaseAssessmentProjection? Assessment);
+
+public sealed record CaseValuationSection(
+    CaseSectionFrame Frame,
+    CaseDataProjection Data,
+    CaseAssessmentProjection? Assessment);
+
+public sealed record CaseNotesSection(
+    CaseSectionFrame Frame,
+    IReadOnlyList<CaseHistoryEntry> History);
+
+/// <summary>
+/// The Files body source.  Documents, request links and correspondence belong
+/// together because the section renders them together; history, tasks and
+/// unrelated Case bodies do not.
+/// </summary>
+public sealed record CaseFilesSection(
+    CaseSectionFrame Frame,
+    IReadOnlyList<CaseDocument> Documents,
+    string? CustodyFolderRemoteId,
+    CaseCustodyState CustodyState,
+    IReadOnlyList<CaseRequestUploadSummary> RequestUploadLinks,
+    IReadOnlyList<CaseQueryEmail> QueryEmails);
+
+/// <summary>
+/// Persistence material used only to prove a fragment's render-only lease
+/// header. It never exposes the retained token or token hash.
+/// </summary>
+public sealed record CaseRenderLeaseValidation(
+    Guid CaseId,
+    long CaseVersion,
+    ActorKind? HolderKind,
+    string? Holder,
+    DateTimeOffset? ExpiresAtUtc,
+    bool HasTokenHash,
+    bool TokenMatches);
+
 public sealed record CaseHeader(
     CaseSearchItem Summary,
     CaseWorkflowRecord Workflow,
@@ -246,6 +335,41 @@ public interface ICaseQueryStore
     /// </summary>
     Task<CaseHeader?> GetHeaderAsync(
         GetCaseHeaderQuery query,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The frame required by a Case body. Unlike <see cref="GetHeaderAsync"/>,
+    /// it does not count document, history or task rows.
+    /// </summary>
+    Task<CaseSectionFrame?> GetSectionFrameAsync(
+        Guid caseId,
+        CancellationToken cancellationToken);
+
+    /// <summary>Reads the non-deferred body of the initial Case page.</summary>
+    Task<CasePageFrameData?> GetPageFrameAsync(
+        Guid caseId,
+        CancellationToken cancellationToken);
+
+    /// <summary>Reads only the ordered history body used by Notes.</summary>
+    Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryAsync(
+        Guid caseId,
+        CancellationToken cancellationToken);
+
+    /// <summary>Reads the document-oriented body used by Files.</summary>
+    Task<CaseFilesSectionData?> GetFilesSectionAsync(
+        Guid caseId,
+        bool includeDocuments,
+        CancellationToken cancellationToken);
+
+    /// <summary>Gets only the material needed to prove a render-only lease header.</summary>
+    Task<CaseRenderLeaseValidation?> GetRenderLeaseValidationAsync(
+        Guid caseId,
+        string presentedToken,
+        CancellationToken cancellationToken);
+
+    /// <summary>Returns display references for a bounded set of Cases.</summary>
+    Task<IReadOnlyDictionary<Guid, string>> GetReferencesAsync(
+        IReadOnlyCollection<Guid> caseIds,
         CancellationToken cancellationToken);
 
     /// <summary>
@@ -313,6 +437,263 @@ public interface IGetCaseHeader
     Task<CaseHeader?> ExecuteAsync(
         GetCaseHeaderQuery query,
         CancellationToken cancellationToken);
+}
+
+public interface IGetCasePageFrame
+{
+    Task<CasePageFrame?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// The persistence half of <see cref="CaseFilesSection"/>. It contains only
+/// Files-owned rows; the page frame supplies the already-rendered documents.
+/// </summary>
+public sealed record CaseFilesSectionData(
+    CaseSectionFrame Frame,
+    IReadOnlyList<CaseDocument> Documents,
+    string? CustodyFolderRemoteId,
+    CaseCustodyState CustodyState,
+    IReadOnlyList<CaseRequestUploadSummary> RequestUploadLinks,
+    IReadOnlyList<CaseQueryEmail> QueryEmails);
+
+public interface IGetCaseVehicleSection
+{
+    Task<CaseVehicleSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
+}
+
+public interface IGetCaseValuationSection
+{
+    Task<CaseValuationSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
+}
+
+public interface IGetCaseNotesSection
+{
+    Task<CaseNotesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
+}
+
+public interface IGetCaseFilesSection
+{
+    Task<CaseFilesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken);
+}
+
+public sealed record ValidateCaseRenderLeaseQuery(Guid CaseId, ActionActor Actor, string Token);
+
+public interface IValidateCaseRenderLease
+{
+    Task<bool> ExecuteAsync(ValidateCaseRenderLeaseQuery query, CancellationToken cancellationToken);
+}
+
+public sealed class GetCasePageFrame(
+    ICaseQueryStore store,
+    ICaseDataQueries caseDataQueries) : IGetCasePageFrame
+{
+    public async Task<CasePageFrame?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
+    {
+        CaseSectionQueries.Validate(query);
+        var frame = await store.GetPageFrameAsync(query.CaseId, cancellationToken);
+        if (frame is null)
+        {
+            return null;
+        }
+
+        var data = await caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+            ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
+        return new(frame.Frame, frame.Documents, frame.AvailableReportSentEvidence, frame.RecordNotes, data);
+    }
+}
+
+public sealed class GetCaseVehicleSection(
+    ICaseQueryStore store,
+    IGetAssessmentWorkspace workspaces,
+    ICaseDataQueries caseDataQueries,
+    IVehicleEvidenceQueries vehicleEvidenceQueries) : IGetCaseVehicleSection
+{
+    public async Task<CaseVehicleSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
+    {
+        CaseSectionQueries.Validate(query);
+        var frame = await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        if (frame is null)
+        {
+            return null;
+        }
+
+        var workspace = await CaseSectionQueries.WorkspaceAsync(query, workspaces, cancellationToken);
+        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+            ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
+        var evidence = workspace?.LatestVehicleObservation
+            ?? (await vehicleEvidenceQueries.GetAsync(query.CaseId, cancellationToken))?.LatestObservation;
+        return new(frame, data, evidence, workspace?.Assessment);
+    }
+}
+
+public sealed class GetCaseValuationSection(
+    ICaseQueryStore store,
+    IGetAssessmentWorkspace workspaces,
+    ICaseDataQueries caseDataQueries) : IGetCaseValuationSection
+{
+    public async Task<CaseValuationSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
+    {
+        CaseSectionQueries.Validate(query);
+        var frame = await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        if (frame is null)
+        {
+            return null;
+        }
+
+        var workspace = await CaseSectionQueries.WorkspaceAsync(query, workspaces, cancellationToken);
+        var data = workspace?.Data ?? query.Data ?? await caseDataQueries.GetAsync(query.CaseId, cancellationToken)
+            ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
+        return new(frame, data, workspace?.Assessment);
+    }
+}
+
+public sealed class GetCaseNotesSection(
+    ICaseQueryStore store,
+    IStaffAccountQueries staffAccounts) : IGetCaseNotesSection
+{
+    public async Task<CaseNotesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
+    {
+        CaseSectionQueries.Validate(query);
+        var frame = await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        if (frame is null)
+        {
+            return null;
+        }
+
+        var history = await store.ListHistoryAsync(query.CaseId, cancellationToken);
+        var staffIds = history
+            .Where(entry => entry.ActorKind == nameof(ActorKind.Staff) && Guid.TryParse(entry.Actor, out _))
+            .Select(entry => Guid.Parse(entry.Actor));
+        var names = await ActorDisplayNames.ResolveStaffNamesAsync(staffAccounts, staffIds, cancellationToken);
+        return new(frame, history.Select(entry => entry with
+        {
+            ActorDisplayName = Enum.TryParse<ActorKind>(entry.ActorKind, out var kind)
+                ? ActorDisplayNames.Resolve(kind, entry.Actor, names)
+                : ActorDisplayNames.UnknownStaff
+        }).ToArray());
+    }
+}
+
+public sealed class GetCaseFilesSection(ICaseQueryStore store) : IGetCaseFilesSection
+{
+    public async Task<CaseFilesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
+    {
+        CaseSectionQueries.Validate(query);
+        var body = await store.GetFilesSectionAsync(query.CaseId, query.Documents is null, cancellationToken);
+        if (body is null)
+        {
+            return null;
+        }
+
+        return new(body.Frame, query.Documents ?? body.Documents, body.CustodyFolderRemoteId,
+            body.CustodyState, body.RequestUploadLinks, body.QueryEmails);
+    }
+}
+
+public sealed class ValidateCaseRenderLease(
+    ICaseQueryStore store,
+    TimeProvider timeProvider) : IValidateCaseRenderLease
+{
+    public async Task<bool> ExecuteAsync(ValidateCaseRenderLeaseQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty
+            || string.IsNullOrWhiteSpace(query.Token)
+            || query.Token.Length != CaseEditAuthority.LeaseTokenLength)
+        {
+            return false;
+        }
+
+        var validation = await store.GetRenderLeaseValidationAsync(
+            query.CaseId, query.Token, cancellationToken);
+        if (validation is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            CaseEditAuthority.RequireLease(
+                validation.CaseId,
+                validation.CaseVersion,
+                query.Actor,
+                query.Token,
+                validation.HolderKind,
+                validation.Holder,
+                validation.HasTokenHash,
+                validation.ExpiresAtUtc,
+                validation.TokenMatches,
+                timeProvider.GetUtcNow());
+            return true;
+        }
+        catch (CaseEditLeaseExpiredException)
+        {
+            return false;
+        }
+        catch (CaseEditLeaseConflictException)
+        {
+            return false;
+        }
+    }
+}
+
+public sealed record ListCaseReferencesQuery(ActionActor Actor, IReadOnlyCollection<Guid> CaseIds);
+
+public interface IListCaseReferences
+{
+    Task<IReadOnlyDictionary<Guid, string>> ExecuteAsync(ListCaseReferencesQuery query, CancellationToken cancellationToken);
+}
+
+public sealed class ListCaseReferences(ICaseQueryStore store) : IListCaseReferences
+{
+    public Task<IReadOnlyDictionary<Guid, string>> ExecuteAsync(ListCaseReferencesQuery query, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        ArgumentNullException.ThrowIfNull(query.CaseIds);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        var caseIds = query.CaseIds.Distinct().ToArray();
+        if (caseIds.Length > 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(query), "No more than 100 Case references can be read at once.");
+        }
+        if (caseIds.Any(id => id == Guid.Empty))
+        {
+            throw new ArgumentException("A Case identifier is required.", nameof(query));
+        }
+        return store.GetReferencesAsync(caseIds, cancellationToken);
+    }
+}
+
+internal static class CaseSectionQueries
+{
+    public static void Validate(GetCaseSectionQuery query)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(query));
+        }
+        if (query.AssessmentWorkspace is { Header.CaseId: var workspaceCaseId }
+            && workspaceCaseId != query.CaseId)
+        {
+            throw new ArgumentException("The Assessment workspace belongs to another Case.", nameof(query));
+        }
+        if (query.Data is { Identity.CaseId: var dataCaseId } && dataCaseId != query.CaseId)
+        {
+            throw new ArgumentException("The Case data belongs to another Case.", nameof(query));
+        }
+    }
+
+    public static Task<AssessmentWorkspace?> WorkspaceAsync(
+        GetCaseSectionQuery query,
+        IGetAssessmentWorkspace workspaces,
+        CancellationToken cancellationToken) =>
+        query.HasAssessmentWorkspace
+            ? Task.FromResult(query.AssessmentWorkspace)
+            : workspaces.ExecuteAsync(new(query.CaseId, query.Actor), cancellationToken);
+
 }
 
 /// <summary>

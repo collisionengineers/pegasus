@@ -33,6 +33,7 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
                 Substitute<IGeneratedCaseArtifactStore>(services, artifacts);
             }));
@@ -77,6 +78,7 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: false));
                 Substitute<IGeneratedCaseArtifactStore>(services, artifacts);
             }));

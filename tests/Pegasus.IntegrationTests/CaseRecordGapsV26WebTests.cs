@@ -217,7 +217,11 @@ public sealed partial class CaseDetailsWebTests
         var store = new RecordingCaseDetailsStore();
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+            }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,

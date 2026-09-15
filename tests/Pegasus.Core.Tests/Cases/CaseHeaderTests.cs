@@ -86,6 +86,24 @@ public sealed class CaseHeaderTests
             return Task.FromResult<CaseHeader?>(Header);
         }
 
+        public Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryAsync(Guid caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseSectionFrame?> GetSectionFrameAsync(Guid caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CasePageFrameData?> GetPageFrameAsync(Guid caseId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseFilesSectionData?> GetFilesSectionAsync(Guid caseId, bool includeDocuments, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CaseRenderLeaseValidation?> GetRenderLeaseValidationAsync(Guid caseId, string presentedToken, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyDictionary<Guid, string>> GetReferencesAsync(IReadOnlyCollection<Guid> caseIds, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<CaseSearchItem>> SearchByCursorAsync(
             CaseSearchFilters filters, CaseSearchOrder order, DateTimeOffset? afterReceivedAtUtc,
             string? afterSortText, Guid? afterId, int fetchCount, CancellationToken cancellationToken) =>

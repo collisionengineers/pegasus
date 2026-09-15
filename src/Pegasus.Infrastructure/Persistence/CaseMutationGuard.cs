@@ -129,7 +129,7 @@ internal static class CaseMutationGuard
     /// A retained hash that cannot be read is a hash the presented token cannot be proven against,
     /// so it refuses like any other mismatch rather than surfacing a format failure.
     /// </summary>
-    private static bool MatchesRetainedHash(string? retainedHash, string? presentedToken)
+    internal static bool MatchesRetainedHash(string? retainedHash, string? presentedToken)
     {
         if (string.IsNullOrWhiteSpace(retainedHash) || string.IsNullOrWhiteSpace(presentedToken))
         {

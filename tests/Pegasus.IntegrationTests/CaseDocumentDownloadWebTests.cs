@@ -96,7 +96,7 @@ public sealed class CaseDocumentDownloadWebTests
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
-        using var response = await client.GetAsync(PreviewRoute(thumbnail: true));
+        using var response = await client.GetAsync(PreviewRoute(thumbnail: true, prep: "0"));
         var body = await response.Content.ReadAsByteArrayAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -151,7 +151,7 @@ public sealed class CaseDocumentDownloadWebTests
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, PreviewRoute(thumbnail: true));
+        using var request = new HttpRequestMessage(HttpMethod.Get, PreviewRoute(thumbnail: true, prep: "0"));
         request.Headers.TryAddWithoutValidation("If-None-Match", $"\"{Sha256}\"");
         using var response = await client.SendAsync(request);
         var body = await response.Content.ReadAsByteArrayAsync();
@@ -170,12 +170,123 @@ public sealed class CaseDocumentDownloadWebTests
         using var factory = CreateFactory(baseFactory, ports);
         using var client = CreateClient(factory);
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, PreviewRoute(thumbnail: true));
+        using var request = new HttpRequestMessage(HttpMethod.Get, PreviewRoute(thumbnail: true, prep: "0"));
         request.Headers.TryAddWithoutValidation("If-None-Match", ThumbnailValidator);
         using var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.NotModified, response.StatusCode);
         Assert.Equal(ThumbnailValidator, response.Headers.ETag!.Tag);
+        Assert.Equal(0, ports.ThumbnailReads);
+        Assert.Equal(0, ports.LogicalReads);
+    }
+
+    [Fact]
+    public async Task AThumbnailWithTheCurrentPreparationVersionIsCacheableUnderThePreparedVariant()
+    {
+        var crop = new CaseAssetCrop(0.1m, 0.2m, 0.7m, 0.6m);
+        var ports = new DocumentPorts
+        {
+            Preparation = PreparationFor(7, CaseAssetRotation.Clockwise90, crop)
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync(PreviewRoute(thumbnail: true, prep: "7"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            ThumbnailValidatorFor(CaseAssetRotation.Clockwise90, crop),
+            response.Headers.ETag!.Tag);
+        Assert.Equal(TimeSpan.FromDays(7), response.Headers.CacheControl!.MaxAge);
+        Assert.Equal(1, ports.PreparationReads);
+        var request = Assert.Single(ports.ThumbnailRequests);
+        Assert.Equal(CaseAssetRotation.Clockwise90, request.Rotation);
+        Assert.Equal(crop, request.Crop);
+    }
+
+    [Fact]
+    public async Task AStaleThumbnailAddressServesTheCurrentRepresentationWithoutCachingOrNotModified()
+    {
+        var crop = new CaseAssetCrop(0.1m, 0.2m, 0.7m, 0.6m);
+        var ports = new DocumentPorts
+        {
+            Preparation = PreparationFor(7, CaseAssetRotation.Clockwise90, crop)
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, PreviewRoute(thumbnail: true, prep: "6"));
+        request.Headers.TryAddWithoutValidation(
+            "If-None-Match",
+            ThumbnailValidatorFor(CaseAssetRotation.Clockwise90, crop));
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.Null(response.Headers.ETag);
+        Assert.Equal(1, ports.ThumbnailReads);
+        Assert.Equal(0, ports.LogicalReads);
+        var thumbnailRequest = Assert.Single(ports.ThumbnailRequests);
+        Assert.Equal(CaseAssetRotation.Clockwise90, thumbnailRequest.Rotation);
+        Assert.Equal(crop, thumbnailRequest.Crop);
+    }
+
+    [Fact]
+    public async Task AThumbnailWithoutTheCurrentPreparationVersionIsNotCacheable()
+    {
+        var ports = new DocumentPorts
+        {
+            Preparation = PreparationFor(1, CaseAssetRotation.Half, CaseAssetCrop.Full)
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync(PreviewRoute(thumbnail: true, prep: "0"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.Null(response.Headers.ETag);
+        Assert.Equal(1, ports.ThumbnailReads);
+    }
+
+    [Fact]
+    public async Task AThumbnailWithoutAPreparationAddressIsNeverCacheableOrNotModified()
+    {
+        var ports = new DocumentPorts();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, PreviewRoute(thumbnail: true));
+        request.Headers.TryAddWithoutValidation("If-None-Match", ThumbnailValidator);
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.Null(response.Headers.ETag);
+        Assert.Equal(1, ports.PreparationReads);
+        Assert.Equal(1, ports.ThumbnailReads);
+    }
+
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("not-a-version")]
+    [InlineData("")]
+    public async Task MalformedOrNegativeThumbnailPreparationValuesAreRejectedWithoutReadingContent(string prep)
+    {
+        var ports = new DocumentPorts();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync(PreviewRoute(thumbnail: true, prep: prep));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.Null(response.Headers.ETag);
         Assert.Equal(0, ports.ThumbnailReads);
         Assert.Equal(0, ports.LogicalReads);
     }
@@ -270,10 +381,34 @@ public sealed class CaseDocumentDownloadWebTests
     private static string DownloadRoute() =>
         $"/Cases/{CaseId:D}/Documents/{OccurrenceId:D}/Download?versionId={VersionId:D}";
 
-    private static string PreviewRoute(bool thumbnail = false) =>
+    private static string PreviewRoute(bool thumbnail = false, string? prep = null) =>
         DownloadRoute()
         + "&inline=true"
-        + (thumbnail ? $"&size={CaseDocumentThumbnails.ThumbSizeToken}" : string.Empty);
+        + (thumbnail ? $"&size={CaseDocumentThumbnails.ThumbSizeToken}" : string.Empty)
+        + (prep is null ? string.Empty : $"&prep={Uri.EscapeDataString(prep)}");
+
+    private static string ThumbnailValidatorFor(CaseAssetRotation rotation, CaseAssetCrop? crop) =>
+        $"\"{Sha256}-{CaseDocumentThumbnails.VariantToken(rotation, crop)}\"";
+
+    private static CaseAssetPreparation PreparationFor(
+        long preparationVersion,
+        CaseAssetRotation rotation,
+        CaseAssetCrop crop) =>
+        new(
+            CaseId,
+            OccurrenceId,
+            DocumentId,
+            VersionId,
+            1,
+            Sha256,
+            MediaType,
+            CaseAssetReportRole.NotUsed,
+            null,
+            rotation,
+            crop,
+            preparationVersion,
+            "staff",
+            new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero));
 
     private static WebApplicationFactory<Program> CreateFactory(
         IntakeWebApplicationFactory baseFactory,
@@ -285,6 +420,7 @@ public sealed class CaseDocumentDownloadWebTests
                 Substitute<IReadLogicalDocumentVersion>(services, ports);
                 Substitute<IReadCaseDocumentThumbnail>(services, ports);
                 Substitute<IDownloadCaseDocument>(services, ports);
+                Substitute<ICaseAssetPreparationQueries>(services, ports);
             }));
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
@@ -309,11 +445,14 @@ public sealed class CaseDocumentDownloadWebTests
         IReadCaseDocumentPreview,
         IReadLogicalDocumentVersion,
         IReadCaseDocumentThumbnail,
-        IDownloadCaseDocument
+        IDownloadCaseDocument,
+        ICaseAssetPreparationQueries
     {
         private int logicalReads;
         private int thumbnailReads;
         private int auditedDownloads;
+        private int preparationReads;
+        private readonly List<CaseDocumentThumbnailRequest> thumbnailRequests = [];
 
         public DocumentCustodyStatus CustodyStatus { get; init; } =
             DocumentCustodyStatus.Confirmed;
@@ -324,11 +463,37 @@ public sealed class CaseDocumentDownloadWebTests
 
         public bool Preview { get; init; } = true;
 
+        public CaseAssetPreparation? Preparation { get; init; }
+
         public int LogicalReads => Volatile.Read(ref logicalReads);
 
         public int ThumbnailReads => Volatile.Read(ref thumbnailReads);
 
         public int AuditedDownloads => Volatile.Read(ref auditedDownloads);
+
+        public int PreparationReads => Volatile.Read(ref preparationReads);
+
+        public IReadOnlyList<CaseDocumentThumbnailRequest> ThumbnailRequests => thumbnailRequests;
+
+        Task<CaseAssetPreparation?> ICaseAssetPreparationQueries.GetForOccurrenceAsync(
+            Guid caseId,
+            Guid occurrenceId,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref preparationReads);
+            Assert.Equal(CaseId, caseId);
+            Assert.Equal(OccurrenceId, occurrenceId);
+            return Task.FromResult(Preparation);
+        }
+
+        Task<IReadOnlyList<CaseAssetPreparation>> ICaseAssetPreparationQueries.ListForCaseAsync(
+            Guid caseId,
+            CancellationToken cancellationToken)
+        {
+            Assert.Equal(CaseId, caseId);
+            return Task.FromResult<IReadOnlyList<CaseAssetPreparation>>(
+                Preparation is null ? [] : [Preparation]);
+        }
 
         Task<CaseDocumentPreview?> IReadCaseDocumentPreview.ExecuteAsync(
             CaseDocumentPreviewQuery query,
@@ -379,6 +544,7 @@ public sealed class CaseDocumentDownloadWebTests
             CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref thumbnailReads);
+            thumbnailRequests.Add(request);
             if (ReadFailure is not null)
             {
                 throw ReadFailure;

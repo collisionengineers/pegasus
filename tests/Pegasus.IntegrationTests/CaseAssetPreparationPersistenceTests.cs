@@ -65,6 +65,50 @@ public sealed class CaseAssetPreparationPersistenceTests
     }
 
     [Fact]
+    public async Task GettingOnePreparationUsesTheCaseAndOccurrenceAndReturnsOneCurrentSnapshot()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var wanted = await harness.SeedImageAsync(new string('a', 64));
+        await harness.SeedImageAsync(new string('b', 64));
+        var otherCaseId = await harness.SeedAnotherCaseAsync();
+        var otherCaseImage = await harness.SeedImageAsync(new string('c', 64), otherCaseId);
+        var crop = new CaseAssetCrop(0.1m, 0.2m, 0.7m, 0.6m);
+        var lease = await harness.AcquireLeaseAsync();
+        await harness.Store.SaveAsync(
+            new(
+                harness.CaseId,
+                harness.CaseVersion,
+                harness.StaffActor,
+                "save-single-snapshot",
+                "Prepared one image for thumbnail rendering",
+                lease.Token,
+                [new(
+                    wanted.OccurrenceId,
+                    0,
+                    CaseAssetReportRole.Overview,
+                    null,
+                    CaseAssetRotation.Clockwise90,
+                    crop)]),
+            CancellationToken.None);
+
+        var snapshot = await harness.Store.GetForOccurrenceAsync(
+            harness.CaseId, wanted.OccurrenceId, CancellationToken.None);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(harness.CaseId, snapshot.CaseId);
+        Assert.Equal(wanted.OccurrenceId, snapshot.OccurrenceId);
+        Assert.Equal(wanted.VersionId, snapshot.VersionId);
+        Assert.Equal(new string('a', 64), snapshot.SourceSha256);
+        Assert.Equal(CaseAssetRotation.Clockwise90, snapshot.Rotation);
+        Assert.Equal(crop, snapshot.Crop);
+        Assert.Equal(1, snapshot.PreparationVersion);
+        Assert.Null(await harness.Store.GetForOccurrenceAsync(
+            harness.CaseId, otherCaseImage.OccurrenceId, CancellationToken.None));
+        Assert.Null(await harness.Store.GetForOccurrenceAsync(
+            otherCaseId, wanted.OccurrenceId, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task ReplayingTheSameOperationKeyAndPayloadReturnsTheSameResultWithoutBumpingVersionAgain()
     {
         await using var harness = await Harness.CreateAsync();

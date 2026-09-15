@@ -24,6 +24,12 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IValidateCaseRenderLease>(services, store);
                 Substitute<IAcquireCaseEditLease>(services, store);
                 substitutePorts(services);
             }));

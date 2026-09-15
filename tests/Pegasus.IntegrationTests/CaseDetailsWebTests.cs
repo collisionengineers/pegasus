@@ -41,6 +41,7 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
             }));
@@ -79,6 +80,7 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IEvaSubmissionQueries>(services, evaStores);
                 Substitute<IEvaSubmissionModeStore>(services, evaStores);
             }));
@@ -178,7 +180,15 @@ public sealed partial class CaseDetailsWebTests
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+            }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -225,7 +235,11 @@ public sealed partial class CaseDetailsWebTests
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+            }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -271,7 +285,11 @@ public sealed partial class CaseDetailsWebTests
         };
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+            }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -315,7 +333,11 @@ public sealed partial class CaseDetailsWebTests
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+            }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -367,7 +389,11 @@ public sealed partial class CaseDetailsWebTests
         };
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+            }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -496,7 +522,15 @@ public sealed partial class CaseDetailsWebTests
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+            }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -529,7 +563,11 @@ public sealed partial class CaseDetailsWebTests
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+            }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -739,7 +777,11 @@ public sealed partial class CaseDetailsWebTests
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+            }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -904,6 +946,138 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("name=\"editLeaseToken\"", fragment, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task TheLazyFilesFragmentRejectsAWrongRenderLeaseTokenFromItsHolder()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{store.CaseId:D}/Section?section=files");
+        request.Headers.Add("X-Pegasus-Edit-Lease", new string('b', CaseEditAuthority.LeaseTokenLength));
+
+        using var response = await workspace.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var fragment = await response.Content.ReadAsStringAsync();
+
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.DoesNotContain("name=\"editLeaseToken\"", fragment, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheLazyFilesFragmentRejectsAStaleRenderLeaseToken()
+    {
+        var store = new RecordingCaseDetailsStore { RenderLeaseIsCurrent = false };
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{store.CaseId:D}/Section?section=files");
+        request.Headers.Add("X-Pegasus-Edit-Lease", store.LeaseToken);
+
+        using var response = await workspace.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var fragment = await response.Content.ReadAsStringAsync();
+
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.DoesNotContain("name=\"editLeaseToken\"", fragment, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FocusedVehicleAndValuationReadsReuseOneDirectWorkspaceAndMatchLazyAssessmentProvenance()
+    {
+        var store = new RecordingCaseDetailsStore { ThrowOnBroadCaseRead = true };
+        var assessment = new CaseAssessmentProjection(
+            store.CaseId,
+            "QDOS3100042",
+            store.CaseVersion,
+            store.State,
+            null,
+            [new(
+                AssessmentVocabulary.VehicleFuel,
+                "diesel",
+                ActorKind.Automation,
+                "vehicle-lookup",
+                new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero),
+                "vehicle-lookup",
+                new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero))],
+            [],
+            new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
+        store.FocusedAssessment = assessment;
+        var assessmentWorkspace = new CountingAssessmentWorkspace(
+            AssessmentWorkspaceTestData.Create(assessment));
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: false));
+                Substitute<IGetAssessmentWorkspace>(services, assessmentWorkspace);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=vehicle");
+        Assert.Equal(1, assessmentWorkspace.ReadCount);
+        Assert.Single(store.VehicleSectionQueries);
+
+        using (var claim = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(initial),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", InputValue(initial, "operationKey")))))
+        {
+            AssertPrg(claim, store.CaseId);
+        }
+
+        assessmentWorkspace.Reset();
+        store.VehicleSectionQueries.Clear();
+        store.VehicleSectionAssessments.Clear();
+        var directVehicle = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=vehicle");
+        var directVehicleQuery = Assert.Single(store.VehicleSectionQueries);
+        Assert.Equal(1, assessmentWorkspace.ReadCount);
+        Assert.True(directVehicleQuery.HasAssessmentWorkspace);
+        Assert.Same(assessmentWorkspace.Workspace, directVehicleQuery.AssessmentWorkspace);
+        Assert.Same(assessment, Assert.Single(store.VehicleSectionAssessments));
+        Assert.Contains("Diesel", directVehicle, StringComparison.Ordinal);
+        Assert.Contains("src-tag--lookup", directVehicle, StringComparison.Ordinal);
+
+        var lazyVehicle = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Section?section=vehicle");
+        var lazyVehicleQuery = store.VehicleSectionQueries.Last();
+        Assert.Equal(1, assessmentWorkspace.ReadCount);
+        Assert.False(lazyVehicleQuery.HasAssessmentWorkspace);
+        Assert.Null(lazyVehicleQuery.AssessmentWorkspace);
+        Assert.Same(assessment, store.VehicleSectionAssessments.Last());
+        Assert.Contains("Diesel", lazyVehicle, StringComparison.Ordinal);
+        Assert.Contains("src-tag--lookup", lazyVehicle, StringComparison.Ordinal);
+
+        assessmentWorkspace.Reset();
+        store.ValuationSectionQueries.Clear();
+        store.ValuationSectionAssessments.Clear();
+        await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=valuation");
+        var directValuationQuery = Assert.Single(store.ValuationSectionQueries);
+        Assert.Equal(1, assessmentWorkspace.ReadCount);
+        Assert.True(directValuationQuery.HasAssessmentWorkspace);
+        Assert.Same(assessmentWorkspace.Workspace, directValuationQuery.AssessmentWorkspace);
+        Assert.Same(assessment, Assert.Single(store.ValuationSectionAssessments));
+
+        await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Section?section=valuation");
+        var lazyValuationQuery = store.ValuationSectionQueries.Last();
+        Assert.Equal(1, assessmentWorkspace.ReadCount);
+        Assert.False(lazyValuationQuery.HasAssessmentWorkspace);
+        Assert.Null(lazyValuationQuery.AssessmentWorkspace);
+        Assert.Same(assessment, store.ValuationSectionAssessments.Last());
+    }
+
     /// <summary>
     /// WP7 moved report composition off the Files section entirely — the
     /// Report section is now the only place a report's image set is chosen —
@@ -977,7 +1151,11 @@ public sealed partial class CaseDetailsWebTests
             ]
         };
         using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+            }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -2679,8 +2857,25 @@ public sealed partial class CaseDetailsWebTests
     [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ValueRegex();
 
+    private sealed class CountingAssessmentWorkspace(AssessmentWorkspace workspace) : IGetAssessmentWorkspace
+    {
+        public AssessmentWorkspace Workspace { get; } = workspace;
+        public int ReadCount { get; private set; }
+
+        public Task<AssessmentWorkspace?> ExecuteAsync(
+            GetAssessmentWorkspaceQuery query,
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return Task.FromResult<AssessmentWorkspace?>(Workspace);
+        }
+
+        public void Reset() => ReadCount = 0;
+    }
+
     private sealed partial class RecordingCaseDetailsStore :
         IGetCase,
+        IGetCasePageFrame,
         ICaseDataQueries,
         IInspectionAddressChoicesQueries,
         IAcquireCaseEditLease,
@@ -2689,7 +2884,12 @@ public sealed partial class CaseDetailsWebTests
         IReleaseCase,
         ITransitionCase,
         ICaseWorkflowQueries,
-        ISaveCaseWorkspace
+        ISaveCaseWorkspace,
+        IGetCaseVehicleSection,
+        IGetCaseValuationSection,
+        IGetCaseNotesSection,
+        IGetCaseFilesSection,
+        IValidateCaseRenderLease
     {
         private readonly DateTimeOffset _now = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         private CaseDueWork _dueWork;
@@ -2742,7 +2942,18 @@ public sealed partial class CaseDetailsWebTests
 
         public IReadOnlyList<CaseQueryEmail> QueryEmails { get; init; } = [];
 
-        public string LeaseToken { get; } = "opaque-live-case-lease";
+        public string LeaseToken { get; } = new('a', CaseEditAuthority.LeaseTokenLength);
+
+        public bool RenderLeaseIsCurrent { get; set; } = true;
+
+        /// <summary>Fails a test if a focused page path falls back to the legacy full Case read.</summary>
+        public bool ThrowOnBroadCaseRead { get; init; }
+
+        public CaseAssessmentProjection? FocusedAssessment { get; set; }
+        public List<GetCaseSectionQuery> VehicleSectionQueries { get; } = [];
+        public List<GetCaseSectionQuery> ValuationSectionQueries { get; } = [];
+        public List<CaseAssessmentProjection?> VehicleSectionAssessments { get; } = [];
+        public List<CaseAssessmentProjection?> ValuationSectionAssessments { get; } = [];
 
         public List<ClaimCaseEditLeaseRequest> Claims { get; } = [];
         public string? LeaseHolder
@@ -2771,28 +2982,17 @@ public sealed partial class CaseDetailsWebTests
 
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
         {
+            if (ThrowOnBroadCaseRead)
+            {
+                throw new InvalidOperationException("A focused Case page read used IGetCase.");
+            }
+
             var workflow = CreateWorkflow();
-            var summary = new CaseSearchItem(
-                CaseId,
-                workflow.Identity.Reference,
-                null,
-                SummaryCaseType,
-                workflow.Identity.PrincipalCode,
-                workflow.State,
-                null,
-                OmitVehicleValues ? null : "AB12CDE",
-                "Case claimant",
-                "CLM-42",
-                _now.AddDays(-2),
-                new DateOnly(2031, 5, 5),
-                "Email",
-                _now.AddDays(-2));
+            var summary = CreateSummary(workflow);
             CaseDetails details = new(
                 summary,
                 workflow,
-                _leaseHolder is null
-                    ? null
-                    : new(_leaseHolder, _leaseHolderKind, _now.AddMinutes(5), _leaseOperationKey!),
+                ActiveLease(),
                 CaseDocuments,
                 null,
                 CaseCustodyState.Pending,
@@ -2809,6 +3009,118 @@ public sealed partial class CaseDetailsWebTests
                     : []
             };
             return Task.FromResult<CaseDetails?>(details);
+        }
+
+        Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            if (query.CaseId != CaseId)
+            {
+                return Task.FromResult<CasePageFrame?>(null);
+            }
+
+            return Task.FromResult<CasePageFrame?>(new(
+                FocusedFrame(),
+                CaseDocuments,
+                AvailableReportSentEvidence,
+                RecordNotes,
+                DataOverride ?? CreateData()));
+        }
+
+        Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            VehicleSectionQueries.Add(query);
+            if (query.CaseId != CaseId)
+            {
+                return Task.FromResult<CaseVehicleSection?>(null);
+            }
+
+            var sectionAssessment = query.AssessmentWorkspace?.Assessment ?? FocusedAssessment ?? EngineeringAssessment();
+            VehicleSectionAssessments.Add(sectionAssessment);
+            return Task.FromResult<CaseVehicleSection?>(new(
+                FocusedFrame(),
+                query.AssessmentWorkspace?.Data ?? query.Data ?? DataOverride ?? CreateData(),
+                query.AssessmentWorkspace?.LatestVehicleObservation ?? VehicleLookupEvidence?.LatestObservation,
+                sectionAssessment));
+        }
+
+        Task<CaseValuationSection?> IGetCaseValuationSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            ValuationSectionQueries.Add(query);
+            if (query.CaseId != CaseId)
+            {
+                return Task.FromResult<CaseValuationSection?>(null);
+            }
+
+            var sectionAssessment = query.AssessmentWorkspace?.Assessment ?? FocusedAssessment ?? EngineeringAssessment();
+            ValuationSectionAssessments.Add(sectionAssessment);
+            return Task.FromResult<CaseValuationSection?>(new(
+                FocusedFrame(),
+                query.AssessmentWorkspace?.Data ?? query.Data ?? DataOverride ?? CreateData(),
+                sectionAssessment));
+        }
+
+        Task<CaseNotesSection?> IGetCaseNotesSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<CaseNotesSection?>(query.CaseId == CaseId
+                ? new(FocusedFrame(), HistoryEntries)
+                : null);
+        }
+
+        Task<CaseFilesSection?> IGetCaseFilesSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult<CaseFilesSection?>(query.CaseId == CaseId
+                ? new(
+                    FocusedFrame(),
+                    query.Documents ?? CaseDocuments,
+                    null,
+                    CaseCustodyState.Pending,
+                    RequestUploadLinks,
+                    QueryEmails)
+                : null);
+        }
+
+        Task<bool> IValidateCaseRenderLease.ExecuteAsync(
+            ValidateCaseRenderLeaseQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(
+                RenderLeaseIsCurrent
+                && string.Equals(query.Token, LeaseToken, StringComparison.Ordinal)
+                && string.Equals(query.Actor.SubjectId, LeaseHolder, StringComparison.Ordinal));
+
+        private CaseSearchItem CreateSummary(CaseWorkflowRecord workflow) => new(
+            CaseId,
+            workflow.Identity.Reference,
+            null,
+            SummaryCaseType,
+            workflow.Identity.PrincipalCode,
+            workflow.State,
+            null,
+            OmitVehicleValues ? null : "AB12CDE",
+            "Case claimant",
+            "CLM-42",
+            _now.AddDays(-2),
+            new DateOnly(2031, 5, 5),
+            "Email",
+            _now.AddDays(-2));
+
+        private CaseEditLeaseSnapshot? ActiveLease() => _leaseHolder is null
+            ? null
+            : new(_leaseHolder, _leaseHolderKind, _now.AddMinutes(5), _leaseOperationKey!);
+
+        private CaseSectionFrame FocusedFrame()
+        {
+            var workflow = CreateWorkflow();
+            return new(CreateSummary(workflow), workflow, ActiveLease());
         }
 
         /// <summary>

@@ -22,23 +22,26 @@ public sealed partial class DetailsModel
     {
         get
         {
-            if (Case is null)
+            if (Case is null && FilesSection is null)
             {
                 return [];
             }
 
-            var correspondence = Case.QueryEmails
+            var correspondence = (FilesSection?.QueryEmails ?? [])
                 .Select(email => email.SourceSha256)
                 .Where(hash => !string.IsNullOrWhiteSpace(hash))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            return [.. CaseFiles.Current(Case.Documents).Where(file =>
+            var documents = FilesSection?.Documents ?? Case!.Documents;
+            return [.. CaseFiles.Current(documents).Where(file =>
                 !IsCaseImage(file) && !correspondence.Contains(file.Version.Sha256))];
         }
     }
 
     /// <summary>Every current image file, confirmed or still arriving: the Images tab and the strips.</summary>
     public IReadOnlyList<CaseFile> CaseImageFiles =>
-        Case is null ? [] : [.. CaseFiles.Current(Case.Documents).Where(IsCaseImage)];
+        Case is null && FilesSection is null
+            ? []
+            : [.. CaseFiles.Current(FilesSection?.Documents ?? Case!.Documents).Where(IsCaseImage)];
 
     /// <summary>The images whose bytes can be read: the viewer's set and the Report strip.</summary>
     public IReadOnlyList<CaseFile> ViewableCaseImages =>
@@ -63,7 +66,7 @@ public sealed partial class DetailsModel
     /// lease and the image has a preparation record, not only in report
     /// preparation and not only for an Engineer.
     /// </summary>
-    public bool MayPrepareImages => CanEditCaseData && Case?.Data is not null;
+    public bool MayPrepareImages => CanEditCaseData && FilesSection is not null;
 
     /// <summary>
     /// Which files the viewer displays over the page: images, PDFs and the two
@@ -80,11 +83,11 @@ public sealed partial class DetailsModel
 
     /// <summary>The inline preview the viewer reads (the original bytes, no history row).</summary>
     public string PreviewUrl(CaseFile file) =>
-        $"/Cases/{Case!.Workflow.CaseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}&inline=true";
+        $"/Cases/{CurrentCaseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}&inline=true";
 
     /// <summary>The audited download.</summary>
     public string DownloadUrl(CaseFile file) =>
-        $"/Cases/{Case!.Workflow.CaseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}";
+        $"/Cases/{CurrentCaseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}";
 
     /// <summary>
     /// The tile's derived rendering. It carries the preparation version so a
@@ -98,4 +101,6 @@ public sealed partial class DetailsModel
             ? address
             : address + "&prep=" + preparation.PreparationVersion.ToString(CultureInfo.InvariantCulture);
     }
+
+    private Guid CurrentCaseId => FilesSection?.Frame.Workflow.CaseId ?? Case!.Workflow.CaseId;
 }
