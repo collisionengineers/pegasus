@@ -1,9 +1,15 @@
 using Azure.Storage.Blobs;
 using Azure.Core;
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Channel;
+using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
@@ -345,6 +351,57 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
+    public void ProductionWebTelemetryEmitsAllowlistedDocumentTimingWithRequestCorrelation()
+    {
+        var channel = new RecordingTelemetryChannel();
+        using var factory = new ConfiguredWebApplicationFactory(
+            "Production",
+            new Dictionary<string, string?>
+            {
+                ["APPLICATIONINSIGHTS_CONNECTION_STRING"] =
+                    "InstrumentationKey=00000000-0000-0000-0000-000000000000"
+            })
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ITelemetryChannel>();
+                services.AddSingleton<ITelemetryChannel>(channel);
+            }));
+
+        _ = factory.Services.GetRequiredService<DocumentReadTelemetryBridge>();
+        using var request = new Activity("test.request").Start();
+        using (DocumentReadTelemetry.Start("document.preview"))
+        {
+        }
+
+        var timing = Assert.Single(channel.Sent
+            .OfType<EventTelemetry>()
+            .Where(item => item.Name == "Pegasus.Document.Read"));
+        Assert.IsAssignableFrom<ISupportSampling>(timing);
+        Assert.Equal("document.preview", timing.Properties["phase"]);
+        Assert.Equal(["phase"], timing.Properties.Keys);
+        Assert.True(timing.Metrics["durationMs"] >= 0);
+        Assert.Equal(["durationMs"], timing.Metrics.Keys);
+        Assert.Equal(request.TraceId.ToHexString(), timing.Context.Operation.Id);
+        Assert.Equal(request.Id, timing.Context.Operation.ParentId);
+    }
+
+    [Fact]
+    public void DocumentReadTelemetryDoesNotEmitWhenTheConfiguredClientIsDisabled()
+    {
+        var channel = new RecordingTelemetryChannel();
+        using var configuration = TelemetryConfiguration.CreateDefault();
+        configuration.TelemetryChannel = channel;
+        configuration.DisableTelemetry = true;
+        using var bridge = new DocumentReadTelemetryBridge(new TelemetryClient(configuration));
+
+        using (DocumentReadTelemetry.Start("document.preview"))
+        {
+        }
+
+        Assert.Empty(channel.Sent);
+    }
+
+    [Fact]
     public void ProfileWithoutDurableStorageStillFailsClosed()
     {
         var services = NewServices();
@@ -471,6 +528,27 @@ public sealed class ProductionCompositionTests
         BoxConfigJson,
         "client-secret",
         "test-holding-folder");
+
+    private sealed class RecordingTelemetryChannel : ITelemetryChannel
+    {
+        private readonly ConcurrentQueue<ITelemetry> sent = [];
+
+        public IEnumerable<ITelemetry> Sent => sent.ToArray();
+
+        public bool? DeveloperMode { get; set; }
+
+        public string EndpointAddress { get; set; } = string.Empty;
+
+        public void Send(ITelemetry item) => sent.Enqueue(item);
+
+        public void Flush()
+        {
+        }
+
+        public void Dispose()
+        {
+        }
+    }
 
     private sealed class CompositionCredential : TokenCredential
     {

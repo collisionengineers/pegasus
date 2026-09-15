@@ -116,6 +116,7 @@ var productionProfile = configuredRuntimeProfile.Equals("Production", StringComp
 QueueClient? intakeWorkQueue = null;
 TokenCredential? automationMcpCredential = null;
 var allowLocalQueueCreation = false;
+var applicationInsightsConfigured = false;
 if (configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal)
     && !builder.Environment.IsDevelopment())
 {
@@ -240,8 +241,10 @@ if (productionProfile)
     {
         builder.Services.AddApplicationInsightsTelemetry();
         builder.Services.AddSingleton<ITelemetryInitializer, PublicUploadTelemetryInitializer>();
+        builder.Services.AddSingleton<DocumentReadTelemetryBridge>();
         builder.Services.Configure<TelemetryConfiguration>(
             telemetry => telemetry.SetAzureTokenCredential(credential));
+        applicationInsightsConfigured = true;
     }
 }
 else
@@ -827,6 +830,12 @@ if (sendToAiOptions is not null)
 }
 
 var app = builder.Build();
+if (applicationInsightsConfigured)
+{
+    // This singleton owns the listener for the application's lifetime. Resolving
+    // it here makes timing active only in the configured AI composition.
+    _ = app.Services.GetRequiredService<DocumentReadTelemetryBridge>();
+}
 var runtimeProfile = app.Configuration["Runtime:Profile"]
     ?? throw new InvalidOperationException("Runtime:Profile is required.");
 var developmentOffline = runtimeProfile.Equals(
