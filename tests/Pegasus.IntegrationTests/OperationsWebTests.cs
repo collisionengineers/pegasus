@@ -703,6 +703,11 @@ public sealed partial class OperationsWebTests
         private ActorKind? LeaseHolderKind { get; set; }
         public string? LeaseOperationKey { get; private set; }
 
+        public Task<int> CountRetryableExternalFailuresAsync(
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(LeaseIsActive && FixedUtcNow.AddMinutes(5) > nowUtc ? 0 : 1);
+
         public Task<EmailOperationsProjection> GetAsync(
             int maximumItemsPerDirection,
             DateTimeOffset nowUtc,
@@ -907,6 +912,9 @@ public sealed partial class OperationsWebTests
         public Guid SubjectCaseId { get; } = Guid.NewGuid();
 
         public bool HasOpenUnidentified { get; init; } = true;
+
+        public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(HasOpenUnidentified ? 1 : 0);
 
         public bool HasJobs { get; init; } = true;
         public bool RefuseCreate { get; init; }

@@ -574,6 +574,9 @@ public sealed class UploadOutcomeQueriesTests
         UnidentifiedItem? byReceipt,
         UnidentifiedItem? byGroup) : IUnidentifiedStore
     {
+        public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<UnidentifiedRegisterResult> RegisterAsync(
             RegisterUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

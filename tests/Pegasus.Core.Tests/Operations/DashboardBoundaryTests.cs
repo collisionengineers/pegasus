@@ -644,7 +644,7 @@ public sealed class DashboardBoundaryTests
 
     private sealed class StubUnidentifiedQueue : IUnidentifiedStore
     {
-        public IReadOnlyList<UnidentifiedQueueRow> Rows { get; init; } = [];
+        public UnidentifiedQueueRow[] Rows { get; init; } = [];
 
         public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(
             UnidentifiedMediaKind? mediaKind,
@@ -653,7 +653,7 @@ public sealed class DashboardBoundaryTests
                 Rows.Where(row => mediaKind is null || row.MediaKind == mediaKind).ToArray());
 
         public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(Rows.Count);
+            Task.FromResult(Rows.Length);
 
         public Task<UnidentifiedRegisterResult> RegisterAsync(
             RegisterUnidentifiedRequest request,
