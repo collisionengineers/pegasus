@@ -82,6 +82,10 @@ Obsolete documentation-parser contracts do not justify retaining incorrect docs.
 
 ## Non-obvious constraints
 
+- `scripts/Invoke-IntakeDataWipe.ps1 -ResetTestEstate` additionally retains
+  only the `alex` Administrator and resets current-year QDOS numbering.
+  Follow `.agents/skills/pegasus-wipe-intake-data/SKILL.md` for its dry run
+  and exact-target execution approval; merging the script authorizes no reset.
 - `Audit`, `Triage`, `Unidentified`, `Image Intake` and `Blocked intake` are
   distinct. Use the glossary and owning FRD; never call generic sorting Triage.
 - Never delete a Case or reuse its reference. Wrong-Principal correction and
