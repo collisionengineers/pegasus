@@ -485,6 +485,13 @@ body:not(.is-editing) .edit-only,.case-section.is-locked .edit-only{display:none
 .mock .sep{width:1px;height:16px;background:#4a5157;margin:0 2px}
 /* mockup strip: many more rows in v26 */
 .mock{max-height:58vh;overflow:auto;scrollbar-width:thin}
+.mock-head{display:flex;align-items:center;justify-content:space-between;gap:10px;position:sticky;top:0;background:#1c1f22}
+.mock-head b{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:#9aa3a9}
+.mock-collapse{display:flex;align-items:center;gap:4px;border:1px solid #4a5157;background:#2b3035;color:#e9ecef;border-radius:3px;padding:3px 8px;font-size:11px}
+.mock-collapse .icon{width:13px;height:13px;transition:transform .12s}
+.mock.is-collapsed{max-height:none}
+.mock.is-collapsed .mrow{display:none}
+.mock.is-collapsed .mock-collapse .icon{transform:rotate(-90deg)}
 /* create audit */
 .audit-verdict{gap:16px;margin-top:4px}
 .audit-verdict label{display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer}
@@ -1230,6 +1237,7 @@ body.is-editing .case-section:not(.is-locked) .cluster.calc-only{display:flex}
 </div>
 
 <div class="mock" id="mock">
+  <div class="mock-head"><b>Mockup controls</b><button type="button" class="mock-collapse" id="mockCollapseBtn" onclick="toggleMock()"><svg class="icon"><use href="#icon-chevron-down"/></svg><span id="mockCollapseLbl">Hide</span></button></div>
   <div class="mrow"><b>Mockup state</b><button data-st="review" onclick="setState('review')">Review</button><button data-st="engineer" class="on" onclick="setState('engineer')">With Engineer</button><button data-st="complete" onclick="setState('complete')">Complete</button><button data-st="colleague" onclick="setState('colleague')">Colleague editing</button></div>
   <div class="mrow"><b>Glass's</b><button data-g="none" class="on" onclick="setGlass('none')">None</button><button data-g="open" onclick="setGlass('open')">Open</button><button data-g="waiting" onclick="setGlass('waiting')">Waiting</button><button data-g="failed" onclick="setGlass('failed')">Failed</button><button data-g="unknown" onclick="setGlass('unknown')">Unknown</button><button data-g="elsewhere" onclick="setGlass('elsewhere')">Elsewhere</button><button onclick="glassReturn()">Return →</button></div>
   <div class="mrow"><b>Decisions</b><button id="mockProp" onclick="toggleProposal()">AI proposal</button></div>
@@ -1263,6 +1271,8 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('section-estimate
 /* ================= helpers ================= */
 function toggleRail(){const c=document.querySelector('.app-shell').classList.toggle('rail-collapsed');localStorage.setItem('v26.rail',c?'1':'0');}
 if(localStorage.getItem('v26.rail')==='1')document.querySelector('.app-shell').classList.add('rail-collapsed');
+function toggleMock(force){const el=document.getElementById('mock');const c=el.classList.toggle('is-collapsed',force!==undefined?force:!el.classList.contains('is-collapsed'));document.getElementById('mockCollapseLbl').textContent=c?'Show':'Hide';localStorage.setItem('v26.mock',c?'1':'0');}
+if(localStorage.getItem('v26.mock')==='1')toggleMock(true);
 function closeMenus(){document.querySelectorAll('details.actions-menu[open]').forEach(m=>m.open=false);}
 document.addEventListener('click',e=>{document.querySelectorAll('details.actions-menu[open]').forEach(m=>{if(!m.contains(e.target))m.open=false;});});
 const $=id=>document.getElementById(id);
