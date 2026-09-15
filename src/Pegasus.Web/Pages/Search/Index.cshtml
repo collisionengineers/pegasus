@@ -191,6 +191,7 @@ else if (listingImages)
                                     <th scope="col">Claimant</th>
                                     <th scope="col">Principal</th>
                                     <th scope="col">State</th>
+                                    <th scope="col">@Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame.Editing</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -215,6 +216,7 @@ else if (listingImages)
                                         <td>@(row.Item.Claimant ?? "Not recorded")</td>
                                         <td>@row.Item.Principal</td>
                                         <td><partial name="Shared/_StatusChip" model="@row.Chip" /></td>
+                                        <td>@row.Editing</td>
                                         <template>
                                             <partial name="_CasePreview" model="row" />
                                         </template>

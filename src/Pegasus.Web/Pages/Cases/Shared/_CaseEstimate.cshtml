@@ -222,13 +222,6 @@
                     <span>@EstimateLabels.SendToAi</span>
                 </a>
             }
-            else if (editing && Model.SendToClaudeCondition == EngineerLabels.ConfirmedEngineerValueRequired)
-            {
-                <span class="gated" data-estimate-send-to-ai-condition>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
-                    <span>@EngineerLabels.ConfirmedEngineerValueRequired</span>
-                </span>
-            }
             @{
                 var offersNewEstimate = editing && Model.ActorIsEngineer && Model.AssessmentCanOpen;
                 var offersCompare = Model.Estimates.Count >= 2;

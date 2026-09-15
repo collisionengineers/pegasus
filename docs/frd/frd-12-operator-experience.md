@@ -245,7 +245,9 @@ Filters are Principal (every queue) and, on Not ready only, Missing — `All`,
 `Instructions`, `Images`, `Both missing` — plus Clear. Each queue keeps its
 own row shape rather than being forced into one column set: a Case row
 carries reference and registration, state, claimant and principal, origin and
-received, due; an Image-initiated row carries its VRM reference,
+received, due, and who is editing it while a staff edit lease is live (the
+same column on Search results); an Image-initiated row carries its VRM
+reference,
 registration, file count and custody; a Triage
 row carries reference, registration, provider and assignee; an Unidentified
 row carries the U-reference, kind, operator-meaningful handle (the original
