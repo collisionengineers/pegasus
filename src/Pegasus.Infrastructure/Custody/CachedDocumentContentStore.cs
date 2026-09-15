@@ -88,7 +88,11 @@ internal sealed class CachedDocumentContentStore(
         }
         var now = timeProvider.GetUtcNow();
 
-        var cached = await TryOpenCachedAsync(source, now, cancellationToken);
+        Stream? cached;
+        using (DocumentReadTelemetry.Start("document.original.cache.read"))
+        {
+            cached = await TryOpenCachedAsync(source, now, cancellationToken);
+        }
         if (cached is not null)
         {
             metrics?.RecordHit();
@@ -114,7 +118,10 @@ internal sealed class CachedDocumentContentStore(
             cancellationToken);
         try
         {
-            await PublishAsync(source, downloaded, cancellationToken);
+            using (DocumentReadTelemetry.Start("document.original.cache.write"))
+            {
+                await PublishAsync(source, downloaded, cancellationToken);
+            }
             downloaded.Position = 0;
             return Result(request, source, downloaded);
         }
@@ -687,6 +694,7 @@ internal sealed class CachedDocumentContentStore(
         string expectedSha256,
         CancellationToken cancellationToken)
     {
+        using var verification = DocumentReadTelemetry.Start("document.content.verify");
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var path = Path.Combine(Path.GetTempPath(), $"pegasus-cache-{Guid.NewGuid():N}.tmp");
         var retained = new FileStream(
@@ -872,6 +880,7 @@ internal sealed class DocumentThumbnailCache(
         string variant,
         CancellationToken cancellationToken)
     {
+        using var cacheRead = DocumentReadTelemetry.Start("document.thumbnail.cache.read");
         StaffAuthorization.Require(
             actor,
             actor.Kind == ActorKind.SystemWorker
@@ -939,6 +948,7 @@ internal sealed class DocumentThumbnailCache(
         byte[] content,
         CancellationToken cancellationToken)
     {
+        using var cacheWrite = DocumentReadTelemetry.Start("document.thumbnail.cache.write");
         var now = timeProvider.GetUtcNow();
         var identity = $"{CachePrefix}document-versions/{versionId:D}/{variant}";
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -1152,6 +1162,7 @@ internal static class ImageThumbnailRendering
         CaseAssetCrop crop,
         CancellationToken cancellationToken)
     {
+        using var rendering = DocumentReadTelemetry.Start("document.thumbnail.render");
         ArgumentNullException.ThrowIfNull(crop);
         ArgumentNullException.ThrowIfNull(content);
         if (contentLength <= 0 || contentLength > MaximumSourceBytes)
@@ -1164,7 +1175,10 @@ internal static class ImageThumbnailRendering
             await content.CopyToAsync(buffer, cancellationToken);
             source = buffer.ToArray();
         }
-        await DecodeGate.WaitAsync(cancellationToken);
+        using (DocumentReadTelemetry.Start("document.thumbnail.decode.gate"))
+        {
+            await DecodeGate.WaitAsync(cancellationToken);
+        }
         try
         {
             return rotation == CaseAssetRotation.None && crop.IsFull

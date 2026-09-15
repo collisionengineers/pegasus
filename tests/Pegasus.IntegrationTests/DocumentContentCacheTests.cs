@@ -94,6 +94,42 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task AColdDocumentReadEmitsOnlyAllowlistedCacheProviderAndVerificationPhases()
+    {
+        var phases = new List<string>();
+        using var scope = new Activity(nameof(AColdDocumentReadEmitsOnlyAllowlistedCacheProviderAndVerificationPhases));
+        scope.Start();
+        using var listener = new ActivityListener
+        {
+            ShouldListenTo = source => source.Name == "Pegasus.Documents",
+            Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+            ActivityStopped = activity =>
+            {
+                if (activity.TraceId == scope.TraceId)
+                {
+                    phases.Add(activity.DisplayName);
+                }
+            }
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        var bytes = "telemetry phases"u8.ToArray();
+        var estate = await Estate.CreateAsync(bytes);
+        await using (estate)
+        await using (var content = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None))
+        {
+            Assert.Equal(bytes, await ReadAsync(content.Content));
+        }
+
+        Assert.Contains("document.original.cache.read", phases);
+        Assert.Contains("document.provider.gate", phases);
+        Assert.Contains("document.provider.read", phases);
+        Assert.Contains("document.content.verify", phases);
+        Assert.Contains("document.original.cache.write", phases);
+        Assert.All(phases, phase => Assert.StartsWith("document.", phase, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task AdministrationHealthReadsRecordedCacheFactsWithoutTouchingContent()
     {
         var bytes = "health cache bytes"u8.ToArray();
