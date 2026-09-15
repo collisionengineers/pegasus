@@ -28,7 +28,6 @@
     var layoutButtons = layoutSwitch
         ? Array.prototype.slice.call(layoutSwitch.querySelectorAll('[data-case-layout]'))
         : [];
-    var layoutKey = 'pegasus.caseLayout';
     var layout = 'scroll';
     var activeKey = record.getAttribute('data-section-current') || 'overview';
     var fragmentPath = window.location.pathname.replace(/\/+$/, '') + '/Section';
@@ -42,6 +41,7 @@
         'case-valuation-form': 'Valuation'
     };
     var pendingAnchor = null;
+    var navigationVersion = 0;
 
     function links() {
         return Array.prototype.slice.call(nav.querySelectorAll('[data-section-link]'));
@@ -56,9 +56,7 @@
         return links().find(function (link) { return link.getAttribute('data-section-link') === key; });
     }
 
-    // The sticky block's own bottom edge is the reading line, so the offset
-    // is never written down twice. site.js measures the same block into
-    // --sticky-h on the record; this repeats it after an in-place swap.
+    // Keep anchors aligned when the ribbon changes height, including swaps.
     function measure() {
         record.style.setProperty('--sticky-h', block.offsetHeight + 'px');
     }
@@ -66,24 +64,9 @@
         return block.getBoundingClientRect().bottom;
     }
 
-    // The layout is served in the first paint from the session cookie
-    // "pegasus-case-layout" (data-layout on the record). A session's earlier
-    // choice kept under sessionStorage seeds a missing cookie once.
     var layoutCookie = 'pegasus-case-layout';
     function readLayout() {
-        var served = record.getAttribute('data-layout') === 'tabs' ? 'tabs' : 'scroll';
-        var prefs = window.pegasusPreferences;
-        if (!prefs || prefs.read(layoutCookie) !== null) {
-            return served;
-        }
-        var legacy = served;
-        try {
-            legacy = window.sessionStorage.getItem(layoutKey) === 'tabs' ? 'tabs' : served;
-        } catch (_) {
-            legacy = served;
-        }
-        prefs.write(layoutCookie, legacy);
-        return legacy;
+        return record.getAttribute('data-layout') === 'tabs' ? 'tabs' : 'scroll';
     }
     function saveLayout() {
         if (window.pegasusPreferences) {
@@ -107,6 +90,7 @@
         sections().forEach(function (host) {
             host.classList.remove('is-active');
             host.removeAttribute('role');
+            host.removeAttribute('aria-labelledby');
         });
     }
     function applyTabState() {
@@ -124,10 +108,12 @@
         sections().forEach(function (host) {
             var key = host.getAttribute('data-section');
             host.setAttribute('role', 'tabpanel');
+            host.setAttribute('aria-labelledby', 'case-section-tab-' + key);
             host.classList.toggle('is-active', key === activeKey);
         });
     }
     function selectTab(key) {
+        navigationVersion += 1;
         pendingAnchor = null;
         if (!linkFor(key)) {
             return;
@@ -142,6 +128,7 @@
         window.scrollTo({ top: 0, behavior: 'auto' });
     }
     function setLayout(value, persist) {
+        navigationVersion += 1;
         pendingAnchor = null;
         layout = value === 'tabs' ? 'tabs' : 'scroll';
         record.setAttribute('data-layout', layout);
@@ -190,25 +177,33 @@
         placeholder.dataset.lazyAttemptedAt = String(Date.now());
         var headers = { 'Accept': 'text/html' };
         var lease = editLeaseToken();
+        var requestedMain = main;
+        var requestedVersion = record.getAttribute('data-case-version');
+        function stillCurrent() {
+            return placeholder.isConnected && requestedMain === main && main.contains(placeholder)
+                && record.getAttribute('data-case-version') === requestedVersion && editLeaseToken() === lease;
+        }
         if (lease) {
             headers['X-Pegasus-Edit-Lease'] = lease;
         }
         fetch(fragmentPath + '?section=' + encodeURIComponent(key), { credentials: 'same-origin', headers: headers })
             .then(function (response) {
-                if (!response.ok) {
+                if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
                     throw new Error('section ' + key + ': ' + response.status);
                 }
                 return response.text();
             })
             .then(function (html) {
-                if (!placeholder.isConnected) {
+                if (!stillCurrent()) {
+                    waiting.length = 0;
+                    delete placeholder.dataset.lazyState;
                     return;
                 }
                 var parsed = document.createElement('div');
                 parsed.innerHTML = html;
-                var host = parsed.querySelector('.record-section') || parsed.firstElementChild;
-                if (!host) {
-                    throw new Error('section ' + key + ': empty');
+                var host = parsed.querySelector('.record-section');
+                if (!host || host.id !== 'section-' + key || host.getAttribute('data-section') !== key) {
+                    throw new Error('section ' + key + ': invalid response');
                 }
                 placeholder.replaceWith(host);
                 // Binders scan below their root, so the mounted section is
@@ -224,6 +219,11 @@
                 settlePendingAnchor();
             })
             .catch(function (error) {
+                if (!stillCurrent()) {
+                    waiting.length = 0;
+                    delete placeholder.dataset.lazyState;
+                    return;
+                }
                 placeholder.dataset.lazyState = 'failed';
                 placeholder.textContent = 'This section could not be loaded.';
                 waiting.length = 0;
@@ -283,6 +283,7 @@
         try { heading.focus({ preventScroll: true }); } catch (_) { heading.focus(); }
     }
     function jumpTo(key, focus) {
+        var navigation = ++navigationVersion;
         if (layout === 'tabs') {
             selectTab(key);
             return;
@@ -295,6 +296,7 @@
         pendingAnchor = predecessors.length ? { key: key, predecessors: predecessors } : null;
         if (target.hasAttribute('data-lazy')) {
             mount(target, function (host) {
+                if (navigation !== navigationVersion || layout !== 'scroll') { return; }
                 scrollSectionIntoView(host);
                 mountApproaching();
                 if (focus) { focusSection(host); }
@@ -392,7 +394,7 @@
         }, 80);
     }, { passive: true });
     ['wheel', 'touchstart', 'pointerdown', 'keydown'].forEach(function (name) {
-        window.addEventListener(name, function () { pendingAnchor = null; }, { passive: true });
+        window.addEventListener(name, function () { pendingAnchor = null; navigationVersion += 1; }, { passive: true });
     });
     window.addEventListener('resize', function () {
         pendingAnchor = null;
@@ -401,6 +403,9 @@
             spy();
         }
     });
+    if ('ResizeObserver' in window) {
+        new ResizeObserver(measure).observe(block);
+    }
 
     // ---- the edit session: dirty guard, heartbeat, expiry ------------------
     function announce(isDirty) {
