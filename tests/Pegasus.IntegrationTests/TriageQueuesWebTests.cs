@@ -208,6 +208,29 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(1, stages.Complete);
         Assert.Equal(1, stages.Query);
         Assert.Equal(1, stages.AwaitingInstruction);
+        Assert.Equal(0, stages.Review);
+        Assert.Equal(0, stages.Held);
+        Assert.Equal(0, stages.WithEngineer);
+        var triageCount = await services.GetRequiredService<IListTriage>().CountAsync(
+            StaffActor(),
+            state: null,
+            cancellationToken: CancellationToken.None);
+        var openUnidentifiedCount = await services.GetRequiredService<IUnidentifiedStore>()
+            .CountOpenAsync(CancellationToken.None);
+        Assert.Equal(0, triageCount);
+        // The no-registration recognition fake reaches the image group's
+        // terminal Unidentified route. Staff registration then establishes
+        // Awaiting instruction without erasing that separate open exception.
+        Assert.Equal(1, openUnidentifiedCount);
+        var expectedShellCount = stages.NotReady
+            + stages.Review
+            + stages.WithEngineer
+            + stages.Query
+            + stages.Held
+            + triageCount
+            + openUnidentifiedCount;
+        // Completed and Awaiting instruction intentionally are not shell work.
+        Assert.Equal(3, expectedShellCount);
 
         using var queryResponse = await client.GetAsync("/Cases?tab=query");
         var queryHtml = await queryResponse.Content.ReadAsStringAsync();
@@ -215,7 +238,7 @@ public sealed class TriageQueuesWebTests
         Assert.Contains(queryReference, queryHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(completeReference, queryHtml, StringComparison.Ordinal);
         Assert.Equal(1, QueueCount(queryHtml, "Query"));
-        Assert.Equal(2, ShellCasesCount(queryHtml));
+        Assert.Equal(expectedShellCount, ShellCasesCount(queryHtml));
 
         using var completeResponse = await client.GetAsync("/Cases?tab=complete");
         var completeHtml = await completeResponse.Content.ReadAsStringAsync();
@@ -223,7 +246,7 @@ public sealed class TriageQueuesWebTests
         Assert.Contains(completeReference, completeHtml, StringComparison.Ordinal);
         Assert.DoesNotContain(queryReference, completeHtml, StringComparison.Ordinal);
         Assert.Equal(1, QueueCount(completeHtml, "Completed"));
-        Assert.Equal(2, ShellCasesCount(completeHtml));
+        Assert.Equal(expectedShellCount, ShellCasesCount(completeHtml));
     }
 
     [Fact]

@@ -348,11 +348,11 @@ public sealed partial class OperationsWebTests
 
         Assert.Contains("Send Unidentified to AI", html, StringComparison.Ordinal);
         Assert.Contains("name=\"unidentifiedReference\"", html, StringComparison.Ordinal);
-        // The rendered page reads the queue once, for the global rail's Cases
-        // count (the v26 bell is personal notifications and reads no queue).
+        // The rendered page counts open items once for the global Cases rail.
         // The action resolves one indexed reference and its redirect must not
         // enumerate the queue for an unused shell.
-        Assert.Equal(1, aiWork.QueueListCalls);
+        Assert.Equal(1, aiWork.QueueCountCalls);
+        Assert.Equal(0, aiWork.QueueListCalls);
 
         using var response = await client.PostAsync(
             "/Operations?handler=SendUnidentifiedToAi",
@@ -370,7 +370,8 @@ public sealed partial class OperationsWebTests
         Assert.Equal(ActorKind.Staff, command.Actor.Kind);
         Assert.False(string.IsNullOrWhiteSpace(command.Instruction));
         Assert.Equal(1, aiWork.ReferenceLookupCalls);
-        Assert.Equal(1, aiWork.QueueListCalls);
+        Assert.Equal(1, aiWork.QueueCountCalls);
+        Assert.Equal(0, aiWork.QueueListCalls);
     }
 
     [Fact]
@@ -913,8 +914,11 @@ public sealed partial class OperationsWebTests
 
         public bool HasOpenUnidentified { get; init; } = true;
 
-        public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(HasOpenUnidentified ? 1 : 0);
+        public Task<int> CountOpenAsync(CancellationToken cancellationToken = default)
+        {
+            QueueCountCalls++;
+            return Task.FromResult(HasOpenUnidentified ? 1 : 0);
+        }
 
         public bool HasJobs { get; init; } = true;
         public bool RefuseCreate { get; init; }
@@ -923,6 +927,7 @@ public sealed partial class OperationsWebTests
         public ConfirmAiJobCommand? Confirmed { get; private set; }
         public CancelAiJobCommand? Cancelled { get; private set; }
         public int QueueListCalls { get; private set; }
+        public int QueueCountCalls { get; private set; }
         public int ReferenceLookupCalls { get; private set; }
 
         private IReadOnlyList<AiJobRecord> All => HasJobs
