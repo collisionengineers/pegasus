@@ -1,4 +1,7 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Pegasus.Core.Address;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -22,6 +25,125 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class CaseWorkspacePersistenceTests
 {
+    [Fact]
+    public async Task FocusedPageAndFilesReadsKeepHistoryAndTypedCaseDataOutOfTheirBodies()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var occurrenceId = Guid.NewGuid();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            context.AddRange(
+                new CaseDocumentEntity
+                {
+                    Id = documentId,
+                    CaseId = harness.CaseId,
+                    Ordinal = 1,
+                    SourceOccurrenceIdentity = "focused-page-file"
+                },
+                new DocumentVersionEntity
+                {
+                    Id = versionId,
+                    DocumentId = documentId,
+                    Version = 1,
+                    FileName = "report.pdf",
+                    MediaType = "application/pdf",
+                    ContentLength = 1,
+                    Sha256 = new string('d', 64),
+                    CustodyStatus = DocumentCustodyStatus.Confirmed,
+                    CreatedAtUtc = harness.TimeProvider.GetUtcNow(),
+                    CreatedBy = "Staff:fixture",
+                    IsCurrent = true
+                },
+                new DocumentOccurrenceEntity
+                {
+                    Id = occurrenceId,
+                    CaseId = harness.CaseId,
+                    DocumentId = documentId,
+                    VersionId = versionId,
+                    SemanticRole = DocumentSemanticRole.EngineerReport,
+                    Source = DocumentSource.StaffUpload,
+                    SourceOccurrenceIdentity = "focused-page-file",
+                    RecordedAtUtc = harness.TimeProvider.GetUtcNow(),
+                    OperationKey = "focused-page-file",
+                    PreparationRole = nameof(CaseAssetReportRole.NotUsed)
+                });
+            await context.SaveChangesAsync();
+        }
+
+        string connectionString;
+        await using (var connectionContext = await harness.Factory.CreateDbContextAsync())
+        {
+            connectionString = connectionContext.Database.GetConnectionString()
+                ?? throw new InvalidOperationException("The SQL fixture has no connection string.");
+        }
+
+        var pageOptions = new DbContextOptionsBuilder<PegasusDbContext>()
+            .UseSqlServer(connectionString)
+            .AddInterceptors(new RejectingQueryReadInterceptor("[CaseWorkflowEvents]"))
+            .Options;
+        using var pageFactory = new PooledDbContextFactory<PegasusDbContext>(pageOptions);
+        var frame = await new EfCaseQueryStore(pageFactory, harness.TimeProvider)
+            .GetPageFrameAsync(harness.CaseId, CancellationToken.None);
+
+        var filesOptions = new DbContextOptionsBuilder<PegasusDbContext>()
+            .UseSqlServer(connectionString)
+            .AddInterceptors(new RejectingQueryReadInterceptor("[CaseAssessmentFields]"))
+            .Options;
+        using var filesFactory = new PooledDbContextFactory<PegasusDbContext>(filesOptions);
+        var filesStore = new EfCaseQueryStore(filesFactory, harness.TimeProvider);
+        var directFiles = await filesStore.GetFilesSectionAsync(
+            harness.CaseId,
+            includeDocuments: false,
+            CancellationToken.None);
+        var fragmentFiles = await filesStore.GetFilesSectionAsync(
+            harness.CaseId,
+            includeDocuments: true,
+            CancellationToken.None);
+        var history = await new EfCaseQueryStore(harness.Factory, harness.TimeProvider)
+            .ListHistoryAsync(harness.CaseId, CancellationToken.None);
+
+        Assert.NotNull(frame);
+        Assert.Equal(harness.CaseId, frame!.Frame.Workflow.CaseId);
+        Assert.Single(frame.Documents);
+        Assert.NotNull(directFiles);
+        Assert.Empty(directFiles!.Documents);
+        Assert.NotNull(fragmentFiles);
+        Assert.Single(fragmentFiles!.Documents);
+        Assert.NotEmpty(history);
+        Assert.Null(typeof(CasePageFrameData).GetProperty("History"));
+        Assert.Null(typeof(CaseFilesSectionData).GetProperty("Data"));
+        Assert.Null(typeof(CaseFilesSectionData).GetProperty("AvailableReportSentEvidence"));
+    }
+
+    [Fact]
+    public async Task RenderLeaseValidationUsesTheCurrentPersistedHashForValidWrongAndStaleTokens()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(
+            initial.Version,
+            harness.StaffActor,
+            "focused-render-lease");
+        var validator = new ValidateCaseRenderLease(
+            new EfCaseQueryStore(harness.Factory, harness.TimeProvider),
+            harness.TimeProvider);
+
+        Assert.True(await validator.ExecuteAsync(
+            new(harness.CaseId, harness.StaffActor, lease.Token),
+            CancellationToken.None));
+        Assert.False(await validator.ExecuteAsync(
+            new(harness.CaseId, harness.StaffActor, new string('b', CaseEditAuthority.LeaseTokenLength)),
+            CancellationToken.None));
+
+        harness.TimeProvider.Advance(TimeSpan.FromMinutes(6));
+
+        Assert.False(await validator.ExecuteAsync(
+            new(harness.CaseId, harness.StaffActor, lease.Token),
+            CancellationToken.None));
+    }
+
     [Fact]
     public async Task ClaimSourceGuidanceIsAnImmutableTimelineSnapshotAppliedOncePerTemplate()
     {
@@ -897,6 +1019,25 @@ public sealed class CaseWorkspacePersistenceTests
         await using var context = await harness.Factory.CreateDbContextAsync();
         return await context.CaseAssessmentFields.AsNoTracking()
             .LongCountAsync(item => item.CaseId == harness.CaseId);
+    }
+
+    private sealed class RejectingQueryReadInterceptor(string forbiddenCommandText) : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (eventData.CommandSource == CommandSource.LinqQuery
+                && command.CommandText.Contains(forbiddenCommandText, StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"Focused reader queried the excluded body table {forbiddenCommandText}.");
+            }
+
+            return ValueTask.FromResult(result);
+        }
     }
 
     private static CaseWorkspaceOverview Overview(string claimantName) => new(

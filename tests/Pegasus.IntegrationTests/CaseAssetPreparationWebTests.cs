@@ -40,6 +40,7 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
                 Substitute<ICaseAssetPreparationQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -104,6 +105,7 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
                 Substitute<ICaseAssetPreparationQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -362,6 +364,7 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
                 Substitute<ICaseAssetPreparationQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -667,6 +670,13 @@ public sealed partial class CaseDetailsWebTests
             Guid caseId,
             CancellationToken cancellationToken) =>
             Task.FromResult(Current());
+
+        Task<CaseAssetPreparation?> ICaseAssetPreparationQueries.GetForOccurrenceAsync(
+            Guid caseId,
+            Guid occurrenceId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Preparations.SingleOrDefault(item =>
+                item.CaseId == caseId && item.OccurrenceId == occurrenceId));
 
         private IReadOnlyList<CaseAssetPreparation> Current() =>
         [

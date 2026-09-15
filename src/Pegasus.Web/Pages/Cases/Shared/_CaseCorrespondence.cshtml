@@ -3,7 +3,8 @@
 @using Pegasus.Web.Presentation
 @using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
 @{
-    var emails = Model.Case!.QueryEmails;
+    var emails = Model.FilesSection?.QueryEmails ?? [];
+    var summary = Model.CurrentSummary!;
 }
 
 @* The Files section's Correspondence tab (CASE-009): every retained email
@@ -13,7 +14,7 @@
     @if (Model.StaffMailAvailable)
     {
         <div class="button-row">
-            <a class="btn btn--small" asp-page="/Mail/Compose" asp-route-caseReference="@Model.Case!.Summary.Reference" data-compose>
+            <a class="btn btn--small" asp-page="/Mail/Compose" asp-route-caseReference="@summary.Reference" data-compose>
                 <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                 <span>@FilesLabels.Compose</span>
             </a>

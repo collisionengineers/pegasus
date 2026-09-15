@@ -28,6 +28,34 @@ public sealed class EfCaseAssetPreparationStore(
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    public async Task<CaseAssetPreparation?> GetForOccurrenceAsync(
+        Guid caseId,
+        Guid occurrenceId,
+        CancellationToken cancellationToken)
+    {
+        if (caseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(caseId));
+        }
+        if (occurrenceId == Guid.Empty)
+        {
+            throw new ArgumentException("An occurrence identifier is required.", nameof(occurrenceId));
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var snapshot = await (
+            from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                on occurrence.VersionId equals version.Id
+            where occurrence.CaseId == caseId
+                && occurrence.Id == occurrenceId
+                && occurrence.SemanticRole == DocumentSemanticRole.Image
+            select new { Occurrence = occurrence, Version = version })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return snapshot is null ? null : ToPreparation(snapshot.Occurrence, snapshot.Version);
+    }
+
     public async Task<IReadOnlyList<CaseAssetPreparation>> ListForCaseAsync(
         Guid caseId,
         CancellationToken cancellationToken)
@@ -45,6 +73,7 @@ public sealed class EfCaseAssetPreparationStore(
         SaveCaseAssetPreparationRequest request,
         CancellationToken cancellationToken)
     {
+        using var preparationWrite = DocumentReadTelemetry.Start("document.preparation.write");
         ArgumentNullException.ThrowIfNull(request);
         ValidateActor(request.Actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
@@ -121,6 +150,7 @@ public sealed class EfCaseAssetPreparationStore(
         ResetCaseAssetPreparationRequest request,
         CancellationToken cancellationToken)
     {
+        using var preparationWrite = DocumentReadTelemetry.Start("document.preparation.write");
         ArgumentNullException.ThrowIfNull(request);
         ValidateActor(request.Actor);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);

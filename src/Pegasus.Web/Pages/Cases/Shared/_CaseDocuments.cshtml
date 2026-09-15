@@ -4,8 +4,7 @@
 @using Pegasus.Web.Presentation
 @using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
 @{
-    var details = Model.Case!;
-    var workflow = details.Workflow;
+    var workflow = Model.CurrentWorkflow!;
     var leaseToken = Model.RenderLeaseToken;
     var mayEdit = Model.CanEditCaseData;
     // Every current non-image file, whatever its custody has reached. The row

@@ -18,8 +18,8 @@
 @using Pegasus.Web.Presentation
 @using ValuationLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Valuation
 @{
-    var details = Model.Case!;
-    var workflow = details.Workflow;
+    var section = Model.ValuationSection;
+    var workflow = section?.Frame.Workflow ?? Model.Case!.Workflow;
     var caseId = workflow.CaseId;
     var editable = Model.SectionIsEditable("valuation");
     var engineerValue = Model.EngineerValue;
@@ -46,7 +46,7 @@
         .ThenByDescending(valuation => valuation.Details.Time)
         .ThenByDescending(valuation => valuation.RecordedAtUtc)
         .FirstOrDefault();
-    var acceptedMileage = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(details.Data?.Vehicle.Mileage)?.Value;
+    var acceptedMileage = Pegasus.Web.Pages.Cases.DetailsModel.Accepted((section?.Data ?? Model.Case!.Data)?.Vehicle.Mileage)?.Value;
     var basisName = basis is null ? null : ValuationLabels.SourceLabel(basis.Details.Source);
     var appliedBasis = applied is null
         ? null

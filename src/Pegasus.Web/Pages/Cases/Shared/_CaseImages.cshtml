@@ -7,8 +7,7 @@
 @using TagLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ImageTags
 @using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
 @{
-    var details = Model.Case!;
-    var workflow = details.Workflow;
+    var workflow = Model.CurrentWorkflow!;
     var leaseToken = Model.RenderLeaseToken;
     var mayEdit = Model.CanEditCaseData;
     var mayPrepareImages = Model.MayPrepareImages;
