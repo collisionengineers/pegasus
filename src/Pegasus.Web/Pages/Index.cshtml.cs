@@ -97,6 +97,18 @@ public partial class IndexModel(
     /// <summary>True when one or more independently rendered live sections could not be read.</summary>
     public bool HasReadFailure => IsUnavailable || NewCasesUnavailable || AiJobsUnavailable;
 
+    /// <summary>The fragment outcome is failed only when no independently rendered section was read.</summary>
+    public string RefreshOutcome => !HasReadFailure
+        ? "current"
+        : IsUnavailable && NewCasesUnavailable && AiJobsUnavailable ? "failed" : "partial";
+
+    public string RefreshOutcomeLabel => RefreshOutcome switch
+    {
+        "failed" => "Refresh unavailable",
+        "partial" => "Partially refreshed",
+        _ => "Current"
+    };
+
     [TempData(Key = "WorkCentreStatus")]
     public string? StatusMessage { get; set; }
 
@@ -390,8 +402,8 @@ public partial class IndexModel(
                 actor,
                 NewCasesPage,
                 markSeen: NewCasesPage == 1 && !refresh,
-                cancellationToken);
-            NewCasesLoadedAtUtc = timeProvider.GetUtcNow();
+                cancellationToken, NowUtc);
+            NewCasesLoadedAtUtc = NowUtc;
             DividerUtc = refresh
                 && DateTimeOffset.TryParse(since, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var carried)
                     ? carried
@@ -406,7 +418,7 @@ public partial class IndexModel(
         try
         {
             AiJobs = await ReadAiJobsAsync(cancellationToken);
-            AiJobsLoadedAtUtc = timeProvider.GetUtcNow();
+            AiJobsLoadedAtUtc = NowUtc;
         }
         catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
         {
@@ -425,14 +437,14 @@ public partial class IndexModel(
     {
         var filter = Kinds.Count > 0 ? Kinds : null;
         var snapshot = await getOperationsSnapshot.ExecuteAsync(
-            new NeedsAttentionQuery(actor, Scope, CurrentPage, filter),
+            new NeedsAttentionQuery(actor, Scope, CurrentPage, filter, NowUtc),
             cancellationToken);
         if (snapshot.Attention.Items.Count == 0 && CurrentPage > snapshot.Attention.TotalPages)
         {
             // A page past the end (the list shrank) lands on the last page, not an empty one.
             CurrentPage = snapshot.Attention.TotalPages;
             snapshot = await getOperationsSnapshot.ExecuteAsync(
-                new NeedsAttentionQuery(actor, Scope, CurrentPage, filter),
+                new NeedsAttentionQuery(actor, Scope, CurrentPage, filter, NowUtc),
                 cancellationToken);
         }
 

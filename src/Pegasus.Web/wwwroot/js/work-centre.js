@@ -116,19 +116,36 @@
         var label = next.querySelector('[data-wc-refresh-outcome-label]');
         if (label) {
             label.textContent = outcome === 'failed' ? 'Refresh unavailable'
-                : outcome === 'partial' ? 'Partially refreshed' : 'Current';
+                : outcome === 'partial' ? 'Partially refreshed'
+                    : outcome === 'deferred' ? 'Refresh deferred' : 'Current';
         }
+    }
+
+    function markRefreshFailed(current) {
+        if (!current) {
+            return;
+        }
+        SECTION_NAMES.forEach(function (name) {
+            var currentSection = section(current, name);
+            if (currentSection && currentSection.getAttribute('data-wc-refresh-state') !== 'unavailable') {
+                markStale(currentSection);
+            }
+        });
+        setOutcome(current, 'failed');
     }
 
     function applyRefresh(html) {
         if (/<html[\s>]/i.test(html)) {
-            return false;
+            return 'failed';
         }
         var parsed = new DOMParser().parseFromString(html, 'text/html');
         var next = parsed.querySelector('[data-work-centre]');
         var live = root();
-        if (!next || !live || operatorIsWorking(live)) {
-            return false;
+        if (!next || !live) {
+            return 'failed';
+        }
+        if (operatorIsWorking(live)) {
+            return 'deferred';
         }
 
         var savedScroll = captureScroll(live);
@@ -138,19 +155,13 @@
         });
         // Validate the entire response before moving any last-good live nodes.
         if (pairs.some(function (pair) { return !pair.next || !pair.live; })) {
-            return false;
+            return 'failed';
         }
         var successfulSection = pairs.some(function (pair) {
             return pair.next.getAttribute('data-wc-refresh-state') === 'current';
         });
         if (!successfulSection) {
-            pairs.forEach(function (pair) {
-                if (pair.live.getAttribute('data-wc-refresh-state') !== 'unavailable') {
-                    markStale(pair.live);
-                }
-            });
-            setOutcome(live, 'failed');
-            return false;
+            return 'failed';
         }
         for (var index = 0; index < SECTION_NAMES.length; index += 1) {
             var nextSection = pairs[index].next;
@@ -180,12 +191,19 @@
         }
         (window.pegasusMountBinders || []).forEach(function (bind) { bind(adopted); });
         lastRefresh = Date.now();
-        return true;
+        return 'applied';
     }
 
     function refresh() {
         var current = root();
-        if (refreshing || !current || operatorIsWorking(current)) {
+        if (refreshing || !current) {
+            return;
+        }
+        if (operatorIsWorking(current)) {
+            // A live form or dialog is protected from replacement. This is a
+            // deferred refresh, not a failed one, so its last-good sections
+            // remain current and no fresh timestamp is claimed.
+            setOutcome(current, 'deferred');
             return;
         }
 
@@ -214,8 +232,18 @@
                 return response.text();
             })
             .then(applyRefresh)
+            .then(function (outcome) {
+                if (outcome === 'failed') {
+                    markRefreshFailed(root());
+                }
+                else if (outcome === 'deferred') {
+                    setOutcome(root(), 'deferred');
+                }
+            })
             .catch(function () {
-                // A failed or malformed refresh keeps the last good display.
+                // Transport, sign-in redirects and malformed fragments retain
+                // the last good display but make its freshness explicit.
+                markRefreshFailed(root());
             })
             .then(function () {
                 refreshing = false;
