@@ -111,9 +111,11 @@ public sealed class AssessmentCopyWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCasePageFrame>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.AddSingleton<IGetCase>(fakeSource);
+                services.AddSingleton<IGetCasePageFrame>(fakeSource);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
                 services.AddSingleton<IGetAssessmentWorkspace>(fakeSource);
             }));
@@ -152,7 +154,7 @@ public sealed class AssessmentCopyWebTests
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
-    private sealed class FakeGetCase(Guid caseId) : IGetCase, IGetAssessmentWorkspace
+    private sealed class FakeGetCase(Guid caseId) : IGetCase, IGetCasePageFrame, IGetAssessmentWorkspace
     {
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
         {
@@ -174,6 +176,21 @@ public sealed class AssessmentCopyWebTests
             return Task.FromResult<CaseDetails?>(details);
         }
 
+        async Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            return details is null
+                ? null
+                : new(
+                    new(details.Summary, details.Workflow, details.ActiveEditLease),
+                    details.Documents,
+                    details.AvailableReportSentEvidence,
+                    details.RecordNotes,
+                    AssessmentWorkspaceTestData.Create(CreateAssessment()).Data);
+        }
+
         public async Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query,
             CancellationToken cancellationToken = default)
@@ -183,10 +200,17 @@ public sealed class AssessmentCopyWebTests
             {
                 return null;
             }
-            var assessment = new CaseAssessmentProjection(
-                caseId, "QDOS-2026-00042", 7, CaseLifecycleState.Review, null, [], [],
-                new(null, null, null, null, null, null, "tbc", null, null, null, null));
-            return AssessmentWorkspaceTestData.Create(details, assessment);
+            return AssessmentWorkspaceTestData.Create(details, CreateAssessment());
         }
+
+        private CaseAssessmentProjection CreateAssessment() => new(
+            caseId,
+            "QDOS-2026-00042",
+            7,
+            CaseLifecycleState.Review,
+            null,
+            [],
+            [],
+            new(null, null, null, null, null, null, "tbc", null, null, null, null));
     }
 }

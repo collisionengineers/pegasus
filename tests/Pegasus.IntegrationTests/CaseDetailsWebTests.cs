@@ -1996,6 +1996,7 @@ public sealed partial class CaseDetailsWebTests
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingCaseDetailsStore();
+        var otherStore = new RecordingCaseDetailsStore();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -2003,6 +2004,9 @@ public sealed partial class CaseDetailsWebTests
                 services.RemoveAll<ISaveCaseWorkspace>();
                 services.AddSingleton<IGetCase>(store);
                 SubstituteDetailsPageReaders(services, store);
+                var readers = new TwoCasePageReaders(store, otherStore);
+                Substitute<IGetCasePageFrame>(services, readers);
+                Substitute<IGetAssessmentWorkspace>(services, readers);
                 services.AddSingleton<ISaveCaseWorkspace>(store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -2025,7 +2029,7 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(saveResponse, store.CaseId);
 
         // Another case is visited before the refused editor returns to theirs.
-        using var otherCaseResponse = await client.GetAsync($"/Cases/{Guid.NewGuid():D}");
+        using var otherCaseResponse = await client.GetAsync($"/Cases/{otherStore.CaseId:D}");
         Assert.Equal(HttpStatusCode.OK, otherCaseResponse.StatusCode);
 
         var refusedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
@@ -2931,6 +2935,35 @@ public sealed partial class CaseDetailsWebTests
         Substitute<IGetCaseFilesSection>(services, store);
         Substitute<IGetAssessmentWorkspace>(services, store);
     }
+
+    /// <summary>
+    /// The refusal test visits a distinct record between its failed save and
+    /// return. Both focused reads dispatch by Case ID, so its visit cannot be
+    /// satisfied by the first record's page frame or assessment workspace.
+    /// </summary>
+    private sealed class TwoCasePageReaders(
+        RecordingCaseDetailsStore first,
+        RecordingCaseDetailsStore second) : IGetCasePageFrame, IGetAssessmentWorkspace
+    {
+        public Task<CasePageFrame?> ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken) =>
+            query.CaseId == first.CaseId
+                ? ((IGetCasePageFrame)first).ExecuteAsync(query, cancellationToken)
+                : query.CaseId == second.CaseId
+                    ? ((IGetCasePageFrame)second).ExecuteAsync(query, cancellationToken)
+                    : Task.FromResult<CasePageFrame?>(null);
+
+        public Task<AssessmentWorkspace?> ExecuteAsync(
+            GetAssessmentWorkspaceQuery query,
+            CancellationToken cancellationToken) =>
+            query.CaseId == first.CaseId
+                ? ((IGetAssessmentWorkspace)first).ExecuteAsync(query, cancellationToken)
+                : query.CaseId == second.CaseId
+                    ? ((IGetAssessmentWorkspace)second).ExecuteAsync(query, cancellationToken)
+                    : Task.FromResult<AssessmentWorkspace?>(null);
+    }
+
     private sealed class CountingAssessmentWorkspace(AssessmentWorkspace workspace) : IGetAssessmentWorkspace
     {
         public AssessmentWorkspace Workspace { get; } = workspace;

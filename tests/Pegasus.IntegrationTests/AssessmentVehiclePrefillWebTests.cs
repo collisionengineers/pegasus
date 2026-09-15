@@ -28,10 +28,14 @@ public sealed class AssessmentVehiclePrefillWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCasePageFrame>();
+                services.RemoveAll<IGetCaseVehicleSection>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId);
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetCasePageFrame>(source);
+                services.AddSingleton<IGetCaseVehicleSection>(source);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
             }));
@@ -70,10 +74,14 @@ public sealed class AssessmentVehiclePrefillWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCasePageFrame>();
+                services.RemoveAll<IGetCaseVehicleSection>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId, includeConfirmedFacts: true);
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetCasePageFrame>(source);
+                services.AddSingleton<IGetCaseVehicleSection>(source);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
             }));
@@ -106,10 +114,14 @@ public sealed class AssessmentVehiclePrefillWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCasePageFrame>();
+                services.RemoveAll<IGetCaseVehicleSection>();
                 services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId, includePartialConfirmedFacts: true);
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetCasePageFrame>(source);
+                services.AddSingleton<IGetCaseVehicleSection>(source);
                 services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
             }));
@@ -132,13 +144,13 @@ public sealed class AssessmentVehiclePrefillWebTests
         Guid caseId,
         bool includeConfirmedFacts = false,
         bool includePartialConfirmedFacts = false)
-        : IGetCase, IGetAssessmentWorkspace
+        : IGetCase, IGetCasePageFrame, IGetCaseVehicleSection, IGetAssessmentWorkspace
     {
-        public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
+        private CaseDetails? Details(Guid requestedCaseId)
         {
-            if (query.CaseId != caseId)
+            if (requestedCaseId != caseId)
             {
-                return Task.FromResult<CaseDetails?>(null);
+                return null;
             }
 
             var identity = new CaseIdentity(caseId, "QDOS", 2026, 42, "QDOS-2026-00042");
@@ -156,23 +168,58 @@ public sealed class AssessmentVehiclePrefillWebTests
             CaseDetails details = new(
                 summary, workflow, null, [], null, CaseCustodyState.Pending, [], [], [])
             {
-                Data = includeConfirmedFacts || includePartialConfirmedFacts
-                    ? Data(identity, workflow, includePartialConfirmedFacts)
-                    : null,
+                Data = Data(identity, workflow, includeConfirmedFacts, includePartialConfirmedFacts),
                 VehicleEvidence = new(caseId, confirmed, observation, [observation], []),
             };
-            return Task.FromResult<CaseDetails?>(details);
+            return details;
         }
 
-        public async Task<AssessmentWorkspace?> ExecuteAsync(
+        public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
+            Task.FromResult(Details(query.CaseId));
+
+        Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = Details(query.CaseId);
+            return Task.FromResult<CasePageFrame?>(details is null
+                ? null
+                : new(
+                    new(details.Summary, details.Workflow, details.ActiveEditLease),
+                    details.Documents,
+                    details.AvailableReportSentEvidence,
+                    details.RecordNotes,
+                    details.Data!));
+        }
+
+        Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = Details(query.CaseId);
+            if (details is null)
+            {
+                return Task.FromResult<CaseVehicleSection?>(null);
+            }
+
+            var workspace = query.AssessmentWorkspace ?? Workspace(details);
+            return Task.FromResult<CaseVehicleSection?>(new(
+                new(details.Summary, details.Workflow, details.ActiveEditLease),
+                workspace.Data,
+                workspace.LatestVehicleObservation,
+                workspace.Assessment));
+        }
+
+        public Task<AssessmentWorkspace?> ExecuteAsync(
             GetAssessmentWorkspaceQuery query,
             CancellationToken cancellationToken = default)
         {
-            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
-            if (details is null)
-            {
-                return null;
-            }
+            var details = Details(query.CaseId);
+            return Task.FromResult(details is null ? null : Workspace(details));
+        }
+
+        private AssessmentWorkspace Workspace(CaseDetails details)
+        {
             var assessment = new CaseAssessmentProjection(
                 caseId,
                 details.Summary.Reference,
@@ -215,6 +262,7 @@ public sealed class AssessmentVehiclePrefillWebTests
     private static CaseDataProjection Data(
         CaseIdentity identity,
         CaseWorkflowRecord workflow,
+        bool includeConfirmedFacts = false,
         bool partialConfirmedVehicleEvidence = false)
     {
         var source = new CaseDataSource(CaseDataSourceKind.IntakeEvidence, "instruction", "Instruction", "test", 1);
@@ -238,12 +286,12 @@ public sealed class AssessmentVehiclePrefillWebTests
             new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(Empty<string>()),
             new(
-                partialConfirmedVehicleEvidence ? Fact("AB12CDE") : Confirmed("AB12CDE"),
-                Confirmed("FORD"),
-                partialConfirmedVehicleEvidence ? Empty<string>() : Confirmed("FOCUS"),
-                partialConfirmedVehicleEvidence ? Empty<string>() : Confirmed("2019"),
-                partialConfirmedVehicleEvidence ? Empty<long>() : Confirmed(40000L),
-                partialConfirmedVehicleEvidence ? Empty<string>() : Confirmed("miles")),
+                includeConfirmedFacts && !partialConfirmedVehicleEvidence ? Confirmed("AB12CDE") : Fact("AB12CDE"),
+                (includeConfirmedFacts || partialConfirmedVehicleEvidence) ? Confirmed("FORD") : Empty<string>(),
+                includeConfirmedFacts && !partialConfirmedVehicleEvidence ? Confirmed("FOCUS") : Empty<string>(),
+                includeConfirmedFacts && !partialConfirmedVehicleEvidence ? Confirmed("2019") : Empty<string>(),
+                includeConfirmedFacts && !partialConfirmedVehicleEvidence ? Confirmed(40000L) : Empty<long>(),
+                includeConfirmedFacts && !partialConfirmedVehicleEvidence ? Confirmed("miles") : Empty<string>()),
             new(Empty<DateOnly>(), Empty<string>()),
             new(Empty<string>(), Empty<string>(), Empty<string>()),
             new(Empty<DateOnly>(), Empty<string>()),
