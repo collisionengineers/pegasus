@@ -66,7 +66,7 @@ public sealed partial class DetailsModel
     /// lease and the image has a preparation record, not only in report
     /// preparation and not only for an Engineer.
     /// </summary>
-    public bool MayPrepareImages => CanEditCaseData && FilesSection is not null;
+    public bool MayPrepareImages => CanEditCaseData;
 
     /// <summary>
     /// Which files the viewer displays over the page: images, PDFs and the two
