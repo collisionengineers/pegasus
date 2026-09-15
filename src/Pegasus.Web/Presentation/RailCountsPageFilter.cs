@@ -19,7 +19,7 @@ namespace Pegasus.Web.Presentation;
 /// <remarks>
 /// The dictionary keys are the rail routes that can carry a count —
 /// <c>Inbox</c>, <c>Cases</c>, <c>Operations</c>. <c>Cases</c> is the EPIC-011
-/// §1.1 contract sum, not_ready + review + with_engineer + held + triage +
+/// §1.1 contract sum, not_ready + review + with_engineer + query + held + triage +
 /// unidentified, read from the same queries the Cases page itself runs:
 /// <see cref="IDashboardQueries.GetCaseStageCountsAsync"/> (one grouped
 /// aggregate), <see cref="IListTriage"/> (the open-Triage total; the rows are
@@ -161,8 +161,8 @@ public sealed partial class RailCountsPageFilter(
         public int Total => Stages.NotReady
             + Stages.Review
             + Stages.WithEngineer
+            + Stages.Query
             + Stages.Held
-            + Stages.AwaitingInstruction
             + TriageCount
             + UnidentifiedCount;
     }

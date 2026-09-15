@@ -21,7 +21,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// row.
 /// </summary>
 /// <remarks>
-/// The rail groups are Workflow (Not ready, Review, With Engineer, Complete),
+/// The rail groups are Workflow (Not ready, Review, With Engineer, Complete, Query),
 /// Pre-Case work (Triage, Awaiting instruction) and Exceptions (Held,
 /// Unidentified). The Unidentified scope lists open items, with closed items
 /// behind its Show filter (received file D5); nothing here lists a Blocked
@@ -92,6 +92,7 @@ public sealed class IndexModel(
         new("review", OperatorLabels.CaseStage(CaseLifecycleState.Review), WorkflowGroup, "icon-check-circle"),
         new("with_engineer", OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation), WorkflowGroup, "icon-user"),
         new("complete", OperatorLabels.CaseStage(CaseLifecycleState.PostReportComplete), WorkflowGroup, "icon-check"),
+        new("query", OperatorLabels.CaseStage(CaseLifecycleState.Query), WorkflowGroup, "icon-reply"),
         new("triage", "Triage", PreCaseGroup, "icon-file-text"),
         new("awaiting", "Awaiting instruction", PreCaseGroup, "icon-image"),
         new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), ExceptionsGroup, "icon-pause", IsException: true),
@@ -162,7 +163,7 @@ public sealed class IndexModel(
 
     /// <summary>Whether the scope lists Case rows, so the Principal filter applies.</summary>
     public static bool ListsCases(string queue) =>
-        queue is "not_ready" or "review" or "with_engineer" or "complete" or "held";
+        queue is "not_ready" or "review" or "with_engineer" or "complete" or "query" or "held";
 
     public CaseStageCounts StageCounts { get; private set; } = new(0, 0, 0, 0);
 
@@ -177,6 +178,7 @@ public sealed class IndexModel(
         "review" => StageCounts.Review,
         "with_engineer" => StageCounts.WithEngineer,
         "complete" => StageCounts.Complete,
+        "query" => StageCounts.Query,
         "triage" => TriageCount,
         "awaiting" => StageCounts.AwaitingInstruction,
         "held" => StageCounts.Held,
@@ -489,7 +491,8 @@ public sealed class IndexModel(
         {
             "review" => [CaseLifecycleState.Review],
             "with_engineer" => [CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport],
-            "complete" => [CaseLifecycleState.PostReportComplete, CaseLifecycleState.Query],
+            "complete" => [CaseLifecycleState.PostReportComplete],
+            "query" => [CaseLifecycleState.Query],
             _ => [CaseLifecycleState.Held]
         };
         var results = await Task.WhenAll(states.Select(state => _searchCases.ExecuteAsync(
