@@ -69,6 +69,46 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("report-images-title", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task FilesImagesWithoutPreparationUseVersionZeroThumbnailAddresses()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store();
+        store.Preparations = [];
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<ICaseAssetPreparationQueries>(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var files = ImageGrid(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files"));
+
+        foreach (var occurrenceId in new[]
+        {
+            fixture.CloseUpOccurrenceId,
+            fixture.OverviewOccurrenceId,
+            fixture.FirstSupportingOccurrenceId,
+            fixture.SecondSupportingOccurrenceId,
+            fixture.UnusedOccurrenceId
+        })
+        {
+            var tile = Assert.Single(
+                Tiles(files),
+                candidate => candidate.Contains(
+                    $"data-image-tile=\"{occurrenceId:D}\"",
+                    StringComparison.Ordinal));
+            Assert.Contains("&amp;prep=0\"", tile, StringComparison.Ordinal);
+        }
+    }
+
     /// <summary>
     /// Custody does not decide whether the operator can see their own file. An
     /// image whose bytes have not reached durable custody is on the Case, so

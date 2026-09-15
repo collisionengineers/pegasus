@@ -131,7 +131,10 @@ public sealed class IndexModel(
         var nowUtc = timeProvider.GetUtcNow();
         // These projections each use an independent factory-created context.
         // Capture the instant once, then let their unrelated reads overlap.
-        var operationsTask = getRequestOperations.ExecuteAsync(actor, cancellationToken);
+        var operationsTask = getRequestOperations.ExecuteAsync(
+            actor,
+            cancellationToken,
+            asOfUtc: nowUtc);
         var evaActivityTask = evaSubmissionQueries.GetActivityAsync(cancellationToken);
         var evaFailuresTask = evaSubmissionQueries.GetRecentFailuresAsync(
             nowUtc - ServiceHealthPolicy.EvaRecentFailureWindow,
