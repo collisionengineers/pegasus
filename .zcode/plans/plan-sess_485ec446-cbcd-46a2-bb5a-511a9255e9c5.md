@@ -1,5 +1,10 @@
 ## Fix: root the zcode Kanmer MCP at the board worktree
 
+Superseded workflow guidance (15 September 2026): Kanmer is not used.
+The current operator task owns scope and coordination; PR review and CI
+record delivery evidence. Kanmer recommendations below are retained only as
+historical evidence and must not be executed or reinstated.
+
 Historical session evidence. This plan is retired from active execution; do
 not recreate its worktrees, rerun its merges or treat it as release authority.
 The owning v1 stream plans and current Kanmer tickets govern current work.

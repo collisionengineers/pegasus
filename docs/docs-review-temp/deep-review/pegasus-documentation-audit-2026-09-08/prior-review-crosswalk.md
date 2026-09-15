@@ -1,5 +1,10 @@
 # Previous-review reconciliation
 
+Superseded workflow guidance (15 September 2026): Kanmer is not used.
+The current operator task owns scope and coordination; PR review and CI
+record delivery evidence. Kanmer recommendations below are retained only as
+historical evidence and must not be executed or reinstated.
+
 Current baseline: `26ba4ed408317cccdb354dc1e115b0297f15df94` (`dev`, 8 September 2026).
 
 All **71 observations in 29 groups** from the supplied 5 September audit are accounted for below. “Resolved wording” means the identified documentation defect is repaired at this revision; it is not a fresh production or behavioral test. “Partially resolved” identifies both the repair and the residue. An old path, date, policy version or retired instruction must not be reintroduced to satisfy a historical review.
