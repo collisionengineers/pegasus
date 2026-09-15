@@ -458,6 +458,15 @@ signature in a fifteen-minute window. Both auto-resolve. Before the tuning
 each fired on a single event and paged several times a day on transient
 faults.
 
+Causes seen in the 7–14 September window and their disposition: the Case
+list's "Confirmed vehicle fields exist without a confirmed vehicle
+registration" throw was removed by `6d51c993d` (Release 44) and last fired on
+10 September before that release; the content cache's `409 BlobAlreadyExists`
+on a concurrent preview, the Intake Source and Asset `500` while Box custody
+was still pending, and unretried transient SQL faults are fixed by the
+alert-causes change (15 September). Transient SQL faults retry only outside a
+store transaction; inside one they surface as before.
+
 Emergency production access is Alex initially, plus specifically designated
 Administrators or Azure operators. Exact credentials and grants are not stored
 in this file. Read-only inventory and external mutation have different authority.

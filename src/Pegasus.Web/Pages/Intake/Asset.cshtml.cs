@@ -73,6 +73,12 @@ public sealed partial class AssetModel(
         {
             return Forbid();
         }
+        catch (FileNotFoundException)
+        {
+            // Durable custody has not confirmed the bytes yet: the receipt is
+            // still being filed, so there is nothing to serve, not a fault.
+            return NotFound();
+        }
         catch (IntakeArtifactIntegrityException exception)
         {
             LogIntakeAssetIntegrityFailure(logger, id, assetId, exception);

@@ -702,7 +702,7 @@ builder.Services.AddPegasusInfrastructure((serviceProvider, options) =>
     var connectionString = serviceProvider.GetRequiredService<IConfiguration>()
         .GetConnectionString("Pegasus")
         ?? throw new InvalidOperationException("Connection string 'Pegasus' is required.");
-    options.UseSqlServer(connectionString);
+    PegasusSqlServer.Configure(options, connectionString);
 }, localArtifactRootFactory, requestUploadLimitsFactory: requestUploadLimitsFactory,
 documentStorage: !productionProfile
     ? null

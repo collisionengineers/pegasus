@@ -84,6 +84,26 @@ public sealed class InstructionEvidenceImagesTests
     }
 
     [Fact]
+    public void APendingOrRefusedPhotographIsCountedButNotServed()
+    {
+        // The receipt carried it, so completeness sees it; the tile has nothing
+        // behind it until custody confirms the bytes, so the gallery does not.
+        var confirmed = Asset(IntakeAssetKind.Attachment, "image/jpeg", 90_000, "aa", "one.jpg")
+            with { CustodyState = IncomingArtifactCustodyState.Confirmed };
+        var pending = Asset(IntakeAssetKind.Attachment, "image/jpeg", 90_000, "bb", "two.jpg")
+            with { CustodyState = IncomingArtifactCustodyState.Pending };
+        var refused = Asset(IntakeAssetKind.Attachment, "image/jpeg", 90_000, "cc", "three.jpg")
+            with { CustodyState = IncomingArtifactCustodyState.Failed };
+        var legacy = Asset(IntakeAssetKind.Attachment, "image/jpeg", 90_000, "dd", "four.jpg");
+
+        var all = InstructionEvidenceImages.Select([confirmed, pending, refused, legacy]);
+        var servable = InstructionEvidenceImages.Servable([confirmed, pending, refused, legacy]);
+
+        Assert.Equal(4, all.Count);
+        Assert.Equal(["four.jpg", "one.jpg"], servable.Select(asset => asset.FileName));
+    }
+
+    [Fact]
     public void AnImageWithNoRecordedDimensionsIsStillAdmitted()
     {
         // Failing open is deliberate: refusing to show a genuine
