@@ -79,10 +79,74 @@ public sealed class RailCountsWebTests
         Assert.Equal(3, int.Parse(badge.Groups[1].Value, CultureInfo.InvariantCulture));
     }
 
+    [Fact]
+    public async Task CasesPageReusesItsLoadedStageCountsForTheShell()
+    {
+        var dashboard = new RecordingDashboardQueries(new(2, 3, 5, 7, 11));
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IDashboardQueries>();
+                services.AddSingleton<IDashboardQueries>(dashboard);
+            }));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync("/Cases");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(1, dashboard.Calls);
+    }
+
+    [Fact]
+    public async Task ValidationPageResultFallsBackToShellCountsWithoutCasesRequestState()
+    {
+        var dashboard = new RecordingDashboardQueries(new(2, 3, 5, 7, 11));
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IDashboardQueries>();
+                services.AddSingleton<IDashboardQueries>(dashboard);
+            }));
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var antiforgeryToken = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        dashboard.Reset();
+
+        using var response = await client.PostAsync(
+            "/Account/PasswordChange",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken,
+                ["OperationKey"] = "not-a-guid",
+                ["CurrentPassword"] = string.Empty,
+                ["NewPassword"] = "new-password",
+                ["ConfirmPassword"] = "new-password"
+            }));
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Enter your current password.", html, StringComparison.Ordinal);
+        Assert.Equal(1, dashboard.Calls);
+    }
+
     private sealed class FixedOperationsBadge(int count) : IGetOperationsBadge
     {
         public Task<int> ExecuteAsync(Pegasus.Core.Identity.ActionActor actor, CancellationToken cancellationToken = default) =>
             Task.FromResult(count);
+    }
+
+    private sealed class RecordingDashboardQueries(CaseStageCounts result) : IDashboardQueries
+    {
+        public int Calls { get; private set; }
+
+        public Task<CaseStageCounts> GetCaseStageCountsAsync(CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(result);
+        }
+
+        public void Reset() => Calls = 0;
     }
 
     [Fact]

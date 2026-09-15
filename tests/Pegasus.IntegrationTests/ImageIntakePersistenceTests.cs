@@ -436,6 +436,13 @@ public sealed class ImageIntakePersistenceTests
         Assert.Equal(reverseSibling ? ImageInitiatedCaseState.AwaitingInstruction
             : ImageInitiatedCaseState.MergedIntoInstructionCase, final!.State);
         Assert.Equal(reverseSibling ? 0 : 1, final.LifecycleVersion);
+        var galleryByIntake = await queries.ListImagesAsync(
+            [record.Id, record.Id, Guid.NewGuid()],
+            CancellationToken.None);
+        Assert.Equal([record.Id], galleryByIntake.Keys);
+        Assert.Equal(memberReceiptIds, galleryByIntake[record.Id]
+            .Select(image => image.IntakeReceiptId));
+        Assert.Empty(await queries.ListImagesAsync([], CancellationToken.None));
         foreach (var memberId in memberReceiptIds)
         {
             var member = await receipts.GetAsync(memberId, CancellationToken.None);
@@ -679,6 +686,7 @@ public sealed class ImageIntakePersistenceTests
             recognitionEngine: new FakeVrmRecognitionEngine());
         using var client = IntakeWebDriver.CreateClient(factory);
         var imageReceiptId = await UploadImageAsync(factory, client);
+        var unrelatedImageReceiptId = await UploadImageAsync(factory, client);
         var caseOriginReceiptId = await UploadCaseOriginAsync(factory, client, "CASE-LINK-01");
         var eligibleCaseId = await SeedCaseAsync(
             factory.Services,
@@ -698,6 +706,7 @@ public sealed class ImageIntakePersistenceTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         await RegisterAsync(services, imageReceiptId, "AB12CDE", "link-eligibility-register");
+        await RegisterAsync(services, unrelatedImageReceiptId, "XY34ZZZ", "link-unrelated-image");
         var link = services.GetRequiredService<ILinkIntake>();
         var reverse = services.GetRequiredService<IReverseIntakeLink>();
         var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
@@ -754,7 +763,7 @@ public sealed class ImageIntakePersistenceTests
         Assert.Equal(eligibleCaseId, associated.MergedIntoCaseId);
         Assert.Equal("IMG26001", associated.MergedIntoCaseReference);
         var forCase = await queries.ListForCaseAsync(eligibleCaseId, CancellationToken.None);
-        Assert.Single(forCase);
+        Assert.Collection(forCase, intake => Assert.Equal(associated.Record.Id, intake.Id));
 
         var unlinkLease = await ClaimLeaseAsync(
             factory.Services,
@@ -777,6 +786,7 @@ public sealed class ImageIntakePersistenceTests
         var afterUnlink = await queries.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
         Assert.Null(afterUnlink!.AssociatedCaseId);
         Assert.Equal("AB12CDE-01", afterUnlink.Record.ImageIntakeReference);
+        Assert.Empty(await queries.ListForCaseAsync(eligibleCaseId, CancellationToken.None));
     }
 
     [Fact]

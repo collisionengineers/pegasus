@@ -370,24 +370,23 @@ public sealed class IndexModel(
         Guid? mailbox,
         CancellationToken cancellationToken)
     {
+        var scopes = ScopeDefinitions.Select(definition => new MailWorkspaceScope(
+            mailbox,
+            definition.Folder,
+            SearchTerm,
+            definition.Destination,
+            null,
+            UnreadOnly: false,
+            DismissedOnly: definition.Dismissed)).ToArray();
+        var counts = await listRetainedMail.CountManyAsync(actor, scopes, cancellationToken);
         var options = new List<MailScopeOption>(ScopeDefinitions.Count);
-        foreach (var definition in ScopeDefinitions)
+        for (var index = 0; index < ScopeDefinitions.Count; index++)
         {
-            var count = await listRetainedMail.CountAsync(
-                actor,
-                new(
-                    mailbox,
-                    definition.Folder,
-                    SearchTerm,
-                    definition.Destination,
-                    null,
-                    UnreadOnly: false,
-                    DismissedOnly: definition.Dismissed),
-                cancellationToken);
+            var definition = ScopeDefinitions[index];
             options.Add(new(
                 definition,
                 definition.Matches(Folder, QueueFilter, Dismissed),
-                count,
+                counts[index],
                 mailbox,
                 SearchTerm));
         }

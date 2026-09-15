@@ -1096,6 +1096,19 @@ public sealed class EstimateTests
         public Task<AiJobRecord?> GetAsync(Guid jobId, CancellationToken cancellationToken) =>
             Task.FromResult(jobs.GetValueOrDefault(jobId));
 
+        public Task<IReadOnlyDictionary<Guid, AiJobSubjectReference>> ListSubjectReferencesAsync(
+            IReadOnlyCollection<Guid> jobIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, AiJobSubjectReference>>(
+                jobIds.Distinct()
+                    .Where(jobs.ContainsKey)
+                    .ToDictionary(
+                        jobId => jobId,
+                        jobId => new AiJobSubjectReference(
+                            jobs[jobId].SubjectKind,
+                            jobs[jobId].SubjectId,
+                            jobs[jobId].SubjectReference)));
+
         public Task<AiJobRecord> TransitionAsync(AiJobTransition transition, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }

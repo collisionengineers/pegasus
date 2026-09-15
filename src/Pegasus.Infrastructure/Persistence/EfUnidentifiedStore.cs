@@ -462,6 +462,14 @@ public sealed class EfUnidentifiedStore(
             : rows.Where(row => row.MediaKind == mediaKind.Value).ToArray();
     }
 
+    public async Task<int> CountOpenAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.Set<UnidentifiedItemEntity>()
+            .AsNoTracking()
+            .CountAsync(item => item.State == nameof(UnidentifiedState.Open), cancellationToken);
+    }
+
     public async Task<IReadOnlyList<UnidentifiedQueueRow>> ListClosedQueueAsync(
         UnidentifiedMediaKind? mediaKind,
         CancellationToken cancellationToken = default)

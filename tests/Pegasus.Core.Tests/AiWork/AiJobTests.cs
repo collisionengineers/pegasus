@@ -372,6 +372,20 @@ public sealed class AiJobTests
         public Task<AiJobRecord?> GetAsync(Guid jobId, CancellationToken cancellationToken) =>
             Task.FromResult(ReadJob);
 
+        public Task<IReadOnlyDictionary<Guid, AiJobSubjectReference>> ListSubjectReferencesAsync(
+            IReadOnlyCollection<Guid> jobIds,
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyDictionary<Guid, AiJobSubjectReference> references =
+                ReadJob is { } job && jobIds.Contains(job.JobId)
+                    ? new Dictionary<Guid, AiJobSubjectReference>
+                    {
+                        [job.JobId] = new(job.SubjectKind, job.SubjectId, job.SubjectReference)
+                    }
+                    : new Dictionary<Guid, AiJobSubjectReference>();
+            return Task.FromResult(references);
+        }
+
         public Task<AiJobRecord> TransitionAsync(AiJobTransition transition, CancellationToken cancellationToken)
         {
             AiJobPolicy.ValidateTransition(transition);
@@ -515,6 +529,9 @@ public sealed class AiJobTests
 
         public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(UnidentifiedMediaKind? mediaKind, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+
+        public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(state == UnidentifiedState.Open ? 1 : 0);
 
         public Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(Guid unidentifiedItemId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

@@ -369,40 +369,34 @@ public sealed class EfImageIntakeStore(
             Guid submissionGroupId,
             CancellationToken cancellationToken)
     {
-        var members = await context.IntakeSubmissionGroupMembers
-            .AsNoTracking()
-            .Where(member => member.GroupId == submissionGroupId)
-            .Select(member => new { member.Ordinal, member.StagedReceiptId })
-            .ToArrayAsync(cancellationToken);
-        if (members.Length == 0)
+        var groups = await ResolveGroupMemberReceiptsAsync(context, [submissionGroupId], cancellationToken);
+        return groups.TryGetValue(submissionGroupId, out var members) ? members : [];
+    }
+
+    private static async Task<IReadOnlyDictionary<Guid, IReadOnlyList<(int Ordinal, Guid ProcessedReceiptId)>>>
+        ResolveGroupMemberReceiptsAsync(
+            PegasusDbContext context,
+            IReadOnlyCollection<Guid> submissionGroupIds,
+            CancellationToken cancellationToken)
+    {
+        if (submissionGroupIds.Count == 0)
         {
-            return [];
+            return new Dictionary<Guid, IReadOnlyList<(int Ordinal, Guid ProcessedReceiptId)>>();
         }
 
-        var stagedIds = members.Select(member => member.StagedReceiptId).ToArray();
-        var evaluations = await context.IntakeEvaluations
-            .AsNoTracking()
-            .Where(evaluation => stagedIds.Contains(evaluation.StagedReceiptId))
-            .Select(evaluation => new
-            {
-                evaluation.StagedReceiptId,
-                evaluation.ProcessedReceiptId,
-                evaluation.Revision
-            })
+        var ids = submissionGroupIds.ToArray();
+        var rows = await (
+            from member in context.IntakeSubmissionGroupMembers.AsNoTracking()
+            where ids.Contains(member.GroupId)
+            from evaluation in context.IntakeEvaluations.AsNoTracking()
+                .Where(evaluation => evaluation.StagedReceiptId == member.StagedReceiptId)
+                .OrderByDescending(evaluation => evaluation.Revision).Take(1)
+            select new { member.GroupId, member.Ordinal, evaluation.ProcessedReceiptId })
             .ToArrayAsync(cancellationToken);
-        var latestByStaged = evaluations
-            .GroupBy(evaluation => evaluation.StagedReceiptId)
-            .ToDictionary(
-                grouping => grouping.Key,
-                grouping => grouping
-                    .OrderByDescending(evaluation => evaluation.Revision)
-                    .First()
-                    .ProcessedReceiptId);
-        return members
-            .Where(member => latestByStaged.ContainsKey(member.StagedReceiptId))
-            .Select(member => (member.Ordinal, latestByStaged[member.StagedReceiptId]))
-            .OrderBy(pair => pair.Ordinal)
-            .ToArray();
+        return rows.GroupBy(row => row.GroupId).ToDictionary(
+            group => group.Key,
+            group => (IReadOnlyList<(int Ordinal, Guid ProcessedReceiptId)>)group.OrderBy(row => row.Ordinal)
+                .Select(row => (row.Ordinal, row.ProcessedReceiptId)).ToArray());
     }
 
     /// <summary>
@@ -418,13 +412,17 @@ public sealed class EfImageIntakeStore(
         Guid? submissionGroupId,
         CancellationToken cancellationToken)
     {
-        var ordered = new List<Guid>();
+        IReadOnlyList<(int Ordinal, Guid ProcessedReceiptId)> members = [];
         if (submissionGroupId is { } groupId)
         {
-            ordered.AddRange(
-                (await ResolveGroupMemberReceiptsAsync(context, groupId, cancellationToken))
-                .Select(pair => pair.ProcessedReceiptId));
+            members = await ResolveGroupMemberReceiptsAsync(context, groupId, cancellationToken);
         }
+        return OrderedImageReceiptIds(originReceiptId, members.Select(pair => pair.ProcessedReceiptId));
+    }
+
+    private static IReadOnlyList<Guid> OrderedImageReceiptIds(Guid originReceiptId, IEnumerable<Guid> members)
+    {
+        var ordered = members.ToList();
         if (!ordered.Contains(originReceiptId))
         {
             ordered.Insert(0, originReceiptId);
@@ -992,28 +990,72 @@ public sealed class EfImageIntakeStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var rows = await ProjectAsync(
-            context.ImageIntakes.AsNoTracking(),
+            context.ImageIntakes.AsNoTracking().Where(intake =>
+                context.IntakeManualAssociations.Any(association =>
+                    association.IntakeReceiptId == intake.OriginReceiptId
+                    && association.IsActive && association.CaseId == caseId)
+                || (!context.IntakeManualAssociations.Any(association =>
+                        association.IntakeReceiptId == intake.OriginReceiptId)
+                    && context.CaseIntakeLinks.Any(link =>
+                        link.IntakeReceiptId == intake.OriginReceiptId && link.CaseId == caseId))),
             context,
             cancellationToken);
-        return rows.Where(row => row.AssociatedCaseId == caseId).ToArray();
+        return rows;
     }
 
     public async Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(
         Guid imageIntakeId,
         CancellationToken cancellationToken)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var intake = await context.ImageIntakes
-            .AsNoTracking()
-            .Where(item => item.Id == imageIntakeId)
-            .Select(item => new { item.OriginReceiptId, item.SubmissionGroupId })
-            .SingleOrDefaultAsync(cancellationToken);
-        if (intake is null)
+        var images = await ListImagesAsync([imageIntakeId], cancellationToken);
+        return images.TryGetValue(imageIntakeId, out var found) ? found : [];
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>> ListImagesAsync(
+        IReadOnlyCollection<Guid> imageIntakeIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(imageIntakeIds);
+        var result = new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
+        if (imageIntakeIds.Count == 0)
         {
-            return [];
+            return result;
         }
 
-        return await ListImagesAsync(context, intake.OriginReceiptId, intake.SubmissionGroupId, cancellationToken);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        foreach (var ids in imageIntakeIds.Distinct().Chunk(200))
+        {
+            var intakes = await context.ImageIntakes.AsNoTracking()
+                .Where(item => ids.Contains(item.Id))
+                .Select(item => new { item.Id, item.OriginReceiptId, item.SubmissionGroupId })
+                .ToArrayAsync(cancellationToken);
+            var groupIds = intakes.Where(item => item.SubmissionGroupId.HasValue)
+                .Select(item => item.SubmissionGroupId!.Value).Distinct().ToArray();
+            var groups = await ResolveGroupMemberReceiptsAsync(context, groupIds, cancellationToken);
+            var receipts = intakes.ToDictionary(item => item.Id, item => OrderedImageReceiptIds(
+                item.OriginReceiptId,
+                item.SubmissionGroupId is { } groupId && groups.TryGetValue(groupId, out var members)
+                    ? members.Select(member => member.ProcessedReceiptId) : []));
+            var assets = new Dictionary<Guid, ImageIntakeImage>();
+            foreach (var receiptIds in receipts.Values.SelectMany(value => value).Distinct().Chunk(200))
+            {
+                var rows = await context.IntakeAssets.AsNoTracking()
+                    .Where(asset => receiptIds.Contains(asset.IntakeReceiptId)
+                        && asset.Kind == "source" && asset.Disposition == "source"
+                        && asset.MediaType.StartsWith(ImageIntakeLifecycleRules.ImageMediaTypePrefix))
+                    .Select(asset => new { asset.Id, asset.IntakeReceiptId, asset.FileName, asset.MediaType })
+                    .ToArrayAsync(cancellationToken);
+                foreach (var row in rows)
+                {
+                    assets.Add(row.IntakeReceiptId, new(row.IntakeReceiptId, row.FileName, row.MediaType) { AssetId = row.Id });
+                }
+            }
+            foreach (var intake in intakes)
+            {
+                result.Add(intake.Id, receipts[intake.Id].Where(assets.ContainsKey).Select(id => assets[id]).ToArray());
+            }
+        }
+        return result;
     }
 
     private static async Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(

@@ -172,6 +172,10 @@ public sealed class OperationsUseCaseTests
                 ImmutableArray<RequestOperationProjection>.Empty,
                 LimitReached: false));
         }
+
+        public Task<int> CountRetryableExternalFailuresAsync(
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken) => Task.FromResult(0);
     }
 
     private sealed class RecordingExternalRetryStore : IExternalWorkRetryStore

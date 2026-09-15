@@ -105,7 +105,8 @@ public interface IListRecentCases
     /// open), records this open as the person's last look so the divider on the
     /// next open moves to now. The divider returned is the previous look.
     /// </summary>
-    Task<RecentCasesFeed> ExecuteAsync(ActionActor actor, int page, bool markSeen, CancellationToken cancellationToken);
+    Task<RecentCasesFeed> ExecuteAsync(ActionActor actor, int page, bool markSeen,
+        CancellationToken cancellationToken, DateTimeOffset? asOfUtc = null);
 }
 
 public sealed class ListRecentCases(
@@ -117,7 +118,8 @@ public sealed class ListRecentCases(
     private readonly IWorkCentreVisitStore _visits = visits ?? throw new ArgumentNullException(nameof(visits));
     private readonly TimeProvider _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
-    public async Task<RecentCasesFeed> ExecuteAsync(ActionActor actor, int page, bool markSeen, CancellationToken cancellationToken)
+    public async Task<RecentCasesFeed> ExecuteAsync(ActionActor actor, int page, bool markSeen,
+        CancellationToken cancellationToken, DateTimeOffset? asOfUtc = null)
     {
         ArgumentNullException.ThrowIfNull(actor);
         // The Work Centre is a staff page; the Automation actor has no last look.
@@ -127,7 +129,7 @@ public sealed class ListRecentCases(
             throw new ArgumentOutOfRangeException(nameof(page), "The page must be positive.");
         }
 
-        var now = _timeProvider.GetUtcNow();
+        var now = asOfUtc ?? _timeProvider.GetUtcNow();
         var since = RecentCasesPolicy.WindowStart(now);
         var result = await _queries.ListAsync(since, page, RecentCasesPolicy.PageSize, cancellationToken);
         DateTimeOffset? lastSeen = null;

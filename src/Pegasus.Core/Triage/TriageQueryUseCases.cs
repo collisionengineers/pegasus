@@ -41,6 +41,11 @@ public interface IListTriage
     Task<TriageListPage> ExecuteAsync(
         ListTriageQuery query,
         CancellationToken cancellationToken = default);
+
+    Task<int> CountAsync(
+        ActionActor actor,
+        TriageState? state,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -99,6 +104,21 @@ public sealed class ListTriage(ITriageQueries queries) : IListTriage
             .Take(query.PageSize)
             .ToArray();
         return new(items, query.Page, query.PageSize, matches.Count);
+    }
+
+    public Task<int> CountAsync(
+        ActionActor actor,
+        TriageState? state,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        if (state is { } requested && !Enum.IsDefined(requested))
+        {
+            throw new ArgumentOutOfRangeException(nameof(state));
+        }
+
+        return queries.CountAsync(state, cancellationToken);
     }
 }
 

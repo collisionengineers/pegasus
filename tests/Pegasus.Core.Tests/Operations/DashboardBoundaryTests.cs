@@ -294,14 +294,13 @@ public sealed class DashboardBoundaryTests
     [Fact]
     public async Task TheOperationsBadgeCountsRetryableExternalFailuresOnly()
     {
-        var badge = new GetOperationsBadge(new GetRequestOperations(
-            new StubRequestOperationStore
-            {
-                Items = [NewExternalWork(canRetry: true), NewExternalWork(canRetry: false), NewExternalWork(canRetry: true)]
-            },
-            new FixedTimeProvider(NowUtc)));
+        var store = new StubRequestOperationStore
+        {
+            RetryableFailureCount = 137
+        };
+        var badge = new GetOperationsBadge(store, new FixedTimeProvider(NowUtc));
 
-        Assert.Equal(2, await badge.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])));
+        Assert.Equal(137, await badge.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])));
     }
 
     [Fact]
@@ -600,6 +599,12 @@ public sealed class DashboardBoundaryTests
                 .ToArray();
             return Task.FromResult(new TriageListPage(page, query.Page, query.PageSize, matches.Length));
         }
+
+        public Task<int> CountAsync(
+            ActionActor actor,
+            TriageState? state,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Items.Count(item => state is null || item.State == state));
     }
 
     private sealed class StubDueWorkQueries : ICaseDueWorkQueries
@@ -647,6 +652,9 @@ public sealed class DashboardBoundaryTests
             Task.FromResult<IReadOnlyList<UnidentifiedQueueRow>>(
                 Rows.Where(row => mediaKind is null || row.MediaKind == mediaKind).ToArray());
 
+        public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Rows.Count);
+
         public Task<UnidentifiedRegisterResult> RegisterAsync(
             RegisterUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
@@ -687,11 +695,17 @@ public sealed class DashboardBoundaryTests
     {
         public IReadOnlyList<RequestOperationProjection> Items { get; init; } = [];
 
+        public int RetryableFailureCount { get; init; }
+
         public Task<RequestOperationsProjection> GetAsync(
             int maximumItems,
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken) =>
             Task.FromResult(new RequestOperationsProjection([.. Items], LimitReached: false));
+
+        public Task<int> CountRetryableExternalFailuresAsync(
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken) => Task.FromResult(RetryableFailureCount);
     }
 
     /// <summary>Resolves nobody: every owner reads as former staff, and nothing throws.</summary>

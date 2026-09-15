@@ -83,6 +83,43 @@ public sealed class EfPerUserExternalCredentialStore(
             : Status(entity, ReadPayload(entity, provider).Username);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, PerUserExternalCredentialStatus>> GetManyAsync(
+        ActionActor actor,
+        IReadOnlyCollection<Guid> pegasusUserIds,
+        ExternalCredentialProvider provider,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(pegasusUserIds);
+        StaffAuthorization.Require(actor, StaffAccessRight.ManageStaffAccounts);
+        var userIds = pegasusUserIds.Distinct().ToArray();
+        if (userIds.Any(userId => userId == Guid.Empty))
+        {
+            throw new ArgumentException("A staff account identifier is required.", nameof(pegasusUserIds));
+        }
+
+        if (userIds.Length == 0)
+        {
+            return new Dictionary<Guid, PerUserExternalCredentialStatus>();
+        }
+
+        var providerName = ProviderName(provider);
+        var entities = await context.Set<UserExternalCredentialEntity>()
+            .AsNoTracking()
+            .Where(item => userIds.Contains(item.UserId) && item.Provider == providerName)
+            .ToArrayAsync(cancellationToken);
+        var byUser = entities.ToDictionary(item => item.UserId);
+        var statuses = new Dictionary<Guid, PerUserExternalCredentialStatus>(userIds.Length);
+        foreach (var userId in userIds)
+        {
+            statuses[userId] = byUser.TryGetValue(userId, out var entity)
+                && entity.ProtectedCredential.Length > 0
+                ? Status(entity, ReadPayload(entity, provider).Username)
+                : EmptyStatus(userId, provider, entity);
+        }
+
+        return statuses;
+    }
+
     public async Task<PerUserExternalCredentialStatus> ReplaceAsync(
         ActionActor actor,
         Guid pegasusUserId,

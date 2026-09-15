@@ -367,12 +367,20 @@ public sealed class IndexModel(
         // Every group carries its count whichever one is open. The three
         // count queries use their own DbContext each, so they run together.
         var stageCountsTask = _dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
-        var triageTask = _listTriage.ExecuteAsync(new(actor, State: null, Page: 1, PageSize: 1), cancellationToken);
-        var openUnidentifiedTask = _unidentifiedStore.ListQueueAsync(null, cancellationToken);
-        await Task.WhenAll(stageCountsTask, triageTask, openUnidentifiedTask);
+        var triageTask = _listTriage.CountAsync(
+            actor,
+            state: null,
+            cancellationToken: cancellationToken);
+        var openUnidentifiedCountTask = _unidentifiedStore.CountOpenAsync(cancellationToken);
+        await Task.WhenAll(stageCountsTask, triageTask, openUnidentifiedCountTask);
         StageCounts = stageCountsTask.Result;
-        TriageCount = triageTask.Result.TotalCount;
-        UnidentifiedCount = openUnidentifiedTask.Result.Count;
+        TriageCount = triageTask.Result;
+        UnidentifiedCount = openUnidentifiedCountTask.Result;
+        RailCountsPageFilter.SetCaseCounts(
+            HttpContext,
+            StageCounts,
+            TriageCount,
+            UnidentifiedCount);
 
         var rows = Queue switch
         {
@@ -380,7 +388,7 @@ public sealed class IndexModel(
             "awaiting" => await LoadAwaitingAsync(cancellationToken),
             "unidentified" => ShowingClosed
                 ? await LoadClosedUnidentifiedAsync(cancellationToken)
-                : openUnidentifiedTask.Result.Select(UnidentifiedRow).ToArray(),
+                : await LoadOpenUnidentifiedAsync(cancellationToken),
             "not_ready" => await LoadNotReadyAsync(actor, cancellationToken),
             _ => await LoadCasesAsync(actor, cancellationToken)
         };
@@ -572,6 +580,11 @@ public sealed class IndexModel(
 
         return rows;
     }
+
+    private async Task<IReadOnlyList<QueueRow>> LoadOpenUnidentifiedAsync(CancellationToken cancellationToken) =>
+        (await _unidentifiedStore.ListQueueAsync(null, cancellationToken))
+            .Select(UnidentifiedRow)
+            .ToArray();
 
     private async Task<IReadOnlyDictionary<Guid, string>> EngineerNamesAsync(
         IEnumerable<CaseSearchItem> items,

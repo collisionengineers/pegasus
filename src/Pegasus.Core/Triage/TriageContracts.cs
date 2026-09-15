@@ -479,6 +479,8 @@ public interface ITriageQueries
         TriageState? state,
         CancellationToken cancellationToken);
 
+    Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken);
+
     /// <summary>
     /// The keyset continuation behind the Triage list: at most
     /// <paramref name="limit"/> rows strictly after <paramref name="after"/> in

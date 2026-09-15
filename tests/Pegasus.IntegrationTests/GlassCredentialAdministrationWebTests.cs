@@ -552,6 +552,19 @@ public sealed partial class GlassCredentialAdministrationWebTests
             });
         }
 
+        public Task<IReadOnlyDictionary<Guid, PerUserExternalCredentialStatus>> GetManyAsync(
+            ActionActor actor,
+            IReadOnlyCollection<Guid> pegasusUserIds,
+            ExternalCredentialProvider provider,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(actor);
+            var statuses = pegasusUserIds.Distinct().ToDictionary(
+                userId => userId,
+                userId => Status with { PegasusUserId = userId, Provider = provider });
+            return Task.FromResult<IReadOnlyDictionary<Guid, PerUserExternalCredentialStatus>>(statuses);
+        }
+
         public Task<PerUserExternalCredentialStatus> ReplaceAsync(
             ActionActor actor,
             Guid pegasusUserId,

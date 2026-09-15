@@ -150,5 +150,9 @@ public sealed class IntakeLogTests
 
         public Task<IntakeLogDetail?> GetAsync(Guid receiptId, CancellationToken cancellationToken) =>
             Task.FromResult<IntakeLogDetail?>(null);
+
+        public Task<IReadOnlyList<IntakeLogActionableFailure>> ListRetryableFailuresAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<IntakeLogActionableFailure>>([]);
     }
 }

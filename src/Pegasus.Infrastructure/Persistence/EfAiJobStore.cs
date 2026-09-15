@@ -85,6 +85,38 @@ public sealed class EfAiJobStore(
         return entity is null ? null : Map(entity, UtcNow());
     }
 
+    public async Task<IReadOnlyDictionary<Guid, AiJobSubjectReference>> ListSubjectReferencesAsync(
+        IReadOnlyCollection<Guid> jobIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(jobIds);
+        var ids = jobIds.Distinct().ToArray();
+        if (ids.Length > 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(jobIds), "At most 100 AI jobs can be displayed at once.");
+        }
+        if (ids.Any(id => id == Guid.Empty))
+        {
+            throw new ArgumentException("AI job identifiers cannot be empty.", nameof(jobIds));
+        }
+        if (ids.Length == 0)
+        {
+            return new Dictionary<Guid, AiJobSubjectReference>();
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var rows = await context.AiJobs.AsNoTracking()
+            .Where(item => ids.Contains(item.JobId))
+            .Select(item => new { item.JobId, item.SubjectKind, item.SubjectId, item.SubjectReference })
+            .ToArrayAsync(cancellationToken);
+        return rows.ToDictionary(
+            row => row.JobId,
+            row => new AiJobSubjectReference(
+                Parse<AiJobSubjectKind>(row.SubjectKind),
+                row.SubjectId,
+                row.SubjectReference));
+    }
+
     public async Task<AiJobRecord> TransitionAsync(
         AiJobTransition transition,
         CancellationToken cancellationToken)

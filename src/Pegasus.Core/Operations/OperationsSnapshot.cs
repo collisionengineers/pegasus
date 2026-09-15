@@ -57,7 +57,8 @@ public sealed record NeedsAttentionQuery(
     ActionActor Actor,
     NeedsAttentionScope Scope = NeedsAttentionScope.Office,
     int Page = 1,
-    IReadOnlyCollection<NeedsAttentionKind>? Kinds = null);
+    IReadOnlyCollection<NeedsAttentionKind>? Kinds = null,
+    DateTimeOffset? AsOfUtc = null);
 
 public sealed record NeedsAttentionPage(
     IReadOnlyList<NeedsAttentionItem> Items,
@@ -138,17 +139,22 @@ public interface IGetOperationsBadge
     Task<int> ExecuteAsync(ActionActor actor, CancellationToken cancellationToken = default);
 }
 
-public sealed class GetOperationsBadge(GetRequestOperations requestOperations) : IGetOperationsBadge
+public sealed class GetOperationsBadge(
+    IRequestOperationsProjectionStore requestOperations,
+    TimeProvider timeProvider) : IGetOperationsBadge
 {
-    private readonly GetRequestOperations _requestOperations =
+    private readonly IRequestOperationsProjectionStore _requestOperations =
         requestOperations ?? throw new ArgumentNullException(nameof(requestOperations));
+    private readonly TimeProvider _timeProvider =
+        timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
     public async Task<int> ExecuteAsync(ActionActor actor, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(actor);
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        var requests = await _requestOperations.ExecuteAsync(actor, cancellationToken);
-        return requests.Items.Count(item => item.Kind == RequestOperationKind.ExternalWork && item.CanRetry);
+        return await _requestOperations.CountRetryableExternalFailuresAsync(
+            _timeProvider.GetUtcNow(),
+            cancellationToken);
     }
 }
 
@@ -274,10 +280,16 @@ public sealed class GetOperationsSnapshot(
             throw new ArgumentOutOfRangeException(nameof(query), "The page must be positive.");
         }
 
-        var asOfUtc = timeProvider.GetUtcNow();
-        var intake = await intakeQueries.GetCountsAsync(cancellationToken);
-        var inputs = await FetchAttentionInputsAsync(query.Actor, asOfUtc, cancellationToken);
-        var caseStages = await dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
+        var asOfUtc = query.AsOfUtc ?? timeProvider.GetUtcNow();
+        // These adapters create independent contexts. The actor-name enrichment
+        // below remains sequential because it uses the scoped identity context.
+        var intakeRead = intakeQueries.GetCountsAsync(cancellationToken);
+        var attentionRead = FetchAttentionInputsAsync(query.Actor, asOfUtc, cancellationToken);
+        var stagesRead = dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
+        await Task.WhenAll(intakeRead, attentionRead, stagesRead);
+        var intake = await intakeRead;
+        var inputs = await attentionRead;
+        var caseStages = await stagesRead;
         var all = await ComposeNeedsAttentionAsync(asOfUtc, inputs, cancellationToken);
         var page = Page(all, query, asOfUtc);
 
@@ -359,16 +371,26 @@ public sealed class GetOperationsSnapshot(
     {
         // The Triage kind is work without a finding, so both no-finding states
         // are queried directly.
-        var (openTriage, openTriageCount) = await ReadTriageAsync(actor, TriageState.Open, cancellationToken);
-        var (awaitingTriage, awaitingTriageCount) = await ReadTriageAsync(actor, TriageState.AwaitingInformation, cancellationToken);
-        var dueWork = await dueWorkQueries.GetDueAsync(asOfUtc, MaximumSourceRows, cancellationToken);
-        var held = await ReadCasesAsync(actor, CaseLifecycleState.Held, cancellationToken);
-        var review = await ReadCasesAsync(actor, CaseLifecycleState.Review, cancellationToken);
-        var configuration = await workflowConfiguration.GetCurrentAsync(cancellationToken);
-        var unidentified = await unidentifiedStore.ListQueueAsync(null, cancellationToken);
-        var drafts = aiDrafts is null
-            ? []
-            : await aiDrafts.ListOpenAsync(cancellationToken);
+        var openRead = ReadTriageAsync(actor, TriageState.Open, cancellationToken);
+        var awaitingRead = ReadTriageAsync(actor, TriageState.AwaitingInformation, cancellationToken);
+        var dueRead = dueWorkQueries.GetDueAsync(asOfUtc, MaximumSourceRows, cancellationToken);
+        var heldRead = ReadCasesAsync(actor, CaseLifecycleState.Held, cancellationToken);
+        var reviewRead = ReadCasesAsync(actor, CaseLifecycleState.Review, cancellationToken);
+        var configurationRead = workflowConfiguration.GetCurrentAsync(cancellationToken);
+        var unidentifiedRead = unidentifiedStore.ListQueueAsync(null, cancellationToken);
+        var draftsRead = aiDrafts is null
+            ? Task.FromResult<IReadOnlyList<AiDraft>>([])
+            : aiDrafts.ListOpenAsync(cancellationToken);
+        await Task.WhenAll(openRead, awaitingRead, dueRead, heldRead, reviewRead,
+            configurationRead, unidentifiedRead, draftsRead);
+        var (openTriage, openTriageCount) = await openRead;
+        var (awaitingTriage, awaitingTriageCount) = await awaitingRead;
+        var dueWork = await dueRead;
+        var held = await heldRead;
+        var review = await reviewRead;
+        var configuration = await configurationRead;
+        var unidentified = await unidentifiedRead;
+        var drafts = await draftsRead;
 
         var reviewPartitions = review
             .Select(item => new

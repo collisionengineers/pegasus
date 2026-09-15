@@ -109,6 +109,17 @@ public sealed record IntakeLogDetail(
     IReadOnlyList<IntakeAllocationState> AllocationAttempts,
     IntakeLogActions Actions);
 
+/// <summary>
+/// The bounded Operations attention projection. It carries exactly the action
+/// facts that surface needs, without opening every failed receipt's full Log
+/// drawer independently.
+/// </summary>
+public sealed record IntakeLogActionableFailure(
+    IntakeLogRow Row,
+    long ReceiptVersion,
+    IntakeAllocationState? LatestAllocationAttempt,
+    IntakeLogActions Actions);
+
 public interface IIntakeLogQueries
 {
     Task<IntakeLogPage> ListAsync(IntakeLogFilter filter, int page, int pageSize, CancellationToken cancellationToken);
@@ -116,6 +127,9 @@ public interface IIntakeLogQueries
     Task<IntakeLogCounts> GetCountsAsync(CancellationToken cancellationToken);
 
     Task<IntakeLogDetail?> GetAsync(Guid receiptId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<IntakeLogActionableFailure>> ListRetryableFailuresAsync(
+        CancellationToken cancellationToken);
 }
 
 public static class IntakeLogPolicy
@@ -197,6 +211,10 @@ public interface IListIntakeLog
     Task<IntakeLogCounts> CountsAsync(ActionActor actor, CancellationToken cancellationToken);
 
     Task<IntakeLogDetail?> GetAsync(ActionActor actor, Guid receiptId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<IntakeLogActionableFailure>> ListRetryableFailuresAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken);
 }
 
 public sealed class ListIntakeLog(IIntakeLogQueries queries) : IListIntakeLog
@@ -229,6 +247,14 @@ public sealed class ListIntakeLog(IIntakeLogQueries queries) : IListIntakeLog
         }
 
         return _queries.GetAsync(receiptId, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<IntakeLogActionableFailure>> ListRetryableFailuresAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        RequireAdministrator(actor);
+        return _queries.ListRetryableFailuresAsync(cancellationToken);
     }
 
     private static void RequireAdministrator(ActionActor actor)

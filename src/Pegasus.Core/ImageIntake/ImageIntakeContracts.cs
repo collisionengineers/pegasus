@@ -244,6 +244,10 @@ public interface IImageIntakeQueries
         CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<ImageIntakeImage>>([]);
 
+    Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>> ListImagesAsync(
+        IReadOnlyCollection<Guid> imageIntakeIds,
+        CancellationToken cancellationToken);
+
     Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
 
     Task<ImageIntakeDetail?> GetByReferenceAsync(

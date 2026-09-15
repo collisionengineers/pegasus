@@ -432,6 +432,9 @@ public interface IUnidentifiedStore
         UnidentifiedMediaKind? mediaKind,
         CancellationToken cancellationToken = default);
 
+    /// <summary>The exact open-queue total for count wells that do not need rows.</summary>
+    Task<int> CountOpenAsync(CancellationToken cancellationToken = default);
+
     /// <summary>
     /// The Closed filter of the Cases › Unidentified tab (Received file D5): items
     /// resolved by Close with reason, newest closed first, listed indefinitely.

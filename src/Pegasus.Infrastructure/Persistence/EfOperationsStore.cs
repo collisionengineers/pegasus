@@ -326,6 +326,23 @@ internal sealed class EfOperationsStore(
             ordered.Length > maximumItems);
     }
 
+    Task<int> IRequestOperationsProjectionStore.CountRetryableExternalFailuresAsync(
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken) => CountRetryableExternalFailuresAsync(nowUtc, cancellationToken);
+
+    private async Task<int> CountRetryableExternalFailuresAsync(
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.ExternalWorkItems
+            .AsNoTracking()
+            .CountAsync(item => item.State == "failed"
+                && ((item.LeaseToken == null && item.LeaseExpiresAtUtc == null)
+                    || (item.LeaseToken != null && item.LeaseExpiresAtUtc <= nowUtc)),
+                cancellationToken);
+    }
+
     async Task<OperationsRetryResult> IMailboxProcessingRetryStore.RetryAsync(
         RetryMailboxProcessingCommand command,
         DateTimeOffset retryAtUtc,
