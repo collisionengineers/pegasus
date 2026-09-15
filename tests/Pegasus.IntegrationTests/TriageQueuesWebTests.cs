@@ -122,6 +122,35 @@ public sealed class TriageQueuesWebTests
             await StoreMinimalReceiptAsync(services, "instruction-source.pdf"),
             instructionCaseReference);
         var imageIntake = await RegisterImageIntakeAsync(factory, client, services, "AB12CDE");
+        var stages = await services.GetRequiredService<IDashboardQueries>()
+            .GetCaseStageCountsAsync(CancellationToken.None);
+        Assert.Equal(1, stages.NotReady);
+        Assert.Equal(1, stages.AwaitingInstruction);
+        Assert.Equal(0, stages.Complete);
+        Assert.Equal(0, stages.Query);
+        Assert.Equal(0, stages.Review);
+        Assert.Equal(0, stages.Held);
+        Assert.Equal(0, stages.WithEngineer);
+        var triageCount = await services.GetRequiredService<IListTriage>().CountAsync(
+            StaffActor(),
+            state: null,
+            cancellationToken: CancellationToken.None);
+        var openUnidentifiedCount = await services.GetRequiredService<IUnidentifiedStore>()
+            .CountOpenAsync(CancellationToken.None);
+        Assert.Equal(0, triageCount);
+        // The no-registration recognition fake reaches the image group's
+        // terminal Unidentified route. Staff registration then establishes
+        // Awaiting instruction without erasing that separate open exception.
+        Assert.Equal(1, openUnidentifiedCount);
+        var expectedShellCount = stages.NotReady
+            + stages.Review
+            + stages.WithEngineer
+            + stages.Query
+            + stages.Held
+            + triageCount
+            + openUnidentifiedCount;
+        // Completed and Awaiting instruction intentionally are not shell work.
+        Assert.Equal(2, expectedShellCount);
 
         using var notReady = await client.GetAsync("/Cases?tab=not_ready");
         var notReadyHtml = await notReady.Content.ReadAsStringAsync();
@@ -158,7 +187,7 @@ public sealed class TriageQueuesWebTests
         // Awaiting instruction has its own tab but remains pre-Case work. The
         // shell count includes only the FRD's Case and exception queues.
         Assert.Equal(
-            railCount,
+            expectedShellCount,
             int.Parse(shellCount.Groups[1].Value, CultureInfo.InvariantCulture));
 
         // The Work Centre's Not ready metric reads the same count query, so
