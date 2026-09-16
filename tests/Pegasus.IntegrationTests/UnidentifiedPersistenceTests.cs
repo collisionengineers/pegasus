@@ -301,7 +301,8 @@ public sealed class UnidentifiedPersistenceTests
         Assert.Equal(2, (await store.HistoryAsync(item.Id)).Count);
 
         await store.ResolveAsync(new(
-            refreshed.Item.Id, refreshed.Item.Version, actor, "refresh-close", "Closed for test.",
+            refreshed.Item.Id, refreshed.Item.Version, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+            "refresh-close", "Closed for test.",
             UnidentifiedResolutionTargetKind.Closed, "closed", null, CreatedAtUtc.AddMinutes(2)));
         var stale = await store.RefreshReasonAsync(new(
             refreshed.Item.Id, refreshed.Item.Version + 1, receipt.Id, receipt.Version,
@@ -341,7 +342,7 @@ public sealed class UnidentifiedPersistenceTests
             if (sample.Closed)
             {
                 item = (await store.ResolveAsync(new(item.Id, item.Version,
-                    ActionActor.SystemWorker("migration-test"), "backfill-closed", "Closed for test.",
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]), "backfill-closed", "Closed for test.",
                     UnidentifiedResolutionTargetKind.Closed, "closed", null, CreatedAtUtc.AddMinutes(1)))).Item;
             }
             expected.Add((item, sample.Changes));

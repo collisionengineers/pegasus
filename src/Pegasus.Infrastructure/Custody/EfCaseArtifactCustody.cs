@@ -405,10 +405,12 @@ internal sealed class EfCaseArtifactCustody(
         var receiptId = request.IntakeReceiptId!.Value;
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var normalizedOccurrence = request.OccurrenceIdentity.Trim();
+        Guid? occurrenceId = Guid.TryParse(normalizedOccurrence, out var parsedOccurrenceId)
+            ? parsedOccurrenceId
+            : null;
         var asset = await db.Set<IntakeAssetEntity>()
             .SingleOrDefaultAsync(value => value.IntakeReceiptId == receiptId
-                && (value.Id.ToString() == normalizedOccurrence
-                    || value.SourceLabel == normalizedOccurrence),
+                && value.Id == occurrenceId,
                 cancellationToken)
             ?? throw new InvalidOperationException("The holding artifact has no retained intake identity.");
         if (!string.Equals(asset.FileName, request.FileName, StringComparison.Ordinal)
