@@ -2882,6 +2882,12 @@ public sealed partial class CaseDetailsWebTests
             CancellationToken cancellationToken) =>
             Task.FromResult<StaffAccountSummary?>(requestedStaffId == staffId ? account : null);
 
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
+                staffIds.Contains(staffId) ? [account] : []);
+
         public Task<IReadOnlyList<StaffHeldCaseEditLease>> ListHeldCaseEditLeasesAsync(
             Guid requestedStaffId,
             CancellationToken cancellationToken) =>
