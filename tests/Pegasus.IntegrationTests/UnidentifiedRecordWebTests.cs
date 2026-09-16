@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -202,6 +203,20 @@ public sealed class UnidentifiedRecordWebTests
                 null,
                 Assets: assets),
             CancellationToken.None);
+        var confirmedAssetIds = assets
+            .Where(asset => asset.CustodyState == IncomingArtifactCustodyState.Confirmed)
+            .Select(asset => asset.Id)
+            .ToArray();
+        if (confirmedAssetIds.Length != 0)
+        {
+            // StoreAsync records receipt metadata; custody confirmation is a
+            // separate persisted fact, so make the synthetic fixture honest.
+            await using var context = await factory.Database.CreateContextAsync();
+            await context.IntakeAssets
+                .Where(asset => confirmedAssetIds.Contains(asset.Id))
+                .ExecuteUpdateAsync(update => update
+                    .SetProperty(asset => asset.CustodyStatus, "confirmed"));
+        }
         var registered = await services.GetRequiredService<IRegisterUnidentified>().ExecuteAsync(
             new(
                 UnidentifiedOrigin.Receipt(receipt.Id),
@@ -283,6 +298,13 @@ public sealed class UnidentifiedRecordWebTests
                     [], [], null, [], null, null, "test-reader", "1", null, null,
                     Assets: [source, photo]),
                 CancellationToken.None);
+            await using (var context = await factory.Database.CreateContextAsync())
+            {
+                await context.IntakeAssets
+                    .Where(asset => asset.Id == photo.Id)
+                    .ExecuteUpdateAsync(update => update
+                        .SetProperty(asset => asset.CustodyStatus, "confirmed"));
+            }
             var staged = new IntakeStagedReceipt(
                 Guid.NewGuid(), sourceFileName, "application/pdf", source.ContentLength, sourceHash,
                 sourceIdentity, receivedAt, "test-actor", $"group-pdf-staged-{ordinal}", receivedAt);
@@ -292,6 +314,12 @@ public sealed class UnidentifiedRecordWebTests
                 $"group-pdf-work:{ordinal}:{Guid.NewGuid():N}",
                 CancellationToken.None);
             await groupStore.AddMemberAsync(groupId, ordinal, received, CancellationToken.None);
+            // Processing claims follow the same durable dispatch transition
+            // as the Worker path rather than claiming a newly received item.
+            var dispatch = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+                staged.Id, receivedAt, TimeSpan.FromMinutes(1), CancellationToken.None));
+            await workStore.MarkDispatchedAsync(
+                dispatch.Id, dispatch.LeaseToken!, receivedAt, CancellationToken.None);
             var claimed = await workStore.ClaimProcessingAsync(
                 staged.Id, receivedAt, TimeSpan.FromMinutes(1), CancellationToken.None)
                 ?? throw new InvalidOperationException("The test work item was not claimable.");

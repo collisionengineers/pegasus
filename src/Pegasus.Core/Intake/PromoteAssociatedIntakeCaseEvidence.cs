@@ -31,6 +31,10 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
         var selectedPhotographIds = InstructionEvidenceImages.Select(receipt.AssetRecords)
             .Select(asset => asset.Id)
             .ToHashSet();
+        if (selectedPhotographIds.Count == 0)
+        {
+            return AutomaticCaseEvidencePromotionOutcome.NotApplicable;
+        }
         var assets = SelectAssets(receipt, selectedPhotographIds);
         if (assets.Length == 0)
         {
