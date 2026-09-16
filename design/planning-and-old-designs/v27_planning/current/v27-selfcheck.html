@@ -1,0 +1,301 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>v27 self-check</title></head><body>
+<!-- Self-check for pegasus_case_record_v27.html: loads the mockup in a 1580×1000
+     frame and drives every lifecycle state × layout × section, the edit
+     session, every strip option, every dialog, the viewer, the damage clicker,
+     the valuation calculator, the estimate tabs and the query presets, then
+     prints one RESULT line. Run:
+       & $chrome --headless=new --allow-file-access-from-files --virtual-time-budget=30000 --dump-dom v27-selfcheck.html | Select-String RESULT
+-->
+<iframe id="f" src="pegasus_case_record_v27.html?strip=0&proposals=none" style="width:1580px;height:1000px"></iframe>
+<pre id="out">PENDING</pre>
+<script>
+const log = [], ok = []; const f = document.getElementById('f');
+function check(name, cond) { document.title = name; (cond ? ok : log).push((cond ? 'OK ' : 'FAIL ') + name); }
+f.onload = () => {
+  const w = f.contentWindow, d = f.contentDocument, M = w.mock;
+  w.addEventListener('error', e => log.push('ERR ' + e.message + ' @' + e.lineno));
+  const origError = w.console.error; w.console.error = function () { log.push('CONSOLE ' + Array.from(arguments).join(' ')); origError.apply(w.console, arguments); };
+  const $ = id => d.getElementById(id); const q = s => d.querySelector(s); const qa = s => Array.from(d.querySelectorAll(s));
+  const vis = el => { if (!el || el.hidden || el.closest('[hidden]')) return false; const cs = w.getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden') return false; if (cs.display === 'contents') return Array.from(el.children).some(vis); return el.getClientRects().length > 0; };
+  const shown = s => vis(q(s));
+  const STATES = ['not-ready', 'review', 'with-engineer', 'post-report', 'held', 'completed', 'query', 'closed'];
+  const SECTIONS = ['overview', 'inspection', 'vehicle', 'damage', 'valuation', 'estimate', 'settlement', 'report', 'files', 'notes'];
+  try {
+    check('mockup loaded', !!$('case-record'));
+    check('live shell present', !!q('.app-rail') && !!q('.utility-bar') && !!q('.workspace-tabs .workspace-tab'));
+    check('sticky block measured', parseFloat(getComputedStyle($('case-record')).getPropertyValue('--sticky-h')) > 80);
+    /* 1. every state × layout × section */
+    for (const st of STATES) {
+      for (const layout of ['scroll', 'tabs']) {
+        M.reset(); M.set('state', st); M.set('layout', layout);
+        check(`state ${st} ${layout}: chip text`, $('stateChip').textContent.length > 0);
+        for (const key of SECTIONS) {
+          M.jumpTo(key);
+          const section = $('section-' + key);
+          check(`state ${st} ${layout} ${key}: section present`, !!section && (layout === 'scroll' || section.classList.contains('is-active')));
+          check(`state ${st} ${layout} ${key}: nav current`, q(`[data-section-link="${key}"]`).getAttribute('aria-current') === 'true');
+          if (layout === 'tabs') check(`state ${st} tabs ${key}: others hidden`, SECTIONS.filter(k => k !== key).every(k => getComputedStyle($('section-' + k)).display === 'none'));
+        }
+        check(`state ${st} ${layout}: next action has a label`, q('[data-next-label]').textContent.trim().length > 0);
+      }
+    }
+    /* 2. read vs edit frame rules (Details.cshtml) */
+    M.reset();
+    check('read: Edit Case shown', shown('[data-case-edit]') && q('[data-text="editLabel"]').textContent === 'Edit Case');
+    check('read: no Editing badge', !shown('.case-edit-badge'));
+    check('read: section Edit buttons on editable sections', SECTIONS.filter(k => k !== 'files' && k !== 'notes').every(k => vis(q(`[data-section-edit="${k}"]`))));
+    check('read: Files and Notes heads carry no Edit', !q('[data-section-edit="files"]') && !q('[data-section-edit="notes"]'));
+    check('read: valuation shows recorded cards only', !shown('[data-valuation-entry]') && shown('[data-valuation-card="v1"]:not(form)'));
+    check('read: Import offered from read (claims the lease first)', shown('[data-section-edit="estimate"][data-estimate-import]'));
+    M.set('edit', 'on');
+    check('edit: Editing badge, Cancel, Save', shown('.case-edit-badge') && shown('[data-case-cancel]') && shown('[data-case-save]'));
+    check('edit: no Edit Case and no section Edit', !shown('[data-case-edit]') && !qa('[data-section-edit]').some(vis));
+    check('edit: article is-editing', $('case-record').classList.contains('is-editing'));
+    check('edit: Overview controls visible', getComputedStyle($('f-claimant')).display !== 'none');
+    check('edit: Actions menu offered', shown('[data-case-actions]'));
+    check('edit: Mark report sent in ReportPreparation', vis(q('[data-dialog-open="case-report-sent-dialog"]')));
+    check('edit: Place on Hold, Create upload link, Correct principal', vis(q('[data-dialog-open="case-hold-dialog"]')) && vis(q('[data-dialog-open="case-correct-principal-dialog"]')));
+    check('edit: Close case in red below a separator', vis(q('[data-dialog-open="case-close-dialog"].btn--danger')));
+    check('edit: engineer sections editable With Engineer', $('section-damage').getAttribute('data-damage-editable') === 'true' && shown('[data-valuation-entry="glasses"]'));
+    check('edit: Generate report primary', shown('[data-generate-report]'));
+    check('edit: reviewed recipients and Prepare delivery', shown('[data-prepare-delivery]'));
+    q('[data-file-tab="images"]').click(); check('edit: image tag picker and Crop on tiles', shown('[data-tag-picker]') && shown('[data-preparation-crop]')); q('[data-file-tab="documents"]').click();
+    check('edit: report image preparation cards', shown('[data-report-preparation]') && qa('[data-preparation-card]').length === 3);
+    M.set('state', 'review');
+    check('review edit: Hand to Engineer offered', vis(q('[data-dialog-open="case-handoff-dialog"]')));
+    check('review edit: engineer sections locked with availability', $('section-damage').classList.contains('is-locked') && q('[data-section-availability="damage"]').textContent.includes('Available With Engineer'));
+    check('review edit: Overview still edits', !$('section-overview').classList.contains('is-locked'));
+    check('review edit: no Generate report', !shown('[data-generate-report]'));
+    M.set('state', 'completed'); M.set('edit', 'off');
+    check('completed read: Enable return label', q('[data-text="editLabel"]').textContent === 'Enable return');
+    check('completed read: no Add Case note', !shown('[data-case-note-form]'));
+    M.set('edit', 'on');
+    check('completed edit: every section locked, Return to Engineer offered', SECTIONS.filter(k => k !== 'files' && k !== 'notes').every(k => $('section-' + k).classList.contains('is-locked')) && vis(q('[data-dialog-open="case-return-engineer-dialog"]')));
+    check('completed edit: availability sentence', q('[data-section-availability="overview"]').textContent.includes('Return the Case to the Engineer'));
+    M.reset(); M.set('edit', 'colleague');
+    check('colleague: chip and no take-over control', shown('[data-edit-authority]') && !shown('[data-case-edit]') && !qa('[data-section-edit]').some(vis));
+    check('colleague: availability names the holder', q('[data-section-availability="overview"]').textContent.includes('E Mawdsley is editing'));
+    M.reset(); M.set('state', 'held');
+    check('held: workflow exception and review date', shown('.workflow-exception') && $('stateChip').textContent.includes('review on'));
+    M.set('edit', 'on'); check('held edit: Release Hold', vis(q('[data-dialog-open="case-release-hold-dialog"]')));
+    M.reset(); M.set('state', 'not-ready');
+    check('not ready: outstanding requirements', shown('[data-outstanding-requirements]'));
+    M.set('edit', 'on'); check('not ready edit: Record chase', vis(q('[data-dialog-open="case-chase-dialog"]')));
+    M.reset(); M.set('state', 'closed');
+    check('closed: no Actions menu outside a session', !shown('[data-case-actions]'));
+    M.set('edit', 'on'); check('closed edit: Archive case', vis(q('[data-dialog-open="case-archive-dialog"]')));
+    M.set('archived', '1'); check('archived: chip, no Edit', shown('[data-when="archived"]') && !shown('[data-case-edit]'));
+    M.reset(); M.set('state', 'post-report'); M.set('edit', 'on');
+    check('post report edit: Mark completed, Unlink report evidence', vis(q('[data-dialog-open="case-complete-dialog"]')) && vis(q('[data-dialog-open="case-unlink-evidence-dialog"]')));
+    /* 3. roles */
+    M.reset(); M.set('role', 'user'); M.set('edit', 'on');
+    check('user edit: engineering locked', $('section-settlement').classList.contains('is-locked') && !shown('[data-estimate-send-to-ai]'));
+    check('user: no Administration in the rail', !shown('[data-when="admin"]'));
+    M.set('role', 'administrator'); check('administrator: Administration in the rail', shown('[data-when="admin"]'));
+    /* 4. case types */
+    M.reset(); check('inspection: no type chip', !shown('[data-case-type-chip]'));
+    M.set('kind', 'inspection-audit'); M.set('edit', 'on');
+    check('inspection + audit: chip and Create audit', shown('[data-case-type-chip]') && vis(q('[data-create-audit]')));
+    M.mockAction('create-audit'); check('create audit: link to the Audit case and item withdrawn', shown('[data-audit-link]') && !vis(q('[data-create-audit]')));
+    M.reset(); M.set('kind', 'audit'); check('audit case: reference and original link', q('[data-text="reference"]').textContent === 'ap.QDOS26214' && shown('[data-original-link]'));
+    /* 5. Glass's states */
+    M.reset(); M.set('edit', 'on');
+    check("glass none: Glass's launch slot", shown('[data-glass-slot="launch"]'));
+    M.set('glass', 'open'); check('glass open: Resume slot, session line, guarded close', shown('[data-glass-slot="resume"]') && shown('[data-glass-session="active"]') && shown('[data-glass-close]'));
+    M.set('glass', 'waiting'); check('glass waiting: notice and Complete import', shown('[data-estimate-notice]') && shown('[data-glass-complete-import]'));
+    M.set('edit', 'off'); check('glass waiting read: available while editing', q('[data-glass-session="awaitingimport"] .gated') && vis(q('[data-glass-session="awaitingimport"] .gated')));
+    M.set('edit', 'on'); M.set('glass', 'failed'); check('glass failed: failure code', shown('[data-glass-failure]'));
+    M.set('glass', 'elsewhere'); check('glass elsewhere: held from another Case', shown('[data-glass-session="elsewhere"]') && !shown('[data-glass-slot="launch"]'));
+    /* 6. decisions and proposals */
+    M.reset(); M.set('proposal', '1');
+    check('proposal read: Proposed column, no Accept', $('decisions').classList.contains('has-proposal') && !q('[data-accept-all-proposals]:not([hidden])'));
+    M.set('edit', 'on');
+    check('proposal edit: Accept all and Apply in Valuation', shown('[data-accept-all-proposals]') && vis(q('.prop [data-section-jump="valuation"]')));
+    q('[data-accept-all-proposals]').click(); check('accept all: no Awaiting left', !q('.prop[data-proposal-status="Awaiting"]'));
+    $('f-assessment-outcome').value = 'repairable'; $('f-assessment-outcome').dispatchEvent(new w.Event('change', { bubbles: true }));
+    check('outcome repairable: salvage rows and panel hidden', qa('[data-shown-when="total-loss"]').every(el => el.hidden));
+    $('f-assessment-legal-status').value = 'roadworthy'; $('f-assessment-legal-status').dispatchEvent(new w.Event('change', { bubbles: true }));
+    check('roadworthy: reason row hidden', q('[data-shown-when="unroadworthy"]').hidden);
+    /* 7. report states */
+    M.reset(); M.set('report', 'none'); check('report none: no generation, Generate is next', !shown('[data-report-generation]') && q('[data-next-label]').textContent === 'Generate report');
+    M.set('report', 'stale'); check('report stale: stale bar and notice', shown('[data-stale-bar]') && q('[data-text="genState"]').textContent === 'Stale');
+    M.set('report', 'prepared'); M.set('edit', 'on'); check('report prepared: Send prepared report', shown('[data-send-prepared]') && !shown('[data-prepare-delivery]'));
+    M.set('data', 'empty'); check('empty: report not ready gate', shown('[data-report-gate]') && shown('[data-report-not-ready]'));
+    M.reset(); M.set('data', 'empty');
+    check('empty: no estimates, no valuations, no files, no notes', shown('[data-estimate-empty]') && shown('[data-valuation-empty]') && shown('[data-documents-empty]') && !shown('#notesTimeline'));
+    /* 8. custody and lookup */
+    M.reset(); M.set('custody', 'pending'); q('[data-file-tab="images"]').click(); check('custody pending: amber chip, placeholder tile', q('[data-custody-chip]:not([hidden])').textContent.includes('preparing') && shown('[data-gallery-placeholder]'));
+    M.set('custody', 'failed'); check('custody failed: unavailable chip and no Open in Box', q('[data-custody-chip]:not([hidden])').textContent.includes('unavailable') && !shown('[data-open-in-box]'));
+    M.reset(); M.set('lookup', 'never'); check('lookup never', q('[data-vehicle-lookup-line]').textContent === 'Not yet looked up');
+    M.set('lookup', 'failed'); check('lookup failed prefix', q('[data-vehicle-lookup-line]').textContent.startsWith('Lookup failed · '));
+    M.set('edit', 'on'); check('lookup button while editing', shown('[data-vehicle-lookup]'));
+    /* 9. AI draft */
+    M.reset(); M.set('ai', 'estimate'); check('AI draft row in Next action', shown('[data-ai-draft]'));
+    /* 10. dialogs by name, each in a state that offers it */
+    const DIALOGS = [
+      ['case-hold-dialog', { edit: 'on' }], ['case-release-hold-dialog', { state: 'held', edit: 'on' }], ['case-complete-dialog', { state: 'post-report', edit: 'on' }],
+      ['case-return-review-dialog', { edit: 'on' }], ['case-return-engineer-dialog', { state: 'completed', edit: 'on' }], ['case-archive-dialog', { state: 'closed', edit: 'on' }],
+      ['case-unlink-evidence-dialog', { state: 'post-report', edit: 'on' }], ['case-correct-principal-dialog', { edit: 'on' }], ['case-close-dialog', { edit: 'on' }],
+      ['case-handoff-dialog', { state: 'review', edit: 'on' }], ['eva-handoff-dialog', { state: 'review' }], ['case-report-sent-dialog', { edit: 'on' }],
+      ['case-create-audit-dialog', { kind: 'inspection-audit', edit: 'on' }], ['import-estimate-dialog', { edit: 'on' }], ['compare-estimates-dialog', {}],
+      ['delete-estimate-dialog', { edit: 'on' }], ['send-to-ai-dialog', { edit: 'on' }], ['create-upload-request', { edit: 'on' }], ['case-chase-dialog', { state: 'not-ready', edit: 'on' }],
+      ['remove-doc-d1', { edit: 'on' }], ['revoke-upload-u1', { edit: 'on' }], ['account-dialog', {}], ['notifications-dialog', {}], ['command-dialog', {}]
+    ];
+    for (const [name, setup] of DIALOGS) {
+      M.reset(); Object.keys(setup).forEach(k => M.set(k, setup[k]));
+      const opened = M.openDialog(name);
+      const el = q(`[data-dialog="${name}"]`);
+      check(`dialog ${name}: opens`, opened && vis(el) && !!el.querySelector('h2'));
+      M.closeDialog(); check(`dialog ${name}: closes`, el.hidden);
+    }
+    /* 11. viewer */
+    M.reset(); M.set('edit', 'on'); M.openViewer(0, $('imageGrid'));
+    check('viewer: opens on the first image', !$('viewer').hidden && q('[data-viewer-position]').textContent === '1 of 6');
+    q('[data-viewer-next]').click(); check('viewer: next', q('[data-viewer-position]').textContent === '2 of 6');
+    q('[data-viewer-rotate]').click(); q('[data-viewer-zoom]').click(); check('viewer: rotate and zoom', q('[data-viewer-image]').style.transform.includes('rotate(90deg)') && q('[data-viewer-image]').style.transform.includes('scale(2)'));
+    check('viewer: Crop and In report while editing', shown('[data-viewer-crop]') && shown('[data-viewer-in-report-wrap]'));
+    q('[data-viewer-crop]').click(); check('viewer: crop tools', shown('[data-viewer-crop-tools]') && !shown('[data-viewer-view-tools]'));
+    q('[data-viewer-crop-cancel]').click(); check('viewer: crop cancelled', shown('[data-viewer-view-tools]'));
+    M.closeViewer(); check('viewer: closed', $('viewer').hidden);
+    M.set('edit', 'off'); M.openViewer(0, $('imageGrid')); check('viewer read: no Crop, no In report', !shown('[data-viewer-crop]') && !shown('[data-viewer-in-report-wrap]')); M.closeViewer();
+    /* 12. damage clicker */
+    M.reset(); check('damage read: two zones, derived Rear · Moderate', q('[data-damage-count]').textContent === '2' && q('[data-damage-location]').textContent === 'Rear');
+    q('[data-damage-zone="bonnet"]').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); check('damage read: click ignored', M.impacts().length === 2);
+    M.set('edit', 'on'); q('[data-damage-zone="bonnet"]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    check('damage edit: zone added, location Multiple', M.impacts().length === 3 && q('[data-damage-location]').textContent.startsWith('Multiple'));
+    qa('[data-damage-row-remove]')[2].click(); check('damage edit: row removed', M.impacts().length === 2);
+    /* 13. valuation calculator */
+    M.reset(); M.set('edit', 'on');
+    $('f-valuation-add-0').checked = true; $('f-valuation-add-0').dispatchEvent(new w.Event('change', { bubbles: true }));
+    check('valuation: tow bar added to the proposal', q('[data-valuation-proposal]').textContent === '£3,200.00');
+    $('f-valuation-ptl').value = '10'; $('f-valuation-ptl').dispatchEvent(new w.Event('change', { bubbles: true }));
+    check('valuation: previous total loss line', q('[data-valuation-lines]:not([hidden])').textContent.includes('Previous total loss'));
+    /* 14. estimate tabs, expand, VAT override */
+    M.reset(); q('[data-estimate-tab="e2"]').click(); check('estimate: draft tab', !q('[data-estimate-body="e2"]').hidden && q('[data-text="estimateMeta"]').textContent.startsWith('Manual'));
+    M.set('edit', 'on'); check('estimate edit draft: Use estimate, Duplicate, Discard, Save estimate', shown('[data-estimate-use]') && shown('[data-estimate-discard]') && shown('[data-estimate-save]'));
+    $('vat-labour').checked = false; $('vat-labour').dispatchEvent(new w.Event('change', { bubbles: true })); check('estimate: VAT override chip and reset', shown('[data-vat-overridden]') && shown('[data-vat-reset]'));
+    q('[data-vat-reset]').click(); check('estimate: VAT reset', !shown('[data-vat-overridden]'));
+    q('[data-estimate-add-line]').click(); check('estimate: Add line', qa('#estEditBody [data-estimate-line]').length === 4);
+    q('[data-estimate-expand]').click(); check('estimate: expanded', d.body.classList.contains('has-expanded')); q('[data-estimate-expand]').click();
+    /* 15. collapse, file tabs, layout, rail, menus */
+    M.reset();
+    for (const key of SECTIONS) { const btn = q(`[data-head-tools="${key}"] [data-collapse-toggle]`); btn.click(); check(`collapse ${key}`, $('section-' + key).classList.contains('is-collapsed')); btn.click(); }
+    for (const tab of ['images', 'correspondence', 'documents']) { q(`[data-file-tab="${tab}"]`).click(); check(`files tab ${tab}`, !q(`[data-file-tab-panel="${tab}"]`).hidden); }
+    q('[data-case-layout="tabs"]').click(); check('layout switch', $('case-record').getAttribute('data-layout') === 'tabs'); q('[data-case-layout="scroll"]').click();
+    q('[data-rail-toggle]').click(); check('rail collapsed', $('appShell').classList.contains('rail-collapsed')); q('[data-rail-toggle]').click();
+    M.set('edit', 'on'); q('[data-case-actions] summary').click(); check('actions menu opens', q('[data-case-actions]').open);
+    /* 16. mock actions that change state */
+    M.reset(); q('[data-case-edit]').click(); check('Edit Case claims the lease', M.flags().editing);
+    q('[data-case-cancel]').click(); check('Cancel ends editing', !M.flags().editing);
+    M.set('edit', 'on'); $('f-claimant').value = 'Ms L Carter-Jones'; $('f-claimant').dispatchEvent(new w.Event('change', { bubbles: true })); q('[data-case-cancel]').click();
+    check('dirty Cancel asks first', !$('edit-finish-confirm').hidden); q('[data-edit-finish-keep]').click(); check('keep editing', $('edit-finish-confirm').hidden && M.flags().editing);
+    q('[data-case-save]').click(); check('Save notice', !!q('[data-confirmation]'));
+    M.reset(); M.set('edit', 'on'); M.openDialog('case-hold-dialog'); $('case-hold-reason').value = 'Awaiting hire confirmation'; q('[data-dialog="case-hold-dialog"] form').requestSubmit(); check('hold posts and the Case is Held', M.state().state === 'held');
+    /* 17. strip buttons and query presets */
+    M.reset(); qa('[data-strip] button').forEach(b => { b.click(); });
+    check('strip: every button applies', true);
+    M.reset(); M.applyQuery(new w.URLSearchParams('state=review&edit=1&section=estimate&layout=tabs')); check('query: state, edit, section, layout', M.state().state === 'review' && M.flags().editing && M.ui.section === 'estimate' && M.state().layout === 'tabs');
+    M.reset(); M.applyQuery(new w.URLSearchParams('dialog=case-close-dialog&edit=1')); check('query: dialog', vis(q('[data-dialog="case-close-dialog"]'))); M.closeDialog();
+    M.reset(); M.applyQuery(new w.URLSearchParams('viewer=2')); check('query: viewer', !$('viewer').hidden && q('[data-viewer-position]').textContent === '2 of 6'); M.closeViewer();
+    M.reset(); M.applyQuery(new w.URLSearchParams('collapse=overview,files')); check('query: collapse', $('section-overview').classList.contains('is-collapsed') && $('section-files').classList.contains('is-collapsed'));
+    M.reset(); M.applyQuery(new w.URLSearchParams('kind=inspection-audit&audit=1')); check('query: audit link', shown('[data-audit-link]'));
+    /* 18. the states added by the coverage audit */
+    M.reset(); M.set('data', 'conflict'); check('stale save: proposed values table', shown('[data-proposed-values]'));
+    M.reset(); M.set('data', 'unavailable'); check('case unavailable: notice, no record', shown('[data-when="unavailable"]') && $('case-record').hidden);
+    M.reset(); M.set('edit', 'on'); M.openDialog('case-correct-principal-dialog'); $('case-replacement-principal').value = 'AXA'; $('case-replacement-reason').value = 'Wrong principal'; q('[data-dialog="case-correct-principal-dialog"] form').requestSubmit();
+    check('correct principal: Created in error and replacement link', M.state().state === 'created-in-error' && shown('[data-replacement-link]') && $('stateChip').textContent === 'Closed · Created in error');
+    M.reset(); M.set('state', 'review'); M.set('eva', 'api-off'); M.openDialog('eva-handoff-dialog'); check('eva api not enabled: gated Send via API', vis(q('[data-condition]')) && !shown('[data-mock-handler="Bundle"]')); M.closeDialog();
+    M.set('eva', 'api-failed'); M.openDialog('eva-handoff-dialog'); check('eva automatic failed: notice and retry', q('[data-dialog="eva-handoff-dialog"]').textContent.includes('EVA delivery did not complete') && shown('[data-mock-handler="Submit"]')); M.closeDialog();
+    M.reset(); M.set('edit', 'on'); $('f-settlement-claimant-vat-registered').value = 'true'; $('f-settlement-claimant-vat-registered').dispatchEvent(new w.Event('change', { bubbles: true }));
+    check('claimant VAT registered: commercial VAT blocked', $('f-valuation-vat').disabled && shown('[data-when="claimantVat"]'));
+    M.reset(); q('[data-file-tab="images"]').click(); check('intake group with photographs', shown('[data-intake-group]') && qa('#intakeGrid [data-evidence-item]').length === 2);
+    M.reset(); M.set('custody', 'pending'); check('retained estimate sources while custody pending', shown('[data-estimate-sources]') && q('[data-estimate-sources] .gated') !== null);
+    M.set('edit', 'on'); check('retained sources: Complete import while editing', shown('[data-estimate-complete-import]'));
+    /* 19. damage selector variants (v27 proposal, strip variable `clicker`) */
+    const svg = $('damageSvg');
+    const pe = (type, x, y) => { const pt = svg.createSVGPoint(); pt.x = x; pt.y = y; const c = pt.matrixTransform(svg.getScreenCTM()); svg.dispatchEvent(new w.PointerEvent(type, { bubbles: true, clientX: c.x, clientY: c.y, pointerId: 1, isPrimary: true })); };
+    for (const [variant, count] of [['pins', 2], ['brush', 2], ['area', 2], ['arrow', 1]]) {
+      M.reset(); M.set('clicker', variant);
+      check(`variant ${variant}: fixture marks and rows`, M.marks().length === count && qa('[data-damage-row]').length === count && $('section-damage').getAttribute('data-clicker') === variant);
+      check(`variant ${variant}: derived location Rear from the marks`, q('[data-damage-location]').textContent === 'Rear' && !q('svg [data-damage-zone].is-damaged'));
+      pe('pointerdown', 120, 84); pe('pointerup', 120, 84);
+      check(`variant ${variant}: read mode ignores the click`, M.marks().length === count);
+    }
+    M.reset(); M.set('clicker', 'pins'); M.set('edit', 'on');
+    pe('pointerdown', 120, 84); pe('pointerup', 120, 84);
+    check('pins: click on the bonnet drops a pin, location Multiple · Front, Rear', M.marks().length === 3 && q('[data-damage-location]').textContent === 'Multiple · Rear, Front' && q('[data-damage-count]').textContent === '3' && qa('[data-damage-row]')[2].textContent.includes('Front'));
+    pe('pointerdown', 10, 10); pe('pointerup', 10, 10);
+    check('pins: click off the vehicle is ignored', M.marks().length === 3);
+    qa('[data-mark-remove]')[2].click(); check('pins: remove', M.marks().length === 2);
+    M.set('clicker', 'brush'); pe('pointerdown', 60, 132); pe('pointermove', 56, 165); pe('pointermove', 54, 199); pe('pointerup', 54, 199);
+    check('brush: a stroke from the LH front into the LH side names both areas', M.marks().length === 3 && qa('[data-damage-row]')[2].textContent.includes('LH Front') && qa('[data-damage-row]')[2].textContent.includes('LH Side'));
+    M.set('clicker', 'area'); pe('pointerdown', 186, 269); pe('pointermove', 206, 289); pe('pointerup', 206, 289);
+    check('area: press and drag sizes the circle, RH Side', M.marks().length === 3 && M.marks()[2].r >= 20 && qa('[data-damage-row]')[2].textContent.includes('RH Side'));
+    M.set('clicker', 'arrow'); pe('pointerdown', 120, 30); pe('pointermove', 120, 82); pe('pointerup', 120, 82);
+    check('arrow: length sets severity, area Front', M.marks().length === 2 && M.marks()[1].severity === 'moderate_to_heavy' && qa('[data-damage-row]')[1].textContent.includes('Front') && !qa('[data-damage-row]')[1].textContent.includes('Impact'));
+    check('areas: the eight areas from points', ['front', 'left_front', 'right_front', 'left_side', 'right_side', 'rear', 'left_rear', 'right_rear'].every((a, i) => M.areaAt([[120, 60], [60, 60], [180, 60], [60, 220], [180, 220], [120, 380], [60, 380], [180, 380]][i][0], [[120, 60], [60, 60], [180, 60], [60, 220], [180, 220], [120, 380], [60, 380], [180, 380]][i][1]) === a) && M.areaAt(10, 10) === null);
+    check('areas: the rows name areas only, no kind word and no panel', qa('[data-damage-row]').every(r => !r.textContent.includes('Rear centre') && !r.textContent.includes('tailgate') && !/Pin|Stroke|Area|Impact/.test(r.querySelector('.zc').textContent)));
+    $('mark-severity-1').value = 'heavy'; $('mark-severity-1').dispatchEvent(new w.Event('change', { bubbles: true }));
+    check('arrow: severity from the row', M.marks()[1].severity === 'heavy' && q('[data-damage-severity]').textContent === 'Heavy');
+    M.set('clicker', 'zones'); check('back to live zones: panels painted, live rows', q('svg [data-damage-zone].is-damaged') !== null && qa('[data-damage-row]').length === 2);
+    /* 20. the reference proposals (v27-notes § 15), switched on for this block only */
+    M.reset(); M.state().p = Object.fromEntries(Object.keys(M.state().p).map(k => [k, true])); M.apply();
+    check('proposals: all on', Object.values(M.state().p).every(Boolean) && d.body.getAttribute('data-proposals').includes('nine'));
+    check('nine: nine section links and a Claim section', qa('[data-section-link]').length === 9 && !!$('section-claim') && $('section-damage').closest('#section-vehicle') !== null && $('section-overview-title').textContent === 'Case details');
+    check('place: Sign-off Engineer on the Case column, unrelated damage on Vehicle, switches on Valuation', q('[data-field="signOffEngineerId"]').closest('#section-overview') !== null && q('[data-unrelated-band]').closest('#section-vehicle') !== null && q('[data-field="report-content"]').closest('#section-valuation') !== null);
+    check('badges: outcome, legal and ratio in the ribbon, none in the aside', shown('#badgeRatio') && !shown('.fig-chips') && $('badgeRatio').textContent.startsWith('Repairs 104%'));
+    check('composed: matter line from the recorded fields', q('[data-composed="matter"]').textContent === 'Road Traffic Accident: Ms L Carter: 14 July 2026');
+    check('composed: assessment method, charges, mileage, condition, VAT, carries', q('[data-composed="located"]').textContent === 'Vehicle located at: Image Based Assessment.' && q('[data-composed="charges"]').textContent.includes('£250.00 and £25.00pd') && q('[data-composed="mileage"]').textContent.includes('online data') && q('[data-composed="condition"]').textContent.includes('average condition') && q('[data-composed="vat"]').textContent.includes('every category') && q('[data-composed="carries"]').textContent.includes("Glass's — Retail £2,950.00"));
+    check('queries: panel on Notes', shown('[data-when="p.queries"]'));
+    check('prov: Audatex lines read imported · AX', qa('[data-estimate-body="e1"] .src-tag[data-base]')[0].textContent === 'imported · AX');
+    M.set('edit', 'on');
+    $('f-claimant').value = 'Mr T Hale'; $('f-claimant').dispatchEvent(new w.Event('input', { bubbles: true }));
+    check('composed: matter line follows the claimant while editing', q('[data-composed="matter"]').textContent.startsWith('Road Traffic Accident: Mr T Hale'));
+    check('cap: entry card while editing', shown('[data-valuation-entry="cap"]'));
+    $('salvRange').value = 25; $('salvRange').dispatchEvent(new w.Event('input', { bubbles: true }));
+    check('salvage slider: 25 % of £2,900 writes £725.00 and reads back', $('f-assessment-salvage-value').value === '725.00' && $('salvRead').textContent.includes('25% of £2,900.00'));
+    q('[data-bank="0"]').click(); check('reason bank: phrase appended with "and"', $('f-assessment-unroadworthy-reason').value.includes(' and the steering and suspension geometry has been compromised.'));
+    check('off-pattern: unit £ on a Repair line reads amber', q('#estEditBody tr:nth-child(2) [name="linePartPounds"]').classList.contains('viol'));
+    M.set('repairer', 'london'); check('uplift: suggested from the Croydon postcode', $('upliftChip').textContent.startsWith('Suggested · Repairer (CR0)'));
+    $('est-uplift').checked = true; $('est-uplift').dispatchEvent(new w.Event('change', { bubbles: true })); check('uplift: +15 % on the labour rate', $('estimate-labour-rate').value === '95.77');
+    M.set('repairer', 'liverpool'); check('uplift: not suggested from Bootle', $('upliftChip').textContent === 'London & Home Counties');
+    const rows0 = qa('#estEditBody tr[data-estimate-line]').length; qa('#estEditBody [data-mock-action="remove-line"]')[0].click();
+    check('undo: line removed with an Undo toast', qa('#estEditBody tr[data-estimate-line]').length === rows0 - 1 && !!q('[data-undo-row]'));
+    q('[data-undo-row]').click(); check('undo: line restored', qa('#estEditBody tr[data-estimate-line]').length === rows0);
+    q('[data-estimate-tab="e2"]').click(); check('delete all: offered while the draft edits', vis(q('[data-dialog-open="delete-lines-dialog"]')));
+    M.openDialog('delete-lines-dialog'); q('[data-delete-lines]').click(); check('delete all: every line gone', qa('#estEditBody tr[data-estimate-line]').length === 0);
+    check('supplementary: panel with the diff', shown('#suppPanel') && qa('#suppList li').length >= 10 && $('suppDelta').textContent.includes('£1,047.02'));
+    $('suppPrint').checked = true; $('suppPrint').dispatchEvent(new w.Event('change', { bubbles: true })); check('supplementary: composed paragraph when explained', shown('[data-supp-when-print]') && q('[data-composed="supp"]').textContent.startsWith('Following receipt of a supplementary estimate'));
+    M.openDialog('compare-estimates-dialog'); check('compare: nothing until two versions are chosen', $('cmpDiff').innerHTML === '' && !vis(q('[data-cmp-print]')));
+    $('cmpFrom').value = 'e1'; $('cmpFrom').dispatchEvent(new w.Event('change', { bubbles: true })); $('cmpTo').value = 'e2'; $('cmpTo').dispatchEvent(new w.Event('change', { bubbles: true }));
+    check('compare: per-line diff with added, changed and removed rows', qa('#cmpDiff tr.removed').length >= 10 && qa('#cmpDiff tr.changed').length === 1 && $('cmpSum').textContent.includes('removed') && vis(q('[data-cmp-print]'))); M.closeDialog();
+    check('address book: To and Cc in place of the live inputs', shown('#abTo') && !shown('#report-recipient-to') && qa('#ccLine .ccchip').length === 1);
+    qa('[data-cc-add]')[0].click(); check('address book: one-click Cc suggestion', qa('#ccLine .ccchip').length === 2);
+    $('abCc').dispatchEvent(new w.Event('focusin', { bubbles: true })); check('address book: dropdown on focus', $('abCcList').classList.contains('open') && qa('#abCcList .abr').length === 6);
+    check('attachments: four ticks', qa('[data-attach]').length === 4);
+    check('re-send: file name and message before a send', q('[data-composed="fname"]').textContent === 'QDOS26214 MA59BDY Total loss report.pdf' && q('[data-composed="body"]').textContent.startsWith('Please find attached our Total loss report'));
+    M.set('report', 'prepared'); q('[data-send-prepared]').requestSubmit(); check('re-send: after a send the next file name gains a dot and the message supersedes', M.ui.sentCount === 1 && q('[data-composed="fname"]').textContent.endsWith('report..pdf') && q('[data-composed="body"]').textContent.includes('supersedes our report dated 16 September 2026'));
+    q('[data-report-tab="fee"]').click(); check('fee tab: fee pane shown, report pane hidden', shown('[data-report-pane="fee"]') && !shown('[data-report-preview-card]')); q('[data-report-tab="report"]').click();
+    q('[data-file-tab="images"]').click(); const tile = qa('#imageGrid [data-evidence-item]')[3]; tile.click(); check('click to include: fourth image now in the report', M.images[3].role === 'Supporting' && $('viewer').hidden && q('[data-report-image-count]').textContent.startsWith('4 of 6'));
+    /* the report wording well */
+    check('wording: blocks in print order while editing', qa('#wbList .wb').length === 8 && qa('#wbList .wb')[0].querySelector('.wbt').textContent === 'Nature of incident' && qa('#wbList .wb')[1].querySelector('textarea').value.includes('unroadworthy') && qa('#wbList .wb')[2].getAttribute('data-wb') === 'suppl');
+    check('wording: settlement and salvage composed for a total loss', qa('#wbList .wb').some(b => b.querySelector('textarea').value.includes('equitable settlement would be £2,175.00')) && qa('#wbList .wb').some(b => b.querySelector('textarea').value.includes('Category N')));
+    const ta = q('[data-wb-text="settle"]'); ta.value = ta.value + ' Agreed with the handler.'; ta.dispatchEvent(new w.Event('input', { bubbles: true }));
+    check('wording: an edited block stops tracking and offers recompose', q('[data-wb="settle"]').classList.contains('edited') && !!q('[data-wb-recompose="settle"]'));
+    q('[data-wb-recompose="settle"]').click(); check('wording: recomposed from fields', !q('[data-wb="settle"]').classList.contains('edited') && !q('[data-wb-text="settle"]').value.includes('handler'));
+    q('[data-wb-remove="precon"]').click(); check('wording: removed block reappears as an add', !q('[data-wb="precon"]') && !!q('[data-wb-add="precon"]'));
+    q('[data-wb-add="precon"]').click(); check('wording: added back', !!q('[data-wb="precon"]'));
+    q('[data-wb-new]').click(); check('wording: new manual paragraph', qa('#wbList .wb').length === 9 && qa('#wbList .wb').pop().querySelector('.src-tag').textContent === 'manual');
+    M.wording.moveBefore('settle', 'nature'); check('wording: reordered, Settlement first', qa('#wbList .wb')[0].getAttribute('data-wb') === 'settle');
+    q('[data-wb-remove="pavcom"]').click(); check('wording: removing PAV commentary clears the report switch', !q('[data-wb="pavcom"]') && !q('[data-report-switch="report.valuation_commentary"]').checked);
+    M.set('edit', 'off'); check('wording: read mode shows the blocks as derived cells', qa('#wbList .wb-read').length >= 7 && !q('#wbList textarea'));
+    M.set('edit', 'on');
+    M.state().p.nine = false; M.state().p.place = false; M.apply();
+    check('nine off: the ten live sections and Overview restored', qa('[data-section-link]').length === 10 && !$('section-claim') && $('section-damage').parentElement.id === 'case-main' && $('section-overview-title').textContent === 'Overview' && q('[data-field="signOffEngineerId"]').closest('#section-report') !== null && q('[data-unrelated-band]').closest('#section-damage') !== null);
+    M.reset(); check('reset: proposals back to the loaded state', Object.values(M.state().p).every(v => !v) && !$('section-claim'));
+    check('no placeholder alerts remain', !d.body.innerHTML.includes('alert('));
+    check('vocabulary: no vendor name for Send to AI', !d.body.textContent.includes('Send to Claude'));
+  } catch (e) { log.push('EXC ' + e.message + '\n' + e.stack); }
+  setTimeout(() => { document.getElementById('out').textContent = 'RESULT ' + JSON.stringify({ fail: log, okCount: ok.length }); }, 1200);
+};
+</script></body></html>

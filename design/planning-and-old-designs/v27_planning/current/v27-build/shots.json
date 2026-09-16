@@ -1,0 +1,388 @@
+[
+ {
+  "name": "01-overview-read",
+  "query": ""
+ },
+ {
+  "name": "02-overview-edit",
+  "query": "edit=1"
+ },
+ {
+  "name": "03-not-ready",
+  "query": "state=not-ready"
+ },
+ {
+  "name": "04-review-edit",
+  "query": "state=review&edit=1"
+ },
+ {
+  "name": "05-held",
+  "query": "state=held"
+ },
+ {
+  "name": "06-completed",
+  "query": "state=completed"
+ },
+ {
+  "name": "07-completed-enable-return",
+  "query": "state=completed&edit=1"
+ },
+ {
+  "name": "08-closed-archived",
+  "query": "state=closed&archived=1"
+ },
+ {
+  "name": "09-colleague-editing",
+  "query": "edit=colleague"
+ },
+ {
+  "name": "10-actions-menu",
+  "query": "edit=1",
+  "eval": "document.querySelector('[data-case-actions]').open = true"
+ },
+ {
+  "name": "11-inspection-edit",
+  "query": "edit=1&section=inspection"
+ },
+ {
+  "name": "12-vehicle-read",
+  "query": "section=vehicle"
+ },
+ {
+  "name": "13-vehicle-edit-lookup-failed",
+  "query": "edit=1&section=vehicle&lookup=failed"
+ },
+ {
+  "name": "14-damage-read",
+  "query": "section=damage"
+ },
+ {
+  "name": "15-damage-edit",
+  "query": "edit=1&section=damage"
+ },
+ {
+  "name": "16-valuation-read",
+  "query": "section=valuation"
+ },
+ {
+  "name": "17-valuation-edit",
+  "query": "edit=1&section=valuation"
+ },
+ {
+  "name": "18-estimate-read",
+  "query": "section=estimate"
+ },
+ {
+  "name": "19-estimate-edit-draft",
+  "query": "edit=1&section=estimate&estimate=e2"
+ },
+ {
+  "name": "20-estimate-glass-open",
+  "query": "edit=1&section=estimate&glass=open"
+ },
+ {
+  "name": "21-estimate-glass-waiting",
+  "query": "edit=1&section=estimate&glass=waiting"
+ },
+ {
+  "name": "22-estimate-glass-elsewhere",
+  "query": "edit=1&section=estimate&glass=elsewhere"
+ },
+ {
+  "name": "23-estimate-expanded",
+  "query": "section=estimate&expand=1"
+ },
+ {
+  "name": "24-settlement-read",
+  "query": "section=settlement"
+ },
+ {
+  "name": "25-settlement-edit-proposal",
+  "query": "edit=1&proposal=1&section=settlement"
+ },
+ {
+  "name": "26-report-read",
+  "query": "section=report"
+ },
+ {
+  "name": "27-report-edit-prepare",
+  "query": "edit=1&section=report"
+ },
+ {
+  "name": "28-report-stale",
+  "query": "edit=1&section=report&report=stale"
+ },
+ {
+  "name": "29-report-not-generated",
+  "query": "edit=1&section=report&report=none"
+ },
+ {
+  "name": "30-files-documents",
+  "query": "section=files"
+ },
+ {
+  "name": "31-files-images-edit",
+  "query": "edit=1&section=files&tab=images"
+ },
+ {
+  "name": "32-files-correspondence",
+  "query": "section=files&tab=correspondence"
+ },
+ {
+  "name": "33-files-custody-pending",
+  "query": "section=files&custody=pending"
+ },
+ {
+  "name": "34-notes",
+  "query": "section=notes"
+ },
+ {
+  "name": "35-notes-chase",
+  "query": "state=not-ready&edit=1&section=notes"
+ },
+ {
+  "name": "36-empty-case",
+  "query": "state=not-ready&data=empty"
+ },
+ {
+  "name": "37-tabs-layout",
+  "query": "layout=tabs&section=valuation"
+ },
+ {
+  "name": "38-rail-collapsed",
+  "query": "rail=collapsed"
+ },
+ {
+  "name": "39-inspection-audit-create",
+  "query": "kind=inspection-audit&edit=1&dialog=case-create-audit-dialog"
+ },
+ {
+  "name": "40-audit-case",
+  "query": "kind=audit"
+ },
+ {
+  "name": "41-ai-draft-next-action",
+  "query": "ai=estimate"
+ },
+ {
+  "name": "42-dialog-hold",
+  "query": "edit=1&dialog=case-hold-dialog"
+ },
+ {
+  "name": "43-dialog-close-case",
+  "query": "edit=1&dialog=case-close-dialog"
+ },
+ {
+  "name": "44-dialog-hand-to-engineer",
+  "query": "state=review&edit=1&dialog=case-handoff-dialog"
+ },
+ {
+  "name": "45-dialog-send-to-ai",
+  "query": "edit=1&dialog=send-to-ai-dialog"
+ },
+ {
+  "name": "46-dialog-compare",
+  "query": "dialog=compare-estimates-dialog"
+ },
+ {
+  "name": "47-dialog-import",
+  "query": "edit=1&dialog=import-estimate-dialog"
+ },
+ {
+  "name": "48-dialog-eva",
+  "query": "state=review&edit=1&dialog=eva-handoff-dialog"
+ },
+ {
+  "name": "49-dialog-report-sent",
+  "query": "edit=1&dialog=case-report-sent-dialog"
+ },
+ {
+  "name": "50-dialog-notifications",
+  "query": "notifications=1"
+ },
+ {
+  "name": "51-viewer",
+  "query": "edit=1&viewer=1"
+ },
+ {
+  "name": "52-user-role",
+  "query": "role=user&edit=1&section=settlement"
+ },
+ {
+  "name": "53-administrator",
+  "query": "role=administrator"
+ },
+ {
+  "name": "54-whole-page",
+  "query": "",
+  "full": true
+ },
+ {
+  "name": "55-overview-1440",
+  "query": "",
+  "width": 1440,
+  "height": 900
+ },
+ {
+  "name": "56-estimate-1440",
+  "query": "section=estimate",
+  "width": 1440,
+  "height": 900
+ },
+ {
+  "name": "57-overview-760",
+  "query": "",
+  "width": 760,
+  "height": 1000
+ },
+ {
+  "name": "58-estimate-760",
+  "query": "section=estimate",
+  "width": 760,
+  "height": 1000
+ },
+ {
+  "name": "59-damage-760",
+  "query": "edit=1&section=damage",
+  "width": 760,
+  "height": 1000
+ },
+ {
+  "name": "60-stale-save-refused",
+  "query": "data=conflict"
+ },
+ {
+  "name": "61-case-unavailable",
+  "query": "data=unavailable"
+ },
+ {
+  "name": "62-created-in-error-replacement",
+  "query": "state=created-in-error"
+ },
+ {
+  "name": "63-eva-api-not-enabled",
+  "query": "state=review&eva=api-off&dialog=eva-handoff-dialog"
+ },
+ {
+  "name": "64-retained-estimate-sources",
+  "query": "edit=1&section=estimate&custody=pending"
+ },
+ {
+  "name": "65-strip",
+  "query": "",
+  "eval": "document.getElementById('mock').classList.remove('is-collapsed'); document.getElementById('mockCollapseLbl').textContent='Hide'"
+ },
+ {
+  "name": "66-damage-a-pins-edit",
+  "query": "edit=1&section=damage&clicker=pins"
+ },
+ {
+  "name": "67-damage-b-brush-edit",
+  "query": "edit=1&section=damage&clicker=brush"
+ },
+ {
+  "name": "68-damage-c-areas-edit",
+  "query": "edit=1&section=damage&clicker=area"
+ },
+ {
+  "name": "69-damage-d-arrows-edit",
+  "query": "edit=1&section=damage&clicker=arrow"
+ },
+ {
+  "name": "70-damage-a-pins-read",
+  "query": "section=damage&clicker=pins"
+ },
+ {
+  "name": "71-damage-d-arrows-read",
+  "query": "section=damage&clicker=arrow"
+ },
+ {
+  "name": "72-logo-refined",
+  "query": ""
+ },
+ {
+  "name": "73-logo-refined-rail-collapsed",
+  "query": "rail=collapsed"
+ },
+ {
+  "name": "74-logo-live",
+  "query": "logo=live"
+ },
+ {
+  "name": "75-p-overview-edit",
+  "query": "proposals=all&edit=1"
+ },
+ {
+  "name": "76-p-inspection-vehicle",
+  "query": "proposals=all&edit=1&section=inspection"
+ },
+ {
+  "name": "77-p-vehicle-edit",
+  "query": "proposals=all&edit=1&section=vehicle"
+ },
+ {
+  "name": "78-p-valuation-edit",
+  "query": "proposals=all&edit=1&section=valuation"
+ },
+ {
+  "name": "79-p-estimate-edit",
+  "query": "proposals=all&edit=1&section=estimate&estimate=e2&repairer=london"
+ },
+ {
+  "name": "80-p-estimate-supp",
+  "query": "proposals=all&section=estimate"
+ },
+ {
+  "name": "81b-p-compare-unchosen",
+  "query": "proposals=all&dialog=compare-estimates-dialog"
+ },
+ {
+  "name": "81-p-compare-diff",
+  "query": "proposals=all&dialog=compare-estimates-dialog",
+  "eval": "var f=document.getElementById('cmpFrom'),t=document.getElementById('cmpTo');f.value='e1';f.dispatchEvent(new Event('change',{bubbles:true}));t.value='e2';t.dispatchEvent(new Event('change',{bubbles:true}))"
+ },
+ {
+  "name": "82-p-settlement-edit",
+  "query": "proposals=all&edit=1&section=settlement"
+ },
+ {
+  "name": "83-p-report-edit",
+  "query": "proposals=all&edit=1&section=report"
+ },
+ {
+  "name": "84-p-report-fee-tab",
+  "query": "proposals=all&section=report",
+  "eval": "document.querySelector('[data-report-tab=\"fee\"]').click()"
+ },
+ {
+  "name": "85-p-files-include",
+  "query": "proposals=all&edit=1&section=files"
+ },
+ {
+  "name": "86-p-notes-queries",
+  "query": "proposals=all&section=notes"
+ },
+ {
+  "name": "87-p-nine-sections",
+  "query": "proposals=all"
+ },
+ {
+  "name": "88-p-nine-claim",
+  "query": "proposals=all&section=claim"
+ },
+ {
+  "name": "89-p-nine-vehicle-full",
+  "query": "proposals=all&section=vehicle",
+  "full": true
+ },
+ {
+  "name": "90-p-report-wording",
+  "query": "proposals=all&edit=1&section=report",
+  "eval": "document.getElementById('section-report').querySelector('[data-report-wording]').scrollIntoView({block:'start'})"
+ },
+ {
+  "name": "91-p-report-wording-read",
+  "query": "proposals=all&section=report",
+  "eval": "document.getElementById('section-report').querySelector('[data-report-wording]').scrollIntoView({block:'start'})"
+ }
+]
