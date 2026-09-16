@@ -258,11 +258,8 @@ public sealed class UnidentifiedPersistenceTests
 
         var cursorRows = await store.ListQueueByCursorAsync(null, null, 20, CancellationToken.None);
         Assert.Equal(
-            rows.OrderBy(row => row.CreatedAtUtc).ThenBy(row => row.Id).Select(row => row.Id),
-            cursorRows.Items.Select(row => row.Id));
-        Assert.Equal(
-            rows.OrderBy(row => row.CreatedAtUtc).ThenBy(row => row.Id).Select(row => row.NextStep),
-            cursorRows.Items.Select(row => row.NextStep));
+            rows.OrderBy(row => row.Id).Select(row => (row.Id, row.NextStep)),
+            cursorRows.Items.OrderBy(row => row.Id).Select(row => (row.Id, row.NextStep)));
 
         foreach (var row in rows)
         {

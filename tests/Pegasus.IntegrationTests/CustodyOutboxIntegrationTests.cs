@@ -16,6 +16,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
@@ -136,6 +137,16 @@ public sealed class CustodyOutboxIntegrationTests
             .ExecuteAsync(request, CancellationToken.None);
         Assert.True(replay.IsDuplicate);
         Assert.Equal(supplied.ReportAssetId, replay.ReportAssetId);
+
+        await Assert.ThrowsAsync<IntakeOperationConflictException>(() =>
+            services.GetRequiredService<ISupplyAuditOriginalReport>().ExecuteAsync(
+                request with { Content = "changed report content"u8.ToArray() }, CancellationToken.None));
+        var afterConflict = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receiptId, CancellationToken.None));
+        Assert.Equal(reevaluated.Version, afterConflict.Version);
+        Assert.Single(afterConflict.AssetRecords, asset => asset.Disposition == IntakeAssetDisposition.SuppliedOriginalReport);
+        Assert.Single(await services.GetRequiredService<IUnidentifiedStore>().HistoryAsync(item.Id),
+            entry => entry.Reason == "Original report added: bodyshop-report.pdf");
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
     }
 
     [Fact]
@@ -244,10 +255,14 @@ public sealed class CustodyOutboxIntegrationTests
         }
     }
 
-    [Fact]
-    public async Task PendingSuppliedMailboxReportRetriesWithoutAllocationThenRecoversFromItsRealCustodyIntent()
+    [Theory]
+    [InlineData(CaseArtifactCustodyDisposition.Pending, IncomingArtifactCustodyState.Pending)]
+    [InlineData(CaseArtifactCustodyDisposition.Failed, IncomingArtifactCustodyState.Failed)]
+    public async Task UnconfirmedSuppliedMailboxReportRetriesWithoutAllocationThenRecoversFromItsRealCustodyIntent(
+        CaseArtifactCustodyDisposition custodyDisposition,
+        IncomingArtifactCustodyState expectedCustodyState)
     {
-        var pending = new PendingSuppliedReportCustody();
+        var pending = new PendingSuppliedReportCustody { Disposition = custodyDisposition };
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
@@ -304,10 +319,12 @@ public sealed class CustodyOutboxIntegrationTests
         var operationKey = IncomingArtifactOperationKey.ForIntake(receiptId, supplied.ReportAssetId);
         var retention = services.GetRequiredService<IIncomingArtifactRetentionStore>();
         var intent = Assert.IsType<RetainedIncomingArtifact>(await retention.FindAsync(operationKey, CancellationToken.None));
-        Assert.Equal(IncomingArtifactCustodyState.Pending, intent.State);
+        Assert.Equal(expectedCustodyState, intent.State);
+        Assert.Equal(expectedCustodyState,
+            Assert.Single(stillQueued.AssetRecords, asset => asset.Id == supplied.ReportAssetId).CustodyState);
         Assert.Equal(1, pending.HeldCalls);
 
-        // Custody finishes its accepted intent using the real adapter. The
+        // Custody finishes or recovers its accepted intent using the real adapter. The
         // Worker then reads that confirmed document without re-offering bytes.
         await pending.CompleteAsync();
         await IntakeWebDriver.DrainStagedAsync(services, stagedReceiptId, CancellationToken.None);
@@ -3057,6 +3074,7 @@ public sealed class CustodyOutboxIntegrationTests
     {
         public const string ReportFileName = "pending-bodyshop-report.pdf";
         public int HeldCalls { get; private set; }
+        public CaseArtifactCustodyDisposition Disposition { get; init; } = CaseArtifactCustodyDisposition.Pending;
 
         private readonly ICaseArtifactCustody? inner;
         private readonly PendingSuppliedReportCustody state;
@@ -3088,8 +3106,9 @@ public sealed class CustodyOutboxIntegrationTests
                 state.acceptedBytes = buffer.ToArray();
                 state.acceptedRequest = request with { Content = Stream.Null };
                 state.acceptedCustody = adapter;
-                return new(CaseArtifactCustodyDisposition.Pending, null, null, null, null, null,
-                    request.Sha256, request.ContentLength, request.MediaType, null, null);
+                return new(state.Disposition, null, null, null, null, null,
+                    request.Sha256, request.ContentLength, request.MediaType,
+                    state.Disposition == CaseArtifactCustodyDisposition.Failed ? "fixture_custody_failed" : null, null);
             }
 
             return await adapter.RetainAsync(request, cancellationToken);
