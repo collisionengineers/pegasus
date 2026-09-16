@@ -1088,6 +1088,8 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(1, assessmentWorkspace.ReadCount);
         Assert.True(directVehicleQuery.HasAssessmentWorkspace);
         Assert.Same(assessmentWorkspace.Workspace, directVehicleQuery.AssessmentWorkspace);
+        Assert.NotNull(directVehicleQuery.Frame);
+        Assert.Equal(store.CaseId, directVehicleQuery.Frame!.Summary.CaseId);
         Assert.Same(assessment, Assert.Single(store.VehicleSectionAssessments));
         Assert.Contains("diesel", directVehicle, StringComparison.Ordinal);
         Assert.Contains("src-tag--lookup", directVehicle, StringComparison.Ordinal);
@@ -1097,6 +1099,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(1, assessmentWorkspace.ReadCount);
         Assert.False(lazyVehicleQuery.HasAssessmentWorkspace);
         Assert.Null(lazyVehicleQuery.AssessmentWorkspace);
+        Assert.Null(lazyVehicleQuery.Frame);
         Assert.Same(assessment, store.VehicleSectionAssessments.Last());
         Assert.Contains("diesel", lazyVehicle, StringComparison.Ordinal);
         Assert.Contains("src-tag--lookup", lazyVehicle, StringComparison.Ordinal);
@@ -1109,6 +1112,8 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(1, assessmentWorkspace.ReadCount);
         Assert.True(directValuationQuery.HasAssessmentWorkspace);
         Assert.Same(assessmentWorkspace.Workspace, directValuationQuery.AssessmentWorkspace);
+        Assert.NotNull(directValuationQuery.Frame);
+        Assert.Equal(store.CaseId, directValuationQuery.Frame!.Workflow.CaseId);
         Assert.Same(assessment, Assert.Single(store.ValuationSectionAssessments));
 
         await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Section?section=valuation");
@@ -1116,6 +1121,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(1, assessmentWorkspace.ReadCount);
         Assert.False(lazyValuationQuery.HasAssessmentWorkspace);
         Assert.Null(lazyValuationQuery.AssessmentWorkspace);
+        Assert.Null(lazyValuationQuery.Frame);
         Assert.Same(assessment, store.ValuationSectionAssessments.Last());
     }
 
@@ -3148,7 +3154,7 @@ public sealed partial class CaseDetailsWebTests
             var sectionAssessment = query.AssessmentWorkspace?.Assessment ?? FocusedAssessment ?? EngineeringAssessment();
             VehicleSectionAssessments.Add(sectionAssessment);
             return Task.FromResult<CaseVehicleSection?>(new(
-                FocusedFrame(),
+                query.Frame ?? FocusedFrame(),
                 query.AssessmentWorkspace?.Data ?? query.Data ?? DataOverride ?? CreateData(),
                 query.AssessmentWorkspace?.LatestVehicleObservation ?? VehicleLookupEvidence?.LatestObservation,
                 sectionAssessment));
@@ -3167,7 +3173,7 @@ public sealed partial class CaseDetailsWebTests
             var sectionAssessment = query.AssessmentWorkspace?.Assessment ?? FocusedAssessment ?? EngineeringAssessment();
             ValuationSectionAssessments.Add(sectionAssessment);
             return Task.FromResult<CaseValuationSection?>(new(
-                FocusedFrame(),
+                query.Frame ?? FocusedFrame(),
                 query.AssessmentWorkspace?.Data ?? query.Data ?? DataOverride ?? CreateData(),
                 sectionAssessment));
         }
@@ -3177,7 +3183,7 @@ public sealed partial class CaseDetailsWebTests
             CancellationToken cancellationToken)
         {
             return Task.FromResult<CaseNotesSection?>(query.CaseId == CaseId
-                ? new(FocusedFrame(), HistoryEntries)
+                ? new(query.Frame ?? FocusedFrame(), HistoryEntries)
                 : null);
         }
 
@@ -3187,7 +3193,7 @@ public sealed partial class CaseDetailsWebTests
         {
             return Task.FromResult<CaseFilesSection?>(query.CaseId == CaseId
                 ? new(
-                    FocusedFrame(),
+                    query.Frame ?? FocusedFrame(),
                     query.Documents ?? CaseDocuments,
                     null,
                     CaseCustodyState.Pending,
