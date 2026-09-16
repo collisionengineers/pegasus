@@ -216,7 +216,7 @@ public sealed class ImageCaseCustodyIntegrationTests
             .ResolveOriginAsync(receiptIds[0], CancellationToken.None))!;
         var record = await services.GetRequiredService<IRegisterImageIntake>().ExecuteAsync(new(
             origin, "AB12CDE", StaffActor(), $"mixed-image-group:{groupId:N}",
-            "Register only the image-evidence member.", SubmissionGroupId: groupId));
+            "Register only the image-evidence member.", SubmissionGroupId: groupId), CancellationToken.None);
         var queries = services.GetRequiredService<IImageIntakeQueries>();
         Assert.Equal(receiptIds[0], Assert.Single(await queries.ListImagesAsync(record.Id, CancellationToken.None)).ReceiptId);
         var batched = await queries.ListImagesAsync([record.Id], CancellationToken.None);

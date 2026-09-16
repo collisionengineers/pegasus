@@ -115,7 +115,7 @@ public sealed class UnidentifiedRecordWebTests
         var source = new IntakeAssetRecord(
             Guid.NewGuid(), "uploaded source", "vehicle-images.pdf", "application/pdf",
             IntakeAssetKind.Source, IntakeAssetDisposition.Source, 2048, sourceHash,
-            "test-source-key");
+            "test-source-key", null, null, null, null);
         var banner = new IntakeAssetRecord(
             Guid.NewGuid(), "vehicle-images.pdf, page 1, image 1", "letterhead.png", "image/png",
             IntakeAssetKind.EmbeddedImage, IntakeAssetDisposition.Embedded, 110_783,
@@ -176,7 +176,7 @@ public sealed class UnidentifiedRecordWebTests
             new(
                 Guid.NewGuid(), "uploaded source", "unreadable-document.pdf", "application/pdf",
                 IntakeAssetKind.Source, IntakeAssetDisposition.Source, 2048, sourceHash,
-                "test-source-key")
+                "test-source-key", null, null, null, null)
         ];
         var receipt = await services.GetRequiredService<IIntakeReceiptStore>().StoreAsync(
             new IntakeReceiptDraft(
@@ -256,7 +256,7 @@ public sealed class UnidentifiedRecordWebTests
             var source = new IntakeAssetRecord(
                 Guid.NewGuid(), "uploaded source", sourceFileName, "application/pdf",
                 IntakeAssetKind.Source, IntakeAssetDisposition.Source, 2048, sourceHash,
-                $"group-pdf-source-{ordinal}");
+                $"group-pdf-source-{ordinal}", null, null, null, null);
             var photo = new IntakeAssetRecord(
                 Guid.NewGuid(), $"{sourceFileName}, page 1, image 1", $"damage-{ordinal + 1}.jpg", "image/jpeg",
                 IntakeAssetKind.EmbeddedImage, IntakeAssetDisposition.Embedded, 121_652,
