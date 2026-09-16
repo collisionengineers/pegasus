@@ -1,12 +1,10 @@
 using System.Net;
-using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Identity;
@@ -24,7 +22,7 @@ public sealed partial class IdentityCookieLifetimeWebTests
     public async Task ValidationDoesNotReissueAnIdentityCookieButSlidingExpirationStillDoes()
     {
         await using var testDatabase = await LocalDbTestDatabase.CreateAsync(migrate: false);
-        using var userLookupCounter = new UserLookupCommandCounter(testDatabase.DatabaseName);
+        var securityStampRefreshes = 0;
         var clock = new AdjustableTimeProvider(
             new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero));
         using var baseFactory = new ConfiguredWebApplicationFactory(
@@ -45,7 +43,16 @@ public sealed partial class IdentityCookieLifetimeWebTests
                     IdentityConstants.ApplicationScheme,
                     options => options.TimeProvider = clock);
                 services.PostConfigure<SecurityStampValidatorOptions>(
-                    options => options.TimeProvider = clock);
+                    options =>
+                    {
+                        options.TimeProvider = clock;
+                        var onRefreshingPrincipal = options.OnRefreshingPrincipal;
+                        options.OnRefreshingPrincipal = async context =>
+                        {
+                            await onRefreshingPrincipal(context);
+                            Interlocked.Increment(ref securityStampRefreshes);
+                        };
+                    });
             }));
 
         await CreateUserAsync(factory);
@@ -60,7 +67,6 @@ public sealed partial class IdentityCookieLifetimeWebTests
         // zero-interval SecurityStampValidator callback, not only the cookie
         // handler's ticket deserialization.
         clock.Advance(TimeSpan.FromSeconds(1));
-        userLookupCounter.Reset();
         using var validationOnly = await client.GetAsync("/Account/PasswordChange");
         Assert.Equal(HttpStatusCode.OK, validationOnly.StatusCode);
         Assert.DoesNotContain(
@@ -69,10 +75,7 @@ public sealed partial class IdentityCookieLifetimeWebTests
                 : Array.Empty<string>(),
             value => value.StartsWith("__Host-Pegasus=", StringComparison.Ordinal));
         Assert.True(validationOnly.Headers.CacheControl?.NoStore);
-        // One lookup belongs to zero-interval security-stamp validation and
-        // one to the current password-change gate. This makes the test fail if
-        // the controlled clock accidentally bypasses validation.
-        Assert.Equal(2, userLookupCounter.ExecutedUserLookupCommands);
+        Assert.Equal(1, Volatile.Read(ref securityStampRefreshes));
 
         var concurrent = await Task.WhenAll(
             client.GetAsync("/Account/PasswordChange"),
@@ -88,6 +91,7 @@ public sealed partial class IdentityCookieLifetimeWebTests
                         : Array.Empty<string>(),
                     value => value.StartsWith("__Host-Pegasus=", StringComparison.Ordinal));
             });
+            Assert.Equal(3, Volatile.Read(ref securityStampRefreshes));
         }
         finally
         {
@@ -230,66 +234,4 @@ public sealed partial class IdentityCookieLifetimeWebTests
         public void Advance(TimeSpan value) => current = current.Add(value);
     }
 
-    private sealed class UserLookupCommandCounter :
-        IObserver<DiagnosticListener>,
-        IObserver<KeyValuePair<string, object?>>, IDisposable
-    {
-        private readonly string databaseName;
-        private readonly IDisposable allListenersSubscription;
-        private readonly List<IDisposable> listenerSubscriptions = [];
-        private int executedUserLookupCommands;
-
-        public UserLookupCommandCounter(string databaseName)
-        {
-            this.databaseName = databaseName;
-            allListenersSubscription = DiagnosticListener.AllListeners.Subscribe(this);
-        }
-
-        public int ExecutedUserLookupCommands =>
-            Volatile.Read(ref executedUserLookupCommands);
-
-        public void Reset() => Interlocked.Exchange(ref executedUserLookupCommands, 0);
-
-        public void OnNext(DiagnosticListener listener)
-        {
-            if (listener.Name == DbLoggerCategory.Name)
-            {
-                listenerSubscriptions.Add(listener.Subscribe(
-                    this,
-                    eventName => eventName == RelationalEventId.CommandExecuted.Name));
-            }
-        }
-
-        public void OnNext(KeyValuePair<string, object?> value)
-        {
-            if (value.Value is CommandExecutedEventData eventData
-                && string.Equals(
-                    eventData.Command.Connection?.Database,
-                    databaseName,
-                    StringComparison.Ordinal)
-                && eventData.Command.CommandText.Contains(
-                    "[AspNetUsers]",
-                    StringComparison.Ordinal))
-            {
-                Interlocked.Increment(ref executedUserLookupCommands);
-            }
-        }
-
-        public void OnCompleted()
-        {
-        }
-
-        public void OnError(Exception error)
-        {
-        }
-
-        public void Dispose()
-        {
-            allListenersSubscription.Dispose();
-            foreach (var subscription in listenerSubscriptions)
-            {
-                subscription.Dispose();
-            }
-        }
-    }
 }

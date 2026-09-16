@@ -547,3 +547,11 @@ IDAT checksum was invalid. These failures and the bounded diagnostic are
 retained, not counted as passes. The corrected candidate requires reruns.
 The orientation fixture is also strengthened to assert asymmetric pixel
 positions, and cancellation is checked before and after native rendering.
+
+The corrected `0a63f80b3` build passed with zero warnings/errors; the affected
+four-class Integration rerun had 29 passed, one failed and none skipped.
+All four originally failing assertions passed. The remaining lifetime assertion
+expected two SQL user reads, but observed one; tracked-entity reuse makes that count an
+invalid proof of security-stamp validation. Its replacement observes the
+successful principal-refresh callback while preserving the application's
+original callback. Renewal and idle/absolute boundary assertions remain.
