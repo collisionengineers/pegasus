@@ -32,7 +32,7 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
             .Select(asset => asset.Id)
             .ToHashSet();
         var assets = SelectAssets(receipt, selectedPhotographIds);
-        if (assets.Count == 0)
+        if (assets.Length == 0)
         {
             return AutomaticCaseEvidencePromotionOutcome.NotApplicable;
         }
@@ -87,18 +87,9 @@ public sealed class PromoteAssociatedIntakeCaseEvidence(
             : AutomaticCaseEvidencePromotionOutcome.Confirmed;
     }
 
-    internal static IReadOnlyList<IntakeAssetRecord> SelectAssets(IntakeReceipt receipt)
-    {
-        ArgumentNullException.ThrowIfNull(receipt);
-        var selectedPhotographs = InstructionEvidenceImages.Select(receipt.AssetRecords)
-            .Select(asset => asset.Id)
-            .ToHashSet();
-        return SelectAssets(receipt, selectedPhotographs);
-    }
-
-    private static IReadOnlyList<IntakeAssetRecord> SelectAssets(
+    private static IntakeAssetRecord[] SelectAssets(
         IntakeReceipt receipt,
-        IReadOnlySet<Guid> selectedPhotographs)
+        HashSet<Guid> selectedPhotographs)
     {
         if (IntakeFileIdentity.SourceAsset(receipt) is null)
         {
