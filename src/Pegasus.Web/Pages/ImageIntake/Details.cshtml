@@ -51,9 +51,18 @@
     </div>
 
     <div class="image-record-bar">
-        <a class="btn" href="@Model.OpenFileHref" target="_blank" rel="noopener" data-image-action="open-file">
-            <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>Open file</span>
-        </a>
+        @if (Model.OpenFileHref is { } fileHref)
+        {
+            <a class="btn" href="@fileHref" target="_blank" rel="noopener" data-image-action="open-file">
+                <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>Open file</span>
+            </a>
+        }
+        else if (Model.SourceAsset is { } unavailableSource)
+        {
+            <span class="muted" data-image-source-unavailable>
+                Original file unavailable — @Model.CustodyLabel(unavailableSource.CustodyState).
+            </span>
+        }
         @if (Model.SourceMessageId is { } messageId)
         {
             <a class="btn" href="/Inbox/@messageId.ToString("D")" data-image-action="open-message">
@@ -121,6 +130,10 @@
                     <div class="fact"><dt>Registered</dt><dd>@OperatorLabels.OfficeTime(Model.Detail.RegisteredAtUtc)</dd></div>
                     <div class="fact"><dt>Lifecycle state</dt><dd>@OperatorLabels.ImageIntakeLifecycleState(Model.Detail.State)</dd></div>
                     <div class="fact"><dt>Source</dt><dd>@OperatorLabels.SourceChannel(Model.Detail.Record.Origin.SourceIdentity.Channel)</dd></div>
+                    @if (Model.SourceAsset is { } sourceAsset)
+                    {
+                        <div class="fact"><dt>Original file</dt><dd>@sourceAsset.FileName · @Model.CustodyLabel(sourceAsset.CustodyState)</dd></div>
+                    }
                     <div class="fact">
                         <dt>Case association</dt>
                         <dd>
@@ -173,6 +186,30 @@
             </section>
         </div>
 
+        @if (Model.RetainedFiles.Count > 0)
+        {
+            <section class="panel" aria-labelledby="image-intake-files-title" data-image-retained-files>
+                <div class="panel-head"><h2 id="image-intake-files-title">Retained files</h2></div>
+                <div class="panel-section stack">
+                    @foreach (var file in Model.RetainedFiles)
+                    {
+                        <p>
+                            <strong>@(file.IsSource ? "Original file" : "Attached file")</strong> ·
+                            @if (file.IsStored)
+                            {
+                                <a href="@file.Href" target="_blank" rel="noopener">@file.Asset.FileName</a>
+                            }
+                            else
+                            {
+                                <span>@file.Asset.FileName</span>
+                            }
+                            · @Model.CustodyLabel(file.Asset.CustodyState)
+                        </p>
+                    }
+                </div>
+            </section>
+        }
+
         @if (Model.Suggestions.Count > 0)
         {
             <section class="panel" aria-labelledby="image-intake-suggestions-title">
@@ -205,15 +242,19 @@
                         var gallery = Model.Images
                             .Select(item =>
                             {
-                                var href = Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
+                                var href = item.AssetId is { } assetId
+                                    ? Url.Page("/Intake/Asset", new { id = item.ReceiptId, assetId })!
+                                    : Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
                                 return new GalleryImage(
                                     href,
                                     href,
                                     item.FileName,
                                     item.MediaType,
+                                    IsStored: item.CustodyState == Pegasus.Core.Intake.IncomingArtifactCustodyState.Confirmed,
                                     IntakeAssetId: item.AssetId,
                                     IntakeReceiptId: item.ReceiptId,
-                                    Preparation: item.AssetId is { } assetId ? Model.Preparations.GetValueOrDefault(assetId) : null);
+                                    Preparation: item.AssetId is { } preparationAssetId ? Model.Preparations.GetValueOrDefault(preparationAssetId) : null,
+                                    CustodyState: item.CustodyState);
                             })
                             .ToArray();
                         ViewData["PreCaseImageTags"] = Model.ImageTags;

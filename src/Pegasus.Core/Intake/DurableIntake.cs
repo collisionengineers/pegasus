@@ -697,7 +697,6 @@ public sealed class ProcessQueuedIntake(
     IRegisterUnidentified? registerUnidentified = null,
     ReconcileUnidentifiedDestinations? unidentifiedDestinations = null,
     AssociateRetainedMailWithCase? automaticMailCaseAssociation = null,
-    SubmitMailboxImageIntake? mailboxImageIntake = null,
     IIntakeSubmissionGroupStore? submissionGroups = null,
     ICaseStaffNotifier? caseNotifier = null) : IProcessQueuedIntake
 {
@@ -759,6 +758,8 @@ public sealed class ProcessQueuedIntake(
                 // association, image automation, or Unidentified work.
                 return QueuedIntakeProcessingOutcome.NoOp;
             }
+            completedReceipt = await processIntake.RetainHoldingAssetsAsync(
+                completedReceipt, cancellationToken);
             var replayAssociated = await AssociateCaseIfUnambiguousAsync(
                 completedReceipt,
                 completedEvaluation,
@@ -803,12 +804,9 @@ public sealed class ProcessQueuedIntake(
                 return QueuedIntakeProcessingOutcome.RetryScheduled;
             }
 
-            var replayMailboxImagesHandled = mailboxImageIntake is not null
-                && await mailboxImageIntake.HasSubmissionAsync(completedReceipt, cancellationToken);
             await SynchronizeUnidentifiedAsync(
                 completedReceipt,
                 replayTriage,
-                replayMailboxImagesHandled,
                 replayImageOutcome.UnidentifiedGroup,
                 cancellationToken);
             return QueuedIntakeProcessingOutcome.NoOp;
@@ -822,7 +820,6 @@ public sealed class ProcessQueuedIntake(
 
         IntakeReceipt processed;
         IntakeEvaluationRevision evaluation;
-        var mailboxImagesHandled = false;
         var groupPending = false;
         try
         {
@@ -830,6 +827,7 @@ public sealed class ProcessQueuedIntake(
             {
                 processed = await receiptQueries.GetAsync(workItem.ProcessedReceiptId!.Value, cancellationToken)
                     ?? throw new InvalidDataException("The pending evaluation receipt is missing.");
+                processed = await processIntake.RetainHoldingAssetsAsync(processed, cancellationToken);
             }
             else
             {
@@ -883,13 +881,6 @@ public sealed class ProcessQueuedIntake(
                 }
             }
             await BeginOcrOperationsAsync(processed, cancellationToken);
-            if (mailboxImageIntake is not null)
-            {
-                mailboxImagesHandled = await mailboxImageIntake.ExecuteAsync(
-                    processed,
-                    workItem.AttemptCount >= RetryDelays.Length,
-                    cancellationToken);
-            }
             evaluation = await workStore.RecordEvaluationAsync(
                 workItem.Id,
                 workItem.LeaseToken,
@@ -933,7 +924,6 @@ public sealed class ProcessQueuedIntake(
                 await SynchronizeUnidentifiedAsync(
                     processed,
                     triage,
-                    mailboxImagesHandled,
                     imageOutcome.UnidentifiedGroup,
                     cancellationToken);
             }
@@ -1043,6 +1033,11 @@ public sealed class ProcessQueuedIntake(
             throw new IntakeArtifactIntegrityException();
         }
 
+        // Re-evaluation normally reads the confirmed Box version. If the original
+        // hand-over never completed, first repair custody from the same verified
+        // quarantine assets; a missing Box version is not corrupt source evidence.
+        receipt = await processIntake.RetainHoldingAssetsAsync(receipt, cancellationToken);
+
         try
         {
             await using var logical = await retainedContentReader.OpenAsync(
@@ -1114,7 +1109,6 @@ public sealed class ProcessQueuedIntake(
     private async Task SynchronizeUnidentifiedAsync(
         IntakeReceipt receipt,
         TriageCreationOutcome triage,
-        bool mailboxImagesHandled,
         RegisterUnidentifiedRequest? unidentifiedGroup,
         CancellationToken cancellationToken)
     {
@@ -1126,7 +1120,6 @@ public sealed class ProcessQueuedIntake(
 
         if (registerUnidentified is not null
             && ProcessIntake.IsDeferredForAutomation(receipt)
-            && !mailboxImagesHandled
             && !(ProcessIntake.IsTriageRequest(receipt)
                 && triage is not TriageCreationOutcome.NotQualifying))
         {

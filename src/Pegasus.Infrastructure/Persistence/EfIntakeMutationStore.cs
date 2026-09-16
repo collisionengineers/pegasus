@@ -276,18 +276,23 @@ internal sealed class EfIntakeMutationStore(
             editLeaseToken: null,
             async (context, receipt, _, token) =>
             {
-                var stagedReceiptId = await context.IntakeEvaluations
-                    .Where(item => item.ProcessedReceiptId == receipt.Id)
-                    .OrderByDescending(item => item.Revision)
-                    .Select(item => (Guid?)item.StagedReceiptId)
-                    .FirstOrDefaultAsync(token)
-                    ?? throw new InvalidDataException(
-                        "The intake receipt does not have a retained evaluation source.");
-                var workItem = await context.IntakeWorkItems.SingleOrDefaultAsync(
-                    item => item.StagedReceiptId == stagedReceiptId,
-                    token)
+                // A first holding hand-over can fail after receipt persistence
+                // but before an evaluation is recorded. The immutable ingress
+                // identity owns the work in both that state and ordinary replay.
+                var workItem = await context.IntakeWorkItems
+                    .Include(item => item.StagedReceipt)
+                    .SingleOrDefaultAsync(item =>
+                        item.StagedReceipt.SourceChannel == receipt.SourceChannel
+                        && item.StagedReceipt.ExternalReceiptToken == receipt.ExternalReceiptToken,
+                        token)
                     ?? throw new InvalidDataException(
                         "The intake receipt does not have durable evaluation work.");
+                if (workItem.StagedReceipt.SourceHash != receipt.SourceHash
+                    || workItem.StagedReceipt.SourceLength != receipt.SourceLength
+                    || workItem.ProcessedReceiptId is { } processedId && processedId != receipt.Id)
+                {
+                    throw new IntakeArtifactIntegrityException();
+                }
                 if (workItem.State == "processing"
                     && workItem.LeaseExpiresAtUtc is { } leaseExpiresAtUtc
                     && leaseExpiresAtUtc > occurredAtUtc)
@@ -297,6 +302,7 @@ internal sealed class EfIntakeMutationStore(
                 }
 
                 workItem.State = "pending";
+                workItem.ProcessedReceiptId = receipt.Id;
                 workItem.DueAtUtc = occurredAtUtc;
                 workItem.LeaseToken = null;
                 workItem.LeaseExpiresAtUtc = null;

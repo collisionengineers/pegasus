@@ -25,6 +25,44 @@ public sealed class InstructionEvidenceImagesTests
     }
 
     [Fact]
+    public void DirectImageSourcesAndPdfPhotographsAreSelectedWithoutTheirPdfSource()
+    {
+        var directPhoto = Asset(IntakeAssetKind.Source, "image/jpeg", 90_000, "direct", "vehicle.jpg");
+        var pdfSource = Asset(IntakeAssetKind.Source, "application/pdf", 90_000, "pdf", "images.pdf");
+        var embeddedPhoto = Asset(IntakeAssetKind.EmbeddedImage, "image/jpeg", 90_000, "photo", "page-1-image-2.jpg");
+
+        var selected = InstructionEvidenceImages.Select([directPhoto, pdfSource, embeddedPhoto]);
+
+        Assert.Equal([directPhoto.Id, embeddedPhoto.Id], selected.Select(item => item.Id));
+    }
+
+    [Fact]
+    public void RetentionGatePreservesPdfButRejectsInlineAndBannerAssets()
+    {
+        var pdf = Candidate(IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment, "application/pdf", 500_000);
+        var inline = Candidate(IntakeAssetKind.InlineImage, IntakeAssetDisposition.Inline, "image/png", 90_000);
+        var banner = Candidate(
+            IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
+            "image/png",
+            110_783,
+            width: 1990,
+            height: 437);
+        var photograph = Candidate(
+            IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
+            "image/jpeg",
+            90_000,
+            width: 547,
+            height: 650);
+
+        Assert.True(InstructionEvidenceImages.IsRetentionCandidate(pdf));
+        Assert.False(InstructionEvidenceImages.IsRetentionCandidate(inline));
+        Assert.False(InstructionEvidenceImages.IsRetentionCandidate(banner));
+        Assert.True(InstructionEvidenceImages.IsRetentionCandidate(photograph));
+    }
+
+    [Fact]
     public void TheThresholdIsABoundaryNotAGuess()
     {
         var atFloor = Asset(
@@ -84,7 +122,7 @@ public sealed class InstructionEvidenceImagesTests
     }
 
     [Fact]
-    public void APendingOrRefusedPhotographIsCountedButNotServed()
+    public void OnlyAConfirmedPhotographIsServed()
     {
         // The receipt carried it, so completeness sees it; the tile has nothing
         // behind it until custody confirms the bytes, so the gallery does not.
@@ -94,13 +132,13 @@ public sealed class InstructionEvidenceImagesTests
             with { CustodyState = IncomingArtifactCustodyState.Pending };
         var refused = Asset(IntakeAssetKind.Attachment, "image/jpeg", 90_000, "cc", "three.jpg")
             with { CustodyState = IncomingArtifactCustodyState.Failed };
-        var legacy = Asset(IntakeAssetKind.Attachment, "image/jpeg", 90_000, "dd", "four.jpg");
+        var unknown = Asset(IntakeAssetKind.Attachment, "image/jpeg", 90_000, "dd", "four.jpg");
 
-        var all = InstructionEvidenceImages.Select([confirmed, pending, refused, legacy]);
-        var servable = InstructionEvidenceImages.Servable([confirmed, pending, refused, legacy]);
+        var all = InstructionEvidenceImages.Select([confirmed, pending, refused, unknown]);
+        var servable = InstructionEvidenceImages.Servable([confirmed, pending, refused, unknown]);
 
         Assert.Equal(4, all.Count);
-        Assert.Equal(["four.jpg", "one.jpg"], servable.Select(asset => asset.FileName));
+        Assert.Equal(["one.jpg"], servable.Select(asset => asset.FileName));
     }
 
     [Fact]
@@ -112,6 +150,20 @@ public sealed class InstructionEvidenceImagesTests
             IntakeAssetKind.EmbeddedImage, "image/jpeg", 90_000, "u1");
 
         Assert.Single(InstructionEvidenceImages.Select([unmeasured]));
+    }
+
+    [Fact]
+    public void SvgAndOtherUnsupportedImageMediaNeverBecomeEvidencePhotographs()
+    {
+        var svg = Asset(IntakeAssetKind.Attachment, "image/svg+xml", 90_000, "svg");
+        var gif = Asset(IntakeAssetKind.EmbeddedImage, "image/gif", 90_000, "gif");
+        var photograph = Asset(IntakeAssetKind.Attachment, "image/jpeg", 90_000, "jpeg");
+
+        var selected = InstructionEvidenceImages.Select([svg, gif, photograph]);
+
+        Assert.Equal([photograph.Id], selected.Select(asset => asset.Id));
+        Assert.False(InstructionEvidenceImages.IsImage("image/svg+xml"));
+        Assert.False(InstructionEvidenceImages.IsImage("image/gif"));
     }
 
     // ---- A05: exact metadata and authorization at the stream boundary ----
@@ -428,4 +480,20 @@ public sealed class InstructionEvidenceImagesTests
         null,
         width,
         height);
+
+    private static IntakeAssetCandidate Candidate(
+        IntakeAssetKind kind,
+        IntakeAssetDisposition disposition,
+        string mediaType,
+        int contentLength,
+        int? width = null,
+        int? height = null) => new(
+        "test",
+        "asset.bin",
+        mediaType,
+        new byte[contentLength],
+        kind,
+        disposition,
+        WidthPixels: width,
+        HeightPixels: height);
 }

@@ -221,9 +221,10 @@ public sealed record SetImageIntakePrincipalRequest(
 public sealed record ImageIntakeImage(
     Guid ReceiptId,
     string FileName,
-    string MediaType)
+    string MediaType,
+    IncomingArtifactCustodyState CustodyState = IncomingArtifactCustodyState.Unknown)
 {
-    /// <summary>The retained image asset, which carries the image's pre-Case crop and tags.</summary>
+    /// <summary>The retained image asset, which carries the image's pre-Case crop, tags and custody identity.</summary>
     public Guid? AssetId { get; init; }
 }
 

@@ -19,6 +19,10 @@ namespace Pegasus.Web.Presentation;
 /// durable custody: there is nothing to render yet, so the tile says so rather
 /// than pointing an <c>img</c> at a version that cannot be read.
 ///
+/// <paramref name="CustodyState"/> supplies the operator-facing explanation
+/// for an unavailable tile. It is null for callers that do not expose incoming
+/// custody state.
+///
 /// <paramref name="IntakeAssetId"/> marks a pre-Case image (image record, Triage,
 /// Unidentified): the viewer then offers Crop (Apply / Clear / Cancel) and the
 /// Tag select, and <paramref name="Preparation"/> is what is already recorded.
@@ -34,7 +38,8 @@ public sealed record GalleryImage(
     bool IsStored = true,
     Guid? IntakeAssetId = null,
     Pegasus.Core.ImageIntake.PreCaseImagePreparation? Preparation = null,
-    Guid? IntakeReceiptId = null)
+    Guid? IntakeReceiptId = null,
+    Pegasus.Core.Intake.IncomingArtifactCustodyState? CustodyState = null)
 {
     /// <summary>
     /// The tile source: a pre-Case image with a recorded crop or rotation shows

@@ -19,6 +19,14 @@
     <ul class="gallery" data-evidence-set>
         @foreach (var image in Model)
         {
+            var custody = image.CustodyState switch
+            {
+                Pegasus.Core.Intake.IncomingArtifactCustodyState.Pending => "Storing",
+                Pegasus.Core.Intake.IncomingArtifactCustodyState.Unknown => "Storage status unknown",
+                Pegasus.Core.Intake.IncomingArtifactCustodyState.Failed => "Storage failed",
+                Pegasus.Core.Intake.IncomingArtifactCustodyState.Confirmed => "Stored",
+                _ => "Storing…"
+            };
             <li>
                 @if (!image.IsStored)
                 {
@@ -26,7 +34,7 @@
                         <span class="gallery-image"></span>
                         <span class="gallery-caption">
                             <strong>@image.FileName</strong>
-                            <small>Storing…</small>
+                            <small>@custody</small>
                         </span>
                     </span>
                 }
@@ -52,6 +60,10 @@
                         <span class="gallery-image"><img src="@image.TileHref" alt="@image.FileName" loading="lazy" data-gallery-image data-precase-tile="@(preparation.IsPrepared ? "prepared" : "original")" /></span>
                         <span class="gallery-caption">
                             <strong>@image.FileName</strong>
+                            @if (image.CustodyState is not null)
+                            {
+                                <small>@custody</small>
+                            }
                             @if (preparation.IsPrepared)
                             {
                                 <small class="precase-badge" data-precase-cropped>@OperatorLabels.PreCaseImages.Cropped</small>
@@ -77,7 +89,13 @@
                        data-media-type="@image.MediaType"
                        data-file-name="@image.FileName">
                         <span class="gallery-image"><img src="@(image.ThumbnailHref ?? image.Href)" alt="@image.FileName" loading="lazy" data-gallery-image /></span>
-                        <span class="gallery-caption"><strong>@image.FileName</strong></span>
+                        <span class="gallery-caption">
+                            <strong>@image.FileName</strong>
+                            @if (image.CustodyState is not null)
+                            {
+                                <small>@custody</small>
+                            }
+                        </span>
                     </a>
                 }
             </li>
