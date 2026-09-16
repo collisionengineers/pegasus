@@ -375,8 +375,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     [Fact]
     public async Task CancelledThumbnailWaiterDoesNotFetchWhileTheCurrentVariantRenders()
     {
-        var sourceBytes = Convert.FromBase64String(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC");
+        var sourceBytes = TransparentPng(width: 960, height: 480);
         var estate = await Estate.CreateDocumentAsync(sourceBytes);
         await using (estate)
         {
@@ -448,8 +447,7 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     [Fact]
     public async Task ConcurrentSuccessfulThumbnailMissesFetchAndRenderOneCurrentVariant()
     {
-        var sourceBytes = Convert.FromBase64String(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC");
+        var sourceBytes = TransparentPng(width: 960, height: 480);
         var estate = await Estate.CreateDocumentAsync(sourceBytes);
         await using (estate)
         {
@@ -530,6 +528,10 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         Assert.NotNull(thumbnail);
         Assert.Equal(320, thumbnail.Width);
         Assert.Equal(CaseDocumentThumbnails.LongestEdge, thumbnail.Height);
+        AssertColorClose(thumbnail.GetPixel(80, 120), SKColors.Blue);
+        AssertColorClose(thumbnail.GetPixel(240, 120), SKColors.Red);
+        AssertColorClose(thumbnail.GetPixel(80, 360), SKColors.Yellow);
+        AssertColorClose(thumbnail.GetPixel(240, 360), SKColors.Green);
     }
 
     [Fact]
@@ -744,7 +746,20 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     {
         using var bitmap = new SKBitmap(
             new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque));
-        bitmap.Erase(SKColors.DarkSlateBlue);
+        using (var canvas = new SKCanvas(bitmap))
+        using (var paint = new SKPaint())
+        {
+            var halfWidth = width / 2f;
+            var halfHeight = height / 2f;
+            paint.Color = SKColors.Red;
+            canvas.DrawRect(0, 0, halfWidth, halfHeight, paint);
+            paint.Color = SKColors.Green;
+            canvas.DrawRect(halfWidth, 0, width - halfWidth, halfHeight, paint);
+            paint.Color = SKColors.Blue;
+            canvas.DrawRect(0, halfHeight, halfWidth, height - halfHeight, paint);
+            paint.Color = SKColors.Yellow;
+            canvas.DrawRect(halfWidth, halfHeight, width - halfWidth, height - halfHeight, paint);
+        }
         using var image = SKImage.FromBitmap(bitmap);
         using var jpeg = image.Encode(SKEncodedImageFormat.Jpeg, quality: 100);
         var encoded = jpeg.ToArray();
@@ -763,6 +778,15 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         Buffer.BlockCopy(exif, 0, oriented, 2, exif.Length);
         Buffer.BlockCopy(encoded, 2, oriented, exif.Length + 2, encoded.Length - 2);
         return oriented;
+    }
+
+    private static void AssertColorClose(SKColor actual, SKColor expected)
+    {
+        const int tolerance = 25;
+        Assert.Equal(byte.MaxValue, actual.Alpha);
+        Assert.InRange((int)actual.Red, Math.Max(0, expected.Red - tolerance), Math.Min(byte.MaxValue, expected.Red + tolerance));
+        Assert.InRange((int)actual.Green, Math.Max(0, expected.Green - tolerance), Math.Min(byte.MaxValue, expected.Green + tolerance));
+        Assert.InRange((int)actual.Blue, Math.Max(0, expected.Blue - tolerance), Math.Min(byte.MaxValue, expected.Blue + tolerance));
     }
 
     private static byte[] TransparentPng(int width, int height)

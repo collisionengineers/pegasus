@@ -1313,9 +1313,12 @@ internal static class ImageThumbnailRendering
             {
                 return null;
             }
-            return rotation == CaseAssetRotation.None && crop.IsFull
+            cancellationToken.ThrowIfCancellationRequested();
+            var rendered = rotation == CaseAssetRotation.None && crop.IsFull
                 ? Render(source)
                 : RenderPrepared(source, rotation, crop);
+            cancellationToken.ThrowIfCancellationRequested();
+            return rendered;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

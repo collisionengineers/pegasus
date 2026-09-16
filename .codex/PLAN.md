@@ -535,3 +535,15 @@ No authorized matching Linux fixture was established. Do not substitute local
 Windows/TestServer tests for Linux cold acceptance or infer provider costs
 from a synthetic source. No additional environment, concurrency increase,
 prewarming, ReadyToRun, cache-retention change or hosting change is selected.
+
+The first frozen candidate, `a13e97373`, passed locked restore and Release
+build (zero warnings/errors), Core (2,199 passed, 14 skipped), Architecture
+(120 passed), documentation links and Markdown placement. Its focused
+Integration run completed with 337 passed, four failed and none skipped.
+Two failures were assertions that prohibited every response cookie on
+an HTML form instead of specifically prohibiting Identity-ticket renewal.
+Two shared a malformed PNG fixture: its RGBA scanline lacked a byte and its
+IDAT checksum was invalid. These failures and the bounded diagnostic are
+retained, not counted as passes. The corrected candidate requires reruns.
+The orientation fixture is also strengthened to assert asymmetric pixel
+positions, and cancellation is checked before and after native rendering.
