@@ -103,18 +103,6 @@ public sealed class CaseValuationWebTests
     }
 
     /// <summary>
-    /// The valuation redirect lands on the Valuation section, not the record's
-    /// top, so the editor reads the outcome where they acted.
-    /// </summary>
-    private static void AssertValuationPrg(HttpResponseMessage response, Guid caseId)
-    {
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal(
-            $"/Cases/{caseId:D}?section=valuation",
-            response.Headers.Location?.OriginalString);
-    }
-
-    /// <summary>
     /// The shared harness enters edit mode as the offline Administrator; a
     /// valuation is an Engineer's act, so this workspace authenticates the
     /// same staff member with the Engineer role and claims the lease the same

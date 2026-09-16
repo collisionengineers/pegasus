@@ -648,37 +648,6 @@ public sealed class CaseVehicleWebTests
         return html[start..(end + "</form>".Length)];
     }
 
-    private static string OverviewPanel(string html)
-    {
-        var host = html.IndexOf("id=\"section-overview\"", StringComparison.Ordinal);
-        Assert.True(host >= 0, "The Case overview panel must render.");
-        var start = html.LastIndexOf("<section", host, StringComparison.Ordinal);
-        Assert.True(start >= 0, "The Case overview panel must be a section.");
-
-        var depth = 0;
-        var index = start;
-        while (true)
-        {
-            var open = html.IndexOf("<section", index, StringComparison.Ordinal);
-            var close = html.IndexOf("</section>", index, StringComparison.Ordinal);
-            Assert.True(close >= 0, "The Case overview panel must close.");
-
-            if (open >= 0 && open < close)
-            {
-                depth++;
-                index = open + "<section".Length;
-                continue;
-            }
-
-            if (--depth == 0)
-            {
-                return html[start..(close + "</section>".Length)];
-            }
-
-            index = close + "</section>".Length;
-        }
-    }
-
     private static int CountOccurrences(string html, string value)
     {
         var count = 0;

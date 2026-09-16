@@ -11,6 +11,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Presentation;
 
 using static Pegasus.IntegrationTests.CaseWebTestSupport;
 

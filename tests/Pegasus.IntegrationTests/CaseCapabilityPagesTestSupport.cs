@@ -28,6 +28,12 @@ namespace Pegasus.IntegrationTests;
 /// </summary>
 internal static partial class CaseWebTestSupport
 {
+    internal const string CloseUpFileName = "front-nearside.jpg";
+    internal const string OverviewFileName = "vehicle-overview.jpg";
+    internal const string FirstSupportingFileName = "rear-offside.jpg";
+    internal const string SecondSupportingFileName = "interior.jpg";
+    internal const string UnusedFileName = "plate.jpg";
+
     internal static async Task<LeasedWorkspace> EnterEditModeAsync(
         RecordingCaseDetailsStore store,
         Action<IServiceCollection> substitutePorts)
@@ -255,6 +261,218 @@ internal static partial class CaseWebTestSupport
         var fields = values.ToDictionary(item => item.Name, item => item.Value, StringComparer.Ordinal);
         fields["__RequestVerificationToken"] = antiforgeryToken;
         return new(fields);
+    }
+
+    internal static void AssertEditorCommit(
+        string html,
+        string editor,
+        string operationKey,
+        long expectedVersion)
+    {
+        var attribute = Regex.Match(html, "data-editor-commit=\"(?<value>[^\"]+)\"");
+        Assert.True(attribute.Success);
+        using var json = System.Text.Json.JsonDocument.Parse(
+            WebUtility.HtmlDecode(attribute.Groups["value"].Value));
+        var commit = json.RootElement;
+        Assert.Equal(editor, commit.GetProperty("editor").GetString());
+        Assert.Equal(operationKey, commit.GetProperty("operationKey").GetString());
+        Assert.Equal(expectedVersion, commit.GetProperty("expectedVersion").GetInt64());
+        Assert.Equal(expectedVersion + 1, commit.GetProperty("version").GetInt64());
+    }
+
+    /// <summary>
+    /// The valuation redirect lands on the Valuation section, not the record's
+    /// top, so the editor reads the outcome where they acted.
+    /// </summary>
+    internal static void AssertValuationPrg(HttpResponseMessage response, Guid caseId)
+    {
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(
+            $"/Cases/{caseId:D}?section=valuation",
+            response.Headers.Location?.OriginalString);
+    }
+
+    internal static string OverviewPanel(string html)
+    {
+        var host = html.IndexOf("id=\"section-overview\"", StringComparison.Ordinal);
+        Assert.True(host >= 0, "The Case overview panel must render.");
+        var start = html.LastIndexOf("<section", host, StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Case overview panel must be a section.");
+
+        var depth = 0;
+        var index = start;
+        while (true)
+        {
+            var open = html.IndexOf("<section", index, StringComparison.Ordinal);
+            var close = html.IndexOf("</section>", index, StringComparison.Ordinal);
+            Assert.True(close >= 0, "The Case overview panel must close.");
+
+            if (open >= 0 && open < close)
+            {
+                depth++;
+                index = open + "<section".Length;
+                continue;
+            }
+
+            if (--depth == 0)
+            {
+                return html[start..(close + "</section>".Length)];
+            }
+
+            index = close + "</section>".Length;
+        }
+    }
+
+    /// <summary>
+    /// The Files body mounts after the page's first response. Match the
+    /// browser request: send the rendered lease token only as fragment
+    /// rendering data, so the server can render the existing edit controls.
+    /// </summary>
+    internal static async Task<string> GetFilesFragmentAsync(
+        LeasedWorkspace workspace,
+        string renderedWorkspace)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{workspace.Store.CaseId:D}/Section?section=files");
+        request.Headers.Add(
+            "X-Pegasus-Edit-Lease",
+            InputValue(renderedWorkspace, "editLeaseToken"));
+
+        using var response = await workspace.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync();
+    }
+
+    /// <summary>
+    /// One current case file: a current, unremoved version, custody-confirmed
+    /// unless the test names another custody state.
+    /// </summary>
+    internal static CaseDocument Document(
+        Guid occurrenceId,
+        Guid versionId,
+        string fileName,
+        string mediaType,
+        DocumentSemanticRole role = DocumentSemanticRole.Instruction,
+        IReadOnlyList<ImageTagAssignment>? tags = null,
+        DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed)
+    {
+        var documentId = Guid.NewGuid();
+        var recordedAtUtc = new DateTimeOffset(2031, 5, 5, 9, 0, 0, TimeSpan.Zero);
+        return new(
+            documentId,
+            Guid.Empty,
+            [
+                new(
+                    occurrenceId,
+                    Guid.Empty,
+                    documentId,
+                    versionId,
+                    role,
+                    DocumentSource.Intake,
+                    "source-1",
+                    recordedAtUtc,
+                    tags ?? [])
+            ],
+            [
+                new(
+                    versionId,
+                    documentId,
+                    1,
+                    fileName,
+                    mediaType,
+                    24_576,
+                    new string('c', 64),
+                    custody,
+                    recordedAtUtc,
+                    "staff",
+                    IsCurrent: true,
+                    IsLogicallyRemoved: false,
+                    RemovalReason: null)
+            ]);
+    }
+
+    /// <summary>
+    /// One case's image occurrences and the preparation each carries: a
+    /// Close-up turned a quarter turn, a cropped Overview, two ordered
+    /// Supporting images and one the report does not use.
+    /// </summary>
+    internal sealed class PreparedImages
+    {
+        public Guid CloseUpOccurrenceId { get; } = Guid.NewGuid();
+
+        public Guid OverviewOccurrenceId { get; } = Guid.NewGuid();
+
+        public Guid FirstSupportingOccurrenceId { get; } = Guid.NewGuid();
+
+        public Guid SecondSupportingOccurrenceId { get; } = Guid.NewGuid();
+
+        public Guid UnusedOccurrenceId { get; } = Guid.NewGuid();
+
+        public CaseAssetCrop OverviewCrop { get; } = new(0.1m, 0.1m, 0.8m, 0.8m);
+
+        public RecordingCaseDetailsStore Store(
+            CaseLifecycleState state = CaseLifecycleState.NotReady)
+        {
+            var store = new RecordingCaseDetailsStore
+            {
+                State = state,
+                CaseState = state,
+                CaseDocuments =
+                [
+                    Document(CloseUpOccurrenceId, VersionOf(CloseUpOccurrenceId), CloseUpFileName, "image/jpeg", DocumentSemanticRole.Image),
+                    Document(OverviewOccurrenceId, VersionOf(OverviewOccurrenceId), OverviewFileName, "image/jpeg", DocumentSemanticRole.Image),
+                    Document(FirstSupportingOccurrenceId, VersionOf(FirstSupportingOccurrenceId), FirstSupportingFileName, "image/jpeg", DocumentSemanticRole.Image),
+                    Document(SecondSupportingOccurrenceId, VersionOf(SecondSupportingOccurrenceId), SecondSupportingFileName, "image/jpeg", DocumentSemanticRole.Image),
+                    Document(UnusedOccurrenceId, VersionOf(UnusedOccurrenceId), UnusedFileName, "image/jpeg", DocumentSemanticRole.Image)
+                ]
+            };
+            store.Preparations =
+            [
+                Preparation(store.CaseId, CloseUpOccurrenceId, CaseAssetReportRole.CloseUp, null, CaseAssetRotation.Clockwise90, CaseAssetCrop.Full, 2),
+                Preparation(store.CaseId, OverviewOccurrenceId, CaseAssetReportRole.Overview, null, CaseAssetRotation.None, OverviewCrop, 4),
+                Preparation(store.CaseId, FirstSupportingOccurrenceId, CaseAssetReportRole.Supporting, 1, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
+                Preparation(store.CaseId, SecondSupportingOccurrenceId, CaseAssetReportRole.Supporting, 2, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
+                Preparation(store.CaseId, UnusedOccurrenceId, CaseAssetReportRole.NotUsed, null, CaseAssetRotation.None, CaseAssetCrop.Full, 0)
+            ];
+            return store;
+        }
+
+        /// <summary>
+        /// The pinned version of an occurrence. It is derived from the
+        /// occurrence identity so the document fixture and the preparation
+        /// name the same version without a second table to keep in step.
+        /// </summary>
+        private static Guid VersionOf(Guid occurrenceId)
+        {
+            var bytes = occurrenceId.ToByteArray();
+            bytes[0] ^= 0xFF;
+            return new(bytes);
+        }
+
+        private static CaseAssetPreparation Preparation(
+            Guid caseId,
+            Guid occurrenceId,
+            CaseAssetReportRole role,
+            int? order,
+            CaseAssetRotation rotation,
+            CaseAssetCrop crop,
+            long preparationVersion) =>
+            new(
+                caseId,
+                occurrenceId,
+                Guid.NewGuid(),
+                VersionOf(occurrenceId),
+                1,
+                new string('a', 64),
+                "image/jpeg",
+                role,
+                order,
+                rotation,
+                crop,
+                preparationVersion,
+                preparationVersion == 0 ? null : "staff",
+                preparationVersion == 0 ? null : new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero));
     }
 
     /// <summary>

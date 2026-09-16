@@ -45,18 +45,6 @@ public sealed class CaseEditModeWebTests
         Assert.DoesNotContain("data-editor-commit=\"{", await workspace.GetWorkspaceAsync(), StringComparison.Ordinal);
     }
 
-    private static void AssertEditorCommit(string html, string editor, string operationKey, long expectedVersion)
-    {
-        var attribute = System.Text.RegularExpressions.Regex.Match(html, "data-editor-commit=\"(?<value>[^\"]+)\"");
-        Assert.True(attribute.Success);
-        using var json = System.Text.Json.JsonDocument.Parse(System.Net.WebUtility.HtmlDecode(attribute.Groups["value"].Value));
-        var commit = json.RootElement;
-        Assert.Equal(editor, commit.GetProperty("editor").GetString());
-        Assert.Equal(operationKey, commit.GetProperty("operationKey").GetString());
-        Assert.Equal(expectedVersion, commit.GetProperty("expectedVersion").GetInt64());
-        Assert.Equal(expectedVersion + 1, commit.GetProperty("version").GetInt64());
-    }
-
     [Theory]
     [InlineData("Engineer", false, true)]
     [InlineData("User", false, false)]
