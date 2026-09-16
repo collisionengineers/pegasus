@@ -343,9 +343,10 @@ identities, notes and printed amounts. PDF labour hours are already net of
 overlap; they do not reuse XML's gross-time conversion. Parts and position
 appendices provide evidence for existing rows, never additional charges.
 Repeated printed charges and visibly clipped text remain as printed. Whole-row,
-section and document reconciliation is required; missing or ambiguous required
-evidence refuses the whole import. Source rates and VAT do not select a Pegasus
-rate card or determine a repairer's VAT status.
+section and document reconciliation is required. Section labour reconciles to
+the printed rate × section hours as the source computes it. Missing or ambiguous
+required evidence refuses the whole import. Source rates and VAT do not select a
+Pegasus rate card or determine a repairer's VAT status.
 
 Estimate PDFs require readable embedded text. Unreadable, scan-like or
 otherwise unsupported estimates are refused without OCR or a partial Draft.
