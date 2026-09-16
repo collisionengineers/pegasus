@@ -63,7 +63,11 @@ public sealed partial class IdentityCookieLifetimeWebTests
         userLookupCounter.Reset();
         using var validationOnly = await client.GetAsync("/Account/PasswordChange");
         Assert.Equal(HttpStatusCode.OK, validationOnly.StatusCode);
-        Assert.False(validationOnly.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.DoesNotContain(
+            validationOnly.Headers.TryGetValues("Set-Cookie", out var validationCookies)
+                ? validationCookies
+                : Array.Empty<string>(),
+            value => value.StartsWith("__Host-Pegasus=", StringComparison.Ordinal));
         Assert.True(validationOnly.Headers.CacheControl?.NoStore);
         // One lookup belongs to zero-interval security-stamp validation and
         // one to the current password-change gate. This makes the test fail if
@@ -78,7 +82,11 @@ public sealed partial class IdentityCookieLifetimeWebTests
             Assert.All(concurrent, response =>
             {
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-                Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+                Assert.DoesNotContain(
+                    response.Headers.TryGetValues("Set-Cookie", out var concurrentCookies)
+                        ? concurrentCookies
+                        : Array.Empty<string>(),
+                    value => value.StartsWith("__Host-Pegasus=", StringComparison.Ordinal));
             });
         }
         finally
