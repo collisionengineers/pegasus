@@ -391,7 +391,7 @@ public sealed class EfCaseQueryStore(
 
         var summary = MapSearchItem(await SearchRows(context)
             .SingleAsync(item => item.CaseId == caseId, cancellationToken), timeProvider.GetUtcNow());
-        return new(summary, MapWorkflow(workflow), ResolveActiveLease(workflow, timeProvider.GetUtcNow()));
+        return CreateSectionFrame(summary, workflow);
     }
 
     /// <summary>
@@ -427,7 +427,7 @@ public sealed class EfCaseQueryStore(
             .Take(100)
             .ToArrayAsync(cancellationToken);
         var recordNotes = await ReadRecordNotesAsync(context, workflow, caseId, cancellationToken);
-        var frame = new CaseSectionFrame(summary, MapWorkflow(workflow), ResolveActiveLease(workflow, timeProvider.GetUtcNow()));
+        var frame = CreateSectionFrame(summary, workflow);
         return new(frame, documents, availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(), recordNotes);
     }
 
@@ -488,24 +488,38 @@ public sealed class EfCaseQueryStore(
     public async Task<CaseFilesSectionData?> GetFilesSectionAsync(
         Guid caseId,
         bool includeDocuments,
+        CaseSectionFrame? frame,
         CancellationToken cancellationToken)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var workflow = await context.CaseWorkflows
-            .AsNoTracking()
-            .Include(item => item.Case)
-                .ThenInclude(item => item.Principal)
-            .Include(item => item.ReportApproval)
-            .Include(item => item.ReportSentEvidence)
-            .Include(item => item.DueWork)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
-        if (workflow is null)
+        if (frame is not null
+            && (frame.Summary.CaseId != caseId || frame.Workflow.CaseId != caseId))
         {
-            return null;
+            throw new ArgumentException("The Case section frame belongs to another Case.", nameof(frame));
         }
 
-        var summary = MapSearchItem(await SearchRows(context)
-            .SingleAsync(item => item.CaseId == caseId, cancellationToken), timeProvider.GetUtcNow());
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        if (frame is null)
+        {
+            var workflow = await context.CaseWorkflows
+                .AsNoTracking()
+                .Include(item => item.Case)
+                    .ThenInclude(item => item.Principal)
+                .Include(item => item.ReportApproval)
+                .Include(item => item.ReportSentEvidence)
+                .Include(item => item.DueWork)
+                .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
+            if (workflow is null)
+            {
+                return null;
+            }
+
+            var summary = MapSearchItem(await SearchRows(context)
+                .SingleAsync(item => item.CaseId == caseId, cancellationToken), timeProvider.GetUtcNow());
+            frame = CreateSectionFrame(summary, workflow);
+        }
+
+        ArgumentNullException.ThrowIfNull(frame);
+        var sectionFrame = frame;
         IReadOnlyList<CaseDocument> documents = includeDocuments
             ? await ReadDocumentsAsync(context, caseId, cancellationToken)
             : [];
@@ -520,9 +534,8 @@ public sealed class EfCaseQueryStore(
                 item.AcceptedFileCount, item.AcceptedByteCount, item.Version, item.Recipient, item.Reason))
             .ToArrayAsync(cancellationToken);
         var queryEmails = await ReadQueryEmailsAsync(context, caseId, cancellationToken);
-        var frame = new CaseSectionFrame(summary, MapWorkflow(workflow), ResolveActiveLease(workflow, timeProvider.GetUtcNow()));
-        return new(frame, documents, workflow.Case.CustodyRootRemoteId,
-            ParseCustodyState(workflow.Case.CustodyState), requestUploadLinks,
+        return new(sectionFrame, documents, sectionFrame.CustodyFolderRemoteId,
+            sectionFrame.CustodyState, requestUploadLinks,
             queryEmails);
     }
 
@@ -574,6 +587,14 @@ public sealed class EfCaseQueryStore(
         _ => throw new InvalidDataException(
             $"Unknown persisted case custody state '{value}'.")
     };
+
+    private CaseSectionFrame CreateSectionFrame(CaseSearchItem summary, CaseWorkflowEntity workflow) =>
+        new(
+            summary,
+            MapWorkflow(workflow),
+            ResolveActiveLease(workflow, timeProvider.GetUtcNow()),
+            workflow.Case.CustodyRootRemoteId,
+            ParseCustodyState(workflow.Case.CustodyState));
 
     private static async Task<CaseRecordNotes> ReadRecordNotesAsync(
         PegasusDbContext context,
