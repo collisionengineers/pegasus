@@ -398,7 +398,7 @@ public sealed class ProcessIntake(
 
     private static bool IsHoldingRetentionCandidate(
         IntakeAssetRecord asset,
-        IReadOnlySet<Guid> selectedPhotographIds)
+        HashSet<Guid> selectedPhotographIds)
     {
         var isSource = asset.Kind == IntakeAssetKind.Source;
         var isNonImageDocument = asset.Kind != IntakeAssetKind.EmbeddedImage

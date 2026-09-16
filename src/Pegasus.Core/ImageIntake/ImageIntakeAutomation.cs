@@ -347,13 +347,6 @@ public sealed class ImageIntakeAutomation(
         var pending = !registered && finalReceipt.Decision == IntakeDecision.NeedsSorting;
         return new(finalReceipt, pending);
 
-        static bool IsTerminal(IReadOnlyList<ImageVrmSuggestion> suggestions) =>
-            suggestions.Count > 0
-            && suggestions.All(suggestion => suggestion.Outcome is
-                VrmRecognitionOutcomeKind.Suggested
-                or VrmRecognitionOutcomeKind.NoReadableResult
-                or VrmRecognitionOutcomeKind.TechnicalFailure
-                or VrmRecognitionOutcomeKind.Unavailable);
     }
 
     /// <summary>
