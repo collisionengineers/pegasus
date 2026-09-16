@@ -1017,10 +1017,34 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         IntakeReceiptEntity receipt,
         IReadOnlyList<IntakeSearchDocument> documents)
     {
+        // Re-evaluation reads the same retained source. Keep its existing search
+        // projection when the reader produced the same documents; in particular,
+        // a separately supplied Audit report must not enter source search or make
+        // unchanged mailbox rows participate in the replacement write.
+        var retained = receipt.SearchDocuments
+            .OrderBy(item => item.Ordinal)
+            .ToArray();
+        if (retained.Length == documents.Count
+            && retained.Select((item, ordinal) => SearchDocumentMatches(item, documents[ordinal], ordinal))
+                .All(matches => matches))
+        {
+            return;
+        }
+
         context.RemoveRange(receipt.SearchDocuments);
         receipt.SearchDocuments.Clear();
         AddSearchDocuments(receipt, documents);
     }
+
+    private static bool SearchDocumentMatches(
+        IntakeSearchDocumentEntity retained,
+        IntakeSearchDocument evaluated,
+        int ordinal) =>
+        retained.Ordinal == ordinal
+        && retained.AttachmentOrdinal == evaluated.AttachmentOrdinal
+        && string.Equals(retained.SourceLabel, evaluated.SourceLabel, StringComparison.Ordinal)
+        && string.Equals(retained.AttachmentFileName, evaluated.AttachmentFileName, StringComparison.Ordinal)
+        && string.Equals(retained.Text, evaluated.Text, StringComparison.Ordinal);
 
     private static void AddSearchDocuments(
         IntakeReceiptEntity receipt,
