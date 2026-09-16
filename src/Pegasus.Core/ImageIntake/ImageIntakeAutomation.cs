@@ -67,7 +67,7 @@ public sealed class ImageIntakeAutomation(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(receipt);
-        if (!ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
+        if (!ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt)
             || receipt.Decision is not (IntakeDecision.NeedsSorting or IntakeDecision.ImageIntakeRegistered))
         {
             return new(receipt);
@@ -109,6 +109,18 @@ public sealed class ImageIntakeAutomation(
         }
 
         var suggestions = await ScanAsync(receipt, cancellationToken);
+        if (suggestions.Any(suggestion => suggestion.Outcome is
+                VrmRecognitionOutcomeKind.TechnicalFailure
+                or VrmRecognitionOutcomeKind.Unavailable))
+        {
+            // A single PDF can carry several photographs. A readable plate
+            // on one does not make a failed recognition on another harmless:
+            // the whole evidence set remains technically incomplete and is
+            // handed to staff with that explicit reason.
+            activity?.SetTag("image_intake.outcome", "recognition_failure");
+            return new(receipt, UnidentifiedGroup:
+                BuildTechnicalFailureRegistrationRequest(receipt));
+        }
         var confidentRegistrations = suggestions
             .Where(suggestion => suggestion.Outcome == VrmRecognitionOutcomeKind.Suggested
                 && suggestion.SuggestedRegistration is not null
@@ -118,6 +130,15 @@ public sealed class ImageIntakeAutomation(
             .Distinct(StringComparer.Ordinal)
             .ToArray();
         activity?.SetTag("image_intake.distinct_confident_registrations", confidentRegistrations.Length);
+        if (confidentRegistrations.Length > VrmRecognitionProvisionalBar.RequiredDistinctRegistrations)
+        {
+            // A standalone PDF is still a set of photographs. Conflicting
+            // confident reads must be visible as an identification conflict,
+            // not collapsed to the generic no-readable-identification route.
+            activity?.SetTag("image_intake.outcome", "conflicting_vrms");
+            return new(receipt, UnidentifiedGroup:
+                BuildConflictingRegistrationRequest(receipt));
+        }
         if (confidentRegistrations.Length
             != VrmRecognitionProvisionalBar.RequiredDistinctRegistrations)
         {
@@ -134,6 +155,30 @@ public sealed class ImageIntakeAutomation(
             cancellationToken);
         return new(updated ?? receipt);
     }
+
+    private static RegisterUnidentifiedRequest BuildTechnicalFailureRegistrationRequest(
+        IntakeReceipt receipt) => new(
+            UnidentifiedOrigin.Receipt(receipt.Id),
+            UnidentifiedReasonCode.TechnicalProcessingFailure,
+            "image_recognition_failure",
+            ActionActor.SystemWorker(ActorId),
+            $"unidentified:image-receipt:{receipt.Id:N}:recognition-failure",
+            receipt.ReceivedAtUtc)
+        {
+            SourceAssetId = IntakeFileIdentity.SourceAsset(receipt)?.Id
+        };
+
+    private static RegisterUnidentifiedRequest BuildConflictingRegistrationRequest(
+        IntakeReceipt receipt) => new(
+            UnidentifiedOrigin.Receipt(receipt.Id),
+            UnidentifiedReasonCode.ConflictingIdentification,
+            "conflicting_vrms",
+            ActionActor.SystemWorker(ActorId),
+            $"unidentified:image-receipt:{receipt.Id:N}:conflicting-vrms",
+            receipt.ReceivedAtUtc)
+        {
+            SourceAssetId = IntakeFileIdentity.SourceAsset(receipt)?.Id
+        };
 
     private async Task<ImageIntakeAutomationOutcome?> TryApplyGroupAsync(
         IntakeReceipt receipt,
@@ -191,20 +236,16 @@ public sealed class ImageIntakeAutomation(
             receipts.Add(memberReceipt);
         }
 
-        // A batch can mix vehicle images with other material (e.g. an
-        // instruction document uploaded in the same request); only the
-        // image-only members are vehicle evidence, so only they run
-        // recognition and count toward the group's routing decision. The
-        // filter is on the retained material alone, never the current
-        // decision: a member already registered (a sibling pass or the
-        // single-receipt path got there first) must stay in the group so the
-        // group's primary member — and with it the registration identity —
-        // is the same on every evaluation, converging on the one existing
-        // row instead of allocating a second reference for the remainder.
-        // The triggering receipt is always image-only (checked in ApplyAsync
-        // before this method is called), so this is never empty.
+        // A batch can mix vehicle images with known report/Triage/associated
+        // material; only automation-eligible members run recognition or are
+        // stamped by this registration. A member already registered by this
+        // group remains in the evidence set for replay stability even after a
+        // later association, so its identity cannot be split into a second
+        // Image intake.
         var imageReceipts = receipts
-            .Where(ImageIntakeLifecycleRules.IsImageOnlyMaterial)
+            .Where(memberReceipt =>
+                ImageIntakeLifecycleRules.IsImageAutomationEligible(memberReceipt)
+                || memberReceipt.Decision == IntakeDecision.ImageIntakeRegistered)
             .ToArray();
 
         var recognitions = new List<ImageIntakeGroupMemberRecognition>(imageReceipts.Length);
@@ -213,21 +254,36 @@ public sealed class ImageIntakeAutomation(
         {
             var suggestions = await ScanAsync(memberReceipt, cancellationToken);
             scans.Add((memberReceipt, suggestions));
-            var best = suggestions
-                .Where(suggestion => suggestion.Outcome == VrmRecognitionOutcomeKind.Suggested
-                    && suggestion.SuggestedRegistration is not null)
-                .OrderByDescending(suggestion => suggestion.Confidence)
-                .FirstOrDefault();
-            recognitions.Add(new(
-                memberReceipt.Id,
-                IsTerminal(suggestions),
-                best?.Outcome ?? (suggestions.Count > 0
-                    ? suggestions[0].Outcome
-                    : VrmRecognitionOutcomeKind.NoReadableResult),
-                best?.SuggestedRegistration,
-                best?.Confidence,
-                suggestions.FirstOrDefault(suggestion => suggestion.FailureCode is not null)?.FailureCode,
-                CouldNotBeRead: IntakeDecisionPolicy.CouldNotBeRead(memberReceipt.Decision)));
+            // Each selected photograph has an independent recognition result.
+            // Do not collapse a receipt to its best read: two photographs in
+            // one PDF can disagree, and that disagreement must route the
+            // whole submission to Unidentified rather than hide one result.
+            foreach (var suggestion in suggestions)
+            {
+                recognitions.Add(new(
+                    memberReceipt.Id,
+                    suggestion.Outcome is VrmRecognitionOutcomeKind.Suggested
+                        or VrmRecognitionOutcomeKind.NoReadableResult
+                        or VrmRecognitionOutcomeKind.TechnicalFailure
+                        or VrmRecognitionOutcomeKind.Unavailable,
+                    suggestion.Outcome,
+                    suggestion.SuggestedRegistration,
+                    suggestion.Confidence,
+                    suggestion.FailureCode,
+                    CouldNotBeRead: IntakeDecisionPolicy.CouldNotBeRead(memberReceipt.Decision)));
+            }
+            if (suggestions.Count == 0)
+            {
+                // A selected asset with no durable result is retriable, not a
+                // no-readable-registration vote.
+                recognitions.Add(new(
+                    memberReceipt.Id,
+                    IsTerminal: false,
+                    VrmRecognitionOutcomeKind.NoReadableResult,
+                    null,
+                    null,
+                    CouldNotBeRead: IntakeDecisionPolicy.CouldNotBeRead(memberReceipt.Decision)));
+            }
         }
 
         var registrationCandidates = recognitions
@@ -333,8 +389,10 @@ public sealed class ImageIntakeAutomation(
     {
         var actor = ActionActor.SystemWorker(ActorId);
         var read = routing.NormalizedRegistration!;
-        var associationAllowed =
-            routing.Decision == ImageIntakeGroupRoutingDecision.AssociateExistingCase;
+        // Manual submissions always retain staff confirmation over the case
+        // link, even where one photograph read a unique existing case.
+        var associationAllowed = group.Channel != IntakeSourceChannel.ManualUpload
+            && routing.Decision == ImageIntakeGroupRoutingDecision.AssociateExistingCase;
         try
         {
             var origin = await originResolver.ResolveOriginAsync(primary.Id, cancellationToken);
@@ -438,8 +496,9 @@ public sealed class ImageIntakeAutomation(
         // reused rather than recomputed.
         var recordedByAsset = (await suggestionStore.ListForReceiptAsync(receipt.Id, cancellationToken))
             .ToDictionary(suggestion => suggestion.IntakeAssetId);
-        var results = new List<ImageVrmSuggestion>(receipt.AssetRecords.Count);
-        foreach (var asset in receipt.AssetRecords)
+        var selectedAssets = InstructionEvidenceImages.Select(receipt.AssetRecords);
+        var results = new List<ImageVrmSuggestion>(selectedAssets.Count);
+        foreach (var asset in selectedAssets)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (recordedByAsset.TryGetValue(asset.Id, out var recorded)
@@ -471,16 +530,11 @@ public sealed class ImageIntakeAutomation(
                 result.FailureCode,
                 result.FailureReason,
                 $"vrm-scan:{receipt.Id:N}:{asset.Id:N}");
-            try
-            {
-                results.Add(await suggestionStore.RecordAsync(draft, cancellationToken));
-            }
-            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-            {
-                // Recording is idempotent by operation key; a persistence
-                // failure here must not block intake. The asset simply has no
-                // recorded outcome this run.
-            }
+            // Recognition is only a completed decision once its asset-scoped
+            // outcome is durable. Omitting a failed write would let a later
+            // photograph register the receipt from a partial evidence set;
+            // propagate so durable intake retries the whole idempotent scan.
+            results.Add(await suggestionStore.RecordAsync(draft, cancellationToken));
         }
 
         return results;
@@ -552,65 +606,59 @@ public sealed class ImageIntakeAutomation(
         CancellationToken cancellationToken)
     {
         var actor = ActionActor.SystemWorker(ActorId);
-        try
+        var origin = await originResolver.ResolveOriginAsync(receipt.Id, cancellationToken);
+        if (origin is null)
         {
-            var origin = await originResolver.ResolveOriginAsync(receipt.Id, cancellationToken);
-            if (origin is null)
-            {
-                activity?.SetTag("image_intake.outcome", "origin_unresolved");
-                return null;
-            }
-
-            // Candidate selection before registration: the case's
-            // instruction-supplied registration is the registered identity,
-            // never the incomplete read (operator-directed 2026-08-03).
-            var candidates = receipt.CurrentCaseId is null
-                ? await caseCandidates.FindEligibleByRegistrationAsync(read, cancellationToken)
-                : [];
-            activity?.SetTag("image_intake.case_candidates", candidates.Count);
-            var target = SelectAssociationTarget(candidates, read);
-            var registration = target?.ConfirmedRegistration ?? read;
-            var reason = target is not null
-                && !string.Equals(registration, read, StringComparison.Ordinal)
-                ? $"Automatic registration: the confident read {read} matches case {target.CaseReference}'s confirmed registration with one character missing; registered with the confirmed value."
-                : "Automatic registration from a confident vehicle-registration read on the retained image evidence.";
-            var record = await registerImageIntake.ExecuteAsync(
-                new(
-                    origin,
-                    registration,
-                    actor,
-                    $"image-intake-register:{receipt.Id:N}",
-                    reason),
-                cancellationToken);
-            activity?.SetTag("image_intake.reference", record.ImageIntakeReference);
-            await ConfirmUsedSuggestionsAsync(
-                suggestions,
-                record.NormalizedVehicleRegistration,
-                actor,
-                cancellationToken);
-            if (target is not null)
-            {
-                RecordPairingOutcome(activity,
-                    await casePairing.PairRegisteredReceiptAsync(receipt.Id, cancellationToken));
-            }
-            else if (receipt.CurrentCaseId is not null)
-            {
-                activity?.SetTag("image_intake.association", "already_associated");
-            }
-            else
-            {
-                activity?.SetTag(
-                    "image_intake.association",
-                    candidates.Count == 0 ? "no_candidate" : "ambiguous");
-            }
-
-            return await receiptQueries.GetAsync(receipt.Id, cancellationToken);
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            activity?.SetTag("image_intake.outcome", "registration_failed");
+            activity?.SetTag("image_intake.outcome", "origin_unresolved");
             return null;
         }
+
+        // Candidate selection before registration: the case's
+        // instruction-supplied registration is the registered identity,
+        // never the incomplete read (operator-directed 2026-08-03).
+        var candidates = receipt.CurrentCaseId is null
+            ? await caseCandidates.FindEligibleByRegistrationAsync(read, cancellationToken)
+            : [];
+        activity?.SetTag("image_intake.case_candidates", candidates.Count);
+        var target = receipt.SourceIdentity.Channel == IntakeSourceChannel.ManualUpload
+            ? null
+            : SelectAssociationTarget(candidates, read);
+        var registration = target?.ConfirmedRegistration ?? read;
+        var reason = target is not null
+            && !string.Equals(registration, read, StringComparison.Ordinal)
+            ? $"Automatic registration: the confident read {read} matches case {target.CaseReference}'s confirmed registration with one character missing; registered with the confirmed value."
+            : "Automatic registration from a confident vehicle-registration read on the retained image evidence.";
+        var record = await registerImageIntake.ExecuteAsync(
+            new(
+                origin,
+                registration,
+                actor,
+                $"image-intake-register:{receipt.Id:N}",
+                reason),
+            cancellationToken);
+        activity?.SetTag("image_intake.reference", record.ImageIntakeReference);
+        await ConfirmUsedSuggestionsAsync(
+            suggestions,
+            record.NormalizedVehicleRegistration,
+            actor,
+            cancellationToken);
+        if (target is not null)
+        {
+            RecordPairingOutcome(activity,
+                await casePairing.PairRegisteredReceiptAsync(receipt.Id, cancellationToken));
+        }
+        else if (receipt.CurrentCaseId is not null)
+        {
+            activity?.SetTag("image_intake.association", "already_associated");
+        }
+        else
+        {
+            activity?.SetTag(
+                "image_intake.association",
+                candidates.Count == 0 ? "no_candidate" : "ambiguous");
+        }
+
+        return await receiptQueries.GetAsync(receipt.Id, cancellationToken);
     }
 
     private async Task ConfirmUsedSuggestionsAsync(

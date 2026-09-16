@@ -347,20 +347,24 @@ decision even when exactly one eligible Case matches. The automatic association
 precedence below applies to non-manual routes. Recognition, complete membership,
 and fail-closed source-identity rules apply to both.
 
-- **Mailbox attachment entry.** When a newly processed mailbox message would
-  otherwise enter Unidentified, has not been routed as an instruction, Case or
-  Triage, and contains one or more direct `image/*` attachments, those direct
-  attachments are submitted as one image group through this same grouped
-  lifecycle. The original EML source, inline images, and images derived from
-  another attachment are excluded. The child image receipts preserve the
-  mailbox source channel and a durable parent-receipt relationship; the parent
-  email does not also receive an Unidentified item. Existing group precedence
-  then produces exactly one settled result: association to one eligible Case,
-  one Image-initiated Case, or one group-level Unidentified item for
-  no-readable/conflicting registrations. A terminal failure to submit the
-  attachments produces one technical-processing Unidentified item for the
-  parent receipt. Completed historical mail is not backfilled or replayed by
-  this rule.
+- **PDF and mailbox photograph entry.** Otherwise-unrouted standalone PDFs
+  and mailbox receipts containing selected photographs use the same image
+  lifecycle as direct image uploads. An established instruction, report, Case
+  or Triage route takes precedence; OCR and technical failures retain their
+  distinct outcomes. The original PDF, selected photographs and, for email,
+  original message remain on their parent receipt with one destination; no
+  child image receipts are manufactured. Existing manual-upload confirmation
+  rules apply even when one Case matches. No readable or conflicting VRMs
+  produce one Unidentified item containing the original PDF and photographs.
+  Completed historical mail is not automatically backfilled.
+- **Photograph selection.** One Core policy selects direct image evidence and
+  embedded PDF photographs before separate asset retention. Inline/signature
+  graphics are excluded; embedded images require at least 40,000 encoded
+  bytes and, when dimensions are known, a longest-to-shortest side ratio less
+  than 3. Missing dimensions retain the existing size-based selection. These
+  are image heuristics, not a semantic logo classifier. Repeated photograph
+  content is shown and recognised once while source provenance remains.
+  Excluded document art remains only within its retained original document.
 
 - **Membership and completeness.** A group's member count is fixed at the
   originating submission and is never inferred from however many members
@@ -380,8 +384,8 @@ and fail-closed source-identity rules apply to both.
   image members' own decision.
 - **Distinct-VRM aggregation.** Only reads at or above the accepted automatic
   recognition bar count. The decision inspects the distinct set of accepted,
-  normalised VRMs across every image member in the group — never one member's
-  read in isolation.
+  normalised VRMs across every selected image asset in every image member —
+  never one preferred read per PDF or one member's read in isolation.
 - **Associate-or-hand-off precedence, applied in this order:**
   1. Any image member's recognition ended in a technical failure or an
      unavailable dependency: the group fails closed to a named technical

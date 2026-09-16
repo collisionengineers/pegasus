@@ -12,6 +12,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
@@ -90,6 +91,41 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             Assert.Equal(
                 estate.Clock.GetUtcNow().AddHours(24),
                 (await db.Set<DocumentContentCacheEntryEntity>().SingleAsync()).ExpiresAtUtc);
+        }
+    }
+
+    [Fact]
+    public async Task ConfirmedIntakeAssetWithRemoteIdsOpensThroughTheProductionLogicalReader()
+    {
+        var bytes = "confirmed intake custody"u8.ToArray();
+        var estate = await Estate.CreateAsync(bytes);
+        await using (estate)
+        {
+            await using var content = await estate.Reader.OpenAsync(estate.Request, CancellationToken.None);
+
+            Assert.Equal(bytes, await ReadAsync(content.Content));
+            Assert.Equal(1, estate.Box.Downloads);
+        }
+    }
+
+    [Theory]
+    [InlineData("unknown")]
+    [InlineData("failed")]
+    public async Task IntakeAssetWithStaleRemoteIdsButUnconfirmedCustodyCannotOpen(string custodyStatus)
+    {
+        var estate = await Estate.CreateAsync("stale intake custody"u8.ToArray());
+        await using (estate)
+        {
+            await using (var db = await estate.Database.CreateContextAsync())
+            {
+                (await db.Set<IntakeAssetEntity>().SingleAsync()).CustodyStatus = custodyStatus;
+                await db.SaveChangesAsync();
+            }
+
+            await Assert.ThrowsAsync<IntakeCustodyUnavailableException>(
+                () => estate.Reader.OpenAsync(estate.Request, CancellationToken.None));
+
+            Assert.Equal(0, estate.Box.Downloads);
         }
     }
 

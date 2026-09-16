@@ -8,8 +8,8 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// A receipt whose bytes Box custody has not confirmed yet is still being
-/// filed: the Source and Asset routes answer 404 for it, not the 500 that
-/// paged production 51 times on 10 September 2026.
+/// filed: the Source and Asset routes tell an authenticated operator to wait,
+/// rather than presenting it as missing or failing the request.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class IntakePendingCustodyWebTests
@@ -20,7 +20,7 @@ public sealed class IntakePendingCustodyWebTests
     [Theory]
     [InlineData("Source")]
     [InlineData("Asset")]
-    public async Task ASourceOrAssetStillReachingCustodyIsNotFoundRatherThanAFault(string route)
+    public async Task ASourceOrAssetStillReachingCustodyIsReportedAsUnavailable(string route)
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -41,7 +41,8 @@ public sealed class IntakePendingCustodyWebTests
             : $"/Received/{ReceiptId:D}/Asset/{AssetId:D}";
         using var response = await client.GetAsync(path);
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("durable storage is confirmed", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     private static void Substitute<T>(IServiceCollection services, T instance)
@@ -57,11 +58,11 @@ public sealed class IntakePendingCustodyWebTests
         public Task<IntakeSourceDownload?> ExecuteAsync(
             DownloadIntakeSourceQuery query,
             CancellationToken cancellationToken = default) =>
-            throw new FileNotFoundException("Durable Box custody has not been confirmed.");
+            throw new IntakeCustodyUnavailableException("Durable Box custody has not been confirmed.");
 
         public Task<IntakeSourceDownload?> ExecuteAsync(
             DownloadIntakeAssetQuery query,
             CancellationToken cancellationToken = default) =>
-            throw new FileNotFoundException("Durable Box custody has not been confirmed.");
+            throw new IntakeCustodyUnavailableException("Durable Box custody has not been confirmed.");
     }
 }

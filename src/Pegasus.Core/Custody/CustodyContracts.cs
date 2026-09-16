@@ -33,7 +33,8 @@ public sealed record IntakeSourceCustodyReference(
     string MediaType,
     string SourceHash,
     string SourceObjectKey,
-    long SourceLength = -1);
+    long SourceLength = -1,
+    Guid? IntakeAssetId = null);
 
 public sealed record CustodyDocumentVersion(
     Guid CaseId,

@@ -3,6 +3,8 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.ImageIntake;
 using Pegasus.IntegrationTests.DocumentExtraction;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
@@ -12,6 +14,73 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed partial class MultiFormatIntakeWebTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData("AB12CDE")]
+    public async Task StandalonePhotographPdfRetainsOriginalAndFourPhotosAndRoutesByTheirRead(string? registration)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine(registration));
+        using var client = CreateClient(factory);
+        var placements = Enumerable.Range(0, 4)
+            .Select(index => new PdfImagePlacement(
+                20 + index % 2 * 250, 100 + index / 2 * 260, 200, 240, 0, 0, 0,
+                SampleWidth: 200, SampleHeight: 240, Pixels: Pixels(200, 240, index + 1)))
+            .Append(new PdfImagePlacement(20, 650, 500, 100, 0, 0, 0,
+                SampleWidth: 640, SampleHeight: 140, Pixels: Pixels(640, 140, 5)))
+            .ToArray();
+        var pdf = CreateImagePdf(placements);
+        var result = await UploadAsync(factory, client, "photo-evidence.pdf", "application/pdf", pdf);
+        var receiptId = ReceiptId(result);
+        var receipt = await GetReceiptAsync(factory, receiptId);
+        var photos = InstructionEvidenceImages.Select(receipt.AssetRecords);
+
+        Assert.Equal(4, photos.Count);
+        Assert.Equal(5, receipt.AssetRecords.Count);
+        Assert.All(photos, photo =>
+        {
+            Assert.Equal(IntakeAssetKind.EmbeddedImage, photo.Kind);
+            Assert.Equal(IncomingArtifactCustodyState.Confirmed, photo.CustodyState);
+            Assert.True(photo.ContentLength >= InstructionEvidenceImages.EmbeddedPhotographMinimumBytes);
+            Assert.Equal(200, photo.WidthPixels);
+            Assert.Equal(240, photo.HeightPixels);
+        });
+        Assert.DoesNotContain(receipt.AssetRecords, asset => asset.WidthPixels == 640);
+        Assert.Empty(receipt.ScannedPdfPages);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var readings = await scope.ServiceProvider.GetRequiredService<IVrmSuggestionStore>()
+            .ListForReceiptAsync(receiptId, CancellationToken.None);
+        Assert.Equal(photos.Select(photo => photo.Id).Order(), readings.Select(read => read.IntakeAssetId).Order());
+        if (registration is null)
+        {
+            Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+            var unidentified = Assert.IsType<UnidentifiedItem>(await scope.ServiceProvider
+                .GetRequiredService<IUnidentifiedStore>().GetByOriginAsync(
+                    UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
+            Assert.Equal(UnidentifiedReasonCode.NoUsableIdentification, unidentified.ReasonCode);
+        }
+        else
+        {
+            Assert.Equal(IntakeDecision.ImageIntakeRegistered, receipt.Decision);
+            var image = Assert.IsType<ImageIntakeDetail>(await scope.ServiceProvider
+                .GetRequiredService<IImageIntakeQueries>().GetByOriginReceiptAsync(receiptId, CancellationToken.None));
+            Assert.Equal(registration, image.Record.NormalizedVehicleRegistration);
+            Assert.Equal(4, (await scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>()
+                .ListImagesAsync(image.Record.Id, CancellationToken.None)).Count);
+        }
+
+        using var sourceDownload = await client.GetAsync($"/Received/{receiptId:D}/Source");
+        Assert.Equal(HttpStatusCode.OK, sourceDownload.StatusCode);
+        Assert.Equal(pdf, await sourceDownload.Content.ReadAsByteArrayAsync());
+
+        static byte[] Pixels(int width, int height, int seed)
+        {
+            var pixels = new byte[width * height * 3];
+            new Random(seed).NextBytes(pixels);
+            return pixels;
+        }
+    }
+
     [Fact]
     public async Task DirectDocxTextCannotEstablishQdosThroughWebCaller()
     {
@@ -1239,14 +1308,13 @@ public sealed partial class MultiFormatIntakeWebTests
 
         foreach (var image in images)
         {
+            var pixels = image.Pixels ?? [image.Red, image.Green, image.Blue];
             using var imageObject = new MemoryStream();
             WriteAscii(
                 imageObject,
                 $"<< /Type /XObject /Subtype /Image /Width {image.SampleWidth} /Height {image.SampleHeight} "
-                + "/ColorSpace /DeviceRGB /BitsPerComponent 8 /Length 3 >>\nstream\n");
-            imageObject.WriteByte(image.Red);
-            imageObject.WriteByte(image.Green);
-            imageObject.WriteByte(image.Blue);
+                + $"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Length {pixels.Length} >>\nstream\n");
+            imageObject.Write(pixels);
             WriteAscii(imageObject, "\nendstream");
             objectBodies.Add(imageObject.ToArray());
         }
@@ -1373,7 +1441,8 @@ public sealed partial class MultiFormatIntakeWebTests
         byte Green,
         byte Blue,
         int SampleWidth = 1,
-        int SampleHeight = 1);
+        int SampleHeight = 1,
+        byte[]? Pixels = null);
 
     private sealed class SteppingTimeProvider(TimeSpan step) : TimeProvider
     {

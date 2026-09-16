@@ -242,6 +242,121 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
+    public async Task PdfScansOnlySelectedPhotographsAndRegistersWithoutACaseMatch()
+    {
+        var pdf = Asset("images.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var banner = Asset(
+            "page-1-image-1.png", "image/png", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, width: 1990, height: 437);
+        var photograph = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 547, height: 650);
+        var harness = new Harness(retainedAssets: [pdf, banner, photograph]);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+
+        await harness.ApplyAsync();
+
+        Assert.Equal(1, harness.Engine.Calls);
+        Assert.Equal(photograph.Id, Assert.Single(harness.SuggestionStore.Records).IntakeAssetId);
+        Assert.Single(harness.Register.Requests);
+        Assert.Empty(harness.MutationStore.AutoLinks);
+    }
+
+    [Fact]
+    public async Task PdfWithAGoodReadAndRecognitionFailureRoutesTheWholeReceiptToTechnicalUnidentified()
+    {
+        var pdf = Asset("images.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var firstPhoto = Asset(
+            "page-1-image-1.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 547, height: 650);
+        var secondPhoto = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 552, height: 650);
+        var harness = new Harness(retainedAssets: [pdf, firstPhoto, secondPhoto]);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.Engine.Enqueue(new VrmRecognitionResult(
+            VrmRecognitionOutcomeKind.TechnicalFailure,
+            [],
+            "fast-alpr-onnx",
+            "1",
+            string.Empty,
+            "engine_failure",
+            "The recognition engine could not process this photograph."));
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.Equal(2, harness.Engine.Calls);
+        Assert.Empty(harness.Register.Requests);
+        var request = Assert.IsType<Pegasus.Core.Intake.Unidentified.RegisterUnidentifiedRequest>(
+            outcome.UnidentifiedGroup);
+        Assert.Equal(Pegasus.Core.Intake.Unidentified.UnidentifiedOrigin.Receipt(harness.Receipt.Id), request.Origin);
+        Assert.Equal(Pegasus.Core.Intake.Unidentified.UnidentifiedReasonCode.TechnicalProcessingFailure, request.ReasonCode);
+        Assert.Equal("image_recognition_failure", request.SafeDetail);
+    }
+
+    [Fact]
+    public async Task PdfWithConflictingPhotographReadsRoutesTheReceiptToConflictingUnidentified()
+    {
+        var pdf = Asset("images.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var firstPhoto = Asset(
+            "page-1-image-1.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 547, height: 650);
+        var secondPhoto = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 552, height: 650);
+        var harness = new Harness(retainedAssets: [pdf, firstPhoto, secondPhoto]);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
+
+        var outcome = await harness.ApplyAsync();
+
+        Assert.Equal(2, harness.Engine.Calls);
+        Assert.Empty(harness.Register.Requests);
+        var request = Assert.IsType<Pegasus.Core.Intake.Unidentified.RegisterUnidentifiedRequest>(
+            outcome.UnidentifiedGroup);
+        Assert.Equal(Pegasus.Core.Intake.Unidentified.UnidentifiedOrigin.Receipt(harness.Receipt.Id), request.Origin);
+        Assert.Equal(Pegasus.Core.Intake.Unidentified.UnidentifiedReasonCode.ConflictingIdentification, request.ReasonCode);
+        Assert.Equal("conflicting_vrms", request.SafeDetail);
+    }
+
+    [Fact]
+    public async Task PdfSuggestionPersistenceFailureOnSecondPhotoPropagatesWithoutRegistration()
+    {
+        var pdf = Asset("images.pdf", "application/pdf", IntakeAssetKind.Source, IntakeAssetDisposition.Source);
+        var firstPhoto = Asset(
+            "page-1-image-1.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 547, height: 650);
+        var secondPhoto = Asset(
+            "page-1-image-2.jpg", "image/jpeg", IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded, contentLength: 90_000, width: 552, height: 650);
+        var harness = new Harness(retainedAssets: [pdf, firstPhoto, secondPhoto]);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.SuggestionStore.FailOnRecordNumber = 2;
+
+        var error = await Assert.ThrowsAsync<IOException>(() => harness.ApplyAsync());
+
+        Assert.Equal("Simulated suggestion persistence failure.", error.Message);
+        Assert.Equal(2, harness.Engine.Calls);
+        Assert.Single(harness.SuggestionStore.Records);
+        Assert.Empty(harness.Register.Requests);
+    }
+
+    [Fact]
+    public async Task SingleRegistrationFailurePropagatesForDurableRetry()
+    {
+        var harness = new Harness();
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.Register.FailForReceiptIds.Add(harness.Receipt.Id);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => harness.ApplyAsync());
+
+        Assert.Equal("Simulated transient concurrency failure registering this receipt.", error.Message);
+        Assert.Empty(harness.Register.Requests);
+        Assert.Null(harness.ImageIntakeQueries.Existing);
+    }
+
+    [Fact]
     public async Task ExistingRegistrationShortCircuitsTheScanAndRetriesPairingExactlyOnce()
     {
         var harness = new Harness(sourceChannel: IntakeSourceChannel.Mailbox);
@@ -293,6 +408,34 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(
             harness.Receipts.Select(receipt => receipt.Id).OrderBy(id => id),
             harness.MutationStore.AutoLinks.Select(link => link.ReceiptId).OrderBy(id => id));
+    }
+
+    [Fact]
+    public async Task TriageClassifiedSiblingIsNotScannedOrRegisteredWithThePhotoGroup()
+    {
+        var harness = new GroupHarness(memberCount: 2, sourceChannel: IntakeSourceChannel.Mailbox);
+        var triage = harness.Receipts[1] with
+        {
+            MailClassificationDecision = MailClassificationResult.Classified(
+                MailCategory.Received(
+                    ReceivedMailFamily.PreInstructionEmails,
+                    MailCategory.TriageRequestSubtype),
+                [],
+                "The mailbox classifier identified a Triage request.",
+                "test",
+                1)
+        };
+        harness.ReplaceReceipt(1, triage);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+
+        await harness.ApplyAsync(triggerOrdinal: 0);
+
+        Assert.Equal(1, harness.Engine.Calls);
+        Assert.Single(harness.Register.Requests);
+        Assert.DoesNotContain(
+            harness.SuggestionStore.Records,
+            suggestion => suggestion.IntakeReceiptId == triage.Id);
+        Assert.Equal(IntakeDecision.NeedsSorting, harness.Receipts[1].Decision);
     }
 
     [Fact]
@@ -466,15 +609,38 @@ public sealed class AutomaticImageIntakeTests
         "1",
         "plate-detection=abc;plate-recognition=def");
 
+    private static IntakeAssetRecord Asset(
+        string fileName,
+        string mediaType,
+        IntakeAssetKind kind,
+        IntakeAssetDisposition disposition,
+        long contentLength = -1,
+        int? width = null,
+        int? height = null) => new(
+        Guid.NewGuid(),
+        "uploaded source",
+        fileName,
+        mediaType,
+        kind,
+        disposition,
+        contentLength < 0 ? ImageBytes.Length : contentLength,
+        ImageHash,
+        $"storage/{Guid.NewGuid():N}",
+        null,
+        null,
+        width,
+        height);
+
     private sealed class Harness
     {
         public Harness(
             int assetCount = 1,
             string mediaType = "image/jpeg",
             Guid? manualLinkedCaseId = null,
-            IntakeSourceChannel sourceChannel = IntakeSourceChannel.ManualUpload)
+            IntakeSourceChannel sourceChannel = IntakeSourceChannel.ManualUpload,
+            IReadOnlyList<IntakeAssetRecord>? retainedAssets = null)
         {
-            var assets = Enumerable.Range(0, assetCount)
+            var assets = retainedAssets?.ToArray() ?? Enumerable.Range(0, assetCount)
                 .Select(index => new IntakeAssetRecord(
                     Guid.NewGuid(),
                     "uploaded source",
@@ -490,12 +656,14 @@ public sealed class AutomaticImageIntakeTests
                     null,
                     null))
                 .ToArray();
+            var source = assets.Single(asset => asset.Kind == IntakeAssetKind.Source
+                && asset.Disposition == IntakeAssetDisposition.Source);
             Receipt = new IntakeReceipt(
                 Guid.NewGuid(),
-                "vehicle-0.jpg",
-                mediaType,
-                ImageBytes.Length,
-                ImageHash,
+                source.FileName,
+                source.MediaType,
+                source.ContentLength,
+                source.ContentHash,
                 new IntakeSourceIdentity(sourceChannel, "receipt-token"),
                 DateTimeOffset.UtcNow,
                 DateTimeOffset.UtcNow,
@@ -605,10 +773,19 @@ public sealed class AutomaticImageIntakeTests
 
         public List<ImageVrmSuggestionDispositionRequest> Dispositions { get; } = [];
 
+        public int? FailOnRecordNumber { get; set; }
+
+        public int RecordCalls { get; private set; }
+
         public Task<ImageVrmSuggestion> RecordAsync(
             ImageVrmSuggestionDraft draft,
             CancellationToken cancellationToken)
         {
+            RecordCalls++;
+            if (FailOnRecordNumber == RecordCalls)
+            {
+                throw new IOException("Simulated suggestion persistence failure.");
+            }
             var suggestion = new ImageVrmSuggestion(
                 Guid.NewGuid(),
                 draft.IntakeReceiptId,
@@ -1100,5 +1277,11 @@ public sealed class AutomaticImageIntakeTests
 
         public Task<ImageIntakeAutomationOutcome> ApplyAsync(int triggerOrdinal) =>
             automation.ApplyAsync(Receipts[triggerOrdinal], CancellationToken.None);
+
+        public void ReplaceReceipt(int ordinal, IntakeReceipt receipt)
+        {
+            Receipts[ordinal] = receipt;
+            ReceiptQueries.Receipts[ordinal] = receipt;
+        }
     }
 }

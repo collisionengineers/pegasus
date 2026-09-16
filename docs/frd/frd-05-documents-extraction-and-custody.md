@@ -67,11 +67,21 @@ Receipt/staging and accepted case custody are different states.
 Incoming custody claims use the occurrence's operation identity to select its
 own source record. Intake claims update the matching receipt/asset pair directly;
 they do not probe public-upload records or require broader Worker permissions.
+The receipt and asset GUIDs are typed identities, not filename, source-label
+or formatted-GUID string matches. Before a destination is established, the
+original source and selected photographs are retained in the designated Box
+holding folder, each with verified content and confirmed file/version IDs.
+Unknown or pending holding custody is incomplete work, not success: existing
+bounded processing retries reuse the same asset and operation identities.
+Exhausted failures remain visible for staff recovery. Re-evaluation repairs
+unconfirmed holding custody from integrity-verified retained staging bytes
+before reading the Box-backed source; missing or corrupt bytes fail closed.
 
 An Image-initiated Case also has its own Box folder from registration
 (INTK-014): the folder is named for the permanent Image Intake Reference,
 sits directly under the approved custody root, and retains every registered
-image of the submission group in stored order. The storage is queued work
+photograph and its source PDF in stored order. Each file is identified by its
+retained asset, so several photographs from one PDF cannot collide. The storage is queued work
 behind the registration — a Box failure never blocks or rolls back a
 registration or a merge, the images remain authoritative in intake
 source-artifact retention throughout, and the queued work re-arms itself
@@ -127,6 +137,13 @@ current, not logically removed image occurrence whatever its custody has
 reached, and offers the thumbnail, viewer link, tags and Crop only on the
 Confirmed ones. The Documents tab lists the same set, each row stating its
 custody, and offers Preview and Save as only where the bytes are held.
+
+Unidentified and Image Intake likewise show selected photographs independently
+of the source file's media type: photo count, thumbnails or custody
+placeholders, VRM outcome and the original PDF as a separate file. Known
+files whose custody is unconfirmed return an explanatory availability response
+on direct access, not a generic page-not-found. No download bypasses confirmed
+custody by serving staging bytes; missing identities still return not-found.
 
 ## Image tags
 
