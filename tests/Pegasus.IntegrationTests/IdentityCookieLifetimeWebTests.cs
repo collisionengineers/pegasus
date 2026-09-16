@@ -47,6 +47,7 @@ public sealed partial class IdentityCookieLifetimeWebTests
                     {
                         options.TimeProvider = clock;
                         var onRefreshingPrincipal = options.OnRefreshingPrincipal;
+                        Assert.NotNull(onRefreshingPrincipal);
                         options.OnRefreshingPrincipal = async context =>
                         {
                             await onRefreshingPrincipal(context);
@@ -233,5 +234,4 @@ public sealed partial class IdentityCookieLifetimeWebTests
 
         public void Advance(TimeSpan value) => current = current.Add(value);
     }
-
 }
