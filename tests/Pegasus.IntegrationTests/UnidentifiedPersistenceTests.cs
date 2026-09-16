@@ -1,8 +1,9 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Intake.Classification;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Infrastructure.Persistence;
 
@@ -316,6 +317,56 @@ public sealed class UnidentifiedPersistenceTests
         Assert.Equal(UnidentifiedReasonCode.AuditOriginalReportMissing, stale.Item.ReasonCode);
     }
 
+    [Fact]
+    public async Task AuditReasonBackfillChangesOnlyTheKnownOpenMissingReportCondition()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var receipts = services.GetRequiredService<IIntakeReceiptStore>();
+        var register = services.GetRequiredService<IRegisterUnidentified>();
+        var store = services.GetRequiredService<IUnidentifiedStore>();
+        const string knownReason = "A standalone Audit instruction requires one attached original report stating Repairable or Total loss.";
+        var samples = new[]
+        {
+            (Reason: UnidentifiedReasonCode.NoUsableIdentification, Detail: knownReason, Closed: false, Changes: true),
+            (Reason: UnidentifiedReasonCode.ConflictingIdentification, Detail: knownReason, Closed: false, Changes: false),
+            (Reason: UnidentifiedReasonCode.UnreadableOrCorruptContent, Detail: knownReason, Closed: false, Changes: false),
+            (Reason: UnidentifiedReasonCode.NoUsableIdentification, Detail: "The claim cannot be identified.", Closed: false, Changes: false),
+            (Reason: UnidentifiedReasonCode.NoUsableIdentification, Detail: knownReason, Closed: true, Changes: false)
+        };
+        var expected = new List<(UnidentifiedItem Before, bool Changes)>();
+        foreach (var sample in samples)
+        {
+            var receiptId = await StoreNextStepReceiptAsync(receipts, IntakeSourceChannel.Mailbox,
+                IntakeDecision.NeedsSorting, null, AuditClassification(), null, sample.Detail);
+            var item = await RegisterAsync(register, receiptId, sample.Reason);
+            if (sample.Closed)
+            {
+                item = (await store.ResolveAsync(new(item.Id, item.Version,
+                    ActionActor.SystemWorker("migration-test"), "backfill-closed", "Closed for test.",
+                    UnidentifiedResolutionTargetKind.Closed, "closed", null, CreatedAtUtc.AddMinutes(1)))).Item;
+            }
+            expected.Add((item, sample.Changes));
+        }
+
+        // Execute the migration's actual backfill against representative rows.
+        // The fresh-schema migration test separately proves the unique index.
+        var migration = new Pegasus.Infrastructure.Persistence.Migrations.SuppliedAuditOriginalReport();
+        await using var context = await database.CreateContextAsync();
+        foreach (var operation in migration.UpOperations.OfType<SqlOperation>())
+        {
+            await context.Database.ExecuteSqlRawAsync(operation.Sql);
+        }
+        foreach (var (before, changes) in expected)
+        {
+            var after = (await store.GetAsync(before.Id))!;
+            Assert.Equal(changes ? UnidentifiedReasonCode.AuditOriginalReportMissing : before.ReasonCode, after.ReasonCode);
+            Assert.Equal(before.Version + (changes ? 1 : 0), after.Version);
+            Assert.Equal(before.State, after.State);
+        }
+    }
+
     private static async Task<UnidentifiedItem> RegisterAsync(
         IRegisterUnidentified register,
         Guid receiptId,
@@ -338,7 +389,8 @@ public sealed class UnidentifiedPersistenceTests
         IntakeDecision decision,
         string? failureCode,
         MailClassificationResult classification,
-        IReadOnlyList<IntakeAssetRecord>? assets)
+        IReadOnlyList<IntakeAssetRecord>? assets,
+        string decisionReason = "test decision reason")
     {
         var receipt = await receiptStore.StoreAsync(new IntakeReceiptDraft(
             "next-step-source.pdf",
@@ -350,7 +402,7 @@ public sealed class UnidentifiedPersistenceTests
             CreatedAtUtc,
             "test-actor",
             decision,
-            "test decision reason",
+            decisionReason,
             [], [], null, [], failureCode, null, "test-reader", "1", null, null,
             Assets: assets,
             MailClassificationDecision: classification),

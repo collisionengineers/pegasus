@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
@@ -193,6 +194,137 @@ public sealed class CustodyOutboxIntegrationTests
         var reference = await db.Set<CaseEntity>().Where(caseItem => caseItem.Id == accepted.Identity.CaseId)
             .Select(caseItem => caseItem.Reference).SingleAsync();
         Assert.StartsWith("ap.", reference, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ConcurrentAuditReportSupplyKeepsOneAssetAndOneStaffNote()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var instruction = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: "Concurrent Audit", claimNumber: "CONCURRENT-AUDIT",
+            notificationTitle: "AUDIT REPORT NOTIFICATION");
+        var email = IntakeTestEvidence.CreateEmail("concurrent-audit.eml", "Please see the attached audit instruction.",
+            attachments: [("audit-instruction.pdf", "application/pdf", instruction)]);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var queries = services.GetRequiredService<IIntakeReceiptQueries>();
+        var items = services.GetRequiredService<IUnidentifiedStore>();
+        var receipt = (await queries.GetAsync(receiptId, CancellationToken.None))!;
+        var item = (await items.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId)))!;
+        var report = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            notificationTitle: "ORIGINAL REPORT", additionalLines: ["Repairable"], addSignatureLines: false);
+        var command = services.GetRequiredService<ISupplyAuditOriginalReport>();
+        var request = new SupplyAuditOriginalReportRequest(item.Id, item.Version, receipt.Version,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]), "concurrent-report-a", "original-report.pdf",
+            "application/pdf", report);
+
+        var outcomes = await Task.WhenAll(AttemptAsync(request), AttemptAsync(request with { OperationKey = "concurrent-report-b" }));
+
+        Assert.Single(outcomes, succeeded => succeeded);
+        Assert.Single(outcomes, succeeded => !succeeded);
+        var after = (await queries.GetAsync(receiptId, CancellationToken.None))!;
+        Assert.Single(after.AssetRecords, asset => asset.Disposition == IntakeAssetDisposition.SuppliedOriginalReport);
+        Assert.Single(await items.HistoryAsync(item.Id), history => history.Reason.StartsWith("Original report added:", StringComparison.Ordinal));
+        Assert.Equal(item.Version + 1, (await items.GetAsync(item.Id))!.Version);
+        Assert.Equal(receipt.Version + 1, after.Version);
+        Assert.Null(after.AllocationState);
+
+        async Task<bool> AttemptAsync(SupplyAuditOriginalReportRequest candidate)
+        {
+            try
+            {
+                await command.ExecuteAsync(candidate);
+                return true;
+            }
+            catch (IntakeVersionConflictException)
+            {
+                return false;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task PendingSuppliedMailboxReportRetriesWithoutAllocationThenRecoversFromItsRealCustodyIntent()
+    {
+        var pending = new PendingSuppliedReportCustody();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            var original = services.Single(descriptor => descriptor.ServiceType == typeof(ICaseArtifactCustody));
+            var originalFactory = original.ImplementationFactory
+                ?? throw new InvalidOperationException("The integration host must register custody by factory.");
+            services.Remove(original);
+            services.AddScoped<ICaseArtifactCustody>(provider => new PendingSuppliedReportCustody(
+                (ICaseArtifactCustody)originalFactory(provider), pending));
+        }));
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var email = IntakeTestEvidence.CreateEmail(
+            $"pending-audit-{fixtureId}.eml", "Please see the attached Audit instruction.",
+            attachments:
+            [
+                ("AuditReportNotification.pdf", "application/pdf",
+                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                        claimantName: $"Pending Audit {fixtureId}", claimNumber: $"PEN-{fixtureId}",
+                        notificationTitle: "AUDIT REPORT NOTIFICATION"))
+            ]);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var before = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receiptId, CancellationToken.None));
+        var item = Assert.IsType<UnidentifiedItem>(await services.GetRequiredService<IUnidentifiedStore>()
+            .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
+        var report = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            notificationTitle: "ORIGINAL BODYSHOP REPORT", additionalLines: ["Assessment outcome: Repairable"],
+            addSignatureLines: false);
+        var supplied = await services.GetRequiredService<ISupplyAuditOriginalReport>().ExecuteAsync(new(
+            item.Id, item.Version, before.Version,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+            $"supply-pending-audit:{Guid.NewGuid():N}", PendingSuppliedReportCustody.ReportFileName,
+            "application/pdf", report), CancellationToken.None);
+        var stagedReceiptId = await StagedReceiptForAsync(services, receiptId);
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var claim = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+            stagedReceiptId, now, TimeSpan.FromMinutes(1), CancellationToken.None));
+        await workStore.MarkDispatchedAsync(claim.Id, Assert.IsType<string>(claim.LeaseToken), now, CancellationToken.None);
+
+        var pendingOutcome = await IntakeWebDriver.CreateProcessor(services)
+            .ExecuteAsync(stagedReceiptId, CancellationToken.None);
+
+        Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled, pendingOutcome);
+        var stillQueued = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receiptId, CancellationToken.None));
+        Assert.Equal(IntakeDecision.BlockedIntake, stillQueued.Decision);
+        Assert.Equal("reevaluation_pending", stillQueued.FailureCode);
+        Assert.Equal(before.Version + 1, stillQueued.Version);
+        Assert.Null(stillQueued.AllocationState);
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        var operationKey = IncomingArtifactOperationKey.ForIntake(receiptId, supplied.ReportAssetId);
+        var retention = services.GetRequiredService<IIncomingArtifactRetentionStore>();
+        var intent = Assert.IsType<RetainedIncomingArtifact>(await retention.FindAsync(operationKey, CancellationToken.None));
+        Assert.Equal(IncomingArtifactCustodyState.Pending, intent.State);
+        Assert.Equal(1, pending.HeldCalls);
+
+        // The underlying adapter already stored the exact logical document before the
+        // controlled pending response. This is custody's later confirmation of that
+        // same durable intent, never a re-offer of the report bytes.
+        await retention.RecordAsync(intent with { State = IncomingArtifactCustodyState.Confirmed }, CancellationToken.None);
+        pending.HoldReport = false;
+        await IntakeWebDriver.DrainStagedAsync(services, stagedReceiptId, CancellationToken.None);
+
+        var completed = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receiptId, CancellationToken.None));
+        Assert.Equal(IntakeDecision.CaseCreated, completed.Decision);
+        Assert.Equal(AuditAssessment.Repairable,
+            completed.MailClassificationDecision?.StandaloneAuditReport?.Assessment);
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, pending.HeldCalls);
+        await using var db = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var reference = await db.Set<CaseEntity>().Where(caseItem => caseItem.OriginIntakeReceiptId == receiptId)
+            .Select(caseItem => caseItem.Reference).SingleAsync();
+        Assert.StartsWith("a.", reference, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2921,6 +3053,44 @@ public sealed class CustodyOutboxIntegrationTests
             .OrderByDescending(evaluation => evaluation.Revision)
             .Select(evaluation => evaluation.StagedReceiptId)
             .FirstAsync();
+    }
+
+    private sealed class PendingSuppliedReportCustody : ICaseArtifactCustody
+    {
+        public const string ReportFileName = "pending-bodyshop-report.pdf";
+        public bool HoldReport { get; set; } = true;
+        public int HeldCalls { get; private set; }
+
+        private readonly ICaseArtifactCustody? inner;
+        private readonly PendingSuppliedReportCustody state;
+
+        public PendingSuppliedReportCustody()
+        {
+            state = this;
+        }
+
+        public PendingSuppliedReportCustody(ICaseArtifactCustody inner, PendingSuppliedReportCustody state)
+        {
+            this.inner = inner;
+            this.state = state;
+        }
+
+        public async Task<CaseArtifactCustodyResult> RetainAsync(
+            CaseArtifactCustodyRequest request,
+            CancellationToken cancellationToken)
+        {
+            var result = await (inner ?? throw new InvalidOperationException(
+                    "The custody control is not a registered adapter."))
+                .RetainAsync(request, cancellationToken);
+            if (state.HoldReport
+                && string.Equals(request.FileName, ReportFileName, StringComparison.Ordinal))
+            {
+                state.HeldCalls++;
+                return result with { Disposition = CaseArtifactCustodyDisposition.Pending };
+            }
+
+            return result;
+        }
     }
 
     private static async Task<CaseAcceptanceOutcome> AcceptAsync(

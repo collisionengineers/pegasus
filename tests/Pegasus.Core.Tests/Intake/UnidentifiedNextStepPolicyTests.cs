@@ -1,7 +1,6 @@
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Intake.Classification;
 
 namespace Pegasus.Core.Tests.Intake;
 

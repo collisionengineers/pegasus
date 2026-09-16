@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Intake.Classification;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Core.Tests.Intake;
@@ -45,6 +45,9 @@ public sealed class SupplyAuditOriginalReportTests
     [InlineData(IntakeSourceReadStatus.Readable, false, true, "The vehicle is repairable.")]
     [InlineData(IntakeSourceReadStatus.Readable, false, false, "The vehicle is repairable and total loss.")]
     [InlineData(IntakeSourceReadStatus.Readable, false, false, "The assessment is pending.")]
+    [InlineData(IntakeSourceReadStatus.Readable, false, false, "The vehicle is not repairable.")]
+    [InlineData(IntakeSourceReadStatus.Readable, false, false, "The vehicle is not a total loss.")]
+    [InlineData(IntakeSourceReadStatus.Readable, false, false, "The vehicle is unrepairable.")]
     public async Task AReportWithoutOneCompleteOutcomeIsRefusedBeforeMutation(
         IntakeSourceReadStatus status,
         bool incomplete,
@@ -60,6 +63,23 @@ public sealed class SupplyAuditOriginalReportTests
             () => sut.ExecuteAsync(Request(item, receipt)));
 
         Assert.Equal(SupplyAuditOriginalReport.RefusalMessage, error.Message);
+        Assert.Empty(mutations.Attaches);
+    }
+
+    [Fact]
+    public async Task AnActorWithoutCaseworkAuthorityCannotReadOrAttachTheReport()
+    {
+        var receipt = AuditReceipt();
+        var item = WaitingItem(receipt.Id);
+        var mutations = new RecordingMutations();
+        var reader = new RecordingReader("Repairable");
+        var sut = Sut(item, receipt, reader, mutations);
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => sut.ExecuteAsync(
+            Request(item, receipt) with { Actor = ActionActor.SystemWorker("unauthorised-supplier") }));
+
+        Assert.Empty(mutations.Probes);
+        Assert.Empty(reader.Sources);
         Assert.Empty(mutations.Attaches);
     }
 

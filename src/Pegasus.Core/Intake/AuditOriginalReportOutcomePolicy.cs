@@ -1,6 +1,5 @@
 using System.Text.RegularExpressions;
 using Pegasus.Core.Cases;
-using Pegasus.Core.Intake.Classification;
 
 namespace Pegasus.Core.Intake;
 
