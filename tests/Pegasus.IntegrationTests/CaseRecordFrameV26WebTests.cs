@@ -182,11 +182,11 @@ public sealed partial class CaseDetailsWebTests
     [InlineData(CaseType.InspectionAndAudit, false, false, false)]
     [InlineData(CaseType.Inspection, true, false, false)]
     [InlineData(CaseType.InspectionAndAudit, true, true, false)]
-    public async Task CreateAuditIsOfferedOnlyWhereTheUseCaseWouldAccept(
+    public async Task CaseRecordFrameV26CreateAuditIsOfferedOnlyWhereTheUseCaseWouldAccept(
         CaseType caseType, bool reportGenerated, bool auditExists, bool offered)
     {
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.PostReport, SummaryCaseType = caseType };
-        var audit = new RecordingAuditPorts(reportGenerated, auditExists ? new CaseAuditLink(Guid.NewGuid(), "ap.QDOS3100042") : null);
+        var audit = new RecordingAuditPorts(reportGenerated, auditExists ? new CaseAuditLink(Guid.NewGuid(), "a.QDOS3100042") : null);
         using var workspace = await EnterEditModeAsync(store, audit.Register);
 
         var html = await workspace.GetWorkspaceAsync();
@@ -197,7 +197,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(auditExists, bar.Contains("data-audit-link", StringComparison.Ordinal));
         if (auditExists)
         {
-            Assert.Contains("ap.QDOS3100042", bar, StringComparison.Ordinal);
+            Assert.Contains("a.QDOS3100042", bar, StringComparison.Ordinal);
         }
         Assert.Equal(
             caseType == CaseType.InspectionAndAudit,
@@ -210,7 +210,7 @@ public sealed partial class CaseDetailsWebTests
     /// with Core's reason.
     /// </summary>
     [Fact]
-    public async Task CreateAuditLandsOnTheNewCaseOrStatesTheRefusal()
+    public async Task CaseRecordFrameV26CreateAuditLandsOnTheNewCaseOrStatesTheRefusal()
     {
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.PostReport, SummaryCaseType = CaseType.InspectionAndAudit };
         var audit = new RecordingAuditPorts(reportGenerated: true, existing: null);
@@ -450,7 +450,7 @@ public sealed partial class CaseDetailsWebTests
             Requests.Add(request);
             return Task.FromResult(new CreateAuditCaseResult(
                 new CaseIdentity(request.CaseId, "QDOS", 2031, 42, "QDOS3100042"),
-                new CaseIdentity(AuditCaseId, "QDOS", 2031, 42, "ap.QDOS3100042"),
+                new CaseIdentity(AuditCaseId, "QDOS", 2031, 42, "a.QDOS3100042"),
                 AuditAssessment.TotalLoss,
                 false));
         }

@@ -54,6 +54,24 @@ public enum AuditAssessment
     Repairable,
     TotalLoss
 }
+
+public static class AuditAssessmentCode
+{
+    public static string ToCode(AuditAssessment value) => value switch
+    {
+        AuditAssessment.Repairable => "repairable",
+        AuditAssessment.TotalLoss => "total_loss",
+        _ => throw new InvalidOperationException($"Unknown AuditAssessment value '{(int)value}'.")
+    };
+
+    public static AuditAssessment Parse(string value) => value switch
+    {
+        "repairable" => AuditAssessment.Repairable,
+        "total_loss" => AuditAssessment.TotalLoss,
+        _ => throw new InvalidDataException($"Unknown persisted Audit assessment '{value}'.")
+    };
+}
+
 /// <summary>
 /// The QDOS principal, as seeded. A code, not a gate.
 /// </summary>
@@ -111,7 +129,7 @@ public static class AuditIdentity
         var prefix = assessment switch
         {
             AuditAssessment.Repairable => "a.",
-            AuditAssessment.TotalLoss => "ap.",
+            AuditAssessment.TotalLoss => "a.",
             _ => throw new ArgumentOutOfRangeException(
                 nameof(assessment),
                 "The Audit assessment is invalid.")

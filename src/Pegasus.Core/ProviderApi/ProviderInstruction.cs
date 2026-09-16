@@ -88,7 +88,7 @@ public static class ProviderInstructionKinds
     /// Only a standalone Audit does. Inspection + Audit is Collision Engineers
     /// inspecting and then auditing its <em>own</em> report (FRD-01 § Case
     /// types): there is no other firm's report to attach, and its reference is
-    /// the ordinary Inspection Case/PO with no a./ap. prefix.
+    /// the ordinary Inspection Case/PO with no Audit prefix.
     /// </summary>
     public static bool RequiresOriginalReport(ProviderInstructionKind kind) =>
         kind is ProviderInstructionKind.Audit;

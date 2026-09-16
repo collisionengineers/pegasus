@@ -68,9 +68,9 @@ A listed identity does not imply current activation or acceptance.
 | CASE-01 | Every active QDOS case type can travel end to end from intake through accepted case workflow to successful EVA export/handoff | [Requirements](frd/frd-01-case-identity-and-lifecycle.md#case-identity-and-lifecycle) |
 | CASE-02 | Inspection cases | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
 | CASE-03 | Standalone Audit cases | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
-| CASE-04 | Inspection + Audit: an Inspection Case and its linked Audit Case with its own `a.`/`ap.` reference, created by Create audit | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
+| CASE-04 | Inspection + Audit: an Inspection Case and its linked Audit Case with its own `a.` reference, created by Create audit | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
 | CASE-07 | Shared principal/year case sequence | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
-| CASE-08 | Repairable `a.` and total-loss `ap.` Audit references | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
+| CASE-08 | One `a.` Audit reference prefix, independent of assessment outcome | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-09 | Case principal and reference immutability after allocation | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-10 | Wrong-principal `Created in error` closure and linked replacement case | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-11 | Typed provider, claimant, claim, vehicle, accident, contact, and inspection data | [Case types and accepted Case projection](frd/frd-01-case-identity-and-lifecycle.md#case-types) |

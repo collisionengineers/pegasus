@@ -140,7 +140,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 ExternalWorkKinds.CreateAuditReferenceCustody,
                 StringComparison.Ordinal);
             // A linked Audit Case is located through its persisted original
-            // Case relationship; its a./ap. reference names only that child.
+            // Case relationship; its a. reference names only that child.
             var rootReference = casePayload.CaseReference;
             var root = isAuditCustody
                 ? await caseCustody.GetExistingCaseRootAsync(

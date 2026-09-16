@@ -747,7 +747,7 @@ public sealed class IndexModel(
             Chip: chip,
             ChipTone: null) with
         {
-            // An Audit Case (a./ap.) reads its type beside its reference.
+            // An Audit Case (a.) reads its type beside its reference.
             Notice = item.CaseType == CaseType.Audit ? OperatorLabels.CaseTypeName(CaseType.Audit) : null
         };
     }

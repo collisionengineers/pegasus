@@ -171,7 +171,9 @@ public sealed class EfCaseQueryStore(
 
         if (filters.CaseReference is { } caseReference)
         {
-            rows = rows.Where(item => item.Reference.Contains(caseReference));
+            rows = rows.Where(item =>
+                item.Reference.Contains(caseReference)
+                || item.AuditReference != null && item.AuditReference.Contains(caseReference));
         }
         if (filters.Registration is { } registration)
         {

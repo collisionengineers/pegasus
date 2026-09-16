@@ -41,11 +41,20 @@ Source evidence of a vehicle other than the Case vehicle, identified from reliab
 _Avoid_: Wrong image, unrelated evidence
 
 **Audit**:
-An Audit Case is instructed work to review another engineering firm’s original report. A definitive instruction creates the normal Case/PO without confirmation on automatic intake routes; manual upload requires explicit staff acceptance first under [FRD-02](docs/frd/frd-02-intake-and-source-identity.md). Its lowercase `a.` or `ap.` Audit reference is derived later only from an unambiguous repairable or total-loss assessment in that original report. An Audit Case is also created from an Inspection + Audit Case (below).
+An Audit Case is instructed work to review another engineering firm's original
+report. No Case/PO is allocated or reserved until that report establishes
+repairable or total loss. The resulting Case/PO itself is `a.` followed by the
+allocated base reference; the assessment outcome is recorded on the Case, not
+in its identity. There is no preliminary Case/PO or separately allocated Audit
+reference. An instruction awaiting its original report stays in
+Unidentified, where staff can supply it. Automatic routes then allocate the
+Case; manual upload still requires explicit staff acceptance under
+[FRD-02](docs/frd/frd-02-intake-and-source-identity.md). An Audit Case can also
+be created from an Inspection + Audit Case (below).
 _Avoid_: Triage, sorting
 
 **Inspection + Audit**:
-An Inspection Case and a linked Audit Case. Collision Engineers completes its standard Inspection on the Inspection Case; once a report has been generated there, Create audit creates the Audit Case with its own `a.` or `ap.` reference, which carries the Audit’s own identity, evidence, report and acceptance boundary.
+An Inspection Case and a linked Audit Case. Collision Engineers completes its standard Inspection on the Inspection Case; once a report has been generated there, Create audit creates the Audit Case with its own `a.` reference, which carries the Audit’s own identity, evidence, report and acceptance boundary.
 _Avoid_: Combined report, two-spec Inspection, second reference on the Inspection
 
 **Triage**:

@@ -201,7 +201,7 @@ public sealed class EfCaseAcceptanceStore(
             cancellationToken);
         var standaloneAuditAssessment = standaloneAuditEvidence is null
             ? (AuditAssessment?)null
-            : ParseAuditAssessment(standaloneAuditEvidence.Assessment);
+            : AuditAssessmentCode.Parse(standaloneAuditEvidence.Assessment);
 
         var principal = await context.Principals
             .Include(item => item.Organization)
@@ -221,11 +221,10 @@ public sealed class EfCaseAcceptanceStore(
         var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
             context, principal, acceptedAtUtc, cancellationToken);
         // CASE-014, operator direction: "There is no Case/PO AND audit
-        // identity. They are all just Case/PO." An audit's prefix belongs on
-        // the case's own reference — a. when the original report says
-        // Repairable, ap. when it says Total Loss — and the outcome is known
-        // here because the report is extracted before allocation, which is why
-        // a standalone Audit refuses to allocate without it.
+        // identity. They are all just Case/PO." An Audit prefix belongs on the
+        // Case's own reference. The outcome is known here because the report is
+        // extracted before allocation, which is why a standalone Audit refuses
+        // to allocate without it.
         var allocated = allocatedIdentity.Reference;
         var reference = standaloneAuditAssessment is { } assessment
             ? AuditIdentity.Create(allocated, assessment)
@@ -256,7 +255,7 @@ public sealed class EfCaseAcceptanceStore(
             OriginIntakeReceiptId = receipt.Id,
             StandaloneAuditAssessment = standaloneAuditAssessment is null
                 ? null
-                : ToCode(standaloneAuditAssessment.Value),
+                : AuditAssessmentCode.ToCode(standaloneAuditAssessment.Value),
             StandaloneAuditEvidenceId = standaloneAuditEvidence?.Id,
             AcceptedInspectionDeadline = request.AcceptedInspectionDeadline,
             InstructionComplete = request.Completeness.InstructionComplete,
@@ -502,7 +501,7 @@ public sealed class EfCaseAcceptanceStore(
                 "The retained Audit evidence does not identify a valid original Engineer report.");
         }
 
-        _ = ParseAuditAssessment(evidence.Assessment);
+        _ = AuditAssessmentCode.Parse(evidence.Assessment);
         return evidence;
     }
 
@@ -583,20 +582,6 @@ public sealed class EfCaseAcceptanceStore(
         CaseType.Audit => "audit",
         CaseType.InspectionAndAudit => "inspection_and_audit",
         _ => throw new InvalidOperationException($"Unknown CaseType value '{(int)value}'.")
-    };
-
-    private static string ToCode(AuditAssessment value) => value switch
-    {
-        AuditAssessment.Repairable => "repairable",
-        AuditAssessment.TotalLoss => "total_loss",
-        _ => throw new InvalidOperationException($"Unknown AuditAssessment value '{(int)value}'.")
-    };
-
-    private static AuditAssessment ParseAuditAssessment(string value) => value switch
-    {
-        "repairable" => AuditAssessment.Repairable,
-        "total_loss" => AuditAssessment.TotalLoss,
-        _ => throw new InvalidDataException($"Unknown persisted Audit assessment '{value}'.")
     };
 
     private static string ToCode(CaseInitialState value) => value switch
