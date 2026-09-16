@@ -426,7 +426,7 @@ baseline. Each one is a proposal awaiting its letter; none is live. Shots
 | `uplift` | A **Regional uplift** + 15 % choice on the estimate header whose chip reads "Suggested · Repairer (CR0)" when the repairer, claimant or storage postcode is in London or the Home Counties, "London & Home Counties" otherwise; ticking it lifts the labour rate to £95.77. The strip's **Repairer** switch moves the fixture repairer from Bootle to Croydon to show it. | 79 |
 | `prov` | The Audatex lines' Source chips name the import: "imported · AX". | 80 |
 | `compare` | Compare estimates gains From / To; only once two different versions are chosen does it show the summary line with the £ delta and counts, the per-line table with added / changed / removed rows coloured and changed cells in bold, and **Print comparison sheet** (a print stylesheet prints the dialog alone). The live totals table above stays as it is. | 81 |
-| `supp` | A **Supplementary — changes vs Audatex 1** panel under the estimate tabs: the diff of the draft against the Current version with the £ delta, **Explain the change on the report** with a reason (supplementary estimate / dismantling / further inspection / further images), and the composed paragraph ("Following receipt of a supplementary estimate … The estimated repair cost has reduced from £3,004.79 to £1,047.02.") shown as **Supplementary damage** when ticked. | 80 |
+| `supp` | A **Supplementary** panel under the estimate tabs that shows nothing until **changes vs** has a version chosen (the operator, 16 September: *"it still shows"*); then the diff of the draft against that version with the £ delta, **Explain the change on the report** with a reason (supplementary estimate / dismantling / further inspection / further images), and the composed paragraph ("Following receipt of a supplementary estimate … The estimated repair cost has reduced from £3,004.79 to £1,047.02.") shown as **Supplementary damage** when ticked. | 80 |
 | `abook` | Reviewed recipients become an address book: To with a dropdown of Principal / this case / CE addresses, Cc as chips with a typed entry and one-click suggestions for the QDOS handler and the claim source. | 83 |
 | `attach` | An **Attach** row on delivery: Report, Fee note, Breakdown, Images; the prepared block lists what was ticked. | 83 |
 | `resend` | **File name** (`QDOS26214 MA59BDY Total loss report.pdf`, one more `.` per re-send) and **Message** composed on delivery; after a send the message reads "updated … which supersedes our report dated 16 September 2026". | 83 |
@@ -436,6 +436,9 @@ baseline. Each one is a proposal awaiting its letter; none is live. Shots
 | `place` | Sign-off Engineer beside an Assigned engineer cell on the Case column; unrelated damage and its deduction on Vehicle; the three report content switches on Valuation. | 75, 77, 78 |
 | `include` | On the Images tab while editing, a tile shows its in-report tick and a click toggles it (Supporting ↔ Not used) instead of opening the viewer; the Report section's count follows. | 85 |
 | `queries` | A **Queries** sub-panel on Notes with the live empty-state style. | 86 |
+| `ticks` | The three coded decisions (Outcome, Salvage category, Roadworthiness) as tick-button rows while editing, as the reference draws them; the select stays the control underneath and the buttons drive it. | 92 |
+| `signoff` | Sign-off Engineer follows the Engineer a hand-off assigns (all three eligible accounts are flagged), as the reference's Case details did; live keeps D31's default (assigned Engineer when flagged, otherwise A Patterson) at creation only. | — |
+| `reportdate` | Generate report stamps today's date into an empty Report date, as the reference's "auto on generate" did; a recorded date is left alone. | — |
 | `wording` | **Report wording** on the Report section, drawn on instruction (16 September, *"didnt include the report wording section"*): every narrative block the report prints, in print order — Nature of incident, Engineer's comments, Supplementary damage (when explained), PAV commentary and Unrelated damage (with their switches), Vehicle history check (pass-through), Pre-incident condition, Settlement (outcome-driven, reserve rounded up to £50 for a repairable), Salvage (total loss, by category). Each block is composed from the fields and tracks them live; while editing it can be edited in place (the chip turns to "edited · no longer tracking fields" with **Recompose from fields**), renamed, removed (returning as a **+** button), reordered by dragging, and a **New paragraph** added. Read mode shows the blocks as derived cells. Removing PAV commentary or Unrelated damage clears its report switch. | 90, 91 |
 
 Costs seen while building, for the decision:
@@ -454,6 +457,9 @@ Costs seen while building, for the decision:
 - **I1.** `nine` and `badges` change settled frame rules (D29/D30 ten
   sections; the aside's Figures): confirm the rule changes, or keep them as
   strip variables for comparison only.
+- **I3.** `ticks`, `signoff` and `reportdate` were not on the § 14 list; they
+  are the last three reference behaviours with nothing in their way (the
+  differences file had read them as "Same"). Confirm or reject each with I.
 - **I2.** `wording` crosses FRD-11 § Assessment-report outcomes ("the
   operator has already supplied the report and correspondence templates …
   the renderer must not substitute placeholder or inferred content") and the

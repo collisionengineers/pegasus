@@ -8,7 +8,7 @@
 /* Inter Variable is inlined into site.css below (OFL 1.1). */
 </style>
 <style>
-/* ---- live site.css, verbatim from origin/dev 4cb3ad0c0 ---- */
+/* ---- live site.css, verbatim from origin/dev 9c4c09eb7 ---- */
 /* Pegasus — Integrated Operations Workspace (EPIC-011, PLAT-029).
 
    The effective final render layer of the operator-approved prototype,
@@ -2939,7 +2939,7 @@ th a:hover { text-decoration: underline; }
 
 </style>
 <style>
-/* ---- live case-workspace.css, verbatim from origin/dev 4cb3ad0c0 ---- */
+/* ---- live case-workspace.css, verbatim from origin/dev 9c4c09eb7 ---- */
 /* Case record (v26). Composes the shared v26 components in site.css (.fc
    cells, panel heads, menus, notices, chips, collapse, sticky, workspace
    grid); every rule here is Case-only. Sections follow the frame block. */
@@ -3518,6 +3518,14 @@ body[data-proposals~="nine"] .overview-grid{grid-template-columns:1fr 1fr}
 #section-estimate .supp li .num{margin-left:auto}
 #section-estimate .supp .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 #section-estimate .supp .row select{width:auto}
+#section-settlement .tickrow{display:none;gap:8px;flex-wrap:wrap;border-color:transparent;padding:0}
+body[data-proposals~="ticks"] .is-editing #section-settlement .dec .fc:not(.ro) .tickrow{display:flex}
+body[data-proposals~="ticks"] .is-editing #section-settlement .dec .fc:not(.ro) select.fi{display:none}
+#section-settlement .tick{border:1px solid var(--line-strong);border-radius:var(--radius);padding:0 12px;min-height:var(--control);cursor:pointer;font:500 12.5px var(--font);color:var(--muted);background:#fff;display:inline-flex;gap:8px;align-items:center}
+#section-settlement .tick .bx{width:14px;height:14px;border:1.5px solid var(--line-strong);border-radius:3px;position:relative;flex:none}
+#section-settlement .tick[aria-pressed="true"]{border-color:var(--red);color:var(--ink)}
+#section-settlement .tick[aria-pressed="true"] .bx{background:var(--red);border-color:var(--red)}
+#section-settlement .tick[aria-pressed="true"] .bx::after{content:"\2713";color:#fff;font-size:10px;font-weight:700;position:absolute;top:-2px;left:2px}
 .cmp-diff tr.added td{background:#fdecec}.cmp-diff tr.changed td{background:var(--amber-bg)}.cmp-diff tr.removed td{background:var(--green-bg);color:var(--muted)}.cmp-diff td.diff{font-weight:700}
 .cmphead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}
 .cmphead select{width:auto}
@@ -4286,9 +4294,9 @@ body[data-proposals~="include"] #section-files .th .inc{display:flex}
     </div>
 
     <div class="supp" id="suppPanel" data-when="p.supp && !empty">
-      <div class="sg-t" style="display:flex;align-items:center;gap:8px;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--quiet);font-weight:650">Supplementary — changes vs Audatex 1 <span class="status status--plain status--green">Current</span><span style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;font-size:12px" id="suppDelta"></span></div>
-      <ul id="suppList"></ul>
-      <div class="row">
+      <div class="sg-t" style="display:flex;align-items:center;gap:8px;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--quiet);font-weight:650">Supplementary <span style="text-transform:none;letter-spacing:0;font-weight:400">— changes vs</span> <select id="suppCompare" class="fi" style="width:auto;text-transform:none;letter-spacing:0;font-weight:400"><option value="" selected>Choose a version</option><option value="e1">Audatex 1 · Current</option></select><span style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;font-size:12px" id="suppDelta"></span></div>
+      <ul id="suppList" data-supp-when-chosen hidden></ul>
+      <div class="row" data-supp-when-chosen hidden>
         <label class="choice"><input type="checkbox" id="suppPrint" /><span>Explain the change on the report</span></label>
         <select id="suppReason" class="fi"><option value="estimate">Supplementary estimate received</option><option value="dismantle">Further damage found on dismantling</option><option value="inspect">Further inspection</option><option value="images">Further images received</option></select>
       </div>
@@ -4496,7 +4504,7 @@ body[data-proposals~="include"] #section-files .th .inc{display:flex}
         <span class="dl">Outcome</span>
         <div class="prop" data-proposal="assessment.outcome" data-proposal-status="Accepted" data-when="proposal"><span data-proposal-value="total_loss">Total loss</span><span class="src-tag src-tag--ai">AI</span><span class="status status--green">Accepted</span></div>
         <div class="fc" data-field="assessment.outcome" data-eng-cell><label for="f-assessment-outcome">Outcome</label><div class="fv" data-fixture>Total loss</div>
-          <select id="f-assessment-outcome" class="fi" name="assessmentFields[assessment.outcome]" form="case-edit-form" data-outcome-select><option value=""></option><option value="total_loss" selected>Total loss</option><option value="repairable">Repairable</option><option value="cash_in_lieu">Cash in lieu</option><option value="contract_repair">Contract repair</option></select></div>
+          <select id="f-assessment-outcome" class="fi" name="assessmentFields[assessment.outcome]" form="case-edit-form" data-outcome-select><option value=""></option><option value="total_loss" selected>Total loss</option><option value="repairable">Repairable</option><option value="cash_in_lieu">Cash in lieu</option><option value="contract_repair">Contract repair</option></select><div class="fi tickrow" data-tickrow="f-assessment-outcome" data-when="p.ticks"></div></div>
       </div>
       <div class="dec" data-decision="assessment.values.engineer">
         <span class="dl">Engineer's Value</span>
@@ -4507,7 +4515,7 @@ body[data-proposals~="include"] #section-files .th .inc{display:flex}
         <span class="dl">Salvage category</span>
         <div class="prop" data-proposal="assessment.category" data-proposal-status="Accepted" data-when="proposal"><span>N</span><span class="src-tag src-tag--ai">AI</span><span class="status status--green">Accepted</span></div>
         <div class="fc" data-field="assessment.category" data-eng-cell><label for="f-assessment-category">Salvage category</label><div class="fv" data-fixture>N</div>
-          <select id="f-assessment-category" class="fi" name="assessmentFields[assessment.category]" form="case-edit-form"><option value=""></option><option value="A">A</option><option value="B">B</option><option value="S">S</option><option value="N" selected>N</option><option value="N/A">N/A</option></select></div>
+          <select id="f-assessment-category" class="fi" name="assessmentFields[assessment.category]" form="case-edit-form"><option value=""></option><option value="A">A</option><option value="B">B</option><option value="S">S</option><option value="N" selected>N</option><option value="N/A">N/A</option></select><div class="fi tickrow" data-tickrow="f-assessment-category" data-when="p.ticks"></div></div>
       </div>
       <div class="dec" data-decision="assessment.salvage_value" data-shown-when="total-loss">
         <span class="dl">Salvage value</span>
@@ -4518,7 +4526,7 @@ body[data-proposals~="include"] #section-files .th .inc{display:flex}
         <span class="dl">Roadworthiness</span>
         <div class="prop" data-proposal="assessment.legal_status" data-proposal-status="Accepted" data-when="proposal"><span>Unroadworthy</span><span class="src-tag src-tag--ai">AI</span><span class="status status--green">Accepted</span></div>
         <div class="fc" data-field="assessment.legal_status" data-eng-cell><label for="f-assessment-legal-status">Roadworthiness</label><div class="fv" data-fixture>Unroadworthy</div>
-          <select id="f-assessment-legal-status" class="fi" name="assessmentFields[assessment.legal_status]" form="case-edit-form" data-legal-select><option value=""></option><option value="roadworthy">Roadworthy</option><option value="unroadworthy" selected>Unroadworthy</option></select></div>
+          <select id="f-assessment-legal-status" class="fi" name="assessmentFields[assessment.legal_status]" form="case-edit-form" data-legal-select><option value=""></option><option value="roadworthy">Roadworthy</option><option value="unroadworthy" selected>Unroadworthy</option></select><div class="fi tickrow" data-tickrow="f-assessment-legal-status" data-when="p.ticks"></div></div>
       </div>
       <div class="dec wide" data-decision="assessment.unroadworthy_reason" data-shown-when="unroadworthy">
         <span class="dl">Unroadworthy reason</span>
@@ -5398,7 +5406,7 @@ function computeText() {
   t.stateChip = S.state === 'held' ? 'Held · review on 24 Sep' : stage;
   t.reference = S.kind === 'audit' ? 'ap.QDOS26214' : 'QDOS26214';
   t.claimant = F.empty ? 'Not recorded' : 'Ms L Carter';
-  t.engineer = (F.notReady || F.isReview || F.isHeld) ? 'Not recorded' : 'A Patterson';
+  t.engineer = (F.notReady || F.isReview || F.isHeld) ? 'Not recorded' : (UI.engineer || 'A Patterson');
   t.caseTypeChip = S.kind === 'audit' ? 'Audit' : 'Inspection + Audit';
   t.caseTypeName = { inspection: 'Inspection', 'inspection-audit': 'Inspection and audit', audit: 'Audit' }[S.kind];
   t.editLabel = F.postReadOnly ? 'Enable return' : 'Edit Case';
@@ -5601,7 +5609,7 @@ function mockAction(name, form) {
       UI.dirty = false; notice('Case data saved'); return;
     case 'hold': closeDialog(); S.state = 'held'; apply(); notice('The Case was placed on hold.'); return;
     case 'close-case': closeDialog(); S.state = 'closed'; S.edit = 'off'; apply(); notice('The Case was closed.'); return;
-    case 'hand-to-engineer': case 'assign-to-me': closeDialog(); S.state = 'with-engineer'; apply(); notice('The Case was handed to A Patterson.'); return;
+    case 'hand-to-engineer': case 'assign-to-me': { var pick = name === 'assign-to-me' ? 'A Patterson' : ($('case-handoff-engineer').selectedOptions[0] || {}).textContent || 'A Patterson'; UI.engineer = pick; if (S.p.signoff) { var so = $('f-sign-off-engineer'); Array.prototype.forEach.call(so.options, function (o) { if (o.textContent === pick) so.value = o.value; }); so.parentElement.querySelector('.fv').textContent = pick; } closeDialog(); S.state = 'with-engineer'; apply(); notice('The Case was handed to ' + pick + '.'); return; }
     case 'report-sent': closeDialog(); S.state = 'post-report'; apply(); notice('Report sent evidence confirmed.'); return;
     case 'create-audit': closeDialog(); UI.auditCreated = true; apply(); notice('Case ap.QDOS26214 was created.'); return;
     case 'release-hold': closeDialog(); S.state = 'not-ready'; apply(); notice('The hold was released.'); return;
@@ -5610,7 +5618,7 @@ function mockAction(name, form) {
     case 'return-to-engineer': closeDialog(); S.state = 'with-engineer'; apply(); notice('The Case was returned to the Engineer.'); return;
     case 'archive': closeDialog(); S.archived = '1'; S.edit = 'off'; apply(); notice('The Case was archived.'); return;
     case 'unlink-evidence': closeDialog(); toast('Live: unlinks the Sent item with the reason recorded.'); return;
-    case 'generate': S.report = 'confirmed'; apply(); notice('The report was generated.'); return;
+    case 'generate': { if (S.p.reportdate) { var rd = $('f-report-date'); if (!rd.value) { rd.value = '2026-09-16'; rd.parentElement.querySelector('.fv').textContent = '16 Sep 2026'; rd.parentElement.querySelector('.fv').classList.remove('empty'); } } S.report = 'confirmed'; apply(); notice('The report was generated.'); return; }
     case 'prepare-delivery': S.report = 'prepared'; apply(); notice('Delivery prepared.'); return;
     case 'add-note': {
       var ta = form.querySelector('textarea'); var text = ta.value.trim(); if (!text) return;
@@ -6119,7 +6127,8 @@ var PROPOSALS = [
   ['estdel', 'Delete all + Undo'], ['offpattern', 'Off-pattern cells'], ['uplift', 'Regional uplift'], ['prov', 'Provenance chips'],
   ['compare', 'Compare diff + print'], ['supp', 'Supplementary'], ['abook', 'Address book'], ['attach', 'Attachments'],
   ['resend', 'Re-send naming'], ['feetab', 'Fee tab'], ['badges', 'Ribbon badges'], ['nine', 'Nine sections'],
-  ['place', 'Reference placements'], ['include', 'Click to include'], ['queries', 'Queries panel']
+  ['place', 'Reference placements'], ['include', 'Click to include'], ['queries', 'Queries panel'],
+  ['ticks', 'Decision tick rows'], ['signoff', 'Sign-off follows Engineer'], ['reportdate', 'Report date on generate']
 ];
 function allProposals(on) { var o = {}; PROPOSALS.forEach(function (p) { o[p[0]] = on; }); return o; }
 S.p = allProposals(true);
@@ -6147,7 +6156,7 @@ function diffLines(A, B) {
   return { added: added, removed: removed, changed: changed, same: same };
 }
 var SUPP_REASONS = [['estimate', 'Supplementary estimate received', 'Following receipt of a supplementary estimate'], ['dismantle', 'Further damage found on dismantling', 'Following dismantling of the vehicle, further damage was identified and'], ['inspect', 'Further inspection', 'Following a further inspection of the vehicle'], ['images', 'Further images received', 'Following receipt of further images']];
-UI.suppPrint = false; UI.suppReason = 'estimate'; UI.sentCount = 0; UI.cc = ['rhs-claims@outlook.com']; UI.attach = { report: true, fee: true, breakdown: false, images: false }; UI.reportPane = 'report'; UI.uplift = false;
+UI.suppPrint = false; UI.suppReason = 'estimate'; UI.suppCompare = ''; UI.sentCount = 0; UI.cc = ['rhs-claims@outlook.com']; UI.attach = { report: true, fee: true, breakdown: false, images: false }; UI.reportPane = 'report'; UI.uplift = false;
 function suppSentence() {
   var d = diffLines(LINES_E1, LINES_E2), reason = SUPP_REASONS.filter(function (r) { return r[0] === UI.suppReason; })[0][2];
   var t = reason;
@@ -6183,6 +6192,13 @@ function composeAll() {
   setText('supp', suppSentence());
 }
 
+/* ---- decision tick rows: the select stays the control, the buttons drive it ---- */
+function renderTickRows() {
+  $$('[data-tickrow]').forEach(function (row) {
+    var sel = $(row.getAttribute('data-tickrow'));
+    row.innerHTML = Array.prototype.filter.call(sel.options, function (o) { return o.value; }).map(function (o) { return '<button type="button" class="tick" aria-pressed="' + (sel.value === o.value) + '" data-tick="' + sel.id + '" data-value="' + o.value + '"><span class="bx"></span>' + o.textContent + '</button>'; }).join('');
+  });
+}
 /* ---- salvage slider, reason bank ---- */
 var SAL_SNAPS = [5, 10, 15, 20, 25];
 function salvageRefresh(fromSlider) {
@@ -6249,8 +6265,11 @@ function renderSupp() {
   var li = function (l, tag, extra) { return '<li><span class="src-tag src-tag--' + tag[0] + '">' + tag[1] + '</span>' + l[1] + (extra || '') + '<span class="num mono">' + money(lineValue(l)) + '</span></li>'; };
   $('suppList').innerHTML = d.added.map(function (l) { return li(l, ['ai', 'added']); }).join('') + d.changed.map(function (c) { return li(c[1], ['warn', 'changed'], ' <span class="muted">— ' + c[2].map(function (k) { return ({ 2: 'qty', 3: 'unit', 4: 'hours', 5: 'paint h' })[k] + ' ' + (c[0][k] || 0) + ' → ' + (c[1][k] || 0); }).join(', ') + '</span>'); }).join('') + d.removed.map(function (l) { return li(l, ['lookup', 'removed']); }).join('');
   $('suppDelta').innerHTML = money(3004.79) + ' → <b>' + money(1047.02) + '</b> (<b class="red">−' + money(3004.79 - 1047.02) + '</b>)';
-  $('suppPrint').checked = UI.suppPrint; $('suppReason').value = UI.suppReason;
-  $$('[data-supp-when-print]').forEach(function (el) { el.hidden = !UI.suppPrint; });
+  $('suppPrint').checked = UI.suppPrint; $('suppReason').value = UI.suppReason; $('suppCompare').value = UI.suppCompare;
+  var chosen = !!UI.suppCompare;
+  $$('[data-supp-when-chosen]').forEach(function (el) { el.hidden = !chosen; });
+  $('suppDelta').hidden = !chosen;
+  $$('[data-supp-when-print]').forEach(function (el) { el.hidden = !(chosen && UI.suppPrint); });
 }
 function abookRender(which) {
   var input = $(which === 'to' ? 'abTo' : 'abCc'), box = $(which === 'to' ? 'abToList' : 'abCcList');
@@ -6334,6 +6353,7 @@ function applyProposals() {
   Array.prototype.forEach.call(rb.children, function (child) { if (child.hasAttribute('data-report-tabs')) return; if (child.hasAttribute('data-report-pane')) { child.hidden = !(S.p.feetab && UI.reportPane === 'fee'); return; } child.classList.toggle('pane-hidden', S.p.feetab && UI.reportPane === 'fee'); });
   $$('[data-report-tab]').forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-report-tab') === UI.reportPane ? 'true' : 'false'); });
   applyRepairerFixture();
+  renderTickRows();
   if (S.p.composed) composeAll();
   if (S.p.salvage) salvageRefresh(false);
   if (S.p.bank) renderBank();
@@ -6346,6 +6366,7 @@ function renderProposalStrip() {
 document.addEventListener('click', function (e) {
   var t = e.target, b;
   if ((b = t.closest('[data-p]'))) { S.p[b.getAttribute('data-p')] = !S.p[b.getAttribute('data-p')]; apply(); return; }
+  if ((b = t.closest('[data-tick]'))) { var sel = $(b.getAttribute('data-tick')); sel.value = b.getAttribute('data-value'); sel.dispatchEvent(new Event('change', { bubbles: true })); renderTickRows(); UI.dirty = true; return; }
   if ((b = t.closest('[data-p-all]'))) { S.p = allProposals(b.getAttribute('data-p-all') === '1'); apply(); return; }
   if ((b = t.closest('[data-salv-snap]'))) { $('salvRange').value = b.getAttribute('data-salv-snap'); salvageRefresh(true); UI.dirty = true; return; }
   if ((b = t.closest('[data-bank]'))) { var ta = $('f-assessment-unroadworthy-reason'); var cur = ta.value.trim().replace(/\.+$/, ''); var phrase = UR_BANK[parseInt(b.getAttribute('data-bank'), 10)]; ta.value = cur ? cur + ' and ' + phrase + '.' : phrase.charAt(0).toUpperCase() + phrase.slice(1) + '.'; UI.dirty = true; return; }
@@ -6374,6 +6395,7 @@ document.addEventListener('change', function (e) {
   var t = e.target;
   if (t.id === 'edit-mileage-source') UI.mileageTouched = true;
   if (t.id === 'est-uplift') { UI.uplift = t.checked; upliftRefresh(); UI.dirty = true; }
+  if (t.id === 'suppCompare') { UI.suppCompare = t.value; if (!t.value) UI.suppPrint = false; renderSupp(); if (S.p.composed) composeAll(); if (S.p.wording) renderWording(); }
   if (t.id === 'suppPrint') { UI.suppPrint = t.checked; renderSupp(); if (S.p.composed) composeAll(); }
   if (t.id === 'suppReason') { UI.suppReason = t.value; renderSupp(); if (S.p.composed) composeAll(); }
   if (t.matches('[data-attach]')) { UI.attach[t.getAttribute('data-attach')] = t.checked; }
@@ -6407,7 +6429,7 @@ function settlementText() {
 var WB = [
   { id: 'nature', t: 'Nature of incident', src: function () { return $('section-damage').querySelector('[data-damage-narrative]').textContent; }, always: true },
   { id: 'engcom', t: "Engineer's comments", src: function () { var bits = [q1('[data-composed="mileage"]') || MILEAGE_SENTENCE.lookup]; if ($('f-assessment-legal-status').value === 'unroadworthy') { var r = fieldValue('f-assessment-unroadworthy-reason').trim(); if (r) bits.push('Please note the vehicle is unroadworthy: ' + r.charAt(0).toLowerCase() + r.slice(1)); } return bits.join('\n\n'); }, always: true },
-  { id: 'suppl', t: 'Supplementary damage', src: function () { return S.p.supp && UI.suppPrint ? suppSentence() : ''; }, auto: true },
+  { id: 'suppl', t: 'Supplementary damage', src: function () { return S.p.supp && UI.suppCompare && UI.suppPrint ? suppSentence() : ''; }, auto: true },
   { id: 'pavcom', t: 'PAV commentary', src: function () { return fieldValue('f-report-valuation-commentary-text'); }, opt: true, sw: 'report.valuation_commentary' },
   { id: 'unrel', t: 'Unrelated damage', src: function () { var d = fieldValue('edit-damage.unrelated').trim(); return d ? 'Unrelated pre-existing damage was noted: ' + d + '. This damage is inconsistent with the reported incident and has been disregarded for the purposes of this assessment.' : ''; }, opt: true, sw: 'report.include_unrelated_damage' },
   { id: 'hist', t: 'Vehicle history check', src: function () { return fieldValue('edit-vehicle-history'); }, always: true, pass: true },
@@ -6420,7 +6442,7 @@ var WBS = {}; WB.forEach(function (w) { WBS[w.id] = { edited: false, text: '', o
 var WB_CUSTOM = [], WB_SEQ = 1, WB_ORDER = WB.map(function (w) { return w.id; }), WB_DRAG = null;
 function wbAll() { return WB.concat(WB_CUSTOM); }
 function wbTitle(w) { return (WBS[w.id] && WBS[w.id].title) || w.t; }
-function wbOn(w) { if (WBS[w.id].off) return false; if (w.custom) return true; if (w.vis) return w.vis(); if (w.always) return true; if (w.auto) return !!(S.p.supp && UI.suppPrint); return switchOn(w.sw); }
+function wbOn(w) { if (WBS[w.id].off) return false; if (w.custom) return true; if (w.vis) return w.vis(); if (w.always) return true; if (w.auto) return !!(S.p.supp && UI.suppCompare && UI.suppPrint); return switchOn(w.sw); }
 function wbReset() { WBS = {}; WB.forEach(function (w) { WBS[w.id] = { edited: false, text: '', off: false, title: null }; }); WB_CUSTOM = []; WB_ORDER = WB.map(function (w) { return w.id; }); }
 function renderWording() {
   var list = $('wbList'); if (!list) return;
@@ -6473,7 +6495,7 @@ bindMarkPointer();
 apply();
 bindObserver();
 applyQuery(new URLSearchParams(location.search));
-window.mock = { set: set, apply: apply, state: function () { return S; }, flags: function () { return F; }, text: function () { return T; }, ui: UI, openDialog: openDialog, closeDialog: closeDialog, jumpTo: jumpTo, openViewer: openViewer, closeViewer: closeViewer, applyQuery: applyQuery, reset: function () { S = Object.assign({}, DEFAULTS); S.p = Object.assign({}, INITIAL_P || allProposals(true)); UI.sentCount = 0; UI.cc = ['rhs-claims@outlook.com']; UI.suppPrint = false; UI.suppReason = 'estimate'; UI.uplift = false; UI.reportPane = 'report'; UI.attach = { report: true, fee: true, breakdown: false, images: false }; wbReset(); $('f-assessment-outcome').value = 'total_loss'; $('f-assessment-legal-status').value = 'unroadworthy'; $('f-assessment-salvage-value').value = '725.00'; $('f-assessment-unroadworthy-reason').value = 'The rear lamp assemblies are inoperative and the rear impact has compromised the tailgate closure.'; IMAGES.forEach(function (im, i) { im.role = ['CloseUp', 'Overview', 'Supporting', 'NotUsed', 'NotUsed', 'NotUsed'][i]; }); UI.auditCreated = false; UI.estimateTab = 'e1'; UI.fileTab = 'documents'; UI.section = 'overview'; UI.dirty = false; impacts = IMPACTS_FIXTURE.map(function (i) { return Object.assign({}, i); }); $$('.record-section.is-collapsed').forEach(function (sec) { sec.classList.remove('is-collapsed'); }); resetMarks(); $('caseNotices').innerHTML = ''; if (UI.expanded) { UI.expanded = false; $('section-estimate').classList.remove('is-expanded'); document.body.classList.remove('has-expanded'); } closeDialog(); closeViewer(); apply(); }, impacts: function () { return impacts; }, marks: function () { return MARKS; }, resetMarks: resetMarks, areaAt: areaAt, markAreas: markAreas, wording: WORDING_API, images: IMAGES, mockAction: mockAction };
+window.mock = { set: set, apply: apply, state: function () { return S; }, flags: function () { return F; }, text: function () { return T; }, ui: UI, openDialog: openDialog, closeDialog: closeDialog, jumpTo: jumpTo, openViewer: openViewer, closeViewer: closeViewer, applyQuery: applyQuery, reset: function () { S = Object.assign({}, DEFAULTS); S.p = Object.assign({}, INITIAL_P || allProposals(true)); UI.sentCount = 0; UI.cc = ['rhs-claims@outlook.com']; UI.suppPrint = false; UI.suppReason = 'estimate'; UI.uplift = false; UI.reportPane = 'report'; UI.attach = { report: true, fee: true, breakdown: false, images: false }; UI.engineer = null; UI.suppCompare = ''; var rd0 = $('f-report-date'); rd0.value = ''; rd0.parentElement.querySelector('.fv').textContent = '—'; rd0.parentElement.querySelector('.fv').classList.add('empty'); var so0 = $('f-sign-off-engineer'); so0.value = 's1'; so0.parentElement.querySelector('.fv').textContent = 'A Patterson'; wbReset(); $('f-assessment-outcome').value = 'total_loss'; $('f-assessment-legal-status').value = 'unroadworthy'; $('f-assessment-salvage-value').value = '725.00'; $('f-assessment-unroadworthy-reason').value = 'The rear lamp assemblies are inoperative and the rear impact has compromised the tailgate closure.'; IMAGES.forEach(function (im, i) { im.role = ['CloseUp', 'Overview', 'Supporting', 'NotUsed', 'NotUsed', 'NotUsed'][i]; }); UI.auditCreated = false; UI.estimateTab = 'e1'; UI.fileTab = 'documents'; UI.section = 'overview'; UI.dirty = false; impacts = IMPACTS_FIXTURE.map(function (i) { return Object.assign({}, i); }); $$('.record-section.is-collapsed').forEach(function (sec) { sec.classList.remove('is-collapsed'); }); resetMarks(); $('caseNotices').innerHTML = ''; if (UI.expanded) { UI.expanded = false; $('section-estimate').classList.remove('is-expanded'); document.body.classList.remove('has-expanded'); } closeDialog(); closeViewer(); apply(); }, impacts: function () { return impacts; }, marks: function () { return MARKS; }, resetMarks: resetMarks, areaAt: areaAt, markAreas: markAreas, wording: WORDING_API, images: IMAGES, mockAction: mockAction };
 })();
 
 </script>

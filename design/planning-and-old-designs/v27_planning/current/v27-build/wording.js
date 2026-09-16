@@ -23,7 +23,7 @@ function settlementText() {
 var WB = [
   { id: 'nature', t: 'Nature of incident', src: function () { return $('section-damage').querySelector('[data-damage-narrative]').textContent; }, always: true },
   { id: 'engcom', t: "Engineer's comments", src: function () { var bits = [q1('[data-composed="mileage"]') || MILEAGE_SENTENCE.lookup]; if ($('f-assessment-legal-status').value === 'unroadworthy') { var r = fieldValue('f-assessment-unroadworthy-reason').trim(); if (r) bits.push('Please note the vehicle is unroadworthy: ' + r.charAt(0).toLowerCase() + r.slice(1)); } return bits.join('\n\n'); }, always: true },
-  { id: 'suppl', t: 'Supplementary damage', src: function () { return S.p.supp && UI.suppPrint ? suppSentence() : ''; }, auto: true },
+  { id: 'suppl', t: 'Supplementary damage', src: function () { return S.p.supp && UI.suppCompare && UI.suppPrint ? suppSentence() : ''; }, auto: true },
   { id: 'pavcom', t: 'PAV commentary', src: function () { return fieldValue('f-report-valuation-commentary-text'); }, opt: true, sw: 'report.valuation_commentary' },
   { id: 'unrel', t: 'Unrelated damage', src: function () { var d = fieldValue('edit-damage.unrelated').trim(); return d ? 'Unrelated pre-existing damage was noted: ' + d + '. This damage is inconsistent with the reported incident and has been disregarded for the purposes of this assessment.' : ''; }, opt: true, sw: 'report.include_unrelated_damage' },
   { id: 'hist', t: 'Vehicle history check', src: function () { return fieldValue('edit-vehicle-history'); }, always: true, pass: true },
@@ -36,7 +36,7 @@ var WBS = {}; WB.forEach(function (w) { WBS[w.id] = { edited: false, text: '', o
 var WB_CUSTOM = [], WB_SEQ = 1, WB_ORDER = WB.map(function (w) { return w.id; }), WB_DRAG = null;
 function wbAll() { return WB.concat(WB_CUSTOM); }
 function wbTitle(w) { return (WBS[w.id] && WBS[w.id].title) || w.t; }
-function wbOn(w) { if (WBS[w.id].off) return false; if (w.custom) return true; if (w.vis) return w.vis(); if (w.always) return true; if (w.auto) return !!(S.p.supp && UI.suppPrint); return switchOn(w.sw); }
+function wbOn(w) { if (WBS[w.id].off) return false; if (w.custom) return true; if (w.vis) return w.vis(); if (w.always) return true; if (w.auto) return !!(S.p.supp && UI.suppCompare && UI.suppPrint); return switchOn(w.sw); }
 function wbReset() { WBS = {}; WB.forEach(function (w) { WBS[w.id] = { edited: false, text: '', off: false, title: null }; }); WB_CUSTOM = []; WB_ORDER = WB.map(function (w) { return w.id; }); }
 function renderWording() {
   var list = $('wbList'); if (!list) return;

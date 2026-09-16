@@ -83,6 +83,14 @@ body[data-proposals~="nine"] .overview-grid{grid-template-columns:1fr 1fr}
 #section-estimate .supp li .num{margin-left:auto}
 #section-estimate .supp .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
 #section-estimate .supp .row select{width:auto}
+#section-settlement .tickrow{display:none;gap:8px;flex-wrap:wrap;border-color:transparent;padding:0}
+body[data-proposals~="ticks"] .is-editing #section-settlement .dec .fc:not(.ro) .tickrow{display:flex}
+body[data-proposals~="ticks"] .is-editing #section-settlement .dec .fc:not(.ro) select.fi{display:none}
+#section-settlement .tick{border:1px solid var(--line-strong);border-radius:var(--radius);padding:0 12px;min-height:var(--control);cursor:pointer;font:500 12.5px var(--font);color:var(--muted);background:#fff;display:inline-flex;gap:8px;align-items:center}
+#section-settlement .tick .bx{width:14px;height:14px;border:1.5px solid var(--line-strong);border-radius:3px;position:relative;flex:none}
+#section-settlement .tick[aria-pressed="true"]{border-color:var(--red);color:var(--ink)}
+#section-settlement .tick[aria-pressed="true"] .bx{background:var(--red);border-color:var(--red)}
+#section-settlement .tick[aria-pressed="true"] .bx::after{content:"\2713";color:#fff;font-size:10px;font-weight:700;position:absolute;top:-2px;left:2px}
 .cmp-diff tr.added td{background:#fdecec}.cmp-diff tr.changed td{background:var(--amber-bg)}.cmp-diff tr.removed td{background:var(--green-bg);color:var(--muted)}.cmp-diff td.diff{font-weight:700}
 .cmphead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:8px 0}
 .cmphead select{width:auto}
@@ -754,9 +762,9 @@ body[data-proposals~="include"] #section-files .th .inc{display:flex}
     </div>
 
     <div class="supp" id="suppPanel" data-when="p.supp && !empty">
-      <div class="sg-t" style="display:flex;align-items:center;gap:8px;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--quiet);font-weight:650">Supplementary — changes vs Audatex 1 <span class="status status--plain status--green">Current</span><span style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;font-size:12px" id="suppDelta"></span></div>
-      <ul id="suppList"></ul>
-      <div class="row">
+      <div class="sg-t" style="display:flex;align-items:center;gap:8px;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--quiet);font-weight:650">Supplementary <span style="text-transform:none;letter-spacing:0;font-weight:400">— changes vs</span> <select id="suppCompare" class="fi" style="width:auto;text-transform:none;letter-spacing:0;font-weight:400"><option value="" selected>Choose a version</option><option value="e1">Audatex 1 · Current</option></select><span style="margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;font-size:12px" id="suppDelta"></span></div>
+      <ul id="suppList" data-supp-when-chosen hidden></ul>
+      <div class="row" data-supp-when-chosen hidden>
         <label class="choice"><input type="checkbox" id="suppPrint" /><span>Explain the change on the report</span></label>
         <select id="suppReason" class="fi"><option value="estimate">Supplementary estimate received</option><option value="dismantle">Further damage found on dismantling</option><option value="inspect">Further inspection</option><option value="images">Further images received</option></select>
       </div>
@@ -964,7 +972,7 @@ body[data-proposals~="include"] #section-files .th .inc{display:flex}
         <span class="dl">Outcome</span>
         <div class="prop" data-proposal="assessment.outcome" data-proposal-status="Accepted" data-when="proposal"><span data-proposal-value="total_loss">Total loss</span><span class="src-tag src-tag--ai">AI</span><span class="status status--green">Accepted</span></div>
         <div class="fc" data-field="assessment.outcome" data-eng-cell><label for="f-assessment-outcome">Outcome</label><div class="fv" data-fixture>Total loss</div>
-          <select id="f-assessment-outcome" class="fi" name="assessmentFields[assessment.outcome]" form="case-edit-form" data-outcome-select><option value=""></option><option value="total_loss" selected>Total loss</option><option value="repairable">Repairable</option><option value="cash_in_lieu">Cash in lieu</option><option value="contract_repair">Contract repair</option></select></div>
+          <select id="f-assessment-outcome" class="fi" name="assessmentFields[assessment.outcome]" form="case-edit-form" data-outcome-select><option value=""></option><option value="total_loss" selected>Total loss</option><option value="repairable">Repairable</option><option value="cash_in_lieu">Cash in lieu</option><option value="contract_repair">Contract repair</option></select><div class="fi tickrow" data-tickrow="f-assessment-outcome" data-when="p.ticks"></div></div>
       </div>
       <div class="dec" data-decision="assessment.values.engineer">
         <span class="dl">Engineer's Value</span>
@@ -975,7 +983,7 @@ body[data-proposals~="include"] #section-files .th .inc{display:flex}
         <span class="dl">Salvage category</span>
         <div class="prop" data-proposal="assessment.category" data-proposal-status="Accepted" data-when="proposal"><span>N</span><span class="src-tag src-tag--ai">AI</span><span class="status status--green">Accepted</span></div>
         <div class="fc" data-field="assessment.category" data-eng-cell><label for="f-assessment-category">Salvage category</label><div class="fv" data-fixture>N</div>
-          <select id="f-assessment-category" class="fi" name="assessmentFields[assessment.category]" form="case-edit-form"><option value=""></option><option value="A">A</option><option value="B">B</option><option value="S">S</option><option value="N" selected>N</option><option value="N/A">N/A</option></select></div>
+          <select id="f-assessment-category" class="fi" name="assessmentFields[assessment.category]" form="case-edit-form"><option value=""></option><option value="A">A</option><option value="B">B</option><option value="S">S</option><option value="N" selected>N</option><option value="N/A">N/A</option></select><div class="fi tickrow" data-tickrow="f-assessment-category" data-when="p.ticks"></div></div>
       </div>
       <div class="dec" data-decision="assessment.salvage_value" data-shown-when="total-loss">
         <span class="dl">Salvage value</span>
@@ -986,7 +994,7 @@ body[data-proposals~="include"] #section-files .th .inc{display:flex}
         <span class="dl">Roadworthiness</span>
         <div class="prop" data-proposal="assessment.legal_status" data-proposal-status="Accepted" data-when="proposal"><span>Unroadworthy</span><span class="src-tag src-tag--ai">AI</span><span class="status status--green">Accepted</span></div>
         <div class="fc" data-field="assessment.legal_status" data-eng-cell><label for="f-assessment-legal-status">Roadworthiness</label><div class="fv" data-fixture>Unroadworthy</div>
-          <select id="f-assessment-legal-status" class="fi" name="assessmentFields[assessment.legal_status]" form="case-edit-form" data-legal-select><option value=""></option><option value="roadworthy">Roadworthy</option><option value="unroadworthy" selected>Unroadworthy</option></select></div>
+          <select id="f-assessment-legal-status" class="fi" name="assessmentFields[assessment.legal_status]" form="case-edit-form" data-legal-select><option value=""></option><option value="roadworthy">Roadworthy</option><option value="unroadworthy" selected>Unroadworthy</option></select><div class="fi tickrow" data-tickrow="f-assessment-legal-status" data-when="p.ticks"></div></div>
       </div>
       <div class="dec wide" data-decision="assessment.unroadworthy_reason" data-shown-when="unroadworthy">
         <span class="dl">Unroadworthy reason</span>

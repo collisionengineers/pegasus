@@ -102,6 +102,9 @@ All in [`../../../current/v27-shots/`](../../../current/v27-shots/) at 1580×100
 - [89-p-nine-vehicle-full.png](../../../current/v27-shots/89-p-nine-vehicle-full.png) — Vehicle with Damage and Valuation, whole page
 - [90-p-report-wording.png](../../../current/v27-shots/90-p-report-wording.png) — the report wording well while editing
 - [91-p-report-wording-read.png](../../../current/v27-shots/91-p-report-wording-read.png) — the same blocks in read
+- [92-p-settlement-ticks.png](../../../current/v27-shots/92-p-settlement-ticks.png) — decision tick rows
+- [93-p-supp-unchosen.png](../../../current/v27-shots/93-p-supp-unchosen.png) — Supplementary before a version is chosen
+- [94-p-supp-chosen.png](../../../current/v27-shots/94-p-supp-chosen.png) — Supplementary after choosing Audatex 1
 
 ## Notes
 

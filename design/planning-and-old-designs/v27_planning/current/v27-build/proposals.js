@@ -7,7 +7,8 @@ var PROPOSALS = [
   ['estdel', 'Delete all + Undo'], ['offpattern', 'Off-pattern cells'], ['uplift', 'Regional uplift'], ['prov', 'Provenance chips'],
   ['compare', 'Compare diff + print'], ['supp', 'Supplementary'], ['abook', 'Address book'], ['attach', 'Attachments'],
   ['resend', 'Re-send naming'], ['feetab', 'Fee tab'], ['badges', 'Ribbon badges'], ['nine', 'Nine sections'],
-  ['place', 'Reference placements'], ['include', 'Click to include'], ['queries', 'Queries panel']
+  ['place', 'Reference placements'], ['include', 'Click to include'], ['queries', 'Queries panel'],
+  ['ticks', 'Decision tick rows'], ['signoff', 'Sign-off follows Engineer'], ['reportdate', 'Report date on generate']
 ];
 function allProposals(on) { var o = {}; PROPOSALS.forEach(function (p) { o[p[0]] = on; }); return o; }
 S.p = allProposals(true);
@@ -35,7 +36,7 @@ function diffLines(A, B) {
   return { added: added, removed: removed, changed: changed, same: same };
 }
 var SUPP_REASONS = [['estimate', 'Supplementary estimate received', 'Following receipt of a supplementary estimate'], ['dismantle', 'Further damage found on dismantling', 'Following dismantling of the vehicle, further damage was identified and'], ['inspect', 'Further inspection', 'Following a further inspection of the vehicle'], ['images', 'Further images received', 'Following receipt of further images']];
-UI.suppPrint = false; UI.suppReason = 'estimate'; UI.sentCount = 0; UI.cc = ['rhs-claims@outlook.com']; UI.attach = { report: true, fee: true, breakdown: false, images: false }; UI.reportPane = 'report'; UI.uplift = false;
+UI.suppPrint = false; UI.suppReason = 'estimate'; UI.suppCompare = ''; UI.sentCount = 0; UI.cc = ['rhs-claims@outlook.com']; UI.attach = { report: true, fee: true, breakdown: false, images: false }; UI.reportPane = 'report'; UI.uplift = false;
 function suppSentence() {
   var d = diffLines(LINES_E1, LINES_E2), reason = SUPP_REASONS.filter(function (r) { return r[0] === UI.suppReason; })[0][2];
   var t = reason;
@@ -71,6 +72,13 @@ function composeAll() {
   setText('supp', suppSentence());
 }
 
+/* ---- decision tick rows: the select stays the control, the buttons drive it ---- */
+function renderTickRows() {
+  $$('[data-tickrow]').forEach(function (row) {
+    var sel = $(row.getAttribute('data-tickrow'));
+    row.innerHTML = Array.prototype.filter.call(sel.options, function (o) { return o.value; }).map(function (o) { return '<button type="button" class="tick" aria-pressed="' + (sel.value === o.value) + '" data-tick="' + sel.id + '" data-value="' + o.value + '"><span class="bx"></span>' + o.textContent + '</button>'; }).join('');
+  });
+}
 /* ---- salvage slider, reason bank ---- */
 var SAL_SNAPS = [5, 10, 15, 20, 25];
 function salvageRefresh(fromSlider) {
@@ -137,8 +145,11 @@ function renderSupp() {
   var li = function (l, tag, extra) { return '<li><span class="src-tag src-tag--' + tag[0] + '">' + tag[1] + '</span>' + l[1] + (extra || '') + '<span class="num mono">' + money(lineValue(l)) + '</span></li>'; };
   $('suppList').innerHTML = d.added.map(function (l) { return li(l, ['ai', 'added']); }).join('') + d.changed.map(function (c) { return li(c[1], ['warn', 'changed'], ' <span class="muted">— ' + c[2].map(function (k) { return ({ 2: 'qty', 3: 'unit', 4: 'hours', 5: 'paint h' })[k] + ' ' + (c[0][k] || 0) + ' → ' + (c[1][k] || 0); }).join(', ') + '</span>'); }).join('') + d.removed.map(function (l) { return li(l, ['lookup', 'removed']); }).join('');
   $('suppDelta').innerHTML = money(3004.79) + ' → <b>' + money(1047.02) + '</b> (<b class="red">−' + money(3004.79 - 1047.02) + '</b>)';
-  $('suppPrint').checked = UI.suppPrint; $('suppReason').value = UI.suppReason;
-  $$('[data-supp-when-print]').forEach(function (el) { el.hidden = !UI.suppPrint; });
+  $('suppPrint').checked = UI.suppPrint; $('suppReason').value = UI.suppReason; $('suppCompare').value = UI.suppCompare;
+  var chosen = !!UI.suppCompare;
+  $$('[data-supp-when-chosen]').forEach(function (el) { el.hidden = !chosen; });
+  $('suppDelta').hidden = !chosen;
+  $$('[data-supp-when-print]').forEach(function (el) { el.hidden = !(chosen && UI.suppPrint); });
 }
 function abookRender(which) {
   var input = $(which === 'to' ? 'abTo' : 'abCc'), box = $(which === 'to' ? 'abToList' : 'abCcList');
@@ -222,6 +233,7 @@ function applyProposals() {
   Array.prototype.forEach.call(rb.children, function (child) { if (child.hasAttribute('data-report-tabs')) return; if (child.hasAttribute('data-report-pane')) { child.hidden = !(S.p.feetab && UI.reportPane === 'fee'); return; } child.classList.toggle('pane-hidden', S.p.feetab && UI.reportPane === 'fee'); });
   $$('[data-report-tab]').forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-report-tab') === UI.reportPane ? 'true' : 'false'); });
   applyRepairerFixture();
+  renderTickRows();
   if (S.p.composed) composeAll();
   if (S.p.salvage) salvageRefresh(false);
   if (S.p.bank) renderBank();
@@ -234,6 +246,7 @@ function renderProposalStrip() {
 document.addEventListener('click', function (e) {
   var t = e.target, b;
   if ((b = t.closest('[data-p]'))) { S.p[b.getAttribute('data-p')] = !S.p[b.getAttribute('data-p')]; apply(); return; }
+  if ((b = t.closest('[data-tick]'))) { var sel = $(b.getAttribute('data-tick')); sel.value = b.getAttribute('data-value'); sel.dispatchEvent(new Event('change', { bubbles: true })); renderTickRows(); UI.dirty = true; return; }
   if ((b = t.closest('[data-p-all]'))) { S.p = allProposals(b.getAttribute('data-p-all') === '1'); apply(); return; }
   if ((b = t.closest('[data-salv-snap]'))) { $('salvRange').value = b.getAttribute('data-salv-snap'); salvageRefresh(true); UI.dirty = true; return; }
   if ((b = t.closest('[data-bank]'))) { var ta = $('f-assessment-unroadworthy-reason'); var cur = ta.value.trim().replace(/\.+$/, ''); var phrase = UR_BANK[parseInt(b.getAttribute('data-bank'), 10)]; ta.value = cur ? cur + ' and ' + phrase + '.' : phrase.charAt(0).toUpperCase() + phrase.slice(1) + '.'; UI.dirty = true; return; }
@@ -262,6 +275,7 @@ document.addEventListener('change', function (e) {
   var t = e.target;
   if (t.id === 'edit-mileage-source') UI.mileageTouched = true;
   if (t.id === 'est-uplift') { UI.uplift = t.checked; upliftRefresh(); UI.dirty = true; }
+  if (t.id === 'suppCompare') { UI.suppCompare = t.value; if (!t.value) UI.suppPrint = false; renderSupp(); if (S.p.composed) composeAll(); if (S.p.wording) renderWording(); }
   if (t.id === 'suppPrint') { UI.suppPrint = t.checked; renderSupp(); if (S.p.composed) composeAll(); }
   if (t.id === 'suppReason') { UI.suppReason = t.value; renderSupp(); if (S.p.composed) composeAll(); }
   if (t.matches('[data-attach]')) { UI.attach[t.getAttribute('data-attach')] = t.checked; }

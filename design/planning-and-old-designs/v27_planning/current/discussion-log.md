@@ -109,3 +109,12 @@ rule); drawn now on instruction as the `wording` switch — the composed
 narrative blocks in print order, editable, renameable, removable, reorderable,
 with recompose and new paragraphs — and item I2 raised for the rule change
 it needs. Shots 90–91.
+
+The operator, on the Supplementary panel: *"it still shows"* — the earlier
+Compare remark had meant this panel too. It now shows nothing until **changes
+vs** has a version chosen. Asked what else from the reference is not yet on
+the mockup: three small behaviours the differences file had read as "Same"
+were still missing — the decision tick rows, Sign-off Engineer following the
+hand-off, and the report date stamped on generate — added as `ticks`,
+`signoff` and `reportdate` (item I3). Everything else left is on the
+decision-first list.

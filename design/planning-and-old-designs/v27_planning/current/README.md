@@ -40,8 +40,8 @@ limit of the medium, listed in `v27-notes.md` § Known limits. The proposals rid
 strip variables: **Damage selector**, four click-anywhere ways to mark damage that
 record the eight vehicle areas rather than panels (`v27-notes.md` § 11–12, sign-off
 G–G7, `?clicker=pins|brush|area|arrow`); **Logo**, the refined mark in the rail (§ 13,
-sign-off H, `?logo=refined|live`); and the **Proposals** row, the twenty reference-file
-features (§ 15, sign-off I, I1 and I2, `?proposals=all|none` or
+sign-off H, `?logo=refined|live`); and the **Proposals** row, the twenty-three reference-file
+features (§ 15, sign-off I–I3, `?proposals=all|none` or
 `?p=composed,cap,…`). The file opens with the proposals on; `?proposals=none` is the
 baseline, and every baseline screenshot and self-check block is taken that way.
 
@@ -80,5 +80,5 @@ when this baseline was built).
 Items A–F in `v27-notes.md` § 7 ask the operator to confirm the baseline's fidelity and
 fixtures, the scope of the shell and the placement of the round. Items G–G7 in § 11–12 ask
 which of the four damage selector variants (if any) carries into Stage 2 and settle the
-area wording; item H in § 13 is the refined mark; items I, I1 and I2 in § 15 are the twenty
+area wording; item H in § 13 is the refined mark; items I–I3 in § 15 are the twenty-three
 reference proposals. Nothing is approved yet.

@@ -326,11 +326,13 @@
  },
  {
   "name": "79-p-estimate-edit",
-  "query": "proposals=all&edit=1&section=estimate&estimate=e2&repairer=london"
+  "query": "proposals=all&edit=1&section=estimate&estimate=e2&repairer=london",
+  "eval": "var s=document.getElementById('suppCompare');s.value='e1';s.dispatchEvent(new Event('change',{bubbles:true}))"
  },
  {
   "name": "80-p-estimate-supp",
-  "query": "proposals=all&section=estimate"
+  "query": "proposals=all&section=estimate",
+  "eval": "var s=document.getElementById('suppCompare');s.value='e1';s.dispatchEvent(new Event('change',{bubbles:true}))"
  },
  {
   "name": "81b-p-compare-unchosen",
@@ -384,5 +386,18 @@
   "name": "91-p-report-wording-read",
   "query": "proposals=all&section=report",
   "eval": "document.getElementById('section-report').querySelector('[data-report-wording]').scrollIntoView({block:'start'})"
+ },
+ {
+  "name": "92-p-settlement-ticks",
+  "query": "proposals=all&edit=1&section=settlement"
+ },
+ {
+  "name": "93-p-supp-unchosen",
+  "query": "proposals=all&edit=1&section=estimate&estimate=e2"
+ },
+ {
+  "name": "94-p-supp-chosen",
+  "query": "proposals=all&edit=1&section=estimate&estimate=e2",
+  "eval": "var s=document.getElementById('suppCompare');s.value='e1';s.dispatchEvent(new Event('change',{bubbles:true}))"
  }
 ]

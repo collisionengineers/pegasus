@@ -264,7 +264,9 @@ f.onload = () => {
     q('[data-undo-row]').click(); check('undo: line restored', qa('#estEditBody tr[data-estimate-line]').length === rows0);
     q('[data-estimate-tab="e2"]').click(); check('delete all: offered while the draft edits', vis(q('[data-dialog-open="delete-lines-dialog"]')));
     M.openDialog('delete-lines-dialog'); q('[data-delete-lines]').click(); check('delete all: every line gone', qa('#estEditBody tr[data-estimate-line]').length === 0);
-    check('supplementary: panel with the diff', shown('#suppPanel') && qa('#suppList li').length >= 10 && $('suppDelta').textContent.includes('£1,047.02'));
+    check('supplementary: nothing until a version is chosen', shown('#suppPanel') && !vis($('suppList')) && !vis(q('#suppPanel .row')));
+    $('suppCompare').value = 'e1'; $('suppCompare').dispatchEvent(new w.Event('change', { bubbles: true }));
+    check('supplementary: panel with the diff once chosen', vis($('suppList')) && qa('#suppList li').length >= 10 && $('suppDelta').textContent.includes('£1,047.02'));
     $('suppPrint').checked = true; $('suppPrint').dispatchEvent(new w.Event('change', { bubbles: true })); check('supplementary: composed paragraph when explained', shown('[data-supp-when-print]') && q('[data-composed="supp"]').textContent.startsWith('Following receipt of a supplementary estimate'));
     M.openDialog('compare-estimates-dialog'); check('compare: nothing until two versions are chosen', $('cmpDiff').innerHTML === '' && !vis(q('[data-cmp-print]')));
     $('cmpFrom').value = 'e1'; $('cmpFrom').dispatchEvent(new w.Event('change', { bubbles: true })); $('cmpTo').value = 'e2'; $('cmpTo').dispatchEvent(new w.Event('change', { bubbles: true }));
@@ -290,6 +292,16 @@ f.onload = () => {
     q('[data-wb-remove="pavcom"]').click(); check('wording: removing PAV commentary clears the report switch', !q('[data-wb="pavcom"]') && !q('[data-report-switch="report.valuation_commentary"]').checked);
     M.set('edit', 'off'); check('wording: read mode shows the blocks as derived cells', qa('#wbList .wb-read').length >= 7 && !q('#wbList textarea'));
     M.set('edit', 'on');
+    /* decision tick rows, sign-off follows, report date on generate */
+    check('ticks: button rows beside the hidden selects', qa('[data-tickrow="f-assessment-outcome"] .tick').length === 4 && q('[data-tickrow="f-assessment-outcome"] .tick[aria-pressed="true"]').textContent === 'Total loss' && getComputedStyle($('f-assessment-outcome')).display === 'none');
+    q('[data-tick="f-assessment-outcome"][data-value="repairable"]').click(); check('ticks: pressing sets the select and hides salvage', $('f-assessment-outcome').value === 'repairable' && q('[data-shown-when="total-loss"]').hidden);
+    q('[data-tick="f-assessment-outcome"][data-value="total_loss"]').click();
+    M.reset(); M.state().p = Object.fromEntries(Object.keys(M.state().p).map(k => [k, true])); M.set('state', 'review'); M.set('edit', 'on');
+    M.openDialog('case-handoff-dialog'); $('case-handoff-engineer').value = 's2'; q('#case-handoff-form').requestSubmit();
+    check('sign-off follows: handing to E Mawdsley sets Engineer and Sign-off Engineer', M.state().state === 'with-engineer' && q('[data-text="engineer"]').textContent === 'E Mawdsley' && $('f-sign-off-engineer').value === 's2');
+    M.set('report', 'none'); check('report date: empty before generate', $('f-report-date').value === '');
+    q('[data-generate-report]').requestSubmit(); check('report date: set on generate', $('f-report-date').value === '2026-09-16' && M.state().report === 'confirmed');
+    M.reset(); M.state().p = Object.fromEntries(Object.keys(M.state().p).map(k => [k, true])); M.set('edit', 'on');
     M.state().p.nine = false; M.state().p.place = false; M.apply();
     check('nine off: the ten live sections and Overview restored', qa('[data-section-link]').length === 10 && !$('section-claim') && $('section-damage').parentElement.id === 'case-main' && $('section-overview-title').textContent === 'Overview' && q('[data-field="signOffEngineerId"]').closest('#section-report') !== null && q('[data-unrelated-band]').closest('#section-damage') !== null);
     M.reset(); check('reset: proposals back to the loaded state', Object.values(M.state().p).every(v => !v) && !$('section-claim'));
