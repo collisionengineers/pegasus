@@ -1310,7 +1310,12 @@
                 return;
             }
             control.dataset.dialogOpenBound = 'true';
-            control.addEventListener('click', function () { open(control); });
+            control.addEventListener('click', function (event) {
+                if (control.matches('a[href]')) {
+                    event.preventDefault();
+                }
+                open(control);
+            });
         });
     }
     bindBackdropDialogs(document);
