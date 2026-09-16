@@ -111,7 +111,8 @@ try {
         'docs/principal-profiles/README.md',
         '.stitch/DESIGN.md',
         'design/planning-and-old-designs/new.md',
-        'workspaces/document-extraction/docs/new.md'
+        'workspaces/document-extraction/docs/new.md',
+        '1609sprint/new.md'
     )
     foreach ($path in $allowed) {
         $fullPath = Join-Path $testRoot $path

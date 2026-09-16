@@ -1,0 +1,198 @@
+# Case workspace guardrails
+
+These rules are mandatory for `src/Pegasus.Web/Pages/Cases/**` unless the current operator task
+explicitly instructs a Case-workspace redesign.
+
+## Frame is fixed by default
+
+The Case record has no generic page header.
+
+Its stable frame is:
+
+1. working-set integration;
+2. sticky 56px Case ribbon;
+3. sticky 40px section row;
+4. Case sections;
+5. Figures + Next action context aside.
+
+The ribbon owns:
+
+- Case reference / registration context;
+- Claimant;
+- Principal;
+- Engineer;
+- state chip, including held review date when applicable;
+- Case type chip;
+- colleague-editing state when applicable;
+- links between an Audit Case and its original when applicable;
+- Edit Case, or Editing + Cancel + Save while editing;
+- one Actions menu.
+
+Do not turn the ribbon into a button shelf.
+
+The section row owns:
+
+- section navigation;
+- Refresh;
+- Scroll/Tabs switch.
+
+Scroll remains the default unless the operator explicitly changes it.
+
+## Section order and ownership
+
+Preserve this order:
+
+1. Overview
+2. Inspection
+3. Vehicle
+4. Damage
+5. Valuation
+6. Estimate
+7. Settlement
+8. Report
+9. Files
+10. Notes
+
+Each section is the owner of its domain. Do not duplicate its full content elsewhere.
+
+Important ownership decisions:
+
+- Overview contains the Notes band/current overview facts, not a second Notes timeline.
+- Inspection owns inspection/storage-location details and storage money inputs.
+- Vehicle owns one accepted mileage field with provenance rows, not multiple competing mileage boxes.
+- Damage owns the Plan damage clicker and engineering damage facts.
+- Valuation owns guide-source cards and valuation calculation.
+- Estimate owns estimate tabs, estimate header/lines, Import, Send to AI and Compare.
+- Settlement owns settlement decisions and settlement-only figures.
+- Report owns report content switches, generation/preview/finality controls and report commentary.
+- Files owns Case images, documents, crop/tag/viewer tools, upload requests and correspondence/file surfaces.
+- Notes owns the single Case timeline, notes and chase recording.
+
+Case images are not repeated under Damage. A Report image-selection/preview strip may summarize the
+same evidence only where Report needs that decision.
+
+## Read/edit geometry
+
+Read and edit share one geometry.
+
+- Do not create a separate edit page or visually unrelated edit panel.
+- Labelled fact cells stay in the same grid position.
+- Entering edit must not teleport the operator or substantially reflow the page.
+- Edit from a section head enters the one Case-wide edit session.
+- Save and Cancel act in place.
+- Immediate-post actions should not end the edit session unless their contract requires it.
+- A colleague's lease is read-only; do not add a Take over shortcut unless explicitly instructed.
+
+Normal Cancel discards the edit without a redundant confirmation. Dirty-navigation protection may
+still guard leaving/switching when appropriate.
+
+## Availability
+
+Each section may show one concise availability condition when it cannot be edited.
+
+Do not add multiple locks, pills and warnings for the same blocked condition.
+
+If a control is absent until a prerequisite is met, do not add a redundant locked pill merely to
+explain that same absence unless the design authority requires the explanation.
+
+## Actions menu
+
+Keep lifecycle/consequential progressions in the existing Actions menu according to the state
+contract. Typical entries include:
+
+- Hand to Engineer;
+- Send to EVA;
+- Mark report sent;
+- Mark completed;
+- Return to Review / Return to Engineer;
+- Archive;
+- Place on Hold / Release Hold;
+- Create upload link;
+- Correct principal;
+- Create audit.
+
+Close case remains destructive, separated and styled in red.
+
+Do not surface the same lifecycle action again inside arbitrary section bodies.
+
+## Valuation
+
+One route per guide source.
+
+While editing, Glass's, Brego and Super CAP each own one entry card containing:
+
+- guide month;
+- mileage;
+- retail value;
+- trade value;
+- Get valuation;
+- Save.
+
+Fetched values fill the same editable card. Saving that card is the writer.
+
+Do not reintroduce:
+
+- Add valuation;
+- a second generic valuation dialog;
+- a second source-button row;
+- a separate writer path for fetched vs typed values.
+
+AI market research remains its own distinct action/card.
+
+## Estimate
+
+Preserve the Estimate workbench and its existing Expand/full-screen presentation toggle.
+
+Do not move its main controls into the Case ribbon.
+
+Do not restore the redundant locked "A confirmed Engineer's Value is required" pill. The Send to
+AI control is simply unavailable/absent until its requirement is met, according to the current
+contract.
+
+Toolbar and header controls must remain compact and on one line where the existing design expects
+that. Scope width fixes locally; do not make every select full width.
+
+## Damage
+
+Use the approved Plan clicker, not a newly invented Elevations/Dial/alternative presentation.
+
+The recorded-zone model and visual markers must remain aligned.
+
+Do not re-add the Files image strip to Damage.
+
+## Files / viewer
+
+Files is the Case evidence home.
+
+Preserve:
+
+- image tiles and full-screen viewer;
+- tag picker using the shared menu convention;
+- crop on the viewer stage;
+- original Download semantics;
+- crop affecting tiles/report presentation rather than mutating the original source.
+
+Viewer controls must not overlap the image stage. Keep the crop toolbar coherent at supported widths.
+
+## Aside
+
+The context aside contains Figures and Next action.
+
+Do not recreate a separate "Current position" card that repeats the ribbon.
+
+Below the established wide-screen threshold the aside folds into the approved strip pattern; do not
+invent a second breakpoint just for one Case feature.
+
+## Tests / review
+
+Any Case UI change should be checked against:
+
+- the v26 Case frame contract;
+- `CaseRecordFrameV26WebTests` and the most local affected Web tests;
+- 1580px and smaller-desktop rendered views;
+- read and edit modes when the feature is editable;
+- colleague-editing / blocked state when the change touches edit authority;
+- Scroll/Tabs if the change affects section presentation.
+
+A feature addition does not authorize moving existing fields/actions to make room. Fit the feature
+inside its owning section unless the task explicitly requests a layout redesign.
