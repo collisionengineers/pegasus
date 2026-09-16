@@ -1445,7 +1445,7 @@ public sealed class MailWorkspaceWebTests
             new FormUrlEncodedContent(submission.Fields));
         Assert.Equal(HttpStatusCode.Redirect, linkedResponse.StatusCode);
 
-        var linked = await GetHtmlAsync(client, linkedResponse.Headers.Location!.ToString());
+        var linked = await GetHtmlAsync(client, $"/Inbox/{linkedMessageId:D}");
         Assert.Contains("<span>Classification</span>", linked, StringComparison.Ordinal);
         Assert.Contains("<strong>Unclassified</strong>", linked, StringComparison.Ordinal);
         Assert.Contains("<span>Destination</span>", linked, StringComparison.Ordinal);
