@@ -125,7 +125,10 @@ public static class DependencyInjection
             provider.GetRequiredService<EfIntakeMutationStore>());
         services.AddScoped<IAutomaticMailCaseAssociationEvidenceQueries>(provider =>
             provider.GetRequiredService<EfIntakeMutationStore>());
+        services.AddScoped<IAutomaticCaseEvidencePromotionStore>(provider =>
+            provider.GetRequiredService<EfIntakeMutationStore>());
         services.AddScoped<AssociateRetainedMailWithCase>();
+        services.AddScoped<PromoteAssociatedIntakeCaseEvidence>();
         services.AddScoped<IResolveIntake, ResolveIntake>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<IRetryIntakeOcr, RetryIntakeOcr>();

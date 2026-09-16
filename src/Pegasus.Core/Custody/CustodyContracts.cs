@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -740,7 +741,11 @@ public enum CaseArtifactCustodyDisposition { Confirmed, Pending, Failed, Unknown
 public sealed record CaseArtifactCustodyRequest(
     ActionActor Actor, Guid? CaseId, Guid? IntakeReceiptId, string OccurrenceIdentity,
     string OperationKey, string FileName, string MediaType, long ContentLength,
-    string Sha256, Stream Content);
+    string Sha256, Stream Content,
+    DocumentSemanticRole SemanticRole = DocumentSemanticRole.OriginalSource,
+    DocumentSource Source = DocumentSource.Generated,
+    long? ExpectedCaseVersion = null,
+    bool IsAutomaticIntakeEvidencePromotion = false);
 public sealed record CaseArtifactCustodyResult(
     CaseArtifactCustodyDisposition Disposition, Guid? DocumentId, Guid? VersionId, Guid? OccurrenceId,
     string? BoxFileId, string? BoxVersionId, string? Sha256, long? ContentLength,

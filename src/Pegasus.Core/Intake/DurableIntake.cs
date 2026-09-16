@@ -698,7 +698,8 @@ public sealed class ProcessQueuedIntake(
     ReconcileUnidentifiedDestinations? unidentifiedDestinations = null,
     AssociateRetainedMailWithCase? automaticMailCaseAssociation = null,
     IIntakeSubmissionGroupStore? submissionGroups = null,
-    ICaseStaffNotifier? caseNotifier = null) : IProcessQueuedIntake
+    ICaseStaffNotifier? caseNotifier = null,
+    PromoteAssociatedIntakeCaseEvidence? promoteAssociatedCaseEvidence = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
 
@@ -776,6 +777,7 @@ public sealed class ProcessQueuedIntake(
                     completedEvaluation.ProcessedReceiptId,
                     cancellationToken) ?? completedReceipt;
             }
+            await PromoteAssociatedCaseEvidenceAsync(completedReceipt, cancellationToken);
 
             // Completed redelivery replays destination operation identities.
             var replayAllocation = await allocateIntake.AttemptAutomaticAsync(
@@ -901,6 +903,7 @@ public sealed class ProcessQueuedIntake(
                 {
                     processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
                 }
+                await PromoteAssociatedCaseEvidenceAsync(processed, cancellationToken);
 
                 var allocation = await allocateIntake.AttemptAutomaticAsync(
                     processed.Id,
@@ -1200,6 +1203,26 @@ public sealed class ProcessQueuedIntake(
             receipt.Id,
             cancellationToken);
         return outcome is AutomaticCaseAssociationOutcome.Associated or AutomaticCaseAssociationOutcome.AlreadyAssociated;
+    }
+
+    private async Task PromoteAssociatedCaseEvidenceAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (promoteAssociatedCaseEvidence is null)
+        {
+            return;
+        }
+
+        var outcome = await promoteAssociatedCaseEvidence.ExecuteAsync(receipt, cancellationToken);
+        if (outcome == AutomaticCaseEvidencePromotionOutcome.Deferred)
+        {
+            // An active staff edit is a temporary Case-target guard. Keep the
+            // existing intake work owner so the same receipt is retried after
+            // its ordinary bounded delay instead of filing against a moving Case.
+            throw new IntakeDependencyUnavailableException(
+                "Automatic Case evidence promotion is waiting for the Case editor.");
+        }
     }
 
     private async Task TryDeleteCompletedStagingAsync(

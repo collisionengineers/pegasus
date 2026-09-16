@@ -357,6 +357,15 @@ and fail-closed source-identity rules apply to both.
   rules apply even when one Case matches. No readable or conflicting VRMs
   produce one Unidentified item containing the original PDF and photographs.
   Completed historical mail is not automatically backfilled.
+- **Photographs for an established Case.** A mailbox receipt with a current
+  automatic association to one eligible pre-report Case files its original
+  message, attached documents and selected photographs on that Case. This
+  route does not require another instruction, a readable VRM, or an Image
+  Intake Reference. The receipt retains its classification and source identity;
+  linking alone is not proof that its files reached Case custody. Promotion
+  rechecks the current association, Case version and edit authority, yields to
+  a staff editor, and resumes through existing intake/custody work. Re-evaluation
+  of an existing association uses the same document operation identities.
 - **Photograph selection.** One Core policy selects direct image evidence and
   embedded PDF photographs before separate asset retention. Inline/signature
   graphics are excluded; embedded images require at least 40,000 encoded
@@ -565,6 +574,11 @@ Definitive authorised intake creates exactly one instructed Case idempotently. A
 One source occurrence has at most one current Case association. Every automatic or manual association records the exact source and Case identities, evidence, actor, time, policy/version, and reason where required. Any authorised staff member may reasonedly unlink or reassociate a mistaken match; the prior relationship and both source origins remain permanent, and dependent facts and counts recompute without deleting history.
 
 Automatic mail association does not wait for a staff editor. It writes only the receipt's own append-only association and history records, never the Case row or its version, so it is one of the background records [FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery) holds separate from editable Case state, and an editor's pending save still validates against the version they loaded. It still yields to an archived case. The staff "add to an existing case" decision above is a Case mutation and acquires the edit lease as any other does. Automatic Image-initiated Case association checks the current Case version and yields to an active staff lease; the subsequent image merge also yields to a live lease and rechecks the current associations inside its transaction.
+
+Filing the automatically associated mail's evidence is a separate Case mutation:
+it yields to a live editor and rechecks the current Case version before each
+custody attempt and confirmation. A later eligible retry captures the current
+version, so a completed staff edit does not permanently strand retained files.
 
 ## Source upload limits
 

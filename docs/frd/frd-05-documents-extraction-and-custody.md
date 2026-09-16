@@ -54,6 +54,17 @@ exhausted retry remains visibly failed, with its original output retained.
 
 Receipt/staging and accepted case custody are different states.
 
+An automatically associated follow-up containing photographs has a separate
+Case-filing step. Its original message, attached documents and selected
+photographs become Case document occurrences with intake provenance and the
+appropriate source, correspondence or image role. Holding-folder confirmation
+does not prove this step: Case promotion has stable Case/receipt/asset operation
+identities distinct from the holding hand-over. Partial writes retain their
+pending document identities and resume through existing custody reconciliation;
+confirmed replays neither duplicate files nor repeat the readiness transition.
+The current association, Case eligibility and edit authority are checked again
+when completing delayed custody. Failures remain visible for normal recovery.
+
 - Network, local, or Azure staging is temporary processing storage and is never accepted Case custody proof.
 - Box is the required accepted case-file custody system for the day-one alpha. Every allocated Case/PO uses its immutable reference for its Box case folder, then retains its source emails, instruction documents, images, correspondence, and reports there.
 - A Box failure after Case/PO allocation retains the Case as `Not ready` with explicit failure and staff-initiated retry/recovery evidence. It does not roll back, reuse, or reallocate the reference, and no background or automatic business retry is permitted.

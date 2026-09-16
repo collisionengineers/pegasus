@@ -1,9 +1,12 @@
 using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.Infrastructure.Custody;
@@ -266,9 +269,15 @@ internal sealed class EfCaseArtifactCustody(
             }
         }
 
-        var caseEntity = await db.Cases.AsNoTracking()
-            .SingleOrDefaultAsync(value => value.Id == caseId, cancellationToken)
+        var workflow = await db.CaseWorkflows
+            .Include(value => value.Case)
+            .SingleOrDefaultAsync(value => value.CaseId == caseId, cancellationToken)
             ?? throw new InvalidOperationException("The artifact Case is unavailable.");
+        if (request.IsAutomaticIntakeEvidencePromotion)
+        {
+            await RequireAutomaticPromotionTargetAsync(db, workflow, request, cancellationToken);
+        }
+        var caseEntity = workflow.Case;
         var lastOrdinal = await db.Set<CaseDocumentEntity>()
             .Where(value => value.CaseId == caseId)
             .Select(value => (int?)value.Ordinal)
@@ -303,8 +312,8 @@ internal sealed class EfCaseArtifactCustody(
             DocumentId = document.Id,
             VersionId = version.Id,
             Ordinal = document.Ordinal,
-            SemanticRole = DocumentSemanticRole.OriginalSource,
-            Source = DocumentSource.Generated,
+            SemanticRole = request.SemanticRole,
+            Source = request.Source,
             SourceOccurrenceIdentity = request.OccurrenceIdentity,
             RecordedAtUtc = version.CreatedAtUtc,
             OperationKey = request.OperationKey
@@ -326,6 +335,15 @@ internal sealed class EfCaseArtifactCustody(
         if (requestLinkTransaction is not null)
             await requestLinkTransaction.CommitAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(caseEntity.CustodyRootRemoteId))
+        {
+            return Pending(version, occurrence.Id, "case_custody_pending");
+        }
+
+        if (request.IsAutomaticIntakeEvidencePromotion
+            && !await IsAutomaticPromotionTargetCurrent(
+                db, caseId, request.IntakeReceiptId!.Value,
+                request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow())
+                .AnyAsync(cancellationToken))
         {
             return Pending(version, occurrence.Id, "case_custody_pending");
         }
@@ -362,7 +380,20 @@ internal sealed class EfCaseArtifactCustody(
                 && value.CustodyStatus == DocumentCustodyStatus.Pending
                 && value.PendingContentStorageKey == pendingContentStorageKey
                 && db.Cases.Any(caseValue => caseValue.Id == caseId
-                    && caseValue.CustodyRootRemoteId == capturedRoot))
+                    && caseValue.CustodyRootRemoteId == capturedRoot)
+                && (!request.IsAutomaticIntakeEvidencePromotion || db.CaseWorkflows.Any(workflow =>
+                    workflow.CaseId == caseId
+                    && workflow.Version == request.ExpectedCaseVersion!.Value
+                    && workflow.ArchivedAtUtc == null
+                    && (workflow.State == nameof(CaseLifecycleState.NotReady)
+                        || workflow.State == nameof(CaseLifecycleState.Review))
+                    && (workflow.EditLeaseExpiresAtUtc == null
+                        || workflow.EditLeaseExpiresAtUtc <= timeProvider.GetUtcNow())
+                    && db.IntakeManualAssociations.Any(association =>
+                        association.IntakeReceiptId == request.IntakeReceiptId!.Value
+                        && association.CaseId == caseId
+                        && association.IsActive
+                        && association.ActorKind == nameof(ActorKind.SystemWorker)))))
             .ExecuteUpdateAsync(setters => setters
                 .SetProperty(value => value.BoxFileId, write.RemoteId)
                 .SetProperty(value => value.BoxVersionId, write.BoxVersionId)
@@ -379,8 +410,205 @@ internal sealed class EfCaseArtifactCustody(
         version.PendingContentStorageKey = null;
         await RecordConfirmedSourceChangeAsync(
             db, caseId, occurrence.OperationKey, timeProvider.GetUtcNow(), cancellationToken);
+        if (request.IsAutomaticIntakeEvidencePromotion)
+        {
+            await CompleteAutomaticPromotionIfReadyAsync(
+                db, caseId, request.IntakeReceiptId!.Value,
+                request.ExpectedCaseVersion!.Value, timeProvider.GetUtcNow(), cancellationToken);
+        }
         await confirmation.CommitAsync(cancellationToken);
         return Confirmed(version, occurrence.Id);
+    }
+
+    private async Task RequireAutomaticPromotionTargetAsync(
+        PegasusDbContext db,
+        CaseWorkflowEntity workflow,
+        CaseArtifactCustodyRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Actor.Kind != ActorKind.SystemWorker
+            || request.IntakeReceiptId is not { } receiptId
+            || request.ExpectedCaseVersion is not { } expectedVersion
+            || !await IsAutomaticPromotionTargetCurrent(
+                db, workflow.CaseId, receiptId, expectedVersion, timeProvider.GetUtcNow())
+                .AnyAsync(cancellationToken))
+        {
+            throw new IntakeAssociationConflictException(
+                "The automatically associated Case is no longer safe for evidence filing.");
+        }
+    }
+
+    internal static IQueryable<CaseWorkflowEntity> IsAutomaticPromotionTargetCurrent(
+        PegasusDbContext db,
+        Guid caseId,
+        Guid receiptId,
+        long expectedCaseVersion,
+        DateTimeOffset nowUtc) =>
+        db.CaseWorkflows.Where(workflow => workflow.CaseId == caseId
+            && workflow.Version == expectedCaseVersion
+            && workflow.ArchivedAtUtc == null
+            && (workflow.State == nameof(CaseLifecycleState.NotReady)
+                || workflow.State == nameof(CaseLifecycleState.Review))
+            && (workflow.EditLeaseExpiresAtUtc == null || workflow.EditLeaseExpiresAtUtc <= nowUtc)
+            && db.IntakeManualAssociations.Any(association =>
+                association.IntakeReceiptId == receiptId
+                && association.CaseId == caseId
+                && association.IsActive
+                && association.ActorKind == nameof(ActorKind.SystemWorker)));
+
+    internal static bool TryGetAutomaticPromotionReceiptId(
+        string operationKey,
+        Guid caseId,
+        out Guid receiptId)
+    {
+        receiptId = Guid.Empty;
+        var parts = operationKey.Split(':', StringSplitOptions.None);
+        return parts.Length == 4
+            && parts[0] == "case-intake"
+            && Guid.TryParseExact(parts[1], "N", out var operationCaseId)
+            && operationCaseId == caseId
+            && Guid.TryParseExact(parts[2], "N", out receiptId)
+            && Guid.TryParseExact(parts[3], "N", out _);
+    }
+
+    internal static async Task CompleteAutomaticPromotionIfReadyAsync(
+        PegasusDbContext db,
+        Guid caseId,
+        Guid receiptId,
+        long expectedCaseVersion,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var completionKey = $"case-intake-promotion-complete:{receiptId:N}";
+        if (await db.IntakeMutationHistory.AsNoTracking()
+            .AnyAsync(item => item.OperationKey == completionKey, cancellationToken))
+        {
+            return;
+        }
+
+        var plan = await db.IntakeMutationHistory.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.OperationKey
+                == AutomaticCaseEvidencePromotionOperationKey.Plan(receiptId), cancellationToken);
+        if (plan?.CaseId != caseId
+            || string.IsNullOrWhiteSpace(plan.AfterJson)
+            || !await IsAutomaticPromotionTargetCurrent(
+                db, caseId, receiptId, expectedCaseVersion, nowUtc).AnyAsync(cancellationToken))
+        {
+            return;
+        }
+        var promotionPlan = JsonSerializer.Deserialize<AutomaticCaseEvidencePromotionPlan>(plan.AfterJson);
+        var assetIds = promotionPlan?.AssetIds?.ToArray() ?? [];
+        if (assetIds.Length == 0 || assetIds.Distinct().Count() != assetIds.Length)
+        {
+            throw new InvalidDataException("The automatic Case evidence plan is invalid.");
+        }
+        var keys = assetIds.Select(assetId =>
+            AutomaticCaseEvidencePromotionOperationKey.For(caseId, receiptId, assetId)).ToArray();
+        var confirmed = await (
+            from occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
+            join version in db.Set<DocumentVersionEntity>().AsNoTracking()
+                on occurrence.VersionId equals version.Id
+            where occurrence.CaseId == caseId
+                && keys.Contains(occurrence.OperationKey)
+                && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                && !version.IsLogicallyRemoved
+            select occurrence.OperationKey)
+            .Distinct()
+            .CountAsync(cancellationToken);
+        if (confirmed != keys.Length)
+        {
+            return;
+        }
+        if (!promotionPlan!.HasSelectedPhotographs)
+        {
+            return;
+        }
+
+        var snapshot = await db.Set<CaseDataSnapshotEntity>()
+            .Include(item => item.Case)
+            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
+            ?? throw new InvalidDataException("The automatically associated Case has no data snapshot.");
+        var workflow = await db.CaseWorkflows
+            .Include(item => item.Case)
+            .SingleAsync(item => item.CaseId == caseId, cancellationToken);
+        if (!await IsAutomaticPromotionTargetCurrent(
+                db, caseId, receiptId, expectedCaseVersion, nowUtc).AnyAsync(cancellationToken))
+        {
+            return;
+        }
+
+        var configuration = await EfWorkflowConfigurationStore.ReadAsync(db, cancellationToken);
+        var before = new CaseCompleteness(
+            snapshot.Case.InstructionComplete,
+            snapshot.Case.ImagesComplete);
+        var after = before with { ImagesComplete = true };
+        var evaluation = CaseCompletenessPolicy.Evaluate(after, configuration);
+        snapshot.Case.ImagesComplete = true;
+        snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
+        snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
+        snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
+        if (evaluation.SatisfiesPolicy)
+        {
+            var enteringReview = workflow.State != nameof(CaseLifecycleState.Review);
+            workflow.State = nameof(CaseLifecycleState.Review);
+            CaseChaseState.Stop(workflow);
+            if (enteringReview)
+            {
+                workflow.StateEnteredAtUtc = nowUtc;
+                AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
+                    db, workflow, checked(workflow.Version + 1), nowUtc);
+            }
+        }
+        else
+        {
+            if (workflow.State != nameof(CaseLifecycleState.NotReady))
+            {
+                workflow.StateEnteredAtUtc = nowUtc;
+            }
+            workflow.State = nameof(CaseLifecycleState.NotReady);
+            await CaseDueWorkScheduler.ScheduleAsync(
+                db, workflow, snapshot.Case.AcceptedInspectionDeadline, nowUtc, cancellationToken);
+        }
+
+        var beforeVersion = workflow.Version;
+        workflow.Version++;
+        CaseMutationHistory.Add(
+            db,
+            workflow,
+            ActionActor.SystemWorker("intake-processing"),
+            completionKey,
+            "Confirmed automatic Case filing completed the receipt's selected evidence set.",
+            "case_images_completed_from_automatic_intake_evidence",
+            $"{plan.RequestFingerprint}:complete",
+            beforeVersion,
+            workflow.Version,
+            JsonSerializer.Serialize(before),
+            JsonSerializer.Serialize(after),
+            $"{evaluation.PolicyKey}/v{evaluation.PolicyVersion}",
+            nowUtc);
+        db.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
+        {
+            Id = Guid.NewGuid(),
+            IntakeReceiptId = receiptId,
+            CaseId = caseId,
+            EventType = "intake_case_evidence_promotion_completed",
+            ActorKind = nameof(ActorKind.SystemWorker),
+            ActorSubjectId = "intake-processing",
+            ActorRolesJson = "[]",
+            Reason = "All planned retained receipt evidence has confirmed Case custody.",
+            OperationKey = completionKey,
+            RequestFingerprint = plan.RequestFingerprint,
+            OccurredAtUtc = nowUtc,
+            ExpectedIntakeVersion = plan.ExpectedIntakeVersion,
+            BeforeIntakeVersion = plan.AfterIntakeVersion,
+            AfterIntakeVersion = plan.AfterIntakeVersion,
+            ExpectedCaseVersion = beforeVersion,
+            BeforeCaseVersion = beforeVersion,
+            AfterCaseVersion = workflow.Version,
+            BeforeJson = JsonSerializer.Serialize(before),
+            AfterJson = JsonSerializer.Serialize(after)
+        });
+        await db.SaveChangesAsync(cancellationToken);
     }
 
     internal static async Task RecordConfirmedSourceChangeAsync(
@@ -726,6 +954,14 @@ public sealed class ReconcilePendingArtifactCustody
                 retained++;
                 continue;
             }
+            var automaticPromotion = await AutomaticPromotionTargetAsync(
+                db, candidate.Case.Id, candidate.Occurrence.OperationKey, cancellationToken);
+            if (automaticPromotion is { IsCurrent: false })
+            {
+                await RecordAttemptAsync(candidate.Version.Id, "Retained", "AutomaticPromotionTargetChanged");
+                retained++;
+                continue;
+            }
             try
             {
                 var bytes = await artifactStore.ReadAsync(
@@ -758,6 +994,15 @@ public sealed class ReconcilePendingArtifactCustody
                 await using var update = await dbContextFactory.CreateDbContextAsync(cancellationToken);
                 await using var confirmation = await update.Database.BeginTransactionAsync(
                     System.Data.IsolationLevel.Serializable, cancellationToken);
+                if (automaticPromotion is { } promotion
+                    && !await EfCaseArtifactCustody.IsAutomaticPromotionTargetCurrent(
+                        update, candidate.Case.Id, promotion.ReceiptId, promotion.ExpectedCaseVersion,
+                        timeProvider.GetUtcNow()).AnyAsync(cancellationToken))
+                {
+                    await RecordAttemptAsync(candidate.Version.Id, "Retained", "AutomaticPromotionTargetChanged");
+                    retained++;
+                    continue;
+                }
                 var changed = await update.Set<DocumentVersionEntity>()
                     .Where(value => value.Id == candidate.Version.Id
                         && value.CustodyStatus == DocumentCustodyStatus.Pending
@@ -775,6 +1020,12 @@ public sealed class ReconcilePendingArtifactCustody
                     await EfCaseArtifactCustody.RecordConfirmedSourceChangeAsync(
                         update, candidate.Case.Id, candidate.Occurrence.OperationKey,
                         timeProvider.GetUtcNow(), cancellationToken);
+                    if (automaticPromotion is { } completedPromotion)
+                    {
+                        await EfCaseArtifactCustody.CompleteAutomaticPromotionIfReadyAsync(
+                            update, candidate.Case.Id, completedPromotion.ReceiptId,
+                            completedPromotion.ExpectedCaseVersion, timeProvider.GetUtcNow(), cancellationToken);
+                    }
                     await confirmation.CommitAsync(cancellationToken);
                     confirmed++;
                 }
@@ -796,6 +1047,48 @@ public sealed class ReconcilePendingArtifactCustody
         }
         return new(candidates.Length, confirmed, retained, failures);
     }
+
+    private async Task<AutomaticPromotionTarget?> AutomaticPromotionTargetAsync(
+        PegasusDbContext db,
+        Guid caseId,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!EfCaseArtifactCustody.TryGetAutomaticPromotionReceiptId(
+                operationKey, caseId, out var receiptId))
+        {
+            return null;
+        }
+        var plan = await db.IntakeMutationHistory.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.OperationKey
+                == AutomaticCaseEvidencePromotionOperationKey.Plan(receiptId), cancellationToken);
+        if (plan?.CaseId != caseId)
+        {
+            return new(receiptId, 0, false);
+        }
+        var nowUtc = timeProvider.GetUtcNow();
+        var currentVersion = await db.CaseWorkflows.AsNoTracking()
+            .Where(workflow => workflow.CaseId == caseId
+                && workflow.ArchivedAtUtc == null
+                && (workflow.State == nameof(CaseLifecycleState.NotReady)
+                    || workflow.State == nameof(CaseLifecycleState.Review))
+                && (workflow.EditLeaseExpiresAtUtc == null || workflow.EditLeaseExpiresAtUtc <= nowUtc)
+                && db.IntakeManualAssociations.Any(association =>
+                    association.IntakeReceiptId == receiptId
+                    && association.CaseId == caseId
+                    && association.IsActive
+                    && association.ActorKind == nameof(ActorKind.SystemWorker)))
+            .Select(workflow => (long?)workflow.Version)
+            .SingleOrDefaultAsync(cancellationToken);
+        return currentVersion is { } version
+            ? new(receiptId, version, true)
+            : new(receiptId, 0, false);
+    }
+
+    private sealed record AutomaticPromotionTarget(
+        Guid ReceiptId,
+        long ExpectedCaseVersion,
+        bool IsCurrent);
 
     private async Task RecordAttemptAsync(Guid versionId, string outcome, string reason)
     {
