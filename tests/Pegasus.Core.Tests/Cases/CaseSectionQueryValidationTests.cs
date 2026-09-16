@@ -9,21 +9,16 @@ namespace Pegasus.Core.Tests.Cases;
 
 public sealed class CaseSectionQueryValidationTests
 {
-    [Fact]
-    public void RefusesAFrameFromAnotherCase()
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void RefusesAFrameWithEitherCaseIdentityMismatch(bool summaryMatches, bool workflowMatches)
     {
         var requestedCaseId = Guid.NewGuid();
-        var frameCaseId = Guid.NewGuid();
-        var identity = new CaseIdentity(frameCaseId, "QDOS", 2031, 1, "QDOS3100001");
-        var frame = new CaseSectionFrame(
-            new(
-                frameCaseId, identity.Reference, null, CaseType.Inspection, "QDOS",
-                CaseLifecycleState.Review, null, null, null, null,
-                DateTimeOffset.UnixEpoch, null, "Email", DateTimeOffset.UnixEpoch),
-            new(frameCaseId, identity, CaseLifecycleState.Review, null, null, null, null, null, null, null, 1),
-            null,
-            "case-root",
-            CaseCustodyState.Confirmed);
+        var otherCaseId = Guid.NewGuid();
+        var frame = Frame(
+            summaryMatches ? requestedCaseId : otherCaseId,
+            workflowMatches ? requestedCaseId : otherCaseId);
 
         var exception = Assert.Throws<ArgumentException>(() => CaseSectionQueries.Validate(new(
             requestedCaseId,
@@ -40,13 +35,14 @@ public sealed class CaseSectionQueryValidationTests
         var query = new GetCaseSectionQuery(
             caseId,
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+            Data: Data(caseId),
             Frame: Frame(caseId));
         var store = new RecordingStore();
 
         var vehicle = new GetCaseVehicleSection(store, new EmptyWorkspace(), new EmptyCaseData(), new EmptyVehicleEvidence());
         var valuation = new GetCaseValuationSection(store, new EmptyWorkspace(), new EmptyCaseData());
-        await Assert.ThrowsAsync<InvalidDataException>(() => vehicle.ExecuteAsync(query, CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidDataException>(() => valuation.ExecuteAsync(query, CancellationToken.None));
+        var vehicleResult = await vehicle.ExecuteAsync(query, CancellationToken.None);
+        var valuationResult = await valuation.ExecuteAsync(query, CancellationToken.None);
 
         var notes = await new GetCaseNotesSection(store, new EmptyStaffAccounts())
             .ExecuteAsync(query, CancellationToken.None);
@@ -56,22 +52,51 @@ public sealed class CaseSectionQueryValidationTests
         Assert.Same(query.Frame, notes!.Frame);
         Assert.NotNull(files);
         Assert.Same(query.Frame, files!.Frame);
+        Assert.NotNull(vehicleResult);
+        Assert.Same(query.Frame, vehicleResult!.Frame);
+        Assert.Same(query.Data, vehicleResult.Data);
+        Assert.NotNull(valuationResult);
+        Assert.Same(query.Frame, valuationResult!.Frame);
+        Assert.Same(query.Data, valuationResult.Data);
         Assert.Same(query.Frame, store.FilesFrame);
         Assert.Equal(0, store.SectionFrameReads);
     }
 
-    private static CaseSectionFrame Frame(Guid caseId)
+    private static CaseSectionFrame Frame(Guid caseId) => Frame(caseId, caseId);
+
+    private static CaseSectionFrame Frame(Guid summaryCaseId, Guid workflowCaseId)
     {
-        var identity = new CaseIdentity(caseId, "QDOS", 2031, 1, "QDOS3100001");
+        var identity = new CaseIdentity(workflowCaseId, "QDOS", 2031, 1, "QDOS3100001");
         return new(
             new(
-                caseId, identity.Reference, null, CaseType.Inspection, "QDOS",
+                summaryCaseId, identity.Reference, null, CaseType.Inspection, "QDOS",
                 CaseLifecycleState.Review, null, null, null, null,
                 DateTimeOffset.UnixEpoch, null, "Email", DateTimeOffset.UnixEpoch),
-            new(caseId, identity, CaseLifecycleState.Review, null, null, null, null, null, null, null, 1),
+            new(workflowCaseId, identity, CaseLifecycleState.Review, null, null, null, null, null, null, null, 1),
             null,
             "case-root",
             CaseCustodyState.Confirmed);
+    }
+
+    private static CaseDataProjection Data(Guid caseId)
+    {
+        var text = new CaseField<string>(null, null, null);
+        var date = new CaseField<DateOnly>(null, null, null);
+        return new(
+            new CaseIdentity(caseId, "QDOS", 2031, 1, "QDOS3100001"),
+            new(null, null, null, null, null, null, null, null, null),
+            DateTimeOffset.UnixEpoch,
+            1,
+            CaseLifecycleState.Review,
+            new(new(false, false), new(false, "test", 1)),
+            new(text),
+            new(text, text, text),
+            new(text),
+            new(text, text, text, text, new(null, null, null), text),
+            new(date, text),
+            new(text, text, text),
+            new(date, text),
+            new(date, date, text, new(null, null, null)));
     }
 
     private sealed class RecordingStore : ICaseQueryStore
