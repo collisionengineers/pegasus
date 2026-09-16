@@ -8,6 +8,8 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Workflow;
 using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages;
 
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
+
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
@@ -17,7 +19,8 @@ namespace Pegasus.IntegrationTests;
 /// states the same prepared set in the report's own order. Both read one
 /// loaded set, so the tests assert the same values in both places.
 /// </summary>
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseAssetPreparationWebTests
 {
     private const string CloseUpFileName = "front-nearside.jpg";
     private const string OverviewFileName = "vehicle-overview.jpg";
@@ -712,29 +715,35 @@ public sealed partial class CaseDetailsWebTests
     /// in the order the persisted store answers — role, then supporting order
     /// — so the page is exercised against the shape it really receives.
     /// </summary>
-    private sealed partial class RecordingCaseDetailsStore :
-        ICaseAssetPreparationQueries
+
+
+    [Fact]
+    public async Task TheLazyFilesFragmentOffersImagePreparationFromTheHeldLeaseNotAssessmentAccess()
     {
-        /// <summary>The case's image preparations, when a test supplies them.</summary>
-        public IReadOnlyList<CaseAssetPreparation> Preparations { get; set; } = [];
+        var store = new PreparedImages().Store();
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, store);
+            services.RemoveAll<IGetAssessmentAccess>();
+            services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen: false));
+        });
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{store.CaseId:D}/Section?section=files");
+        request.Headers.Add("X-Pegasus-Edit-Lease", store.LeaseToken);
 
-        Task<IReadOnlyList<CaseAssetPreparation>> ICaseAssetPreparationQueries.ListForCaseAsync(
-            Guid caseId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(Current());
+        using var response = await workspace.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var fragment = await response.Content.ReadAsStringAsync();
 
-        Task<CaseAssetPreparation?> ICaseAssetPreparationQueries.GetForOccurrenceAsync(
-            Guid caseId,
-            Guid occurrenceId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(Preparations.SingleOrDefault(item =>
-                item.CaseId == caseId && item.OccurrenceId == occurrenceId));
-
-        private IReadOnlyList<CaseAssetPreparation> Current() =>
-        [
-            .. Preparations
-                .OrderBy(item => item.Role)
-                .ThenBy(item => item.Order ?? int.MaxValue)
-        ];
+        Assert.Contains("image-tile", fragment, StringComparison.Ordinal);
+        Assert.Contains("data-preparation-crop", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("report-images", fragment, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// PLAT-011: the case history table shows the resolved actor name, never the
+    /// raw actor subject id (docs/design/README.md:168) — a Staff row shows its
+    /// username and an Automation row shows the client label, not either GUID.
+    /// </summary>
 }

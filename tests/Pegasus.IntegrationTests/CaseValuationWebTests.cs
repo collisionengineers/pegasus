@@ -6,13 +6,16 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Workflow;
 
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
+
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// The Valuation section's commands on the one Case workspace (B01 port of
 /// PR 670's standalone Valuation page, re-homed as section handlers).
 /// </summary>
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseValuationWebTests
 {
     /// <summary>
     /// The submitted case version reaches the valuation command unchanged:
@@ -117,46 +120,6 @@ public sealed partial class CaseDetailsWebTests
     /// same staff member with the Engineer role and claims the lease the same
     /// way.
     /// </summary>
-    private static async Task<LeasedWorkspace> EnterEngineerEditModeAsync(
-        RecordingCaseDetailsStore store,
-        Action<IServiceCollection> substitutePorts)
-    {
-        var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
-        var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                Substitute<IGetCase>(services, store);
-                Substitute<IGetCasePageFrame>(services, store);
-                Substitute<IGetCaseVehicleSection>(services, store);
-                Substitute<IGetCaseValuationSection>(services, store);
-                Substitute<IGetCaseNotesSection>(services, store);
-                Substitute<IGetCaseFilesSection>(services, store);
-                Substitute<IValidateCaseRenderLease>(services, store);
-                Substitute<IAcquireCaseEditLease>(services, store);
-                Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
-                Substitute<IGetAssessmentWorkspace>(services, store);
-                substitutePorts(services);
-            }));
-        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-        client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
-        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        using var claim = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
-            Form(
-                AntiforgeryValue(initial),
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", InputValue(initial, "operationKey"))));
-        AssertPrg(claim, store.CaseId);
-        var leased = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Equal(store.LeaseToken, InputValue(leased, "editLeaseToken"));
-        return new(baseFactory, factory, client, store, AntiforgeryValue(leased));
-    }
-
     private sealed class RecordingValuationSaver : ISaveValuation
     {
         public List<SaveValuationRequest> Saves { get; } = [];
