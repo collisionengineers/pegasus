@@ -10,10 +10,10 @@ namespace Pegasus.Core.Lifecycle;
 /// report has been generated on it, gets a separate linked Audit Case — a
 /// duplicate of the original with the same Principal, parties, vehicle,
 /// incident, inspection details, figures, files and estimate, of type Audit,
-/// starting in Review with the original's engineer. Its reference is derived
-/// from the Inspection's recorded outcome: total loss → <c>ap.{Case/PO}</c>;
-/// repairable, cash in lieu and contract repair → <c>a.{Case/PO}</c>. No reason
-/// is asked: the action is its own record.
+/// starting in Review with the original's engineer. Its reference is
+/// <c>a.{Case/PO}</c> for every recorded outcome. The assessment remains on the
+/// Audit Case as a separate fact. No reason is asked: the action is its own
+/// record.
 /// </summary>
 public sealed record CreateAuditCaseRequest(
     Guid CaseId,
@@ -96,9 +96,9 @@ public interface ICreateAuditCase
 public static class AuditCasePolicy
 {
     /// <summary>
-    /// The assessment the recorded <c>assessment.outcome</c> derives: total loss is
-    /// <c>ap.</c>; repairable, cash in lieu and contract repair are repairable-basis
-    /// outcomes and derive <c>a.</c>. Anything else is no outcome.
+    /// The assessment represented by the recorded <c>assessment.outcome</c>.
+    /// Repairable, cash in lieu and contract repair are repairable-basis
+    /// outcomes. Anything else is no outcome.
     /// </summary>
     public static AuditAssessment? AssessmentFor(string? outcome) => outcome?.Trim().ToLowerInvariant() switch
     {
@@ -107,7 +107,7 @@ public static class AuditCasePolicy
         _ => null
     };
 
-    /// <summary>The history line on the original: "Audit case ap.QDOS26214 created by {name} from QDOS26214 — total loss".</summary>
+    /// <summary>The history line on the original: "Audit case a.QDOS26214 created by {name} from QDOS26214 — total loss".</summary>
     public static string SourceHistoryLine(string auditReference, string actorName, string sourceReference, AuditAssessment assessment) =>
         $"Audit case {auditReference} created by {actorName} from {sourceReference} — {Describe(assessment)}";
 

@@ -2241,7 +2241,7 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
-    public async Task WrongPrincipalReplacementIsAllocatedLinkedAndReplayedAtomically()
+    public async Task AuditCaseLinkedCaseReplacementIsAllocatedLinkedAndReplayedAtomically()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         await using (var context = await harness.Factory.CreateDbContextAsync())
@@ -2298,7 +2298,13 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.True(replay.IsDuplicate);
         Assert.Equal(allocated.Identity, replay.Identity);
         Assert.Equal("QDOS", allocated.Identity.PrincipalCode);
-        Assert.StartsWith("QDOS26", allocated.Identity.Reference);
+        Assert.StartsWith("a.QDOS26", allocated.Identity.Reference);
+        Assert.Equal(
+            allocated.Identity.Reference,
+            await harness.ReadCaseReferenceAsync(allocated.Identity.CaseId));
+        Assert.Equal(
+            allocated.Identity.Reference,
+            await harness.ReadAuditReferenceAsync(allocated.Identity.CaseId));
         Assert.NotEqual(
             await harness.ReadCaseReferenceAsync(harness.CaseId),
             allocated.Identity.Reference);
@@ -2374,6 +2380,31 @@ public sealed class CaseWorkflowPersistenceTests
         var originalHistory = await harness.QueryStore.ListHistoryByCursorAsync(
             harness.CaseId, null, null, 20, default);
         Assert.Empty(originalHistory.SelectMany(entry => entry.Guidance));
+    }
+
+    [Fact]
+    public async Task AuditCaseReferenceFilterMatchesPrimaryAndSecondaryReferences()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        const string secondaryReference = "a.QDOS26999";
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var auditCase = await context.Cases.SingleAsync(item => item.Id == harness.CaseId);
+            auditCase.AuditReference = secondaryReference;
+            await context.SaveChangesAsync();
+        }
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var primaryReference = await harness.ReadCaseReferenceAsync(harness.CaseId);
+
+        var primary = await harness.QueryStore.SearchAsync(
+            new(actor, new CaseSearchFilters(CaseReference: primaryReference)),
+            default);
+        var secondary = await harness.QueryStore.SearchAsync(
+            new(actor, new CaseSearchFilters(CaseReference: secondaryReference)),
+            default);
+
+        Assert.Contains(primary.Items, item => item.CaseId == harness.CaseId);
+        Assert.Contains(secondary.Items, item => item.CaseId == harness.CaseId);
     }
 
     [Theory]
@@ -2663,6 +2694,9 @@ public sealed class CaseWorkflowPersistenceTests
 
         public Task<string> ReadCaseReferenceAsync(Guid caseId) => database.ScalarAsync<string>(
             $"SELECT Reference FROM Cases WHERE Id = '{caseId:D}'");
+
+        public Task<string?> ReadAuditReferenceAsync(Guid caseId) => database.ScalarAsync<string?>(
+            $"SELECT AuditReference FROM Cases WHERE Id = '{caseId:D}'");
 
         public Task<Guid> ReadStandaloneAuditEvidenceIdAsync(Guid caseId) =>
             database.ScalarAsync<Guid>(

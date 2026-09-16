@@ -657,7 +657,7 @@ public sealed class ProcessIntake(
         // classification; a Provider API Audit has it declared, and the verdict
         // with it (operator decision, 2026-08-28). Either way exactly one
         // retained attachment is the original report and one AuditAssessment
-        // derives the a./ap. reference.
+        // is recorded separately from the a. reference.
         var report = classification?.StandaloneAuditReport
             ?? await DeclaredAuditReportAsync(receipt, cancellationToken);
         if (report is null)

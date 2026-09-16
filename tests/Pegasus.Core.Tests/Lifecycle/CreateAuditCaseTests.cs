@@ -14,11 +14,11 @@ public sealed class CreateAuditCaseTests
     private static readonly DateTimeOffset Now = new(2026, 9, 13, 10, 0, 0, TimeSpan.Zero);
 
     [Theory]
-    [InlineData("total_loss", AuditAssessment.TotalLoss, "ap.QDOS26214")]
+    [InlineData("total_loss", AuditAssessment.TotalLoss, "a.QDOS26214")]
     [InlineData("repairable", AuditAssessment.Repairable, "a.QDOS26214")]
     [InlineData("cash_in_lieu", AuditAssessment.Repairable, "a.QDOS26214")]
     [InlineData("contract_repair", AuditAssessment.Repairable, "a.QDOS26214")]
-    public async Task TheAuditReferenceIsDerivedFromTheRecordedOutcome(string outcome, AuditAssessment expected, string reference)
+    public async Task TheAuditReferenceUsesOnePrefixAndKeepsTheRecordedOutcome(string outcome, AuditAssessment expected, string reference)
     {
         var store = new RecordingStore();
         var sut = Sut(store, outcome: outcome);
@@ -32,6 +32,28 @@ public sealed class CreateAuditCaseTests
         Assert.Equal("QDOS26214", command.Source.Reference);
         Assert.Equal(reference, result.AuditCase.Reference);
         Assert.Equal(AuditCasePolicy.Describe(expected), outcome == "total_loss" ? "total loss" : "repairable");
+    }
+
+    [Theory]
+    [InlineData(AuditAssessment.Repairable, "repairable")]
+    [InlineData(AuditAssessment.TotalLoss, "total_loss")]
+    public void AuditAssessmentCodesRoundTrip(AuditAssessment assessment, string code)
+    {
+        Assert.Equal(code, AuditAssessmentCode.ToCode(assessment));
+        Assert.Equal(assessment, AuditAssessmentCode.Parse(code));
+    }
+
+    [Fact]
+    public void AuditAssessmentCodeRejectsAnUnknownPersistedValue()
+    {
+        Assert.Throws<InvalidDataException>(() => AuditAssessmentCode.Parse("TotalLoss"));
+    }
+
+    [Fact]
+    public void AuditIdentityRejectsAnInvalidAssessment()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            AuditIdentity.Create("QDOS26214", (AuditAssessment)int.MaxValue));
     }
 
     [Fact]
@@ -51,8 +73,8 @@ public sealed class CreateAuditCaseTests
     public void TheHistoryLineReadsAsPlanned()
     {
         Assert.Equal(
-            "Audit case ap.QDOS26214 created by A Mercer from QDOS26214 — total loss",
-            AuditCasePolicy.SourceHistoryLine("ap.QDOS26214", "A Mercer", "QDOS26214", AuditAssessment.TotalLoss));
+            "Audit case a.QDOS26214 created by A Mercer from QDOS26214 — total loss",
+            AuditCasePolicy.SourceHistoryLine("a.QDOS26214", "A Mercer", "QDOS26214", AuditAssessment.TotalLoss));
     }
 
     private static async Task Refuses(AuditCaseRefusal refusal, CreateAuditCase sut, CreateAuditCaseRequest? request = null)
@@ -116,7 +138,7 @@ public sealed class CreateAuditCaseTests
     private sealed class FakeLinks(bool existing) : ICaseAuditLinkQueries
     {
         public Task<CaseAuditLink?> GetAuditCaseAsync(Guid sourceCaseId, CancellationToken cancellationToken) =>
-            Task.FromResult(existing ? new CaseAuditLink(Guid.NewGuid(), "ap.QDOS26214") : null);
+            Task.FromResult(existing ? new CaseAuditLink(Guid.NewGuid(), "a.QDOS26214") : null);
 
         public Task<CaseAuditLink?> GetOriginalCaseAsync(Guid auditCaseId, CancellationToken cancellationToken) =>
             Task.FromResult<CaseAuditLink?>(null);

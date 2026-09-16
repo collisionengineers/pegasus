@@ -15,15 +15,15 @@ tags: [identity, custody, audit, box]
 
 Accepted, recording the operator's 13 September 2026 decision (v26 planning,
 Create audit) that Stage 2 implemented. Partially supersedes ADR-0002's
-Case reference allocation clause only where it describes the `a.`/`ap.`
+Case reference allocation clause only where it describes the `a.`
 reference as a secondary reference on the Inspection + Audit Case. The
 sequence allocation rule, the single numbering implementation and every
 other ADR-0002 clause are unchanged. FRD-01 owns the behaviour.
 
 ## Context
 
-ADR-0002 allocated one principal/year sequence per Case and derived `a.` and
-`ap.` from the same base reference "including the secondary Audit reference
+ADR-0002 allocated one principal/year sequence per Case and derived `a.` from
+the same base reference "including the secondary Audit reference
 created by an Inspection + Audit case": one Case carrying two references, with
 the Engineer creating the Audit subfolder in Box by hand (FRD-01 as it stood).
 
@@ -42,14 +42,15 @@ could carry none of that.
    figures, files and estimate forward.
 2. **One sequence, two records.** The Audit Case keeps the Principal and the
    original's sequence number; no second sequence is consumed. Its reference
-   is its own: `ap.{Case/PO}` when the recorded Settlement outcome is total
-   loss, `a.{Case/PO}` for every other outcome. The operator is never asked.
+   is its own `a.{Case/PO}` for every assessment outcome. The assessment is
+   recorded on the Audit Case rather than encoded in its identity. The operator
+   is never asked.
    Neither reference changes or is reused, a second Create audit is refused,
    and the two Cases link to each other permanently.
 3. **Shared bytes, nested custody root.** The Audit Case's files are the
    original's stored bytes by reference through the existing logical
    occurrence/version boundary; nothing is copied. Its Box custody root is the
-   `a.`/`ap.` subfolder under the original Case's folder, created by Pegasus
+   `a.` subfolder under the original Case's folder, created by Pegasus
    through the custody port when the Audit Case is created. The parent is the
    persisted relationship, never inferred from the reference prefix, and the
    Audit Case's own root is that subfolder from then on.

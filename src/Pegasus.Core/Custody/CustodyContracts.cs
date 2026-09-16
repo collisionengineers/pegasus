@@ -100,7 +100,7 @@ public interface ICaseCustody
     }
 
     /// <summary>
-    /// The root of a linked Audit Case (13 September): the <c>a.</c>/<c>ap.</c> subfolder
+    /// The root of a linked Audit Case (13 September): the <c>a.</c> subfolder
     /// under the original Case's folder, created by Pegasus when the Audit Case is
     /// created. The original's root is resolved by its reference the way every case
     /// root is; the Audit Case's own root is that subfolder from then on. Default:
