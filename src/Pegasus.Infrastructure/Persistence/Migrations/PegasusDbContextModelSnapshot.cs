@@ -4624,6 +4624,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("IntakeReceiptId", "ContentHash");
 
+                    b.HasIndex("IntakeReceiptId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_IntakeAssets_SuppliedOriginalReport")
+                        .HasFilter("[Disposition] = 'supplied_original_report'");
+
                     b.ToTable("IntakeAssets", (string)null);
                 });
 

@@ -260,6 +260,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.BoxVersionId).HasMaxLength(200);
             entity.Property(item => item.CustodyStatus).HasMaxLength(40);
             entity.HasIndex(item => new { item.IntakeReceiptId, item.ContentHash });
+            entity.HasIndex(item => item.IntakeReceiptId)
+                .HasDatabaseName("UX_IntakeAssets_SuppliedOriginalReport")
+                .IsUnique()
+                .HasFilter("[Disposition] = 'supplied_original_report'");
             entity.HasOne(item => item.IntakeReceipt)
                 .WithMany(item => item.Assets)
                 .HasForeignKey(item => item.IntakeReceiptId)

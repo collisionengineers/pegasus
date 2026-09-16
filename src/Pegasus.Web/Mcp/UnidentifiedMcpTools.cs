@@ -16,7 +16,8 @@ internal sealed record UnidentifiedToolItem(
     string SafeDetail,
     string State,
     DateTimeOffset CreatedAtUtc,
-    long Version);
+    long Version,
+    string NextStep);
 
 internal sealed record UnidentifiedListToolResult(
     IReadOnlyList<UnidentifiedQueueToolItem> Items,
@@ -32,7 +33,8 @@ internal sealed record UnidentifiedQueueToolItem(
     string? EmailSubject,
     string? EmailSender,
     DateTimeOffset ReceivedAtUtc,
-    string ReasonCode);
+    string ReasonCode,
+    string NextStep);
 
 internal sealed record UnidentifiedToolDetail(
     UnidentifiedToolItem Item,
@@ -54,6 +56,7 @@ internal sealed record UnidentifiedSourceToolItem(
 internal sealed class UnidentifiedMcpTools(
     IUnidentifiedStore store,
     IListUnidentifiedQueueByCursor listQueue,
+    IGetUnidentifiedItemContext getItemContext,
     IResolveUnidentified resolve,
     IGetIntake getIntake,
     IGetIntakeSourceMetadata getSourceMetadata,
@@ -132,8 +135,10 @@ internal sealed class UnidentifiedMcpTools(
                 var normalizedReference = RequireReference(reference);
                 var item = await store.GetByReferenceAsync(normalizedReference, cancellationToken)
                     ?? throw new McpException("The Unidentified reference was not found.");
+                var itemContext = await getItemContext.ExecuteAsync(context.Actor, item.Id, cancellationToken)
+                    ?? throw new McpException("The Unidentified reference was not found.");
                 return new UnidentifiedToolDetail(
-                    Map(item),
+                    Map(itemContext.Item, itemContext.NextStep),
                     await GetSourcesAsync(item, context.Actor, cancellationToken),
                     await store.HistoryAsync(item.Id, cancellationToken),
                     context.TraceIdentifier);
@@ -284,7 +289,9 @@ internal sealed class UnidentifiedMcpTools(
             cancellationToken);
     }
 
-    private static UnidentifiedToolItem Map(UnidentifiedItem item) => new(
+    private static UnidentifiedToolItem Map(
+        UnidentifiedItem item,
+        UnidentifiedNextStep nextStep = UnidentifiedNextStep.None) => new(
         item.Id,
         item.Reference,
         item.Origin.Kind.ToString(),
@@ -293,7 +300,8 @@ internal sealed class UnidentifiedMcpTools(
         item.SafeDetail,
         item.State.ToString(),
         item.CreatedAtUtc,
-        item.Version);
+        item.Version,
+        nextStep.ToString());
 
     private static UnidentifiedQueueToolItem MapQueue(UnidentifiedQueueRow item) => new(
         item.Id,
@@ -303,7 +311,8 @@ internal sealed class UnidentifiedMcpTools(
         item.EmailSubject,
         item.EmailSender,
         item.ReceivedAtUtc,
-        item.ReasonCode.ToString());
+        item.ReasonCode.ToString(),
+        item.NextStep.ToString());
 
     private static string RequireReference(string? reference)
     {

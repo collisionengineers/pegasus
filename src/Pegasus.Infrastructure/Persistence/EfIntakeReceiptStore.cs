@@ -1589,6 +1589,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         IntakeAssetDisposition.Attachment => "attachment",
         IntakeAssetDisposition.Inline => "inline",
         IntakeAssetDisposition.Embedded => "embedded",
+        IntakeAssetDisposition.SuppliedOriginalReport => "supplied_original_report",
         _ => throw UnknownEnum(value)
     };
 
@@ -1598,6 +1599,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "attachment" => IntakeAssetDisposition.Attachment,
         "inline" => IntakeAssetDisposition.Inline,
         "embedded" => IntakeAssetDisposition.Embedded,
+        "supplied_original_report" => IntakeAssetDisposition.SuppliedOriginalReport,
         _ => throw UnknownCode("asset disposition", value)
     };
 

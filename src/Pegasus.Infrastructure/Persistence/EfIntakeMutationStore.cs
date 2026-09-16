@@ -4,12 +4,14 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Tasks;
@@ -18,7 +20,8 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfIntakeMutationStore(
-    IDbContextFactory<PegasusDbContext> contextFactory)
+    IDbContextFactory<PegasusDbContext> contextFactory,
+    IIntakeArtifactStore? artifactStore = null)
     : IIntakeMutationStore, IAutomaticCaseAssociationStore,
       IAutomaticMailCaseAssociationEvidenceQueries
 {
@@ -308,6 +311,281 @@ internal sealed class EfIntakeMutationStore(
             },
             occurredAtUtc,
             cancellationToken);
+
+    public async Task<AttachSuppliedOriginalReportResult> AttachSuppliedOriginalReportAsync(
+        AttachSuppliedOriginalReportRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await AttachSuppliedOriginalReportOnceAsync(request, occurredAtUtc, cancellationToken);
+        }
+        catch (Exception exception) when (exception is DbUpdateConcurrencyException
+            || IsRetryableConcurrencyFailure(exception))
+        {
+            // The serializable transaction may lose a deadlock or a unique-key
+            // race after another request has committed this exact operation.
+            // Its context and transaction have now been disposed, so probe a
+            // fresh context before deciding whether this was a replay or stale.
+            var replay = await ProbeSuppliedOriginalReportReplayAsync(
+                ReplayRequest(request), cancellationToken);
+            if (replay is not null)
+            {
+                return replay;
+            }
+
+            throw new IntakeVersionConflictException();
+        }
+    }
+
+    private async Task<AttachSuppliedOriginalReportResult> AttachSuppliedOriginalReportOnceAsync(
+        AttachSuppliedOriginalReportRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.FileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.MediaType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.SourceLabel);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.ContentHash);
+        ArgumentOutOfRangeException.ThrowIfNegative(request.ExpectedItemVersion);
+        ArgumentOutOfRangeException.ThrowIfNegative(request.ExpectedReceiptVersion);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.ContentLength);
+        if (request.Content.Length != request.ContentLength)
+        {
+            throw new ArgumentException("The supplied report content length does not match its declared length.", nameof(request));
+        }
+        if (request.ContentHash.Length != 64
+            || !string.Equals(
+                request.ContentHash,
+                Convert.ToHexString(SHA256.HashData(request.Content.Span)),
+                StringComparison.Ordinal))
+        {
+            throw new ArgumentException("The supplied report content hash does not match its bytes.", nameof(request));
+        }
+
+        const string eventType = "intake_original_report_supplied";
+        var operationKey = request.OperationKey.Trim();
+        var requestHash = RequestHash(eventType, request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+
+        // Probe the durable receipt-operation record first. A lost response may
+        // be retried after the worker has allocated and resolved the item.
+        var replay = await context.IntakeMutationHistory
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken);
+        if (replay is not null)
+        {
+            if (replay.IntakeReceiptId != request.ReceiptId
+                || !string.Equals(replay.EventType, eventType, StringComparison.Ordinal)
+                || !FixedTimeHashEquals(replay.RequestFingerprint, requestHash))
+            {
+                throw new IntakeOperationConflictException();
+            }
+
+            var reportAssetId = await context.IntakeAssets
+                .AsNoTracking()
+                .Where(item => item.IntakeReceiptId == request.ReceiptId
+                    && item.Disposition == EfIntakeReceiptStore.ToCode(IntakeAssetDisposition.SuppliedOriginalReport))
+                .Select(item => (Guid?)item.Id)
+                .SingleOrDefaultAsync(cancellationToken)
+                ?? throw new InvalidDataException("The replayed original report is missing.");
+            return new(request.ReceiptId, reportAssetId, true);
+        }
+
+        var item = await context.UnidentifiedItems.SingleOrDefaultAsync(
+            candidate => candidate.Id == request.UnidentifiedItemId, cancellationToken)
+            ?? throw new KeyNotFoundException("The Unidentified item does not exist.");
+        if (item.Version != request.ExpectedItemVersion)
+        {
+            throw new IntakeVersionConflictException();
+        }
+        if (item.State != nameof(UnidentifiedState.Open)
+            || item.OriginKind != nameof(UnidentifiedOriginKind.Receipt)
+            || item.OriginId != request.ReceiptId
+            || item.ReasonCode != nameof(UnidentifiedReasonCode.AuditOriginalReportMissing))
+        {
+            throw new InvalidOperationException(
+                "This item is not an open Unidentified Audit that is missing its original report.");
+        }
+
+        var receipt = await LoadReceiptAsync(context, request.ReceiptId, cancellationToken)
+            ?? throw new KeyNotFoundException("The intake receipt does not exist.");
+        if (receipt.Version != request.ExpectedReceiptVersion)
+        {
+            throw new IntakeVersionConflictException();
+        }
+        if (await AcceptedCaseIdAsync(context, receipt.Id, cancellationToken) is not null
+            || receipt.ManualAssociation is not null
+            || receipt.MailClassificationDecision is not
+            {
+                CaseType: "audit",
+                StandaloneAuditReportAssetSourceLabel: null,
+                StandaloneAuditReportAssessment: null
+            })
+        {
+            throw new InvalidOperationException(
+                "The retained instruction is not an unallocated Audit waiting for its original report.");
+        }
+        if (receipt.Assets.Any(asset => asset.Disposition
+            == EfIntakeReceiptStore.ToCode(IntakeAssetDisposition.SuppliedOriginalReport)))
+        {
+            throw new InvalidOperationException("The retained instruction already has a supplied original report.");
+        }
+
+        var beforeJson = Snapshot(receipt);
+        // Every refusal that can be known from durable state, including a
+        // currently leased evaluation, happens before content retention. The
+        // tracked queue and receipt changes remain part of this transaction.
+        await QueueReevaluationAsync(context, receipt, occurredAtUtc, cancellationToken);
+        var storageKey = await (artifactStore ?? throw new InvalidOperationException(
+                "Supplying an Audit original report requires intake artifact storage."))
+            .StoreAsync(
+            request.ContentHash.Trim(), request.Content, cancellationToken);
+        var reportAsset = new IntakeAssetEntity
+        {
+            Id = Guid.NewGuid(),
+            IntakeReceiptId = receipt.Id,
+            IntakeReceipt = receipt,
+            SourceLabel = request.SourceLabel.Trim(),
+            FileName = request.FileName.Trim(),
+            MediaType = request.MediaType.Trim(),
+            Kind = EfIntakeReceiptStore.ToCode(IntakeAssetKind.Attachment),
+            Disposition = EfIntakeReceiptStore.ToCode(IntakeAssetDisposition.SuppliedOriginalReport),
+            ContentLength = request.ContentLength,
+            ContentHash = request.ContentHash.Trim(),
+            StorageKey = storageKey
+        };
+        context.IntakeAssets.Add(reportAsset);
+        context.IntakeReceiptEvents.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            IntakeReceiptId = receipt.Id,
+            EventType = eventType,
+            Actor = $"{request.Actor.Kind}:{request.Actor.SubjectId}",
+            OccurredAtUtc = occurredAtUtc,
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                request.FileName,
+                request.MediaType,
+                request.ContentLength,
+                sha256 = request.ContentHash,
+                storageKey
+            })
+        });
+        context.UnidentifiedHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            UnidentifiedItemId = item.Id,
+            PreviousState = item.State,
+            NewState = item.State,
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = RolesJson(request.Actor),
+            OccurredAtUtc = occurredAtUtc,
+            Reason = TruncateReason($"Original report added: {request.FileName.Trim()}"),
+            OperationKey = $"{operationKey}:unidentified"
+        });
+        item.Version++;
+
+        var receiptBeforeVersion = request.ExpectedReceiptVersion;
+        receipt.Version++;
+        context.IntakeMutationHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            IntakeReceiptId = receipt.Id,
+            IntakeReceipt = receipt,
+            EventType = eventType,
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = RolesJson(request.Actor),
+            Reason = TruncateReason($"Original report supplied: {request.FileName.Trim()}"),
+            OperationKey = operationKey,
+            RequestFingerprint = requestHash,
+            OccurredAtUtc = occurredAtUtc,
+            ExpectedIntakeVersion = request.ExpectedReceiptVersion,
+            BeforeIntakeVersion = receiptBeforeVersion,
+            AfterIntakeVersion = receipt.Version,
+            BeforeJson = beforeJson,
+            AfterJson = Snapshot(receipt)
+        });
+
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(receipt.Id, reportAsset.Id, false);
+    }
+
+    public async Task<AttachSuppliedOriginalReportResult?> ProbeSuppliedOriginalReportReplayAsync(
+        ProbeSuppliedOriginalReportReplayRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
+        const string eventType = "intake_original_report_supplied";
+        var operationKey = request.OperationKey.Trim();
+        var requestHash = RequestHash(eventType, request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var replay = await context.IntakeMutationHistory
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken);
+        if (replay is null)
+        {
+            return null;
+        }
+        if (!string.Equals(replay.EventType, eventType, StringComparison.Ordinal)
+            || !FixedTimeHashEquals(replay.RequestFingerprint, requestHash))
+        {
+            throw new IntakeOperationConflictException();
+        }
+
+        var reportAssetId = await context.IntakeAssets
+            .AsNoTracking()
+            .Where(item => item.IntakeReceiptId == replay.IntakeReceiptId
+                && item.Disposition == EfIntakeReceiptStore.ToCode(IntakeAssetDisposition.SuppliedOriginalReport))
+            .Select(item => (Guid?)item.Id)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidDataException("The replayed original report is missing.");
+        return new(replay.IntakeReceiptId, reportAssetId, true);
+    }
+
+    private static async Task QueueReevaluationAsync(
+        PegasusDbContext context,
+        IntakeReceiptEntity receipt,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var stagedReceiptId = await context.IntakeEvaluations
+            .Where(item => item.ProcessedReceiptId == receipt.Id)
+            .OrderByDescending(item => item.Revision)
+            .Select(item => (Guid?)item.StagedReceiptId)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidDataException("The intake receipt does not have a retained evaluation source.");
+        var workItem = await context.IntakeWorkItems.SingleOrDefaultAsync(
+            item => item.StagedReceiptId == stagedReceiptId, cancellationToken)
+            ?? throw new InvalidDataException("The intake receipt does not have durable evaluation work.");
+        if (workItem.State == "processing"
+            && workItem.LeaseExpiresAtUtc is { } leaseExpiresAtUtc
+            && leaseExpiresAtUtc > occurredAtUtc)
+        {
+            throw new InvalidOperationException("The intake receipt is already being evaluated.");
+        }
+
+        workItem.State = "pending";
+        workItem.DueAtUtc = occurredAtUtc;
+        workItem.LeaseToken = null;
+        workItem.LeaseExpiresAtUtc = null;
+        workItem.FailureCode = null;
+        receipt.Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.BlockedIntake);
+        receipt.DecisionReason = "A policy re-evaluation of the retained source is queued.";
+        receipt.FailureCode = "reevaluation_pending";
+        receipt.FailureReason = null;
+    }
 
     public Task<IntakeReceipt> ScheduleOcrRetryAsync(
         RetryIntakeOcrRequest request,
@@ -1495,6 +1773,60 @@ internal sealed class EfIntakeMutationStore(
             Actor = ActorMaterial(request.Actor),
             request.OperationKey,
             request.Reason
+        }));
+
+    private static string RequestHash(string eventType, AttachSuppliedOriginalReportRequest request) =>
+        SupplyRequestHash(eventType, request.UnidentifiedItemId, request.ExpectedItemVersion,
+            request.ExpectedReceiptVersion, request.Actor, request.OperationKey, request.FileName,
+            request.MediaType, request.ContentHash, request.ContentLength);
+
+    private static string RequestHash(string eventType, ProbeSuppliedOriginalReportReplayRequest request) =>
+        SupplyRequestHash(eventType, request.UnidentifiedItemId, request.ExpectedItemVersion,
+            request.ExpectedReceiptVersion, request.Actor, request.OperationKey, request.FileName,
+            request.MediaType, request.ContentHash, request.ContentLength);
+
+    private static ProbeSuppliedOriginalReportReplayRequest ReplayRequest(
+        AttachSuppliedOriginalReportRequest request) => new(
+            request.UnidentifiedItemId,
+            request.ExpectedItemVersion,
+            request.ExpectedReceiptVersion,
+            request.Actor,
+            request.OperationKey,
+            request.FileName,
+            request.MediaType,
+            request.ContentHash,
+            request.ContentLength);
+
+    private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
+    {
+        SqlException { Number: 1205 or 2601 or 2627 } => true,
+        _ when exception.InnerException is not null => IsRetryableConcurrencyFailure(exception.InnerException),
+        _ => false
+    };
+
+    private static string SupplyRequestHash(
+        string eventType,
+        Guid unidentifiedItemId,
+        long expectedItemVersion,
+        long expectedReceiptVersion,
+        ActionActor actor,
+        string operationKey,
+        string fileName,
+        string mediaType,
+        string contentHash,
+        long contentLength) =>
+        Hash(JsonSerializer.Serialize(new
+        {
+            EventType = eventType,
+            UnidentifiedItemId = unidentifiedItemId,
+            ExpectedItemVersion = expectedItemVersion,
+            ExpectedReceiptVersion = expectedReceiptVersion,
+            Actor = ActorMaterial(actor),
+            OperationKey = operationKey,
+            FileName = fileName,
+            MediaType = mediaType,
+            ContentHash = contentHash,
+            ContentLength = contentLength
         }));
 
     private static string RequestHash(string eventType, RetryIntakeOcrRequest request) =>

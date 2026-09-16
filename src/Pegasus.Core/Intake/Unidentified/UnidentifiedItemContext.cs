@@ -18,7 +18,8 @@ public sealed record UnidentifiedItemContext(
     ImageIntakeDetail? ImageIntake,
     TriageSummary? Triage,
     bool CanRegisterImages,
-    bool CanOpenTriage)
+    bool CanOpenTriage,
+    bool IsManualUploadGroup)
 {
     /// <summary>The Inbox message to open, when the material came by e-mail.</summary>
     public Guid? SourceMessageId => Item.SourceMessageId;
@@ -35,6 +36,10 @@ public sealed record UnidentifiedItemContext(
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .Take(2)
         .ToArray() is [var single] ? single : null;
+
+    /// <summary>The current primary action, decided by the policy shared with list consumers.</summary>
+    public UnidentifiedNextStep NextStep =>
+        UnidentifiedNextStepPolicy.Primary(UnidentifiedNextStepPolicy.FactsFrom(this));
 }
 
 public interface IGetUnidentifiedItemContext
@@ -47,13 +52,15 @@ public sealed class GetUnidentifiedItemContext(
     IIntakeReceiptQueries receipts,
     IVrmSuggestionStore vrmSuggestions,
     IImageIntakeQueries imageIntakes,
-    ITriageQueries triages) : IGetUnidentifiedItemContext
+    ITriageQueries triages,
+    IIntakeSubmissionGroupStore submissionGroups) : IGetUnidentifiedItemContext
 {
     private readonly IUnidentifiedStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly IIntakeReceiptQueries _receipts = receipts ?? throw new ArgumentNullException(nameof(receipts));
     private readonly IVrmSuggestionStore _vrmSuggestions = vrmSuggestions ?? throw new ArgumentNullException(nameof(vrmSuggestions));
     private readonly IImageIntakeQueries _imageIntakes = imageIntakes ?? throw new ArgumentNullException(nameof(imageIntakes));
     private readonly ITriageQueries _triages = triages ?? throw new ArgumentNullException(nameof(triages));
+    private readonly IIntakeSubmissionGroupStore _submissionGroups = submissionGroups ?? throw new ArgumentNullException(nameof(submissionGroups));
 
     public async Task<UnidentifiedItemContext?> ExecuteAsync(
         ActionActor actor,
@@ -75,13 +82,22 @@ public sealed class GetUnidentifiedItemContext(
 
         if (item.Origin.Kind != UnidentifiedOriginKind.Receipt)
         {
-            return new(item, null, [], null, null, CanRegisterImages: false, CanOpenTriage: false);
+            var group = await _submissionGroups.GetAsync(item.Origin.Id, cancellationToken);
+            return new(
+                item,
+                null,
+                [],
+                null,
+                null,
+                CanRegisterImages: false,
+                CanOpenTriage: false,
+                IsManualUploadGroup: group?.Channel == IntakeSourceChannel.ManualUpload);
         }
 
         var receipt = await _receipts.GetAsync(item.Origin.Id, cancellationToken);
         if (receipt is null)
         {
-            return new(item, null, [], null, null, CanRegisterImages: false, CanOpenTriage: false);
+            return new(item, null, [], null, null, CanRegisterImages: false, CanOpenTriage: false, IsManualUploadGroup: false);
         }
 
         var imageIntake = await _imageIntakes.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
@@ -90,16 +106,14 @@ public sealed class GetUnidentifiedItemContext(
         var readings = isImageOnly
             ? await _vrmSuggestions.ListForReceiptAsync(receipt.Id, cancellationToken)
             : [];
-        var open = item.State == UnidentifiedState.Open;
         return new(
             item,
             receipt,
             readings,
             imageIntake,
             triage,
-            CanRegisterImages: open && isImageOnly && imageIntake is null && receipt.Decision == IntakeDecision.NeedsSorting,
-            CanOpenTriage: open && triage is null
-                && receipt.Decision == IntakeDecision.NeedsSorting
-                && receipt.Evidence.Count(evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch) == 1);
+            CanRegisterImages: UnidentifiedNextStepPolicy.CanRegisterImages(item, receipt, imageIntake is not null),
+            CanOpenTriage: UnidentifiedNextStepPolicy.CanOpenTriage(item, receipt, triage is not null),
+            IsManualUploadGroup: false);
     }
 }

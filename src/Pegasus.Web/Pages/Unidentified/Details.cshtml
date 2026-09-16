@@ -79,20 +79,17 @@
             <section class="panel" aria-labelledby="unidentified-material-title">
                 <div class="panel-head"><h2 id="unidentified-material-title">@(Model.IsEmail ? "Retained e-mail" : "Retained files")</h2></div>
                 <div class="panel-section stack">
-                    @if (Model.CouldNotBeRead is { } unreadable)
-                    {
-                        <div class="notice notice--warning" data-unidentified-unreadable>
-                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                            <span>@unreadable@(string.IsNullOrWhiteSpace(Model.Item.SafeDetail) ? null : " — " + Model.Item.SafeDetail)</span>
-                        </div>
-                    }
+                    <section class="unidentified-reason" aria-labelledby="unidentified-reason-title" data-unidentified-reason>
+                        <h3 id="unidentified-reason-title">Why it is here</h3>
+                        <strong>@(Model.CouldNotBeRead ?? OperatorLabels.UnidentifiedReason(Model.Item.ReasonCode))</strong>
+                        <span>@Model.Item.SafeDetail</span>
+                    </section>
                     <dl class="fact-grid unidentified-facts">
                         <div class="fact"><dt>Reference</dt><dd class="mono">@Model.Item.Reference</dd></div>
                         <div class="fact"><dt>Kind</dt><dd>@Model.MaterialLabel</dd></div>
                         <div class="fact"><dt>@(Model.IsEmail ? "E-mail" : "Filename")</dt><dd>@Model.Handle</dd></div>
                         <div class="fact"><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Item.CreatedAtUtc)</dd></div>
                         <div class="fact"><dt>Source</dt><dd>@Model.SourceLabel</dd></div>
-                        <div class="fact"><dt>Needs attention</dt><dd>@OperatorLabels.UnidentifiedReason(Model.Item.ReasonCode)</dd></div>
                     </dl>
                     @if (Model.SubmissionGroup is { } group)
                     {
@@ -113,7 +110,7 @@
                     <div class="button-row" data-unidentified-material-actions>
                         @if (Model.OpenFileHref is { } fileHref)
                         {
-                            <a class="btn" href="@fileHref" target="_blank" rel="noopener" data-unidentified-action="open-file">
+                            <a class="btn @(Model.NextStep == UnidentifiedNextStep.OpenSource ? "btn--primary" : null)" href="@fileHref" target="_blank" rel="noopener" data-unidentified-action="open-file">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>Open file</span>
                             </a>
                         }
@@ -125,13 +122,13 @@
                         }
                         @if (Model.RequestAgainHref is { } requestHref)
                         {
-                            <a class="btn" href="@requestHref" data-unidentified-action="request-again">
+                            <a class="btn @(Model.NextStep == UnidentifiedNextStep.RequestAgain ? "btn--primary" : null)" href="@requestHref" data-unidentified-action="request-again">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg><span>Request again</span>
                             </a>
                         }
                         @if (Model.IsUploadGroup && Model.SubmissionGroup is { } openGroup)
                         {
-                            <a class="btn" asp-page="/UploadGroupStatus" asp-route-id="@openGroup.Id">View files</a>
+                            <a class="btn @(Model.NextStep == UnidentifiedNextStep.ReviewGroup ? "btn--primary" : null)" asp-page="/UploadGroupStatus" asp-route-id="@openGroup.Id">Review files</a>
                         }
                     </div>
                 </div>
@@ -140,42 +137,70 @@
             @if (Model.IsOpen)
             {
                 <section class="panel" aria-labelledby="unidentified-resolve-title" data-unidentified-resolve>
-                    <div class="panel-head"><h2 id="unidentified-resolve-title">Resolve</h2></div>
-                    <div class="panel-section">
+                    <div class="panel-head"><h2 id="unidentified-resolve-title">Next step</h2></div>
+                    <div class="panel-section stack">
+                        @if (Model.NextStep == UnidentifiedNextStep.AddOriginalReport && Model.Receipt is { } reportReceipt)
+                        {
+                            <form method="post" enctype="multipart/form-data" asp-page-handler="SupplyOriginalReport" asp-route-id="@Model.Item.Id" class="stack" data-unidentified-supply-report>
+                                <input type="hidden" name="expectedItemVersion" value="@Model.Item.Version" />
+                                <input type="hidden" name="expectedReceiptVersion" value="@reportReceipt.Version" />
+                                <input type="hidden" name="operationKey" value="@Record.NewOperationKey()" />
+                                <p class="muted">Add the original engineer's report. Pegasus must confirm whether the vehicle is repairable or a total loss before it allocates the Audit Case/PO.</p>
+                                <div class="field">
+                                    <label class="req" for="unidentified-original-report">Original report</label>
+                                    <input id="unidentified-original-report" name="report" type="file" required />
+                                </div>
+                                <div class="button-row">
+                                    <button type="submit" class="btn btn--primary" data-unidentified-action="add-original-report">
+                                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg><span>Add original report</span>
+                                    </button>
+                                </div>
+                            </form>
+                        }
+                        else if (Model.NextStep == UnidentifiedNextStep.AuditReportCustodyPending)
+                        {
+                            <div class="notice notice--warning" role="status" data-unidentified-audit-custody-pending>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                                <span>The original report has been received and is awaiting secure storage. It cannot determine the Audit Case/PO yet.</span>
+                            </div>
+                        }
+                        else if (Model.NextStep == UnidentifiedNextStep.AuditReportCustodyFailed)
+                        {
+                            <div class="notice notice--danger" role="alert" data-unidentified-audit-custody-failed>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                                <span>Storage of the original report failed. It cannot determine the Audit Case/PO; an administrator can recover it from Operations.</span>
+                            </div>
+                        }
+                        else if (Model.NextStep == UnidentifiedNextStep.AuditReportProcessing)
+                        {
+                            <div class="notice notice--warning" role="status" data-unidentified-audit-processing>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+                                <span>The original report is being processed. The Audit Case/PO will be allocated only after its outcome is confirmed.</span>
+                            </div>
+                        }
                         <div class="button-row">
                             @if (Model.CanLinkCase)
                             {
-                                <a class="btn btn--primary" href="?dialog=@Record.LinkDialog" data-dialog-open="unidentified-link-dialog" data-unidentified-action="link">
+                                <a class="btn @(Model.NextStep == UnidentifiedNextStep.LinkToCase ? "btn--primary" : null)" href="?dialog=@Record.LinkDialog" data-dialog-open="unidentified-link-dialog" data-unidentified-action="link">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg><span>Link to Case</span>
                                 </a>
                             }
-                            else if (Model.IsUploadGroup && Model.SubmissionGroup is { } linkGroup)
+                            @if (Model.CanCreateCase && Model.Receipt is { } createReceipt
+                                && Model.NextStep is not UnidentifiedNextStep.AddOriginalReport and not UnidentifiedNextStep.AuditReportProcessing)
                             {
-                                <a class="btn btn--primary" asp-page="/UploadGroupStatus" asp-route-id="@linkGroup.Id" data-unidentified-action="link">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg><span>Link to Case</span>
-                                </a>
-                            }
-                            @if (Model.CanCreateCase && Model.Receipt is { } createReceipt)
-                            {
-                                <a class="btn" asp-page="/Cases/Create" asp-route-receiptId="@createReceipt.Id" data-unidentified-action="create">
+                                <a class="btn @(Model.NextStep == UnidentifiedNextStep.CreateCase ? "btn--primary" : null)" asp-page="/Cases/Create" asp-route-receiptId="@createReceipt.Id" data-unidentified-action="create">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>Create case</span>
                                 </a>
                             }
                             @if (Model.CanRegisterImages)
                             {
-                                <a class="btn" href="?dialog=@Record.RegisterDialog" data-dialog-open="unidentified-register-dialog" data-unidentified-action="register">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg><span>Register images</span>
-                                </a>
-                            }
-                            else if (Model.IsUploadGroup && Model.SubmissionGroup is { } registerGroup)
-                            {
-                                <a class="btn" asp-page="/UploadGroupStatus" asp-route-id="@registerGroup.Id" data-unidentified-action="register">
+                                <a class="btn @(Model.NextStep == UnidentifiedNextStep.RegisterImages ? "btn--primary" : null)" href="?dialog=@Record.RegisterDialog" data-dialog-open="unidentified-register-dialog" data-unidentified-action="register">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg><span>Register images</span>
                                 </a>
                             }
                             @if (Model.CanOpenTriage)
                             {
-                                <a class="btn" href="?dialog=@Record.TriageDialog" data-dialog-open="unidentified-triage-dialog" data-unidentified-action="triage">
+                                <a class="btn @(Model.NextStep == UnidentifiedNextStep.OpenTriage ? "btn--primary" : null)" href="?dialog=@Record.TriageDialog" data-dialog-open="unidentified-triage-dialog" data-unidentified-action="triage">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-clipboard-list" /></svg><span>Open the Triage</span>
                                 </a>
                             }

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -101,8 +102,82 @@ public sealed class UnidentifiedRecordWebTests
 
         var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Unidentified/{itemId:D}");
 
-        Assert.Contains("data-unidentified-unreadable", html, StringComparison.Ordinal);
-        Assert.Contains("Could not be read", html, StringComparison.Ordinal);
+        Assert.Contains("data-unidentified-reason", html, StringComparison.Ordinal);
+        Assert.Contains("Why it is here", html, StringComparison.Ordinal);
+        Assert.Contains("Could not be read · PDF", WebUtility.HtmlDecode(html), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AuditReportFormChecksAntiforgeryAndVersionsThenShowsPendingWithoutCreateCase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var instruction = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: "Report Form Claimant", claimNumber: "REPORT-FORM",
+            notificationTitle: "AUDIT REPORT NOTIFICATION");
+        var mail = IntakeTestEvidence.CreateEmail("audit.eml", "Please see the attached audit instruction.",
+            attachments: [("audit-instruction.pdf", "application/pdf", instruction)]);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, mail.FileName, mail.MediaType, mail.Content);
+        var receiptId = Assert.IsType<Guid>(upload.ProcessedReceiptId);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+        var items = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+        var receipt = (await receipts.GetAsync(receiptId, CancellationToken.None))!;
+        var item = (await items.GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId)))!;
+        Assert.Equal(UnidentifiedReasonCode.AuditOriginalReportMissing, item.ReasonCode);
+        var path = $"/Unidentified/{item.Id:D}";
+        var initial = await IntakeWebDriver.GetHtmlAsync(client, path);
+        Assert.Contains("data-unidentified-supply-report", initial, StringComparison.Ordinal);
+        Assert.Contains($"name=\"expectedItemVersion\" value=\"{item.Version}\"", initial, StringComparison.Ordinal);
+        Assert.Contains($"name=\"expectedReceiptVersion\" value=\"{receipt.Version}\"", initial, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-unidentified-action=\"create\"", initial, StringComparison.Ordinal);
+
+        var report = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            notificationTitle: "ORIGINAL ENGINEER REPORT", additionalLines: ["Outcome: Total loss"],
+            addSignatureLines: false);
+        using (var missingToken = await PostReportAsync(client, path, item.Version, receipt.Version, report, null))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, missingToken.StatusCode);
+        }
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        using (var stale = await PostReportAsync(client, path, item.Version + 1, receipt.Version, report, token))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, stale.StatusCode);
+        }
+        Assert.DoesNotContain((await receipts.GetAsync(receiptId, CancellationToken.None))!.AssetRecords,
+            asset => asset.Disposition == IntakeAssetDisposition.SuppliedOriginalReport);
+        Assert.Equal(item.Version, (await items.GetAsync(item.Id))!.Version);
+
+        using (var accepted = await PostReportAsync(client, path, item.Version, receipt.Version, report, token))
+        {
+            Assert.Equal(HttpStatusCode.Redirect, accepted.StatusCode);
+        }
+        var pending = await IntakeWebDriver.GetHtmlAsync(client, path);
+        Assert.Contains("data-unidentified-audit-custody-pending", pending, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-unidentified-supply-report", pending, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-unidentified-action=\"create\"", pending, StringComparison.Ordinal);
+        var retained = (await receipts.GetAsync(receiptId, CancellationToken.None))!;
+        Assert.Single(retained.AssetRecords, asset => asset.Disposition == IntakeAssetDisposition.SuppliedOriginalReport);
+        Assert.Null(retained.CurrentCaseId);
+        Assert.Null(retained.AllocationState);
+    }
+
+    private static async Task<HttpResponseMessage> PostReportAsync(
+        HttpClient client, string path, long itemVersion, long receiptVersion, byte[] report, string? token)
+    {
+        using var form = new MultipartFormDataContent();
+        if (token is not null)
+        {
+            form.Add(new StringContent(token), "__RequestVerificationToken");
+        }
+        form.Add(new StringContent(itemVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)), "expectedItemVersion");
+        form.Add(new StringContent(receiptVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)), "expectedReceiptVersion");
+        form.Add(new StringContent(Guid.NewGuid().ToString("N")), "operationKey");
+        var file = new ByteArrayContent(report);
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+        form.Add(file, "report", "original-report.pdf");
+        return await client.PostAsync(path + "?handler=SupplyOriginalReport", form);
     }
 
     private static async Task<(Guid ReceiptId, Guid ItemId, string Reference)> SeedOpenItemAsync(
@@ -142,7 +217,7 @@ public sealed class UnidentifiedRecordWebTests
                 "The document could not be read.",
                 ActionActor.SystemWorker("test-worker"),
                 $"unidentified-record-test:{Guid.NewGuid():N}",
-                receivedAt),
+                receivedAt) { FileKind = "PDF" },
             CancellationToken.None);
         return (receipt.Id, registered.Item.Id, registered.Item.Reference);
     }

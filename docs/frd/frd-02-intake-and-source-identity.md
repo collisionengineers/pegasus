@@ -37,10 +37,11 @@ submission group. Group membership is durable: one group receives one `U<n>` ref
 and every member keeps its own filename, receipt identity, custody, and chronology.
 The reference is uppercase `U` followed by positive, invariant, unpadded decimal
 digits, allocated atomically from a dedicated sequence and never reused. The item
-stores one of the seven Core-owned reasons—unreadable/corrupt, unsupported, no usable
+stores one of the eight Core-owned reasons—unreadable/corrupt, unsupported, no usable
 identification, conflicting identification, ambiguous ownership/destination,
 terminal technical processing failure, or could not be read (with the file
-kind)—and bounded safe detail. Retryable work does not allocate a reference.
+kind), or Audit original report missing—and bounded safe detail. Retryable work
+does not allocate a reference.
 
 Unidentified is open or resolved. Staff may **Close with reason** (free text)
 readable material that must not become a Case; the closed item is resolved,
@@ -56,6 +57,25 @@ promoted outside their own pass), with the destination recorded in the item's
 history; a receipt that is still legitimately unidentified is never force-closed.
 The U-reference is never accepted as a Case/PO, Audit, Image Intake, or principal
 identity.
+
+An otherwise established standalone Audit instruction without its original
+report waits here with `AuditOriginalReportMissing`. Conflicting Case matches,
+ambiguous classification, and unsafe source processing retain their own more
+specific reasons. Staff add the original report on the Unidentified record.
+The upload must be read completely and state exactly one unnegated literal
+outcome, repairable or total loss; an unreadable, incomplete, or ambiguous
+upload is refused before retention. Staff cannot declare the verdict instead.
+
+One supplied report is attached to the instruction. A version-checked,
+replay-safe transaction records the report, the staff history entry and the
+queued re-evaluation together. The supplied report follows existing document
+custody and integrity checks. Its outcome supplies the Audit evidence; its
+text does not join instruction extraction, matching or search. A pending or
+failed report read never permits identity allocation. An accepted automatic
+instruction then creates its prefixed Case/PO and resolves its Unidentified
+item. A manual-upload instruction still waits for explicit staff acceptance.
+Replays, including after resolution, never attach or allocate twice. Matching
+a separately arriving report automatically is outside this workflow.
 
 Every intake path must:
 
@@ -184,11 +204,11 @@ explicit acceptance of the editable proposal under the
 [upload confirmation contract](#upload-confirmation-surface); extraction alone
 never allocates or reserves its Case/PO. Incomplete ordinary business detail,
 images, or mandatory external checks retain that Case as `Not ready`; they do
-not form another pre-Case acceptance gate. For standalone Audit, allocate the
-normal Case/PO once Principal and Audit case type are definitive. Missing or
-ambiguous original-report outcome withholds only the later `a.` or `ap.` Audit
-reference, as defined in FRD-01. Supported email and Provider API Audit routes
-use that same distinction. A manual proposal may create an Audit only when its
+not form another pre-Case acceptance gate. For standalone Audit, the original
+report and its repairable or total-loss outcome are identity-critical: no
+Case/PO or sequence is allocated or reserved before that evidence exists.
+The allocated Case/PO itself has the `a.` or `ap.` prefix defined in FRD-01;
+there is no preliminary identity. A manual proposal may create an Audit only when its
 own retained receipt is already classified Audit and has its existing
 standalone-Audit evidence; the existing acceptance gate verifies that evidence
 belongs to that receipt.

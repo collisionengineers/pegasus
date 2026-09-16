@@ -13,6 +13,8 @@
 .unidentified-facts .fact { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 8px; border-right: 0; border-bottom: 1px solid var(--line); }
 .unidentified-facts .fact:last-child { border-bottom: 0; }
 .unidentified-facts dd { margin: 0; overflow-wrap: anywhere; }
+.unidentified-reason { display: grid; gap: 4px; padding: 10px 12px; border-left: 3px solid var(--amber); background: var(--amber-bg); }
+.unidentified-reason span { overflow-wrap: anywhere; }
 .unidentified-files { margin: 0; padding-left: 18px; font-size: 12px; }
 .unidentified-dismiss summary { list-style: none; }
 .unidentified-dismiss summary::-webkit-details-marker { display: none; }

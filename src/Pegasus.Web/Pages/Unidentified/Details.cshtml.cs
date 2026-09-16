@@ -19,6 +19,12 @@ namespace Pegasus.Web.Pages.Unidentified;
 /// </summary>
 [Authorize(Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
+[RequestSizeLimit(IntakeEnvelopeLimits.MaximumContentLength + IntakeEnvelopeLimits.MultipartOverhead)]
+[RequestFormLimits(
+    BufferBody = true,
+    BufferBodyLengthLimit = IntakeEnvelopeLimits.MaximumContentLength + IntakeEnvelopeLimits.MultipartOverhead,
+    MultipartBodyLengthLimit = IntakeEnvelopeLimits.MaximumContentLength + IntakeEnvelopeLimits.MultipartOverhead,
+    MemoryBufferThreshold = 64 * 1024)]
 public sealed partial class DetailsModel(
     IGetUnidentifiedItemContext getContext,
     IGetIntake getIntake,
@@ -37,6 +43,7 @@ public sealed partial class DetailsModel(
     IIntakeSubmissionGroupStore submissionGroups,
     IGetPreCaseImagePreparations getPreparations,
     Pegasus.Core.Documents.IReadImageTagVocabulary tagVocabulary,
+    ISupplyAuditOriginalReport supplyAuditOriginalReport,
     TimeProvider timeProvider,
     ILogger<DetailsModel> logger) : StaffPageModel
 {
@@ -80,14 +87,18 @@ public sealed partial class DetailsModel(
     /// <summary>A manual upload group is linked or registered from its own group decision.</summary>
     public bool IsUploadGroup => SubmissionGroup?.Channel == IntakeSourceChannel.ManualUpload;
 
-    public bool CanCreateCase => IsOpen && Receipt is { } receipt
-        && receipt.AcceptedCaseId is null
-        && receipt.AllocationState is null
-        && (IntakeDecisionPolicy.CanBecomeCase(receipt.Decision) || receipt.Decision == IntakeDecision.OcrRequired);
+    /// <summary>
+    /// The existing review/Create Case acceptance remains available as a
+    /// secondary action where it is safe. The next-step policy decides when it
+    /// is the one primary action.
+    /// </summary>
+    public bool CanCreateCase => UnidentifiedNextStepPolicy.CanReviewForCaseCreation(Item, Receipt);
 
     public bool CanRegisterImages => Context.CanRegisterImages;
 
     public bool CanOpenTriage => Context.CanOpenTriage;
+
+    public UnidentifiedNextStep NextStep => Context.NextStep;
 
     /// <summary>Open file: the retained original, through the kept source route.</summary>
     public string? OpenFileHref => Receipt is { } receipt && Context.SourceMessageId is null
@@ -154,6 +165,69 @@ public sealed partial class DetailsModel(
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken) =>
         await LoadAsync(id, cancellationToken) ?? Page();
+
+    /// <summary>
+    /// Retains the one report that determines whether the waiting Audit is a
+    /// repairable or total-loss Case. The command keeps the report, event, and
+    /// queued re-evaluation atomic; this page only validates the bounded form.
+    /// </summary>
+    public async Task<IActionResult> OnPostSupplyOriginalReportAsync(
+        Guid id,
+        long expectedItemVersion,
+        long expectedReceiptVersion,
+        string operationKey,
+        IFormFile? report,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        if (report is null || report.Length <= 0)
+        {
+            ErrorMessage = "Choose the original report to add.";
+            return RedirectToPage(new { id });
+        }
+
+        if (report.Length > IntakeEnvelopeLimits.MaximumContentLength)
+        {
+            ErrorMessage = $"The original report must be {OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumContentLength)} or smaller.";
+            return RedirectToPage(new { id });
+        }
+
+        try
+        {
+            var content = await ReadReportAsync(report, cancellationToken);
+            var result = await supplyAuditOriginalReport.ExecuteAsync(
+                new(
+                    id,
+                    expectedItemVersion,
+                    expectedReceiptVersion,
+                    actor,
+                    operationKey,
+                    report.FileName,
+                    string.IsNullOrWhiteSpace(report.ContentType) ? "application/octet-stream" : report.ContentType,
+                    content),
+                cancellationToken);
+            StatusMessage = result.IsDuplicate
+                ? "The original report was already added."
+                : "Original report added. Pegasus is processing it before the Audit Case/PO is allocated.";
+        }
+        catch (SuppliedOriginalReportRefusalException exception)
+        {
+            ErrorMessage = exception.Message;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCommandFailed(logger, "supply_original_report", id, exception);
+            ErrorMessage = exception is ArgumentException argument
+                ? argument.Message
+                : "The original report was not added because the item changed or is no longer waiting for it. Reload and try again.";
+        }
+
+        return RedirectToPage(new { id });
+    }
 
     /// <summary>Link to Case: the chosen Case's lease is claimed for the link and consumed by it.</summary>
     public async Task<IActionResult> OnPostLinkCaseAsync(
@@ -412,6 +486,32 @@ public sealed partial class DetailsModel(
             WorkingSetRecord.Kinds.Unidentified,
             context.Item.Reference);
         return null;
+    }
+
+    private static async Task<ReadOnlyMemory<byte>> ReadReportAsync(
+        IFormFile report,
+        CancellationToken cancellationToken)
+    {
+        await using var input = report.OpenReadStream();
+        using var content = new MemoryStream(checked((int)report.Length));
+        var buffer = new byte[81920];
+        while (true)
+        {
+            var read = await input.ReadAsync(buffer, cancellationToken);
+            if (read == 0)
+            {
+                break;
+            }
+
+            if (content.Length + read > IntakeEnvelopeLimits.MaximumContentLength)
+            {
+                throw new ArgumentOutOfRangeException(nameof(report), "The original report exceeds the maximum file size.");
+            }
+
+            await content.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+        }
+
+        return content.ToArray();
     }
 
     private async Task<IActionResult> ExecuteAsync(

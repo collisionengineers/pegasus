@@ -660,6 +660,7 @@ public static class DependencyInjection
                 new ProviderApiIntakeSourceReader(
                     provider.GetRequiredService<MimeKitPdfPigOpenXmlIntakeSourceReader>()));
             services.AddScoped<ProcessIntake>();
+            services.AddScoped<ISupplyAuditOriginalReport, SupplyAuditOriginalReport>();
 
             // Shared by both EVA routes so the archive and the API submission
             // cannot state the same case differently.

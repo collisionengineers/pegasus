@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake.ThirdPartyReports;
@@ -23,9 +24,13 @@ public sealed class ProcessIntake(
     IProviderSubmissionBindings? providerSubmissionBindings = null,
     IRetainedInstructionAnalysisStore? retainedInstructionAnalysisStore = null,
     RetainIncomingArtifact? retainIncomingArtifact = null,
-    IRetainedMailboxMessageStore? retainedMessages = null)
+    IRetainedMailboxMessageStore? retainedMessages = null,
+    IUnidentifiedStore? unidentifiedStore = null,
+    IReadLogicalDocumentVersion? logicalDocumentReader = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
+    private static readonly IReadOnlyDictionary<Guid, IncomingArtifactCustodyState> EmptyCustodyStates =
+        new Dictionary<Guid, IncomingArtifactCustodyState>();
 
     /// <summary>
     /// What became of the third-party report reading on this intake. Recorded
@@ -101,10 +106,11 @@ public sealed class ProcessIntake(
 
             if (!replaceExisting)
             {
-                await RetainHoldingAssetsAsync(existing, cancellationToken);
+                var replayCustody = await RetainHoldingAssetsAsync(existing, cancellationToken);
                 await RecordAutomaticAuditEvidenceAsync(
                     existing,
                     existing.MailClassificationDecision,
+                    replayCustody,
                     cancellationToken);
                 activity?.SetTag("intake.reader_result", "not_read_replay");
                 activity?.SetTag("intake.reader_key", existing.SourceReaderKey);
@@ -203,6 +209,18 @@ public sealed class ProcessIntake(
             safeSource.SourceIdentity,
             processedAtUtc,
             cancellationToken);
+        var suppliedReportCustody = existing is null
+            ? EmptyCustodyStates
+            : await RetainHoldingAssetsAsync(
+                existing,
+                cancellationToken,
+                asset => asset.Disposition == IntakeAssetDisposition.SuppliedOriginalReport);
+        assessment = await ApplySuppliedOriginalReportAsync(
+            assessment,
+            existing,
+            replaceExisting,
+            suppliedReportCustody,
+            cancellationToken);
         if (assessment.Decision == IntakeDecision.CaseCreated
             && assessment.MailClassificationDecision is
                 { CaseType: CaseType.Audit, StandaloneAuditReport: null })
@@ -210,7 +228,7 @@ public sealed class ProcessIntake(
             assessment = assessment with
             {
                 Decision = IntakeDecision.NeedsSorting,
-                DecisionReason = "A standalone Audit instruction requires one attached original report stating Repairable or Total loss.",
+                DecisionReason = "The Audit instruction arrived without the original report it audits. Add that report to continue.",
                 InstructionDraft = null,
                 MissingFields = []
             };
@@ -287,10 +305,11 @@ public sealed class ProcessIntake(
             throw;
         }
         await RetainUploadedCorrespondenceAsync(safeSource, sourceHash, readResult, cancellationToken);
-        await RetainHoldingAssetsAsync(receipt, cancellationToken);
+        var custody = await RetainHoldingAssetsAsync(receipt, cancellationToken);
         await RecordAutomaticAuditEvidenceAsync(
             receipt,
             assessment.MailClassificationDecision,
+            custody,
             cancellationToken);
         await RecordThirdPartyReportSourceAsync(receipt, readResult, activity, cancellationToken);
         await RegisterUnidentifiedIfTerminalAsync(receipt, cancellationToken);
@@ -324,23 +343,38 @@ public sealed class ProcessIntake(
             cancellationToken);
     }
 
-    private async Task RetainHoldingAssetsAsync(
+    private async Task<IReadOnlyDictionary<Guid, IncomingArtifactCustodyState>> RetainHoldingAssetsAsync(
         IntakeReceipt receipt,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<IntakeAssetRecord, bool>? include = null)
     {
+        // A confirmed staff-supplied report is thereafter read only through its
+        // logical document version. Its staging copy is allowed to be gone, so
+        // a retry must not make raw artifact availability a second condition.
+        var states = receipt.AssetRecords
+            .Where(asset => asset.Disposition == IntakeAssetDisposition.SuppliedOriginalReport
+                && asset.CustodyState == IncomingArtifactCustodyState.Confirmed)
+            .ToDictionary(asset => asset.Id, asset => asset.CustodyState);
         if (retainIncomingArtifact is null)
         {
-            return;
+            return states;
         }
 
         var actor = ActionActor.SystemWorker("intake-processing");
-        foreach (var asset in IntakeFileIdentity.Ordered(receipt).Where(IsHoldingRetentionCandidate))
+        foreach (var asset in IntakeFileIdentity.Ordered(receipt)
+                     .Where(IsHoldingRetentionCandidate)
+                     .Where(asset => include?.Invoke(asset) ?? true))
         {
+            if (asset.Disposition == IntakeAssetDisposition.SuppliedOriginalReport
+                && states.ContainsKey(asset.Id))
+            {
+                continue;
+            }
             var content = await artifactStore.ReadAsync(asset.StorageKey, cancellationToken)
                 ?? throw new FileNotFoundException(
                     $"The retained intake asset '{asset.Id}' is unavailable.");
             await using var stream = new MemoryStream(content.ToArray(), writable: false);
-            await retainIncomingArtifact.ExecuteAsync(
+            var retained = await retainIncomingArtifact.ExecuteAsync(
                 actor,
                 new(
                     OccurrenceId: asset.Id,
@@ -353,7 +387,9 @@ public sealed class ProcessIntake(
                     Sha256: asset.ContentHash),
                 stream,
                 cancellationToken);
+            states[asset.Id] = retained.State;
         }
+        return states;
     }
 
     private static bool IsHoldingRetentionCandidate(IntakeAssetRecord asset) =>
@@ -538,8 +574,38 @@ public sealed class ProcessIntake(
             return;
         }
 
+        var registration = BuildUnidentifiedRegistrationRequest(receipt);
+        if (unidentifiedStore is not null
+            && await unidentifiedStore.GetByOriginAsync(
+                UnidentifiedOrigin.Receipt(receipt.Id), cancellationToken) is { } existing)
+        {
+            if (existing.State != UnidentifiedState.Open)
+            {
+                // A delayed evaluation must not reopen or alter a resolved
+                // item. Reconciliation owns any supported reopening.
+                return;
+            }
+
+            // The store verifies both the item version and the receipt version
+            // in one transaction. A later evaluation or staff action therefore
+            // wins; this stale result becomes a no-op rather than replacing the
+            // current reason.
+            await unidentifiedStore.RefreshReasonAsync(new(
+                existing.Id,
+                existing.Version,
+                receipt.Id,
+                receipt.Version,
+                registration.ReasonCode,
+                registration.SafeDetail,
+                registration.Actor,
+                registration.OperationKey,
+                timeProvider.GetUtcNow(),
+                registration.FileKind), cancellationToken);
+            return;
+        }
+
         await registerUnidentified.ExecuteAsync(
-            BuildUnidentifiedRegistrationRequest(receipt),
+            registration,
             cancellationToken);
     }
 
@@ -645,12 +711,92 @@ public sealed class ProcessIntake(
             UnidentifiedReasonCode.AmbiguousOwnershipOrDestination,
         _ when receipt.Evidence.Any(evidence => evidence.Signal == "intake_limit_exceeded") =>
             UnidentifiedReasonCode.UnreadableOrCorruptContent,
+        _ when receipt.MailClassificationDecision is
+                { CaseType: CaseType.Audit, StandaloneAuditReport: null } =>
+            UnidentifiedReasonCode.AuditOriginalReportMissing,
         _ => UnidentifiedReasonCode.NoUsableIdentification
     };
+
+    /// <summary>
+    /// A supplied report is read separately from its source instruction. Its
+    /// outcome augments only Audit classification; its text never participates
+    /// in extraction, matching, or source search.
+    /// </summary>
+    private async Task<IntakeAssessment> ApplySuppliedOriginalReportAsync(
+        IntakeAssessment assessment,
+        IntakeReceipt? existing,
+        bool replaceExisting,
+        IReadOnlyDictionary<Guid, IncomingArtifactCustodyState> custody,
+        CancellationToken cancellationToken)
+    {
+        if (!replaceExisting
+            || existing is null
+            || assessment.Decision != IntakeDecision.CaseCreated
+            || assessment.MailClassificationDecision is not
+                { CaseType: CaseType.Audit, StandaloneAuditReport: null } classification)
+        {
+            return assessment;
+        }
+
+        var report = existing.AssetRecords.SingleOrDefault(asset =>
+            asset.Disposition == IntakeAssetDisposition.SuppliedOriginalReport);
+        if (report is null)
+        {
+            return assessment;
+        }
+
+        if (!custody.TryGetValue(report.Id, out var custodyState)
+            || custodyState != IncomingArtifactCustodyState.Confirmed)
+        {
+            throw new IntakeDependencyUnavailableException(
+                "The supplied Audit original report has not reached confirmed custody.");
+        }
+
+        try
+        {
+            var reader = logicalDocumentReader ?? throw new IntakeDependencyUnavailableException(
+                "The logical-document reader is unavailable for the supplied Audit original report.");
+            await using var content = await reader.OpenAsync(
+                new(
+                    ActionActor.SystemWorker("intake-processing"),
+                    DocumentId: null,
+                    VersionId: null,
+                    IntakeAssetId: report.Id,
+                    CaseId: null,
+                    IntakeReceiptId: existing.Id,
+                    report.ContentHash,
+                    report.ContentLength),
+                cancellationToken);
+            using var buffer = new MemoryStream();
+            await content.Content.CopyToAsync(buffer, cancellationToken);
+            var read = await sourceReader.ReadAsync(new(
+                content.FileName,
+                content.MediaType,
+                buffer.ToArray(),
+                existing.ReceivedAtUtc,
+                "intake-processing",
+                new(IntakeSourceChannel.ManualUpload, $"supplied-original-report:{existing.Id:N}")), cancellationToken);
+            var outcome = AuditOriginalReportOutcomePolicy.Evaluate(read, report.SourceLabel)
+                ?? throw new IntakeDependencyUnavailableException(
+                    "The confirmed supplied Audit original report could not be read as a complete literal outcome.");
+            return assessment with
+            {
+                MailClassificationDecision = classification with { StandaloneAuditReport = outcome }
+            };
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception)
+            && exception is not IntakeDependencyUnavailableException)
+        {
+            throw new IntakeDependencyUnavailableException(
+                "The confirmed supplied Audit original report could not be opened through its logical document version.",
+                exception);
+        }
+    }
 
     private async Task RecordAutomaticAuditEvidenceAsync(
         IntakeReceipt receipt,
         MailClassificationResult? classification,
+        IReadOnlyDictionary<Guid, IncomingArtifactCustodyState> custody,
         CancellationToken cancellationToken)
     {
         // An e-mailed Audit has its report identified by the route's own
@@ -671,6 +817,15 @@ public sealed class ProcessIntake(
         {
             throw new InvalidDataException(
                 "The classified Audit report is not retained as an intake attachment.");
+        }
+        if (reportAsset.Disposition == IntakeAssetDisposition.SuppliedOriginalReport
+            && (!custody.TryGetValue(reportAsset.Id, out var reportCustody)
+                || reportCustody != IncomingArtifactCustodyState.Confirmed))
+        {
+            // Pending, unknown and failed custody have no usable Audit report.
+            // The report is visible with its recorded custody state, but only a
+            // confirmed logical-document path may determine a Case/PO.
+            return;
         }
         if (automaticStandaloneAuditEvidence is null)
         {

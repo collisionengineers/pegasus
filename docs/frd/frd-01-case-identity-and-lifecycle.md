@@ -13,7 +13,19 @@ resolution can link it to a supported destination, without changing that U-refer
 - Principal and internal reference are immutable after allocation.
 - Reference allocation occurs once safe source processing establishes an unambiguous Principal and Case type and all identity-critical gates pass. Manual upload additionally requires explicit staff acceptance under [FRD-02](frd-02-intake-and-source-identity.md); its extracted proposal remains pre-Case with no reserved Case/PO until acceptance. Incomplete ordinary business detail, images, or required external checks create or retain an accepted Case as `Not ready`; they do not otherwise leave a valid instruction pre-Case.
 - The normal Case/PO is `{principal code}{YY}{shared sequence}` with a three-digit minimum: `001` through `999`, then `1000` through `9999`. Inspection, standalone Audit, and Inspection + Audit consume one principal/year sequence. Exhaustion at `9999` is visible and blocks allocation; references and sequence values never wrap or return to use.
-- An Audit requires two separate document attachments: the Audit instruction and the original report to be audited. Who states that report's outcome depends on the route. On the retained-email route Pegasus reads the literal outcome in the report itself: `repairable` derives `a.{Case/PO}` and `total loss` derives `ap.{Case/PO}`, and missing, conflicting or ambiguous original-report evidence withholds only the later Audit reference. A definitive instruction still creates the normal Case/PO once Principal and identity-critical gates pass. On the Provider API route the authenticated Principal declares the verdict and that declaration derives the reference (operator decision, 2026-08-28); the original report is still required as an attachment, because the Engineer needs the report they are auditing, but it is not parsed to decide the prefix. No staff confirmation is an intake gate on either route.
+- A standalone Audit requires its instruction and the separate original report
+  being audited before any Case/PO or sequence is allocated or reserved
+  (operator clarification, 2026-09-16). On the retained-email route Pegasus
+  reads an unambiguous literal outcome from that report: `repairable` prefixes
+  the allocated reference with `a.` and `total loss` with `ap.`. The prefixed
+  value is the Case/PO itself, not a second or later reference. Missing or
+  ambiguous original-report evidence leaves the instruction in Unidentified
+  under [FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference).
+  On the Provider API route the authenticated Principal declares the verdict
+  (operator decision, 2026-08-28), and the original report remains a required
+  attachment; the declaration decides its prefix. Manual upload additionally
+  requires explicit staff acceptance. Neither automatic route requires staff
+  confirmation of the outcome.
 - Inspection + Audit begins with the normal Inspection Case/PO reference. Once
   a report has been generated on that Case, **Create audit** (the Case record's
   Actions menu, inside an edit session) creates one linked Audit Case. The

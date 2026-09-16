@@ -329,8 +329,8 @@ public sealed partial class PrincipalMailClassificationPolicy(string workProvide
                     : instructionContent.Any(fragment => string.Equals(
                         InstructionExtractionPolicySelector.DocumentIdentity(fragment.SourceLabel), group.Key,
                         StringComparison.Ordinal)),
-                HasRepairable = group.Any(fragment => ContainsRepairable(fragment.Text)),
-                HasTotalLoss = group.Any(fragment => ContainsTotalLoss(fragment.Text))
+                HasRepairable = group.Any(fragment => AuditOriginalReportOutcomePolicy.HasRepairable(fragment.Text)),
+                HasTotalLoss = group.Any(fragment => AuditOriginalReportOutcomePolicy.HasTotalLoss(fragment.Text))
             })
             .ToArray();
 
@@ -356,14 +356,6 @@ public sealed partial class PrincipalMailClassificationPolicy(string workProvide
 
     private static string AssetSourceLabel(string sourceLabel) =>
         InstructionExtractionPolicySelector.DocumentIdentity(sourceLabel);
-
-    private static bool ContainsRepairable(string text) =>
-        RepairableLiteralRegex().IsMatch(text)
-        && !NegatedRepairableLiteralRegex().IsMatch(text);
-
-    private static bool ContainsTotalLoss(string text) =>
-        TotalLossLiteralRegex().IsMatch(text)
-        && !NegatedTotalLossLiteralRegex().IsMatch(text);
 
     [GeneratedRegex(
         @"\b(?:inspect|examine)\b|\b(?:urgent\s+desktop\s+inspection|inspection\s+request|arrange\s+(?:(?:an?|the)\s+)?(?:inspection|examination))\b",
@@ -423,18 +415,4 @@ public sealed partial class PrincipalMailClassificationPolicy(string workProvide
         100)]
     private static partial Regex OfficialInspectionWillFollowRegex();
 
-    // A word occurrence is not automatically a report outcome: "unrepairable",
-    // "not repairable", and "not a total loss" must never allocate a permanent
-    // Audit identity. The report is accepted only on an unnegated literal.
-    [GeneratedRegex(@"\brepairable\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex RepairableLiteralRegex();
-
-    [GeneratedRegex(@"\b(?:not|no)\b(?:\s+(?:a|the))?[\s-]+repairable\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex NegatedRepairableLiteralRegex();
-
-    [GeneratedRegex(@"\btotal[\s-]+loss\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex TotalLossLiteralRegex();
-
-    [GeneratedRegex(@"\b(?:not|no)\b(?:\s+(?:a|the))?[\s-]+total[\s-]+loss\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex NegatedTotalLossLiteralRegex();
 }

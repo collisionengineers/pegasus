@@ -117,6 +117,91 @@ public sealed class EfUnidentifiedStore(
         return new(Map(entity), false);
     }
 
+    public async Task<UnidentifiedReasonRefreshResult> RefreshReasonAsync(
+        RefreshUnidentifiedReasonRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        UnidentifiedValidation.ValidateReasonRefresh(request);
+        var operationKey = request.OperationKey.Trim();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+
+        var replay = await context.UnidentifiedHistory
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken);
+        if (replay is not null)
+        {
+            if (replay.UnidentifiedItemId != request.UnidentifiedItemId)
+            {
+                throw new UnidentifiedOperationConflictException();
+            }
+
+            var replayItem = await context.UnidentifiedItems.AsNoTracking()
+                .SingleAsync(item => item.Id == request.UnidentifiedItemId, cancellationToken);
+            return new(Map(replayItem), false, false);
+        }
+
+        var entity = await context.UnidentifiedItems.SingleOrDefaultAsync(
+            item => item.Id == request.UnidentifiedItemId, cancellationToken)
+            ?? throw new KeyNotFoundException("The Unidentified item does not exist.");
+        if (entity.State != nameof(UnidentifiedState.Open)
+            || entity.OriginKind != nameof(UnidentifiedOriginKind.Receipt)
+            || entity.OriginId != request.ReceiptId
+            || entity.Version != request.ExpectedItemVersion)
+        {
+            return new(Map(entity), false, true);
+        }
+
+        var receiptVersion = await context.IntakeReceipts
+            .AsNoTracking()
+            .Where(item => item.Id == request.ReceiptId)
+            .Select(item => (long?)item.Version)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (receiptVersion != request.ExpectedReceiptVersion)
+        {
+            return new(Map(entity), false, true);
+        }
+
+        var reason = request.ReasonCode.ToString();
+        var detail = request.SafeDetail.Trim();
+        if (entity.ReasonCode == reason
+            && entity.SafeDetail == detail
+            && entity.FileKind == request.FileKind)
+        {
+            return new(Map(entity), false, false);
+        }
+
+        entity.ReasonCode = reason;
+        entity.SafeDetail = detail;
+        entity.FileKind = request.FileKind;
+        entity.Version++;
+        context.UnidentifiedHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            UnidentifiedItemId = entity.Id,
+            PreviousState = UnidentifiedState.Open.ToString(),
+            NewState = UnidentifiedState.Open.ToString(),
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(request.Actor.Roles.OrderBy(role => role)),
+            OccurredAtUtc = request.OccurredAtUtc,
+            Reason = TruncateForHistory(detail),
+            OperationKey = operationKey
+        });
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            await context.Entry(entity).ReloadAsync(cancellationToken);
+            return new(Map(entity), false, true);
+        }
+        return new(Map(entity), true, false);
+    }
+
     public async Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
         ResolveUnidentifiedRequest request,
         CancellationToken cancellationToken = default)
@@ -446,17 +531,12 @@ public sealed class EfUnidentifiedStore(
         // origin receipt (the origin can be a receipt or, for INTK-007's
         // grouped-VRM-conflict case, a submission group), so this is a plain
         // left join rather than a navigation property.
-        var joined = await (
-            from item in context.Set<UnidentifiedItemEntity>().AsNoTracking()
-            where item.State == openState
-            join receipt in context.Set<IntakeReceiptEntity>().AsNoTracking().Include(entity => entity.MailRouteDecision)
-                on item.OriginId equals receipt.Id into receiptGroup
-            from receipt in receiptGroup.DefaultIfEmpty()
-            orderby item.CreatedAtUtc, item.Sequence
-            select new { item, receipt })
+        var joined = await QueueItems(context, context.Set<UnidentifiedItemEntity>().AsNoTracking()
+                .Where(item => item.State == openState))
+            .OrderBy(row => row.Item.CreatedAtUtc).ThenBy(row => row.Item.Sequence)
             .ToArrayAsync(cancellationToken);
 
-        var rows = joined.Select(row => MapQueueRow(row.item, row.receipt)).ToArray();
+        var rows = joined.Select(MapQueueRow).ToArray();
         return mediaKind is null
             ? rows
             : rows.Where(row => row.MediaKind == mediaKind.Value).ToArray();
@@ -478,17 +558,12 @@ public sealed class EfUnidentifiedStore(
         var resolvedState = UnidentifiedState.Resolved.ToString();
         var closedKind = UnidentifiedResolutionTargetKind.Closed.ToString();
 
-        var joined = await (
-            from item in context.Set<UnidentifiedItemEntity>().AsNoTracking()
-            where item.State == resolvedState && item.ResolutionTargetKind == closedKind
-            join receipt in context.Set<IntakeReceiptEntity>().AsNoTracking().Include(entity => entity.MailRouteDecision)
-                on item.OriginId equals receipt.Id into receiptGroup
-            from receipt in receiptGroup.DefaultIfEmpty()
-            orderby item.ResolvedAtUtc descending, item.Sequence descending
-            select new { item, receipt })
+        var joined = await QueueItems(context, context.Set<UnidentifiedItemEntity>().AsNoTracking()
+                .Where(item => item.State == resolvedState && item.ResolutionTargetKind == closedKind))
+            .OrderByDescending(row => row.Item.ResolvedAtUtc).ThenByDescending(row => row.Item.Sequence)
             .ToArrayAsync(cancellationToken);
 
-        var rows = joined.Select(row => MapQueueRow(row.item, row.receipt)).ToArray();
+        var rows = joined.Select(MapQueueRow).ToArray();
         return mediaKind is null
             ? rows
             : rows.Where(row => row.MediaKind == mediaKind.Value).ToArray();
@@ -532,13 +607,7 @@ public sealed class EfUnidentifiedStore(
         // origin receipt (the origin can be a receipt or, for INTK-007's
         // grouped-VRM-conflict case, a submission group), so this is a plain
         // left join rather than a navigation property.
-        var joined =
-            from item in items
-            join receipt in context.Set<IntakeReceiptEntity>().AsNoTracking()
-                .Include(entity => entity.MailRouteDecision)
-                on item.OriginId equals receipt.Id into receiptGroup
-            from receipt in receiptGroup.DefaultIfEmpty()
-            select new UnidentifiedQueueJoin { Item = item, Receipt = receipt };
+        var joined = QueueItems(context, items);
 
         if (mediaKind is { } requested)
         {
@@ -558,7 +627,42 @@ public sealed class EfUnidentifiedStore(
         var next = hasMore && page.Length > 0
             ? new KeysetPosition(page[^1].Item.CreatedAtUtc, page[^1].Item.Id)
             : null;
-        return new(page.Select(row => MapQueueRow(row.Item, row.Receipt)).ToArray(), next);
+        return new(page.Select(MapQueueRow).ToArray(), next);
+    }
+
+    private static IQueryable<UnidentifiedQueueJoin> QueueItems(
+        PegasusDbContext context,
+        IQueryable<UnidentifiedItemEntity> items)
+    {
+        var manualUpload = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.ManualUpload);
+        return from item in items
+               join receipt in context.IntakeReceipts.AsNoTracking()
+                   .Include(entity => entity.MailRouteDecision)
+                   .Include(entity => entity.MailClassificationDecision)
+                   .Include(entity => entity.InstructionDraft)
+                   .Include(entity => entity.ManualAssociation)
+                   .Include(entity => entity.Assets)
+                   on new { Kind = item.OriginKind, Id = item.OriginId }
+                   equals new { Kind = nameof(UnidentifiedOriginKind.Receipt), Id = receipt.Id }
+                   into receiptGroup
+               from receipt in receiptGroup.DefaultIfEmpty()
+               select new UnidentifiedQueueJoin
+               {
+                   Item = item,
+                   Receipt = receipt,
+                   AcceptedCaseId = context.CaseIntakeLinks
+                       .Where(link => receipt != null && link.IntakeReceiptId == receipt.Id)
+                       .Select(link => (Guid?)link.CaseId).FirstOrDefault(),
+                   HasAllocation = context.IntakeAllocationAttempts
+                       .Any(attempt => receipt != null && attempt.IntakeReceiptId == receipt.Id),
+                   HasImageIntake = context.ImageIntakes
+                       .Any(images => receipt != null && images.OriginReceiptId == receipt.Id),
+                   HasTriage = context.Set<TriageEntity>()
+                       .Any(triage => receipt != null && triage.OriginReceiptId == receipt.Id),
+                   IsManualUploadGroup = item.OriginKind == nameof(UnidentifiedOriginKind.SubmissionGroup)
+                       && context.Set<IntakeSubmissionGroupEntity>().Any(group =>
+                           group.Id == item.OriginId && group.SourceChannel == manualUpload)
+               };
     }
 
     /// <summary>
@@ -620,6 +724,16 @@ public sealed class EfUnidentifiedStore(
         public required UnidentifiedItemEntity Item { get; init; }
 
         public IntakeReceiptEntity? Receipt { get; init; }
+
+        public Guid? AcceptedCaseId { get; init; }
+
+        public bool HasAllocation { get; init; }
+
+        public bool HasImageIntake { get; init; }
+
+        public bool HasTriage { get; init; }
+
+        public bool IsManualUploadGroup { get; init; }
     }
 
     /// <summary>
@@ -629,8 +743,10 @@ public sealed class EfUnidentifiedStore(
     /// </summary>
     private const string ImageMediaTypePattern = "[Ii][Mm][Aa][Gg][Ee]/%";
 
-    private static UnidentifiedQueueRow MapQueueRow(UnidentifiedItemEntity item, IntakeReceiptEntity? receipt)
+    private static UnidentifiedQueueRow MapQueueRow(UnidentifiedQueueJoin row)
     {
+        var item = row.Item;
+        var receipt = row.Receipt;
         // The nullable overload owns the no-receipt fallback (a
         // submission-group origin with nothing to classify against); this
         // mapper carries no business judgement of its own.
@@ -654,6 +770,20 @@ public sealed class EfUnidentifiedStore(
             }
         }
 
+        var record = Map(item);
+        var retained = receipt is null ? null : EfIntakeReceiptStore.Map(receipt, false, row.AcceptedCaseId);
+        var facts = new UnidentifiedNextStepFacts(
+            record.State,
+            record.ReasonCode,
+            !row.HasAllocation && UnidentifiedNextStepPolicy.CanCreateCase(record, retained),
+            UnidentifiedNextStepPolicy.CanRegisterImages(record, retained, row.HasImageIntake),
+            UnidentifiedNextStepPolicy.CanOpenTriage(record, retained, row.HasTriage),
+            retained is not null && IntakeAssociationDestinationPolicy.CanOffer(retained),
+            UnidentifiedNextStepPolicy.SuppliedOriginalReportCustodyState(retained),
+            retained is { Decision: IntakeDecision.BlockedIntake, FailureCode: "reevaluation_pending" },
+            row.IsManualUploadGroup,
+            record.SourceMessageId is not null,
+            record.SourceAssetId is not null || (retained is not null && IntakeFileIdentity.SourceAsset(retained) is not null));
         return new(
             item.Id,
             item.Reference,
@@ -662,7 +792,8 @@ public sealed class EfUnidentifiedStore(
             emailSubject,
             emailSender,
             item.CreatedAtUtc,
-            Enum.Parse<UnidentifiedReasonCode>(item.ReasonCode));
+            record.ReasonCode,
+            UnidentifiedNextStepPolicy.Primary(facts));
     }
 
     public async Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(Guid unidentifiedItemId, CancellationToken cancellationToken = default)

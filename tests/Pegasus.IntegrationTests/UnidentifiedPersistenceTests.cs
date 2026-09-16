@@ -2,7 +2,9 @@
 using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Classification;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -189,17 +191,199 @@ public sealed class UnidentifiedPersistenceTests
         Assert.Equal("instruction-letter.pdf", documentRow.FileName);
     }
 
-    private static async Task<UnidentifiedItem> RegisterAsync(IRegisterUnidentified register, Guid receiptId)
+    [Fact]
+    public async Task SqlQueueAndDetailContextsAgreeOnEveryNextStep()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var receipts = services.GetRequiredService<IIntakeReceiptStore>();
+        var register = services.GetRequiredService<IRegisterUnidentified>();
+        var store = services.GetRequiredService<IUnidentifiedStore>();
+        var contexts = services.GetRequiredService<IGetUnidentifiedItemContext>();
+        var staff = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+
+        var waitingReceipt = await StoreNextStepReceiptAsync(
+            receipts, IntakeSourceChannel.Mailbox, IntakeDecision.NeedsSorting, null, AuditClassification(), null);
+        var pendingReceipt = await StoreNextStepReceiptAsync(
+            receipts, IntakeSourceChannel.Mailbox, IntakeDecision.BlockedIntake, "reevaluation_pending",
+            AuditClassification(), [SuppliedReportAsset()]);
+        await SetSuppliedReportCustodyAsync(services, pendingReceipt, "confirmed");
+        var readyReceipt = await StoreNextStepReceiptAsync(
+            receipts, IntakeSourceChannel.ManualUpload, IntakeDecision.CaseCreated, null,
+            InspectionClassification(), null);
+
+        var waiting = await RegisterAsync(register, waitingReceipt, UnidentifiedReasonCode.AuditOriginalReportMissing);
+        var pending = await RegisterAsync(register, pendingReceipt, UnidentifiedReasonCode.AuditOriginalReportMissing);
+        var ready = await RegisterAsync(register, readyReceipt, UnidentifiedReasonCode.NoUsableIdentification);
+
+        var groupId = Guid.NewGuid();
+        var contextFactory = services.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            context.IntakeSubmissionGroups.Add(new IntakeSubmissionGroupEntity
+            {
+                Id = groupId,
+                SourceChannel = "manual_upload",
+                SubmissionToken = "next-step-manual-group",
+                ExpectedMemberCount = 2,
+                Actor = "test-actor",
+                ReceivedAtUtc = CreatedAtUtc,
+                Version = 0
+            });
+            await context.SaveChangesAsync();
+        }
+        var group = (await register.ExecuteAsync(new(
+            UnidentifiedOrigin.SubmissionGroup(groupId),
+            UnidentifiedReasonCode.NoUsableIdentification,
+            "Mixed manual upload needs review.",
+            ActionActor.SystemWorker("test-worker"),
+            "next-step-manual-group",
+            CreatedAtUtc))).Item;
+
+        var closed = await RegisterAsync(register, await StoreNextStepReceiptAsync(
+            receipts, IntakeSourceChannel.ManualUpload, IntakeDecision.NeedsSorting, null,
+            InspectionClassification(), null), UnidentifiedReasonCode.NoUsableIdentification);
+        await store.ResolveAsync(new(
+            closed.Id, closed.Version, ActionActor.Automation("test-automation"), "next-step-close",
+            "Closed for a controlled test.", UnidentifiedResolutionTargetKind.Closed, "closed", null,
+            CreatedAtUtc.AddMinutes(1)));
+
+        var rows = await store.ListQueueAsync(null);
+        Assert.Equal(UnidentifiedNextStep.AddOriginalReport, Assert.Single(rows, row => row.Id == waiting.Id).NextStep);
+        Assert.Equal(UnidentifiedNextStep.AuditReportProcessing, Assert.Single(rows, row => row.Id == pending.Id).NextStep);
+        Assert.Equal(UnidentifiedNextStep.CreateCase, Assert.Single(rows, row => row.Id == ready.Id).NextStep);
+        Assert.Equal(UnidentifiedNextStep.ReviewGroup, Assert.Single(rows, row => row.Id == group.Id).NextStep);
+
+        var cursorRows = await store.ListQueueByCursorAsync(null, null, 20, CancellationToken.None);
+        Assert.Equal(
+            rows.OrderBy(row => row.CreatedAtUtc).ThenBy(row => row.Id).Select(row => row.Id),
+            cursorRows.Items.Select(row => row.Id));
+        Assert.Equal(
+            rows.OrderBy(row => row.CreatedAtUtc).ThenBy(row => row.Id).Select(row => row.NextStep),
+            cursorRows.Items.Select(row => row.NextStep));
+
+        foreach (var row in rows)
+        {
+            var detail = await contexts.ExecuteAsync(staff, row.Id, CancellationToken.None);
+            Assert.NotNull(detail);
+            Assert.Equal(row.NextStep, detail!.NextStep);
+        }
+
+        var closedDetail = await contexts.ExecuteAsync(staff, closed.Id, CancellationToken.None);
+        Assert.Equal(UnidentifiedNextStep.None, closedDetail!.NextStep);
+    }
+
+    [Fact]
+    public async Task ReasonRefreshChangesOnlyTheCurrentOpenReceiptItem()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var receipts = services.GetRequiredService<IIntakeReceiptStore>();
+        var register = services.GetRequiredService<IRegisterUnidentified>();
+        var store = services.GetRequiredService<IUnidentifiedStore>();
+        var receiptId = await StoreNextStepReceiptAsync(
+            receipts, IntakeSourceChannel.Mailbox, IntakeDecision.NeedsSorting, null,
+            AuditClassification(), null);
+        var item = await RegisterAsync(register, receiptId);
+        var receipt = Assert.IsType<IntakeReceipt>(await services
+            .GetRequiredService<IIntakeReceiptQueries>().GetAsync(receiptId, CancellationToken.None));
+        var actor = ActionActor.SystemWorker("test-worker");
+
+        var refreshed = await store.RefreshReasonAsync(new(
+            item.Id, item.Version, receipt.Id, receipt.Version,
+            UnidentifiedReasonCode.AuditOriginalReportMissing,
+            "The original report must determine the Audit outcome.", actor,
+            "refresh-current", CreatedAtUtc.AddMinutes(1)));
+
+        Assert.True(refreshed.IsRefreshed);
+        Assert.False(refreshed.IsStale);
+        Assert.Equal(UnidentifiedReasonCode.AuditOriginalReportMissing, refreshed.Item.ReasonCode);
+        Assert.Equal(2, (await store.HistoryAsync(item.Id)).Count);
+
+        await store.ResolveAsync(new(
+            refreshed.Item.Id, refreshed.Item.Version, actor, "refresh-close", "Closed for test.",
+            UnidentifiedResolutionTargetKind.Closed, "closed", null, CreatedAtUtc.AddMinutes(2)));
+        var stale = await store.RefreshReasonAsync(new(
+            refreshed.Item.Id, refreshed.Item.Version + 1, receipt.Id, receipt.Version,
+            UnidentifiedReasonCode.NoUsableIdentification, "A stale evaluator must not reopen it.", actor,
+            "refresh-after-close", CreatedAtUtc.AddMinutes(3)));
+
+        Assert.False(stale.IsRefreshed);
+        Assert.True(stale.IsStale);
+        Assert.Equal(UnidentifiedState.Resolved, stale.Item.State);
+        Assert.Equal(UnidentifiedReasonCode.AuditOriginalReportMissing, stale.Item.ReasonCode);
+    }
+
+    private static async Task<UnidentifiedItem> RegisterAsync(
+        IRegisterUnidentified register,
+        Guid receiptId,
+        UnidentifiedReasonCode reason = UnidentifiedReasonCode.NoUsableIdentification)
     {
         var result = await register.ExecuteAsync(
             new(
                 UnidentifiedOrigin.Receipt(receiptId),
-                UnidentifiedReasonCode.NoUsableIdentification,
+                reason,
                 "test detail",
                 ActionActor.SystemWorker("test-worker"),
                 $"unidentified-test:{Guid.NewGuid():N}",
                 CreatedAtUtc));
         return result.Item;
+    }
+
+    private static async Task<Guid> StoreNextStepReceiptAsync(
+        IIntakeReceiptStore receiptStore,
+        IntakeSourceChannel channel,
+        IntakeDecision decision,
+        string? failureCode,
+        MailClassificationResult classification,
+        IReadOnlyList<IntakeAssetRecord>? assets)
+    {
+        var receipt = await receiptStore.StoreAsync(new IntakeReceiptDraft(
+            "next-step-source.pdf",
+            "application/pdf",
+            1024,
+            Guid.NewGuid().ToString("N"),
+            new IntakeSourceIdentity(channel, Guid.NewGuid().ToString("N")),
+            CreatedAtUtc,
+            CreatedAtUtc,
+            "test-actor",
+            decision,
+            "test decision reason",
+            [], [], null, [], failureCode, null, "test-reader", "1", null, null,
+            Assets: assets,
+            MailClassificationDecision: classification),
+            CancellationToken.None);
+        return receipt.Id;
+    }
+
+    private static MailClassificationResult AuditClassification() => MailClassificationResult.Classified(
+        MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "audit"), [],
+        "Test Audit classification.", "test-classifier", 1, Pegasus.Core.Cases.CaseType.Audit);
+
+    private static MailClassificationResult InspectionClassification() => MailClassificationResult.Classified(
+        MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"), [],
+        "Test Inspection classification.", "test-classifier", 1, Pegasus.Core.Cases.CaseType.Inspection);
+
+    private static IntakeAssetRecord SuppliedReportAsset() => new(
+        Guid.NewGuid(), "supplied original report: original-report.pdf", "original-report.pdf", "application/pdf",
+        IntakeAssetKind.Attachment, IntakeAssetDisposition.SuppliedOriginalReport, 4,
+        new string('A', 64), "test/supplied-original-report", null, null, null, null,
+        IncomingArtifactCustodyState.Confirmed);
+
+    private static async Task SetSuppliedReportCustodyAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        string custodyStatus)
+    {
+        var contextFactory = services.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var asset = await context.IntakeAssets.SingleAsync(asset =>
+            asset.IntakeReceiptId == receiptId
+            && asset.Disposition == "supplied_original_report");
+        asset.CustodyStatus = custodyStatus;
+        await context.SaveChangesAsync();
     }
 
     private static async Task<Guid> StoreReceiptAsync(

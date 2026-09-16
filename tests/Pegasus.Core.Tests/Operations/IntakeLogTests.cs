@@ -103,6 +103,12 @@ public sealed class IntakeLogTests
         public Task<IntakeReceipt> ScheduleReevaluationAsync(ReevaluateIntakeRequest request, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<AttachSuppliedOriginalReportResult> AttachSuppliedOriginalReportAsync(AttachSuppliedOriginalReportRequest request, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<AttachSuppliedOriginalReportResult?> ProbeSuppliedOriginalReportReplayAsync(ProbeSuppliedOriginalReportReplayRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task LinkAsync(LinkIntakeRequest request, DateTimeOffset occurredAtUtc, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

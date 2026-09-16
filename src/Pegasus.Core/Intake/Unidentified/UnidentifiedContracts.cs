@@ -17,6 +17,9 @@ public enum UnidentifiedReasonCode
     AmbiguousOwnershipOrDestination,
     TechnicalProcessingFailure,
 
+    /// <summary>An Audit instruction is waiting for its original report, which alone determines its Case/PO reference.</summary>
+    AuditOriginalReportMissing,
+
     /// <summary>
     /// Processing could not read the file (unsupported, OCR that failed, or a
     /// technical failure on it), so it lands in the work list and ages like any
@@ -122,7 +125,8 @@ public sealed record UnidentifiedQueueRow(
     string? EmailSubject,
     string? EmailSender,
     DateTimeOffset ReceivedAtUtc,
-    UnidentifiedReasonCode ReasonCode);
+    UnidentifiedReasonCode ReasonCode,
+    UnidentifiedNextStep NextStep = UnidentifiedNextStep.None);
 
 public sealed record UnidentifiedOrigin(UnidentifiedOriginKind Kind, Guid Id)
 {
@@ -300,6 +304,28 @@ public sealed record UnidentifiedResolveResult(UnidentifiedItem Item, Unidentifi
 
 public sealed record UnidentifiedReopenResult(UnidentifiedItem Item, UnidentifiedHistoryEntry History, bool IsReplay);
 
+/// <summary>
+/// Replaces the current reason from one completed receipt evaluation. Both
+/// versions fence a delayed evaluator from overwriting newer work or a staff
+/// closure.
+/// </summary>
+public sealed record RefreshUnidentifiedReasonRequest(
+    Guid UnidentifiedItemId,
+    long ExpectedItemVersion,
+    Guid ReceiptId,
+    long ExpectedReceiptVersion,
+    UnidentifiedReasonCode ReasonCode,
+    string SafeDetail,
+    ActionActor Actor,
+    string OperationKey,
+    DateTimeOffset OccurredAtUtc,
+    string? FileKind = null);
+
+public sealed record UnidentifiedReasonRefreshResult(
+    UnidentifiedItem Item,
+    bool IsRefreshed,
+    bool IsStale);
+
 public interface IUnidentifiedStore
 {
     Task<UnidentifiedRegisterResult> RegisterAsync(
@@ -308,6 +334,10 @@ public interface IUnidentifiedStore
 
     Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(
         RegisterUnidentifiedRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<UnidentifiedReasonRefreshResult> RefreshReasonAsync(
+        RefreshUnidentifiedReasonRequest request,
         CancellationToken cancellationToken = default);
 
     Task<UnidentifiedResolveResult> ResolveAsync(
@@ -590,6 +620,27 @@ public static class UnidentifiedValidation
         RequireOperation(request.OperationKey);
         RequireText(request.Reason, MaximumReasonLength, nameof(request.Reason));
         RequireUtc(request.ReopenedAtUtc, nameof(request.ReopenedAtUtc));
+    }
+
+    public static void ValidateReasonRefresh(RefreshUnidentifiedReasonRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.UnidentifiedItemId == Guid.Empty || request.ReceiptId == Guid.Empty)
+        {
+            throw new ArgumentException("Refreshing an Unidentified reason requires item and receipt identifiers.", nameof(request));
+        }
+        if (request.ExpectedItemVersion < 0 || request.ExpectedReceiptVersion < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), "Refresh versions cannot be negative.");
+        }
+        if (!Enum.IsDefined(request.ReasonCode))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), "The Unidentified reason is not recognised.");
+        }
+        RequireActorForRegistration(request.Actor);
+        RequireOperation(request.OperationKey);
+        RequireDetail(request.SafeDetail);
+        RequireUtc(request.OccurredAtUtc, nameof(request.OccurredAtUtc));
     }
 
     public static void RequireDetail(string value) => RequireText(value, MaximumDetailLength, nameof(value));

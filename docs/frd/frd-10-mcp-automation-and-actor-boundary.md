@@ -3,7 +3,8 @@
 ## Unidentified automation contract
 
 Automation may list and look up Unidentified items by exact U reference, including
-canonical reason, origin, state, history, and retained source metadata. Receipt
+canonical reason, origin, state, history, retained source metadata, and the
+same Core-selected next step as the staff record. Receipt
 origins expose their exact receipt; submission-group origins enumerate every member
 and require an exact member receipt for download. Source bytes use the same
 integrity-checked, bounded download owner as the staff application. Any resolution mutation uses the same

@@ -41,6 +41,9 @@ public sealed class AutomationIntakeParityIngressTests
         using var getResponse = await PostMcpAsync(client, token,
             ToolCallPayload(2, "pegasus_unidentified_get", new { reference }));
         var detail = await ReadStructuredContentAsync(getResponse);
+        Assert.Equal("OpenSource", item.GetProperty("nextStep").GetString());
+        Assert.Equal(item.GetProperty("nextStep").GetString(),
+            detail.GetProperty("item").GetProperty("nextStep").GetString());
         var source = Assert.Single(detail.GetProperty("sources").EnumerateArray());
         var receiptId = source.GetProperty("receiptId").GetGuid();
 
@@ -51,6 +54,34 @@ public sealed class AutomationIntakeParityIngressTests
         Assert.True(download.GetProperty("contentIncluded").GetBoolean());
         Assert.Equal("not a PDF", Encoding.UTF8.GetString(
             Convert.FromBase64String(download.GetProperty("contentBase64").GetString()!)));
+    }
+
+    [Fact]
+    public async Task WaitingAuditHasTheSameAddOriginalReportStepInMcpListAndDetail()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var mcpFactory = WithAutomationMcp(factory);
+        using var intakeClient = IntakeWebDriver.CreateClient(mcpFactory);
+        using var client = mcpFactory.CreateClient();
+        var instruction = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: "MCP Audit Claimant", claimNumber: "MCP-AUDIT",
+            notificationTitle: "AUDIT REPORT NOTIFICATION");
+        var mail = IntakeTestEvidence.CreateEmail("audit.eml", "Please see the attached audit instruction.",
+            attachments: [("audit-instruction.pdf", "application/pdf", instruction)]);
+        _ = await IntakeWebDriver.UploadAndProcessAsync(
+            mcpFactory, intakeClient, mail.FileName, mail.MediaType, mail.Content);
+        var token = await RequestTokenAsync(client, "automation.intake");
+        using var listResponse = await PostMcpAsync(client, token,
+            ToolCallPayload(101, "pegasus_unidentified_list", new { }));
+        var list = await ReadStructuredContentAsync(listResponse);
+        var item = Assert.Single(list.GetProperty("items").EnumerateArray());
+        Assert.Equal("AuditOriginalReportMissing", item.GetProperty("reasonCode").GetString());
+        Assert.Equal("AddOriginalReport", item.GetProperty("nextStep").GetString());
+
+        using var detailResponse = await PostMcpAsync(client, token,
+            ToolCallPayload(102, "pegasus_unidentified_get", new { reference = item.GetProperty("reference").GetString() }));
+        var detail = await ReadStructuredContentAsync(detailResponse);
+        Assert.Equal("AddOriginalReport", detail.GetProperty("item").GetProperty("nextStep").GetString());
     }
 
     [Fact]

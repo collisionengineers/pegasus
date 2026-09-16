@@ -274,8 +274,13 @@ Unidentified items only; there is no blocked row.
 
 The Unidentified record (`/Unidentified/{id}`) joins the working set and
 carries a ribbon of reference, received, kind, source and state (Open, Closed
-or Resolved). An item that could not be read says "Could not be read · {file
-kind}" with its bounded detail. Its actions are **Open file** (the retained
+or Resolved). Its reason and bounded safe detail appear together once under
+**Why it is here**. An item that could not be read says "Could not be read ·
+{file kind}". **Next step** promotes one action selected by Core from the
+reason and the current material and destination eligibility; other permitted
+actions remain available as secondary controls. A submission group follows
+its existing group decision rather than being assumed to contain images.
+Its actions are **Open file** (the retained
 original), **Open message** (when it came by e-mail), **Request again** (a
 reply to that message), **Link to Case** (a dialog searching viable Cases;
 linking claims that Case's edit lease), **Create case** (from its receipt),
@@ -284,6 +289,12 @@ with a reason) and **Close with reason** (free text). Where Core allows it the
 record also offers **Open the Triage**, lists registration readings with
 Dismiss (reason), and on a closed item shows the outcome with **Reopen**
 (reason). An image on the item offers crop and tag (§ Case workspace, Files).
+An Audit awaiting its original report offers **Add original report** here;
+**Create case** is unavailable until that report has supplied its outcome.
+After a successful upload the record shows processing status without offering
+another upload. It then links to the allocated Case, or offers the existing
+acceptance path for a manual-upload instruction. Technical retry remains in
+the Administrator's Intake log and Operations, with its required reason.
 There is no "Resolution" or "Resolve material" framing in the UI. Exact
 U-reference search returns both open and resolved items as a distinct result
 type and never treats U<n> as a Case, Audit, or Image Intake reference. Every

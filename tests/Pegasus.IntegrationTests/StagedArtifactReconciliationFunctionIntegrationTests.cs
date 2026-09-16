@@ -517,6 +517,10 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken = default) =>
             throw UnexpectedCall();
 
+        public Task<UnidentifiedReasonRefreshResult> RefreshReasonAsync(
+            RefreshUnidentifiedReasonRequest request,
+            CancellationToken cancellationToken = default) => throw UnexpectedCall();
+
         public Task<UnidentifiedResolveResult> ResolveAsync(
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default) =>

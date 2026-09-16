@@ -33,6 +33,169 @@ public sealed class CustodyOutboxIntegrationTests
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task MailboxAuditWithoutItsOriginalReportStaysUnidentifiedBeforeAnyAllocation()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var email = IntakeTestEvidence.CreateEmail(
+            $"audit-waiting-report-{fixtureId}.eml",
+            "Please see the attached Audit instruction.",
+            attachments:
+            [
+                ("AuditReportNotification.pdf", "application/pdf",
+                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                        claimantName: $"Waiting Audit {fixtureId}",
+                        claimNumber: $"WAIT-{fixtureId}",
+                        notificationTitle: "AUDIT REPORT NOTIFICATION"))
+            ]);
+
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var receipt = Assert.IsType<IntakeReceipt>(await services
+            .GetRequiredService<IIntakeReceiptQueries>().GetAsync(receiptId, CancellationToken.None));
+        var waiting = Assert.IsType<UnidentifiedItem>(await services
+            .GetRequiredService<IUnidentifiedStore>().GetByOriginAsync(
+                UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
+
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(CaseType.Audit, receipt.MailClassificationDecision?.CaseType);
+        Assert.Null(receipt.MailClassificationDecision?.StandaloneAuditReport);
+        Assert.Equal(UnidentifiedReasonCode.AuditOriginalReportMissing, waiting.ReasonCode);
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
+    }
+
+    [Fact]
+    public async Task ConfirmedSuppliedMailboxAuditReportReevaluatesToOneRepairableAuditCase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var instruction = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: $"Mailbox Audit {fixtureId}", claimNumber: $"MBA-{fixtureId}",
+            registration: "AB12 CDE", notificationTitle: "AUDIT REPORT NOTIFICATION");
+        var email = IntakeTestEvidence.CreateEmail(
+            $"mailbox-audit-{fixtureId}.eml", "Please see the attached Audit instruction.",
+            attachments: [("AuditReportNotification.pdf", "application/pdf", instruction)]);
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var before = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receiptId, CancellationToken.None));
+        var item = Assert.IsType<UnidentifiedItem>(await services.GetRequiredService<IUnidentifiedStore>()
+            .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
+        var report = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: "Conflicting report claimant", claimNumber: "REPORT-ONLY-999",
+            registration: "ZZ99 ZZZ", notificationTitle: "ORIGINAL BODYSHOP REPORT",
+            additionalLines: ["Assessment outcome: Repairable"], addSignatureLines: false);
+
+        var request = new SupplyAuditOriginalReportRequest(
+            item.Id, item.Version, before.Version,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+            $"supply-mailbox-audit:{Guid.NewGuid():N}", "bodyshop-report.pdf", "application/pdf", report);
+        var supplied = await services.GetRequiredService<ISupplyAuditOriginalReport>()
+            .ExecuteAsync(request, CancellationToken.None);
+
+        Assert.False(supplied.IsDuplicate);
+        var queued = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receiptId, CancellationToken.None));
+        Assert.Equal(IntakeDecision.BlockedIntake, queued.Decision);
+        Assert.Equal("reevaluation_pending", queued.FailureCode);
+        Assert.Null(queued.AllocationState);
+        Assert.Contains(queued.AssetRecords, asset =>
+            asset.Id == supplied.ReportAssetId
+            && asset.Disposition == IntakeAssetDisposition.SuppliedOriginalReport
+            && asset.CustodyState == IncomingArtifactCustodyState.Unknown);
+        Assert.Contains(await services.GetRequiredService<IUnidentifiedStore>().HistoryAsync(item.Id), entry =>
+            entry.Reason == "Original report added: bodyshop-report.pdf");
+
+        await IntakeWebDriver.DrainStagedAsync(
+            services, await StagedReceiptForAsync(services, receiptId), CancellationToken.None);
+
+        var reevaluated = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receiptId, CancellationToken.None));
+        Assert.Equal(IntakeDecision.CaseCreated, reevaluated.Decision);
+        Assert.Equal(CaseType.Audit, reevaluated.MailClassificationDecision?.CaseType);
+        Assert.Equal(AuditAssessment.Repairable,
+            reevaluated.MailClassificationDecision?.StandaloneAuditReport?.Assessment);
+        Assert.Equal($"MBA-{fixtureId}", reevaluated.InstructionDraft?.ClaimNumber);
+        Assert.Equal("AB12CDE", reevaluated.InstructionDraft?.VehicleRegistration);
+        Assert.NotEqual("REPORT-ONLY-999", reevaluated.InstructionDraft?.ClaimNumber);
+        Assert.NotEqual("Conflicting report claimant", reevaluated.InstructionDraft?.ClaimantName);
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+
+        await using var db = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var reference = await db.Set<CaseEntity>().Where(caseItem => caseItem.OriginIntakeReceiptId == receiptId)
+            .Select(caseItem => caseItem.Reference).SingleAsync();
+        Assert.StartsWith("a.", reference, StringComparison.Ordinal);
+
+        var replay = await services.GetRequiredService<ISupplyAuditOriginalReport>()
+            .ExecuteAsync(request, CancellationToken.None);
+        Assert.True(replay.IsDuplicate);
+        Assert.Equal(supplied.ReportAssetId, replay.ReportAssetId);
+    }
+
+    [Fact]
+    public async Task ConfirmedSuppliedManualAuditReportStillRequiresStaffAcceptance()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var email = IntakeTestEvidence.CreateEmail(
+            $"manual-audit-{fixtureId}.eml", "Please see the attached Audit instruction.",
+            attachments:
+            [
+                ("AuditReportNotification.pdf", "application/pdf",
+                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                        claimantName: $"Manual Audit {fixtureId}", claimNumber: $"MNA-{fixtureId}",
+                        notificationTitle: "AUDIT REPORT NOTIFICATION"))
+            ]);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var receiptId = await AllocationTestData.SubmitAndProcessAsync(services, new(
+            email.FileName, email.MediaType, email.Content,
+            services.GetRequiredService<TimeProvider>().GetUtcNow(), "manual-test",
+            new IntakeSourceIdentity(IntakeSourceChannel.ManualUpload, $"manual-audit:{fixtureId}")),
+            $"manual-audit-submit:{Guid.NewGuid():N}");
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var before = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receiptId, CancellationToken.None));
+        var item = Assert.IsType<UnidentifiedItem>(await services.GetRequiredService<IUnidentifiedStore>()
+            .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
+        var report = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            notificationTitle: "ORIGINAL BODYSHOP REPORT", additionalLines: ["Total loss"],
+            addSignatureLines: false);
+
+        _ = await services.GetRequiredService<ISupplyAuditOriginalReport>().ExecuteAsync(new(
+            item.Id, item.Version, before.Version,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+            $"supply-manual-audit:{Guid.NewGuid():N}", "manual-bodyshop-report.pdf", "application/pdf", report),
+            CancellationToken.None);
+        await IntakeWebDriver.DrainStagedAsync(
+            services, await StagedReceiptForAsync(services, receiptId), CancellationToken.None);
+
+        var reevaluated = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receiptId, CancellationToken.None));
+        Assert.Equal(IntakeDecision.CaseCreated, reevaluated.Decision);
+        Assert.Equal(AuditAssessment.TotalLoss,
+            reevaluated.MailClassificationDecision?.StandaloneAuditReport?.Assessment);
+        Assert.Null(reevaluated.CurrentCaseId);
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+
+        var evidence = Assert.IsType<StandaloneAuditEvidence>(await services
+            .GetRequiredService<IStandaloneAuditEvidenceQueries>()
+            .GetForReceiptAsync(receiptId, CancellationToken.None));
+        var accepted = await AcceptAsync(services, receiptId, caseType: CaseType.Audit,
+            expectedVersion: evidence.ReceiptVersion, standaloneAuditEvidenceId: evidence.Id);
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+
+        await using var db = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var reference = await db.Set<CaseEntity>().Where(caseItem => caseItem.Id == accepted.Identity.CaseId)
+            .Select(caseItem => caseItem.Reference).SingleAsync();
+        Assert.StartsWith("ap.", reference, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ReevaluationReadsTheRetainedLogicalSourceAfterStagingWasDeleted()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -2744,6 +2907,20 @@ public sealed class CustodyOutboxIntegrationTests
     {
         public Task EnqueueAsync(Guid stagedReceiptId, CancellationToken cancellationToken) =>
             processor.ExecuteAsync(stagedReceiptId, cancellationToken);
+    }
+
+    private static async Task<Guid> StagedReceiptForAsync(
+        IServiceProvider services,
+        Guid processedReceiptId)
+    {
+        await using var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        return await context.IntakeEvaluations
+            .Where(evaluation => evaluation.ProcessedReceiptId == processedReceiptId)
+            .OrderByDescending(evaluation => evaluation.Revision)
+            .Select(evaluation => evaluation.StagedReceiptId)
+            .FirstAsync();
     }
 
     private static async Task<CaseAcceptanceOutcome> AcceptAsync(

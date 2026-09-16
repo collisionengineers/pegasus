@@ -462,7 +462,9 @@ public enum IntakeAssetDisposition
     Source,
     Attachment,
     Inline,
-    Embedded
+    Embedded,
+    /// <summary>A staff-supplied original report for an Audit instruction.</summary>
+    SuppliedOriginalReport
 }
 
 public sealed record IntakeAssetBounds(
@@ -1110,6 +1112,37 @@ public sealed record ReevaluateIntakeRequest(
     string OperationKey,
     string Reason);
 
+/// <summary>One report retained for an Audit receipt, with the receipt and Unidentified concurrency fences it must satisfy.</summary>
+public sealed record AttachSuppliedOriginalReportRequest(
+    Guid UnidentifiedItemId,
+    long ExpectedItemVersion,
+    Guid ReceiptId,
+    long ExpectedReceiptVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string FileName,
+    string MediaType,
+    string SourceLabel,
+    string ContentHash,
+    long ContentLength,
+    ReadOnlyMemory<byte> Content);
+
+public sealed record AttachSuppliedOriginalReportResult(
+    Guid ReceiptId,
+    Guid ReportAssetId,
+    bool IsDuplicate);
+
+public sealed record ProbeSuppliedOriginalReportReplayRequest(
+    Guid UnidentifiedItemId,
+    long ExpectedItemVersion,
+    long ExpectedReceiptVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string FileName,
+    string MediaType,
+    string ContentHash,
+    long ContentLength);
+
 public sealed record AcceptIntakeRequest(
     Guid ReceiptId,
     long ExpectedVersion,
@@ -1168,6 +1201,15 @@ public interface IIntakeMutationStore
     Task<IntakeReceipt> ScheduleReevaluationAsync(
         ReevaluateIntakeRequest request,
         DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken);
+
+    Task<AttachSuppliedOriginalReportResult> AttachSuppliedOriginalReportAsync(
+        AttachSuppliedOriginalReportRequest request,
+        DateTimeOffset occurredAtUtc,
+        CancellationToken cancellationToken);
+
+    Task<AttachSuppliedOriginalReportResult?> ProbeSuppliedOriginalReportReplayAsync(
+        ProbeSuppliedOriginalReportReplayRequest request,
         CancellationToken cancellationToken);
 
     /// <summary>

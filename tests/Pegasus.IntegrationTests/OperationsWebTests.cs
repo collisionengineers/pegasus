@@ -1097,6 +1097,10 @@ public sealed partial class OperationsWebTests
             RegisterUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        public Task<UnidentifiedReasonRefreshResult> RefreshReasonAsync(
+            RefreshUnidentifiedReasonRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<UnidentifiedResolveResult> ResolveAsync(
             ResolveUnidentifiedRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();

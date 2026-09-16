@@ -58,6 +58,7 @@ public static class OperatorLabels
 
     public static string UnidentifiedReason(UnidentifiedReasonCode reason) => reason switch
     {
+        UnidentifiedReasonCode.AuditOriginalReportMissing => "Audit is missing the original report",
         UnidentifiedReasonCode.UnreadableOrCorruptContent => "Unreadable or corrupt content",
         UnidentifiedReasonCode.UnsupportedContent => "Unsupported content",
         UnidentifiedReasonCode.NoUsableIdentification => "No usable identification",
