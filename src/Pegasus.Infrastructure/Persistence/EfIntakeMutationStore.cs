@@ -18,10 +18,131 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfIntakeMutationStore(
-    IDbContextFactory<PegasusDbContext> contextFactory)
+    IDbContextFactory<PegasusDbContext> contextFactory,
+    TimeProvider? timeProvider = null)
     : IIntakeMutationStore, IAutomaticCaseAssociationStore,
-      IAutomaticMailCaseAssociationEvidenceQueries
+      IAutomaticMailCaseAssociationEvidenceQueries,
+      IAutomaticCaseEvidencePromotionStore
 {
+    private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
+
+    public async Task<AutomaticCaseEvidencePromotionPreparation> PrepareAsync(
+        AutomaticCaseEvidencePromotionRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.IntakeReceiptId == Guid.Empty || request.CaseId == Guid.Empty
+            || request.AssetIds.Count == 0 || request.AssetIds.Any(id => id == Guid.Empty)
+            || request.AssetIds.Distinct().Count() != request.AssetIds.Count)
+        {
+            throw new ArgumentException("A receipt, Case and distinct retained assets are required.", nameof(request));
+        }
+
+        var operationKey = AutomaticCaseEvidencePromotionOperationKey.Plan(request.IntakeReceiptId);
+        var assetIds = request.AssetIds.Order().ToArray();
+        var requestHash = Hash(JsonSerializer.Serialize(new
+        {
+            request.IntakeReceiptId,
+            request.CaseId,
+            AssetIds = assetIds,
+            request.HasSelectedPhotographs
+        }));
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+        await AcquireCaseQueryLockAsync(
+            context, transaction, request.CaseId, request.IntakeReceiptId, cancellationToken);
+
+        var replay = await context.IntakeMutationHistory
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken);
+        if (replay is not null)
+        {
+            if (replay.IntakeReceiptId != request.IntakeReceiptId
+                || replay.CaseId != request.CaseId
+                || !FixedTimeHashEquals(replay.RequestFingerprint, requestHash))
+            {
+                throw new IntakeOperationConflictException();
+            }
+            if (await context.IntakeMutationHistory.AsNoTracking().AnyAsync(
+                    item => item.OperationKey
+                        == $"case-intake-promotion-complete:{request.IntakeReceiptId:N}",
+                    cancellationToken))
+            {
+                return new(AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable);
+            }
+        }
+
+        var receipt = await context.IntakeReceipts
+            .SingleOrDefaultAsync(item => item.Id == request.IntakeReceiptId, cancellationToken)
+            ?? throw new KeyNotFoundException("The intake receipt does not exist.");
+        var association = await context.IntakeManualAssociations
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.IntakeReceiptId == request.IntakeReceiptId, cancellationToken);
+        if (association is null || !association.IsActive || association.CaseId != request.CaseId
+            || association.ActorKind != nameof(ActorKind.SystemWorker)
+            || receipt.SourceChannel == "manual_upload")
+        {
+            return new(AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable);
+        }
+
+        var workflow = await context.CaseWorkflows
+            .Include(item => item.Case)
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
+            ?? throw new KeyNotFoundException("The associated Case does not exist.");
+        if (workflow.ArchivedAtUtc is not null
+            || workflow.State is not (nameof(CaseLifecycleState.NotReady)
+                or nameof(CaseLifecycleState.Review)))
+        {
+            return new(AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable);
+        }
+        if (workflow.EditLeaseExpiresAtUtc > timeProvider.GetUtcNow())
+        {
+            return new(AutomaticCaseEvidencePromotionPreparationDisposition.Deferred);
+        }
+        if (replay is not null)
+        {
+            return new(AutomaticCaseEvidencePromotionPreparationDisposition.Ready, request.CaseId, workflow.Version);
+        }
+
+        var actualAssetIds = await context.IntakeAssets.AsNoTracking()
+            .Where(asset => asset.IntakeReceiptId == request.IntakeReceiptId
+                && assetIds.Contains(asset.Id))
+            .Select(asset => asset.Id)
+            .ToArrayAsync(cancellationToken);
+        if (actualAssetIds.Length != assetIds.Length)
+        {
+            throw new IntakeAssociationConflictException(
+                "The retained evidence changed before automatic Case filing began.");
+        }
+
+        context.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
+        {
+            Id = Guid.NewGuid(),
+            IntakeReceiptId = request.IntakeReceiptId,
+            CaseId = request.CaseId,
+            EventType = "intake_case_evidence_promotion_started",
+            ActorKind = nameof(ActorKind.SystemWorker),
+            ActorSubjectId = "intake-processing",
+            ActorRolesJson = "[]",
+            Reason = "Automatic filing of retained receipt evidence on its uniquely associated Case.",
+            OperationKey = operationKey,
+            RequestFingerprint = requestHash,
+            OccurredAtUtc = timeProvider.GetUtcNow(),
+            ExpectedIntakeVersion = receipt.Version,
+            BeforeIntakeVersion = receipt.Version,
+            AfterIntakeVersion = receipt.Version,
+            ExpectedCaseVersion = workflow.Version,
+            BeforeCaseVersion = workflow.Version,
+            AfterCaseVersion = workflow.Version,
+            AfterJson = JsonSerializer.Serialize(
+                new AutomaticCaseEvidencePromotionPlan(assetIds, request.HasSelectedPhotographs))
+        });
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new(AutomaticCaseEvidencePromotionPreparationDisposition.Ready, request.CaseId, workflow.Version);
+    }
+
     public async Task<AutomaticMailCaseAssociationEvidence?> GetAsync(
         Guid intakeReceiptId,
         CancellationToken cancellationToken)
