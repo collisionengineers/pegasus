@@ -111,6 +111,7 @@ public sealed partial class StaffSignInSecurityTests
         userLookupCounter.Reset();
         using var authenticatedRequest = await client.GetAsync("/Account/PasswordChange");
         Assert.Equal(HttpStatusCode.OK, authenticatedRequest.StatusCode);
+        Assert.False(authenticatedRequest.Headers.TryGetValues("Set-Cookie", out _));
         Assert.Equal(1, userLookupCounter.ExecutedUserLookupCommands);
 
         var administratorId = Guid.NewGuid();
