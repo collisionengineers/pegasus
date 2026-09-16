@@ -79,7 +79,7 @@ None is a design decision. Each keeps the baseline honest:
 
 - Inline the live `site.css` and `case-workspace.css` verbatim instead of
   distilling them, so no rule is lost in translation
-  ([mockup-build reference](../../../../.claude/skills/razor-html-mockup-creation/references/mockup-build.md):
+  ([mockup-build reference](../../../../.agents/skills/razor-html-mockup-creation/references/mockup-build.md):
   "the live shell with the proposal inside it").
 - Transcribe the Razor output by hand for one fixture rather than capturing a
   running instance: no seeded development database exists and the integration
@@ -179,7 +179,7 @@ node design/planning-and-old-designs/v27_planning/current/v27-build/selfcheck.mj
 
 (`--dump-dom` stalls on the 950 KB frame, so the driver reads the result over
 the DevTools protocol; the harness itself is the plain
-[skill template](../../../../.claude/skills/razor-html-mockup-creation/assets/selfcheck-template.html)
+[skill template](../../../../.agents/skills/razor-html-mockup-creation/assets/selfcheck-template.html)
 with the checks filled in.)
 
 16 September 2026: `RESULT {"fail":[],"okCount":608}`, no console errors, on
