@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
@@ -186,6 +187,9 @@ internal sealed class EfVehicleLookupWorkStore(
             ManufactureYear = result.Vehicle?.ManufactureYear,
             EngineCapacityCc = result.Vehicle?.EngineCapacityCc,
             FuelType = result.Vehicle?.FuelType,
+            TypeApproval = result.Vehicle?.TypeApproval,
+            Wheelplan = result.Vehicle?.Wheelplan,
+            RevenueWeightKg = result.Vehicle?.RevenueWeightKg,
             MotTestsJson = SerializeMotTests(result.MotTests),
             MileageValue = outcome.Mileage?.Value,
             MileageUnit = outcome.Mileage?.Unit.ToString(),
@@ -205,6 +209,7 @@ internal sealed class EfVehicleLookupWorkStore(
             observationId,
             result,
             outcome.Mileage,
+            recordedAtUtc,
             cancellationToken);
         if (filled > 0)
         {
@@ -311,6 +316,7 @@ internal sealed class EfVehicleLookupWorkStore(
         Guid observationId,
         VehicleLookupResult result,
         VehicleMileageCalculation? mileage,
+        DateTimeOffset recordedAtUtc,
         CancellationToken cancellationToken)
     {
         var answered = await context.CaseDataFields
@@ -400,6 +406,37 @@ internal sealed class EfVehicleLookupWorkStore(
                 derived.MethodVersion);
         }
 
+        var vehicleType = VehicleTypePolicy.Classify(result.Vehicle);
+        if (vehicleType is not null)
+        {
+            var path = AssessmentVocabulary.VehicleType;
+            var existing = await context.CaseAssessmentFields
+                .SingleOrDefaultAsync(
+                    item => item.CaseId == caseId && item.FieldPath == path,
+                    cancellationToken);
+            if (VehicleLookupFillPolicy.Fills(
+                    hasFact: false,
+                    hasConfirmed: existing?.ConfirmedBy is not null)
+                && (existing is null
+                    || !string.Equals(existing.Value, vehicleType, StringComparison.Ordinal)))
+            {
+                var owningCase = await context.Cases
+                    .SingleAsync(item => item.Id == caseId, cancellationToken);
+                AssessmentFieldWriter.Write(
+                    context,
+                    owningCase,
+                    caseId,
+                    existing,
+                    path,
+                    vehicleType,
+                    ActorKind.Automation,
+                    "vehicle-lookup",
+                    recordedAtUtc,
+                    confirmedBy: null);
+                filled++;
+            }
+        }
+
         return filled;
     }
 
@@ -446,13 +483,19 @@ internal sealed class EfVehicleLookupWorkStore(
                 && entity.ManufactureYear is null
                 && entity.EngineCapacityCc is null
                 && entity.FuelType is null
+                && entity.TypeApproval is null
+                && entity.Wheelplan is null
+                && entity.RevenueWeightKg is null
                     ? null
                     : new(
                         entity.Make,
                         entity.Model,
                         entity.ManufactureYear,
                         entity.EngineCapacityCc,
-                        entity.FuelType),
+                        entity.FuelType,
+                        entity.TypeApproval,
+                        entity.Wheelplan,
+                        entity.RevenueWeightKg),
             motTests,
             mileage,
             failure,
