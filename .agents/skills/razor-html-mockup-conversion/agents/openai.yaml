@@ -1,0 +1,4 @@
+interface:
+  display_name: "Razor HTML Mockup Conversion"
+  short_description: "Implement an approved mockup round in Razor"
+  default_prompt: "Use $razor-html-mockup-conversion to implement the approved vNN mockup and its page planning decisions in the Razor application."

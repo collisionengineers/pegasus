@@ -106,6 +106,14 @@ and exact version checks apply regardless of physical source. Do not erase
 staging before verified handoff or invent a new store for this separation
 (ADR-0045).
 
+A linked Audit Case created from an Inspection + Audit Case shares the
+original's documents by reference to the same stored bytes; nothing is copied.
+Its custody root is the `a.`/`ap.` subfolder Pegasus creates under the original
+Case's Box folder when the Audit Case is created, resolved afterwards through
+the persisted relationship, never from the reference prefix
+([ADR-0051](../adr/0051-linked-audit-case-identity-and-custody.md),
+[FRD-01](frd-01-case-identity-and-lifecycle.md)).
+
 An inline image preview is served through this same cached content path,
 never as an audited download: every read re-verifies the source content hash
 and serves only confirmed custody. A cache entry is content-hash addressed,

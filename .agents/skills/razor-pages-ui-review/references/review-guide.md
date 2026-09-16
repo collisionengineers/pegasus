@@ -40,6 +40,26 @@ Use only the sections relevant to the change.
 - Check duplicate CSS/JS, blocking assets, initialization failures, unused bulk, version pinning, and production asset paths.
 - Prefer measured performance evidence when payload or responsiveness is a concern.
 
+## Mockup rounds
+
+- Does each panel head carry one primary and one menu, with any exception named in the notes?
+- Does read mode show values only: no empty inputs, no unapplied presets, no permanent drop zone?
+- Is availability a label per section, never a disabled control with no stated reason?
+- Does entering or leaving edit move the page or reflow the grid?
+- Is any fact shown more than once across ribbon, aside and body?
+- Has explanatory copy appeared on the page? Labels and captions only.
+- Does the coverage audit list every live control and fact, and are the drops restored or recorded as deliberate?
+- Do labels match the live `.cshtml` strings and `OperatorLabels`, with CONTEXT.md overriding where they conflict?
+- Is every FRD-changing choice a lettered sign-off item, and is every settled item dated?
+- Does the self-check report zero fails and no console errors, and are the three-width screenshots present for every state the notes cite?
+
+## Stage 2 conformance
+
+- Same state, same width: the routed page beside the numbered mockup shot.
+- Each numbered rule in `how-it-should-work.md` proven on the routed page.
+- The mockup strip, query presets, strip variables and synthetic fixtures have not shipped.
+- The "Documentation impact" edits landed with the code.
+
 ## Sources
 
 - [Microsoft: Razor Pages](https://learn.microsoft.com/aspnet/core/razor-pages/?view=aspnetcore-10.0)
