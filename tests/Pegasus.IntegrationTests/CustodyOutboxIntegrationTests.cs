@@ -307,11 +307,9 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(IncomingArtifactCustodyState.Pending, intent.State);
         Assert.Equal(1, pending.HeldCalls);
 
-        // The underlying adapter already stored the exact logical document before the
-        // controlled pending response. This is custody's later confirmation of that
-        // same durable intent, never a re-offer of the report bytes.
-        await retention.RecordAsync(intent with { State = IncomingArtifactCustodyState.Confirmed }, CancellationToken.None);
-        pending.HoldReport = false;
+        // Custody finishes its accepted intent using the real adapter. The
+        // Worker then reads that confirmed document without re-offering bytes.
+        await pending.CompleteAsync();
         await IntakeWebDriver.DrainStagedAsync(services, stagedReceiptId, CancellationToken.None);
 
         var completed = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receiptId, CancellationToken.None));
@@ -3058,11 +3056,13 @@ public sealed class CustodyOutboxIntegrationTests
     private sealed class PendingSuppliedReportCustody : ICaseArtifactCustody
     {
         public const string ReportFileName = "pending-bodyshop-report.pdf";
-        public bool HoldReport { get; set; } = true;
         public int HeldCalls { get; private set; }
 
         private readonly ICaseArtifactCustody? inner;
         private readonly PendingSuppliedReportCustody state;
+        private ICaseArtifactCustody? acceptedCustody;
+        private CaseArtifactCustodyRequest? acceptedRequest;
+        private byte[]? acceptedBytes;
 
         public PendingSuppliedReportCustody()
         {
@@ -3079,17 +3079,30 @@ public sealed class CustodyOutboxIntegrationTests
             CaseArtifactCustodyRequest request,
             CancellationToken cancellationToken)
         {
-            var result = await (inner ?? throw new InvalidOperationException(
-                    "The custody control is not a registered adapter."))
-                .RetainAsync(request, cancellationToken);
-            if (state.HoldReport
-                && string.Equals(request.FileName, ReportFileName, StringComparison.Ordinal))
+            var adapter = inner ?? throw new InvalidOperationException("The custody control is not a registered adapter.");
+            if (string.Equals(request.FileName, ReportFileName, StringComparison.Ordinal))
             {
                 state.HeldCalls++;
-                return result with { Disposition = CaseArtifactCustodyDisposition.Pending };
+                using var buffer = new MemoryStream();
+                await request.Content.CopyToAsync(buffer, cancellationToken);
+                state.acceptedBytes = buffer.ToArray();
+                state.acceptedRequest = request with { Content = Stream.Null };
+                state.acceptedCustody = adapter;
+                return new(CaseArtifactCustodyDisposition.Pending, null, null, null, null, null,
+                    request.Sha256, request.ContentLength, request.MediaType, null, null);
             }
 
-            return result;
+            return await adapter.RetainAsync(request, cancellationToken);
+        }
+
+        public async Task CompleteAsync()
+        {
+            Assert.NotNull(acceptedBytes);
+            Assert.NotNull(acceptedRequest);
+            Assert.NotNull(acceptedCustody);
+            using var content = new MemoryStream(acceptedBytes);
+            var result = await acceptedCustody.RetainAsync(acceptedRequest with { Content = content }, CancellationToken.None);
+            Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, result.Disposition);
         }
     }
 
