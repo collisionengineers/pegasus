@@ -15,10 +15,10 @@ count throws, and -VerifyPartition rejects a run whose shards do not reassemble
 into exactly the enumerated set.
 
 .EXAMPLE
-pwsh ./scripts/Invoke-TestShard.ps1 -Project ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj -Filter 'Category!=Corpus' -Shard 1 -ShardCount 3
+pwsh ./scripts/Invoke-TestShard.ps1 -Project ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj -Filter 'Category!=Corpus' -Shard 1 -ShardCount 6
 
 .EXAMPLE
-pwsh ./scripts/Invoke-TestShard.ps1 -VerifyPartition -ArtifactRoot ./artifacts/test-shards -ShardCount 3
+pwsh ./scripts/Invoke-TestShard.ps1 -VerifyPartition -ArtifactRoot ./artifacts/test-shards -ShardCount 6
 #>
 [CmdletBinding(DefaultParameterSetName = 'Run')]
 param(
