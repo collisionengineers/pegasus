@@ -235,6 +235,7 @@ public sealed class SupplyAuditOriginalReportTests
 
     private sealed class SingleItemStore(UnidentifiedItem item) : IUnidentifiedStore
     {
+        public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<UnidentifiedItem?> GetAsync(Guid id, CancellationToken cancellationToken = default) => Task.FromResult<UnidentifiedItem?>(id == item.Id ? item : null);
         public Task<UnidentifiedRegisterResult> RegisterAsync(RegisterUnidentifiedRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(RegisterUnidentifiedRequest request, CancellationToken cancellationToken = default) => throw new NotSupportedException();

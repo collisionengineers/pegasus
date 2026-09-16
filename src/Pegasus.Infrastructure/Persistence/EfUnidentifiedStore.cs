@@ -660,8 +660,8 @@ public sealed class EfUnidentifiedStore(
                    HasTriage = context.Set<TriageEntity>()
                        .Any(triage => receipt != null && triage.OriginReceiptId == receipt.Id),
                    IsManualUploadGroup = item.OriginKind == nameof(UnidentifiedOriginKind.SubmissionGroup)
-                       && context.Set<IntakeSubmissionGroupEntity>().Any(group =>
-                           group.Id == item.OriginId && group.SourceChannel == manualUpload)
+                        && context.Set<IntakeSubmissionGroupEntity>().Any(submission =>
+                            submission.Id == item.OriginId && submission.SourceChannel == manualUpload)
                };
     }
 
