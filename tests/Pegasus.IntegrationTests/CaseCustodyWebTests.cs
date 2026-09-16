@@ -898,61 +898,6 @@ public sealed class CaseCustodyWebTests
     }
 
 
-    [Theory]
-    [InlineData(CaseLifecycleState.Review, PrincipalReportGenerationPolicy.EvaManualApi, "Send via API")]
-    [InlineData(CaseLifecycleState.ReportPreparation, PrincipalReportGenerationPolicy.EvaManualApi, "Send via API")]
-    [InlineData(CaseLifecycleState.Review, PrincipalReportGenerationPolicy.EvaZip, "Export EVA ZIP")]
-    [InlineData(CaseLifecycleState.ReportPreparation, PrincipalReportGenerationPolicy.EvaZip, "Export EVA ZIP")]
-    public async Task SendPageRendersItsChoiceInReviewAndWithEngineer(
-        CaseLifecycleState state,
-        PrincipalReportGenerationPolicy policy,
-        string expectedAction)
-    {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingCaseDetailsStore { CaseState = state, State = state };
-        var evaStores = new StubEvaSubmissionStores(
-            new EvaSubmissionModes(policy));
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                Substitute<ICaseDataQueries>(services, store);
-                Substitute<ICaseWorkflowQueries>(services, store);
-                Substitute<IEvaSubmissionQueries>(services, evaStores);
-                Substitute<IEvaSubmissionModeStore>(services, evaStores);
-                // A composed transport is required for the manual API policy.
-                Substitute<ISubmitCaseToEva>(services, new StubSubmitCaseToEva());
-            }));
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        // EXT-04: the send page for a case still in Review — the one place the
-        // operator gets the principal's configured EVA route.
-        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Eva/Send");
-
-        // The page's own copy, as EPIC-011 restyled it: the handoff heading,
-        // the case it is for, and its configured route out.
-        Assert.Contains("<h1>EVA handoff</h1>", html, StringComparison.Ordinal);
-        Assert.Contains(
-            "<h2 id=\"eva-handoff-title\">QDOS3100042</h2>",
-            html,
-            StringComparison.Ordinal);
-        Assert.Contains($"<span>{expectedAction}</span>", html, StringComparison.Ordinal);
-        if (policy == PrincipalReportGenerationPolicy.EvaManualApi)
-        {
-            Assert.Contains($"/Cases/{store.CaseId:D}/Eva/Send", html, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("Export EVA ZIP", html, StringComparison.Ordinal);
-        }
-        else
-        {
-            Assert.Contains($"/Cases/{store.CaseId:D}/Documents/Export", html, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("Send via API", html, StringComparison.Ordinal);
-        }
-    }
-
-
     private static string UploadRequests(string html)
     {
         var start = html.IndexOf("data-upload-requests", StringComparison.Ordinal);

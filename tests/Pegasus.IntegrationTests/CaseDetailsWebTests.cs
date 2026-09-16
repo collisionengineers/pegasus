@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Net;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -521,23 +520,6 @@ public sealed class CaseDetailsWebTests
         Assert.True(end > start, "The jump-nav is not closed.");
         return html[start..end];
     }
-
-    private static partial Regex SectionHostRegex();
-
-    [GeneratedRegex(
-        "data-section-link=\"([a-z-]+)\"",
-        RegexOptions.CultureInvariant)]
-    private static partial Regex JumpLinkRegex();
-
-    [GeneratedRegex(
-        "data-lazy=\"([a-z-]+)\"",
-        RegexOptions.CultureInvariant)]
-    private static partial Regex DeferredSectionRegex();
-
-    [GeneratedRegex(
-        "data-section-link=\"([a-z-]+)\"\\s+aria-current=\"true\"",
-        RegexOptions.CultureInvariant)]
-    private static partial Regex CurrentSectionRegex();
 
     private sealed class CountingAssessmentWorkspace(AssessmentWorkspace workspace) : IGetAssessmentWorkspace
     {
