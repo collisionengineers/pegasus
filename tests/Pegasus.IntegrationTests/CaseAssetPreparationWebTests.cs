@@ -110,7 +110,10 @@ public sealed partial class CaseDetailsWebTests
                 candidate => candidate.Contains(
                     $"data-image-tile=\"{occurrenceId:D}\"",
                     StringComparison.Ordinal));
-            Assert.Contains("&amp;prep=0\"", tile, StringComparison.Ordinal);
+            Assert.Contains(
+                $"&amp;prep=0&amp;renderer={CaseDocumentThumbnails.RendererIdentity}\"",
+                tile,
+                StringComparison.Ordinal);
         }
     }
 

@@ -31,8 +31,8 @@ public sealed class CaseDocumentDownloadWebTests
     private const string Sha256 = "1b2c3d4e5f60718293a4b5c6d7e8f9001122334455667788990011223344556f";
 
     /// <summary>
-    /// The plain thumbnail's validator (v26 § Crop and tag): the source and
-    /// the variant it was rendered under, so a prepared region is a different
+    /// The plain thumbnail's validator: the source and current renderer
+    /// variant, so a changed renderer or prepared region is a different
     /// representation from the gallery rendering.
     /// </summary>
     private static readonly string ThumbnailValidator =
@@ -275,6 +275,30 @@ public sealed class CaseDocumentDownloadWebTests
     }
 
     [Theory]
+    [InlineData(null)]
+    [InlineData("r1")]
+    public async Task MissingOrOldThumbnailRendererIdentitiesAreNeverCacheableOrNotModified(string? renderer)
+    {
+        var ports = new DocumentPorts();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = CreateFactory(baseFactory, ports);
+        using var client = CreateClient(factory);
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            PreviewRoute(thumbnail: true, prep: "0", renderer: renderer));
+        request.Headers.TryAddWithoutValidation("If-None-Match", ThumbnailValidator);
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.CacheControl!.NoStore);
+        Assert.Null(response.Headers.ETag);
+        Assert.Equal(1, ports.PreparationReads);
+        Assert.Equal(1, ports.ThumbnailReads);
+        Assert.Equal(0, ports.LogicalReads);
+    }
+
+    [Theory]
     [InlineData("-1")]
     [InlineData("not-a-version")]
     [InlineData("")]
@@ -385,11 +409,15 @@ public sealed class CaseDocumentDownloadWebTests
     private static string DownloadRoute() =>
         $"/Cases/{CaseId:D}/Documents/{OccurrenceId:D}/Download?versionId={VersionId:D}";
 
-    private static string PreviewRoute(bool thumbnail = false, string? prep = null) =>
+    private static string PreviewRoute(
+        bool thumbnail = false,
+        string? prep = null,
+        string? renderer = CaseDocumentThumbnails.RendererIdentity) =>
         DownloadRoute()
         + "&inline=true"
         + (thumbnail ? $"&size={CaseDocumentThumbnails.ThumbSizeToken}" : string.Empty)
-        + (prep is null ? string.Empty : $"&prep={Uri.EscapeDataString(prep)}");
+        + (prep is null ? string.Empty : $"&prep={Uri.EscapeDataString(prep)}")
+        + (thumbnail && renderer is not null ? $"&renderer={Uri.EscapeDataString(renderer)}" : string.Empty);
 
     private static string ThumbnailValidatorFor(CaseAssetRotation rotation, CaseAssetCrop? crop) =>
         $"\"{Sha256}-{CaseDocumentThumbnails.VariantToken(rotation, crop)}\"";

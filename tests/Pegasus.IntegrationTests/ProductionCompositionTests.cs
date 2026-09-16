@@ -352,6 +352,7 @@ public sealed class ProductionCompositionTests
 
     [Theory]
     [InlineData("document.preview")]
+    [InlineData("document.thumbnail.render.gate")]
     [InlineData("web.case.resource")]
     [InlineData("web.case.result")]
     [InlineData("web.workcentre.resource")]
