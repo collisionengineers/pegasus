@@ -3,6 +3,7 @@
 @model Pegasus.Web.Pages.ImageIntake.DetailsModel
 @using Pegasus.Core.ImageIntake
 @using Pegasus.Web.Presentation
+@using Record = Pegasus.Web.Pages.ImageIntake.DetailsModel
 @{
     ViewData["Title"] = $"Image-initiated Case {Model.Detail.Record.ImageIntakeReference}";
     var awaiting = Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction;
@@ -60,7 +61,7 @@
         else if (Model.SourceAsset is { } unavailableSource)
         {
             <span class="muted" data-image-source-unavailable>
-                Original file unavailable — @Model.CustodyLabel(unavailableSource.CustodyState).
+                Original file unavailable — @Record.CustodyLabel(unavailableSource.CustodyState).
             </span>
         }
         @if (Model.SourceMessageId is { } messageId)
@@ -132,7 +133,7 @@
                     <div class="fact"><dt>Source</dt><dd>@OperatorLabels.SourceChannel(Model.Detail.Record.Origin.SourceIdentity.Channel)</dd></div>
                     @if (Model.SourceAsset is { } sourceAsset)
                     {
-                        <div class="fact"><dt>Original file</dt><dd>@sourceAsset.FileName · @Model.CustodyLabel(sourceAsset.CustodyState)</dd></div>
+                        <div class="fact"><dt>Original file</dt><dd>@sourceAsset.FileName · @Record.CustodyLabel(sourceAsset.CustodyState)</dd></div>
                     }
                     <div class="fact">
                         <dt>Case association</dt>
@@ -203,7 +204,7 @@
                             {
                                 <span>@file.Asset.FileName</span>
                             }
-                            · @Model.CustodyLabel(file.Asset.CustodyState)
+                            · @Record.CustodyLabel(file.Asset.CustodyState)
                         </p>
                     }
                 </div>

@@ -435,7 +435,7 @@ public sealed partial class DetailsModel(
         }
 
         Context = context;
-        MaterialReceipts = context.Receipt is { } receipt ? [receipt] : [];
+        MaterialReceipts = context.Receipt is { } originReceipt ? [originReceipt] : [];
         RegistrationReadings = context.RegistrationReadings;
         if (context.Item.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup)
         {
