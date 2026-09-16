@@ -350,8 +350,30 @@ public sealed class ProductionCompositionTests
             initializer => initializer is PublicUploadTelemetryInitializer);
     }
 
-    [Fact]
-    public void ProductionWebTelemetryEmitsAllowlistedDocumentTimingWithRequestCorrelation()
+    [Theory]
+    [InlineData("document.preview")]
+    [InlineData("web.case.resource")]
+    [InlineData("web.case.result")]
+    [InlineData("web.workcentre.resource")]
+    [InlineData("web.workcentre.result")]
+    [InlineData("web.workcentre.main")]
+    [InlineData("web.workcentre.refresh.resource")]
+    [InlineData("web.workcentre.refresh.result")]
+    [InlineData("web.workcentre.refresh.main")]
+    [InlineData("web.case.frame")]
+    [InlineData("web.case.access")]
+    [InlineData("web.case.workspace")]
+    [InlineData("web.case.direct-sections")]
+    [InlineData("web.case.engineer-sections")]
+    [InlineData("web.case.extras")]
+    [InlineData("web.case.section.resource")]
+    [InlineData("web.case.section.result")]
+    [InlineData("web.auth.validation")]
+    [InlineData("web.shell.counts")]
+    [InlineData("web.shell.operations")]
+    [InlineData("web.shell.notifications")]
+    [InlineData("report.renderer.initialize")]
+    public void ProductionWebTelemetryEmitsAllowlistedDocumentTimingWithRequestCorrelation(string phase)
     {
         var channel = new RecordingTelemetryChannel();
         using var factory = new ConfiguredWebApplicationFactory(
@@ -369,7 +391,7 @@ public sealed class ProductionCompositionTests
 
         _ = factory.Services.GetRequiredService<DocumentReadTelemetryBridge>();
         using var request = new Activity("test.request").Start();
-        using (DocumentReadTelemetry.Start("document.preview"))
+        using (DocumentReadTelemetry.Start(phase))
         {
         }
 
@@ -378,7 +400,7 @@ public sealed class ProductionCompositionTests
                 && item.Context.Operation.Id == request.TraceId.ToHexString()
                 && item.Context.Operation.ParentId == request.Id);
         Assert.IsAssignableFrom<ISupportSampling>(timing);
-        Assert.Equal("document.preview", timing.Properties["phase"]);
+        Assert.Equal(phase, timing.Properties["phase"]);
         Assert.Equal("Production", timing.Properties["AspNetCoreEnvironment"]);
         Assert.Equal(2, timing.Properties.Count);
         Assert.True(timing.Metrics["durationMs"] >= 0);
