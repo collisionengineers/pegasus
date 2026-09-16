@@ -1213,8 +1213,6 @@ public sealed class CaseEditModeWebTests
 
     /// <summary>The Files section's upload-requests sub-panel (v26): the table of links.</summary>
 
-    private static partial Regex GuidRegex();
-
     /// <summary>
     /// KANMER-005: while the Automation Actor holds the lease, the workspace is read-only to
     /// staff — the holder is disclosed from its retained kind through the real descriptor, no
