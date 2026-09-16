@@ -51,10 +51,18 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         {
             Assert.False(await before.Set<CaseDocumentEntity>().AnyAsync(value => value.CaseId == caseId));
             Assert.False(await before.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());
+            Assert.True(await before.Set<IntakeSearchDocumentEntity>().AnyAsync(value =>
+                value.IntakeReceiptId == receipt.Id && value.AttachmentFileName == "1_Images-V1.pdf"));
             if (isCaseOrigin)
             {
                 await before.Cases.Where(value => value.Id == caseId).ExecuteUpdateAsync(update => update
                     .SetProperty(value => value.OriginIntakeReceiptId, receipt.Id));
+            }
+            else
+            {
+                // Re-evaluation can discover a photograph missing from the earlier extraction.
+                var rediscovered = InstructionEvidenceImages.Select(receipt.AssetRecords)[0].Id;
+                await before.IntakeAssets.Where(value => value.Id == rediscovered).ExecuteDeleteAsync();
             }
         }
         await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(new(
@@ -64,6 +72,8 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         Assert.Equal(QueuedIntakeProcessingOutcome.Completed,
             await IntakeWebDriver.CreateProcessor(services).ExecuteAsync(received.StagedReceiptId, default));
         await using var after = await factory.Database.CreateContextAsync();
+        Assert.True(await after.Set<IntakeSearchDocumentEntity>().AnyAsync(value =>
+            value.IntakeReceiptId == receipt.Id && value.AttachmentFileName == "1_Images-V1.pdf"));
         if (isCaseOrigin)
         {
             Assert.False(await after.Set<CaseDocumentEntity>().AnyAsync(value => value.CaseId == caseId));
@@ -206,6 +216,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                         DiscoveredByKind = nameof(ActorKind.SystemWorker), DiscoveredBySubjectId = "test",
                         RetentionOperationKey = "retained-sent-test", RetentionRequestHash = new string('C', 64)
                     };
+                    db.Add(workflow.ReportSentEvidence);
                     break;
                 case "editor":
                     workflow.EditLeaseHolder = Guid.NewGuid().ToString();

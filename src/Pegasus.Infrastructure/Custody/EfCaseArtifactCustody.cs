@@ -440,7 +440,7 @@ internal sealed class EfCaseArtifactCustody(
                 db, workflow.CaseId, receiptId, expectedVersion, timeProvider.GetUtcNow())
                 .AnyAsync(cancellationToken))
         {
-            throw new IntakeAssociationConflictException(
+            throw new IntakeDependencyUnavailableException(
                 "The automatically associated Case is no longer safe for evidence filing.");
         }
     }
@@ -554,6 +554,7 @@ internal sealed class EfCaseArtifactCustody(
 
         var snapshot = await db.Set<CaseDataSnapshotEntity>()
             .Include(item => item.Case)
+            .ThenInclude(item => item.Principal)
             .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken)
             ?? throw new InvalidDataException("The automatically associated Case has no data snapshot.");
         var workflow = await db.CaseWorkflows
