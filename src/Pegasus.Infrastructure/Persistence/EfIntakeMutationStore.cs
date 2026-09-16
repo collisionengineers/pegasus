@@ -25,6 +25,11 @@ internal sealed class EfIntakeMutationStore(
       IAutomaticCaseEvidencePromotionStore
 {
     private readonly TimeProvider timeProvider = timeProvider ?? TimeProvider.System;
+    private static readonly string[] AutomaticPromotionEligibleStates =
+        Enum.GetValues<CaseLifecycleState>()
+            .Where(state => ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(state, false))
+            .Select(state => state.ToString())
+            .ToArray();
 
     public async Task<AutomaticCaseEvidencePromotionPreparation> PrepareAsync(
         AutomaticCaseEvidencePromotionRequest request,
@@ -53,6 +58,19 @@ internal sealed class EfIntakeMutationStore(
         await AcquireCaseQueryLockAsync(
             context, transaction, request.CaseId, request.IntakeReceiptId, cancellationToken);
 
+        var receipt = await context.IntakeReceipts
+            .SingleOrDefaultAsync(item => item.Id == request.IntakeReceiptId, cancellationToken)
+            ?? throw new KeyNotFoundException("The intake receipt does not exist.");
+        var association = await context.IntakeManualAssociations
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.IntakeReceiptId == request.IntakeReceiptId, cancellationToken);
+        if (association is null || !association.IsActive || association.CaseId != request.CaseId
+            || association.ActorKind != nameof(ActorKind.SystemWorker)
+            || receipt.SourceChannel == "manual_upload")
+        {
+            return new(AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable);
+        }
+
         var replay = await context.IntakeMutationHistory
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken);
@@ -73,26 +91,14 @@ internal sealed class EfIntakeMutationStore(
             }
         }
 
-        var receipt = await context.IntakeReceipts
-            .SingleOrDefaultAsync(item => item.Id == request.IntakeReceiptId, cancellationToken)
-            ?? throw new KeyNotFoundException("The intake receipt does not exist.");
-        var association = await context.IntakeManualAssociations
-            .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.IntakeReceiptId == request.IntakeReceiptId, cancellationToken);
-        if (association is null || !association.IsActive || association.CaseId != request.CaseId
-            || association.ActorKind != nameof(ActorKind.SystemWorker)
-            || receipt.SourceChannel == "manual_upload")
-        {
-            return new(AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable);
-        }
-
         var workflow = await context.CaseWorkflows
             .Include(item => item.Case)
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken)
             ?? throw new KeyNotFoundException("The associated Case does not exist.");
         if (workflow.ArchivedAtUtc is not null
-            || workflow.State is not (nameof(CaseLifecycleState.NotReady)
-                or nameof(CaseLifecycleState.Review)))
+            || workflow.Case.OriginIntakeReceiptId == request.IntakeReceiptId
+            || !AutomaticPromotionEligibleStates.Contains(workflow.State)
+            || workflow.ReportSentEvidenceId is not null)
         {
             return new(AutomaticCaseEvidencePromotionPreparationDisposition.NotApplicable);
         }

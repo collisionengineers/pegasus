@@ -5,6 +5,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
@@ -20,6 +21,11 @@ internal sealed class EfCaseArtifactCustody(
     string? holdingFolderId = null) : ICaseArtifactCustody, ICaseArtifactCustodyStatus
 {
     internal const long MaximumArtifactContentLength = 128L * 1024 * 1024;
+    internal static readonly string[] AutomaticPromotionEligibleStates =
+        Enum.GetValues<CaseLifecycleState>()
+            .Where(state => ImageIntakeLifecycleRules.IsCaseEligibleForAssociation(state, false))
+            .Select(state => state.ToString())
+            .ToArray();
     public async Task<CaseArtifactCustodyResult> RetainAsync(
         CaseArtifactCustodyRequest request,
         CancellationToken cancellationToken)
@@ -229,7 +235,8 @@ internal sealed class EfCaseArtifactCustody(
         CancellationToken cancellationToken)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var requestLinkTransaction = request.Actor.Kind == ActorKind.RequestLink
+        await using var initialWriteTransaction = request.Actor.Kind == ActorKind.RequestLink
+            || request.IsAutomaticIntakeEvidencePromotion
             ? await db.Database.BeginTransactionAsync(
                 System.Data.IsolationLevel.Serializable, cancellationToken)
             : null;
@@ -256,15 +263,15 @@ internal sealed class EfCaseArtifactCustody(
             if (existing.Version.CustodyStatus == DocumentCustodyStatus.Confirmed)
             {
                 RequireConfirmed(existing.Version, documentContentStore is BoxDocumentContentStore);
-                if (requestLinkTransaction is not null)
-                    await requestLinkTransaction.CommitAsync(cancellationToken);
+                if (initialWriteTransaction is not null)
+                    await initialWriteTransaction.CommitAsync(cancellationToken);
                 return Confirmed(existing.Version, existing.Occurrence.Id);
             }
             if (existing.Version.CustodyStatus is DocumentCustodyStatus.Pending
                 or DocumentCustodyStatus.Failed)
             {
-                if (requestLinkTransaction is not null)
-                    await requestLinkTransaction.CommitAsync(cancellationToken);
+                if (initialWriteTransaction is not null)
+                    await initialWriteTransaction.CommitAsync(cancellationToken);
                 return Status(existing.Version, existing.Occurrence.Id);
             }
         }
@@ -332,8 +339,8 @@ internal sealed class EfCaseArtifactCustody(
             version.PendingContentStorageKey = pendingContentStorageKey;
             await db.SaveChangesAsync(cancellationToken);
         }
-        if (requestLinkTransaction is not null)
-            await requestLinkTransaction.CommitAsync(cancellationToken);
+        if (initialWriteTransaction is not null)
+            await initialWriteTransaction.CommitAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(caseEntity.CustodyRootRemoteId))
         {
             return Pending(version, occurrence.Id, "case_custody_pending");
@@ -385,8 +392,8 @@ internal sealed class EfCaseArtifactCustody(
                     workflow.CaseId == caseId
                     && workflow.Version == request.ExpectedCaseVersion!.Value
                     && workflow.ArchivedAtUtc == null
-                    && (workflow.State == nameof(CaseLifecycleState.NotReady)
-                        || workflow.State == nameof(CaseLifecycleState.Review))
+                    && AutomaticPromotionEligibleStates.Contains(workflow.State)
+                    && workflow.ReportSentEvidenceId == null
                     && (workflow.EditLeaseExpiresAtUtc == null
                         || workflow.EditLeaseExpiresAtUtc <= timeProvider.GetUtcNow())
                     && db.IntakeManualAssociations.Any(association =>
@@ -447,8 +454,8 @@ internal sealed class EfCaseArtifactCustody(
         db.CaseWorkflows.Where(workflow => workflow.CaseId == caseId
             && workflow.Version == expectedCaseVersion
             && workflow.ArchivedAtUtc == null
-            && (workflow.State == nameof(CaseLifecycleState.NotReady)
-                || workflow.State == nameof(CaseLifecycleState.Review))
+            && AutomaticPromotionEligibleStates.Contains(workflow.State)
+            && workflow.ReportSentEvidenceId == null
             && (workflow.EditLeaseExpiresAtUtc == null || workflow.EditLeaseExpiresAtUtc <= nowUtc)
             && db.IntakeManualAssociations.Any(association =>
                 association.IntakeReceiptId == receiptId
@@ -521,6 +528,27 @@ internal sealed class EfCaseArtifactCustody(
         }
         if (!promotionPlan!.HasSelectedPhotographs)
         {
+            db.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
+            {
+                Id = Guid.NewGuid(),
+                IntakeReceiptId = receiptId,
+                CaseId = caseId,
+                EventType = "intake_case_evidence_promotion_completed",
+                ActorKind = nameof(ActorKind.SystemWorker),
+                ActorSubjectId = "intake-processing",
+                ActorRolesJson = "[]",
+                Reason = "All planned retained receipt evidence has confirmed Case custody; no selected photographs were present.",
+                OperationKey = completionKey,
+                RequestFingerprint = plan.RequestFingerprint,
+                OccurredAtUtc = nowUtc,
+                ExpectedIntakeVersion = plan.ExpectedIntakeVersion,
+                BeforeIntakeVersion = plan.AfterIntakeVersion,
+                AfterIntakeVersion = plan.AfterIntakeVersion,
+                ExpectedCaseVersion = expectedCaseVersion,
+                BeforeCaseVersion = expectedCaseVersion,
+                AfterCaseVersion = expectedCaseVersion
+            });
+            await db.SaveChangesAsync(cancellationToken);
             return;
         }
 
@@ -547,7 +575,10 @@ internal sealed class EfCaseArtifactCustody(
         snapshot.CompletenessPolicyKey = evaluation.PolicyKey;
         snapshot.CompletenessPolicyVersion = evaluation.PolicyVersion;
         snapshot.CompletenessPolicySatisfied = evaluation.SatisfiesPolicy;
-        if (evaluation.SatisfiesPolicy)
+        var mayRecalculateWorkflow = workflow.AssignedEngineerId is null
+            && workflow.State is nameof(CaseLifecycleState.NotReady)
+                or nameof(CaseLifecycleState.Review);
+        if (mayRecalculateWorkflow && evaluation.SatisfiesPolicy)
         {
             var enteringReview = workflow.State != nameof(CaseLifecycleState.Review);
             workflow.State = nameof(CaseLifecycleState.Review);
@@ -559,7 +590,7 @@ internal sealed class EfCaseArtifactCustody(
                     db, workflow, checked(workflow.Version + 1), nowUtc);
             }
         }
-        else
+        else if (mayRecalculateWorkflow)
         {
             if (workflow.State != nameof(CaseLifecycleState.NotReady))
             {
@@ -579,7 +610,7 @@ internal sealed class EfCaseArtifactCustody(
             completionKey,
             "Confirmed automatic Case filing completed the receipt's selected evidence set.",
             "case_images_completed_from_automatic_intake_evidence",
-            $"{plan.RequestFingerprint}:complete",
+            plan.RequestFingerprint,
             beforeVersion,
             workflow.Version,
             JsonSerializer.Serialize(before),
@@ -867,7 +898,15 @@ internal sealed class EfCaseArtifactCustody(
     private static void Validate(CaseArtifactCustodyRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if ((request.CaseId is null) == (request.IntakeReceiptId is null)
+        var automaticPromotion = request.IsAutomaticIntakeEvidencePromotion;
+        var hasCase = request.CaseId is { } caseId && caseId != Guid.Empty;
+        var hasReceipt = request.IntakeReceiptId is { } receiptId && receiptId != Guid.Empty;
+        if ((automaticPromotion
+                ? !hasCase || !hasReceipt
+                    || request.Actor.Kind != ActorKind.SystemWorker
+                    || request.ExpectedCaseVersion is not { } expectedCaseVersion
+                    || expectedCaseVersion < 0
+                : hasCase == hasReceipt)
             || request.CaseId == Guid.Empty
             || request.IntakeReceiptId == Guid.Empty
             || string.IsNullOrWhiteSpace(request.OccurrenceIdentity)
@@ -1070,8 +1109,8 @@ public sealed class ReconcilePendingArtifactCustody
         var currentVersion = await db.CaseWorkflows.AsNoTracking()
             .Where(workflow => workflow.CaseId == caseId
                 && workflow.ArchivedAtUtc == null
-                && (workflow.State == nameof(CaseLifecycleState.NotReady)
-                    || workflow.State == nameof(CaseLifecycleState.Review))
+                && EfCaseArtifactCustody.AutomaticPromotionEligibleStates.Contains(workflow.State)
+                && workflow.ReportSentEvidenceId == null
                 && (workflow.EditLeaseExpiresAtUtc == null || workflow.EditLeaseExpiresAtUtc <= nowUtc)
                 && db.IntakeManualAssociations.Any(association =>
                     association.IntakeReceiptId == receiptId
