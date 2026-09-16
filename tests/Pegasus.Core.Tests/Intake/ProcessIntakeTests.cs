@@ -294,7 +294,7 @@ public sealed class ProcessIntakeTests
             "embedded vehicle image",
             "vehicle.jpg",
             "image/jpeg",
-            new byte[] { 0x02, 0x03 },
+            new byte[InstructionEvidenceImages.EmbeddedPhotographMinimumBytes],
             IntakeAssetKind.EmbeddedImage,
             IntakeAssetDisposition.Embedded,
             PageNumber: 1);

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -7,8 +8,7 @@ namespace Pegasus.Core.Tests.ImageIntake;
 
 public sealed class AutomaticImageIntakeTests
 {
-    private static readonly byte[] ImageBytes = [1, 2, 3, 4, 5];
-    private static readonly string ImageHash = Convert.ToHexString(SHA256.HashData(ImageBytes));
+    private const int DefaultImageContentLength = 5;
 
     [Theory]
     [InlineData(IntakeSourceChannel.Mailbox)]
@@ -138,15 +138,15 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
-    public async Task AlreadyAssociatedReceiptRegistersWithoutRelinking()
+    public async Task AlreadyAssociatedReceiptIsNotReroutedThroughImageAutomation()
     {
         var harness = new Harness(manualLinkedCaseId: Guid.NewGuid());
-        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
-        harness.CaseCandidates.Candidates = [new(Guid.NewGuid(), "QDS26001", 1, "AB12CDE")];
 
         await harness.ApplyAsync();
 
-        Assert.Single(harness.Register.Requests);
+        Assert.Equal(0, harness.Engine.Calls);
+        Assert.Empty(harness.SuggestionStore.Records);
+        Assert.Empty(harness.Register.Requests);
         Assert.Empty(harness.MutationStore.AutoLinks);
     }
 
@@ -609,6 +609,21 @@ public sealed class AutomaticImageIntakeTests
         "1",
         "plate-detection=abc;plate-recognition=def");
 
+    private static byte[] ContentFor(string identity, long contentLength)
+    {
+        var bytes = new byte[checked((int)contentLength)];
+        var seed = SHA256.HashData(Encoding.UTF8.GetBytes(identity));
+        for (var index = 0; index < bytes.Length; index++)
+        {
+            bytes[index] = seed[index % seed.Length];
+        }
+
+        return bytes;
+    }
+
+    private static string HashFor(string identity, long contentLength) =>
+        Convert.ToHexString(SHA256.HashData(ContentFor(identity, contentLength)));
+
     private static IntakeAssetRecord Asset(
         string fileName,
         string mediaType,
@@ -616,20 +631,24 @@ public sealed class AutomaticImageIntakeTests
         IntakeAssetDisposition disposition,
         long contentLength = -1,
         int? width = null,
-        int? height = null) => new(
-        Guid.NewGuid(),
-        "uploaded source",
-        fileName,
-        mediaType,
-        kind,
-        disposition,
-        contentLength < 0 ? ImageBytes.Length : contentLength,
-        ImageHash,
-        $"storage/{Guid.NewGuid():N}",
-        null,
-        null,
-        width,
-        height);
+        int? height = null)
+    {
+        var length = contentLength < 0 ? DefaultImageContentLength : contentLength;
+        return new(
+            Guid.NewGuid(),
+            "uploaded source",
+            fileName,
+            mediaType,
+            kind,
+            disposition,
+            length,
+            HashFor(fileName, length),
+            $"storage/{Guid.NewGuid():N}",
+            null,
+            null,
+            width,
+            height);
+    }
 
     private sealed class Harness
     {
@@ -641,20 +660,29 @@ public sealed class AutomaticImageIntakeTests
             IReadOnlyList<IntakeAssetRecord>? retainedAssets = null)
         {
             var assets = retainedAssets?.ToArray() ?? Enumerable.Range(0, assetCount)
-                .Select(index => new IntakeAssetRecord(
-                    Guid.NewGuid(),
-                    "uploaded source",
-                    $"vehicle-{index}.jpg",
-                    mediaType,
-                    IntakeAssetKind.Source,
-                    IntakeAssetDisposition.Source,
-                    ImageBytes.Length,
-                    ImageHash,
-                    $"storage/{index}",
-                    null,
-                    null,
-                    null,
-                    null))
+                .Select(index =>
+                {
+                    var kind = index == 0
+                        ? IntakeAssetKind.Source
+                        : IntakeAssetKind.Attachment;
+                    var fileName = $"vehicle-{index}.jpg";
+                    return new IntakeAssetRecord(
+                        Guid.NewGuid(),
+                        "uploaded source",
+                        fileName,
+                        mediaType,
+                        kind,
+                        kind == IntakeAssetKind.Source
+                            ? IntakeAssetDisposition.Source
+                            : IntakeAssetDisposition.Attachment,
+                        DefaultImageContentLength,
+                        HashFor(fileName, DefaultImageContentLength),
+                        $"storage/{index}",
+                        null,
+                        null,
+                        null,
+                        null);
+                })
                 .ToArray();
             var source = assets.Single(asset => asset.Kind == IntakeAssetKind.Source
                 && asset.Disposition == IntakeAssetDisposition.Source);
@@ -685,7 +713,9 @@ public sealed class AutomaticImageIntakeTests
                 ManualAssociationVersion: manualLinkedCaseId is null ? null : 0);
             foreach (var asset in assets)
             {
-                ArtifactStore.Content[asset.StorageKey] = ImageBytes;
+                ArtifactStore.Content[asset.StorageKey] = ContentFor(
+                    asset.FileName,
+                    asset.ContentLength);
             }
 
             Register.ImageStore = ImageIntakeQueries;
@@ -1175,22 +1205,24 @@ public sealed class AutomaticImageIntakeTests
                     mediaType,
                     IntakeAssetKind.Source,
                     IntakeAssetDisposition.Source,
-                    ImageBytes.Length,
-                    ImageHash,
+                    DefaultImageContentLength,
+                    HashFor($"vehicle-{ordinal}.jpg", DefaultImageContentLength),
                     $"storage/group/{ordinal}",
                     null,
                     null,
                     null,
                     null);
-                ArtifactStore.Content[asset.StorageKey] = ImageBytes;
+                ArtifactStore.Content[asset.StorageKey] = ContentFor(
+                    asset.FileName,
+                    asset.ContentLength);
 
                 var token = GroupedIntakeMemberToken.Create(submissionToken, ordinal);
                 var receipt = new IntakeReceipt(
                     Guid.NewGuid(),
                     $"vehicle-{ordinal}.jpg",
                     mediaType,
-                    ImageBytes.Length,
-                    ImageHash,
+                    DefaultImageContentLength,
+                    HashFor($"vehicle-{ordinal}.jpg", DefaultImageContentLength),
                     new IntakeSourceIdentity(sourceChannel, token),
                     DateTimeOffset.UtcNow,
                     DateTimeOffset.UtcNow,
