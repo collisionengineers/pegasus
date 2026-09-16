@@ -73,7 +73,8 @@ public sealed class ImageCaseCustodyIntegrationTests
             receipt.MediaType = "application/pdf";
             receipt.Decision = "needs_sorting";
             receipt.DecisionReason = "The PDF contains photographs for image intake.";
-            receipt.FieldsJson = "[]";
+            // Keep the versioned fields envelope written by StoreAsync; this
+            // fixture changes the retained material, not its JSON contract.
             receipt.FailureCode = null;
             receipt.FailureReason = null;
             sourceAssetId = receipt.Assets.Single(item => item.Kind == "source").Id;

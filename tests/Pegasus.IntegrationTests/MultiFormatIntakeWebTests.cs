@@ -308,10 +308,12 @@ public sealed partial class MultiFormatIntakeWebTests
             "SELECT IntakeAssetId FROM IntakeOcrOperations"));
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM ExternalWorkItems WHERE Kind = 'intake_ocr'"));
-        var image = Assert.Single(
+        // Scan detection reads the PDF image placement, but the synthetic
+        // three-byte raster is not a selected photograph and therefore remains
+        // inside the retained original rather than becoming a separate asset.
+        Assert.DoesNotContain(
             receipt.AssetRecords,
             asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
-        Assert.Equal(1, image.PageNumber);
     }
 
     [Fact]
@@ -349,7 +351,9 @@ public sealed partial class MultiFormatIntakeWebTests
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Empty(receipt.ScannedPdfPages);
         Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "scanned-pdf-page");
-        Assert.Single(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
+        Assert.DoesNotContain(
+            receipt.AssetRecords,
+            asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
     }
 
     [Fact]
@@ -358,8 +362,12 @@ public sealed partial class MultiFormatIntakeWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var pdf = CreateImagePdf(
-            new PdfImagePlacement(20, 20, 100, 100, 0xff, 0x00, 0x00),
-            new PdfImagePlacement(180, 20, 100, 100, 0x00, 0x00, 0xff));
+            new PdfImagePlacement(
+                20, 20, 100, 100, 0xff, 0x00, 0x00,
+                SampleWidth: 200, SampleHeight: 240, Pixels: RandomPixels(200, 240, 1)),
+            new PdfImagePlacement(
+                180, 20, 100, 100, 0x00, 0x00, 0xff,
+                SampleWidth: 200, SampleHeight: 240, Pixels: RandomPixels(200, 240, 2)));
 
         var result = await UploadAsync(factory, client, "two-images.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
@@ -547,9 +555,12 @@ public sealed partial class MultiFormatIntakeWebTests
             evidence => evidence.Signal == "intake_limit_exceeded"
                 && evidence.Detail.Contains("second-300-images.pdf", StringComparison.Ordinal));
         Assert.Null(receipt.InstructionDraft);
-        Assert.Equal(
-            300,
-            receipt.AssetRecords.Count(asset => asset.Kind == IntakeAssetKind.EmbeddedImage));
+        // The object budget is enforced while parsing. These one-pixel objects
+        // are not selected photographs, so excluded document art remains only
+        // in the retained PDFs rather than becoming separate assets.
+        Assert.DoesNotContain(
+            receipt.AssetRecords,
+            asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
     }
 
     [Fact]
@@ -815,7 +826,9 @@ public sealed partial class MultiFormatIntakeWebTests
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Empty(receipt.ScannedPdfPages);
-        Assert.Single(receipt.AssetRecords, asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
+        Assert.DoesNotContain(
+            receipt.AssetRecords,
+            asset => asset.Kind == IntakeAssetKind.EmbeddedImage);
     }
 
     [Fact]
@@ -1287,6 +1300,13 @@ public sealed partial class MultiFormatIntakeWebTests
 
     private static byte[] CreateImagePdf(params PdfImagePlacement[] images)
         => CreateImagePdf(612, 792, images);
+
+    private static byte[] RandomPixels(int width, int height, int seed)
+    {
+        var pixels = new byte[checked(width * height * 3)];
+        new Random(seed).NextBytes(pixels);
+        return pixels;
+    }
 
     private static byte[] CreateImagePdf(
         int pageWidth,

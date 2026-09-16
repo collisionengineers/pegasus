@@ -147,7 +147,10 @@ public sealed class ImageViewingWebTests
         // a preview element without a second query.
         Assert.StartsWith("image/", galleryImage.MediaType, StringComparison.Ordinal);
 
-        var expectedSource = $"/Received/{receiptId:D}/Image";
+        // The selected retained asset, not the receipt-wide single-image
+        // fallback, is the stable identity shared by both gallery surfaces.
+        var imageAssetId = Assert.IsType<Guid>(galleryImage.AssetId);
+        var expectedSource = $"/Received/{receiptId:D}/Asset/{imageAssetId:D}";
         var imageCasePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail.Record.Id:D}");
         Assert.Contains(expectedSource, imageCasePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("alt=\"vehicle.png\"", imageCasePage, StringComparison.Ordinal);
