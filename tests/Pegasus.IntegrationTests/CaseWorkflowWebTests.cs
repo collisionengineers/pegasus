@@ -3,6 +3,7 @@ using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
@@ -152,9 +153,9 @@ public sealed class CaseWorkflowWebTests
     }
 
     /// <summary>
-    /// EPIC-011 §1.8 and FRD-07: the EVA handoff is available in Review and
-    /// With Engineer. Outside those workflow states the workspace offers no
-    /// EVA control and draws no disabled handoff.
+    /// EPIC-011 §1.8 and FRD-07: the EVA handoff is available in Review,
+    /// Report Preparation and Post Report. Not Ready offers no EVA control and
+    /// draws no disabled handoff.
     /// </summary>
     [Theory]
     [InlineData(CaseLifecycleState.NotReady, false)]

@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
@@ -22,12 +23,6 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class CaseAssetPreparationWebTests
 {
-    private const string CloseUpFileName = "front-nearside.jpg";
-    private const string OverviewFileName = "vehicle-overview.jpg";
-    private const string FirstSupportingFileName = "rear-offside.jpg";
-    private const string SecondSupportingFileName = "interior.jpg";
-    private const string UnusedFileName = "plate.jpg";
-
     /// <summary>
     /// Read-only view: the Files section's Images tab names every image of the
     /// case and offers nothing that could change one while this browser holds
@@ -536,27 +531,6 @@ public sealed class CaseAssetPreparationWebTests
     }
 
     /// <summary>
-    /// The Files body mounts after the page's first response. Match the
-    /// browser request: send the rendered lease token only as fragment
-    /// rendering data, so the server can render the existing edit controls.
-    /// </summary>
-    private static async Task<string> GetFilesFragmentAsync(
-        LeasedWorkspace workspace,
-        string renderedWorkspace)
-    {
-        using var request = new HttpRequestMessage(
-            HttpMethod.Get,
-            $"/Cases/{workspace.Store.CaseId:D}/Section?section=files");
-        request.Headers.Add(
-            "X-Pegasus-Edit-Lease",
-            InputValue(renderedWorkspace, "editLeaseToken"));
-
-        using var response = await workspace.Client.SendAsync(request);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync();
-    }
-
-    /// <summary>
     /// Every report-image card in a section and nothing around them, so an
     /// assertion about the cards is never answered by the panel's other
     /// controls. Cards do not nest, so the scan needs no depth count.
@@ -625,89 +599,6 @@ public sealed class CaseAssetPreparationWebTests
         var end = panel.IndexOf("</article>", marker, StringComparison.Ordinal);
         Assert.True(end > start, $"The card for '{occurrenceId:D}' is not closed.");
         return panel[start..(end + "</article>".Length)];
-    }
-
-    /// <summary>
-    /// One case's image occurrences and the preparation each carries: a
-    /// Close-up turned a quarter turn, a cropped Overview, two ordered
-    /// Supporting images and one the report does not use.
-    /// </summary>
-    private sealed class PreparedImages
-    {
-        public Guid CloseUpOccurrenceId { get; } = Guid.NewGuid();
-
-        public Guid OverviewOccurrenceId { get; } = Guid.NewGuid();
-
-        public Guid FirstSupportingOccurrenceId { get; } = Guid.NewGuid();
-
-        public Guid SecondSupportingOccurrenceId { get; } = Guid.NewGuid();
-
-        public Guid UnusedOccurrenceId { get; } = Guid.NewGuid();
-
-        public CaseAssetCrop OverviewCrop { get; } = new(0.1m, 0.1m, 0.8m, 0.8m);
-
-        public RecordingCaseDetailsStore Store(
-            CaseLifecycleState state = CaseLifecycleState.NotReady)
-        {
-            var store = new RecordingCaseDetailsStore
-            {
-                State = state,
-                CaseState = state,
-                CaseDocuments =
-                [
-                    Document(CloseUpOccurrenceId, VersionOf(CloseUpOccurrenceId), CloseUpFileName, "image/jpeg", DocumentSemanticRole.Image),
-                    Document(OverviewOccurrenceId, VersionOf(OverviewOccurrenceId), OverviewFileName, "image/jpeg", DocumentSemanticRole.Image),
-                    Document(FirstSupportingOccurrenceId, VersionOf(FirstSupportingOccurrenceId), FirstSupportingFileName, "image/jpeg", DocumentSemanticRole.Image),
-                    Document(SecondSupportingOccurrenceId, VersionOf(SecondSupportingOccurrenceId), SecondSupportingFileName, "image/jpeg", DocumentSemanticRole.Image),
-                    Document(UnusedOccurrenceId, VersionOf(UnusedOccurrenceId), UnusedFileName, "image/jpeg", DocumentSemanticRole.Image)
-                ]
-            };
-            store.Preparations =
-            [
-                Preparation(store.CaseId, CloseUpOccurrenceId, CaseAssetReportRole.CloseUp, null, CaseAssetRotation.Clockwise90, CaseAssetCrop.Full, 2),
-                Preparation(store.CaseId, OverviewOccurrenceId, CaseAssetReportRole.Overview, null, CaseAssetRotation.None, OverviewCrop, 4),
-                Preparation(store.CaseId, FirstSupportingOccurrenceId, CaseAssetReportRole.Supporting, 1, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
-                Preparation(store.CaseId, SecondSupportingOccurrenceId, CaseAssetReportRole.Supporting, 2, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
-                Preparation(store.CaseId, UnusedOccurrenceId, CaseAssetReportRole.NotUsed, null, CaseAssetRotation.None, CaseAssetCrop.Full, 0)
-            ];
-            return store;
-        }
-
-        /// <summary>
-        /// The pinned version of an occurrence. It is derived from the
-        /// occurrence identity so the document fixture and the preparation
-        /// name the same version without a second table to keep in step.
-        /// </summary>
-        private static Guid VersionOf(Guid occurrenceId)
-        {
-            var bytes = occurrenceId.ToByteArray();
-            bytes[0] ^= 0xFF;
-            return new(bytes);
-        }
-
-        private static CaseAssetPreparation Preparation(
-            Guid caseId,
-            Guid occurrenceId,
-            CaseAssetReportRole role,
-            int? order,
-            CaseAssetRotation rotation,
-            CaseAssetCrop crop,
-            long preparationVersion) =>
-            new(
-                caseId,
-                occurrenceId,
-                Guid.NewGuid(),
-                VersionOf(occurrenceId),
-                1,
-                new string('a', 64),
-                "image/jpeg",
-                role,
-                order,
-                rotation,
-                crop,
-                preparationVersion,
-                preparationVersion == 0 ? null : "staff",
-                preparationVersion == 0 ? null : new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero));
     }
 
     /// <summary>
