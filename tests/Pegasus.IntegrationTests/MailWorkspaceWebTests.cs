@@ -1445,7 +1445,10 @@ public sealed class MailWorkspaceWebTests
             new FormUrlEncodedContent(submission.Fields));
         Assert.Equal(HttpStatusCode.Redirect, linkedResponse.StatusCode);
 
-        var linked = await GetHtmlAsync(client, $"/Inbox/{linkedMessageId:D}");
+        // The linking session retains its confirmation context on the Case tab.
+        // A fresh viewer checks the persisted message destination independently.
+        using var viewer = CreateClient(factory);
+        var linked = await GetHtmlAsync(viewer, $"/Inbox/{linkedMessageId:D}");
         Assert.Contains("<span>Classification</span>", linked, StringComparison.Ordinal);
         Assert.Contains("<strong>Unclassified</strong>", linked, StringComparison.Ordinal);
         Assert.Contains("<span>Destination</span>", linked, StringComparison.Ordinal);
@@ -1455,7 +1458,7 @@ public sealed class MailWorkspaceWebTests
             StringComparison.Ordinal);
         Assert.DoesNotContain("<strong>Unidentified</strong>", linked, StringComparison.Ordinal);
 
-        var previewPage = await GetHtmlAsync(client, $"/Inbox?selected={linkedMessageId:D}");
+        var previewPage = await GetHtmlAsync(viewer, $"/Inbox?selected={linkedMessageId:D}");
         var linkedRowStart = previewPage.IndexOf(
             $"data-mail-row=\"{linkedMessageId:D}\"",
             StringComparison.OrdinalIgnoreCase);
@@ -1471,7 +1474,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("data-mail-preview-association>MAIL-DESTINATION</dd>", preview, StringComparison.Ordinal);
         Assert.DoesNotContain("Unidentified", preview, StringComparison.Ordinal);
 
-        var unlinked = await GetHtmlAsync(client, $"/Inbox/{unlinkedMessageId:D}");
+        var unlinked = await GetHtmlAsync(viewer, $"/Inbox/{unlinkedMessageId:D}");
         Assert.Contains("<strong>Unclassified</strong>", unlinked, StringComparison.Ordinal);
         Assert.Contains("<strong>Unidentified</strong>", unlinked, StringComparison.Ordinal);
         Assert.Contains(">No case</strong>", unlinked, StringComparison.Ordinal);
