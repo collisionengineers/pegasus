@@ -52,6 +52,10 @@ public sealed class SupplyAuditOriginalReport(
         var fileName = Path.GetFileName(request.FileName?.Trim() ?? string.Empty);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.MediaType);
+        if (fileName.Length > 260 || request.MediaType.Length > 200)
+        {
+            throw new ArgumentException("The supplied report's filename or media type is too long.", nameof(request));
+        }
         if (request.Content.IsEmpty)
         {
             throw new ArgumentException("The supplied report is empty.", nameof(request));

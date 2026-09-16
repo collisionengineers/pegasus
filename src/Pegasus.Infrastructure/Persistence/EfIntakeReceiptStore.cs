@@ -1477,7 +1477,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownCode("evidence finding", value)
     };
 
-    private static string ToCode(IntakeAssetKind value) => value switch
+    internal static string ToCode(IntakeAssetKind value) => value switch
     {
         IntakeAssetKind.Source => "source",
         IntakeAssetKind.Attachment => "attachment",
@@ -1583,7 +1583,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownCode("asset kind", value)
     };
 
-    private static string ToCode(IntakeAssetDisposition value) => value switch
+    internal static string ToCode(IntakeAssetDisposition value) => value switch
     {
         IntakeAssetDisposition.Source => "source",
         IntakeAssetDisposition.Attachment => "attachment",

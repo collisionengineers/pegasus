@@ -1,4 +1,5 @@
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Intake;
 

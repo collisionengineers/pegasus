@@ -1891,6 +1891,11 @@ internal sealed class EfIntakeMutationStore(
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
+    private static string TruncateReason(string value) =>
+        value.Length <= UnidentifiedValidation.MaximumReasonLength
+            ? value
+            : value[..UnidentifiedValidation.MaximumReasonLength];
+
     private static bool FixedTimeHashEquals(string left, string right) =>
         left.Length == 64
         && right.Length == 64
