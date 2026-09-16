@@ -1,0 +1,4 @@
+interface:
+  display_name: "Razor HTML Mockup Creation"
+  short_description: "Run a Stage 1 mockup round to operator sign-off"
+  default_prompt: "Use $razor-html-mockup-creation to build the offline HTML mockup, self-check, screenshots, notes and sign-off list for this design round, then stop for approval."

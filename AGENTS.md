@@ -86,8 +86,10 @@ Obsolete documentation-parser contracts do not justify retaining incorrect docs.
   only the `alex` Administrator and resets current-year QDOS numbering.
   Follow `.agents/skills/pegasus-wipe-intake-data/SKILL.md` for its dry run
   and exact-target execution approval; merging the script authorizes no reset.
-- `Audit`, `Triage`, `Unidentified`, `Image Intake` and `Blocked intake` are
-  distinct. Use the glossary and owning FRD; never call generic sorting Triage.
+- `Audit`, `Triage`, `Unidentified` and `Image Intake` are distinct, and
+  `Blocked intake` is no longer a term: refused material is a closed
+  Unidentified item. Use the glossary and owning FRD; never call generic
+  sorting Triage.
 - Never delete a Case or reuse its reference. Wrong-Principal correction and
   reasoned reopening follow FRD-01.
 - `corpus/` is local, ignored and immutable: never upload, commit, rename or

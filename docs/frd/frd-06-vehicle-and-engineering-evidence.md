@@ -261,8 +261,13 @@ diagram
 ### Valuation sources
 
 Valuation records keep guide month and source: Glass's, Brego and Super CAP
-are manual sources; Cazana is a disabled seam; AI market research is
-automation-only. Every entry keeps its date, time, mileage, retail and trade
+are guide sources, each a card whose **Get valuation** asks that source's
+connected provider for the month and shows a notice while the source has no
+provider, and whose figures may also be typed by hand (D40,
+[FRD-12](frd-12-operator-experience.md#case-workspace)); Cazana is a disabled
+seam; AI market research is automation-only. No guide provider is connected
+today, and connecting one needs its own accepted decision (ADR-0031).
+Every entry keeps its date, time, mileage, retail and trade
 values; guide month is an additional per-entry field owned by `CASE-029`
 (EPIC-012 context). Glass's
 valuation and Glass's repair estimating are two systems and both are used:
