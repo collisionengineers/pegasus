@@ -312,7 +312,7 @@ internal static partial class CaseWebTestSupport
     /// section list.
     /// </summary>
 
-    internal static readonly string[] CaseSectionKeys =
+    internal static string[] CaseSectionKeys =>
         [.. Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.Sections
             .Select(section => section.Key)];
 
@@ -334,6 +334,22 @@ internal static partial class CaseWebTestSupport
     [GeneratedRegex(
         "<section class=\"record-section[^\"]*\" id=\"section-([a-z-]+)\"",
         RegexOptions.CultureInvariant)]
+    internal static partial Regex SectionHostRegex();
+
+    [GeneratedRegex(
+        "data-section-link=\"([a-z-]+)\"",
+        RegexOptions.CultureInvariant)]
+    internal static partial Regex JumpLinkRegex();
+
+    [GeneratedRegex(
+        "data-lazy=\"([a-z-]+)\"",
+        RegexOptions.CultureInvariant)]
+    internal static partial Regex DeferredSectionRegex();
+
+    [GeneratedRegex(
+        "data-section-link=\"([a-z-]+)\"\\s+aria-current=\"true\"",
+        RegexOptions.CultureInvariant)]
+    internal static partial Regex CurrentSectionRegex();
 
     internal static string Section(string html, string labelledBy)
     {
@@ -432,6 +448,47 @@ internal static partial class CaseWebTestSupport
             Guid requestedStaffId,
             CancellationToken cancellationToken) =>
             Task.FromResult<SignOffEngineerProfile?>(null);
+    }
+
+    internal sealed class StubEvaSubmissionStores(EvaSubmissionModes modes) :
+        IEvaSubmissionQueries,
+        IEvaSubmissionModeStore
+    {
+        Task<EvaSubmissionRecord?> IEvaSubmissionQueries.GetLatestAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) => Task.FromResult<EvaSubmissionRecord?>(null);
+
+        Task<IReadOnlyList<EvaSubmissionFailure>> IEvaSubmissionQueries.GetRecentFailuresAsync(
+            DateTimeOffset sinceUtc,
+            int maximumResults,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<EvaSubmissionFailure>>([]);
+
+        Task<EvaSubmissionActivity> IEvaSubmissionQueries.GetActivityAsync(
+            CancellationToken cancellationToken) => Task.FromResult(new EvaSubmissionActivity(null));
+
+        Task<EvaSubmissionModes> IEvaSubmissionModeStore.GetForPrincipalAsync(
+            string principalCode,
+            CancellationToken cancellationToken) => Task.FromResult(modes);
+    }
+
+    /// <summary>
+    /// In-memory stand-in so the page sees a composed transport and applies
+    /// the principal's manual toggle. No request is ever sent anywhere: the
+    /// send-page test is a GET, and a POST would only record here and read
+    /// back as "nothing was submitted".
+    /// </summary>
+    internal sealed class StubSubmitCaseToEva : ISubmitCaseToEva
+    {
+        public List<SubmitCaseToEvaRequest> Requests { get; } = [];
+
+        public Task<SubmitCaseToEvaResult?> ExecuteAsync(
+            SubmitCaseToEvaRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Requests.Add(request);
+            return Task.FromResult<SubmitCaseToEvaResult?>(null);
+        }
     }
 
     /// <summary>

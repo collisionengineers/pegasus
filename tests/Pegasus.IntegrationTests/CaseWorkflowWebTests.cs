@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -150,8 +151,11 @@ public sealed class CaseWorkflowWebTests
             workspace.MutationForm("return-to-review-2", "Lease gone", readiness));
     }
 
-
-
+    /// <summary>
+    /// EPIC-011 §1.8 and FRD-07: the EVA handoff is available in Review and
+    /// With Engineer. Outside those workflow states the workspace offers no
+    /// EVA control and draws no disabled handoff.
+    /// </summary>
     [Theory]
     [InlineData(CaseLifecycleState.NotReady, false)]
     [InlineData(CaseLifecycleState.ReportPreparation, true)]
@@ -203,6 +207,60 @@ public sealed class CaseWorkflowWebTests
             html.Contains(
                 $"/Cases/{store.CaseId:D}/Documents/Export",
                 StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Theory]
+    [InlineData(CaseLifecycleState.Review, PrincipalReportGenerationPolicy.EvaManualApi, "Send via API")]
+    [InlineData(CaseLifecycleState.ReportPreparation, PrincipalReportGenerationPolicy.EvaManualApi, "Send via API")]
+    [InlineData(CaseLifecycleState.Review, PrincipalReportGenerationPolicy.EvaZip, "Export EVA ZIP")]
+    [InlineData(CaseLifecycleState.ReportPreparation, PrincipalReportGenerationPolicy.EvaZip, "Export EVA ZIP")]
+    public async Task SendPageRendersItsChoiceInReviewAndWithEngineer(
+        CaseLifecycleState state,
+        PrincipalReportGenerationPolicy policy,
+        string expectedAction)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore { CaseState = state, State = state };
+        var evaStores = new StubEvaSubmissionStores(
+            new EvaSubmissionModes(policy));
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<ICaseDataQueries>(services, store);
+                Substitute<ICaseWorkflowQueries>(services, store);
+                Substitute<IEvaSubmissionQueries>(services, evaStores);
+                Substitute<IEvaSubmissionModeStore>(services, evaStores);
+                // A composed transport is required for the manual API policy.
+                Substitute<ISubmitCaseToEva>(services, new StubSubmitCaseToEva());
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        // EXT-04: the send page for a case still in Review — the one place the
+        // operator gets the principal's configured EVA route.
+        var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Eva/Send");
+
+        // The page's own copy, as EPIC-011 restyled it: the handoff heading,
+        // the case it is for, and its configured route out.
+        Assert.Contains("<h1>EVA handoff</h1>", html, StringComparison.Ordinal);
+        Assert.Contains(
+            "<h2 id=\"eva-handoff-title\">QDOS3100042</h2>",
+            html,
+            StringComparison.Ordinal);
+        Assert.Contains($"<span>{expectedAction}</span>", html, StringComparison.Ordinal);
+        if (policy == PrincipalReportGenerationPolicy.EvaManualApi)
+        {
+            Assert.Contains($"/Cases/{store.CaseId:D}/Eva/Send", html, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Export EVA ZIP", html, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.Contains($"/Cases/{store.CaseId:D}/Documents/Export", html, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("Send via API", html, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
@@ -300,48 +358,4 @@ public sealed class CaseWorkflowWebTests
         Assert.Equal(engineerId, handoff.EngineerId);
         Assert.Empty(store.Transitions);
     }
-
-
-    private sealed class StubEvaSubmissionStores(EvaSubmissionModes modes) :
-        IEvaSubmissionQueries,
-        IEvaSubmissionModeStore
-    {
-        Task<EvaSubmissionRecord?> IEvaSubmissionQueries.GetLatestAsync(
-            Guid caseId,
-            CancellationToken cancellationToken) => Task.FromResult<EvaSubmissionRecord?>(null);
-
-        Task<IReadOnlyList<EvaSubmissionFailure>> IEvaSubmissionQueries.GetRecentFailuresAsync(
-            DateTimeOffset sinceUtc,
-            int maximumResults,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<EvaSubmissionFailure>>([]);
-
-        Task<EvaSubmissionActivity> IEvaSubmissionQueries.GetActivityAsync(
-            CancellationToken cancellationToken) => Task.FromResult(new EvaSubmissionActivity(null));
-
-        Task<EvaSubmissionModes> IEvaSubmissionModeStore.GetForPrincipalAsync(
-            string principalCode,
-            CancellationToken cancellationToken) => Task.FromResult(modes);
-    }
-
-    /// <summary>
-    /// In-memory stand-in so the page sees a composed transport and applies
-    /// the principal's manual toggle. No request is ever sent anywhere: the
-    /// send-page test is a GET, and a POST would only record here and read
-    /// back as "nothing was submitted".
-    /// </summary>
-
-    private sealed class StubSubmitCaseToEva : ISubmitCaseToEva
-    {
-        public List<SubmitCaseToEvaRequest> Requests { get; } = [];
-
-        public Task<SubmitCaseToEvaResult?> ExecuteAsync(
-            SubmitCaseToEvaRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            Requests.Add(request);
-            return Task.FromResult<SubmitCaseToEvaResult?>(null);
-        }
-    }
-
 }
