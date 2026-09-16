@@ -26,6 +26,8 @@ public sealed class TasksModel(
     TimeProvider timeProvider,
     ILogger<TasksModel> logger) : CaseMutationPageModel(logger)
 {
+    public IActionResult OnGet() => NotFound();
+
     /// <summary>
     /// A note takes no edit lease and no expected version: it adds to the case's
     /// record rather than changing the case, so it must not contend with an
