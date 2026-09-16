@@ -54,6 +54,7 @@ public static class DocumentReadTelemetry
         "document.thumbnail.cache.read",
         "document.thumbnail.cache.write",
         "document.thumbnail.render",
+        "document.thumbnail.render.gate",
         "document.thumbnail.decode.gate"
     };
 

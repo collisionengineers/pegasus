@@ -16,6 +16,7 @@ using Pegasus.Core.Operations;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
+using SkiaSharp;
 using System.Diagnostics;
 using Xunit.Abstractions;
 
@@ -372,6 +373,218 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task CancelledThumbnailWaiterDoesNotFetchWhileTheCurrentVariantRenders()
+    {
+        var sourceBytes = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC");
+        var estate = await Estate.CreateDocumentAsync(sourceBytes);
+        await using (estate)
+        {
+            await using var scope = estate.Database.CreateAsyncScope();
+            var cache = new DocumentThumbnailCache(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                new CacheContainer(estate.Blob),
+                estate.Clock);
+            var source = new GatedThumbnailSource(sourceBytes);
+            var reader = new CaseDocumentThumbnailReader(source, cache);
+            var request = new CaseDocumentThumbnailRequest(
+                estate.Request.Actor,
+                estate.Request.CaseId!.Value,
+                estate.Request.DocumentId!.Value,
+                estate.Request.VersionId!.Value,
+                estate.Request.ExpectedSha256,
+                sourceBytes.LongLength,
+                "image/png");
+
+            using var renderScope = new Activity(nameof(CancelledThumbnailWaiterDoesNotFetchWhileTheCurrentVariantRenders));
+            renderScope.Start();
+            var secondGateEntry = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var renderGateStarts = 0;
+            using var listener = new ActivityListener
+            {
+                ShouldListenTo = activitySource => activitySource.Name == "Pegasus.Documents",
+                Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+                ActivityStarted = activity =>
+                {
+                    if (activity.TraceId == renderScope.TraceId
+                        && activity.DisplayName == "document.thumbnail.render.gate"
+                        && Interlocked.Increment(ref renderGateStarts) == 1)
+                    {
+                        secondGateEntry.TrySetResult();
+                    }
+                }
+            };
+            ActivitySource.AddActivityListener(listener);
+
+            var first = reader.OpenAsync(request, CancellationToken.None);
+            await source.FirstRead.WaitAsync(TimeSpan.FromSeconds(30));
+            try
+            {
+                using var cancellation = new CancellationTokenSource();
+                var second = reader.OpenAsync(request, cancellation.Token);
+                await secondGateEntry.Task.WaitAsync(TimeSpan.FromSeconds(30));
+                cancellation.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second);
+                Assert.Equal(1, source.Reads);
+            }
+            finally
+            {
+                source.Release();
+            }
+
+            await using var firstThumbnail = Assert.IsType<CaseDocumentThumbnail>(await first);
+            Assert.Equal(1, estate.Blob.UploadCount);
+            await using var cachedThumbnail = Assert.IsType<CaseDocumentThumbnail>(
+                await reader.OpenAsync(request, CancellationToken.None));
+            Assert.Equal(1, source.Reads);
+            await using var db = await estate.Database.CreateContextAsync();
+            var entry = Assert.Single(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+            Assert.Equal(
+                CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, null),
+                entry.Variant);
+        }
+    }
+
+    [Fact]
+    public async Task ConcurrentSuccessfulThumbnailMissesFetchAndRenderOneCurrentVariant()
+    {
+        var sourceBytes = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC");
+        var estate = await Estate.CreateDocumentAsync(sourceBytes);
+        await using (estate)
+        {
+            await using var scope = estate.Database.CreateAsyncScope();
+            var cache = new DocumentThumbnailCache(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                new CacheContainer(estate.Blob),
+                estate.Clock);
+            var source = new GatedThumbnailSource(sourceBytes);
+            var reader = new CaseDocumentThumbnailReader(source, cache);
+            var request = new CaseDocumentThumbnailRequest(
+                estate.Request.Actor,
+                estate.Request.CaseId!.Value,
+                estate.Request.DocumentId!.Value,
+                estate.Request.VersionId!.Value,
+                estate.Request.ExpectedSha256,
+                sourceBytes.LongLength,
+                "image/png");
+
+            using var renderScope = new Activity(nameof(ConcurrentSuccessfulThumbnailMissesFetchAndRenderOneCurrentVariant));
+            renderScope.Start();
+            var secondGateEntry = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var renderGateStarts = 0;
+            using var listener = new ActivityListener
+            {
+                ShouldListenTo = activitySource => activitySource.Name == "Pegasus.Documents",
+                Sample = static (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllData,
+                ActivityStarted = activity =>
+                {
+                    if (activity.TraceId == renderScope.TraceId
+                        && activity.DisplayName == "document.thumbnail.render.gate"
+                        && Interlocked.Increment(ref renderGateStarts) == 1)
+                    {
+                        secondGateEntry.TrySetResult();
+                    }
+                }
+            };
+            ActivitySource.AddActivityListener(listener);
+
+            var first = reader.OpenAsync(request, CancellationToken.None);
+            await source.FirstRead.WaitAsync(TimeSpan.FromSeconds(30));
+            var second = reader.OpenAsync(request, CancellationToken.None);
+            try
+            {
+                await secondGateEntry.Task.WaitAsync(TimeSpan.FromSeconds(30));
+                source.Release();
+                await using var firstThumbnail = Assert.IsType<CaseDocumentThumbnail>(await first);
+                await using var secondThumbnail = Assert.IsType<CaseDocumentThumbnail>(await second);
+            }
+            finally
+            {
+                source.Release();
+            }
+
+            Assert.Equal(1, source.Reads);
+            Assert.Equal(1, estate.Blob.UploadCount);
+            await using var db = await estate.Database.CreateContextAsync();
+            var entry = Assert.Single(await db.Set<DocumentContentCacheEntryEntity>().ToArrayAsync());
+            Assert.Equal(
+                CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, null),
+                entry.Variant);
+        }
+    }
+
+    [Fact]
+    public async Task PlainThumbnailScalesAnOrientedLargeJpegToTheDisplayed480PixelEdge()
+    {
+        var sourceBytes = JpegWithOrientation(width: 960, height: 640, orientation: 6);
+        using var source = new MemoryStream(sourceBytes, writable: false);
+
+        var rendered = await ImageThumbnailRendering.TryRenderAsync(
+            source,
+            sourceBytes.LongLength,
+            CancellationToken.None);
+
+        Assert.NotNull(rendered);
+        using var thumbnail = SKBitmap.Decode(rendered);
+        Assert.NotNull(thumbnail);
+        Assert.Equal(320, thumbnail.Width);
+        Assert.Equal(CaseDocumentThumbnails.LongestEdge, thumbnail.Height);
+    }
+
+    [Fact]
+    public async Task PlainThumbnailScalesTransparentPixelsOntoWhite()
+    {
+        var sourceBytes = TransparentPng(width: 960, height: 480);
+        using var source = new MemoryStream(sourceBytes, writable: false);
+
+        var rendered = await ImageThumbnailRendering.TryRenderAsync(
+            source,
+            sourceBytes.LongLength,
+            CancellationToken.None);
+
+        Assert.NotNull(rendered);
+        using var thumbnail = SKBitmap.Decode(rendered);
+        Assert.NotNull(thumbnail);
+        Assert.Equal(CaseDocumentThumbnails.LongestEdge, thumbnail.Width);
+        Assert.Equal(240, thumbnail.Height);
+        var pixel = thumbnail.GetPixel(240, 120);
+        Assert.InRange(pixel.Red, 250, byte.MaxValue);
+        Assert.InRange(pixel.Green, 250, byte.MaxValue);
+        Assert.InRange(pixel.Blue, 250, byte.MaxValue);
+        Assert.Equal(byte.MaxValue, pixel.Alpha);
+    }
+
+    [Fact]
+    public async Task MalformedAndOversizedThumbnailSourcesAreNotDecoded()
+    {
+        using var malformed = new MemoryStream("not an image"u8.ToArray(), writable: false);
+        using var oversized = new MemoryStream();
+
+        Assert.Null(await ImageThumbnailRendering.TryRenderAsync(
+            malformed,
+            malformed.Length,
+            CancellationToken.None));
+        Assert.Null(await ImageThumbnailRendering.TryRenderAsync(
+            oversized,
+            32L * 1024 * 1024 + 1,
+            CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CancelledThumbnailSourceReadPropagatesCancellation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        using var source = new CancellingReadStream(cancellation);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            ImageThumbnailRendering.TryRenderAsync(
+                source,
+                1,
+                cancellation.Token));
+    }
+
+    [Fact]
     public async Task VerifiedBlobFromInterruptedPublishIsAdoptedOnRetry()
     {
         var bytes = "interrupted cache publish"u8.ToArray();
@@ -526,6 +739,41 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
         sorted[(int)Math.Ceiling(percentile * sorted.Length) - 1];
 
     private sealed record Measurement(TimeSpan Elapsed, long AllocatedBytes);
+
+    private static byte[] JpegWithOrientation(int width, int height, ushort orientation)
+    {
+        using var bitmap = new SKBitmap(
+            new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Opaque));
+        bitmap.Erase(SKColors.DarkSlateBlue);
+        using var image = SKImage.FromBitmap(bitmap);
+        using var jpeg = image.Encode(SKEncodedImageFormat.Jpeg, quality: 100);
+        var encoded = jpeg.ToArray();
+        byte[] exif =
+        [
+            0xff, 0xe1, 0x00, 0x22,
+            (byte)'E', (byte)'x', (byte)'i', (byte)'f', 0x00, 0x00,
+            0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00,
+            0x01, 0x00,
+            0x12, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00,
+            (byte)orientation, (byte)(orientation >> 8), 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00
+        ];
+        var oriented = new byte[encoded.Length + exif.Length];
+        Buffer.BlockCopy(encoded, 0, oriented, 0, 2);
+        Buffer.BlockCopy(exif, 0, oriented, 2, exif.Length);
+        Buffer.BlockCopy(encoded, 2, oriented, exif.Length + 2, encoded.Length - 2);
+        return oriented;
+    }
+
+    private static byte[] TransparentPng(int width, int height)
+    {
+        using var bitmap = new SKBitmap(
+            new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Premul));
+        bitmap.Erase(SKColors.Transparent);
+        using var image = SKImage.FromBitmap(bitmap);
+        using var png = image.Encode(SKEncodedImageFormat.Png, quality: 100);
+        return png.ToArray();
+    }
 
     private sealed class Estate : IAsyncDisposable
     {
@@ -687,6 +935,83 @@ public sealed class DocumentContentCacheTests(ITestOutputHelper output)
             if (readerScope is not null) await readerScope.DisposeAsync();
             await Database.DisposeAsync();
         }
+    }
+
+    private sealed class GatedThumbnailSource(byte[] content) : IReadLogicalDocumentVersion
+    {
+        private readonly TaskCompletionSource firstRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int reads;
+
+        public Task FirstRead => firstRead.Task;
+
+        public int Reads => Volatile.Read(ref reads);
+
+        public void Release() => release.TrySetResult();
+
+        public async Task<LogicalDocumentContent> OpenAsync(
+            ReadLogicalDocumentVersionRequest request,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref reads);
+            firstRead.TrySetResult();
+            await release.Task.WaitAsync(cancellationToken);
+            return new LogicalDocumentContent(
+                new MemoryStream(content, writable: false),
+                request.DocumentId,
+                request.VersionId,
+                request.IntakeAssetId,
+                request.ExpectedSha256,
+                request.ExpectedContentLength,
+                "source.png",
+                "image/png");
+        }
+    }
+
+    private sealed class CancellingReadStream(CancellationTokenSource cancellation) : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => 1;
+
+        public override long Position
+        {
+            get => 0;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() => throw new NotSupportedException();
+
+        public override Task FlushAsync(CancellationToken cancellationToken) =>
+            Task.FromException(new NotSupportedException());
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            throw new InvalidOperationException("The thumbnail renderer must use the cancellable read path.");
+
+        public override ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            cancellation.Cancel();
+            return ValueTask.FromCanceled<int>(cancellation.Token);
+        }
+
+        public override Task<int> ReadAsync(
+            byte[] buffer,
+            int offset,
+            int count,
+            CancellationToken cancellationToken) =>
+            ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     private sealed class CacheContainer(CacheBlob blob) : BlobContainerClient
