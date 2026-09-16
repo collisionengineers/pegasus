@@ -18,8 +18,10 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class AssociatedMailEvidenceIntegrationTests
 {
-    [Fact]
-    public async Task ReasonedReevaluationRepairsAnExistingAutomaticLinkWithoutCreatingAnotherCase()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReasonedReevaluationRepairsAnExistingFollowUpLinkButDoesNotRefileTheCaseOrigin(bool isCaseOrigin)
     {
         using var factory = new IntakeWebApplicationFactory();
         var caseId = await SeedCaseAsync(factory);
@@ -49,6 +51,11 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         {
             Assert.False(await before.Set<CaseDocumentEntity>().AnyAsync(value => value.CaseId == caseId));
             Assert.False(await before.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());
+            if (isCaseOrigin)
+            {
+                await before.Cases.Where(value => value.Id == caseId).ExecuteUpdateAsync(update => update
+                    .SetProperty(value => value.OriginIntakeReceiptId, receipt.Id));
+            }
         }
         await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(new(
             receipt.Id, receipt.Version, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
@@ -56,9 +63,17 @@ public sealed class AssociatedMailEvidenceIntegrationTests
         await DispatchAsync(services, received.StagedReceiptId);
         Assert.Equal(QueuedIntakeProcessingOutcome.Completed,
             await IntakeWebDriver.CreateProcessor(services).ExecuteAsync(received.StagedReceiptId, default));
-        await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Confirmed);
         await using var after = await factory.Database.CreateContextAsync();
-        Assert.True(await after.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());
+        if (isCaseOrigin)
+        {
+            Assert.False(await after.Set<CaseDocumentEntity>().AnyAsync(value => value.CaseId == caseId));
+            Assert.False(await after.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());
+        }
+        else
+        {
+            await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Confirmed);
+            Assert.True(await after.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());
+        }
         Assert.Equal(1, await after.Cases.CountAsync());
     }
 
@@ -151,6 +166,7 @@ public sealed class AssociatedMailEvidenceIntegrationTests
     [InlineData("unlink")]
     [InlineData("archive")]
     [InlineData("post-report")]
+    [InlineData("report-sent")]
     [InlineData("editor")]
     public async Task DelayedCustodyRechecksAssociationCaseEligibilityAndActiveEditor(string change)
     {
@@ -170,10 +186,26 @@ public sealed class AssociatedMailEvidenceIntegrationTests
                     break;
                 case "archive":
                     workflow.ArchivedAtUtc = DateTimeOffset.UtcNow;
+                    workflow.ArchivedByKind = nameof(ActorKind.Staff);
+                    workflow.ArchivedBySubjectId = Guid.NewGuid().ToString();
+                    workflow.ArchivedByRolesJson = "[\"Administrator\"]";
                     workflow.ArchiveReason = "Archived during pending custody.";
                     break;
                 case "post-report":
                     workflow.State = nameof(CaseLifecycleState.PostReportComplete);
+                    break;
+                case "report-sent":
+                    workflow.ReportSentEvidence = new CaseReportSentEvidenceEntity
+                    {
+                        Id = Guid.NewGuid(), CaseId = caseId, MailboxIdentity = "test-mailbox",
+                        SentFolderIdentity = "sent", ImmutableItemIdentity = "sent-item",
+                        InternetMessageIdentity = "sent@test.invalid", ConversationIdentity = "conversation",
+                        ReplyChainIdentity = "reply-chain", SourceOccurrenceIdentity = "sent-source",
+                        SourceSha256 = new string('A', 64), MimeSha256 = new string('B', 64),
+                        SentAtUtc = DateTimeOffset.UtcNow, DiscoveredAtUtc = DateTimeOffset.UtcNow,
+                        DiscoveredByKind = nameof(ActorKind.SystemWorker), DiscoveredBySubjectId = "test",
+                        RetentionOperationKey = "retained-sent-test", RetentionRequestHash = new string('C', 64)
+                    };
                     break;
                 case "editor":
                     workflow.EditLeaseHolder = Guid.NewGuid().ToString();
@@ -203,6 +235,32 @@ public sealed class AssociatedMailEvidenceIntegrationTests
             Assert.Equal(6, resumed.Confirmed);
             Assert.True(await verify.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());
         }
+    }
+
+    [Theory]
+    [InlineData(CaseLifecycleState.Held, false)]
+    [InlineData(CaseLifecycleState.ReportPreparation, true)]
+    [InlineData(CaseLifecycleState.Review, true)]
+    public async Task FilingPreReportEvidencePreservesTheExistingHoldAndEngineerWorkflow(
+        CaseLifecycleState state, bool assigned)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var caseId = await SeedCaseAsync(factory, instructionsComplete: false);
+        Guid? engineerId = assigned ? Guid.NewGuid() : null;
+        await using (var db = await factory.Database.CreateContextAsync())
+        {
+            await db.CaseWorkflows.Where(value => value.CaseId == caseId).ExecuteUpdateAsync(update => update
+                .SetProperty(value => value.State, state.ToString())
+                .SetProperty(value => value.AssignedEngineerId, engineerId));
+        }
+        await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, FollowUp());
+        await AssertFiledAsync(factory, caseId, DocumentCustodyStatus.Confirmed);
+        await using var verify = await factory.Database.CreateContextAsync();
+        var workflow = await verify.CaseWorkflows.SingleAsync(value => value.CaseId == caseId);
+        Assert.Equal(state.ToString(), workflow.State);
+        Assert.Equal(engineerId, workflow.AssignedEngineerId);
+        Assert.True(await verify.Cases.Where(value => value.Id == caseId).Select(value => value.ImagesComplete).SingleAsync());
+        Assert.False(await verify.Cases.Where(value => value.Id == caseId).Select(value => value.InstructionComplete).SingleAsync());
     }
 
     [Fact]
