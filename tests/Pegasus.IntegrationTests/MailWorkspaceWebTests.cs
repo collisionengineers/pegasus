@@ -1453,7 +1453,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("<strong>Unclassified</strong>", linked, StringComparison.Ordinal);
         Assert.Contains("<span>Destination</span>", linked, StringComparison.Ordinal);
         Assert.Contains(
-            $"<a href=\"/Cases/Details/{caseId:D}\">MAIL-DESTINATION</a>",
+            $"<a href=\"/Cases/{caseId:D}\">MAIL-DESTINATION</a>",
             linked,
             StringComparison.Ordinal);
         Assert.DoesNotContain("<strong>Unidentified</strong>", linked, StringComparison.Ordinal);
