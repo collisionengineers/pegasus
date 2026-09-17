@@ -301,7 +301,7 @@ public sealed class IndexModel(
         if (!TryGetActor(out var actor)) return Forbid();
         if (staffId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
         {
-            return BadRequest();
+            return new ConflictObjectResult("Editing this staff account has ended. Reload it before making further changes.");
         }
 
         try
@@ -309,7 +309,7 @@ public sealed class IndexModel(
             await editScopes.HeartbeatAsync(
                 new(EditScopeKind.StaffAccount, staffId, actor, editLeaseToken),
                 cancellationToken);
-            return new NoContentResult();
+            return new OkResult();
         }
         catch (EditScopeConflictException)
         {

@@ -22,6 +22,31 @@ namespace Pegasus.IntegrationTests;
 public sealed class CaseWorkflowWebTests
 {
     [Fact]
+    public Task WorkflowPageReturnsNotFoundOnGet() => AssertPostOnlyPageAsync("Workflow");
+
+    [Fact]
+    public Task VehiclePageReturnsNotFoundOnGet() => AssertPostOnlyPageAsync("Vehicle");
+
+    [Fact]
+    public Task CustodyPageReturnsNotFoundOnGet() => AssertPostOnlyPageAsync("Custody");
+
+    [Fact]
+    public Task TasksPageReturnsNotFoundOnGet() => AssertPostOnlyPageAsync("Tasks");
+
+    [Fact]
+    public Task ClosurePageReturnsNotFoundOnGet() => AssertPostOnlyPageAsync("Closure");
+
+    private static async Task AssertPostOnlyPageAsync(string page)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync($"/Cases/{Guid.NewGuid():D}/{page}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task NativeHandoffDialogPostsWithoutEvaOrASeparateReviewAction()
     {
         var engineerId = Guid.NewGuid();

@@ -596,6 +596,7 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'IntakeQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
         // Recovery only: every committing caller attempts exact-ID publication.
         { name: 'PendingWorkRecoverySchedule', value: '0 * * * * *' }
+        { name: 'AutomaticEvaReviewSubmissionSchedule', value: '0 * * * * *' }
         { name: 'IntakeStagedArtifactReconciliationSchedule', value: '*/10 * * * * *' }
         { name: 'ApprovedInboxPollSchedule', value: '0 */5 * * * *' }
         { name: 'SentEvidencePollSchedule', value: '15 * * * * *' }

@@ -96,6 +96,41 @@ public sealed class WorkerActivationReleaseContractTests
     }
 
     [Fact]
+    public void WorkerRecoveryTimersUseDistinctConfiguredScheduleSettings()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var worker = File.ReadAllText(Path.Combine(
+            repositoryRoot, "src", "Pegasus.Worker", "IntakeFunctions.cs"));
+        var platformBicep = File.ReadAllText(Path.Combine(
+            repositoryRoot, "infra", "modules", "platform.bicep"));
+        using var localSettings = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            repositoryRoot, "src", "Pegasus.Worker", "local.settings.example.json")));
+        var values = localSettings.RootElement.GetProperty("Values");
+
+        Assert.Matches(
+            @"PendingWorkRecoveryFunction[\s\S]*?TimerTrigger\(""%PendingWorkRecoverySchedule%""",
+            worker);
+        Assert.Matches(
+            @"AutomaticEvaReviewSubmissionFunction[\s\S]*?TimerTrigger\(""%AutomaticEvaReviewSubmissionSchedule%""",
+            worker);
+        Assert.Single(Regex.Matches(worker, "%PendingWorkRecoverySchedule%"));
+        Assert.Single(Regex.Matches(worker, "%AutomaticEvaReviewSubmissionSchedule%"));
+
+        foreach (var settingName in new[]
+                 {
+                     "PendingWorkRecoverySchedule",
+                     "AutomaticEvaReviewSubmissionSchedule"
+                 })
+        {
+            Assert.Single(Regex.Matches(
+                platformBicep,
+                $"name:\\s*'{Regex.Escape(settingName)}'",
+                RegexOptions.CultureInvariant));
+            Assert.Equal("0 * * * * *", values.GetProperty(settingName).GetString());
+        }
+    }
+
+    [Fact]
     public void DocumentIntelligenceTemplateUsesWorkerOnlyKeylessAccess()
     {
         var repositoryRoot = FindRepositoryRoot();
