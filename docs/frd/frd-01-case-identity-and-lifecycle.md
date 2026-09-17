@@ -192,8 +192,9 @@ requirements. No formal Case appears as terminally Closed.
   API on Review permits a staff retry only after its automatic delivery
   failed. Pegasus generation has no EVA action. EVA never gates native work.
 - Damage, Valuation, Estimate, Settlement and Report are always viewable.
-  Engineering edits require With Engineer and the normal Case edit authority.
-  No pre-assignment valuation check may depend on an Engineer-only edit.
+  Staff with `PerformCasework` may edit them in Not ready, Review and With
+  Engineer under the normal Case edit authority. Held and completed states are
+  read-only. Adopting the Engineer's Value remains an Engineer act.
 - **Report sent** confirms retained exact Sent evidence under FRD-08; generation,
   an export or a manual assertion is insufficient.
 - **Completed** records that the current work is complete. Query receipt or

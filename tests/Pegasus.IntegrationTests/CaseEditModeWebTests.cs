@@ -52,7 +52,7 @@ public sealed class CaseEditModeWebTests
     public async Task WorkspaceSaveUsesCoreFindingAndEligibleSignOffAuthority(
         string role, bool forgeSignOffAccount, bool reachesStore)
     {
-        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
@@ -202,8 +202,6 @@ public sealed class CaseEditModeWebTests
     }
 
     [Theory]
-    [InlineData(CaseLifecycleState.NotReady)]
-    [InlineData(CaseLifecycleState.Review)]
     [InlineData(CaseLifecycleState.Held)]
     [InlineData(CaseLifecycleState.PostReportComplete)]
     public async Task CraftedEngineeringSaveIsRefusedOutsideTheCoreEditStates(CaseLifecycleState state)
@@ -218,6 +216,54 @@ public sealed class CaseEditModeWebTests
         AssertPrg(response, store.CaseId);
         Assert.Empty(store.Saves);
         Assert.Contains("Excess", ProposedValuesPanel(await workspace.GetWorkspaceAsync()), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReviewStateOrdinaryEngineeringSaveByNonEngineerReachesTheStore()
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            Substitute<IGetCase>(services, store);
+            Substitute<IGetCasePageFrame>(services, store);
+            Substitute<IGetCaseVehicleSection>(services, store);
+            Substitute<IGetCaseValuationSection>(services, store);
+            Substitute<IGetCaseNotesSection>(services, store);
+            Substitute<IGetCaseFilesSection>(services, store);
+            Substitute<IAcquireCaseEditLease>(services, store);
+            Substitute<IGetAssessmentAccess>(services, store);
+            Substitute<IGetAssessmentWorkspace>(services, store);
+            Substitute<ICaseReportSnapshotSource>(services, store);
+            services.RemoveAll<ISaveCaseWorkspace>();
+            services.AddScoped<ISaveCaseWorkspace>(provider => new SaveCaseWorkspace(store,
+                provider.GetRequiredService<IStaffAccountQueries>()));
+        }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost")
+        });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
+        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var claim = await client.PostAsync($"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(AntiforgeryValue(initial),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", InputValue(initial, "operationKey"))));
+        AssertPrg(claim, store.CaseId);
+        var editing = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var excessName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementExcess);
+        Assert.Contains($"name=\"{excessName}\"", editing, StringComparison.Ordinal);
+
+        using var response = await client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
+            Form(AntiforgeryValue(editing),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                (excessName, "250")));
+
+        AssertPrg(response, store.CaseId);
+        var saved = Assert.Single(store.Saves);
+        Assert.Equal("250", saved.Settlement!.AssessmentFields![AssessmentVocabulary.SettlementExcess]);
     }
 
     [Fact]
@@ -488,7 +534,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task EditModeReplacesTheReadPanelsRatherThanRenderingBothOfThem()
     {
-        var store = new RecordingCaseDetailsStore();
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var editing = await workspace.GetWorkspaceAsync();
