@@ -1,0 +1,54 @@
+# Reviewed current-output baseline for ReportChrome extraction evidence.
+# The pre-extraction renderer is absent, so historical preservation remains unverified.
+pages=7
+REPAIRABLE REPORT
+Report For:
+Approved Principal
+Matter:
+Road Traffic Accident: Alex Example: 01/08/2026
+REPAIRABLE
+ROADWORTHY
+PRE-ACCIDENT VALUE
+Labour Hours
+REPAIR COST INC VAT
+Vehicle Details
+Desktop Assessment
+This report has been compiled from a desktop review of the information available relating to this claim.
+Nature of Incident
+The vehicle has suffered Moderate collision/impact damage to the Right Rear.
+Damage
+Right rear door
+Creased below the swage line
+Wheel right rear
+Kerbed rim
+Tyres and Seat Belts
+Engineer's Comments
+Vehicle History Check
+History clear
+Pre-Incident Condition
+The vehicle is considered to be in Good condition for its age and type.
+Settlement
+This vehicle is considered a repairable proposition and we have calculated a repair cost of
+Recommended settlement (calculated repair cost)
+Vehicle Data
+Retail Value
+Trade Value
+Engineer's Value
+Repair Cost Calculation
+Main New Parts Required
+Door skin
+Repairs Required
+Nearside door
+Vehicle Images
+Statement of Truth
+I declare that I understand my duty in providing this report to the court and I confirm that I have complied with that duty.
+I confirm that I have made clear which facts and matters referred to in this report are within my own knowledge and which are not.
+Parts prices are subject to fluctuation and further damage may be found upon dismantling the vehicle.
+We appreciate your instructions and enclose our fee note for your kind attention, which we confirm remains payable irrespective of the outcome of this case.
+Yours faithfully,
+Ed Mawdsley — ATA VDA AQP
+Independent Automotive Engineer, Collision Engineers Ltd
+Engineers@CollisionEngineers.co.uk
+PK12TMZ · CE-100
+Page 1 of 7
+Page 7 of 7

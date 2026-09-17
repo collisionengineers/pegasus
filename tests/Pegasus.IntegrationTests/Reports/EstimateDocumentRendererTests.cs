@@ -105,21 +105,9 @@ public sealed partial class EstimateDocumentRendererTests
         await using var provider = Provider();
         var renderer = provider.GetRequiredService<IEstimateDocumentRenderer>();
         var estimate = Estimate(
-            new EstimateDetails("EVA estimate", 3, 83.28m, 510.58m, 238.60m, 20m, null,
+            new EstimateDetails("EVA estimate", 3, 83.28m, null, null, 20m, null,
                 EstimateDiscounts.None, EstimateVatPolicy.For(RepairerVatStatus.Registered)),
-            Line(1, "Panel repairs") with { WorkUnits = 12.3m },
-            Line(2, "Paint operations") with
-            {
-                Type = "paint_repair", WorkUnits = null, PaintWorkUnits = 4.7m,
-            },
-            Line(3, "Replacement part") with { Type = "new_part", WorkUnits = null, Price = 160.63m },
-            Line(4, "Tyre") with { Type = "specialist_fixed", WorkUnits = null, Price = 180m },
-            Line(5, "Alignment") with { Type = "specialist_fixed", WorkUnits = null, Price = 112.42m },
-            Line(6, "Operation 1") with { Type = "specialist_fixed", WorkUnits = 1m },
-            Line(7, "Operation 2") with { Type = "specialist_fixed", WorkUnits = 1m },
-            Line(8, "Operation 3") with { Type = "specialist_fixed", WorkUnits = 1m },
-            Line(9, "Operation 4") with { Type = "specialist_fixed", WorkUnits = 1m },
-            Line(10, "Operation 5") with { Type = "specialist_fixed", WorkUnits = 1m });
+            EvaEstimateLines("specialist_fixed"));
 
         var artifact = await renderer.RenderAsync(Document(estimate));
         var text = string.Join(" ", PageTexts(artifact.Pdf));
@@ -134,6 +122,24 @@ public sealed partial class EstimateDocumentRendererTests
         }
         Assert.Contains("17.00", text, StringComparison.Ordinal);
         Assert.Contains("5.00", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task TheGoldenCheckLabourFixturePrintsTheCorrectlyTypedLabourHoursAndNet()
+    {
+        await using var provider = Provider();
+        var renderer = provider.GetRequiredService<IEstimateDocumentRenderer>();
+        var estimate = Estimate(
+            new EstimateDetails("EVA estimate", 3, 83.28m, null, null, 20m, null,
+                EstimateDiscounts.None, EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+            EvaEstimateLines("check_labour"));
+
+        var artifact = await renderer.RenderAsync(Document(estimate));
+        var text = string.Join(" ", PageTexts(artifact.Pdf));
+
+        Assert.Contains("£1,832.16", text, StringComparison.Ordinal);
+        Assert.Contains("22.00", text, StringComparison.Ordinal);
+        Assert.Contains("£3,034.39", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -168,6 +174,32 @@ public sealed partial class EstimateDocumentRendererTests
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         lines, null, "engineer", new(2026, 9, 16, 12, 0, 0, TimeSpan.Zero),
         null, null, null, null, details);
+
+    private static CaseEstimateLineRecord[] EvaEstimateLines(string timedOperationType) =>
+    [
+        Line(1, "Right Front Door Membrane") with { Type = "new_part", WorkUnits = 0.1m, Price = 103.18m },
+        Line(2, "Right Front Door Protective Moulding") with { Type = "new_part", WorkUnits = null, Price = 43.19m },
+        Line(3, "Rear Bumper Lining") with { Type = "rnr", WorkUnits = 0.8m },
+        Line(4, "Right Rear Side Panel") with { WorkUnits = 10m },
+        Line(5, "Right Side Panel Protective Moulding") with { Type = "new_part", WorkUnits = 0.1m, Price = 14.26m },
+        Line(6, "Right Front Door Strip & Set-Up for Paint") with { Type = "rnr", WorkUnits = 1.3m },
+        Line(7, ".Assessment Damage Appraisal Charge") with { Type = "specialist_fixed", WorkUnits = null, Price = 176.96m },
+        Line(8, ".Environmental Charge") with { Type = "specialist_fixed", WorkUnits = null, Price = 31.23m },
+        Line(9, ".QC & Road Test") with { Type = timedOperationType, WorkUnits = 1m },
+        Line(10, ".Standard shutdown") with { Type = timedOperationType, WorkUnits = 1m },
+        Line(11, ".Sundries") with { Type = "specialist_fixed", WorkUnits = null, Price = 20m },
+        Line(12, ".System Diagnostic Check (Post Repair)") with { Type = timedOperationType, WorkUnits = 1m },
+        Line(13, ".System Diagnostic Check (Pre Repair)") with { Type = timedOperationType, WorkUnits = 1m },
+        Line(14, ".Vehicle Care Kit") with { Type = "specialist_fixed", WorkUnits = null, Price = 10.41m },
+        Line(15, ".Wash/Clean") with { Type = timedOperationType, WorkUnits = 1m },
+        Line(16, "OSR tyre") with { Type = "specialist_fixed", WorkUnits = null, Price = 180m },
+        Line(17, "Wheel Alignment (check)") with { Type = "specialist_fixed", WorkUnits = null, Price = 112.42m },
+        Line(18, "Right Front Door, Complete") with { Type = "paint_repair", WorkUnits = null, PaintWorkUnits = 0.8m, Materials = 191.20m },
+        Line(19, "Right Rear Side Panel, Complete") with { Type = "paint_repair", WorkUnits = null, PaintWorkUnits = 1.6m, Materials = 187.60m },
+        Line(20, "Prep. metal (on vehicle without pre-painting)") with { Type = "paint_prep", WorkUnits = null, PaintWorkUnits = 1.7m, Materials = 120.16m },
+        Line(21, "Colour mixing (1)") with { Type = "paint_repair", WorkUnits = null, PaintWorkUnits = 0.3m },
+        Line(22, "Sample colour creation (1)") with { Type = "paint_repair", WorkUnits = null, PaintWorkUnits = 0.3m, Materials = 11.62m },
+    ];
 
     private static EstimateDetails DefaultDetails() => new(
         "Estimate 1", 3, 83.28m, 12m, 8m, 20m, null,
