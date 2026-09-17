@@ -7,6 +7,9 @@ identity, owner, or destination is registered once in Unidentified with its U
 reference and canonical reason. Retryable processing remains retryable; a terminal
 technical failure after custody uses `TechnicalProcessingFailure`. Mail projections
 link to the same Unidentified item rather than synthesising a second queue row.
+The Inbox Unidentified scope lists retained mail whose Unidentified item is still
+open; once it resolves the message leaves that scope while keeping its
+classification record and Case association.
 > Owner capabilities: MAIL · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Email, mailbox, and background processing

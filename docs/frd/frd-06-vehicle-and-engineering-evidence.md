@@ -164,13 +164,19 @@ external fact enters permanent business history. Routine calls, retries, and
 polling remain content-safe telemetry.
 
 The Case record offers one **Look up DVLA & MOT** action (D34, 2026-09-02;
-amended 2026-09-11). A looked-up value fills Make, Model, Year, or Mileage
-directly, as a working value carrying Lookup provenance, and only where the
-field is empty: it never overwrites an extracted instruction value or a
-staff-entered value, with the fill recorded as above. There are no
-per-field suggestion chips and no suggestion table. The Model comes from the
-DVSA MOT history vehicle record; DVLA supplies no model. Experian stays a
-disabled seam (D7, `ENG-001`).
+amended 2026-09-16). A looked-up value fills Make, Model, Year, Mileage, or the
+derived Vehicle type directly, as a working value carrying Lookup provenance.
+Make, Model, Year and Mileage fill only where the field is empty: they never
+overwrite an extracted instruction value or a staff-entered value. Vehicle
+type follows one rule: type approval, then wheelplan, then rigid-body
+revenue weight; L1/L2 mopeds are `scooter`, other L-class vehicles are
+`motorcycle`, and heavy, PSV or tractor classifications are `other`. It fills
+only where staff have not confirmed a type; a changed lookup classification
+may replace an earlier unconfirmed lookup value, while an unchanged value is
+not re-stamped. The Lookup value remains unconfirmed until staff Save, which
+re-stamps it as staff-confirmed. There are no per-field suggestion chips and no
+suggestion table. The Model comes from the DVSA MOT history vehicle record;
+DVLA supplies no model. Experian stays a disabled seam (D7, `ENG-001`).
 
 The combined DVLA/DVSA lookup also runs automatically at Case creation —
 both a manually created Case and an intake acceptance that allocates a
@@ -185,10 +191,10 @@ the lookup ever filled a field. A provider's HTTP 404 response is
 classified before it is treated as "no such vehicle": only a 404 whose body
 is that provider's own vehicle-not-found error counts as `NotFound`; any
 other 404 (a gateway, route or withdrawn-subscription 404) is recorded as a
-failed lookup instead of a false not-found result. The automatic trigger
-fills only an empty Make, Model, Year, or Mileage, per the fill rule above;
-it never overwrites an extracted or staff-entered value and never confirms a
-field itself.
+failed lookup instead of a false not-found result. The automatic trigger fills
+only an empty Make, Model, Year or Mileage, and a Vehicle type that staff have
+not confirmed, per the fill rule above; it never overwrites an extracted or
+staff-entered value and never confirms a field itself.
 
 The issued report's mileage sentence code (`online_data`, `owner`, `repairer`,
 `principal`, `average`, or `tbc`) is derived from the Case mileage's

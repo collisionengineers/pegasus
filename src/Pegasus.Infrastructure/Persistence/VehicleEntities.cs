@@ -36,6 +36,9 @@ internal sealed class VehicleLookupObservationEntity
     public int? ManufactureYear { get; set; }
     public int? EngineCapacityCc { get; set; }
     public string? FuelType { get; set; }
+    public string? TypeApproval { get; set; }
+    public string? Wheelplan { get; set; }
+    public int? RevenueWeightKg { get; set; }
     public required string MotTestsJson { get; set; }
     public long? MileageValue { get; set; }
     public string? MileageUnit { get; set; }

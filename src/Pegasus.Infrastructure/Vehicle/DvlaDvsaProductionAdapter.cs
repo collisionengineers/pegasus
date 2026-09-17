@@ -173,7 +173,10 @@ internal sealed class DvlaDvsaProductionAdapter(
                     Text(root, "model"),
                     Number(root, "yearOfManufacture"),
                     Number(root, "engineCapacity"),
-                    Text(root, "fuelType")),
+                    Text(root, "fuelType"),
+                    Text(root, "typeApproval"),
+                    Text(root, "wheelplan"),
+                    Number(root, "revenueWeight")),
                 false,
                 null,
                 identity,
@@ -379,7 +382,10 @@ internal sealed class DvlaDvsaProductionAdapter(
                     Text(value, "model"),
                     ParseManufactureYear(value),
                     ParseEngineSize(value),
-                    Text(value, "fuelType")),
+                    Text(value, "fuelType"),
+                    null,
+                    null,
+                    null),
                 null);
 
     /// <summary>
