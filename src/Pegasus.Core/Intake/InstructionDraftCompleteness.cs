@@ -78,7 +78,7 @@ public static class InstructionDraftCompleteness
     /// <remarks>
     /// A complete draft and an allocatable one are different questions, and
     /// answering the second with the first refuses real work.
-    /// FRD-02 (intake and source identity) is explicit: fail closed before
+    /// FRD-22 (pre-Case gates) is explicit: fail closed before
     /// allocation when identity-critical route facts are incomplete or
     /// ambiguous, but "once safe processing establishes Principal and Case type,
     /// allocate the Case/PO and retain incomplete ordinary detail, images, or

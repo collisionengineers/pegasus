@@ -224,7 +224,7 @@
 #section-estimate .est-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 #section-estimate .est-actions form{display:contents}
 
-/* The Glass's session line and its guarded close (FRD-06). */
+/* The Glass's session line and its guarded close (FRD-25). */
 #section-estimate .glass-session{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:6px 10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
 #section-estimate .glass-session .grow{flex:1;min-width:0}
 #section-estimate .glass-session form{display:contents}

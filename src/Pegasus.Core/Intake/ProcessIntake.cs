@@ -1244,7 +1244,7 @@ public sealed class ProcessIntake(
 
         // The identity-critical fields are the only ones that may withhold a
         // reference; ordinary detail missing from a declaration leaves the case
-        // Not ready exactly as it does for an e-mail (FRD-02).
+        // Not ready exactly as it does for an e-mail (FRD-22).
         var missingIdentity = InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
         var decision = missingIdentity.Count > 0 || isTriage
             ? IntakeDecision.NeedsSorting

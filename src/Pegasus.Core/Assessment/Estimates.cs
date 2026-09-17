@@ -887,7 +887,7 @@ public static class EstimatePolicy
     }
 
     /// <summary>
-    /// Making an estimate Current is the Engineer's acceptance (FRD-11 § AI
+    /// Making an estimate Current is the Engineer's acceptance (FRD-27 § AI
     /// Job List: "Use estimate"). A Draft passes
     /// <see cref="RepairSpecificationPolicy.ValidateAcceptance"/> with the
     /// basis derived by <see cref="EstimateTotals"/>; an already accepted
@@ -1111,7 +1111,7 @@ public sealed class DiscardEstimate(IRepairSpecificationStore store) : IDiscardE
 /// <summary>
 /// The staff act that consumes an Estimate job's result: once the AI draft
 /// is Current, the Draft-ready job it cites is confirmed Completed
-/// (FRD-11 § AI Job List). A job in any other state is left as it is — the
+/// (FRD-27 § AI Job List). A job in any other state is left as it is — the
 /// Engineer's choice of estimate never depends on the ledger.
 /// </summary>
 public sealed class SetCurrentEstimate(

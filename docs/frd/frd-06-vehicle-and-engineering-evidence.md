@@ -1,6 +1,6 @@
 # FRD-06: Vehicle and engineering evidence
 
-> Owner capabilities: INT (image/VRM), ENG · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: INT (image/VRM), CASE-29, CASE-34, EXT-08, EXT-11, DATA-02 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -12,18 +12,19 @@
   record and pair it with one matching Case automatically.
 - DVLA and DVSA lookups fill only empty vehicle fields. They never overwrite
   what the instruction or a staff member entered.
-- Roadworthiness and Assessment are separate Engineer findings. A correction
-  is a new reasoned version, never an edit of the old one.
-- Every repair estimate is an immutable version. Imported or AI material
-  stays a Draft until an Engineer accepts it with **Use estimate**.
+- When DVSA history must estimate a mileage, Pegasus prefers an abstention or
+  a qualified range over an unsupported number.
 
 ## Purpose
 
-This document owns the evidence about the vehicle and the engineering
-judgement built on it: where the vehicle was inspected, its registration and
-identity, external vehicle data, the Engineer's findings, damage, valuation,
-settlement and repair estimates. It serves the PRD outcomes for accurate,
-source-labelled Case data and a definitive Engineer report.
+This document owns the evidence about the vehicle: where the vehicle was
+inspected, its registration and identity, external vehicle data and the
+conservative MOT mileage estimate. It serves the PRD outcome for accurate,
+source-labelled Case data. The Engineer's findings, damage, valuation and
+settlement are owned by
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md).
+Repair estimates, imports and Glass's sessions are owned by
+[FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md).
 
 Grouped images with no usable registration are one Unidentified item, and two
 valid registrations are Conflicting identification
@@ -210,7 +211,7 @@ its preserved result, and with no replay evidence the value is
 source-labelled `Unavailable`.
 
 The mileage tiers and discrepancy rule are in
-[FRD-02](frd-02-intake-and-source-identity.md#global-vehicle-and-value-checks).
+[FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md#global-vehicle-and-value-checks).
 
 **Every lookup is an observation.** Each lookup or refresh keeps its provider
 or source, retrieval time, effective date, source age, response or version
@@ -276,208 +277,6 @@ real caller and failure evidence, and operator acceptance are separate from
 the code being present. Vehicle enrichment does not switch on valuation
 behaviour.
 
-### Professional engineering findings and correction
-
-The Collision Engineers Engineer report is definitive for the Case.
-Roadworthiness (`Roadworthy` or `Unroadworthy`) and Assessment
-(`Repairable` or `Total loss`) are separate professional findings. Neither is
-derived from the other, and Triage findings never fill or change either one.
-
-**Corrections.** A correction never edits an accepted or issued finding in
-place. It creates a reasoned superseding report, finding or addendum with
-actor, time, source, structured before-and-after values, and the earlier
-artifact or version kept. Case edits follow the state, role, lease and
-version rules in [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions) and
-[FRD-14](frd-14-record-edit-leases.md#case-edit-lease). Completed is
-reversible and queries follow
-[FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query).
-
-**Retained figures.** Betterment figures and estimate `guide` codes recorded
-on a source or an estimate version are evidence only. No finding, figure,
-outcome, deduction or settlement meaning is derived from them. They are shown
-as recorded.
-
-**No money effects.** Triage findings and their corrections have no Case,
-report, Audit-reference, fee or invoice effect. Invoicing is deferred
-separately: a finding correction must not create, alter, credit or void an
-invoice. Any later financial consequence needs the separately accepted,
-versioned finance contract.
-
-**AI proposes, people decide.** Automated or AI-assisted extraction may
-propose candidate facts, confidence, damage observations, repair operations,
-costs, flags, valuation comparables, roadworthiness, total-loss or salvage
-evidence only where an allocated capability and accepted evaluation allow
-it. `Pegasus.Core` and an authorised person own accepted facts, economics,
-findings, outcome, legal use and approval. A skill, prompt, model, workspace,
-external schema or imported reference never becomes OEM instruction, repair
-policy, valuation authority, legal advice, Engineer approval or product
-policy just by existing.
-
-### Damage record
-
-Report readiness no longer has separate Engineer name, qualification or
-signature items. The Sign-off Engineer account
-([FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)) is the only
-source of the signatory tuple.
-
-A damage record uses 23 detailed regions, with a parent-region map beside the
-broad regions. Each region carries a severity and a note; collision work has
-no separate damage type. The record also carries tyres and seat belts per
-corner, the spare tyre, the centre belt, unrelated damage with its deduction,
-and paint or material transfer. `impact_location` and `impact_severity` are
-derived from the zone list by `Pegasus.Core`, never typed in. The report
-prints the marked diagram
-([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes)).
-
-### Valuation sources
-
-Valuation records keep guide month and source. Glass's, Brego and Super CAP
-are guide sources. Each is a card whose **Get valuation** asks that source's
-connected provider for the month, shows a notice while the source has no
-provider, and also lets the figures be typed by hand
-([FRD-16](frd-16-case-record-workspace.md#case-workspace)). Cazana is a
-disabled seam. AI market research is automation-only. No guide provider is
-connected today; connecting one needs its own accepted decision
-([ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md)).
-
-Every entry keeps its date, time, mileage, retail and trade values, plus the
-guide month. Glass's valuation and Glass's repair estimating are two systems
-and both are used: the valuation source and the estimate import source keep
-separate label entries and are never merged. An AI market research entry is
-the proposal recorded by the `MarketResearch` job
-([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list));
-it never becomes the Engineer's Value by itself.
-
-**Engineer's Value** is adopted only by an explicit Apply, in this order:
-commercial VAT 20%, prior total loss 10% or 20%, fixed additions, then
-condition deduction, rounding to whole pounds away from zero. A generic
-assessment save never writes the adopted value. This calculation is current
-required behaviour. Extra rationale or revaluation-history scope needs its
-own accepted contract.
-
-### Settlement
-
-The settlement fields are outcome, category, salvage value, excess,
-betterment, claimant VAT registered, reserve, equity (derived), repair days
-and delays, report delay, storage per day, recovery, hire start and daily
-cost, diminution, and salvage logistics. Equity is derived, never typed in.
-Financial ratio lines are allowed, not required; the "no percentage" rule in
-[FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review) applies
-only to completeness. Outcome meanings are owned by
-[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#assessment-report-outcomes).
-
-Settlement saves with the Case's single workspace Save. Storage per day and
-recovery use the existing typed Inspection members; a lump storage charge is
-a separate fact. Repair total and repair days are read from the Current
-accepted estimate, and repair days are edited only through Estimate. Equity
-uses the report's existing calculation over accepted inputs and is absent
-when those inputs are incomplete, never a made-up zero.
-
-### Canonical repair specifications
-
-**One current version.** Every accepted repair specification is an
-immutable, versioned Core aggregate. Each Case has exactly one current
-accepted version, shared by all of the Case's report projections.
-
-Each version keeps its stable identity, ordered technical lines, source
-route, source artifact identity, version and hash, mapping evidence, raw
-calculation basis and totals, the selected labour-rate card version if one
-was selected, creating actor and time, and, when accepted, the named Engineer
-and acceptance time. Glass's, Audatex PDF, an approved AI proposal and manual
-entry are provenance routes, never authorities. Imported or automated
-material stays a Draft until an authorised Engineer accepts the exact source,
-mapping, ordered lines and calculation basis. A Draft without the required
-provenance cannot satisfy report readiness. Obsolete development-state
-estimates need not be converted or kept.
-
-**Import is keyed by Case plus source hash.** A raw artifact imported through
-either caller of the shared import command uses that key. The same Case with
-the same hash is a replay that returns the existing Draft. A different
-artifact creates the next immutable Draft. The provider and parser are
-detected from the registered types; an ambiguous artifact is refused, never
-guessed.
-
-**Authority is checked twice.** Before reading a replay or parsing the source,
-the command proves the typed actor, the current persisted Case version, and
-the edit lease holder, token and expiry. Both that check and the final save
-need an assessment-writable state: Not ready, Review or With Engineer, where
-With Engineer covers before and after the report
-([FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels)). A file
-occurrence must name the exact confirmed, non-removed document version; a
-correctly paired historical version is still valid evidence. The new Draft is
-guarded again in the save transaction. Importing never confirms rows or
-changes Current, even when an Engineer started it. The Engineer's
-**Use estimate** action confirms and accepts the Draft once its source,
-mapping, rows and calculation basis pass the normal acceptance rules.
-
-**Glass's calculation PDFs.** These keep ordered Body, Auxiliary and Paint
-rows, included-operation context, source guide codes, unambiguous
-manufacturer part identities, notes and printed amounts. PDF labour hours are
-already net of overlap and do not reuse the XML gross-time conversion. Parts
-and position appendices are evidence for existing rows, never extra charges.
-Repeated printed charges and visibly clipped text stay as printed. Whole-row,
-section and document reconciliation is required. Section labour must equal
-the printed rate × section hours as the source computes it. Missing or
-ambiguous required evidence refuses the whole import. Source rates and VAT do
-not select a Pegasus rate card or decide a repairer's VAT status.
-
-**Readable text is required.** Estimate PDFs need readable embedded text.
-Unreadable, scan-like or unsupported estimates are refused, with no OCR and
-no partial Draft. Completing an interrupted import reuses the retained source
-under fresh Case authority, without uploading again. Source attribution and
-complete arithmetic must agree before an import succeeds. The Estimate
-section offers **Complete import** for confirmed retained import sources not
-yet represented by an estimate. Pending custody becomes selectable only when
-its confirmation completes. Replaying the original upload does not revive
-its old lease or assume another Case-version increment.
-
-**Corrections and projections.** A correction creates a new reasoned version
-that keeps and supersedes the earlier accepted one. Accepted rows and their
-evidence are never edited in place. A Case with no unambiguous current
-accepted version fails closed. The specification uses one line vocabulary and
-one calculation basis. The three assessment-report lists (new parts, repairs
-and additional operations) are one deterministic names-only projection of
-those ordered lines, not a second renderer-owned specification.
-
-**Replay in the estimate editor.** The editor saves the Case version and line
-identities the Engineer submitted. Retrying the same operation keeps that
-intent: source evidence and amendment timestamps are resolved only for a new
-operation, not rebuilt before replay detection. A prior successful operation
-returns the same estimate identity in its current state, even after later
-edits, and never reapplies the older edit. Changed intent under the same
-operation key is refused, as is a new operation against a stale Case
-version.
-
-### Glass's interrupted sessions
-
-A Glass's launch records its callback and external account before contacting
-the provider. Vehicle and estimate identities are kept as soon as they
-arrive. Resume continues an interrupted preparation or a known vehicle that
-has not started an estimate; an existing estimate reopens by its existing
-identity. These actions sit in the Case estimate section and do not need
-credentials reset.
-
-Keeping a returned estimate's source files does not use up the Engineer's
-still-valid Case edit authority. The import uses that authority to land one
-Draft. A genuine Case edit in between, or an expired or lost lease, leaves
-the retained result waiting until the Engineer regains authority. Callback
-replay creates neither another Draft nor another change.
-
-**Unknown answers hold the account.** A provider write whose answer was lost
-stays `Unknown` and keeps the account. It must not create another vehicle or
-calculation, and must not release the account just because time passed. The
-owning Engineer can close any session that still holds the account, except
-one in the middle of an import, only after confirming Glass's is closed and
-no estimate is open, and with a reason. Stale versions and closure by another
-Engineer are refused. An account holds one live session: while it is held
-from another Case, every Case the Engineer opens names that Case instead of
-offering a launch, and a second launch is refused before the provider is
-contacted. Reopening an estimate may come back under a different provider
-estimate id; every id a session was launched under is kept, and the provider
-may return any of them. Checkpoints and explicit closure are audited
-permanently without provider credentials, callback tokens or document
-content.
-
 ### Conservative MOT mileage estimation
 
 This section is the only owner of the rule that
@@ -518,69 +317,12 @@ neither picks a provider nor authorises an external call.
   conservative algorithm. Unsafe evidence gives an abstention or a qualified
   range, never an invented mileage.
 
-### Inspection location and estimate sources
-
-Every Collision Engineers assessment is a desktop inspection. A physical
-inspection address is report data, not evidence that anyone attended. The
-Principal setting picks a physical vehicle location or the literal
-`Image Based Assessment`; a staff override needs a recorded reason and is
-reversed the same way. Address suggestions may use Principal usage frequency,
-accident location and image or vision evidence; a suggestion never becomes a
-confirmed fact by itself.
-
-Repair cost figures come from external estimate imports (including Audatex
-and Glass's), AI estimates returned through MCP, or staff file import. Manual
-repair totals are never invented to get around the estimate contract. An
-unknown repairer VAT status needs an explicit status or category before
-totals are accepted. Supplied, observed, derived and professionally accepted
-values keep their distinctions.
-
-### Retained PDF estimate import
-
-The estimate-import command accepts the supplied Glass's calculation and
-Audatex full-report PDFs through their deterministic provider mappings. It
-keeps the original document and its source hash before importing a Draft;
-the same Case and hash replay the same import. Printed totals, rates, line
-structure and provider identity must agree. PDF net labour is not reduced
-again by the XML-specific overlap rule.
-
-Readable embedded text is required. An unusable font map, a scan-like page
-or a parser failure gives an explicit refusal, never an OCR request
-([ADR-0047](../adr/0047-scanned-instruction-ocr-only.md)). Retained sources
-from an interrupted import can be completed later by the same command under
-the current Case version and edit lease. Import never selects a Current
-estimate.
-
-### Market Research requests
-
-Choosing **Market Research** on the Valuation screen creates a ledger job.
-External Claude Cowork, using the Pegasus connector and its own research
-tools, does the research and produces files. The connector attaches those
-files to the Case and the Automation Actor marks the job Completed. The tools
-and the research run outside this repository. Research evidence and any
-source-labelled valuation proposal never become the Engineer's Value on their
-own. Job states and attribution are owned by
-[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list).
-
-### Valuation readiness
-
-Any valuation check required before Review or Hand to Engineer must be
-resolvable at that stage by an authorised person. The Engineer sections are
-editable before handoff in Not ready and Review, so availability is not a
-reason to defer such a check. Engineer's Value, settlement and report
-calculations are engineering work, not invented pre-assignment blockers. A
-named external-check failure shows its actual permitted resolution. No
-circular readiness gate is acceptable.
-
 ## States and transitions
 
 | Thing | States |
 | --- | --- |
 | VRM read | suggestion, `NoReadableResult`, unknown, dependency unavailable, technical failure; confirmed by staff or registered automatically at the bar |
 | Vehicle lookup | current, stale, unavailable, partial, failed; a field value is Lookup then staff-confirmed on Save |
-| Repair specification | Draft, then accepted (Current) by Use estimate; a correction makes a new version that supersedes the old |
-| Glass's session | launched, `Unknown` (holds the account), resumed, closed by the owning Engineer with a reason |
-| Engineer finding | recorded; a correction is a superseding version, never an edit |
 
 ## Edge cases and fail-closed behaviour
 
@@ -590,40 +332,30 @@ circular readiness gate is acceptable.
   one group are Conflicting identification.
 - A provider 404 that is not the provider's own not-found error is a failed
   lookup.
-- An ambiguous estimate artifact, an unreadable PDF, or a reconciliation
-  mismatch refuses the whole import.
-- A Case with no unambiguous current accepted specification fails closed.
-- A lost Glass's answer stays `Unknown` and holds the account until the
-  owning Engineer closes it with a reason.
 - Sparse or unsafe MOT history gives an abstention or a qualified range, not
   a number.
 
 ## Acceptance evidence
 
 Core tests cover the near-miss and reverse-pairing rules, the vehicle-type
-rule, the 404 classification, the fill rule, the Engineer's Value order, the
-import replay key, and the conservative estimation algorithm. Integration
-tests cover Look up DVLA & MOT, the estimate import command under a lease,
-Use estimate, and Glass's session closure. Live DVLA/DVSA, Glass's and
+rule, the 404 classification, the fill rule, and the conservative estimation
+algorithm. Integration tests cover Look up DVLA & MOT. Live DVLA/DVSA and
 recognition evidence are separate tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 
-- Capabilities: `INT-13`, `INT-27`, `INT-28`, `ENG-01`–`ENG-04`, `CASE-28`,
-  `CASE-29`, `CASE-34`, `EXT-07`–`EXT-13`, `DATA-02` in
-  [capabilities](../capabilities.md).
+- Capabilities: `INT-13`, `INT-27`, `INT-28`, `CASE-29`, `CASE-34`, `EXT-08`,
+  `EXT-11`, `DATA-02` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),
-  [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
-  [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),
-  [FRD-16](frd-16-case-record-workspace.md),
-  [FRD-19](frd-19-image-led-intake-and-pairing.md).
+  [FRD-19](frd-19-image-led-intake-and-pairing.md),
+  [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md),
+  [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md),
+  [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md).
 - Technical constraints:
   [ADR-0012](../adr/0012-conservative-mot-mileage-estimation.md)
   (superseded; rule now here),
   [ADR-0018](../adr/0018-provider-inspection-mode-database-setting.md),
-  [ADR-0019](../adr/0019-in-process-onnx-vrm-recognition.md),
-  [ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md),
-  [ADR-0047](../adr/0047-scanned-instruction-ocr-only.md).
+  [ADR-0019](../adr/0019-in-process-onnx-vrm-recognition.md).

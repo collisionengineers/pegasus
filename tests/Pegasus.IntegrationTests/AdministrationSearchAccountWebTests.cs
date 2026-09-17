@@ -324,7 +324,7 @@ public sealed class AdministrationSearchAccountWebTests
         // An AI job's recorded aggregate is the job, so the Reference column
         // alone would print a bare identifier. It resolves to the record the
         // job names, which is what makes this view the readable AI history
-        // behind the Operations board (FRD-11 § AI Job List).
+        // behind the Operations board (FRD-27 § AI Job List).
         Assert.Contains($"/Unidentified/{subjectId:D}", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(">U777</a>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(jobId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);

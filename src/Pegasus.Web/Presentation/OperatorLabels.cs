@@ -1451,7 +1451,7 @@ public static class OperatorLabels
     /// The AI job ledger's words on the Operations AI Job List.
     /// </summary>
     /// <remarks>
-    /// The kind and state wordings are FRD-11 &#167; AI Job List's own; the Core
+    /// The kind and state wordings are FRD-27 &#167; AI Job List's own; the Core
     /// enum names are the writer's spelling of them. This is the only map of
     /// either in the Web layer &#8212; nothing named these states before.
     ///

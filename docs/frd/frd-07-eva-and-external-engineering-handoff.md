@@ -177,7 +177,7 @@ each authorised separately.
 The ZIP package and the API are optional external routes. Native estimates,
 imported provider estimates and accepted AI estimates stay Pegasus-owned
 engineering behaviour. Estimate import is in
-[FRD-06](frd-06-vehicle-and-engineering-evidence.md#retained-pdf-estimate-import);
+[FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#retained-pdf-estimate-import);
 this adapter adds no calculation policy.
 
 A vendor schema is evidence, not a real-call result and not permission to
@@ -214,6 +214,7 @@ transport. A live EVA call is a separate, separately authorised evidence tier
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-05](frd-05-documents-extraction-and-custody.md),
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md),
+  [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md).
 - Technical constraints:

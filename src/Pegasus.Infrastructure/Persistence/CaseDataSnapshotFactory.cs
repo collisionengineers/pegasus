@@ -532,7 +532,7 @@ internal static class CaseDataSnapshotFactory
             SourceKind = candidate.Source switch
             {
                 IntakeEvidenceSource.StaffCorrection => CaseDataCodes.StaffCorrection,
-                // FRD-02 names the provider API as a provenance in its own
+                // FRD-23 names the provider API as a provenance in its own
                 // right. A value the instructing Principal stated is neither
                 // something a document said nor something a person here keyed.
                 IntakeEvidenceSource.ProviderDeclaration => CaseDataCodes.ProviderApi,

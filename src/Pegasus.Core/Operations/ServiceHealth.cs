@@ -219,7 +219,7 @@ public static class ServiceHealthPolicy
 
     /// <summary>
     /// A switched-off Send to AI channel is a configured state, not a fault;
-    /// a failed job is terminal and waits for a person (FRD-11 § AI Job List).
+    /// a failed job is terminal and waits for a person (FRD-27 § AI Job List).
     /// </summary>
     public static ServiceHealthState AiState(
         bool sendToAiEnabled,

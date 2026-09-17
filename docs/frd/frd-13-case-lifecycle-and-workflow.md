@@ -143,7 +143,7 @@ Two dispositions are not offered here. `Created in error` needs its own
 corrected-Principal replacement action
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
 `Source email unlinked` happens when staff unlink the email that created the
-Case ([FRD-02](frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association)).
+Case ([FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association)).
 Mark completed is ordinary progress, not a closure.
 
 A closed disposition locks nothing permanently and deletes no evidence. The
@@ -210,7 +210,7 @@ text always looks different from sent, delivered, answered or completed work.
 An incoming cancellation never changes a Case by itself. Mailbox processing
 records the settled classification of each accepted message. Automatic
 association uses the instruction profiles and match keys in
-[FRD-02](frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association);
+[FRD-22](frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association);
 QDOS keeps its accepted correspondence predicates under
 [ADR-0020](../adr/0020-accepted-qdos-case-association-predicates.md). Quoted
 historical instructions inside a message are ignored. Only an incoming
@@ -266,6 +266,7 @@ are separate evidence tiers
   `CASE-32`, `MAIL-18` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-02](frd-02-intake-and-source-identity.md),
+  [FRD-22](frd-22-pre-case-gates-matching-and-association.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
