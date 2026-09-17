@@ -1419,10 +1419,9 @@ public sealed partial class DetailsModel(
                         throw new InvalidOperationException("The mileage unit is invalid.");
                     originalUnit = parsedUnit;
                 }
-                // The form has one mileage box and no unit control: the value
-                // and its unit are saved together, so a reading with nothing
-                // retained is read in miles, and emptying the box clears the
-                // unit the Case used to carry.
+                // The mileage value and its selected unit are saved together.
+                // Emptying the box clears the unit; a mileage submitted without
+                // a unit is read in miles.
                 originalUnit = mileageValue is null ? null : originalUnit ?? CaseOdometerUnit.Miles;
                 var reportFields = assessmentFields.Where(field => EditorLabels.Report.ContainsKey(field.Key))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);
