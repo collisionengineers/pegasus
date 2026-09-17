@@ -2956,6 +2956,10 @@ public sealed class CustodyOutboxIntegrationTests
     {
         const string principalCode = QdosPrincipal.Code;
         await SeedPrincipalAsync(services, principalCode);
+        // Acceptance must carry the reviewed inspection date, which the draft
+        // defaults to the received date when the letter states none.
+        var reviewed = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
         return await services.GetRequiredService<IAcceptIntake>()
             .ExecuteAsync(
                 new(
@@ -2968,7 +2972,8 @@ public sealed class CustodyOutboxIntegrationTests
                     caseType,
                     principalCode,
                     completeness ?? new(true, true),
-                    standaloneAuditEvidenceId),
+                    standaloneAuditEvidenceId,
+                    AcceptedInspectionDeadline: reviewed?.InstructionDraft?.InspectionDate),
                 CancellationToken.None);
     }
 
