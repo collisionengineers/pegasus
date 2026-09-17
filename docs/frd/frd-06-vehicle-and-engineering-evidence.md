@@ -168,7 +168,7 @@ amended 2026-09-16). A looked-up value fills Make, Model, Year, Mileage, or the
 derived Vehicle type directly, as a working value carrying Lookup provenance.
 Make, Model, Year and Mileage fill only where the field is empty: they never
 overwrite an extracted instruction value or a staff-entered value. Vehicle
-type follows the versioned rule type approval, then wheelplan, then rigid-body
+type follows one rule: type approval, then wheelplan, then rigid-body
 revenue weight; L1/L2 mopeds are `scooter`, other L-class vehicles are
 `motorcycle`, and heavy, PSV or tractor classifications are `other`. It fills
 only where staff have not confirmed a type; a changed lookup classification
