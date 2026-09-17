@@ -118,16 +118,25 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
         }
 
         var ids = staffIds.Distinct().ToArray();
+        // One row per user with its role names collected, so an account with
+        // no role or two roles fails the same exactly-one-role invariant as
+        // GetAsync instead of vanishing or appearing twice.
         var accounts = await (
             from user in context.Users.AsNoTracking()
-            join userRole in context.UserRoles.AsNoTracking() on user.Id equals userRole.UserId
-            join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
             where ids.Contains(user.Id)
-            select new { User = user, RoleName = role.Name! })
+            select new
+            {
+                User = user,
+                RoleNames = (
+                    from userRole in context.UserRoles
+                    join role in context.Roles on userRole.RoleId equals role.Id
+                    where userRole.UserId == user.Id
+                    select role.Name!).ToList()
+            })
             .ToListAsync(cancellationToken);
 
         return accounts
-            .Select(account => Summary(account.User, ParseRole(account.RoleName)))
+            .Select(account => Summary(account.User, ParseSingleRole(account.RoleNames)))
             .ToArray();
     }
 
