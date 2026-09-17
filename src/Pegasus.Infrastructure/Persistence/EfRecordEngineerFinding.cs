@@ -78,7 +78,7 @@ internal sealed class EfRecordEngineerFinding(
         }
 
         var beforeVersion = workflow.Version;
-        var auditReference = AuditIdentity.Create(workflow.Case.Reference, request.Assessment);
+        var auditReference = AuditIdentity.Create(workflow.Case.Reference);
         workflow.Case.AuditReference = auditReference;
         workflow.Version = checked(workflow.Version + 1);
         ClearLease(workflow);

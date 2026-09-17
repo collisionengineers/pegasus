@@ -849,7 +849,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             hasCompleteAuditReport
                 ? new(
                     entity.StandaloneAuditReportAssetSourceLabel!,
-                    ParseAuditAssessment(entity.StandaloneAuditReportAssessment!))
+                    AuditAssessmentCode.Parse(entity.StandaloneAuditReportAssessment!))
                 : null);
     }
 
@@ -1333,19 +1333,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownCode("case type", value)
     };
 
-    internal static string ToCode(AuditAssessment value) => value switch
-    {
-        AuditAssessment.Repairable => "repairable",
-        AuditAssessment.TotalLoss => "total_loss",
-        _ => throw UnknownEnum(value)
-    };
-
-    private static AuditAssessment ParseAuditAssessment(string value) => value switch
-    {
-        "repairable" => AuditAssessment.Repairable,
-        "total_loss" => AuditAssessment.TotalLoss,
-        _ => throw UnknownCode("audit assessment", value)
-    };
+    internal static string ToCode(AuditAssessment value) => AuditAssessmentCode.ToCode(value);
 
     private static string ToCode(CaseMatchOutcome value) => value switch
     {

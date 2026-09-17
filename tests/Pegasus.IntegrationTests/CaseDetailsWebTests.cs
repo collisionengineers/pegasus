@@ -598,4 +598,153 @@ public sealed class CaseDetailsWebTests
         Assert.DoesNotContain(automationSubjectId, html, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(CaseType.Audit, false, true)]
+    [InlineData(CaseType.Audit, true, false)]
+    [InlineData(CaseType.Inspection, false, false)]
+    public async Task OriginalReportRequirementOnlyRendersForAnAuditWithoutEvidence(
+        CaseType caseType,
+        bool hasIntakeEvidence,
+        bool requirementExpected)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore
+        {
+            SummaryCaseType = caseType,
+            StandaloneAuditEvidenceId = hasIntakeEvidence ? Guid.NewGuid() : null
+        };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+
+        Assert.Equal(
+            requirementExpected,
+            html.Contains("Original report missing", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task LinkedAuditDoesNotRenderTheStandaloneOriginalReportRequirementOrAction()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            SummaryCaseType = CaseType.Audit,
+            AuditOfCaseId = Guid.NewGuid()
+        };
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var fullPage = await workspace.GetWorkspaceAsync();
+        var files = await GetHtmlAsync(
+            workspace.Client,
+            $"/Cases/{store.CaseId:D}?section=files");
+
+        Assert.DoesNotContain("Original report missing", fullPage, StringComparison.Ordinal);
+        Assert.DoesNotContain(OperatorLabels.MarkAsOriginalReport, files, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RemovedOriginalReportRestoresTheRequirementAndReplacementAction()
+    {
+        var report = Document(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "removed-original-report.pdf",
+            "application/pdf",
+            DocumentSemanticRole.AuditReport);
+        var replacement = Document(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            "replacement-original-report.pdf",
+            "application/pdf");
+        var store = new RecordingCaseDetailsStore
+        {
+            SummaryCaseType = CaseType.Audit,
+            CaseDocuments =
+            [
+                report with
+                {
+                    Versions = report.Versions
+                        .Select(version => version with
+                        {
+                            IsCurrent = false,
+                            IsLogicallyRemoved = true,
+                            RemovalReason = "Removed"
+                        })
+                        .ToArray()
+                },
+                replacement
+            ]
+        };
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var fullPage = await workspace.GetWorkspaceAsync();
+        var files = await GetHtmlAsync(
+            workspace.Client,
+            $"/Cases/{store.CaseId:D}?section=files");
+
+        Assert.Contains("Original report missing", fullPage, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.MarkAsOriginalReport, files, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MarkingAFiledDocumentAsTheOriginalReportClearsTheRequirement()
+    {
+        var occurrenceId = Guid.NewGuid();
+        var store = new RecordingCaseDetailsStore
+        {
+            SummaryCaseType = CaseType.Audit,
+            CaseDocuments =
+            [
+                Document(
+                    occurrenceId,
+                    Guid.NewGuid(),
+                    "original-report.pdf",
+                    "application/pdf")
+            ]
+        };
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<IMarkAsOriginalReportStore>(services, store));
+        var before = await workspace.GetWorkspaceAsync();
+        var filesBefore = await GetHtmlAsync(
+            workspace.Client,
+            $"/Cases/{store.CaseId:D}?section=files");
+        Assert.Contains("Original report missing", before, StringComparison.Ordinal);
+        Assert.Contains(OperatorLabels.MarkAsOriginalReport, filesBefore, StringComparison.Ordinal);
+
+        using var response = await workspace.PostAsync(
+            "Custody?handler=MarkAsOriginalReport",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", "mark-original-report"),
+                ("editLeaseToken", store.LeaseToken),
+                ("occurrenceId", occurrenceId.ToString("D"))));
+
+        AssertPrg(response, store.CaseId);
+        var command = Assert.Single(store.OriginalReportMarks);
+        Assert.Equal(occurrenceId, command.DocumentOccurrenceId);
+        AssertClaimant(workspace, command.Actor);
+        var after = await workspace.GetWorkspaceAsync();
+        Assert.Contains("The original report was recorded.", after, StringComparison.Ordinal);
+        Assert.DoesNotContain("Original report missing", after, StringComparison.Ordinal);
+        var filesAfter = await GetHtmlAsync(
+            workspace.Client,
+            $"/Cases/{store.CaseId:D}?section=files");
+        Assert.DoesNotContain(OperatorLabels.MarkAsOriginalReport, filesAfter, StringComparison.Ordinal);
+    }
 }

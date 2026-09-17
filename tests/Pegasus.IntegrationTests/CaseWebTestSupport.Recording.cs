@@ -109,10 +109,11 @@ internal static partial class CaseWebTestSupport
         IUntagCaseImage,
         ICreateImageTag,
         ICreateRequestUploadLink,
-        IRevokeRequestUploadLink
+        IRevokeRequestUploadLink,
+        IMarkAsOriginalReportStore
     {
         /// <summary>The case's documents, when a test supplies them.</summary>
-        public IReadOnlyList<CaseDocument> CaseDocuments { get; init; } = [];
+        public IReadOnlyList<CaseDocument> CaseDocuments { get; set; } = [];
 
         /// <summary>The case's request-scoped upload links, when a test supplies them.</summary>
         public IReadOnlyList<CaseRequestUploadSummary> RequestUploadLinks { get; init; } = [];
@@ -126,6 +127,7 @@ internal static partial class CaseWebTestSupport
         public List<CreateRequestUploadLinkCommand> RequestLinkCreations { get; } = [];
         public List<RequestUploadSecret> RequestLinkSecrets { get; } = [];
         public List<RevokeRequestUploadLinkCommand> RequestLinkRevocations { get; } = [];
+        public List<MarkAsOriginalReportCommand> OriginalReportMarks { get; } = [];
 
         Task<RetryCaseCustodyResult> IRetryCaseCustody.ExecuteAsync(
             RetryCaseCustodyRequest request,
@@ -245,6 +247,35 @@ internal static partial class CaseWebTestSupport
             ThrowNextFailure();
             RequestLinkRevocations.Add(command);
             return Task.CompletedTask;
+        }
+
+        Task<OriginalReportRecorded> IMarkAsOriginalReportStore.MarkAsOriginalReportAsync(
+            MarkAsOriginalReportCommand command,
+            CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            OriginalReportMarks.Add(command);
+            var document = CaseDocuments.Single(value =>
+                value.Occurrences.Any(occurrence => occurrence.Id == command.DocumentOccurrenceId));
+            var occurrence = document.Occurrences.Single(value => value.Id == command.DocumentOccurrenceId);
+            var version = document.Versions.Single(value => value.Id == occurrence.VersionId);
+            CaseDocuments = CaseDocuments
+                .Select(value => value.Id == document.Id
+                    ? value with
+                    {
+                        Occurrences = value.Occurrences
+                            .Select(item => item.Id == occurrence.Id
+                                ? item with { SemanticRole = DocumentSemanticRole.AuditReport }
+                                : item)
+                            .ToArray()
+                    }
+                    : value)
+                .ToArray();
+            return Task.FromResult(new OriginalReportRecorded(
+                command.CaseId,
+                occurrence.Id,
+                version.FileName,
+                command.ExpectedVersion + 1));
         }
     }
 
@@ -414,6 +445,12 @@ internal static partial class CaseWebTestSupport
     {
         /// <summary>The Case type the summary reports; a plain Inspection unless a test says otherwise.</summary>
         public CaseType SummaryCaseType { get; init; } = CaseType.Inspection;
+
+        /// <summary>The retained standalone Audit evidence, when intake supplied one.</summary>
+        public Guid? StandaloneAuditEvidenceId { get; init; }
+
+        /// <summary>The source Case for a linked Audit; null for a standalone Audit.</summary>
+        public Guid? AuditOfCaseId { get; init; }
 
         /// <summary>The Principal and Claim source records' notes the Case reads live.</summary>
         public CaseRecordNotes RecordNotes { get; init; } = CaseRecordNotes.None;

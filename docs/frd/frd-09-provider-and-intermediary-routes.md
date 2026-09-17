@@ -91,7 +91,8 @@ HTTP already holds the fields, and states them.
   no Case/PO and opens a Triage instead (see FRD-03).
 - **Audit.** A standalone `audit` states `originalReportVerdict`
   (`repairable` or `total-loss`) and attaches the original report with its role
-  stated. The declared verdict derives the `a.`/`ap.` reference (see
+  stated. The declared verdict records the assessment; the Audit reference uses
+  `a.` for either outcome (see
   [FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
   `auditreport` is Collision Engineers auditing its own report and carries
   neither.

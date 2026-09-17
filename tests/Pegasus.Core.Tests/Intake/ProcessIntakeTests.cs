@@ -825,6 +825,45 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task AuditWithoutOriginalReportStillCreatesACaseDestination()
+    {
+        const string instructionLabel = "message, attachment 1: audit-instructions.pdf";
+        var automaticEvidence = new RecordingAutomaticAuditEvidence();
+        var readResult = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    instructionLabel,
+                    "AUDIT REPORT NOTIFICATION\nQDOS instruction\nClaimant Name: Review Claimant\nClaim Number: Q-AUDIT")
+            ],
+            [new(IntakeEvidenceSource.Sender, "instructions@qdosassist.co.uk", IntakeSenderIdentityKind.Transport, "outer message")],
+            [],
+            false,
+            Assets:
+            [
+                new(instructionLabel, "audit-instructions.pdf", "application/pdf", new byte[] { 1 }, IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment)
+            ]);
+        var store = new RecordingStore();
+        var sut = CreateSut(
+            new StubReader(readResult),
+            store,
+            automaticStandaloneAuditEvidence: automaticEvidence);
+
+        var result = await sut.ExecuteAsync(CreateSource() with
+        {
+            FileName = "audit.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "audit-without-original-report")
+        });
+
+        Assert.Equal(IntakeDecision.CaseCreated, result.Decision);
+        Assert.Equal(CaseType.Audit, result.MailClassificationDecision!.CaseType);
+        Assert.Null(result.MailClassificationDecision.StandaloneAuditReport);
+        Assert.Empty(automaticEvidence.Requests);
+    }
+
+    [Fact]
     public async Task AmbiguousCaseMatchForcesNeedsSortingOnAnOtherwiseCaseCreatedMessage()
     {
         var caseA = Guid.NewGuid();
@@ -932,10 +971,8 @@ public sealed class ProcessIntakeTests
         // policy must land on the identical decision: a classification is a
         // recorded observation, not a general queue or destination change.
         //
-        // The named exceptions are the two the operator's own rules require —
-        // a standalone Audit without its report, and a Triage request, which
-        // is pre-case work by definition and has its own test below. This one
-        // is therefore driven by an automatic reply, which is classified and
+        // Triage is pre-case work by definition and has its own test below.
+        // This one is driven by an automatic reply, which is classified and
         // changes nothing (INTK-033).
         IntakeSourceReadResult ReadResult() => Readable(
             transportEvidence:

@@ -279,9 +279,41 @@ public sealed partial class DetailsModel(
             var why = Case.Workflow.DueWork is { } dueWork
                 ? Pegasus.Web.Presentation.OperatorLabels.ChaseReason(dueWork.MissingMaterialReason)
                 : null;
-            return data.Completeness.Evaluation.MissingRequirements
-                .Select(requirement => new CaseRequirement($"{requirement} incomplete", "Case requirements", why))
-                .ToArray();
+            var requirements = new List<CaseRequirement>();
+            if (OriginalReportMissing)
+            {
+                requirements.Add(new("Original report missing", "Audit", null));
+            }
+            requirements.AddRange(data.Completeness.Evaluation.MissingRequirements
+                .Select(requirement => new CaseRequirement($"{requirement} incomplete", "Case requirements", why)));
+            return requirements;
+        }
+    }
+
+    public bool OriginalReportMissing
+    {
+        get
+        {
+            if (CurrentSummary?.CaseType != CaseType.Audit)
+            {
+                return false;
+            }
+
+            if (Case?.AuditOfCaseId is not null || FilesSection?.AuditOfCaseId is not null)
+            {
+                return false;
+            }
+
+            var evidenceId = Case?.Data.StandaloneAuditEvidenceId
+                ?? FilesSection?.StandaloneAuditEvidenceId;
+            if (evidenceId is not null)
+            {
+                return false;
+            }
+
+            var documents = FilesSection?.Documents ?? Case?.Documents ?? [];
+            return !CaseFiles.Current(documents)
+                .Any(file => file.Occurrence.SemanticRole == DocumentSemanticRole.AuditReport);
         }
     }
 

@@ -20,11 +20,13 @@ internal sealed class EfDocumentCustodyStore(
     IReadCaseDocumentPreview,
     IExportCaseDocuments,
     ILogicallyRemoveDocument,
+    IMarkAsOriginalReportStore,
     ITagCaseImage,
     IUntagCaseImage,
     ICreateImageTag,
     ICaseDocumentStateQueries
 {
+    internal const string OriginalReportRecordedEventKind = "original_report_recorded";
     /// <summary>The two history words an image tag writes on the case.</summary>
     internal const string ImageTaggedEventKind = "case_image_tagged";
     internal const string ImageUntaggedEventKind = "case_image_untagged";
@@ -477,6 +479,133 @@ internal sealed class EfDocumentCustodyStore(
             context, command.CaseId, occurrence.OperationKey, timeProvider.GetUtcNow(), cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    async Task<OriginalReportRecorded> IMarkAsOriginalReportStore.MarkAsOriginalReportAsync(
+        MarkAsOriginalReportCommand command,
+        CancellationToken cancellationToken)
+    {
+        OriginalReportPolicy.ValidateRequest(command);
+        var operationKey = command.OperationKey.Trim();
+        var requestHash = CaseOperationReplay.Hash(JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            command.CaseId,
+            command.ExpectedVersion,
+            command.DocumentOccurrenceId,
+            actorKind = command.Actor.Kind.ToString(),
+            actorSubjectId = command.Actor.SubjectId,
+            actorRoles = command.Actor.Roles.OrderBy(role => role).Select(role => role.ToString()).ToArray(),
+            operationKey,
+            command.EditLeaseToken
+        }));
+
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            System.Data.IsolationLevel.Serializable,
+            cancellationToken);
+        if (await CaseOperationReplay.FindAsync(
+                context,
+                command.CaseId,
+                operationKey,
+                requestHash,
+                cancellationToken))
+        {
+            var replay = await context.CaseWorkflowEvents.AsNoTracking()
+                .SingleAsync(
+                    item => item.CaseId == command.CaseId
+                        && item.OperationKey == operationKey,
+                    cancellationToken);
+            return JsonSerializer.Deserialize<OriginalReportRecorded>(replay.ResultJson!)
+                ?? throw new InvalidDataException(
+                    "The original-report operation result is invalid.");
+        }
+
+        var workflow = await RequireWorkflowAsync(context, command.CaseId, cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        CaseMutationGuard.Require(
+            workflow,
+            command.Actor,
+            command.ExpectedVersion,
+            command.EditLeaseToken,
+            now);
+        var occurrence = await context.Set<DocumentOccurrenceEntity>()
+            .SingleOrDefaultAsync(
+                item => item.CaseId == command.CaseId
+                    && item.Id == command.DocumentOccurrenceId,
+                cancellationToken)
+            ?? throw new InvalidOperationException(
+                "The document occurrence is unavailable.");
+        var version = await context.Set<DocumentVersionEntity>()
+            .SingleAsync(item => item.Id == occurrence.VersionId, cancellationToken);
+        if (!version.IsCurrent || version.IsLogicallyRemoved)
+        {
+            throw new InvalidOperationException(
+                "The document occurrence is unavailable.");
+        }
+        var caseType = EfCaseQueryStore.ParseCaseType(workflow.Case.Type);
+        var state = Enum.TryParse<CaseLifecycleState>(workflow.State, out var parsedState)
+            && Enum.IsDefined(parsedState)
+                ? parsedState
+                : throw new InvalidDataException(
+                    $"Case '{command.CaseId}' has an unrecognized lifecycle state.");
+        OriginalReportPolicy.RequireEligible(caseType, state, occurrence.SemanticRole);
+
+        var existing = await (
+                from item in context.Set<DocumentOccurrenceEntity>()
+                join itemVersion in context.Set<DocumentVersionEntity>()
+                    on item.VersionId equals itemVersion.Id
+                where item.CaseId == command.CaseId
+                    && item.SemanticRole == DocumentSemanticRole.AuditReport
+                    && itemVersion.IsCurrent
+                    && !itemVersion.IsLogicallyRemoved
+                select item)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (existing is not null)
+        {
+            if (existing.Id != occurrence.Id)
+            {
+                throw new InvalidOperationException(
+                    "A different document is already marked as the original report.");
+            }
+
+            return new(
+                command.CaseId,
+                occurrence.Id,
+                version.FileName,
+                workflow.Version);
+        }
+
+        var beforeVersion = workflow.Version;
+        var beforeRole = occurrence.SemanticRole;
+        occurrence.SemanticRole = DocumentSemanticRole.AuditReport;
+        CaseMutationGuard.Complete(workflow);
+        var result = new OriginalReportRecorded(
+            command.CaseId,
+            occurrence.Id,
+            version.FileName,
+            workflow.Version);
+        var historyLine = $"Original report: {version.FileName}";
+        CaseMutationHistory.Add(
+            context,
+            workflow,
+            command.Actor,
+            operationKey,
+            historyLine,
+            OriginalReportRecordedEventKind,
+            requestHash,
+            beforeVersion,
+            workflow.Version,
+            JsonSerializer.Serialize(new { occurrence.Id, SemanticRole = beforeRole.ToString() }),
+            JsonSerializer.Serialize(new { occurrence.Id, SemanticRole = occurrence.SemanticRole.ToString() }),
+            "original-report-role-v1",
+            now);
+        context.CaseWorkflowEvents.Local.Single(item =>
+            item.CaseId == command.CaseId
+            && item.OperationKey == operationKey).ResultJson = JsonSerializer.Serialize(result);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
     }
 
     /// <summary>

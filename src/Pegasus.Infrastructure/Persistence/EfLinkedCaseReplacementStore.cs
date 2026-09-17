@@ -138,6 +138,7 @@ public sealed class EfLinkedCaseReplacementStore(
 
         var allocatedSequence = ++sequence.LastAllocatedSequence;
         var reference = $"{replacementPrincipal.Code}{year % 100:00}{allocatedSequence:000}";
+        var auditReference = CreateStandaloneAuditReference(original.Case, reference);
         var initialState = ParseInitialState(original.Case.InitialState);
         var replacementCaseId = Guid.NewGuid();
         var custodyWorkId = Guid.NewGuid();
@@ -149,8 +150,8 @@ public sealed class EfLinkedCaseReplacementStore(
             SequenceLineageId = replacementPrincipal.SequenceLineageId,
             Year = year,
             Sequence = allocatedSequence,
-            Reference = reference,
-            AuditReference = CreateStandaloneAuditReference(original.Case, reference),
+            Reference = auditReference ?? reference,
+            AuditReference = auditReference,
             Type = original.Case.Type,
             InitialState = original.Case.InitialState,
             CustodyState = "pending",
@@ -492,24 +493,8 @@ public sealed class EfLinkedCaseReplacementStore(
         {
             return null;
         }
-        if (original.StandaloneAuditAssessment is null)
-        {
-            throw new InvalidDataException(
-                "The standalone Audit case has no retained original-report assessment.");
-        }
-
-        return AuditIdentity.Create(
-            replacementReference,
-            ParseAssessment(original.StandaloneAuditAssessment));
+        return AuditIdentity.Create(replacementReference);
     }
-
-    private static AuditAssessment ParseAssessment(string value) => value switch
-    {
-        "repairable" => AuditAssessment.Repairable,
-        "total_loss" => AuditAssessment.TotalLoss,
-        _ => throw new InvalidDataException(
-            $"Unknown persisted Audit assessment '{value}'.")
-    };
 
     private static CaseInitialState ParseInitialState(string value) => value switch
     {

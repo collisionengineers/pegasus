@@ -41,11 +41,19 @@ Source evidence of a vehicle other than the Case vehicle, identified from reliab
 _Avoid_: Wrong image, unrelated evidence
 
 **Audit**:
-An Audit Case is instructed work to review another engineering firm’s original report. A definitive instruction creates the normal Case/PO without confirmation on automatic intake routes; manual upload requires explicit staff acceptance first under [FRD-02](docs/frd/frd-02-intake-and-source-identity.md). Its lowercase `a.` or `ap.` Audit reference is derived later only from an unambiguous repairable or total-loss assessment in that original report. An Audit Case is also created from an Inspection + Audit Case (below).
+An Audit Case is instructed work to review another engineering firm's original
+report. Once the Principal and identity-critical gates pass, its Case/PO is
+`a.` followed by the allocated base reference, with or without that report;
+the assessment outcome is recorded on the Case, not in its identity. A readable
+report records the assessment at intake. When the report is missing, **Original
+report missing** remains outstanding on the Case until staff mark a filed
+document as the original report. Manual upload still requires explicit staff
+acceptance under [FRD-02](docs/frd/frd-02-intake-and-source-identity.md). An
+Audit Case can also be created from an Inspection + Audit Case (below).
 _Avoid_: Triage, sorting
 
 **Inspection + Audit**:
-An Inspection Case and a linked Audit Case. Collision Engineers completes its standard Inspection on the Inspection Case; once a report has been generated there, Create audit creates the Audit Case with its own `a.` or `ap.` reference, which carries the Audit’s own identity, evidence, report and acceptance boundary.
+An Inspection Case and a linked Audit Case. Collision Engineers completes its standard Inspection on the Inspection Case; once a report has been generated there, Create audit creates the Audit Case with its own `a.` reference, which carries the Audit’s own identity, evidence, report and acceptance boundary.
 _Avoid_: Combined report, two-spec Inspection, second reference on the Inspection
 
 **Triage**:
@@ -54,7 +62,7 @@ records a decided outcome; Reply with outcome is optional editable email.
 It allocates no normal Case/PO and does not provide definitive instructions.
 
 **Unidentified**:
-Safely retained material or an inseparable submission group that has not become a Case, Triage or Image intake: its identity, meaning, ownership or destination cannot be established, or it could not be read. It receives an immutable U-reference and a reason under FRD-02; material that could not be read carries the reason Could not be read with its file kind. Readable material that must not become a Case is closed with a reason, and a closed item can be reopened. It is distinct from Triage, incomplete Audit evidence, Image Intake and a formal Case in Not ready.
+Safely retained material or an inseparable submission group that has not become a Case, Triage or Image intake: its identity, meaning, ownership or destination cannot be established, or it could not be read. It receives an immutable U-reference and a reason under FRD-02; material that could not be read carries the reason Could not be read with its file kind. Readable material that must not become a Case is closed with a reason, and a closed item can be reopened. It is distinct from Triage, a missing Audit original report, Image Intake and a formal Case in Not ready.
 _Avoid_: Triage, Blocked, Blocked intake
 
 **Held**:

@@ -60,13 +60,6 @@ public sealed class EfCaseAcceptanceStore(
         {
             throw new ArgumentOutOfRangeException(nameof(request), "The case type is invalid.");
         }
-        if (request.CaseType == CaseType.Audit
-            && request.StandaloneAuditEvidenceId is null)
-        {
-            throw new ArgumentException(
-                "A standalone Audit requires retained original-report evidence.",
-                nameof(request));
-        }
         if (request.StandaloneAuditEvidenceId == Guid.Empty)
         {
             throw new ArgumentException(
@@ -201,7 +194,7 @@ public sealed class EfCaseAcceptanceStore(
             cancellationToken);
         var standaloneAuditAssessment = standaloneAuditEvidence is null
             ? (AuditAssessment?)null
-            : ParseAuditAssessment(standaloneAuditEvidence.Assessment);
+            : AuditAssessmentCode.Parse(standaloneAuditEvidence.Assessment);
 
         var principal = await context.Principals
             .Include(item => item.Organization)
@@ -220,15 +213,11 @@ public sealed class EfCaseAcceptanceStore(
         var acceptedAtUtc = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
         var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
             context, principal, acceptedAtUtc, cancellationToken);
-        // CASE-014, operator direction: "There is no Case/PO AND audit
-        // identity. They are all just Case/PO." An audit's prefix belongs on
-        // the case's own reference — a. when the original report says
-        // Repairable, ap. when it says Total Loss — and the outcome is known
-        // here because the report is extracted before allocation, which is why
-        // a standalone Audit refuses to allocate without it.
+        // CASE-014: an Audit prefix belongs on the Case's own reference. The
+        // assessment is a recorded fact and is not part of identity.
         var allocated = allocatedIdentity.Reference;
-        var reference = standaloneAuditAssessment is { } assessment
-            ? AuditIdentity.Create(allocated, assessment)
+        var reference = request.CaseType == CaseType.Audit
+            ? AuditIdentity.Create(allocated)
             : allocated;
         // No second identity is allocated for an audit any more (CASE-014).
         string? auditReference = null;
@@ -256,7 +245,7 @@ public sealed class EfCaseAcceptanceStore(
             OriginIntakeReceiptId = receipt.Id,
             StandaloneAuditAssessment = standaloneAuditAssessment is null
                 ? null
-                : ToCode(standaloneAuditAssessment.Value),
+                : AuditAssessmentCode.ToCode(standaloneAuditAssessment.Value),
             StandaloneAuditEvidenceId = standaloneAuditEvidence?.Id,
             AcceptedInspectionDeadline = request.AcceptedInspectionDeadline,
             InstructionComplete = request.Completeness.InstructionComplete,
@@ -502,7 +491,7 @@ public sealed class EfCaseAcceptanceStore(
                 "The retained Audit evidence does not identify a valid original Engineer report.");
         }
 
-        _ = ParseAuditAssessment(evidence.Assessment);
+        _ = AuditAssessmentCode.Parse(evidence.Assessment);
         return evidence;
     }
 
@@ -583,20 +572,6 @@ public sealed class EfCaseAcceptanceStore(
         CaseType.Audit => "audit",
         CaseType.InspectionAndAudit => "inspection_and_audit",
         _ => throw new InvalidOperationException($"Unknown CaseType value '{(int)value}'.")
-    };
-
-    private static string ToCode(AuditAssessment value) => value switch
-    {
-        AuditAssessment.Repairable => "repairable",
-        AuditAssessment.TotalLoss => "total_loss",
-        _ => throw new InvalidOperationException($"Unknown AuditAssessment value '{(int)value}'.")
-    };
-
-    private static AuditAssessment ParseAuditAssessment(string value) => value switch
-    {
-        "repairable" => AuditAssessment.Repairable,
-        "total_loss" => AuditAssessment.TotalLoss,
-        _ => throw new InvalidDataException($"Unknown persisted Audit assessment '{value}'.")
     };
 
     private static string ToCode(CaseInitialState value) => value switch
