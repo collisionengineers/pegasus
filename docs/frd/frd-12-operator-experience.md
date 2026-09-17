@@ -1,6 +1,6 @@
 # FRD-12: Operator experience
 
-> Owner capabilities: UI-12, UI-13, UI-16 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: UI-13, UI-16 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -256,8 +256,7 @@ correctness. Deployment and live acceptance are separate evidence tiers
 
 ## Links
 
-- Capabilities: `UI-12`, `UI-13`, `UI-16` in
-  [capabilities](../capabilities.md).
+- Capabilities: `UI-13`, `UI-16` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),

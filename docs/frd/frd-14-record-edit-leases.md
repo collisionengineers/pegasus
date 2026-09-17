@@ -1,6 +1,6 @@
 # FRD-14: Record edit leases
 
-> Owner capabilities: CASE-27, TRI-08, ACC-15 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: CASE-27 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -147,8 +147,7 @@ live acceptance are separate evidence tiers
 
 ## Links
 
-- Capabilities: `CASE-27`, `TRI-08`, `ACC-15` in
-  [capabilities](../capabilities.md).
+- Capabilities: `CASE-27` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-03](frd-03-triage.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),
   [FRD-10](frd-10-mcp-automation-and-actor-boundary.md),

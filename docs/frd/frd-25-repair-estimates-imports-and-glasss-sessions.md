@@ -1,6 +1,6 @@
 # FRD-25: Repair estimates, imports and Glass's sessions
 
-> Owner capabilities: EXT-12 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: ENG-01, EXT-06, EXT-09, EXT-12 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -194,7 +194,8 @@ Glass's evidence is a separate tier
 
 ## Links
 
-- Capabilities: `EXT-12` in [capabilities](../capabilities.md).
+- Capabilities: `ENG-01`, `EXT-06`, `EXT-09`, `EXT-12` in
+  [capabilities](../capabilities.md).
 - Related FRDs: [FRD-06](frd-06-vehicle-and-engineering-evidence.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),

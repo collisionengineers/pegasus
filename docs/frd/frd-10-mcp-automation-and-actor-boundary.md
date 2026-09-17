@@ -1,6 +1,6 @@
 # FRD-10: MCP automation and actor boundary
 
-> Owner capabilities: MCP-01 to MCP-07, AI-01 to AI-11 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MCP-01 to MCP-05 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -179,8 +179,7 @@ acceptance are separate evidence tiers
 
 ## Links
 
-- Capabilities: `MCP-01`–`MCP-07`, `AI-01`–`AI-11` in
-  [capabilities](../capabilities.md).
+- Capabilities: `MCP-01`–`MCP-05` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-03](frd-03-triage.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),

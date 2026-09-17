@@ -1,6 +1,6 @@
 # FRD-24: Engineer findings, damage, valuation and settlement
 
-> Owner capabilities: CASE-22, CASE-28, ENG-01, ENG-02, ENG-03, ENG-04, EXT-06, EXT-07, EXT-09, EXT-10, EXT-13 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: CASE-22, CASE-28, ENG-02 to ENG-04, EXT-07, EXT-10, EXT-13 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -182,8 +182,8 @@ separate tier ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 
-- Capabilities: `CASE-22`, `CASE-28`, `ENG-01`–`ENG-04`, `EXT-06`, `EXT-07`,
-  `EXT-09`, `EXT-10`, `EXT-13` in [capabilities](../capabilities.md).
+- Capabilities: `CASE-22`, `CASE-28`, `ENG-02`–`ENG-04`, `EXT-07`, `EXT-10`,
+  `EXT-13` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-04](frd-04-parties-accounts-and-access.md),
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),

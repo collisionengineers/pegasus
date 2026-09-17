@@ -1,6 +1,6 @@
 # FRD-22: Pre-Case gates, matching and association
 
-> Owner capabilities: INT-22, INT-24, INT-25, INT-26, INT-29, INT-30 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: INT-22, INT-24, INT-25, INT-29, INT-30 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -201,8 +201,8 @@ association. Deployment and live evidence are separate tiers
 
 ## Links
 
-- Capabilities: `INT-22`, `INT-24`, `INT-25`, `INT-26`, `INT-29`, `INT-30`
-  in [capabilities](../capabilities.md).
+- Capabilities: `INT-22`, `INT-24`, `INT-25`, `INT-29`, `INT-30` in
+  [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-03](frd-03-triage.md),

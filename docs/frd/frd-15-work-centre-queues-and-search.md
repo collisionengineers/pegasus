@@ -1,6 +1,6 @@
 # FRD-15: Work Centre, queues, search and Operations
 
-> Owner capabilities: UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-07, UI-18, UI-19 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: TRI-08, UI-01 to UI-07, UI-18, UI-19 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -300,8 +300,8 @@ tiers ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 
-- Capabilities: `UI-01`, `UI-02`, `UI-03`, `UI-04`, `UI-05`, `UI-06`,
-  `UI-07`, `UI-18`, `UI-19` in [capabilities](../capabilities.md). `AI-10`
+- Capabilities: `TRI-08`, `UI-01`–`UI-07`, `UI-18`, `UI-19` in
+  [capabilities](../capabilities.md). `AI-10`
   stays with [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-03](frd-03-triage.md),

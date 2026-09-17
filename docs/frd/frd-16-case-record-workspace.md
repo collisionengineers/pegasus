@@ -1,6 +1,6 @@
 # FRD-16: Case record workspace
 
-> Owner capabilities: UI-09, UI-15, UI-17, CASE-32, CASE-33, CASE-34, ENG-03, ENG-04, EXT-09, EXT-10, EXT-12, RPT-06 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: UI-09, UI-15, UI-17 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -370,8 +370,7 @@ tiers ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 
-- Capabilities: `UI-09`, `UI-15`, `UI-17`, `CASE-32`, `CASE-33`, `CASE-34`,
-  `ENG-03`, `ENG-04`, `EXT-09`, `EXT-10`, `EXT-12`, `RPT-06` in
+- Capabilities: `UI-09`, `UI-15`, `UI-17` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),

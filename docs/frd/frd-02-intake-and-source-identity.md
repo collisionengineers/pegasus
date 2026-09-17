@@ -1,6 +1,6 @@
 # FRD-02: Intake and source identity
 
-> Owner capabilities: INT-01 to INT-12, INT-14, INT-15, INT-18, INT-21, INT-23, INT-33, EXT-15 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: EXT-17, INT-01, INT-03, INT-08, INT-09, INT-18, INT-23, INT-26, INT-33 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -58,6 +58,14 @@ Every intake path must:
 Intake can start from staff-forwarded email, a staff-created upload link,
 provider material, manually supplied files, images, correspondence, or a
 future approved API route. Receiving something does not create a Case.
+
+**Tractable capture (`EXT-17`).** Guided image capture happens outside
+Pegasus. Collision Engineers sends permanent external upload links that run
+through Tractable, and Tractable then emails a PDF. Pegasus has no Tractable
+integration. The emailed PDF is ordinary inbound mail: it follows the same
+receipt, classification and extraction rules as any other attachment. Which
+fields Pegasus reads from the Tractable PDF is an
+[open decision](../open-decisions.md).
 
 **Direct Case creation** is a staff path. It uses the same permanent Case/PO
 allocator as intake acceptance. Staff must supply the identity-critical Case
@@ -291,8 +299,8 @@ and live evidence are separate tiers
 
 ## Links
 
-- Capabilities: `INT-01`–`INT-12`, `INT-14`, `INT-15`, `INT-18`, `INT-21`,
-  `INT-23`, `INT-33`, `EXT-15` in [capabilities](../capabilities.md).
+- Capabilities: `EXT-17`, `INT-01`, `INT-03`, `INT-08`, `INT-09`, `INT-18`,
+  `INT-23`, `INT-26`, `INT-33` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-03](frd-03-triage.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),

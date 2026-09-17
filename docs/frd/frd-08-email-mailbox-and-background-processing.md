@@ -1,6 +1,6 @@
 # FRD-08: Email, mailbox, and background processing
 
-> Owner capabilities: MAIL-01–MAIL-05, MAIL-07–MAIL-09, MAIL-20–MAIL-23, OPS-02, OPS-22, EVAL-01–EVAL-05 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: EVAL-01 to EVAL-05, MAIL-01 to MAIL-05, MAIL-07, MAIL-09, MAIL-13, MAIL-20 to MAIL-23, OPS-22, UI-14 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -310,8 +310,8 @@ mailbox and Graph subscription states are owned by
 
 ## Links
 
-- Capabilities: `MAIL-01`–`MAIL-05`, `MAIL-07`–`MAIL-09`, `MAIL-20`–`MAIL-23`,
-  `OPS-02`, `OPS-22`, `EVAL-01`–`EVAL-05` in
+- Capabilities: `EVAL-01`–`EVAL-05`, `MAIL-01`–`MAIL-05`, `MAIL-07`,
+  `MAIL-09`, `MAIL-13`, `MAIL-20`–`MAIL-23`, `OPS-22`, `UI-14` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md)
   (Unidentified, intake receipts),

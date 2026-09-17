@@ -1,6 +1,6 @@
 # FRD-05: Documents, extraction, and custody
 
-> Owner capabilities: DOC-01 to DOC-14 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: AI-04, DOC-01 to DOC-05, DOC-07, DOC-08, EXT-14, INT-10 to INT-12, INT-14 to INT-16 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -270,7 +270,8 @@ test subtree. Deployment and live acceptance are separate evidence tiers
 
 ## Links
 
-- Capabilities: `DOC-01`–`DOC-14` in [capabilities](../capabilities.md).
+- Capabilities: `AI-04`, `DOC-01`–`DOC-05`, `DOC-07`, `DOC-08`, `EXT-14`,
+  `INT-10`–`INT-12`, `INT-14`–`INT-16` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
   [FRD-09](frd-09-provider-and-intermediary-routes.md),

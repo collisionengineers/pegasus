@@ -1,6 +1,6 @@
 # FRD-07: EVA and external engineering handoff
 
-> Owner capabilities: EXT, CASE-21, CASE-30 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: CASE-21, CASE-30, EXT-03, EXT-04 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -210,7 +210,7 @@ transport. A live EVA call is a separate, separately authorised evidence tier
 
 ## Links
 
-- Capabilities: `EXT-*`, `CASE-21`, `CASE-30` in
+- Capabilities: `CASE-21`, `CASE-30`, `EXT-03`, `EXT-04` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-05](frd-05-documents-extraction-and-custody.md),
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md),

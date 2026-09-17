@@ -1,6 +1,6 @@
 # FRD-06: Vehicle and engineering evidence
 
-> Owner capabilities: INT (image/VRM), CASE-29, CASE-34, EXT-08, EXT-11, DATA-02 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: AI-05, AI-06, CASE-29, CASE-34, DATA-02, EXT-01, EXT-02, EXT-18, INT-17 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -345,8 +345,8 @@ recognition evidence are separate tiers
 
 ## Links
 
-- Capabilities: `INT-13`, `INT-27`, `INT-28`, `CASE-29`, `CASE-34`, `EXT-08`,
-  `EXT-11`, `DATA-02` in [capabilities](../capabilities.md).
+- Capabilities: `AI-05`, `AI-06`, `CASE-29`, `CASE-34`, `DATA-02`, `EXT-01`,
+  `EXT-02`, `EXT-18`, `INT-17` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),
   [FRD-14](frd-14-record-edit-leases.md),

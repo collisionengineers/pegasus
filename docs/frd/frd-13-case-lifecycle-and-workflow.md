@@ -1,6 +1,6 @@
 # FRD-13: Case lifecycle and workflow
 
-> Owner capabilities: CASE-13 to CASE-20, CASE-24 to CASE-27, CASE-30, CASE-32, MAIL-18 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: CASE-01, CASE-13 to CASE-20, CASE-24 to CASE-26, CASE-32, EXT-05, MAIL-18 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -205,6 +205,13 @@ missing-material reason, Due by, the next chase, the most recent channel and
 outcome, an optional note, and the next permitted action. Prepared or copied
 text always looks different from sent, delivered, answered or completed work.
 
+**General Case tasks are unfinished (`CASE-20`).** `Pegasus.Core` holds a
+Case task record with Open, Completed and Cancelled states, an optional
+assignee, and create, assign, complete and cancel use cases. No screen shows
+or uses them, which is why the Case record has no tasks panel
+([FRD-16](frd-16-case-record-workspace.md)). A task has no due date, and
+there are no reminders. Chasing above is the only due work staff see today.
+
 ### Cancellation messages
 
 An incoming cancellation never changes a Case by itself. Mailbox processing
@@ -262,8 +269,8 @@ are separate evidence tiers
 
 ## Links
 
-- Capabilities: `CASE-13`–`CASE-20`, `CASE-24`–`CASE-27`, `CASE-30`,
-  `CASE-32`, `MAIL-18` in [capabilities](../capabilities.md).
+- Capabilities: `CASE-01`, `CASE-13`–`CASE-20`, `CASE-24`–`CASE-26`,
+  `CASE-32`, `EXT-05`, `MAIL-18` in [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-22](frd-22-pre-case-gates-matching-and-association.md),

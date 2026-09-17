@@ -1,6 +1,6 @@
 # FRD-20: Mailbox workspace
 
-> Owner capabilities: UI-10, UI-14, MAIL-06, MAIL-10, MAIL-11, MAIL-13 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MAIL-06, MAIL-10, MAIL-11, UI-10, UI-14 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -202,8 +202,8 @@ workspace only shows them.
 
 ## Links
 
-- Capabilities: `UI-10`, `UI-14`, `MAIL-06`, `MAIL-10`, `MAIL-11`, `MAIL-13`
-  in [capabilities](../capabilities.md).
+- Capabilities: `MAIL-06`, `MAIL-10`, `MAIL-11`, `UI-10`, `UI-14` in
+  [capabilities](../capabilities.md).
 - Related FRDs: [FRD-08](frd-08-email-mailbox-and-background-processing.md)
   (classification and retention),
   [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md) (sending),
