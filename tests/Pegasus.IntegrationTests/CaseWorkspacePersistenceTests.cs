@@ -416,6 +416,124 @@ public sealed class CaseWorkspacePersistenceTests
     }
 
     [Fact]
+    public async Task DirectAssessmentSaveStalesOnlyForAPrintedFactChange()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var generationId = await SeedCurrentGenerationAsync(harness, initial.Version);
+        var actor = Engineer(harness);
+        var assessmentStore = new EfCaseAssessmentStore(
+            harness.Factory,
+            harness.TimeProvider,
+            new EfRepairSpecificationStore(harness.Factory, harness.TimeProvider));
+        var noteLease = await harness.AcquireLeaseAsync(
+            initial.Version,
+            actor,
+            "direct-assessment-note-lease");
+
+        var noted = await assessmentStore.SaveAsync(
+            new(
+                harness.CaseId,
+                initial.Version,
+                actor,
+                "direct-assessment-note-save",
+                "Recorded an unprinted Engineer note.",
+                noteLease.Token,
+                new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.VehicleEngineerNotes] = "Check the trim on return.",
+                }),
+            CancellationToken.None);
+
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Confirmed,
+            expectedStaleEvents: 0);
+
+        var colourLease = await harness.AcquireLeaseAsync(
+            noted.CaseVersion,
+            actor,
+            "direct-assessment-colour-lease");
+        await assessmentStore.SaveAsync(
+            new(
+                harness.CaseId,
+                noted.CaseVersion,
+                actor,
+                "direct-assessment-colour-save",
+                "Corrected the printed vehicle colour.",
+                colourLease.Token,
+                new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.VehicleColour] = "Blue",
+                }),
+            CancellationToken.None);
+
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Stale,
+            expectedStaleEvents: 1,
+            expectedReason: CaseReportStaleReasons.AssessmentFactsChanged);
+    }
+
+    [Fact]
+    public async Task DirectCaseDataSaveStalesOnlyForAPrintedFactChange()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var generationId = await SeedCurrentGenerationAsync(harness, initial.Version);
+        var current = await ReadEditableCaseDataAsync(harness);
+        var noteLease = await harness.AcquireLeaseAsync(
+            initial.Version,
+            harness.StaffActor,
+            "direct-case-data-note-lease");
+
+        var noted = await harness.DataStore.SaveAsync(
+            new(
+                harness.CaseId,
+                initial.Version,
+                harness.StaffActor,
+                "direct-case-data-note-save",
+                "Recorded an unprinted client note.",
+                noteLease.Token,
+                current with { ClientNotes = "Photos will follow." }),
+            CancellationToken.None);
+
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Confirmed,
+            expectedStaleEvents: 0);
+
+        var claimantLease = await harness.AcquireLeaseAsync(
+            noted.Version,
+            harness.StaffActor,
+            "direct-case-data-claimant-lease");
+        await harness.DataStore.SaveAsync(
+            new(
+                harness.CaseId,
+                noted.Version,
+                harness.StaffActor,
+                "direct-case-data-claimant-save",
+                "Corrected the printed claimant name.",
+                claimantLease.Token,
+                current with
+                {
+                    ClaimantName = "Janet Example",
+                    ClientNotes = "Photos will follow.",
+                }),
+            CancellationToken.None);
+
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Stale,
+            expectedStaleEvents: 1,
+            expectedReason: CaseReportStaleReasons.AssessmentFactsChanged);
+    }
+
+    [Fact]
     public async Task SelectingTheEffectiveDefaultSignatoryThroughWorkspaceDoesNotStaleTheReport()
     {
         await using var harness = await Harness.CreateAsync();
@@ -1166,6 +1284,37 @@ public sealed class CaseWorkspacePersistenceTests
         });
         await context.SaveChangesAsync();
         return generationId;
+    }
+
+    private static async Task<CaseEditableData> ReadEditableCaseDataAsync(Harness harness)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
+            .SingleAsync(item => item.CaseId == harness.CaseId);
+        return CaseDataFieldWriter.ReadEditable(snapshot);
+    }
+
+    private static async Task AssertGenerationStateAsync(
+        Harness harness,
+        Guid generationId,
+        CaseReportGenerationState expectedState,
+        int expectedStaleEvents,
+        string? expectedReason = null)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        Assert.Equal(
+            expectedState.ToString(),
+            (await context.Set<CaseReportGenerationEntity>()
+                .SingleAsync(item => item.Id == generationId)).State);
+        var staleEvents = await context.ActionHistory
+            .Where(item => item.AggregateId == harness.CaseId.ToString("D")
+                && item.EventKind == EfCaseReportGenerationStore.StaleEventKind)
+            .ToArrayAsync();
+        Assert.Equal(expectedStaleEvents, staleEvents.Length);
+        if (expectedReason is not null)
+        {
+            Assert.Equal(expectedReason, Assert.Single(staleEvents).Reason);
+        }
     }
 
     private static async Task<Guid> SeedDefaultSignOffEngineerAsync(Harness harness)
