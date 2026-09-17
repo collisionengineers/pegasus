@@ -79,6 +79,10 @@ Obsolete documentation-parser contracts do not justify retaining incorrect docs.
   deployed observations. A release updates operations; architecture changes only
   when source structure changes.
 - `.agents/skills/`: Pegasus operational and UI procedures.
+- Any change under `src/Pegasus.Web` must follow
+  [`.agents/skills/pegasus-ui-guardrails/SKILL.md`](.agents/skills/pegasus-ui-guardrails/SKILL.md)
+  and any nearer local `AGENTS.md`/`CLAUDE.md`. A Web feature or bug fix is not
+  permission to redesign the UI.
 
 ## Non-obvious constraints
 
