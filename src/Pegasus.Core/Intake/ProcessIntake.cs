@@ -203,18 +203,6 @@ public sealed class ProcessIntake(
             safeSource.SourceIdentity,
             processedAtUtc,
             cancellationToken);
-        if (assessment.Decision == IntakeDecision.CaseCreated
-            && assessment.MailClassificationDecision is
-                { CaseType: CaseType.Audit, StandaloneAuditReport: null })
-        {
-            assessment = assessment with
-            {
-                Decision = IntakeDecision.NeedsSorting,
-                DecisionReason = "A standalone Audit instruction requires one attached original report stating Repairable or Total loss.",
-                InstructionDraft = null,
-                MissingFields = []
-            };
-        }
         activity?.SetTag("intake.policy_key", assessment.ExtractionPolicyKey);
         activity?.SetTag("intake.policy_version", assessment.ExtractionPolicyVersion);
         activity?.SetTag(

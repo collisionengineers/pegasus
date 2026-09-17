@@ -42,15 +42,14 @@ _Avoid_: Wrong image, unrelated evidence
 
 **Audit**:
 An Audit Case is instructed work to review another engineering firm's original
-report. No Case/PO is allocated or reserved until that report establishes
-repairable or total loss. The resulting Case/PO itself is `a.` followed by the
-allocated base reference; the assessment outcome is recorded on the Case, not
-in its identity. There is no preliminary Case/PO or separately allocated Audit
-reference. An instruction awaiting its original report stays in
-Unidentified, where staff can supply it. Automatic routes then allocate the
-Case; manual upload still requires explicit staff acceptance under
-[FRD-02](docs/frd/frd-02-intake-and-source-identity.md). An Audit Case can also
-be created from an Inspection + Audit Case (below).
+report. Once the Principal and identity-critical gates pass, its Case/PO is
+`a.` followed by the allocated base reference, with or without that report;
+the assessment outcome is recorded on the Case, not in its identity. A readable
+report records the assessment at intake. When the report is missing, **Original
+report missing** remains outstanding on the Case until staff mark a filed
+document as the original report. Manual upload still requires explicit staff
+acceptance under [FRD-02](docs/frd/frd-02-intake-and-source-identity.md). An
+Audit Case can also be created from an Inspection + Audit Case (below).
 _Avoid_: Triage, sorting
 
 **Inspection + Audit**:
@@ -63,7 +62,7 @@ records a decided outcome; Reply with outcome is optional editable email.
 It allocates no normal Case/PO and does not provide definitive instructions.
 
 **Unidentified**:
-Safely retained material or an inseparable submission group that has not become a Case, Triage or Image intake: its identity, meaning, ownership or destination cannot be established, or it could not be read. It receives an immutable U-reference and a reason under FRD-02; material that could not be read carries the reason Could not be read with its file kind. Readable material that must not become a Case is closed with a reason, and a closed item can be reopened. It is distinct from Triage, incomplete Audit evidence, Image Intake and a formal Case in Not ready.
+Safely retained material or an inseparable submission group that has not become a Case, Triage or Image intake: its identity, meaning, ownership or destination cannot be established, or it could not be read. It receives an immutable U-reference and a reason under FRD-02; material that could not be read carries the reason Could not be read with its file kind. Readable material that must not become a Case is closed with a reason, and a closed item can be reopened. It is distinct from Triage, a missing Audit original report, Image Intake and a formal Case in Not ready.
 _Avoid_: Triage, Blocked, Blocked intake
 
 **Held**:
