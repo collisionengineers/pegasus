@@ -536,6 +536,8 @@ public sealed partial class DetailsModel(
 
     public string GenerateReportOperationKey { get; private set; } = NewOperationKey();
 
+    public string GenerateFeeNoteOperationKey { get; private set; } = NewOperationKey();
+
     public string PrepareDeliveryOperationKey { get; private set; } = NewOperationKey();
 
     public string LaunchGlassOperationKey { get; private set; } = NewOperationKey();
@@ -1641,27 +1643,34 @@ public sealed partial class DetailsModel(
         Guid id,
         string operationKey,
         string? editLeaseToken,
+        long expectedCaseVersion,
         bool includeFeeNote,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
-            id, operationKey, editLeaseToken, CaseReportArtifactKind.AssessmentReport,
-            includeFeeNote, cancellationToken);
+            id, operationKey, editLeaseToken, expectedCaseVersion,
+            CaseReportArtifactKind.AssessmentReport, includeFeeNote,
+            targetGenerationId: null, cancellationToken);
 
     public Task<IActionResult> OnPostGenerateFeeNoteAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
+        long expectedCaseVersion,
+        Guid targetGenerationId,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
-            id, operationKey, editLeaseToken, CaseReportArtifactKind.FeeNote,
-            includeFeeNote: false, cancellationToken);
+            id, operationKey, editLeaseToken, expectedCaseVersion,
+            CaseReportArtifactKind.FeeNote, includeFeeNote: false,
+            targetGenerationId, cancellationToken);
 
     private async Task<IActionResult> GenerateArtifactAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
+        long expectedCaseVersion,
         CaseReportArtifactKind kind,
         bool includeFeeNote,
+        Guid? targetGenerationId,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -1683,14 +1692,15 @@ public sealed partial class DetailsModel(
                 new(
                     actor,
                     id,
-                    currentCaseVersion,
+                    expectedCaseVersion,
                     editLeaseToken!,
                     operationKey,
                     kind,
                     kind == CaseReportArtifactKind.AssessmentReport
                         ? "Generate the immutable case report"
                         : "Generate the immutable fee note",
-                    includeFeeNote),
+                    includeFeeNote,
+                    targetGenerationId),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -1772,6 +1782,7 @@ public sealed partial class DetailsModel(
         Guid id,
         string operationKey,
         string? editLeaseToken,
+        long expectedCaseVersion,
         Guid generationId,
         long expectedGenerationVersion,
         string[]? toRecipients,
@@ -1794,7 +1805,7 @@ public sealed partial class DetailsModel(
                 new(
                     actor,
                     id,
-                    currentCaseVersion,
+                    expectedCaseVersion,
                     editLeaseToken!,
                     generationId,
                     expectedGenerationVersion,
@@ -1899,40 +1910,22 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// The Report-section mutation guard: the estimate guard's rules
-    /// (Engineer, writable case, valid form, live lease, current version)
-    /// with the Report section's redirect target.
+    /// (Engineer, writable case, valid form and live lease) with the Report
+    /// section's redirect target. The command store compares the posted Case
+    /// version with current persisted state.
     /// </summary>
-    private async Task<IActionResult?> GuardReportCommandAsync(
+    private Task<IActionResult?> GuardReportCommandAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        var refusal = await GuardSectionCommandAsync(
+        CancellationToken cancellationToken) =>
+        GuardSectionCommandAsync(
             id,
             operationKey,
             editLeaseToken,
             "Only an Engineer can generate or deliver reports.",
             () => RedirectToReport(id),
             cancellationToken);
-        if (refusal is not null)
-        {
-            return refusal;
-        }
-        if (!TryGetActor(out var actor))
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null)
-        {
-            return NotFound();
-        }
-        currentCaseVersion = details.Workflow.Version;
-        return null;
-    }
 
     /// <summary>
     /// What every section command on the record requires before it touches

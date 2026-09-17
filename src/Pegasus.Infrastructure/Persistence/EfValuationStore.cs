@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -50,6 +51,10 @@ public sealed class EfValuationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
+        var beforeDependencies = await ReadReportDependenciesAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
         // A card for the same source and guide month is replaced in place: the
         // Valuations table does not version rows, so the earlier figures survive
         // only in the history entry written below.
@@ -91,14 +96,16 @@ public sealed class EfValuationStore(
             before,
             engineersValue,
             now);
-        // Manual valuation evidence (guide figures, and the Engineer's Value
-        // field it may write) is frozen report input: the save stales the
-        // current generation in this same transaction. Replay returned before
-        // any mutation; a lookup or draft action never reaches this path.
-        await EfCaseReportGenerationStore.MarkStaleAsync(
+        var afterDependencies = WithEngineersValue(beforeDependencies, engineersValue) with
+        {
+            UsesGlassesValuationGuide = beforeDependencies.UsesGlassesValuationGuide
+                || request.Details.Source == ValuationSource.Glasses,
+        };
+        await MarkStaleIfNeededAsync(
             context,
             request.CaseId,
-            "valuation_recorded",
+            beforeDependencies,
+            afterDependencies,
             now,
             cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
@@ -136,6 +143,10 @@ public sealed class EfValuationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
+        var beforeDependencies = await ReadReportDependenciesAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
         var entity = await context.CaseValuations.SingleOrDefaultAsync(
             item => item.Id == request.ValuationId && item.CaseId == request.CaseId,
             cancellationToken)
@@ -171,13 +182,21 @@ public sealed class EfValuationStore(
             before,
             engineersValue,
             now);
-        // Same stale rule as the save: an edited valuation changes frozen
-        // report inputs (figures, guide month, and the Engineer's Value field
-        // it may rewrite), and the staleness commits with the edit.
-        await EfCaseReportGenerationStore.MarkStaleAsync(
+        var anotherGlassesGuideExists = await context.CaseValuations.AsNoTracking().AnyAsync(
+            item => item.CaseId == request.CaseId
+                && item.Id != entity.Id
+                && item.Source == nameof(ValuationSource.Glasses),
+            cancellationToken);
+        var afterDependencies = WithEngineersValue(beforeDependencies, engineersValue) with
+        {
+            UsesGlassesValuationGuide = request.Details.Source == ValuationSource.Glasses
+                || anotherGlassesGuideExists,
+        };
+        await MarkStaleIfNeededAsync(
             context,
             request.CaseId,
-            "valuation_edited",
+            beforeDependencies,
+            afterDependencies,
             now,
             cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
@@ -223,6 +242,10 @@ public sealed class EfValuationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
+        var beforeDependencies = await ReadReportDependenciesAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
 
         var guideEntity = await RequiredGuideAsync(
             context,
@@ -337,14 +360,17 @@ public sealed class EfValuationStore(
                 SerializerOptions),
             ValuationCalculationPolicy.PolicyStamp,
             now);
-        // The applied Engineer value is a frozen report input: adopting a new
-        // one marks the Case's current generation stale in this same
-        // transaction, so neither the adoption nor the staleness can land
-        // without the other.
-        await EfCaseReportGenerationStore.MarkStaleAsync(
+        var afterDependencies = WithEngineersValue(beforeDependencies, engineersValue) with
+        {
+            AppliedValuationId = result.Id,
+            AcceptedEngineerValue = result.AcceptedEngineerValue,
+            AppliedValuationReason = result.Reason,
+        };
+        await MarkStaleIfNeededAsync(
             context,
             request.CaseId,
-            "valuation_applied",
+            beforeDependencies,
+            afterDependencies,
             now,
             cancellationToken);
         await context.SaveChangesAsync(cancellationToken);
@@ -606,6 +632,65 @@ public sealed class EfValuationStore(
     }
 
     internal sealed record EngineersValueChange(string? Before, string? After);
+
+    private static async Task<CaseReportValuationDependencies> ReadReportDependenciesAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var usesGlasses = await context.CaseValuations.AsNoTracking().AnyAsync(
+            item => item.CaseId == caseId
+                && item.Source == nameof(ValuationSource.Glasses),
+            cancellationToken);
+        var engineersValue = await context.CaseAssessmentFields.AsNoTracking()
+            .Where(item => item.CaseId == caseId
+                && item.FieldPath == AssessmentVocabulary.ValueEngineer)
+            .Select(item => item.Value)
+            .SingleOrDefaultAsync(cancellationToken);
+        var applied = await context.Set<AppliedValuationSnapshotEntity>().AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .OrderByDescending(item => item.AcceptedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Select(item => new
+            {
+                item.Id,
+                item.AcceptedEngineerValue,
+                item.Reason,
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+        return new(
+            usesGlasses,
+            engineersValue,
+            applied?.Id,
+            applied?.AcceptedEngineerValue,
+            applied?.Reason);
+    }
+
+    private static CaseReportValuationDependencies WithEngineersValue(
+        CaseReportValuationDependencies dependencies,
+        EngineersValueChange? change) => change is null
+            ? dependencies
+            : dependencies with { EngineersValue = change.After };
+
+    private static async Task MarkStaleIfNeededAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CaseReportValuationDependencies before,
+        CaseReportValuationDependencies after,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var freshness = CaseReportFreshness.ClassifyValuation(before, after);
+        if (freshness.IsStale)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context,
+                caseId,
+                freshness.ReasonCode!,
+                now,
+                cancellationToken);
+        }
+    }
 
     private static Task<CaseWorkflowEventEntity?> FindReplayAsync(
         PegasusDbContext context,

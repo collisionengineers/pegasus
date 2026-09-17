@@ -83,6 +83,27 @@ public sealed class AssessmentReportProjectionTests
         snapshot.Validate();
     }
 
+    [Theory]
+    [InlineData("fr-FR")]
+    [InlineData("de-DE")]
+    [InlineData("ar-SA")]
+    public void MileageUsesEnGbFormattingRegardlessOfAmbientCulture(string cultureName)
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(cultureName);
+
+            var snapshot = AssessmentReportProjection.Project(ReadyInput()).Snapshot!;
+
+            Assert.Equal("80,000 miles", snapshot.Vehicle.MileageDescription);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
     [Fact]
     public void UnconfirmedEstimateLineBlocksTheWholeDraftViaTheSharedReadinessRail()
     {

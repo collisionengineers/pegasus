@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -203,23 +204,41 @@ internal sealed class EfVehicleLookupWorkStore(
             RecordedAtUtc = recordedAtUtc
         });
 
-        var filled = await FillEmptyVehicleFieldsAsync(
+        var caseDataFields = await context.CaseDataFields
+            .Where(item => item.CaseId == workflow.CaseId)
+            .ToListAsync(cancellationToken);
+        var selectedMileageSource = await context.CaseAssessmentFields
+            .Where(item => item.CaseId == workflow.CaseId
+                && item.FieldPath == Pegasus.Core.Assessment.AssessmentVocabulary.VehicleMileageSource
+                && item.ConfirmedAtUtc != null)
+            .Select(item => item.Value)
+            .SingleOrDefaultAsync(cancellationToken);
+        var beforeVehicle = ReportVehicleDependencies(caseDataFields, selectedMileageSource);
+        var vehicleTypeFilled = await FillEmptyVehicleFieldsAsync(
             context,
+            caseDataFields,
             workflow.CaseId,
             observationId,
             result,
             outcome.Mileage,
             recordedAtUtc,
             cancellationToken);
-        if (filled > 0)
+        var freshness = CaseReportFreshness.ClassifyVehicle(
+            beforeVehicle,
+            ReportVehicleDependencies(caseDataFields, selectedMileageSource));
+        // A derived Vehicle type is a printed assessment fact rather than a
+        // Case-data vehicle dependency, so its fill stales the generation
+        // under the same reason the assessment classifier would give it.
+        if (!freshness.IsStale && vehicleTypeFilled)
         {
-            // A filled field is a frozen report input, so the Case's current
-            // generation goes stale in this same transaction: the fill and the
-            // staleness it causes commit together or not at all.
+            freshness = CaseReportFreshnessDecision.Stale(CaseReportStaleReasons.AssessmentFactsChanged);
+        }
+        if (freshness.IsStale)
+        {
             await EfCaseReportGenerationStore.MarkStaleAsync(
                 context,
                 workflow.CaseId,
-                "vehicle_lookup_filled",
+                freshness.ReasonCode!,
                 recordedAtUtc,
                 cancellationToken);
         }
@@ -307,11 +326,10 @@ internal sealed class EfVehicleLookupWorkStore(
     ///
     /// Runs inside the caller's transaction, alongside the observation it
     /// came from, so the two can never disagree about what the lookup said.
-    /// Returns how many rows it wrote, because a fill that changed nothing
-    /// must not disturb a frozen report.
     /// </summary>
-    private static async Task<int> FillEmptyVehicleFieldsAsync(
+    private static async Task<bool> FillEmptyVehicleFieldsAsync(
         PegasusDbContext context,
+        List<CaseDataFieldEntity> caseDataFields,
         Guid caseId,
         Guid observationId,
         VehicleLookupResult result,
@@ -319,28 +337,27 @@ internal sealed class EfVehicleLookupWorkStore(
         DateTimeOffset recordedAtUtc,
         CancellationToken cancellationToken)
     {
-        var answered = await context.CaseDataFields
-            .Where(item => item.CaseId == caseId
-                           && (item.ValueKind == CaseDataCodes.Fact
-                               || item.ValueKind == CaseDataCodes.Confirmed))
-            .Select(item => new { item.FieldName, item.ValueKind })
-            .ToListAsync(cancellationToken);
+        var answered = caseDataFields
+            .Where(item => item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Confirmed)
+            .ToArray();
 
         // Suggestion rows are no longer written, but an estate case looked up
         // before this change can still carry them. Clearing this case's
         // lookup-sourced suggestions leaves no orphan behind a value that now
         // outranks it, and re-running a lookup cannot accumulate two.
-        var staleSuggestions = await context.CaseDataFields
-            .Where(item => item.CaseId == caseId
-                           && item.ValueKind == CaseDataCodes.Suggestion
-                           && item.SourceKind == CaseDataCodes.VehicleLookup)
-            .ToListAsync(cancellationToken);
+        var staleSuggestions = caseDataFields
+            .Where(item => item.ValueKind == CaseDataCodes.Suggestion
+                && item.SourceKind == CaseDataCodes.VehicleLookup)
+            .ToArray();
         context.CaseDataFields.RemoveRange(staleSuggestions);
+        foreach (var staleSuggestion in staleSuggestions)
+        {
+            caseDataFields.Remove(staleSuggestion);
+        }
 
         var sourceIdentity = observationId.ToString("D");
         var sourceLabel = $"{result.Provider}/{result.ProviderVersion}";
 
-        var filled = 0;
         void Fill(string fieldName, string valueType, string? value, string policyKey, int policyVersion)
         {
             var hasFact = answered.Any(item =>
@@ -353,7 +370,7 @@ internal sealed class EfVehicleLookupWorkStore(
                 return;
             }
 
-            context.CaseDataFields.Add(new()
+            var field = new CaseDataFieldEntity
             {
                 CaseId = caseId,
                 FieldName = fieldName,
@@ -365,8 +382,9 @@ internal sealed class EfVehicleLookupWorkStore(
                 SourceLabel = sourceLabel,
                 PolicyKey = policyKey,
                 PolicyVersion = policyVersion
-            });
-            filled++;
+            };
+            context.CaseDataFields.Add(field);
+            caseDataFields.Add(field);
         }
 
         Fill(
@@ -406,6 +424,7 @@ internal sealed class EfVehicleLookupWorkStore(
                 derived.MethodVersion);
         }
 
+        var vehicleTypeFilled = false;
         var vehicleType = VehicleTypePolicy.Classify(result.Vehicle);
         if (vehicleType is not null)
         {
@@ -433,11 +452,31 @@ internal sealed class EfVehicleLookupWorkStore(
                     "vehicle-lookup",
                     recordedAtUtc,
                     confirmedBy: null);
-                filled++;
+                vehicleTypeFilled = true;
             }
         }
 
-        return filled;
+        return vehicleTypeFilled;
+    }
+
+    private static CaseReportVehicleDependencies ReportVehicleDependencies(
+        IReadOnlyList<CaseDataFieldEntity> fields,
+        string? selectedMileageSource)
+    {
+        string? Current(string fieldName) => CaseDataFieldValues.Current(fields, fieldName);
+        var mileage = CaseDataFieldValues.CurrentField(fields, CaseDataFieldNames.VehicleMileage);
+        return new(
+            Current(CaseDataFieldNames.VehicleMake),
+            Current(CaseDataFieldNames.VehicleModel),
+            Current(CaseDataFieldNames.VehicleYear),
+            mileage is null
+                ? null
+                : long.Parse(mileage.Value, NumberStyles.None, CultureInfo.InvariantCulture),
+            Current(CaseDataFieldNames.VehicleMileageUnit),
+            CaseVehicleMileageSourcePolicy.Resolve(
+                mileage is null ? null : EfCaseDataStore.ParseSourceKind(mileage.SourceKind),
+                mileage is not null,
+                selectedMileageSource));
     }
 
     internal static VehicleLookupObservation MapObservation(VehicleLookupObservationEntity entity)
