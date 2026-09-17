@@ -2250,6 +2250,12 @@ public sealed class CaseWorkflowPersistenceTests
                 .SingleAsync(item => item.Code == "QDOS");
             principal.Organization.GuidanceTemplate = "Contact the repairer before finalising.";
             principal.Organization.GuidanceTemplateVersion = 1;
+            context.CaseSequences.Add(new CaseSequenceEntity
+            {
+                SequenceLineageId = principal.SequenceLineageId,
+                Year = 2026,
+                LastAllocatedSequence = 9999
+            });
             await context.SaveChangesAsync();
         }
         var standaloneAuditEvidenceId =
@@ -2298,7 +2304,8 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.True(replay.IsDuplicate);
         Assert.Equal(allocated.Identity, replay.Identity);
         Assert.Equal("QDOS", allocated.Identity.PrincipalCode);
-        Assert.StartsWith("a.QDOS26", allocated.Identity.Reference);
+        Assert.Equal(10000, allocated.Identity.Sequence);
+        Assert.Equal("a.QDOS2610000", allocated.Identity.Reference);
         Assert.Equal(
             allocated.Identity.Reference,
             await harness.ReadCaseReferenceAsync(allocated.Identity.CaseId));
