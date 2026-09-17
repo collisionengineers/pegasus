@@ -334,8 +334,8 @@ never guessed.
 
 The command proves the typed actor and current persisted Case version, edit
 lease holder/token and expiry before reading a source-hash replay or parsing
-the retained source. Both that check and the final save require the existing assessment-editable
-state (Report preparation or Post report); accepted Review alone is insufficient.
+the retained source. Both that check and the final save require an
+assessment-writable state: Not ready, Review, Report preparation or Post report.
 An occurrence must name the exact confirmed, nonremoved document version;
 a correctly paired historical version remains valid retained evidence. A new
 Draft is guarded again in the save transaction. Importing never confirms its
@@ -473,9 +473,10 @@ Value. Job states and attribution are owned by FRD-11.
 
 ## Valuation readiness
 
-Any valuation check required before Review or Hand to Engineer must be resolvable
-at that stage by an authorized actor. No such prerequisite may require editing
-an Engineer-only section that becomes available only after handoff. Engineer's
-Value, settlement and report calculations belong to engineering work and are
-not invented pre-assignment blockers. Named external-check failures expose their
-actual permitted resolution; no circular readiness gate is acceptable.
+Any valuation check required before Review or Hand to Engineer must be
+resolvable at that stage by an authorized actor. The Engineer sections are
+editable before handoff in Not ready and Review, so availability is not a
+valid reason to defer such a check. Engineer's Value, settlement and report
+calculations belong to engineering work and are not invented pre-assignment
+blockers. Named external-check failures expose their actual permitted
+resolution; no circular readiness gate is acceptable.

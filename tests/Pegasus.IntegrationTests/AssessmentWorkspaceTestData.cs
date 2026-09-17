@@ -106,5 +106,5 @@ internal sealed class FakeGetAssessmentAccess(bool canOpen = true) : IGetAssessm
             // longer opens the workspace, so the open fake must sit inside
             // the new state set or the policy itself refuses it.
             ? new(CaseLifecycleState.ReportPreparation)
-            : new(CaseLifecycleState.NotReady));
+            : new(CaseLifecycleState.Held));
 }

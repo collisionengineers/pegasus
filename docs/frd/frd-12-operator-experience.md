@@ -379,9 +379,9 @@ The sections, in order, are **Overview**,
 **Inspection**, **Vehicle**, **Damage**, **Valuation**, **Estimate**,
 **Settlement**, **Report**, **Files**, **Notes**. Every
 section is always viewable; the Engineer sections — Damage, Valuation,
-Estimate, Settlement, Report — are editable in With Engineer and read-only
-in every other state (D30; the former D11 access rule is now this read-only
-rule).
+Estimate, Settlement, Report — are editable in Not ready, Review and With
+Engineer for staff with `PerformCasework`, and read-only in Held and after
+completion. Adopting the Engineer's Value remains an Engineer act (D30).
 The whole record enters one edit mode over one lease
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)).
 While editing, each section renders its one edit form in place of its

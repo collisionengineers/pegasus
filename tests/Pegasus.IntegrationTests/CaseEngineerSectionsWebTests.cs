@@ -67,7 +67,7 @@ public sealed class CaseEngineerSectionsWebTests
         Assert.DoesNotContain("staff-reviewed", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("reviewed by staff", html, StringComparison.OrdinalIgnoreCase);
 
-        if (state is not (CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport))
+        if (!AssessmentPolicy.IsWritableState(state))
         {
             Assert.DoesNotContain("New estimate", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Import estimate", html, StringComparison.Ordinal);
@@ -84,7 +84,7 @@ public sealed class CaseEngineerSectionsWebTests
     /// </summary>
     [Theory]
     [InlineData("User", CaseLifecycleState.ReportPreparation)]
-    [InlineData("Engineer", CaseLifecycleState.Review)]
+    [InlineData("Engineer", CaseLifecycleState.Held)]
     public async Task NewEstimateGetRendersReadOnlyEditorWhenNotEditable(string role, CaseLifecycleState state)
     {
         var source = new EngineerSectionSource(state);
