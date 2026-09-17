@@ -6,7 +6,8 @@ implementation slices. This is a planning estimate, not a file-count target.
 Profiling can remove conditional work. No new service, queue, database schema,
 runtime dependency, hosting tier or instance is part of the default scope.
 
-**Updated:** 16 September 2026. **Status:** planned; implementation not started.
+**Updated:** 16 September 2026. **Status:** implementation in progress;
+confirmed source changes prepared, candidate verification and release pending.
 This replaces the completed first performance plan. Its implementation and
 evidence remain in [the deployed plan history](https://github.com/collisionengineers/pegasus/blob/e8efb19779baadc5ea46bd9c62e6c9c54740cac7/.codex/PLAN.md)
 and [PR 761](https://github.com/collisionengineers/pegasus/pull/761).
@@ -487,3 +488,70 @@ This plan is complete as a planning deliverable when independently reviewed and
 its links/placement are checked. Performance implementation is complete only
 when the agreed targets and security/functionality checks above are satisfied,
 or a specific remaining limitation is explicitly accepted. Then stop.
+
+### Implementation observations — 16 September 2026
+
+Implementation base is unchanged at `5765a527a7729e606fe5683b3af3d47a17c708ff`,
+on `perf/first-use-and-image-cache` in the separate `performance-next` worktree.
+The original checkout's uncommitted plan and v27 material remain untouched.
+The live version was rechecked as `e8efb19779baadc5ea46bd9c62e6c9c54740cac7`.
+
+The real production Identity session supplied by the operator was used for
+the read-only baseline below: desktop 1920×855, DPR 1, no throttling, normal
+browser caching, fixed Office → Mine → Case A → Case B order. No process,
+source cache or derived cache was reset. Case B has nine distinct thumbnail
+addresses. These observations establish warm baseline only.
+
+| Scenario | Valid LCP samples | Baseline p95 LCP | Paired p95 TTFB |
+| --- | --- | --- | --- |
+| Work Centre Office | 30 | 464 ms | 310 ms |
+| Work Centre Mine | 30 | 1,096 ms | 958 ms |
+| Case A | 30 | 672 ms | 544 ms |
+| Case B | 30 | 464 ms | 291 ms |
+
+The first 120 navigations retained 34 missing paint entries despite reporting
+visible state. Explicitly bringing the tab forward restored paint reporting;
+36 additional navigations supplied the missing observations. The table uses
+the first 30 valid paints per route and their paired TTFB, never zero-filled
+missing paints. Original samples and the supplement are retained separately.
+No script errors or failed resource status codes were recorded. The
+DOMContentLoaded double-frame marker is only a paint opportunity proxy, not
+proof that sections or images are ready.
+
+Private working evidence and the canonical shared host-slot pointer are in
+`artifacts/performance/implementation-20260916/` in the original checkout.
+The PR carries sanitized results; these ignored files are not portable links.
+
+| Package | Implemented choice | Remaining evidence or decision |
+| --- | --- | --- |
+| P0 | Bounded authentication, workspace activation/result, Case subphase, Work Centre full/Refresh, shell and renderer-initialization spans in the existing sampled pipeline. | Controlled Linux first-use attribution, profiler captures, ingestion overhead/headroom and candidate comparison remain pending. |
+| P1 | Successful validation no longer reissues cookies; current checks and sliding renewal remain. Protected Razor responses default to no-store independently of cookie renewal. | Candidate actual-cookie integration execution and browser cache reuse evidence pending. |
+| P2 | Direct sections reuse the same-request Case-bound frame with custody scalars. Main Case GET does not resolve report generators. Dedicated preview GET preserves its established action and resolves only on that path. | Candidate regression execution and measured first-use gain pending; no claim that renderer initialization explains all prior delay. |
+| P3 | Scaled plain decode, coordinated current renderer URL/cache/ETag identity and bounded same-representation miss coordination. Source copying occurs after decode admission. Provider/decode limits remain four/two. | Candidate regression execution; matched nine-image provider/cache bursts, RSS/GC and concurrent workload acceptance remain pending. |
+| P4 | Closed palette no longer invokes scrollIntoView. An actual-script static shell fixture proves open/arrow/Escape/focus return. | Routed candidate browser coverage pending. Font subsetting is deferred without supported glyph and benefit evidence. Dynamic HTML compression is deferred: antiforgery/reflected content needs specific review and retained traces showed no LCP gain. |
+| P5 | Independent source review and serialized verification are in progress. | No deployment or live acceptance has occurred. Concrete artifact/target approval remains required for release. |
+
+No authorized matching Linux fixture was established. Do not substitute local
+Windows/TestServer tests for Linux cold acceptance or infer provider costs
+from a synthetic source. No additional environment, concurrency increase,
+prewarming, ReadyToRun, cache-retention change or hosting change is selected.
+
+The first frozen candidate, `a13e97373`, passed locked restore and Release
+build (zero warnings/errors), Core (2,199 passed, 14 skipped), Architecture
+(120 passed), documentation links and Markdown placement. Its focused
+Integration run completed with 337 passed, four failed and none skipped.
+Two failures were assertions that prohibited every response cookie on
+an HTML form instead of specifically prohibiting Identity-ticket renewal.
+Two shared a malformed PNG fixture: its RGBA scanline lacked a byte and its
+IDAT checksum was invalid. These failures and the bounded diagnostic are
+retained, not counted as passes. The corrected candidate requires reruns.
+The orientation fixture is also strengthened to assert asymmetric pixel
+positions, and cancellation is checked before and after native rendering.
+
+The corrected `0a63f80b3` build passed with zero warnings/errors; the affected
+four-class Integration rerun had 29 passed, one failed and none skipped.
+All four originally failing assertions passed. The remaining lifetime assertion
+expected two SQL user reads, but observed one; tracked-entity reuse makes that count an
+invalid proof of security-stamp validation. Its replacement observes the
+successful principal-refresh callback while preserving the application's
+original callback. Renewal and idle/absolute boundary assertions remain.

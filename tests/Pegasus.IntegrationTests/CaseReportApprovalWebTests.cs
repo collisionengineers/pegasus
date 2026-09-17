@@ -12,9 +12,12 @@ using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
+
 namespace Pegasus.IntegrationTests;
 
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseReportApprovalWebTests
 {
     /// <summary>
     /// B05/B09: the artifact download reopens the confirmed artifact's
@@ -448,4 +451,59 @@ public sealed partial class CaseDetailsWebTests
                     CaseVersion + 1));
         }
     }
+
+    [Theory]
+    [InlineData(CaseLifecycleState.ReportPreparation, true, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, false, false)]
+    [InlineData(CaseLifecycleState.Review, true, false)]
+    public async Task ReportSentRendersOnlyWithDetectedEvidenceWhileWithEngineer(
+        CaseLifecycleState state,
+        bool hasEvidence,
+        bool offersConfirmation)
+    {
+        var evidence = new RetainedApprovedMailboxReportSentEvidence(
+            Guid.NewGuid(),
+            "reports@collisionengineers.example",
+            "sent-folder-handle",
+            "immutable-item-handle",
+            "internet-message-handle",
+            "conversation-handle",
+            "reply-chain-handle",
+            "source-occurrence-handle",
+            new string('b', 64),
+            new string('c', 64),
+            new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2031, 5, 6, 9, 5, 0, TimeSpan.Zero),
+            ActionActor.SystemWorker("sent-mail-worker"));
+        var store = new RecordingCaseDetailsStore
+        {
+            State = state,
+            AvailableReportSentEvidence = hasEvidence ? [evidence] : []
+        };
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await workspace.GetWorkspaceAsync();
+
+        Assert.Equal(
+            offersConfirmation,
+            RecordBar(html).Contains("Mark report sent", StringComparison.Ordinal));
+        Assert.Equal(
+            offersConfirmation,
+            html.Contains("handler=LinkReportEvidence", StringComparison.Ordinal));
+        if (offersConfirmation)
+        {
+            var visible = VisibleText(html);
+            Assert.Contains("reports@collisionengineers.example", visible, StringComparison.Ordinal);
+            Assert.DoesNotContain("immutable-item-handle", visible, StringComparison.Ordinal);
+            Assert.DoesNotContain("internet-message-handle", visible, StringComparison.Ordinal);
+            Assert.DoesNotContain(new string('b', 64), visible, StringComparison.Ordinal);
+            Assert.DoesNotContain(new string('c', 64), visible, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// D29/D30: the record is one scrolling page of ten sections in a fixed
+    /// order. Every section has its stable host and its jump link, in that
+    /// order, on every response.
+    /// </summary>
 }

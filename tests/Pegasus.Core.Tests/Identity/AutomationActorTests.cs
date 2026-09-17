@@ -133,7 +133,7 @@ public sealed class AutomationActorTests
         public Task<CasePageFrameData?> GetPageFrameAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<CaseFilesSectionData?> GetFilesSectionAsync(Guid caseId, bool includeDocuments, CancellationToken cancellationToken) =>
+        public Task<CaseFilesSectionData?> GetFilesSectionAsync(Guid caseId, bool includeDocuments, CaseSectionFrame? frame, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<CaseRenderLeaseValidation?> GetRenderLeaseValidationAsync(Guid caseId, string presentedToken, CancellationToken cancellationToken) =>
