@@ -18,10 +18,13 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class CaseEstimateHeaderWebTests
 {
-    [Theory]
-    [InlineData("/Cases/00000000-0000-0000-0000-000000000001?handler=PreviewReportDraft&section=report")]
-    [InlineData("/Cases/00000000-0000-0000-0000-000000000001?handler=EstimateDocument&estimateId=00000000-0000-0000-0000-000000000002")]
-    public async Task CaseEstimateHeaderDocumentPreviewsUseTheDeployedBlobFramePolicy(string previewPath)
+    /// <summary>
+    /// One Production host for both preview routes: a host costs ~95 s to
+    /// build, and a theory row per path also listed identically once the
+    /// shard partition truncated the long path argument.
+    /// </summary>
+    [Fact]
+    public async Task CaseEstimateHeaderDocumentPreviewsUseTheDeployedBlobFramePolicy()
     {
         using var factory = new ConfiguredWebApplicationFactory(
             "Production",
@@ -32,13 +35,20 @@ public sealed class CaseEstimateHeaderWebTests
             BaseAddress = new Uri("https://localhost"),
         });
 
-        using var response = await client.GetAsync(previewPath);
+        foreach (var previewPath in new[]
+                 {
+                     "/Cases/00000000-0000-0000-0000-000000000001?handler=PreviewReportDraft&section=report",
+                     "/Cases/00000000-0000-0000-0000-000000000001?handler=EstimateDocument&estimateId=00000000-0000-0000-0000-000000000002"
+                 })
+        {
+            using var response = await client.GetAsync(previewPath);
 
-        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal(
-            "default-src 'self'; object-src 'none'; base-uri 'self'; " +
-            "frame-src 'self' blob:; frame-ancestors 'self'",
-            Assert.Single(response.Headers.GetValues("Content-Security-Policy")));
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            Assert.Equal(
+                "default-src 'self'; object-src 'none'; base-uri 'self'; " +
+                "frame-src 'self' blob:; frame-ancestors 'self'",
+                Assert.Single(response.Headers.GetValues("Content-Security-Policy")));
+        }
     }
 
     [Theory]
