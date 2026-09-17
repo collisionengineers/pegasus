@@ -5,7 +5,7 @@ date: 2026-08-18
 supersedes: []
 superseded_by: []
 related_capabilities: [MCP-01, MCP-02, MCP-03, MCP-04, MCP-06]
-related_frd: [frd-10, frd-11]
+related_frd: [frd-10, frd-27]
 tags: [mcp, automation, deployment]
 ---
 

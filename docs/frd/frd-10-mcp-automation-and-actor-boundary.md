@@ -114,7 +114,7 @@ is not offered to it.
 
 The Actor's inventory includes the AI job ledger tools from
 [ADR-0035](../adr/0035-ai-job-ledger.md). Job kinds and states are owned by
-[FRD-11 AI Job List](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list).
+[FRD-27 AI Job List](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list).
 Every tool calls the same Core command as the staff application, supplies the
 resolved Automation identity and the connecting client's name, needs an
 operation key and expected version on every change, and records permanent
@@ -185,6 +185,7 @@ acceptance are separate evidence tiers
   [FRD-03](frd-03-triage.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
+  [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md).
 - Technical constraints:

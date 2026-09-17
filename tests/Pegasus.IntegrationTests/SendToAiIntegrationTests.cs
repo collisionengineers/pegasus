@@ -18,7 +18,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// FRD-11 § AI Job List: the Assessment page's Send to Claude
+/// FRD-27 § AI Job List: the Assessment page's Send to Claude
 /// queues an Estimate-kind AI job through <see cref="ICreateAiJob"/> (the
 /// pull-based ledger superseded the AI-09 push hand-off on this surface). The
 /// switch-off gate stays visible as the control's condition, and the

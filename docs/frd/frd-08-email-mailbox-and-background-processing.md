@@ -1,6 +1,6 @@
 # FRD-08: Email, mailbox, and background processing
 
-> Owner capabilities: MAIL-01–MAIL-05, MAIL-07–MAIL-09, MAIL-20–MAIL-23, INT-33, OPS-02, OPS-22, EVAL-01–EVAL-05 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MAIL-01–MAIL-05, MAIL-07–MAIL-09, MAIL-20–MAIL-23, OPS-02, OPS-22, EVAL-01–EVAL-05 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -11,8 +11,9 @@
   left as Unidentified. Nothing is hidden in a generic Other.
 - Classification, application queue, Triage routing and Outlook folder are
   four separate facts. Every decision and every correction stays in history.
-- The Worker alone reads mailboxes. Graph notifications only wake it up. Each
-  mailbox has its own cursor, lease and activation start.
+- The Worker alone reads mailboxes. Which mailboxes it reads, when each one
+  starts and how it is woken are in
+  [FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md).
 - Automatic Case association happens only when the registration or the exact
   thread points at exactly one Case.
 
@@ -23,7 +24,9 @@ What Unidentified means, and when mail goes there, is defined in
 
 Instructions, cancellations, queries and images mostly arrive by email. This
 document says how Pegasus identifies, retains, classifies and routes that
-mail, and how the background Worker keeps up with each approved mailbox. The
+mail, and how retained mail is associated with a Case. The mailbox
+allowlist, activation, wipe cutoff, Graph wake-up and recovery are in
+[FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md). The
 screens are in [FRD-20](frd-20-mailbox-workspace.md). Sending mail and
 proving a report was sent are in
 [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md).
@@ -245,99 +248,20 @@ association is append-only and idempotent, follows the ordinary
 current-association and staff-reversal precedence, and never changes the
 mailbox.
 
-### Mailbox allowlist, activation and wipe
+### Mail identity and repeated receipts
 
-The approved mailbox allowlist, not deployment configuration, decides which
-mailboxes an Outlook/Graph route reads. `ApprovedMailbox.Id` is the durable
-identity. The Graph mailbox and folder coordinates are replaceable cursor
-scope. Each mailbox holds its own lease and its own cursor, so one mailbox's
-failure or backlog never affects another.
+Provider coordinates identify a mailbox occurrence for reading and polling;
+they are not the business duplicate identity. The shared intake identity
+policy recognises the same message within its durable mailbox while keeping
+each receipt, its mailbox, folder and item identity, and its received and
+discovery times. Equal content alone never erases an occurrence or creates a
+new Case. [ADR-0044](../adr/0044-mail-occurrence-and-business-identity.md) records the
+technical separation.
 
-Each mailbox has its own fresh-start activation cycle. Enabling starts a new
-cycle at a recorded UTC activation time. Mail received before that time
-moves the cursor forward but is not retained, quarantined, passed to intake
-or allocated. Disabling a mailbox stops polling at the next tick and deletes
-nothing: retained messages, receipts, assets, quarantined items and Case
-associations all stay visible. Re-enabling starts a new fresh-start cycle
-rather than resuming the old cursor, so mail received while disabled never
-becomes a backlog.
-
-The global Worker switch, individual function switches and per-mailbox
-switches are separate. Sent-evidence polling stays off unless separately
-approved. Approving a mailbox in Pegasus grants no Exchange access; the
-Microsoft 365 tenant must separately admit the application to that mailbox.
-Until it does, polling that mailbox fails and says so. An approved intake
-mailbox becomes pollable only after an address check has stored its mailbox
-identity and activation time. Before that, the administration list reports
-it as not activated, not as awaiting a first poll, because no poll is
-pending.
-
-**Wipe.** An explicitly authorised intake-data wipe records one UTC
-receive-time cutoff in the existing Inbox poll state, in the same
-transaction that clears the SQL data. It does not change mailbox identity,
-approval, onboarding time or subscriptions. The effective start is the later
-of activation and that cutoff, including for a mailbox never yet polled.
-Clearing occurrence identities, rebinding cursor scope, resetting an expired
-Graph delta token or receiving an old queued notification must never lower
-the cutoff or bring cleared mail back. Mail received at or after the cutoff
-stays eligible, and forwarding an old email creates a newly received message
-that is evaluated normally. An ordinary deployment or Worker restart never
-moves this boundary. Wipes run only with the Worker stopped and application
-writes excluded for maintenance.
-
-### Mailbox wake-up and recovery
-
-Each enabled approved Inbox has one Microsoft Graph basic change-notification
-subscription. Its record uses the approved-mailbox identity and stores the
-Graph subscription id, resource scope, expiry, lifecycle state and last
-maintenance result in SQL. The shared client-state secret is protected
-configuration. It is never stored in the subscription row, logged, sent to
-a browser or put on a queue.
-
-`POST /hooks/microsoft-graph/mail` on the Web host is a wake-up endpoint,
-not a mail reader. For Graph validation it returns the validation token as
-plain text within the protocol deadline. For a notification it checks the
-clientState and the known active subscription, queues only the subscription
-and approved-mailbox identifiers, and acknowledges promptly. It does not
-download, classify, extract, associate, allocate or change a message.
-Unknown, expired, malformed or wrongly scoped notifications fail closed
-without queuing work or revealing the secret.
-
-The Worker alone owns the mailbox lease, the cursor or delta read,
-retention, the shared intake call and the retry outcome. A creation
-notification with an immutable message ID fetches and processes that exact
-message only, still subject to the receive-time cutoff. It does not scan the
-Inbox or move the recovery cursor. Duplicate notifications are safe. A
-notification may name a message the mail source cannot show yet, because
-the tenant accepted it before replicating it to the folder the delta reads.
-That empty read is not a failure: the cursor stays where it was, the message
-is still ahead of the next delta sweep, and the mailbox-scoped source
-identity that both routes derive keeps exactly one occurrence however many
-notifications arrive. Lifecycle `missed`, `subscriptionRemoved` and
-reauthorization events schedule the same delta resynchronisation; they are
-not another processing route.
-
-Subscription maintenance runs every six hours and renews an enabled Inbox
-before it comes within 48 hours of expiry. A failure is visible per mailbox
-and leaves the five-minute per-mailbox fallback poll running. That fallback
-moves the same cursor and is recovery only: it creates no second receipt and
-does not bypass the fresh-start boundary. Disabling a mailbox stops
-notification work at claim time as well as its next fallback poll.
-
-Before activation, an Outlook/Graph route must:
-
-- use an approved test or live mailbox and an exact operation;
-- keep message, conversation, folder, attachment, sender and recipient, and
-  received and sent identity;
-- keep a durable cursor or checkpoint and process each occurrence
-  idempotently;
-- separate read and intake scopes from draft, send and administrative
-  scopes;
-- queue only stable work identifiers, never full source payloads;
-- record poison, retry, dead-letter and operator recovery behaviour;
-- prove the real Worker timer or queue caller;
-- obtain exact Sent-item and reply-chain evidence wherever delivery is part
-  of a completion gate.
+A query received for or attached to a Completed Case, and the reply that
+returns it, follow
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query). The
+received query and the actual reply are retained as Case correspondence.
 
 ### QDOS evaluation boundary
 
@@ -354,31 +278,16 @@ allocation boundary owns the evaluator allocations. Shared Core mail policy,
 production intake, Graph replay and live adapters, and their genuine-evidence
 and caller requirements stay in QDOS scope.
 
-## Mail identity and repeated receipts
-
-Provider coordinates identify a mailbox occurrence for reading and polling;
-they are not the business duplicate identity. The shared intake identity
-policy recognises the same message within its durable mailbox while keeping
-each receipt, its mailbox, folder and item identity, and its received and
-discovery times. Equal content alone never erases an occurrence or creates a
-new Case. [ADR-0044](../adr/0044-mail-occurrence-and-business-identity.md) records the
-technical separation.
-
-A query received for or attached to a Completed Case, and the reply that
-returns it, follow
-[FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query). The
-received query and the actual reply are retained as Case correspondence.
-
 ## States and transitions
 
 | Thing | States |
 | --- | --- |
 | A retained message | Processing (sender not yet established); classified into one named class, reasoned `Other`, or Unidentified; Case-associated or not; folder move recommended, confirmed, failed or done |
-| An approved mailbox | not activated; enabled with a UTC activation time; disabled (nothing deleted); re-enabled with a new cycle |
-| A Graph subscription | active; within 48 hours of expiry and due for renewal; `missed`, `subscriptionRemoved` or reauthorization pending resynchronisation |
 
 Case states are owned by
-[FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels).
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#states-and-labels). Approved
+mailbox and Graph subscription states are owned by
+[FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#states-and-transitions).
 
 ## Edge cases and fail-closed behaviour
 
@@ -389,12 +298,6 @@ Case states are owned by
   with visible evidence.
 - A registration with zero or several Case candidates, or thread and
   registration disagreeing: no automatic association.
-- Mail received before activation or before a wipe cutoff: cursor moves,
-  nothing retained.
-- A notification for a message the delta cannot show yet: not a failure;
-  the next sweep picks it up.
-- A tenant that has not admitted the application: that mailbox alone fails
-  and says so.
 
 ## Acceptance evidence
 
@@ -402,18 +305,13 @@ Case states are owned by
   the duplicate boundary across two mailboxes.
 - Classification predicate tests for each row of the catalogue, including
   the refused promotions in the worked examples.
-- Persistence tests for activation, disable, re-enable and wipe cutoff
-  behaviour on the cursor.
-- A real Graph subscription validation and notification against the
-  approved test mailbox, proving the Worker processes the exact message and
-  the endpoint touches no mail.
 - Deployment and live acceptance are separate evidence tiers
   ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 
 - Capabilities: `MAIL-01`–`MAIL-05`, `MAIL-07`–`MAIL-09`, `MAIL-20`–`MAIL-23`,
-  `INT-33`, `OPS-02`, `OPS-22`, `EVAL-01`–`EVAL-05` in
+  `OPS-02`, `OPS-22`, `EVAL-01`–`EVAL-05` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md)
   (Unidentified, intake receipts),
@@ -422,7 +320,9 @@ Case states are owned by
   [FRD-13](frd-13-case-lifecycle-and-workflow.md) (Case states),
   [FRD-20](frd-20-mailbox-workspace.md) (mail screens),
   [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md) (sending
-  and Sent evidence).
+  and Sent evidence),
+  [FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md)
+  (mailbox allowlist, activation, wake-up and recovery).
 - Technical constraints:
   [ADR-0044](../adr/0044-mail-occurrence-and-business-identity.md) (mail identity
   separation), [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md)

@@ -104,7 +104,7 @@ paged.
 expiry, Draft ready) and those that failed in the same 7 days, excluding
 Market research. Columns: kind and detail, record, started by, created,
 state, and the Draft ready action defined per kind in
-[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)
+[FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)
 (Review estimate, Open query, Review, Complete job). A failed job shows its
 reason with Open Case. Cancel stays on Operations.
 
@@ -302,10 +302,11 @@ tiers ([engineering](../engineering.md#required-evidence-tiers)).
 
 - Capabilities: `UI-01`, `UI-02`, `UI-03`, `UI-04`, `UI-05`, `UI-06`,
   `UI-07`, `UI-18`, `UI-19` in [capabilities](../capabilities.md). `AI-10`
-  stays with [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list).
+  stays with [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-03](frd-03-triage.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
+  [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md),
   [FRD-12](frd-12-operator-experience.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-16](frd-16-case-record-workspace.md),

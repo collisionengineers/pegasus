@@ -19,8 +19,9 @@ This document says how the Administration areas behave for an
 Administrator. The rules those settings control are owned elsewhere:
 accounts and contacts by [FRD-04](frd-04-parties-accounts-and-access.md),
 completeness and chasing by
-[FRD-13](frd-13-case-lifecycle-and-workflow.md), estimates and valuations by
-[FRD-06](frd-06-vehicle-and-engineering-evidence.md).
+[FRD-13](frd-13-case-lifecycle-and-workflow.md), valuations by
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md) and estimates by
+[FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md).
 
 ## Behaviour
 
@@ -78,7 +79,7 @@ the field and the server. The directory rules are owned by
 - labour-rate-card administration: the global versioned cards (name,
   panel-and-paint hourly rate, enabled state) that every estimate version
   selects from. Disabling a card blocks future selection without changing
-  history ([FRD-06](frd-06-vehicle-and-engineering-evidence.md#canonical-repair-specifications)).
+  history ([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications)).
 
 The read view lists the six settings as "Chase interval · 7 days" and so on.
 The edit form names each range when a value is refused. There are no staff
@@ -95,7 +96,7 @@ the record edit scope ([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)
 **Remove** is a soft removal that acts on the click. The preset drops out of
 the list and out of new selection. A valuation already recorded against it
 keeps its own snapshot
-([FRD-06](frd-06-vehicle-and-engineering-evidence.md#valuation-sources)).
+([FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources)).
 
 ### Logs
 
@@ -163,6 +164,8 @@ behaviour. Deployment and live acceptance are separate evidence tiers
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md),
+  [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md),
+  [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md),
   [FRD-12](frd-12-operator-experience.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md).

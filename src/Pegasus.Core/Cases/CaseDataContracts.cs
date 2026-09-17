@@ -22,7 +22,7 @@ public enum CaseDataSourceKind
     ProviderSetting,
 
     /// <summary>
-    /// Stated by the instructing Principal over the Provider API. FRD-02 already
+    /// Stated by the instructing Principal over the Provider API. FRD-23 already
     /// names the provider API as a field provenance in its own right, distinct
     /// from extraction and from staff entry.
     /// </summary>

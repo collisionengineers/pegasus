@@ -192,7 +192,7 @@ chips, five graded severity fills with a legend, and numbered markers that
 match the recorded-zones list. Hovering names a zone only while editable.
 Below it sits the zone list with severity and note per zone, and the other
 damage facts. The field set is owned by
-[FRD-06](frd-06-vehicle-and-engineering-evidence.md#damage-record).
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record).
 
 ### Valuation
 
@@ -208,10 +208,10 @@ replaces the earlier card, and a typed figure saves the same way. A
 **Valuation month** and **AI market research** above the cards create a
 `MarketResearch` job and show a "Researching · {month}" card until it
 completes; a re-run replaces the card
-([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)).
+([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)).
 Read mode shows only applied increases. The calculator applies presets and
 custom lines through Core. Valuation sources are owned by
-[FRD-06](frd-06-vehicle-and-engineering-evidence.md#valuation-sources).
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#valuation-sources).
 
 ### Estimate
 
@@ -225,7 +225,7 @@ claimant VAT registered, reserve, equity (derived), repair duration and
 delays, report delay, storage per day, recovery, hire start and daily cost,
 diminution and salvage logistics. Financial ratio lines are permitted. The
 field meanings are owned by
-[FRD-06](frd-06-vehicle-and-engineering-evidence.md#settlement).
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#settlement).
 
 ### Report
 
@@ -314,7 +314,7 @@ No comparison or savings figure is shown. In both read and edit modes, every
 saved version with lines carries **Estimate PDF** in its actions row.
 Previewing it does not save or discard pending edits. The section also
 carries **Send to AI**, which creates an `AI-10` `Estimate` job
-([AI Job List](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)),
+([AI Job List](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)),
 disabled without an Engineer's Value. Report-draft generation and preview sit
 on the Report section
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
@@ -323,7 +323,7 @@ on the Report section
 imported immediately, with no confirmation step and no visible file picker.
 Only registered parser types are accepted. An ambiguous file is refused, not
 guessed. Provenance and replay rules are owned by
-[FRD-06](frd-06-vehicle-and-engineering-evidence.md#canonical-repair-specifications).
+[FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications).
 
 The drop is pointer-only. That is a narrow accepted accessibility exception,
 and a real gap: a keyboard-only operator cannot import a raw estimate file.
@@ -376,8 +376,11 @@ tiers ([engineering](../engineering.md#required-evidence-tiers)).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md),
+  [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md),
+  [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md),
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
+  [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md),
   [FRD-12](frd-12-operator-experience.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),

@@ -17,16 +17,16 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | FRD | Owns | Capability families |
 | --- | --- | --- |
 | [FRD-01](frd-01-case-identity-and-lifecycle.md) | Case identity: Principal, reference, Audit reference, Case types, parties snapshot | CASE |
-| [FRD-02](frd-02-intake-and-source-identity.md) | Intake starts, Unidentified, receipt identity, pre-Case gates, matching and association | INT |
+| [FRD-02](frd-02-intake-and-source-identity.md) | Intake starts, Unidentified, receipt identity, received file history | INT |
 | [FRD-03](frd-03-triage.md) | Triage workflow and completion evidence | TRI |
 | [FRD-04](frd-04-parties-accounts-and-access.md) | Parties, Principals, organisations, staff accounts, role access, action history | ACC |
 | [FRD-05](frd-05-documents-extraction-and-custody.md) | Supported source boundary, staging, Box custody | DOC |
-| [FRD-06](frd-06-vehicle-and-engineering-evidence.md) | Inspection address, image and VRM analysis, MOT enrichment, professional findings | INT (image), ENG |
+| [FRD-06](frd-06-vehicle-and-engineering-evidence.md) | Inspection address, image and VRM analysis, vehicle data and MOT enrichment, MOT mileage estimation | INT (image), EXT |
 | [FRD-07](frd-07-eva-and-external-engineering-handoff.md) | EVA handoff routes and the external boundary | EXT |
-| [FRD-08](frd-08-email-mailbox-and-background-processing.md) | Inbound mail identity, classification, mailbox processing and wake-up | MAIL |
+| [FRD-08](frd-08-email-mailbox-and-background-processing.md) | Inbound mail identity, taxonomy, classification, Case association of mail | MAIL |
 | [FRD-09](frd-09-provider-and-intermediary-routes.md) | Route versus provider identity, provider API contract | API |
 | [FRD-10](frd-10-mcp-automation-and-actor-boundary.md) | Automation Actor boundary, direct-write model, tool inventory | MCP |
-| [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md) | Report correction and finality, targeted sending, reviewed AI proposals | RPT, AI |
+| [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md) | Report outcomes, Audit parity, renderer, generation, correction and finality, estimate VAT | RPT |
 | [FRD-12](frd-12-operator-experience.md) | Shell, navigation, display labels and the page contract | UI |
 | [FRD-13](frd-13-case-lifecycle-and-workflow.md) | Case states, readiness, Hand to Engineer, actions, Close case, Archive, chasing, Completed and Query | CASE |
 | [FRD-14](frd-14-record-edit-leases.md) | Edit leases and record edit scopes, Take over, refusals | CASE, TRI, ACC |
@@ -37,6 +37,12 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | [FRD-19](frd-19-image-led-intake-and-pairing.md) | Vehicle images that arrive without an instruction: grouping, pairing, merge | INT |
 | [FRD-20](frd-20-mailbox-workspace.md) | The Inbox: browsing, preview, classify, link, move, dismiss | UI, MAIL |
 | [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md) | Sending mail from Pegasus and proving a report was sent | MAIL |
+| [FRD-22](frd-22-pre-case-gates-matching-and-association.md) | Pre-Case gates, matching conflicts, reversible association | INT |
+| [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md) | Case draft fields, field provenance, global vehicle and value checks | INT |
+| [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md) | Engineer findings, damage record, valuation sources, settlement, Market Research | CASE, ENG, EXT |
+| [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md) | Repair specifications, Glass's sessions, estimate sources, PDF estimate import | ENG, EXT |
+| [FRD-26](frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md) | Mailbox allowlist, activation, wipe, wake-up and recovery | MAIL, INT |
+| [FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md) | Send to AI, reviewed proposals, the AI Job List, connector settings | AI, MCP |
 
 ## Template
 
