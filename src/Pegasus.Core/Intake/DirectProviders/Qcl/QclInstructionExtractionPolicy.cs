@@ -77,7 +77,7 @@ public sealed partial class QclInstructionExtractionPolicy
 
     public InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
-        DateTimeOffset processedAtUtc,
+        InstructionExtractionTiming timing,
         EstablishedPrincipalContext principalContext)
     {
         ArgumentNullException.ThrowIfNull(readResult);
@@ -92,7 +92,7 @@ public sealed partial class QclInstructionExtractionPolicy
             scoped,
             Definitions,
             Cache,
-            processedAtUtc);
+            timing);
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(
             SupportedPrincipalCode,

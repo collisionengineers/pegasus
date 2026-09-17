@@ -245,16 +245,18 @@ Web and MCP Automation Actor callers use the same guard. Background append-only 
 
 ### Due work, chasing, and action history
 
-`Due by` comes from the inspection date or accepted equivalent deadline. Staff
-may set Due by directly on the Case. A staff-set Due by is kept until cleared,
-and clearing it restores the projected date. The chase interval is one global
-whole-calendar-day value in workflow configuration, range 1 to 365 days,
-default 7, calculated in Europe/London (D23, 2026-09-01). For a case entering
-`Not ready`, the first chase occurs at the same Europe/London local time that
-many calendar days later and repeats at the same interval. A configuration
-change applies to schedules calculated after it; a chase already calculated
-keeps its date. `Held` preserves the remaining interval; release to `Not ready`
-resumes it. `Review`, accepted material arrival, completion, or a reasoned cancellation
+`Due by` comes from the inspection date or accepted equivalent deadline. When
+the instruction states no inspection date, the draft's inspection date is the
+Europe/London date the instruction was received. Staff may set Due by directly
+on the Case. A staff-set Due by is kept until cleared, and clearing it restores
+the projected date. The chase interval is one global whole-calendar-day value
+in workflow configuration, range 1 to 365 days, default 7, calculated in
+Europe/London (D23, 2026-09-01). For a case entering `Not ready`, the first
+chase occurs at the same Europe/London local time that many calendar days
+later and repeats at the same interval. A configuration change applies to
+schedules calculated after it; a chase already calculated keeps its date.
+`Held` preserves the remaining interval; release to `Not ready` resumes it.
+`Review`, accepted material arrival, completion, or a reasoned cancellation
 or rejection stops the current missing-material chase schedule.
 
 Manual chasing remains a staff action in the alpha unless an allocated capability and accepted integration explicitly authorize automation. The history records what was attempted, by whom, through which channel, against which party/address, when, and with what evidence. A recorded action is not proof of external delivery.
