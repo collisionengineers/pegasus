@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Operations;
@@ -128,6 +129,7 @@ public partial class IndexModel(
         [FromQuery(Name = "page")] int page = 1,
         int newPage = 1)
     {
+        using var timing = DocumentReadTelemetry.Start("web.workcentre.main");
         var refusal = await LoadAsync(scope, kind, selected, assign, refresh, since, page, newPage, cancellationToken);
         return refusal ?? Page();
     }
@@ -146,6 +148,7 @@ public partial class IndexModel(
         [FromQuery(Name = "page")] int page = 1,
         int newPage = 1)
     {
+        using var timing = DocumentReadTelemetry.Start("web.workcentre.refresh.main");
         // A refresh is never the one-shot instruction to reopen an assignment
         // dialog. The current display may retain a dismissed dialog's selection.
         var refusal = await LoadAsync(
