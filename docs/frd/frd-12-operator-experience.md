@@ -457,7 +457,8 @@ a non-destructive conflict.
   when it differs from the recorded value, Storage location, and Repairer
   (D33, [FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
 - Vehicle: registration, make, model, year, and one mileage with its
-  provenance (Extracted · Lookup · Staff); one **Look up DVLA & MOT** action
+  editable unit and provenance (Extracted · Lookup · Staff); one **Look up
+  DVLA & MOT** action
   (`EXT-01`) whose looked-up values fill an empty Make, Model, Year, or
   Mileage, and a Vehicle type that staff have not confirmed, directly and
   never overwrite an extracted or staff-entered value —

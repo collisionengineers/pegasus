@@ -178,6 +178,13 @@ public sealed class CaseTasksWebTests
         {
             Assert.Contains($"name=\"{field}\"", html, StringComparison.Ordinal);
         }
+        Assert.Equal(
+            1,
+            html.Split("name=\"vehicleMileageUnit\"", StringSplitOptions.None).Length - 1);
+        Assert.Contains(
+            "<select id=\"edit-mileage-unit\" class=\"fi\" name=\"vehicleMileageUnit\" form=\"case-edit-form\">",
+            html,
+            StringComparison.Ordinal);
 
         Assert.Contains("name=\"storageLocation\" form=\"case-edit-form\"", page, StringComparison.Ordinal);
         var imageBased = page.IndexOf("value=\"ImageBasedAssessment\"", StringComparison.Ordinal);
