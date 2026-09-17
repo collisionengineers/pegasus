@@ -203,6 +203,7 @@ public sealed class ProcessIntake(
             readResult,
             safeSource.SourceIdentity,
             processedAtUtc,
+            safeSource.ReceivedAtUtc,
             cancellationToken);
         activity?.SetTag("intake.policy_key", assessment.ExtractionPolicyKey);
         activity?.SetTag("intake.policy_version", assessment.ExtractionPolicyVersion);
@@ -743,6 +744,7 @@ public sealed class ProcessIntake(
         IntakeSourceReadResult readResult,
         IntakeSourceIdentity sourceIdentity,
         DateTimeOffset processedAtUtc,
+        DateTimeOffset receivedAtUtc,
         CancellationToken cancellationToken)
     {
         var sourceChannel = sourceIdentity.Channel;
@@ -1004,7 +1006,7 @@ public sealed class ProcessIntake(
 
         var policyResult = extractionPolicy.Extract(
             instructionRead,
-            processedAtUtc,
+            new(processedAtUtc, receivedAtUtc),
             principalContext);
         EnsureConsistentPolicyResult(policyResult, principalContext);
         var (decision, reason, failureCode, failureReason) = policyResult.Applicability switch

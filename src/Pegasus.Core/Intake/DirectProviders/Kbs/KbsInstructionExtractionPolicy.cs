@@ -36,14 +36,14 @@ public sealed partial class KbsInstructionExtractionPolicy
     public IReadOnlyDictionary<string, InstructionFieldRole> FieldRoles { get; } = Definitions.ToDictionary(
         item => item.Name, item => new InstructionFieldRole(item.PartyRole, item.ReferenceRole), StringComparer.Ordinal);
 
-    public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, DateTimeOffset processedAtUtc, EstablishedPrincipalContext principalContext)
+public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, InstructionExtractionTiming timing, EstablishedPrincipalContext principalContext)
     {
         ArgumentNullException.ThrowIfNull(readResult);
         ArgumentNullException.ThrowIfNull(principalContext);
         if (readResult.Status != IntakeSourceReadStatus.Readable || readResult.IsIncomplete) throw new ArgumentException("KBS extraction requires complete readable content.", nameof(readResult));
         if (!string.Equals(principalContext.PrincipalCode, SupportedPrincipalCode, StringComparison.Ordinal)) throw new ArgumentException("The established principal is not KBS.", nameof(principalContext));
         var scoped = readResult.Content.SelectMany(InstructionFields).ToArray();
-        var (fields, missing, extracted) = InstructionFieldEngine.ExtractFields(scoped, Definitions, Cache, processedAtUtc);
+        var (fields, missing, extracted) = InstructionFieldEngine.ExtractFields(scoped, Definitions, Cache, timing);
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(SupportedPrincipalCode, InstructionFieldEngine.TypedString(values["Claimant name"], 300),
             InstructionFieldEngine.TypedString(values["Claim reference"]?.Replace('‐', '-'), 100), InstructionFieldEngine.NormalizeRegistration(values["Vehicle registration"]),

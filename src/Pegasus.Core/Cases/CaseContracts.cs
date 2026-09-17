@@ -228,14 +228,6 @@ public sealed record CaseAcceptanceOutcome(
     bool IsDuplicate,
     Guid? VehicleLookupWorkId = null);
 
-public sealed class CaseIdentitySequenceExhaustedException(string principalCode, int year)
-    : Exception($"The principal '{principalCode}' has exhausted its {year} case identity sequence.")
-{
-    public string PrincipalCode { get; } = principalCode;
-
-    public int Year { get; } = year;
-}
-
 public sealed class CaseAcceptanceOperationConflictException(
     Guid intakeReceiptId,
     string operationKey)

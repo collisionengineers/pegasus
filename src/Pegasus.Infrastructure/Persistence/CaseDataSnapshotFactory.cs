@@ -478,12 +478,13 @@ internal static class CaseDataSnapshotFactory
         }
 
         var sources = fields.Where(field => field.ToCaseDataFieldName() == fieldName).ToArray();
-        // PCH's typed draft already chose mobile or home telephone. Attribute
-        // that exact choice, never repeat its priority rule or pick the first
-        // of several fields. Duplicate matching sources still fail closed.
+        // The typed draft already chose mobile or home telephone. Attribute
+        // that exact choice, never repeat its priority rule. Equal values in
+        // multiple review fields are the same printed fact, so retain the
+        // first matching source; distinct values still fail closed.
         var field = sources.Length == 1
             ? sources[0]
-            : sources.SingleOrDefault(item => string.Equals(item.SuggestedValue, value, StringComparison.Ordinal));
+            : sources.FirstOrDefault(item => string.Equals(item.SuggestedValue, value, StringComparison.Ordinal));
         AddExtractedValue(snapshot, receipt, field, fieldName, valueType, value);
     }
 

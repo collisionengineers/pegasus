@@ -39,7 +39,7 @@ public sealed class DfdInstructionExtractionPolicy
     public IReadOnlyDictionary<string, InstructionFieldRole> FieldRoles { get; } = Definitions.ToDictionary(
         item => item.Name, item => new InstructionFieldRole(item.PartyRole, item.ReferenceRole), StringComparer.Ordinal);
 
-    public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, DateTimeOffset processedAtUtc, EstablishedPrincipalContext principalContext)
+public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, InstructionExtractionTiming timing, EstablishedPrincipalContext principalContext)
     {
         ArgumentNullException.ThrowIfNull(readResult);
         ArgumentNullException.ThrowIfNull(principalContext);
@@ -47,7 +47,7 @@ public sealed class DfdInstructionExtractionPolicy
             throw new ArgumentException("DFD extraction requires complete readable content.", nameof(readResult));
         if (!string.Equals(principalContext.PrincipalCode, SupportedPrincipalCode, StringComparison.Ordinal))
             throw new ArgumentException("The established principal is not DFD.", nameof(principalContext));
-        var (fields, missing, extracted) = InstructionFieldEngine.ExtractFields(readResult.Content, Definitions, Cache, processedAtUtc);
+        var (fields, missing, extracted) = InstructionFieldEngine.ExtractFields(readResult.Content, Definitions, Cache, timing);
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(SupportedPrincipalCode,
             InstructionFieldEngine.TypedString(values["Claimant name"], 300), InstructionFieldEngine.TypedString(values["Claim reference"], 100),
