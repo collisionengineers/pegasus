@@ -79,6 +79,9 @@ public sealed record RetainedMailSummary(
 
     /// <summary>When the message was dismissed from the incoming scopes; null while it is not.</summary>
     public DateTimeOffset? DismissedAtUtc { get; init; }
+
+    /// <summary>True once the receipt's Unidentified item has resolved; the message has left the Inbox Unidentified scope.</summary>
+    public bool UnidentifiedResolved { get; init; }
 }
 
 /// <summary>
