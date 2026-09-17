@@ -135,7 +135,7 @@ public sealed class RepairSpecificationPolicyTests
             Parts: 20m, PanelLabour: 100m, PaintLabour: 6m, Materials: 4m, Specialist: 0m,
             Net: 130m, Vat: 26m, Gross: 156m);
         var basis = RepairSpecificationPolicy.ValidateCalculationBasis(new(
-            100m, 20m, 10m, 0m, true, 26m, 156m, "repair-specification/v3",
+            100m, 20m, 10m, 0m, true, 26m, 156m, "repair-specification/v4",
             EstimateVatPolicy.For(RepairerVatStatus.Registered), printed));
         Assert.Equal(130m, basis.Printed!.Net);
 

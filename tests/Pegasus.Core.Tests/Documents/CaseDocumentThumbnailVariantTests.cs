@@ -6,15 +6,16 @@ namespace Pegasus.Core.Tests.Documents;
 /// <summary>
 /// v26 § Crop and tag: a thumbnail shows the occurrence's prepared region.
 /// The variant token names that region so a cached rendering is never served
-/// for a different crop, and the plain rendering keeps its pre-v26 name.
+/// for a different crop, and it carries the current renderer identity.
 /// </summary>
 public sealed class CaseDocumentThumbnailVariantTests
 {
     [Fact]
-    public void ThePlainRenderingKeepsItsName()
+    public void ThePlainRenderingNamesTheCurrentRenderer()
     {
-        Assert.Equal("thumb-480", CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, null));
-        Assert.Equal("thumb-480", CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, CaseAssetCrop.Full));
+        Assert.Equal("r2", CaseDocumentThumbnails.RendererIdentity);
+        Assert.Equal("thumb-480-r2", CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, null));
+        Assert.Equal("thumb-480-r2", CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, CaseAssetCrop.Full));
     }
 
     [Fact]
@@ -22,11 +23,23 @@ public sealed class CaseDocumentThumbnailVariantTests
     {
         var crop = new CaseAssetCrop(0.1m, 0.2m, 0.5m, 0.25m);
 
-        Assert.Equal("thumb-480-r90-c0-0-1-1", CaseDocumentThumbnails.VariantToken(CaseAssetRotation.Clockwise90, null));
-        Assert.Equal("thumb-480-r0-c0.1-0.2-0.5-0.25", CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, crop));
+        Assert.Equal("thumb-480-r2-r90-c0-0-1-1", CaseDocumentThumbnails.VariantToken(CaseAssetRotation.Clockwise90, null));
+        Assert.Equal("thumb-480-r2-r0-c0.1-0.2-0.5-0.25", CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, crop));
         Assert.NotEqual(
             CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, crop),
             CaseDocumentThumbnails.VariantToken(CaseAssetRotation.None, new CaseAssetCrop(0.1m, 0.2m, 0.5m, 0.3m)));
+    }
+
+    [Fact]
+    public void ASevenDecimalCropAtTheLongestRotationUsesTheFullVariantBudget()
+    {
+        var variant = CaseDocumentThumbnails.VariantToken(
+            CaseAssetRotation.Clockwise270,
+            new CaseAssetCrop(0.1234567m, 0.1234567m, 0.1234567m, 0.1234567m));
+
+        Assert.Equal("thumb-480-r2-r270-c0.1234567-0.1234567-0.1234567-0.1234567", variant);
+        Assert.Equal(58, variant.Length);
+        Assert.InRange(variant.Length, 36, 64);
     }
 
     [Fact]

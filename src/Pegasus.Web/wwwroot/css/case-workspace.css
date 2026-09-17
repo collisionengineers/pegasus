@@ -172,6 +172,11 @@
 #section-valuation .valuation-card .figs b{display:block;font-family:var(--mono);font-size:13.5px;color:var(--ink);font-weight:650}
 #section-valuation .valuation-card .figs b.derived{color:var(--quiet)}
 #section-valuation .valuation-card .meta{margin-top:6px;font-size:11px;color:var(--muted)}
+/* An entry card (v26, 15 September): the source's figures in boxes, typed or filled by Get valuation, saved by the card. */
+#section-valuation .valuation-card.entry .figs label,#section-valuation .valuation-card.entry .meta label{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);min-width:0}
+#section-valuation .valuation-card.entry .meta{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#section-valuation .valuation-card.entry input.fi{width:100%;min-height:28px;padding:3px 7px;font-size:12.5px;border-color:var(--line-strong)}
+#section-valuation .valuation-card.entry .entry-actions{display:flex;justify-content:flex-end;margin-top:8px}
 #section-valuation .valuation-card.is-pending .meta::before{content:"";display:inline-block;width:9px;height:9px;border:2px solid var(--navy);border-right-color:transparent;border-radius:50%;margin-right:6px;vertical-align:-1px;animation:valspin .8s linear infinite}
 @keyframes valspin{to{transform:rotate(360deg)}}
 #section-valuation .valuation-card .gated{margin-left:0}
@@ -381,7 +386,7 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .doc-row-actions{display:flex;align-items:center;gap:4px}
 .correspondence{display:grid;gap:8px}
 
-/* Image tiles, shared by Files, the Damage evidence strip and the Report strip. */
+/* Image tiles, shared by Files and the Report strip. */
 .thumbs{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px;list-style:none;margin:0;padding:0}
 .thumbs.evidence{grid-template-columns:repeat(6,minmax(0,1fr))}
 .thumbs.image-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));align-items:start}
@@ -437,9 +442,9 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 @media(max-width:760px){.thumbs,.thumbs.evidence{grid-template-columns:repeat(3,minmax(0,1fr))}.doc-row{grid-template-columns:28px minmax(0,1fr)}.doc-row-tags,.doc-row-actions{grid-column:2;justify-content:flex-start}.report-images{grid-template-columns:1fr}}
 
 /* ---- The Case viewer (v26 § Image viewer): full screen, crop on the stage ---- */
-.case-viewer{position:fixed;inset:0;z-index:1200;background:rgba(14,17,19,.96);display:grid;grid-template-rows:48px minmax(0,1fr) 88px;grid-template-columns:56px minmax(0,1fr) 56px;color:#fff;outline:0}
+.case-viewer{position:fixed;inset:0;z-index:1200;background:rgba(14,17,19,.96);display:grid;grid-template-rows:auto minmax(0,1fr) 88px;grid-template-columns:56px minmax(0,1fr) 56px;color:#fff;outline:0}
 .case-viewer[hidden]{display:none}
-.case-viewer-top{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:0 14px;border-bottom:1px solid rgba(255,255,255,.1);min-width:0}
+.case-viewer-top{grid-column:1/-1;display:flex;align-items:center;gap:12px;min-height:48px;padding:8px 14px;border-bottom:1px solid rgba(255,255,255,.1);min-width:0}
 .case-viewer-title{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
 .case-viewer-title b{font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .case-viewer-title .tag{font:600 10px var(--font);padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.14);color:#fff}
@@ -453,7 +458,7 @@ body.has-expanded .sticky-block,body.has-expanded .utility-bar,body.has-expanded
 .case-viewer .icon-button:hover{background:rgba(255,255,255,.12)}
 .case-viewer-inc{display:flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;padding:0 4px 0 8px;border-left:1px solid rgba(255,255,255,.14);margin-left:4px;cursor:pointer}
 .case-viewer-inc input{accent-color:var(--red)}
-.case-viewer-select{height:28px;font-size:12px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:3px;padding:0 6px}
+.case-viewer-select{flex:none;height:28px;font-size:12px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:3px;padding:0 6px}
 .case-viewer-select option{color:#000}
 .case-viewer-nav{background:none;border:0;color:#fff;opacity:.6;cursor:pointer;display:grid;place-items:center}
 .case-viewer-nav:hover{opacity:1}

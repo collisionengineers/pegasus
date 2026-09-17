@@ -1,0 +1,24 @@
+<!DOCTYPE html><html><body>
+<!-- Self-check skeleton. Copy to current/vNN-selfcheck.html, point src at the mockup,
+     and add one check(...) per state, section, dialog, flow and query preset. -->
+<iframe id="f" src="pegasus_case_workspace_vNN.html" style="width:1580px;height:1000px"></iframe>
+<pre id="out">PENDING</pre>
+<script>
+const log=[],ok=[];const f=document.getElementById('f');
+function check(name,cond){document.title=name;(cond?ok:log).push((cond?'OK ':'FAIL ')+name);}
+f.onload=()=>{
+  const w=f.contentWindow,d=f.contentDocument;
+  w.addEventListener('error',e=>log.push('ERR '+e.message+' @'+e.lineno));
+  const $=id=>d.getElementById(id);const g=x=>w.eval(x);
+  const vis=el=>!!el&&el.offsetParent!==null;
+  const fire=(el,t)=>el.dispatchEvent(new w.Event(t,{bubbles:true}));
+  try{
+    // 1. every state x layout x section
+    // for(const st of STATES){w.setState(st); for(const l of LAYOUTS){...; for(const k of SECTIONS){...}}}
+    // 2. edit session, dialogs by name, main flows, strip variables
+    // 3. query presets: w.replicaQuery(new w.URLSearchParams('state=review&section=estimate'))
+    check('mockup loaded',!!d.body);
+  }catch(e){log.push('EXC '+e.message+'\n'+e.stack);}
+  setTimeout(()=>{document.getElementById('out').textContent='RESULT '+JSON.stringify({fail:log,okCount:ok.length});},1200);
+};
+</script></body></html>

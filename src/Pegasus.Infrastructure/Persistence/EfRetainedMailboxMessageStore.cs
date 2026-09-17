@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -35,10 +36,11 @@ internal sealed class EfRetainedMailboxMessageStore(
             Id = Guid.NewGuid(),
             MailboxId = message.MailboxId,
             MailboxAddress = message.MailboxAddress,
-            // Inbound polling is the only writer, so every row it makes is an Inbox
-            // row. Sent and Deleted Items are declared scopes with no writer yet,
-            // and the workspace says so rather than hiding the tab.
-            FolderScope = ToCode(MailFolderScope.Inbox),
+            // Inbound polling writes Inbox rows and an uploaded email is retained
+            // under the Upload scope, which the mailbox workspace leaves out. Sent
+            // and Deleted Items are declared scopes with no writer yet, and the
+            // workspace says so rather than hiding the tab.
+            FolderScope = ToCode(message.Folder),
             FolderIdentity = message.Metadata.FolderIdentity,
             ImmutableMessageId = message.ImmutableMessageId,
             ConversationIdentity = message.Metadata.ConversationIdentity,
@@ -104,6 +106,34 @@ internal sealed class EfRetainedMailboxMessageStore(
         return await BuildMatches(context, scope).CountAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<int>> CountManyAsync(
+        IReadOnlyList<MailWorkspaceScope> scopes,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(scopes);
+        if (scopes.Count == 0)
+        {
+            return [];
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        IQueryable<int>? union = null;
+        for (var index = 0; index < scopes.Count; index++)
+        {
+            var scopeIndex = index;
+            var rows = BuildMatches(context, scopes[index]).Select(_ => scopeIndex);
+            union = union is null ? rows : union.Concat(rows);
+        }
+
+        var grouped = await union!
+            .GroupBy(index => index)
+            .Select(group => new { Index = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.Index, item => item.Count, cancellationToken);
+        return Enumerable.Range(0, scopes.Count)
+            .Select(index => grouped.GetValueOrDefault(index))
+            .ToArray();
+    }
+
     public async Task<RetainedMailPage> ListAsync(
         MailWorkspaceScope scope,
         int page,
@@ -127,7 +157,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             .Take(pageSize)
             .Select(item => new SummaryRow(
                 item.Id,
-                item.MailboxId,
+                item.MailboxId ?? UploadedCorrespondence.MailboxId,
                 item.MailboxAddress,
                 item.SenderAddress,
                 item.SenderDisplayName,
@@ -199,7 +229,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             .ThenByDescending(item => item.Id)
             .Take(limit + 1)
             .Select(item => new SummaryRow(
-                item.Id, item.MailboxId, item.MailboxAddress, item.SenderAddress,
+                item.Id, item.MailboxId ?? UploadedCorrespondence.MailboxId, item.MailboxAddress, item.SenderAddress,
                 item.SenderDisplayName, item.Subject, item.BodyExcerpt, item.ReceivedAtUtc,
                 item.IsRead, item.Attachments.Count, item.ExternalReceiptToken,
                 searchTerm != null && context.IntakeReceipts.Any(receipt =>
@@ -268,6 +298,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 && item.ExternalReceiptToken == entity.ExternalReceiptToken)
             .Select(item => new
             {
+                item.Id,
                 Classification = item.MailClassificationDecision!.Outcome,
                 Route = item.MailRouteDecision!.Disposition,
                 EffectiveSenderAddress = item.MailRouteDecision!.EffectiveSenderAddress,
@@ -288,7 +319,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         {
             new(
                 entity.Id,
-                entity.MailboxId,
+                entity.MailboxId ?? UploadedCorrespondence.MailboxId,
                 entity.MailboxAddress,
                 entity.SenderAddress,
                 entity.SenderDisplayName,
@@ -325,18 +356,39 @@ internal sealed class EfRetainedMailboxMessageStore(
         var body = receipt?.BodySearchText
             ?? StaffForwardBodyCleaner.Clean(entity.BodyPlainText ?? string.Empty, isStaffForward);
 
-        var searchableAttachments = await context.IntakeReceipts
-            .AsNoTracking()
-            .Where(item => item.SourceChannel == "mailbox"
-                && item.ExternalReceiptToken == entity.ExternalReceiptToken)
-            .SelectMany(item => item.SearchDocuments)
-            .Where(item => item.AttachmentFileName != null && item.Text != null)
-            .Select(item => item.AttachmentOrdinal)
-            .Distinct()
-            .ToListAsync(cancellationToken);
-        var searchableOrdinals = searchableAttachments.Where(item => item is not null)
-            .Select(item => item!.Value)
+        var attachmentDocuments = receipt is null
+            ? []
+            : await context.Set<IntakeSearchDocumentEntity>().AsNoTracking()
+                .Where(item => item.IntakeReceiptId == receipt.Id
+                    && item.AttachmentOrdinal != null)
+                .Select(item => new
+                {
+                    Ordinal = item.AttachmentOrdinal!.Value,
+                    item.SourceLabel,
+                    IsSearchable = item.AttachmentFileName != null && item.Text != null
+                })
+                .ToListAsync(cancellationToken);
+        var searchableOrdinals = attachmentDocuments.Where(item => item.IsSearchable)
+            .Select(item => item.Ordinal)
             .ToHashSet();
+        var attachmentAssets = receipt is null
+            ? []
+            : await context.Set<IntakeAssetEntity>().AsNoTracking()
+                .Where(item => item.IntakeReceiptId == receipt.Id
+                    && item.Kind == "attachment")
+                .Select(item => new { item.Id, item.SourceLabel })
+                .ToListAsync(cancellationToken);
+        var sourceLabelsByOrdinal = attachmentDocuments
+            .GroupBy(item => item.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(item => item.SourceLabel).Distinct(StringComparer.Ordinal).ToArray());
+        var assetIdsBySourceLabel = attachmentAssets
+            .GroupBy(item => item.SourceLabel, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(item => item.Id).Distinct().ToArray(),
+                StringComparer.Ordinal);
 
         return new(
             summary,
@@ -352,7 +404,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                     item.FileName,
                     item.MediaType,
                     item.ContentLength,
-                    searchableOrdinals.Contains(item.Ordinal)))
+                    searchableOrdinals.Contains(item.Ordinal),
+                    IntakeAssetId(item.Ordinal, sourceLabelsByOrdinal, assetIdsBySourceLabel)))
                 .ToArray(),
             thread,
             ParseFolderScope(entity.FolderScope),
@@ -398,10 +451,12 @@ internal sealed class EfRetainedMailboxMessageStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var mailboxes = await context.RetainedMailboxMessages
             .AsNoTracking()
+            // Uploaded emails have no mailbox; they are read from their Case.
+            .Where(item => item.FolderScope != ToCode(MailFolderScope.Upload))
             .GroupBy(item => new { item.MailboxId, item.MailboxAddress })
             .Select(group => new
             {
-                group.Key.MailboxId,
+                MailboxId = group.Key.MailboxId ?? UploadedCorrespondence.MailboxId,
                 group.Key.MailboxAddress
             })
             .ToListAsync(cancellationToken);
@@ -575,6 +630,22 @@ internal sealed class EfRetainedMailboxMessageStore(
         target.PolicyVersion = source.PolicyVersion;
     }
 
+    private static Guid? IntakeAssetId(
+        int attachmentOrdinal,
+        Dictionary<int, string[]> sourceLabelsByOrdinal,
+        Dictionary<string, Guid[]> assetIdsBySourceLabel)
+    {
+        if (!sourceLabelsByOrdinal.TryGetValue(attachmentOrdinal, out var sourceLabels)
+            || sourceLabels.Length != 1
+            || !assetIdsBySourceLabel.TryGetValue(sourceLabels[0], out var assetIds)
+            || assetIds.Length != 1)
+        {
+            return null;
+        }
+
+        return assetIds[0];
+    }
+
     private static string SerializeSnapshot(MailClassificationResult value) =>
         JsonSerializer.Serialize(ClassificationSnapshot.From(value), JsonOptions);
 
@@ -661,8 +732,9 @@ internal sealed class EfRetainedMailboxMessageStore(
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 item => item.MailboxId == message.MailboxId
-                    && (item.CanonicalInternetMessageIdentity == canonicalIdentity
-                        || item.ImmutableMessageId == message.ImmutableMessageId),
+                    && (item.ImmutableMessageId == message.ImmutableMessageId
+                        || (canonicalIdentity != null
+                            && item.CanonicalInternetMessageIdentity == canonicalIdentity)),
                 cancellationToken);
     }
 
@@ -681,9 +753,15 @@ internal sealed class EfRetainedMailboxMessageStore(
         }
     }
 
-    private static string CanonicalInternetMessageIdentity(RetainedMailboxMessage message) =>
-        MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(
-            message.Metadata.InternetMessageIdentity!);
+    /// <summary>
+    /// The canonical Message-ID, or null for a message retained without one: an
+    /// uploaded email is identified by its bytes alone, so a re-saved copy of the
+    /// same message is a second retained row rather than a contradiction.
+    /// </summary>
+    private static string? CanonicalInternetMessageIdentity(RetainedMailboxMessage message) =>
+        message.Metadata.InternetMessageIdentity is { } identity
+            ? MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(identity)
+            : null;
 
     /// <summary>
     /// True where a mailbox in scope has polled successfully but this scope holds no
@@ -724,7 +802,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             return [];
         }
 
-        // Three lookups for the whole page, never one per row.
+        // Five lookups for the whole page, never one per row.
         var tokens = rows.Select(item => item.ExternalReceiptToken).Distinct().ToArray();
         var receipts = await context.IntakeReceipts
             .AsNoTracking()
@@ -767,6 +845,18 @@ internal sealed class EfRetainedMailboxMessageStore(
                     group => group.Key,
                     group => IntakeAllocationState.FromAttempt(
                         EfIntakeAllocationStore.Map(group.First())));
+        var resolved = UnidentifiedState.Resolved.ToString();
+        var receiptOrigin = UnidentifiedOriginKind.Receipt.ToString();
+        var resolvedUnidentifiedReceiptIds = receiptIds.Length == 0
+            ? new HashSet<Guid>()
+            : (await context.Set<UnidentifiedItemEntity>()
+                .AsNoTracking()
+                .Where(item => item.OriginKind == receiptOrigin
+                    && receiptIds.Contains(item.OriginId)
+                    && item.State == resolved)
+                .Select(item => item.OriginId)
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
 
         var addresses = rows.Select(item => item.MailboxAddress).Distinct().ToArray();
         var approvedState = ApprovedMailboxState.Approved.ToString();
@@ -858,7 +948,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                         ? null
                         : MailOperationalDestinationPolicy.Map(classification))
                 {
-                    DismissedAtUtc = row.DismissedAtUtc
+                    DismissedAtUtc = row.DismissedAtUtc,
+                    UnidentifiedResolved = receipt is not null
+                        && resolvedUnidentifiedReceiptIds.Contains(receipt.Id)
                 };
             })
             .ToArray();
@@ -930,6 +1022,8 @@ internal sealed class EfRetainedMailboxMessageStore(
         var exactFamily = exact?.Name;
         var exactSubtype = exact?.Subtype;
         const string classified = "classified";
+        var resolved = UnidentifiedState.Resolved.ToString();
+        var receiptOrigin = UnidentifiedOriginKind.Receipt.ToString();
 
         return messages.Where(message => context.IntakeReceipts.Any(receipt =>
             receipt.SourceChannel == "mailbox"
@@ -937,6 +1031,10 @@ internal sealed class EfRetainedMailboxMessageStore(
             && receipt.MailClassificationDecision != null
             && (query.IncludesUnidentified
                 ? receipt.MailClassificationDecision.Outcome != classified
+                    && !context.Set<UnidentifiedItemEntity>().Any(item =>
+                        item.OriginKind == receiptOrigin
+                        && item.OriginId == receipt.Id
+                        && item.State == resolved)
                 : receipt.MailClassificationDecision.Outcome == classified
                     && ((query.IncludesOther
                             && receipt.MailClassificationDecision.OtherName != null)
@@ -1003,6 +1101,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         MailFolderScope.Inbox => "inbox",
         MailFolderScope.Sent => "sent",
         MailFolderScope.DeletedItems => "deleted_items",
+        MailFolderScope.Upload => "upload",
         _ => throw new InvalidOperationException($"Unknown mail folder scope '{(int)value}'.")
     };
 
@@ -1011,6 +1110,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         "inbox" => MailFolderScope.Inbox,
         "sent" => MailFolderScope.Sent,
         "deleted_items" => MailFolderScope.DeletedItems,
+        "upload" => MailFolderScope.Upload,
         _ => throw new InvalidDataException($"Unknown persisted mail folder scope '{value}'.")
     };
 

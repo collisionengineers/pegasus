@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Azure;
 using Azure.Storage.Blobs;
@@ -5,6 +6,7 @@ using Azure.Storage.Blobs.Models;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Persistence;
 using SkiaSharp;
@@ -88,7 +90,11 @@ internal sealed class CachedDocumentContentStore(
         }
         var now = timeProvider.GetUtcNow();
 
-        var cached = await TryOpenCachedAsync(source, now, cancellationToken);
+        Stream? cached;
+        using (DocumentReadTelemetry.Start("document.original.cache.read"))
+        {
+            cached = await TryOpenCachedAsync(source, now, cancellationToken);
+        }
         if (cached is not null)
         {
             metrics?.RecordHit();
@@ -114,7 +120,10 @@ internal sealed class CachedDocumentContentStore(
             cancellationToken);
         try
         {
-            await PublishAsync(source, downloaded, cancellationToken);
+            using (DocumentReadTelemetry.Start("document.original.cache.write"))
+            {
+                await PublishAsync(source, downloaded, cancellationToken);
+            }
             downloaded.Position = 0;
             return Result(request, source, downloaded);
         }
@@ -363,6 +372,14 @@ internal sealed class CachedDocumentContentStore(
                         .SingleAsync(cancellationToken)
                     ?? throw new FileNotFoundException("The authorized Case custody root is unavailable.");
             }
+            if (!string.Equals(asset.CustodyStatus, "confirmed", StringComparison.Ordinal)
+                || string.IsNullOrWhiteSpace(asset.BoxFileId)
+                || string.IsNullOrWhiteSpace(asset.BoxVersionId)
+                || string.IsNullOrWhiteSpace(expectedParentId))
+            {
+                throw new IntakeCustodyUnavailableException(
+                    "Durable custody has not confirmed the retained intake file.");
+            }
             return ResolvedSource.Create(
                 documentVersionId: null,
                 asset.Id,
@@ -546,9 +563,10 @@ internal sealed class CachedDocumentContentStore(
                 },
                 cancellationToken);
         }
-        catch (RequestFailedException exception) when (exception.Status == 412)
+        catch (RequestFailedException exception) when (exception.Status is 409 or 412)
         {
-            // A concurrent miss published the same logical identity. Verify it below.
+            // A concurrent miss published the same logical identity (Azure answers an
+            // If-None-Match: * loser with 409 BlobAlreadyExists, a fake with 412). Verify it below.
         }
         var properties = await blob.GetPropertiesAsync(cancellationToken: cancellationToken);
         if (properties.Value.ContentLength != source.Length
@@ -686,6 +704,7 @@ internal sealed class CachedDocumentContentStore(
         string expectedSha256,
         CancellationToken cancellationToken)
     {
+        using var verification = DocumentReadTelemetry.Start("document.content.verify");
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var path = Path.Combine(Path.GetTempPath(), $"pegasus-cache-{Guid.NewGuid():N}.tmp");
         var retained = new FileStream(
@@ -871,6 +890,7 @@ internal sealed class DocumentThumbnailCache(
         string variant,
         CancellationToken cancellationToken)
     {
+        using var cacheRead = DocumentReadTelemetry.Start("document.thumbnail.cache.read");
         StaffAuthorization.Require(
             actor,
             actor.Kind == ActorKind.SystemWorker
@@ -938,6 +958,7 @@ internal sealed class DocumentThumbnailCache(
         byte[] content,
         CancellationToken cancellationToken)
     {
+        using var cacheWrite = DocumentReadTelemetry.Start("document.thumbnail.cache.write");
         var now = timeProvider.GetUtcNow();
         var identity = $"{CachePrefix}document-versions/{versionId:D}/{variant}";
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -1027,6 +1048,8 @@ internal sealed class CaseDocumentThumbnailReader(
     IReadLogicalDocumentVersion source,
     DocumentThumbnailCache? cache = null) : IReadCaseDocumentThumbnail
 {
+    private static readonly ConcurrentDictionary<(Guid VersionId, string Variant), RenderGate> RenderGates = [];
+
     public async Task<CaseDocumentThumbnail?> OpenAsync(
         CaseDocumentThumbnailRequest request,
         CancellationToken cancellationToken)
@@ -1040,15 +1063,40 @@ internal sealed class CaseDocumentThumbnailReader(
         // shows the crop of the rotated source the operator saved, while
         // Download and the viewer keep the original bytes.
         var variant = CaseDocumentThumbnails.VariantToken(request.Rotation, request.Crop);
-        if (cache is not null)
+        if (cache is null)
         {
-            var cached = await cache.TryReadAsync(
-                request.Actor, request.VersionId, variant, cancellationToken);
-            if (cached is not null)
-            {
-                return Rendering(cached, request.Sha256);
-            }
+            return await RenderAndCacheAsync(request, variant, cancellationToken);
         }
+
+        var cached = await cache.TryReadAsync(
+            request.Actor, request.VersionId, variant, cancellationToken);
+        if (cached is not null)
+        {
+            return Rendering(cached, request.Sha256);
+        }
+
+        // Cache.WriteAsync resolves its database race only after every
+        // contender has fetched and rendered the source. Recheck under a
+        // bounded, process-local gate so a same-representation burst does
+        // that expensive work once while retaining cancellation for each
+        // waiter. Different versions and prepared regions remain parallel.
+        using var renderGate = await AcquireRenderGateAsync(
+            (request.VersionId, variant), cancellationToken);
+        cached = await cache.TryReadAsync(
+            request.Actor, request.VersionId, variant, cancellationToken);
+        if (cached is not null)
+        {
+            return Rendering(cached, request.Sha256);
+        }
+
+        return await RenderAndCacheAsync(request, variant, cancellationToken);
+    }
+
+    private async Task<CaseDocumentThumbnail?> RenderAndCacheAsync(
+        CaseDocumentThumbnailRequest request,
+        string variant,
+        CancellationToken cancellationToken)
+    {
         await using var full = await source.OpenAsync(
             new(
                 Actor: request.Actor,
@@ -1075,6 +1123,104 @@ internal sealed class CaseDocumentThumbnailReader(
             await cache.WriteAsync(request.VersionId, variant, rendered, cancellationToken);
         }
         return Rendering(rendered, request.Sha256);
+    }
+
+    private static async Task<RenderGateLease> AcquireRenderGateAsync(
+        (Guid VersionId, string Variant) key,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var gate = RenderGates.GetOrAdd(key, static _ => new RenderGate());
+            if (!gate.TryAddReference())
+            {
+                continue;
+            }
+
+            try
+            {
+                var wait = gate.Semaphore.WaitAsync(cancellationToken);
+                if (wait.IsCompleted)
+                {
+                    await wait;
+                }
+                else
+                {
+                    using (DocumentReadTelemetry.Start("document.thumbnail.render.gate"))
+                    {
+                        await wait;
+                    }
+                }
+                return new RenderGateLease(key, gate);
+            }
+            catch
+            {
+                ReleaseRenderGate(key, gate);
+                throw;
+            }
+        }
+    }
+
+    private static void ReleaseRenderGate(
+        (Guid VersionId, string Variant) key,
+        RenderGate gate)
+    {
+        if (gate.ReleaseReference())
+        {
+            RenderGates.TryRemove(key, out _);
+            gate.Dispose();
+        }
+    }
+
+    private sealed class RenderGate : IDisposable
+    {
+        private readonly object sync = new();
+        private int references;
+        private bool retired;
+
+        public SemaphoreSlim Semaphore { get; } = new(1, 1);
+
+        public bool TryAddReference()
+        {
+            lock (sync)
+            {
+                if (retired)
+                {
+                    return false;
+                }
+
+                references++;
+                return true;
+            }
+        }
+
+        public bool ReleaseReference()
+        {
+            lock (sync)
+            {
+                references--;
+                if (references != 0)
+                {
+                    return false;
+                }
+
+                retired = true;
+                return true;
+            }
+        }
+
+        public void Dispose() => Semaphore.Dispose();
+    }
+
+    private readonly struct RenderGateLease(
+        (Guid VersionId, string Variant) key,
+        RenderGate gate) : IDisposable
+    {
+        public void Dispose()
+        {
+            gate.Semaphore.Release();
+            ReleaseRenderGate(key, gate);
+        }
     }
 
     private static CaseDocumentThumbnail Rendering(byte[] content, string sourceSha256) =>
@@ -1151,24 +1297,37 @@ internal static class ImageThumbnailRendering
         CaseAssetCrop crop,
         CancellationToken cancellationToken)
     {
+        using var rendering = DocumentReadTelemetry.Start("document.thumbnail.render");
         ArgumentNullException.ThrowIfNull(crop);
         ArgumentNullException.ThrowIfNull(content);
         if (contentLength <= 0 || contentLength > MaximumSourceBytes)
         {
             return null;
         }
-        byte[] source;
-        using (var buffer = new MemoryStream(checked((int)contentLength)))
+        using (DocumentReadTelemetry.Start("document.thumbnail.decode.gate"))
         {
-            await content.CopyToAsync(buffer, cancellationToken);
-            source = buffer.ToArray();
+            await DecodeGate.WaitAsync(cancellationToken);
         }
-        await DecodeGate.WaitAsync(cancellationToken);
         try
         {
-            return rotation == CaseAssetRotation.None && crop.IsFull
+            // Keep the verified source stream while queued. Its copy begins
+            // only after a decode slot is available, preserving cancellation
+            // during an actual source read without retaining a second managed
+            // buffer for every queued thumbnail.
+            using var buffer = new MemoryStream(checked((int)contentLength));
+            await content.CopyToAsync(buffer, cancellationToken);
+            buffer.Position = 0;
+            using var source = SKData.Create(buffer, contentLength);
+            if (source is null)
+            {
+                return null;
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            var rendered = rotation == CaseAssetRotation.None && crop.IsFull
                 ? Render(source)
                 : RenderPrepared(source, rotation, crop);
+            cancellationToken.ThrowIfCancellationRequested();
+            return rendered;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -1180,30 +1339,36 @@ internal static class ImageThumbnailRendering
         }
     }
 
-    private static byte[]? Render(byte[] source)
+    private static byte[]? Render(SKData source)
     {
-        using var data = SKData.CreateCopy(source);
-        using var codec = SKCodec.Create(data);
+        using var codec = SKCodec.Create(source);
         if (codec is null
             || (long)codec.Info.Width * codec.Info.Height is <= 0 or > MaximumDecodedPixels)
-        {
-            return null;
-        }
-        using var decoded = SKBitmap.Decode(codec);
-        if (decoded is null)
         {
             return null;
         }
         var origin = codec.EncodedOrigin;
         var transposed = EncodedImageOrientation.IsTransposed(origin);
         // What the operator sees, which is what the longest edge bounds.
-        var displayedWidth = transposed ? decoded.Height : decoded.Width;
-        var displayedHeight = transposed ? decoded.Width : decoded.Height;
+        var displayedWidth = transposed ? codec.Info.Height : codec.Info.Width;
+        var displayedHeight = transposed ? codec.Info.Width : codec.Info.Height;
         var scale = Math.Min(
             1d,
             (double)CaseDocumentThumbnails.LongestEdge / Math.Max(displayedWidth, displayedHeight));
         var targetWidth = Math.Max(1, (int)Math.Round(displayedWidth * scale));
         var targetHeight = Math.Max(1, (int)Math.Round(displayedHeight * scale));
+        var decodedSize = codec.GetScaledDimensions((float)scale);
+        using var decoded = SKBitmap.Decode(
+            codec,
+            new SKImageInfo(
+                decodedSize.Width,
+                decodedSize.Height,
+                SKColorType.Rgba8888,
+                SKAlphaType.Premul));
+        if (decoded is null)
+        {
+            return null;
+        }
         using var scaled = decoded.Resize(
             new SKImageInfo(
                 transposed ? targetHeight : targetWidth,
@@ -1236,10 +1401,9 @@ internal static class ImageThumbnailRendering
     /// source - the same geometry the report renderer prints and the crop
     /// editor draws - scaled so the crop's longest edge is the thumbnail edge.
     /// </summary>
-    private static byte[]? RenderPrepared(byte[] source, CaseAssetRotation rotation, CaseAssetCrop crop)
+    private static byte[]? RenderPrepared(SKData source, CaseAssetRotation rotation, CaseAssetCrop crop)
     {
-        using var data = SKData.CreateCopy(source);
-        using var codec = SKCodec.Create(data);
+        using var codec = SKCodec.Create(source);
         if (codec is null
             || (long)codec.Info.Width * codec.Info.Height is <= 0 or > MaximumDecodedPixels)
         {

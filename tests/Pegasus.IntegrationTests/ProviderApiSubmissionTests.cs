@@ -477,9 +477,9 @@ public sealed class ProviderApiSubmissionTests
         using var complete = await SendAsync(client, HttpMethod.Get, $"{Submissions}/{submissionId:D}", secret);
         var result = await ReadJsonAsync(complete);
         var caseReference = result.GetProperty("caseReference").GetString();
-        // The operator ruled on 2026-08-28 that the declared verdict decides the
-        // reference; `total loss` derives the ap. prefix (FRD-01).
-        Assert.StartsWith("ap.", caseReference, StringComparison.Ordinal);
+        // The declared verdict records the total-loss assessment separately
+        // from the Audit identity (FRD-01).
+        Assert.StartsWith("a.", caseReference, StringComparison.Ordinal);
     }
 
     [Fact]

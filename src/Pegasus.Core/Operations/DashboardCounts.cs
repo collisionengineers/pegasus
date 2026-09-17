@@ -23,8 +23,11 @@ namespace Pegasus.Core.Operations;
 /// </param>
 /// <param name="Complete">
 /// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.PostReportComplete"/>,
-/// the one terminal outcome the Cases rail lists (EPIC-011 D3); the other
-/// terminals are excluded from the rail and never counted here.
+/// the completed workflow queue.
+/// </param>
+/// <param name="Query">
+/// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.Query"/>,
+/// a separate reversible workflow queue.
 /// </param>
 public sealed record CaseStageCounts(
     int NotReady,
@@ -32,7 +35,8 @@ public sealed record CaseStageCounts(
     int Held,
     int WithEngineer,
     int AwaitingInstruction = 0,
-    int Complete = 0);
+    int Complete = 0,
+    int Query = 0);
 
 /// <summary>
 /// The dashboard's counts. Every member returns a real number or the tile that

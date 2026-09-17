@@ -130,6 +130,9 @@ public sealed class EfImageIntakeStore(
         var receipt = await context.IntakeReceipts
             .Include(item => item.InstructionDraft)
             .Include(item => item.Assets)
+            .Include(item => item.MailRouteDecision)
+            .Include(item => item.MailClassificationDecision)
+            .Include(item => item.ManualAssociation)
             .SingleOrDefaultAsync(
                 item => item.Id == request.Origin.ReceiptId,
                 cancellationToken)
@@ -151,11 +154,12 @@ public sealed class EfImageIntakeStore(
                 "The registering intake evaluation revision does not exist for the receipt.");
         }
 
+        var acceptedCaseId = await context.CaseIntakeLinks.AsNoTracking()
+            .Where(link => link.IntakeReceiptId == receipt.Id)
+            .Select(link => (Guid?)link.CaseId)
+            .SingleOrDefaultAsync(cancellationToken);
         if (receipt.Decision != EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting)
-            || !ImageIntakeLifecycleRules.IsImageOnlyMaterial(
-                receipt.InstructionDraft is not null,
-                EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson).Length,
-                receipt.Assets.Select(asset => asset.MediaType)))
+            || !IsImageAutomationEligible(receipt, acceptedCaseId))
         {
             throw new InvalidOperationException(
                 "Only an image-only intake receipt awaiting sorting can register an Image intake.");
@@ -279,13 +283,14 @@ public sealed class EfImageIntakeStore(
     }
 
     /// <summary>
-    /// Moves every image-only member receipt of the registered submission
+    /// Moves every automation-eligible member receipt of the registered submission
     /// group that is still awaiting sorting to `ImageIntakeRegistered`
     /// against the group's one reference, each with its own mutation-history
     /// row. Members are resolved through the durable membership itself
     /// (group members → their staged receipts' latest evaluation → the
     /// processed receipt), never a caller-supplied list. A member that is
-    /// not image-only (a mixed batch's instruction document) or already
+    /// not automation-eligible (a mixed batch's instruction/report/Triage
+    /// document) or already
     /// carries another decision stands untouched.
     /// </summary>
     private static async Task RegisterGroupMemberReceiptsAsync(
@@ -313,15 +318,21 @@ public sealed class EfImageIntakeStore(
         var receipts = await context.IntakeReceipts
             .Include(item => item.InstructionDraft)
             .Include(item => item.Assets)
+            .Include(item => item.MailRouteDecision)
+            .Include(item => item.MailClassificationDecision)
+            .Include(item => item.ManualAssociation)
             .Where(item => memberReceiptIds.Contains(item.Id))
             .ToArrayAsync(cancellationToken);
+        var acceptedCaseIds = await context.CaseIntakeLinks.AsNoTracking()
+            .Where(link => memberReceiptIds.Contains(link.IntakeReceiptId))
+            .Select(link => new { link.IntakeReceiptId, link.CaseId })
+            .ToDictionaryAsync(link => link.IntakeReceiptId, link => (Guid?)link.CaseId, cancellationToken);
         foreach (var receipt in receipts)
         {
             if (receipt.Decision != EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting)
-                || !ImageIntakeLifecycleRules.IsImageOnlyMaterial(
-                    receipt.InstructionDraft is not null,
-                    EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson).Length,
-                    receipt.Assets.Select(asset => asset.MediaType)))
+                || !IsImageAutomationEligible(
+                    receipt,
+                    acceptedCaseIds.GetValueOrDefault(receipt.Id)))
             {
                 continue;
             }
@@ -369,40 +380,37 @@ public sealed class EfImageIntakeStore(
             Guid submissionGroupId,
             CancellationToken cancellationToken)
     {
-        var members = await context.IntakeSubmissionGroupMembers
-            .AsNoTracking()
-            .Where(member => member.GroupId == submissionGroupId)
-            .Select(member => new { member.Ordinal, member.StagedReceiptId })
-            .ToArrayAsync(cancellationToken);
-        if (members.Length == 0)
+        var groups = await ResolveGroupMemberReceiptsAsync(context, [submissionGroupId], false, cancellationToken);
+        return groups.TryGetValue(submissionGroupId, out var members) ? members : [];
+    }
+
+    private static async Task<IReadOnlyDictionary<Guid, IReadOnlyList<(int Ordinal, Guid ProcessedReceiptId)>>>
+        ResolveGroupMemberReceiptsAsync(
+            PegasusDbContext context,
+            Guid[] submissionGroupIds,
+            bool registeredOnly,
+            CancellationToken cancellationToken)
+    {
+        if (submissionGroupIds.Length == 0)
         {
-            return [];
+            return new Dictionary<Guid, IReadOnlyList<(int Ordinal, Guid ProcessedReceiptId)>>();
         }
 
-        var stagedIds = members.Select(member => member.StagedReceiptId).ToArray();
-        var evaluations = await context.IntakeEvaluations
-            .AsNoTracking()
-            .Where(evaluation => stagedIds.Contains(evaluation.StagedReceiptId))
-            .Select(evaluation => new
-            {
-                evaluation.StagedReceiptId,
-                evaluation.ProcessedReceiptId,
-                evaluation.Revision
-            })
+        var rows = await (
+            from member in context.IntakeSubmissionGroupMembers.AsNoTracking()
+            where submissionGroupIds.Contains(member.GroupId)
+            from evaluation in context.IntakeEvaluations.AsNoTracking()
+                .Where(evaluation => evaluation.StagedReceiptId == member.StagedReceiptId)
+                .OrderByDescending(evaluation => evaluation.Revision).Take(1)
+            where !registeredOnly || context.IntakeMutationHistory.Any(history =>
+                history.IntakeReceiptId == evaluation.ProcessedReceiptId
+                && history.EventType == "image_intake_registered")
+            select new { member.GroupId, member.Ordinal, evaluation.ProcessedReceiptId })
             .ToArrayAsync(cancellationToken);
-        var latestByStaged = evaluations
-            .GroupBy(evaluation => evaluation.StagedReceiptId)
-            .ToDictionary(
-                grouping => grouping.Key,
-                grouping => grouping
-                    .OrderByDescending(evaluation => evaluation.Revision)
-                    .First()
-                    .ProcessedReceiptId);
-        return members
-            .Where(member => latestByStaged.ContainsKey(member.StagedReceiptId))
-            .Select(member => (member.Ordinal, latestByStaged[member.StagedReceiptId]))
-            .OrderBy(pair => pair.Ordinal)
-            .ToArray();
+        return rows.GroupBy(row => row.GroupId).ToDictionary(
+            group => group.Key,
+            group => (IReadOnlyList<(int Ordinal, Guid ProcessedReceiptId)>)group.OrderBy(row => row.Ordinal)
+                .Select(row => (row.Ordinal, row.ProcessedReceiptId)).ToArray());
     }
 
     /// <summary>
@@ -418,13 +426,18 @@ public sealed class EfImageIntakeStore(
         Guid? submissionGroupId,
         CancellationToken cancellationToken)
     {
-        var ordered = new List<Guid>();
+        IReadOnlyList<(int Ordinal, Guid ProcessedReceiptId)> members = [];
         if (submissionGroupId is { } groupId)
         {
-            ordered.AddRange(
-                (await ResolveGroupMemberReceiptsAsync(context, groupId, cancellationToken))
-                .Select(pair => pair.ProcessedReceiptId));
+            var groups = await ResolveGroupMemberReceiptsAsync(context, [groupId], true, cancellationToken);
+            members = groups.TryGetValue(groupId, out var registered) ? registered : [];
         }
+        return OrderedImageReceiptIds(originReceiptId, members.Select(pair => pair.ProcessedReceiptId));
+    }
+
+    private static Guid[] OrderedImageReceiptIds(Guid originReceiptId, IEnumerable<Guid> members)
+    {
+        var ordered = members.ToList();
         if (!ordered.Contains(originReceiptId))
         {
             ordered.Insert(0, originReceiptId);
@@ -960,6 +973,9 @@ public sealed class EfImageIntakeStore(
         return await (
             from evaluation in context.IntakeEvaluations.AsNoTracking()
             where evaluation.ProcessedReceiptId == intakeReceiptId
+                && context.IntakeMutationHistory.Any(history =>
+                    history.IntakeReceiptId == intakeReceiptId
+                    && history.EventType == "image_intake_registered")
             join member in context.IntakeSubmissionGroupMembers.AsNoTracking()
                 on evaluation.StagedReceiptId equals member.StagedReceiptId
             join intake in context.ImageIntakes.AsNoTracking().Include(item => item.Principal)
@@ -992,28 +1008,78 @@ public sealed class EfImageIntakeStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var rows = await ProjectAsync(
-            context.ImageIntakes.AsNoTracking(),
+            context.ImageIntakes.AsNoTracking().Where(intake =>
+                context.IntakeManualAssociations.Any(association =>
+                    association.IntakeReceiptId == intake.OriginReceiptId
+                    && association.IsActive && association.CaseId == caseId)
+                || (!context.IntakeManualAssociations.Any(association =>
+                        association.IntakeReceiptId == intake.OriginReceiptId)
+                    && context.CaseIntakeLinks.Any(link =>
+                        link.IntakeReceiptId == intake.OriginReceiptId && link.CaseId == caseId))),
             context,
             cancellationToken);
-        return rows.Where(row => row.AssociatedCaseId == caseId).ToArray();
+        return rows;
     }
 
     public async Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(
         Guid imageIntakeId,
         CancellationToken cancellationToken)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var intake = await context.ImageIntakes
-            .AsNoTracking()
-            .Where(item => item.Id == imageIntakeId)
-            .Select(item => new { item.OriginReceiptId, item.SubmissionGroupId })
-            .SingleOrDefaultAsync(cancellationToken);
-        if (intake is null)
+        var images = await ListImagesAsync([imageIntakeId], cancellationToken);
+        return images.TryGetValue(imageIntakeId, out var found) ? found : [];
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>> ListImagesAsync(
+        IReadOnlyCollection<Guid> imageIntakeIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(imageIntakeIds);
+        var result = new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
+        if (imageIntakeIds.Count == 0)
         {
-            return [];
+            return result;
         }
 
-        return await ListImagesAsync(context, intake.OriginReceiptId, intake.SubmissionGroupId, cancellationToken);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        foreach (var ids in imageIntakeIds.Distinct().Chunk(200))
+        {
+            var intakes = await context.ImageIntakes.AsNoTracking()
+                .Where(item => ids.Contains(item.Id))
+                .Select(item => new { item.Id, item.OriginReceiptId, item.SubmissionGroupId })
+                .ToArrayAsync(cancellationToken);
+            var groupIds = intakes.Where(item => item.SubmissionGroupId.HasValue)
+                .Select(item => item.SubmissionGroupId!.Value).Distinct().ToArray();
+            var groups = await ResolveGroupMemberReceiptsAsync(context, groupIds, true, cancellationToken);
+            var receipts = intakes.ToDictionary(item => item.Id, item => OrderedImageReceiptIds(
+                item.OriginReceiptId,
+                item.SubmissionGroupId is { } groupId && groups.TryGetValue(groupId, out var members)
+                    ? members.Select(member => member.ProcessedReceiptId) : []));
+            var assetsByReceipt = new Dictionary<Guid, IReadOnlyList<IntakeAssetRecord>>();
+            foreach (var receiptIds in receipts.Values.SelectMany(value => value).Distinct().Chunk(200))
+            {
+                var rows = await context.IntakeAssets.AsNoTracking()
+                    .Where(asset => receiptIds.Contains(asset.IntakeReceiptId))
+                    .ToArrayAsync(cancellationToken);
+                foreach (var receiptAssets in rows.GroupBy(asset => asset.IntakeReceiptId))
+                {
+                    assetsByReceipt.Add(
+                        receiptAssets.Key,
+                        receiptAssets.Select(EfIntakeReceiptStore.MapAsset).ToArray());
+                }
+            }
+            foreach (var intake in intakes)
+            {
+                result.Add(
+                    intake.Id,
+                    receipts[intake.Id]
+                        .Where(assetsByReceipt.ContainsKey)
+                        .SelectMany(receiptId => InstructionEvidenceImages
+                            .Select(assetsByReceipt[receiptId])
+                            .Select(asset => ToImage(receiptId, asset)))
+                        .ToArray());
+            }
+        }
+        return result;
     }
 
     private static async Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(
@@ -1027,29 +1093,41 @@ public sealed class EfImageIntakeStore(
             originReceiptId,
             submissionGroupId,
             cancellationToken);
-        // The image rule's owner is ImageIntakeLifecycle.IsImageOnlyMaterial;
-        // this projection cites its prefix because SQL cannot run it. Durable
-        // group membership, not a mutable queue decision, defines the images:
-        // a reversed/reassigned sibling must not disappear from merge guards.
+        // Durable membership and recorded registration, not a mutable queue
+        // decision, define the images: never-registered mixed-batch siblings
+        // are excluded, but reversal cannot hide a member from merge guards.
+        // The Core selection applies after this bounded receipt query
+        // because it owns source/attachment/embedded-image eligibility.
         var rows = await context.IntakeAssets
             .AsNoTracking()
-            .Where(asset => receiptIds.Contains(asset.IntakeReceiptId)
-                && asset.Kind == "source"
-                && asset.Disposition == "source"
-                && asset.MediaType.StartsWith(ImageIntakeLifecycleRules.ImageMediaTypePrefix))
-            .Select(asset => new { asset.Id, asset.IntakeReceiptId, asset.FileName, asset.MediaType })
+            .Where(asset => receiptIds.Contains(asset.IntakeReceiptId))
             .ToArrayAsync(cancellationToken);
-        var byReceipt = rows.ToDictionary(row => row.IntakeReceiptId);
+        var byReceipt = rows.GroupBy(row => row.IntakeReceiptId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<IntakeAssetRecord>)group
+                    .Select(EfIntakeReceiptStore.MapAsset).ToArray());
         var images = new List<ImageIntakeImage>(rows.Length);
         foreach (var receiptId in receiptIds)
         {
-            if (byReceipt.TryGetValue(receiptId, out var row))
+            if (byReceipt.TryGetValue(receiptId, out var assets))
             {
-                images.Add(new(receiptId, row.FileName, row.MediaType) { AssetId = row.Id });
+                images.AddRange(InstructionEvidenceImages
+                    .Select(assets)
+                    .Select(asset => ToImage(receiptId, asset)));
             }
         }
         return images;
     }
+
+    private static bool IsImageAutomationEligible(
+        IntakeReceiptEntity receipt,
+        Guid? acceptedCaseId) =>
+        ImageIntakeLifecycleRules.IsImageAutomationEligible(
+            EfIntakeReceiptStore.Map(receipt, isDuplicate: false, acceptedCaseId: acceptedCaseId));
+
+    private static ImageIntakeImage ToImage(Guid receiptId, IntakeAssetRecord asset) =>
+        new(receiptId, asset.FileName, asset.MediaType, asset.CustodyState) { AssetId = asset.Id };
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> SearchByRegistrationAsync(
         string normalizedVehicleRegistration,
@@ -1137,6 +1215,7 @@ public sealed class EfImageIntakeStore(
                 intake.LifecycleState,
                 intake.ClosureReason,
                 intake.PrincipalId,
+                intake.SubmissionGroupId,
                 GroupExpectedMemberCount = context.IntakeSubmissionGroups
                     .Where(group => group.Id == intake.SubmissionGroupId)
                     .Select(group => (int?)group.ExpectedMemberCount).FirstOrDefault() ?? 1,
@@ -1151,20 +1230,33 @@ public sealed class EfImageIntakeStore(
                 AcceptedCaseId = context.CaseIntakeLinks
                     .Where(link => link.IntakeReceiptId == intake.OriginReceiptId)
                     .Select(link => (Guid?)link.CaseId)
-                    .FirstOrDefault(),
-                ImageCount = context.IntakeAssets.Count(asset =>
-                    asset.Kind == "source"
-                    && asset.Disposition == "source"
-                    && asset.MediaType.StartsWith(ImageIntakeLifecycleRules.ImageMediaTypePrefix)
-                    && (asset.IntakeReceiptId == intake.OriginReceiptId
-                        || (intake.SubmissionGroupId != null
-                            && context.IntakeEvaluations.Any(evaluation =>
-                                evaluation.ProcessedReceiptId == asset.IntakeReceiptId
-                                && context.IntakeSubmissionGroupMembers.Any(member =>
-                                    member.GroupId == intake.SubmissionGroupId
-                                    && member.StagedReceiptId == evaluation.StagedReceiptId)))))
+                    .FirstOrDefault()
             })
             .ToArrayAsync(cancellationToken);
+        var groupIds = rows.Where(row => row.SubmissionGroupId.HasValue)
+            .Select(row => row.SubmissionGroupId!.Value).Distinct().ToArray();
+        var groupMembers = await ResolveGroupMemberReceiptsAsync(context, groupIds, true, cancellationToken);
+        var receiptIdsByIntake = rows.ToDictionary(
+            row => row.Id,
+            row => OrderedImageReceiptIds(
+                row.OriginReceiptId,
+                row.SubmissionGroupId is { } groupId && groupMembers.TryGetValue(groupId, out var members)
+                    ? members.Select(member => member.ProcessedReceiptId)
+                    : []));
+        var allReceiptIds = receiptIdsByIntake.Values.SelectMany(value => value).Distinct().ToArray();
+        var selectedByReceipt = allReceiptIds.Length == 0
+            ? new Dictionary<Guid, int>()
+            : (await context.IntakeAssets.AsNoTracking()
+                    .Where(asset => allReceiptIds.Contains(asset.IntakeReceiptId))
+                    .ToArrayAsync(cancellationToken))
+                .GroupBy(asset => asset.IntakeReceiptId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => InstructionEvidenceImages.Select(
+                        group.Select(EfIntakeReceiptStore.MapAsset)).Count);
+        var imageCounts = receiptIdsByIntake.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value.Sum(receiptId => selectedByReceipt.GetValueOrDefault(receiptId)));
         var associatedCaseIds = rows
             .Select(row => CurrentCaseId(
                 row.Association?.IsActive,
@@ -1203,7 +1295,7 @@ public sealed class EfImageIntakeStore(
                     ParseCustodyState(row.CustodyState),
                     ParseState(row.LifecycleState),
                     row.ClosureReason,
-                    row.ImageCount,
+                    imageCounts[row.Id],
                     ParseChannel(row.SourceChannel),
                     row.PrincipalCode,
                     row.PrincipalId,

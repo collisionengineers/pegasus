@@ -10,6 +10,7 @@ public static class AssessmentReportContract
 {
     public const string TemplateVersion = "rendererref1-v4";
     public const string VatNumber = "262 0937 10";
+    public const decimal FeeVatRate = 0.20m;
     public const string AccountName = "Collision Engineers Ltd";
     public const string BankName = "Lloyds Bank";
     public const string SortCode = "30-12-80";
@@ -238,9 +239,10 @@ public sealed record ReportRepairCosts(
     public static ReportRepairCosts For(RepairSpecificationVersion estimate)
     {
         ArgumentNullException.ThrowIfNull(estimate);
+        var hours = EstimateHours.Of(estimate);
         return new(
-            estimate.Lines.Sum(line => line.WorkUnits ?? 0m),
-            estimate.Lines.Sum(line => line.PaintWorkUnits ?? 0m),
+            hours.PricedPanel,
+            hours.PricedPaint,
             estimate.Details.HourlyRate,
             EstimateTotals.ForProjection(estimate));
     }
@@ -503,7 +505,8 @@ public sealed record AssessmentReportSnapshot(
     public decimal FeeNet => AgreedFee;
 
     [JsonIgnore]
-    public decimal FeeVat => decimal.Round(FeeNet * 0.20m, 2, MidpointRounding.AwayFromZero);
+    public decimal FeeVat => decimal.Round(
+        FeeNet * AssessmentReportContract.FeeVatRate, 2, MidpointRounding.AwayFromZero);
     [JsonIgnore]
     public decimal FeeTotal => FeeNet + FeeVat;
 

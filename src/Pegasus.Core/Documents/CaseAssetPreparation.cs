@@ -178,6 +178,16 @@ public sealed record PreparedReportImage(
 
 public interface ICaseAssetPreparationQueries
 {
+    /// <summary>
+    /// Reads one image occurrence's current preparation snapshot. The Case and
+    /// occurrence identities are both required so callers which already
+    /// authorized a Case do not load every preparation just to render a tile.
+    /// </summary>
+    Task<CaseAssetPreparation?> GetForOccurrenceAsync(
+        Guid caseId,
+        Guid occurrenceId,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<CaseAssetPreparation>> ListForCaseAsync(
         Guid caseId,
         CancellationToken cancellationToken);

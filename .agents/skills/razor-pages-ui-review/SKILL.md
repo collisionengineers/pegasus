@@ -21,6 +21,9 @@ Read the governing product and design material, then inspect the affected page, 
 - **Components and libraries:** consistent use, appropriate variants, real contextual accessibility, styling conflicts, duplicated capabilities, JavaScript requirements, payload, maintenance, licensing, and upgrade cost.
 - **Evidence:** tests and runtime checks that prove behavior rather than merely matching markup text.
 
+- **Mockup round (Stage 1):** walk the mockup as a person doing the job: what is good, what is bad, is it easy, what is awkward. Look for the defects the v25 and v26 rounds kept finding: a jumble of buttons in a panel head, edit furniture rendered in read mode, explanatory copy creeping in, controls silently disabled, the same fact in ribbon, aside and body, and actions that move the page. Audit coverage against every live control and fact, check labels against CONTEXT.md and `OperatorLabels`, check decisions against the design authority, and confirm the evidence: a self-check `RESULT` with zero fails, screenshots at the three widths, and a sign-off list where every item is open or dated.
+- **Conformance (Stage 2):** compare the routed page with the approved mockup shot of the same state and width, and the behaviour with each `how-it-should-work.md` rule. Demo controls, presets and deliberate departures listed in the notes are not defects.
+
 Read [references/review-guide.md](references/review-guide.md) for concrete checks when the surface is substantial.
 
 ## Report findings

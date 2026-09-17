@@ -18,7 +18,8 @@ public sealed record CaseReportGeneration(
 public sealed record GenerateCaseReportRequest(
     ActionActor Actor, Guid CaseId, long ExpectedCaseVersion, string LeaseToken,
     string OperationKey, CaseReportArtifactKind Kind, string Reason,
-    bool IncludeFeeNote = false);
+    bool IncludeFeeNote = false,
+    Guid? TargetGenerationId = null);
 public interface IGenerateCaseReport
 {
     Task<CaseReportGenerationResult> ExecuteAsync(
@@ -298,7 +299,8 @@ public sealed record FreezeCaseReportGenerationRequest(
     string Reason,
     string TemplateVersion,
     string RendererVersion,
-    bool IncludeFeeNote = false);
+    bool IncludeFeeNote = false,
+    Guid? TargetGenerationId = null);
 
 public sealed record ConfirmCaseReportArtifactRequest(
     ActionActor Actor,
@@ -340,9 +342,10 @@ public interface ICaseReportGenerationStore
     /// <summary>
     /// Reloads permission, lease, expected Case version and persisted
     /// readiness, freezes the immutable snapshot, and writes the generation
-    /// plus one Pending artifact row for the requested kind. Replays by
-    /// operation key. Requesting the second kind of an existing snapshot
-    /// reuses that generation and adds its artifact row.
+    /// plus one Pending artifact row for the requested kind. An operation-key
+    /// replay is accepted only for the same command identity. A separate fee
+    /// note names and extends the current confirmed generation from its frozen
+    /// snapshot; it never freezes or supersedes a report generation.
     /// </summary>
     Task<CaseReportFreezeResult> FreezeAsync(
         FreezeCaseReportGenerationRequest request, CancellationToken cancellationToken);
@@ -452,6 +455,7 @@ public static class CaseReportStaleReasons
 public static class CaseReportPresentationEvents
 {
     public const string DraftPreviewed = "case_report_draft_previewed";
+    public const string EstimateDocumentPreviewed = "case_estimate_document_previewed";
     public const string ArtifactDownloaded = "case_report_artifact_downloaded";
 }
 
@@ -674,7 +678,8 @@ public sealed class GenerateCaseReport(
                 request.Reason,
                 AssessmentReportContract.TemplateVersion,
                 renderer.EngineVersion,
-                request.IncludeFeeNote),
+                request.IncludeFeeNote,
+                request.TargetGenerationId),
             cancellationToken).ConfigureAwait(false);
 
         switch (frozen.Outcome)
@@ -690,6 +695,7 @@ public sealed class GenerateCaseReport(
         var generation = frozen.Generation
             ?? throw new InvalidOperationException("A frozen generation is required.");
         var artifact = generation.Artifacts.Single(item => item.Id == frozen.ArtifactId);
+        var artifactKind = artifact.Kind;
 
         // Restart-safe retry: a retained Pending or Unknown artifact already
         // has a logical version, so ask custody what actually happened before
@@ -720,7 +726,7 @@ public sealed class GenerateCaseReport(
         {
             render.CancelAfter(AssessmentReportRenderPolicy.RenderTimeout);
             rendered = await new GenerateAssessmentReportDraft(renderer)
-                .ExecuteAsync(report, request.Kind, render.Token)
+                .ExecuteAsync(report, artifactKind, render.Token)
                 .ConfigureAwait(false);
         }
 
@@ -730,7 +736,7 @@ public sealed class GenerateCaseReport(
                 request.Actor,
                 request.CaseId,
                 IntakeReceiptId: null,
-                OccurrenceIdentity: OccurrenceIdentityOf(generation.Id, request.Kind),
+                OccurrenceIdentity: OccurrenceIdentityOf(generation.Id, artifactKind),
                 OperationKey: artifact.OperationKey,
                 FileName: rendered.SuggestedFileName,
                 MediaType: "application/pdf",

@@ -5,15 +5,18 @@
 @using TagLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ImageTags
 @using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
 @{
-    var details = Model.Case!;
-    var workflow = details.Workflow;
+    var workflow = Model.CurrentWorkflow!;
     var leaseToken = Model.RenderLeaseToken;
     var mayEdit = Model.CanEditCaseData;
-    var custodyConfirmed = details.CustodyState == CaseCustodyState.Confirmed
-        && !string.IsNullOrWhiteSpace(details.CustodyFolderRemoteId);
+    var custodyState = Model.FilesSection?.CustodyState ?? CaseCustodyState.Pending;
+    var custodyFolderRemoteId = Model.FilesSection?.CustodyFolderRemoteId;
+    var requestUploadLinks = Model.FilesSection?.RequestUploadLinks ?? [];
+    var queryEmails = Model.FilesSection?.QueryEmails ?? [];
+    var custodyConfirmed = custodyState == CaseCustodyState.Confirmed
+        && !string.IsNullOrWhiteSpace(custodyFolderRemoteId);
     var documentCount = Model.CaseDocumentFiles.Count;
     var imageCount = Model.CaseImageFiles.Count + Model.ImageIntakes.Sum(intake => Model.ImagesByIntake.GetValueOrDefault(intake.Id, []).Count);
-    var correspondenceCount = details.QueryEmails.Count;
+    var correspondenceCount = queryEmails.Count;
     var offersUploadRequest = mayEdit && Model.RequestUploadLimits is not null;
     var headTools = new CaseSectionHeadView(Model, "files");
 }
@@ -33,7 +36,7 @@
         }
         else
         {
-            <span class="status @(details.CustodyState == CaseCustodyState.Failed ? "status--red" : "status--amber") status--plain" data-custody-chip>@OperatorLabels.CustodyFolderState(details.CustodyState)</span>
+            <span class="status @(custodyState == CaseCustodyState.Failed ? "status--red" : "status--amber") status--plain" data-custody-chip>@OperatorLabels.CustodyFolderState(custodyState)</span>
         }
         <div class="panel-actions">
             <a class="btn btn--small btn--primary" asp-page="/Upload" data-add-evidence>
@@ -45,7 +48,7 @@
                 <div class="menu-body">
                     @if (custodyConfirmed)
                     {
-                        <a class="btn" href="https://app.box.com/folder/@(details.CustodyFolderRemoteId)" target="_blank" rel="noopener" data-open-in-box>
+                        <a class="btn" href="https://app.box.com/folder/@custodyFolderRemoteId" target="_blank" rel="noopener" data-open-in-box>
                             <svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg>
                             <span>@FilesLabels.OpenInBox</span>
                         </a>
@@ -85,7 +88,7 @@
             <partial name="Cases/Shared/_CaseCorrespondence" model="Model" />
         </div>
 
-        @if (details.RequestUploadLinks.Count > 0)
+        @if (requestUploadLinks.Count > 0)
         {
             <div class="sub-panel" data-upload-requests>
                 <h3>@OperatorLabels.CaseWorkspace.UploadRequestsPanel</h3>
@@ -93,7 +96,7 @@
                     <table class="table table--compact">
                         <thead><tr><th>@CaseWorkspaceLabels.UploadRequest.Recipient</th><th>@CaseWorkspaceLabels.UploadRequest.Reason</th><th>State</th><th>Created</th><th>Expires</th><th>Accepted</th>@if (mayEdit){<th><span class="sr-only">Action</span></th>}</tr></thead>
                         <tbody>
-                            @foreach (var request in details.RequestUploadLinks)
+                            @foreach (var request in requestUploadLinks)
                             {
                                 <tr data-upload-request="@request.Id">
                                     <td>@(request.Recipient ?? OperatorLabels.CaseWorkspace.AbsentValue)</td>
@@ -156,7 +159,7 @@
 
 @if (mayEdit)
 {
-    @foreach (var request in details.RequestUploadLinks.Where(link => link.RevokedAtUtc is null))
+    @foreach (var request in requestUploadLinks.Where(link => link.RevokedAtUtc is null))
     {
         <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
         {

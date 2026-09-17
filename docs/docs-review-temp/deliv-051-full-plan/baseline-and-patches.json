@@ -1,4 +1,5 @@
 {
+  "workflow_notice": "Historical evidence only. Kanmer recommendations are superseded on 2026-09-15. Use the current operator task and PR/CI records; do not reapply this plan.",
   "base": "af1625fae8ac8018054c95e988907f6c44fa4639",
   "state": "implemented",
   "files": [
@@ -282,7 +283,9 @@
       "action": "modify",
       "before_sha256": "b80a9a197f12d8bc1d5bc175da4bfddc15e00b1b2cfa3f98943e8ebede3975bb",
       "after_sha256": "e26e2af92f34defce73441aeefc044a009f4b412bfff4c0ffe88681ba8e1e439",
-      "patch": "patches/046-AGENTS.md.patch"
+      "patch": null,
+      "retired_patch": "patches/046-AGENTS.md.patch",
+      "retirement_reason": "Obsolete workflow patch removed on 2026-09-15; original bytes remain in Git history. Do not reapply."
     },
     {
       "path": "CONTEXT.md",
@@ -296,7 +299,9 @@
       "action": "modify",
       "before_sha256": "5fc2b2eaa4e4763613bdabd9e6a561c0c670d7dd63c4ab21134a030b88755246",
       "after_sha256": "35c066593abcf7f2bc1cf5c9c9c066177fabbfc18a0da007ce346cbfbc28c158",
-      "patch": "patches/048-README.md.patch"
+      "patch": null,
+      "retired_patch": "patches/048-README.md.patch",
+      "retirement_reason": "Obsolete workflow patch removed on 2026-09-15; original bytes remain in Git history. Do not reapply."
     },
     {
       "path": "docs/adr/0002-dotnet-modular-monolith-on-azure.md",
@@ -513,7 +518,9 @@
       "action": "modify",
       "before_sha256": "00cf50ad4e90940ea46d1a1ccd6422861fe682b86f13b20ecb4db9972605c2c0",
       "after_sha256": "4d7b031b89c1ba052e2a07044c27b44f5a2836ddac6683ca28a4a5b3dd5e8159",
-      "patch": "patches/079-capabilities.md.patch"
+      "patch": null,
+      "retired_patch": "patches/079-capabilities.md.patch",
+      "retirement_reason": "Obsolete workflow patch removed on 2026-09-15; original bytes remain in Git history. Do not reapply."
     },
     {
       "path": "docs/current-architecture.md",
@@ -534,7 +541,9 @@
       "action": "modify",
       "before_sha256": "0c05a7d938ea7471610ce010e5a3340b76cd076559205768b14d4572c7a4c0d1",
       "after_sha256": "3a854460d3cc7cc77c1a8ed6919026ae4476e2ac22fbf17238a9c5b3c7e29657",
-      "patch": "patches/082-engineering.md.patch"
+      "patch": null,
+      "retired_patch": "patches/082-engineering.md.patch",
+      "retirement_reason": "Obsolete workflow patch removed on 2026-09-15; original bytes remain in Git history. Do not reapply."
     },
     {
       "path": "docs/engineering/configuration.md",
@@ -765,7 +774,9 @@
       "action": "modify",
       "before_sha256": "3d15d1c0d0b4b9b4402bc7496be3e6acb065a2fa3bd0515aee3d812fda47ebad",
       "after_sha256": "32e7ce0bebc1215bcf8802e327663a7bee2e2d04b7b727f7e26f009277dba08c",
-      "patch": "patches/118-index.md.patch"
+      "patch": null,
+      "retired_patch": "patches/118-index.md.patch",
+      "retirement_reason": "Obsolete workflow patch removed on 2026-09-15; original bytes remain in Git history. Do not reapply."
     },
     {
       "path": "docs/json-extraction-parity/Final-Format-Example-02.json",
@@ -892,7 +903,9 @@
       "action": "modify",
       "before_sha256": "af9fff418fea477f7f617e8effc08ca55d435481eb921c833ae53fbad5fd93e3",
       "after_sha256": "6e0983196c51c93e7a7a88988d97baf58c3346c65a4bebfc815517b36fbad1e8",
-      "patch": "patches/138-open-decisions.md.patch"
+      "patch": null,
+      "retired_patch": "patches/138-open-decisions.md.patch",
+      "retirement_reason": "Obsolete workflow patch removed on 2026-09-15; original bytes remain in Git history. Do not reapply."
     },
     {
       "path": "docs/operations.md",
@@ -906,14 +919,18 @@
       "action": "delete",
       "before_sha256": "7bf3259c518e2546e87acf958e53b032618a25c338b43a3542cf9ca241c13802",
       "after_sha256": null,
-      "patch": "patches/140-operator-notes.md.patch"
+      "patch": null,
+      "retired_patch": "patches/140-operator-notes.md.patch",
+      "retirement_reason": "Obsolete workflow patch removed on 2026-09-15; original bytes remain in Git history. Do not reapply."
     },
     {
       "path": "docs/prd/README.md",
       "action": "modify",
       "before_sha256": "8a6df8fc4405839e080adf1b5bae619bdd661a71b501a8dac5f32540e3dd8231",
       "after_sha256": "6311fb910eba216380a5feb9f306e48be4385efe22b75fb2e198e9e017d3ec0e",
-      "patch": "patches/141-README.md.patch"
+      "patch": null,
+      "retired_patch": "patches/141-README.md.patch",
+      "retirement_reason": "Obsolete workflow patch removed on 2026-09-15; original bytes remain in Git history. Do not reapply."
     },
     {
       "path": "docs/prd/pegasus-product.md",
@@ -934,7 +951,9 @@
       "action": "modify",
       "before_sha256": "4fda519bfaa54d1c2f6e617832da5d8547b16698ff280d65fe9097111bfc49dd",
       "after_sha256": "05a62b0cbb44e4310fef0be9a6f1a1b4955f3d8a095ef54d4562fb7361244a80",
-      "patch": "patches/144-runbook.md.patch"
+      "patch": null,
+      "retired_patch": "patches/144-runbook.md.patch",
+      "retirement_reason": "Obsolete workflow patch removed on 2026-09-15; original bytes remain in Git history. Do not reapply."
     },
     {
       "path": "reference/EVA/EVA_API_SCHEMA.md",
@@ -962,7 +981,9 @@
       "action": "modify",
       "before_sha256": "713446383d8dd5b807c2b9a284126b0785e7c7355874cf68f2ce21074eb38db2",
       "after_sha256": "5d0ca345cb2d4098c82d89dd9faac13160e00633d4342ef92882249edf134653",
-      "patch": "patches/148-Test-DocumentationLinks.ps1.patch"
+      "patch": null,
+      "retired_patch": "patches/148-Test-DocumentationLinks.ps1.patch",
+      "retirement_reason": "Obsolete workflow patch removed on 2026-09-15; original bytes remain in Git history. Do not reapply."
     },
     {
       "path": "scripts/Test-MarkdownPlacement.ps1",

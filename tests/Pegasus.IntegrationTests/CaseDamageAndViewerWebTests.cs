@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -10,6 +11,9 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Presentation;
+
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -18,7 +22,8 @@ namespace Pegasus.IntegrationTests;
 /// Plan diagram drives Core's zone model and the recorded list; the crop taken
 /// on the viewer stage is staged into the one Case Save.
 /// </summary>
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseDamageAndViewerWebTests
 {
     private const string PlanViewBox = "0 0 240 434";
 
@@ -220,6 +225,7 @@ public sealed partial class CaseDetailsWebTests
     /// </summary>
     private sealed class DamageSource(string impacts) :
         IGetCase,
+        IGetCasePageFrame,
         IGetAssessmentAccess,
         IGetAssessmentWorkspace,
         ICaseReportSnapshotSource,
@@ -230,11 +236,13 @@ public sealed partial class CaseDetailsWebTests
         public void Substitute(IServiceCollection services)
         {
             services.RemoveAll<IGetCase>();
+            services.RemoveAll<IGetCasePageFrame>();
             services.RemoveAll<IGetAssessmentAccess>();
             services.RemoveAll<IGetAssessmentWorkspace>();
             services.RemoveAll<ICaseReportSnapshotSource>();
             services.RemoveAll<IListCaseEstimates>();
             services.AddSingleton<IGetCase>(this);
+            services.AddSingleton<IGetCasePageFrame>(this);
             services.AddSingleton<IGetAssessmentAccess>(this);
             services.AddSingleton<IGetAssessmentWorkspace>(this);
             services.AddSingleton<ICaseReportSnapshotSource>(this);
@@ -289,6 +297,24 @@ public sealed partial class CaseDetailsWebTests
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken) =>
             Task.FromResult<CaseDetails?>(query.CaseId == CaseId ? Details() : null);
 
+        Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            if (query.CaseId != CaseId)
+            {
+                return Task.FromResult<CasePageFrame?>(null);
+            }
+
+            var details = Details();
+            return Task.FromResult<CasePageFrame?>(new(
+                new(details.Summary, details.Workflow, details.ActiveEditLease),
+                details.Documents,
+                details.AvailableReportSentEvidence,
+                details.RecordNotes,
+                details.Data!));
+        }
+
         public Task<AssessmentAccessState?> ExecuteAsync(
             GetAssessmentAccessQuery query,
             CancellationToken cancellationToken = default) =>
@@ -318,4 +344,59 @@ public sealed partial class CaseDetailsWebTests
                 assessment.Reference, Workflow.Version));
         }
     }
+
+    [Fact]
+    public async Task ASaveCarriesTheDamageWorkbenchFieldsThroughToTheWorkspaceCommand()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.ReportPreparation,
+            CaseState = CaseLifecycleState.ReportPreparation
+        };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ISaveCaseWorkspace>();
+                services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ISaveCaseWorkspace>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", "Recorded damage observations"),
+                ("damageImpacts", "[{\"zone\":\"front\",\"severity\":\"light\",\"note\":\"Scuffed\"}]"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageTyreRightFront), "damaged"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageBeltLeftRear), "deployed"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelated), "Old rear bumper scrape"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageUnrelatedDeduction), "125.50"),
+                (CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.DamageMaterialTransfer), "White paint transfer")));
+        AssertPrg(saveResponse, store.CaseId);
+
+        var damage = Assert.Single(store.Saves).Damage;
+        Assert.NotNull(damage);
+        Assert.Equal(new AssessmentImpact("front", "light", "Scuffed"), Assert.Single(damage.Impacts!));
+        Assert.Equal("damaged", damage.AssessmentFields![AssessmentVocabulary.DamageTyreRightFront]);
+        Assert.Equal("deployed", damage.AssessmentFields[AssessmentVocabulary.DamageBeltLeftRear]);
+        Assert.Equal("Old rear bumper scrape", damage.AssessmentFields[AssessmentVocabulary.DamageUnrelated]);
+        Assert.Equal("125.50", damage.AssessmentFields[AssessmentVocabulary.DamageUnrelatedDeduction]);
+        Assert.Equal("White paint transfer", damage.AssessmentFields[AssessmentVocabulary.DamageMaterialTransfer]);
+    }
+
 }

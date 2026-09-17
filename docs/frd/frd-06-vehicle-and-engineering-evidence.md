@@ -164,13 +164,19 @@ external fact enters permanent business history. Routine calls, retries, and
 polling remain content-safe telemetry.
 
 The Case record offers one **Look up DVLA & MOT** action (D34, 2026-09-02;
-amended 2026-09-11). A looked-up value fills Make, Model, Year, or Mileage
-directly, as a working value carrying Lookup provenance, and only where the
-field is empty: it never overwrites an extracted instruction value or a
-staff-entered value, with the fill recorded as above. There are no
-per-field suggestion chips and no suggestion table. The Model comes from the
-DVSA MOT history vehicle record; DVLA supplies no model. Experian stays a
-disabled seam (D7, `ENG-001`).
+amended 2026-09-16). A looked-up value fills Make, Model, Year, Mileage, or the
+derived Vehicle type directly, as a working value carrying Lookup provenance.
+Make, Model, Year and Mileage fill only where the field is empty: they never
+overwrite an extracted instruction value or a staff-entered value. Vehicle
+type follows one rule: type approval, then wheelplan, then rigid-body
+revenue weight; L1/L2 mopeds are `scooter`, other L-class vehicles are
+`motorcycle`, and heavy, PSV or tractor classifications are `other`. It fills
+only where staff have not confirmed a type; a changed lookup classification
+may replace an earlier unconfirmed lookup value, while an unchanged value is
+not re-stamped. The Lookup value remains unconfirmed until staff Save, which
+re-stamps it as staff-confirmed. There are no per-field suggestion chips and no
+suggestion table. The Model comes from the DVSA MOT history vehicle record;
+DVLA supplies no model. Experian stays a disabled seam (D7, `ENG-001`).
 
 The combined DVLA/DVSA lookup also runs automatically at Case creation —
 both a manually created Case and an intake acceptance that allocates a
@@ -185,10 +191,10 @@ the lookup ever filled a field. A provider's HTTP 404 response is
 classified before it is treated as "no such vehicle": only a 404 whose body
 is that provider's own vehicle-not-found error counts as `NotFound`; any
 other 404 (a gateway, route or withdrawn-subscription 404) is recorded as a
-failed lookup instead of a false not-found result. The automatic trigger
-fills only an empty Make, Model, Year, or Mileage, per the fill rule above;
-it never overwrites an extracted or staff-entered value and never confirms a
-field itself.
+failed lookup instead of a false not-found result. The automatic trigger fills
+only an empty Make, Model, Year or Mileage, and a Vehicle type that staff have
+not confirmed, per the fill rule above; it never overwrites an extracted or
+staff-entered value and never confirms a field itself.
 
 The issued report's mileage sentence code (`online_data`, `owner`, `repairer`,
 `principal`, `average`, or `tbc`) is derived from the Case mileage's
@@ -261,8 +267,13 @@ diagram
 ### Valuation sources
 
 Valuation records keep guide month and source: Glass's, Brego and Super CAP
-are manual sources; Cazana is a disabled seam; AI market research is
-automation-only. Every entry keeps its date, time, mileage, retail and trade
+are guide sources, each a card whose **Get valuation** asks that source's
+connected provider for the month and shows a notice while the source has no
+provider, and whose figures may also be typed by hand (D40,
+[FRD-12](frd-12-operator-experience.md#case-workspace)); Cazana is a disabled
+seam; AI market research is automation-only. No guide provider is connected
+today, and connecting one needs its own accepted decision (ADR-0031).
+Every entry keeps its date, time, mileage, retail and trade
 values; guide month is an additional per-entry field owned by `CASE-029`
 (EPIC-012 context). Glass's
 valuation and Glass's repair estimating are two systems and both are used:
@@ -323,8 +334,8 @@ never guessed.
 
 The command proves the typed actor and current persisted Case version, edit
 lease holder/token and expiry before reading a source-hash replay or parsing
-the retained source. Both that check and the final save require the existing assessment-editable
-state (Report preparation or Post report); accepted Review alone is insufficient.
+the retained source. Both that check and the final save require an
+assessment-writable state: Not ready, Review, Report preparation or Post report.
 An occurrence must name the exact confirmed, nonremoved document version;
 a correctly paired historical version remains valid retained evidence. A new
 Draft is guarded again in the save transaction. Importing never confirms its
@@ -338,9 +349,10 @@ identities, notes and printed amounts. PDF labour hours are already net of
 overlap; they do not reuse XML's gross-time conversion. Parts and position
 appendices provide evidence for existing rows, never additional charges.
 Repeated printed charges and visibly clipped text remain as printed. Whole-row,
-section and document reconciliation is required; missing or ambiguous required
-evidence refuses the whole import. Source rates and VAT do not select a Pegasus
-rate card or determine a repairer's VAT status.
+section and document reconciliation is required. Section labour reconciles to
+the printed rate × section hours as the source computes it. Missing or ambiguous
+required evidence refuses the whole import. Source rates and VAT do not select a
+Pegasus rate card or determine a repairer's VAT status.
 
 Estimate PDFs require readable embedded text. Unreadable, scan-like or
 otherwise unsupported estimates are refused without OCR or a partial Draft.
@@ -461,9 +473,10 @@ Value. Job states and attribution are owned by FRD-11.
 
 ## Valuation readiness
 
-Any valuation check required before Review or Hand to Engineer must be resolvable
-at that stage by an authorized actor. No such prerequisite may require editing
-an Engineer-only section that becomes available only after handoff. Engineer's
-Value, settlement and report calculations belong to engineering work and are
-not invented pre-assignment blockers. Named external-check failures expose their
-actual permitted resolution; no circular readiness gate is acceptable.
+Any valuation check required before Review or Hand to Engineer must be
+resolvable at that stage by an authorized actor. The Engineer sections are
+editable before handoff in Not ready and Review, so availability is not a
+valid reason to defer such a check. Engineer's Value, settlement and report
+calculations belong to engineering work and are not invented pre-assignment
+blockers. Named external-check failures expose their actual permitted
+resolution; no circular readiness gate is acceptable.

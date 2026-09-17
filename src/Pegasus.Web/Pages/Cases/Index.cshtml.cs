@@ -21,7 +21,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// row.
 /// </summary>
 /// <remarks>
-/// The rail groups are Workflow (Not ready, Review, With Engineer, Complete),
+/// The rail groups are Workflow (Not ready, Review, With Engineer, Complete, Query),
 /// Pre-Case work (Triage, Awaiting instruction) and Exceptions (Held,
 /// Unidentified). The Unidentified scope lists open items, with closed items
 /// behind its Show filter (received file D5); nothing here lists a Blocked
@@ -92,6 +92,7 @@ public sealed class IndexModel(
         new("review", OperatorLabels.CaseStage(CaseLifecycleState.Review), WorkflowGroup, "icon-check-circle"),
         new("with_engineer", OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation), WorkflowGroup, "icon-user"),
         new("complete", OperatorLabels.CaseStage(CaseLifecycleState.PostReportComplete), WorkflowGroup, "icon-check"),
+        new("query", OperatorLabels.CaseStage(CaseLifecycleState.Query), WorkflowGroup, "icon-reply"),
         new("triage", "Triage", PreCaseGroup, "icon-file-text"),
         new("awaiting", "Awaiting instruction", PreCaseGroup, "icon-image"),
         new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), ExceptionsGroup, "icon-pause", IsException: true),
@@ -162,7 +163,7 @@ public sealed class IndexModel(
 
     /// <summary>Whether the scope lists Case rows, so the Principal filter applies.</summary>
     public static bool ListsCases(string queue) =>
-        queue is "not_ready" or "review" or "with_engineer" or "complete" or "held";
+        queue is "not_ready" or "review" or "with_engineer" or "complete" or "query" or "held";
 
     public CaseStageCounts StageCounts { get; private set; } = new(0, 0, 0, 0);
 
@@ -177,6 +178,7 @@ public sealed class IndexModel(
         "review" => StageCounts.Review,
         "with_engineer" => StageCounts.WithEngineer,
         "complete" => StageCounts.Complete,
+        "query" => StageCounts.Query,
         "triage" => TriageCount,
         "awaiting" => StageCounts.AwaitingInstruction,
         "held" => StageCounts.Held,
@@ -237,9 +239,9 @@ public sealed class IndexModel(
         "awaiting" => ["Image reference", "Registration", "Received", "Images", "Source"],
         "unidentified" when ShowingClosed => ["Reference", "Received", "Material", "Outcome", "Source"],
         "unidentified" => ["Reference", "Received", "Material", "Reason", "Source"],
-        "not_ready" => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "Missing"],
-        "with_engineer" => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "Engineer"],
-        _ => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "State"]
+        "not_ready" => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "Missing", CaseWorkspaceLabels.Frame.Editing],
+        "with_engineer" => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "Engineer", CaseWorkspaceLabels.Frame.Editing],
+        _ => ["Case/PO", "Registration", "Claimant", "Principal", "Received", "Due", "State", CaseWorkspaceLabels.Frame.Editing]
     };
 
     public bool HasPreviousPage { get; private set; }
@@ -367,12 +369,20 @@ public sealed class IndexModel(
         // Every group carries its count whichever one is open. The three
         // count queries use their own DbContext each, so they run together.
         var stageCountsTask = _dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
-        var triageTask = _listTriage.ExecuteAsync(new(actor, State: null, Page: 1, PageSize: 1), cancellationToken);
-        var openUnidentifiedTask = _unidentifiedStore.ListQueueAsync(null, cancellationToken);
-        await Task.WhenAll(stageCountsTask, triageTask, openUnidentifiedTask);
+        var triageTask = _listTriage.CountAsync(
+            actor,
+            state: null,
+            cancellationToken: cancellationToken);
+        var openUnidentifiedCountTask = _unidentifiedStore.CountOpenAsync(cancellationToken);
+        await Task.WhenAll(stageCountsTask, triageTask, openUnidentifiedCountTask);
         StageCounts = stageCountsTask.Result;
-        TriageCount = triageTask.Result.TotalCount;
-        UnidentifiedCount = openUnidentifiedTask.Result.Count;
+        TriageCount = triageTask.Result;
+        UnidentifiedCount = openUnidentifiedCountTask.Result;
+        RailCountsPageFilter.SetCaseCounts(
+            HttpContext,
+            StageCounts,
+            TriageCount,
+            UnidentifiedCount);
 
         var rows = Queue switch
         {
@@ -380,7 +390,7 @@ public sealed class IndexModel(
             "awaiting" => await LoadAwaitingAsync(cancellationToken),
             "unidentified" => ShowingClosed
                 ? await LoadClosedUnidentifiedAsync(cancellationToken)
-                : openUnidentifiedTask.Result.Select(UnidentifiedRow).ToArray(),
+                : await LoadOpenUnidentifiedAsync(cancellationToken),
             "not_ready" => await LoadNotReadyAsync(actor, cancellationToken),
             _ => await LoadCasesAsync(actor, cancellationToken)
         };
@@ -481,7 +491,8 @@ public sealed class IndexModel(
         {
             "review" => [CaseLifecycleState.Review],
             "with_engineer" => [CaseLifecycleState.ReportPreparation, CaseLifecycleState.PostReport],
-            "complete" => [CaseLifecycleState.PostReportComplete, CaseLifecycleState.Query],
+            "complete" => [CaseLifecycleState.PostReportComplete],
+            "query" => [CaseLifecycleState.Query],
             _ => [CaseLifecycleState.Held]
         };
         var results = await Task.WhenAll(states.Select(state => _searchCases.ExecuteAsync(
@@ -573,12 +584,20 @@ public sealed class IndexModel(
         return rows;
     }
 
+    private async Task<IReadOnlyList<QueueRow>> LoadOpenUnidentifiedAsync(CancellationToken cancellationToken) =>
+        (await _unidentifiedStore.ListQueueAsync(null, cancellationToken))
+            .Select(UnidentifiedRow)
+            .ToArray();
+
     private async Task<IReadOnlyDictionary<Guid, string>> EngineerNamesAsync(
         IEnumerable<CaseSearchItem> items,
         CancellationToken cancellationToken) =>
         await ActorDisplayNames.ResolveStaffNamesAsync(
             _staffAccounts,
-            items.Where(item => item.EngineerId is not null).Select(item => item.EngineerId!.Value).Distinct(),
+            items.SelectMany(item => new[] { item.EngineerId, item.EditingStaffId })
+                .Where(id => id is not null)
+                .Select(id => id!.Value)
+                .Distinct(),
             cancellationToken);
 
     /// <summary>
@@ -715,7 +734,12 @@ public sealed class IndexModel(
                 item.NextChaseAtUtc is { } chase
                     ? new Cell(OperatorLabels.OfficeDate(chase), chase < now ? CellKind.Late : CellKind.Text)
                     : Cell.Empty,
-                last
+                last,
+                // Who holds the Case's edit lease right now, so nobody opens a
+                // Case only to find it taken (D2 of the 15 September walk).
+                Cell.Of(item.EditingStaffId is { } editing
+                    ? ActorDisplayNames.Resolve(ActorKind.Staff, editing.ToString("D"), engineers)
+                    : null)
             ],
             item.ReceivedAtUtc,
             $"/Cases/{item.CaseId:D}",
@@ -723,7 +747,7 @@ public sealed class IndexModel(
             Chip: chip,
             ChipTone: null) with
         {
-            // An Audit Case (a./ap.) reads its type beside its reference.
+            // An Audit Case (a.) reads its type beside its reference.
             Notice = item.CaseType == CaseType.Audit ? OperatorLabels.CaseTypeName(CaseType.Audit) : null
         };
     }

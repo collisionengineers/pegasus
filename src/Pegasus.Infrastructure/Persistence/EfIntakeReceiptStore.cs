@@ -128,7 +128,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             draft.Actor,
             draft.ProcessedAtUtc);
         ApplyCaseMatchDecision(context, receipt, draft.CaseMatchDecision);
-        AppendNewDerivedAssets(receipt, draft.AssetRecords);
+        AppendNewDerivedAssets(context, receipt, draft.AssetRecords);
         ReplaceSearchDocuments(context, receipt, draft.SearchDocumentRecords);
         receipt.Version++;
 
@@ -849,7 +849,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             hasCompleteAuditReport
                 ? new(
                     entity.StandaloneAuditReportAssetSourceLabel!,
-                    ParseAuditAssessment(entity.StandaloneAuditReportAssessment!))
+                    AuditAssessmentCode.Parse(entity.StandaloneAuditReportAssessment!))
                 : null);
     }
 
@@ -1020,6 +1020,9 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         context.RemoveRange(receipt.SearchDocuments);
         receipt.SearchDocuments.Clear();
         AddSearchDocuments(receipt, documents);
+        // These replacement rows have application-generated keys. They are new
+        // dependents of a tracked receipt, so mark them Added explicitly.
+        context.AddRange(receipt.SearchDocuments);
     }
 
     private static void AddSearchDocuments(
@@ -1081,6 +1084,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     }
 
     private static void AppendNewDerivedAssets(
+        PegasusDbContext context,
         IntakeReceiptEntity receipt,
         IReadOnlyList<IntakeAssetRecord> evaluatedAssets)
     {
@@ -1094,7 +1098,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 continue;
             }
 
-            receipt.Assets.Add(new()
+            var retained = new IntakeAssetEntity
             {
                 Id = asset.Id,
                 IntakeReceiptId = receipt.Id,
@@ -1111,7 +1115,9 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 BoundsJson = asset.Bounds is null ? null : SerializeEnvelope(asset.Bounds),
                 WidthPixels = asset.WidthPixels,
                 HeightPixels = asset.HeightPixels
-            });
+            };
+            receipt.Assets.Add(retained);
+            context.Add(retained);
         }
     }
 
@@ -1327,19 +1333,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownCode("case type", value)
     };
 
-    internal static string ToCode(AuditAssessment value) => value switch
-    {
-        AuditAssessment.Repairable => "repairable",
-        AuditAssessment.TotalLoss => "total_loss",
-        _ => throw UnknownEnum(value)
-    };
-
-    private static AuditAssessment ParseAuditAssessment(string value) => value switch
-    {
-        "repairable" => AuditAssessment.Repairable,
-        "total_loss" => AuditAssessment.TotalLoss,
-        _ => throw UnknownCode("audit assessment", value)
-    };
+    internal static string ToCode(AuditAssessment value) => AuditAssessmentCode.ToCode(value);
 
     private static string ToCode(CaseMatchOutcome value) => value switch
     {
@@ -1496,25 +1490,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var originIds = await context.Cases
-            .AsNoTracking()
-            .Where(item => item.Id == caseId && item.OriginIntakeReceiptId.HasValue)
-            .Select(item => item.OriginIntakeReceiptId!.Value)
-            .ToListAsync(cancellationToken);
-        var linkedIds = await context.CaseIntakeLinks
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .Select(item => item.IntakeReceiptId)
-            .ToListAsync(cancellationToken);
-        var receiptIds = originIds
-            .Concat(linkedIds)
-            .Distinct()
-            .ToArray();
-        if (receiptIds.Length == 0)
-        {
-            return [];
-        }
-
         // DOCS-007: Box is the record. Where intake's photographs have been
         // registered as case documents, the gallery reads them and serves them
         // through the case-document route — the intake blob is staging, not
@@ -1556,6 +1531,25 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         if (documentImages.Length > 0)
         {
             return documentImages;
+        }
+
+        var originIds = await context.Cases
+            .AsNoTracking()
+            .Where(item => item.Id == caseId && item.OriginIntakeReceiptId.HasValue)
+            .Select(item => item.OriginIntakeReceiptId!.Value)
+            .ToListAsync(cancellationToken);
+        var linkedIds = await context.CaseIntakeLinks
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .Select(item => item.IntakeReceiptId)
+            .ToListAsync(cancellationToken);
+        var receiptIds = originIds
+            .Concat(linkedIds)
+            .Distinct()
+            .ToArray();
+        if (receiptIds.Length == 0)
+        {
+            return [];
         }
 
         var assets = await context.IntakeAssets

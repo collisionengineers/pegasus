@@ -28,9 +28,60 @@ public sealed class OperationsPersistenceTests
         Assert.DoesNotContain(result.Items, item => item.Id == ids.LeasedFailureId);
         Assert.All(result.Items, item =>
             Assert.Contains(item.Kind, new[] { RequestOperationKind.PegasusUploadLink, RequestOperationKind.ExternalWork }));
+        Assert.Equal(
+            1,
+            await store.CountRetryableExternalFailuresAsync(FixedUtcNow, CancellationToken.None));
     }
 
-    private static async Task<(Guid ActiveUploadId, Guid ExpiredUploadId, Guid RetryableFailureId, Guid LeasedFailureId)> SeedRequestOperationsAsync(
+    [Fact]
+    public async Task RetryableFailureCountIncludesEveryEligibleFailureBeyondTheMixedListLimit()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var ids = await SeedRequestOperationsAsync(database);
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            const int uploadsAheadOfFailures = 101;
+            const int additionalUnleasedFailures = 100;
+
+            var expiredLease = Work(Guid.NewGuid(), ids.CaseId, FixedUtcNow.AddMinutes(-1));
+            var tokenWithoutExpiry = Work(Guid.NewGuid(), ids.CaseId, null);
+            tokenWithoutExpiry.LeaseToken = "incomplete-lease";
+            var expiryWithoutToken = Work(Guid.NewGuid(), ids.CaseId, null);
+            expiryWithoutToken.LeaseExpiresAtUtc = FixedUtcNow.AddMinutes(-1);
+
+            var operations = Enumerable.Range(0, uploadsAheadOfFailures)
+                    .Select(_ => Upload(
+                        Guid.NewGuid(),
+                        ids.CaseId,
+                        RequestUploadStatus.Active,
+                        FixedUtcNow.AddHours(1),
+                        FixedUtcNow.AddMinutes(1)))
+                    .Cast<object>()
+                .Concat(
+                Enumerable.Range(0, additionalUnleasedFailures)
+                    .Select(_ => Work(Guid.NewGuid(), ids.CaseId, null)))
+                .Append(expiredLease)
+                .Append(tokenWithoutExpiry)
+                .Append(expiryWithoutToken);
+            context.AddRange(operations);
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IRequestOperationsProjectionStore>();
+        var visible = await store.GetAsync(100, FixedUtcNow, CancellationToken.None);
+
+        Assert.True(visible.LimitReached);
+        Assert.Equal(100, visible.Items.Length);
+        Assert.All(visible.Items, item =>
+            Assert.Equal(RequestOperationKind.PegasusUploadLink, item.Kind));
+        Assert.Equal(
+            102,
+            await store.CountRetryableExternalFailuresAsync(FixedUtcNow, CancellationToken.None));
+    }
+
+    private static async Task<(Guid CaseId, Guid ActiveUploadId, Guid ExpiredUploadId, Guid RetryableFailureId, Guid LeasedFailureId)> SeedRequestOperationsAsync(
         LocalDbTestDatabase database)
     {
         await using var context = await database.CreateContextAsync();
@@ -84,7 +135,7 @@ public sealed class OperationsPersistenceTests
             Work(retryableFailureId, caseId, null),
             Work(leasedFailureId, caseId, FixedUtcNow.AddHours(1)));
         await context.SaveChangesAsync();
-        return (activeUploadId, expiredUploadId, retryableFailureId, leasedFailureId);
+        return (caseId, activeUploadId, expiredUploadId, retryableFailureId, leasedFailureId);
     }
 
     private static IntakeReceiptEntity Receipt(
@@ -112,13 +163,18 @@ public sealed class OperationsPersistenceTests
         OcrCandidatesJson = "[]"
     };
 
-    private static RequestUploadLinkEntity Upload(Guid id, Guid caseId, RequestUploadStatus status, DateTimeOffset expiresAt) => new()
+    private static RequestUploadLinkEntity Upload(
+        Guid id,
+        Guid caseId,
+        RequestUploadStatus status,
+        DateTimeOffset expiresAt,
+        DateTimeOffset? createdAtUtc = null) => new()
     {
         Id = id,
         CaseId = caseId,
         TokenDigest = $"{id:N}{new string('u', 32)}",
         Status = status,
-        CreatedAtUtc = FixedUtcNow.AddMinutes(-5),
+        CreatedAtUtc = createdAtUtc ?? FixedUtcNow.AddMinutes(-5),
         ExpiresAtUtc = expiresAt,
         AcceptedFileCount = 1,
         AcceptedByteCount = 10,

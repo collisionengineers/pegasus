@@ -330,6 +330,14 @@ public sealed class ImageIntakeCasePairingTests
             CancellationToken cancellationToken) =>
             Task.FromResult(Images);
 
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>> ListImagesAsync(
+            IReadOnlyCollection<Guid> imageIntakeIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>>(
+                imageIntakeIds.Distinct().ToDictionary(
+                    imageIntakeId => imageIntakeId,
+                    _ => Images));
+
         public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<ImageIntakeDetail?>(null);
 

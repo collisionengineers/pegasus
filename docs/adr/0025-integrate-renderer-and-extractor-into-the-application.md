@@ -12,7 +12,7 @@ tags: [architecture, workspaces, renderer, extraction]
 
 - Date: 2026-08-17
 - Status: accepted 2026-08-14 by Collision Engineers product owner (operator
-  direction recorded on Kanmer ticket SIMPLI-015); assessment reconfirmed
+  direction recorded on historical Kanmer ticket SIMPLI-015); assessment reconfirmed
   2026-08-17
 - Owners: Collision Engineers product owner and Pegasus development team
 - Relation: refines [ADR-0009](0009-adopt-pegasus-monorepo-workspaces.md),

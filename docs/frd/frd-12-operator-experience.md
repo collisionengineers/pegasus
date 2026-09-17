@@ -245,7 +245,9 @@ Filters are Principal (every queue) and, on Not ready only, Missing — `All`,
 `Instructions`, `Images`, `Both missing` — plus Clear. Each queue keeps its
 own row shape rather than being forced into one column set: a Case row
 carries reference and registration, state, claimant and principal, origin and
-received, due; an Image-initiated row carries its VRM reference,
+received, due, and who is editing it while a staff edit lease is live (the
+same column on Search results); an Image-initiated row carries its VRM
+reference,
 registration, file count and custody; a Triage
 row carries reference, registration, provider and assignee; an Unidentified
 row carries the U-reference, kind, operator-meaningful handle (the original
@@ -363,14 +365,23 @@ Figures (outcome and legal chips and three figures) and Next action (AI drafts
 ready on the Case with their per-kind action, and the next permitted action
 with a link to its section); below 1441px it folds into a strip above the
 sections. Actions post in place and the record's parts are refreshed without a
-navigation; an unsaved edit is confirmed before Cancel or an immediate action.
+navigation; unsaved changes in each editor are confirmed before Cancel,
+Refresh, navigation or an immediate action. Case Save, Estimate Save and
+Valuation Apply remain separate commands. Saving one keeps editing open and
+preserves the other editors' pending values, including estimate rows and staged
+image preparations. Only that command's confirmed save clears its draft.
+Pending editors advance their Case version and lease only after the same
+operator's confirmed command, with no intervening Case change. A refusal or
+unknown response retains proposed values and their original authority for
+review. Ctrl S submits the active dirty editor. Selecting a tab also updates
+the section submitted by Refresh; after a refresh its active lazy body loads.
 The sections, in order, are **Overview**,
 **Inspection**, **Vehicle**, **Damage**, **Valuation**, **Estimate**,
 **Settlement**, **Report**, **Files**, **Notes**. Every
 section is always viewable; the Engineer sections — Damage, Valuation,
-Estimate, Settlement, Report — are editable in With Engineer and read-only
-in every other state (D30; the former D11 access rule is now this read-only
-rule).
+Estimate, Settlement, Report — are editable in Not ready, Review and With
+Engineer for staff with `PerformCasework`, and read-only in Held and after
+completion. Adopting the Engineer's Value remains an Engineer act (D30).
 The whole record enters one edit mode over one lease
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)).
 While editing, each section renders its one edit form in place of its
@@ -427,7 +438,9 @@ a non-destructive conflict.
   Completed ⇄ Query, with Held as an exception badge), outstanding requirements — the
   named unmet items of the versioned instruction- and image-completeness sets,
   each with title, source, reason and resolve action, and never a percentage
-  (D23) — the Case, Principal and Claimant columns of cells (identity cells
+  (D23). An Audit without retained standalone-Audit evidence and without a
+  filed original report also lists **Original report missing**, sourced from
+  Audit — the Case, Principal and Claimant columns of cells (identity cells
   read with a lock while the rest edits), the Claim source chosen from the
   active Claim Source contacts, and a Notes band: the Principal's and the Claim
   source's Notes on every Case, read-only and absent when the record has none
@@ -444,9 +457,11 @@ a non-destructive conflict.
   when it differs from the recorded value, Storage location, and Repairer
   (D33, [FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
 - Vehicle: registration, make, model, year, and one mileage with its
-  provenance (Extracted · Lookup · Staff); one **Look up DVLA & MOT** action
+  editable unit and provenance (Extracted · Lookup · Staff); one **Look up
+  DVLA & MOT** action
   (`EXT-01`) whose looked-up values fill an empty Make, Model, Year, or
-  Mileage directly and never overwrite an extracted or staff-entered value —
+  Mileage, and a Vehicle type that staff have not confirmed, directly and
+  never overwrite an extracted or staff-entered value —
   no checks panel and no suggestion table; Run Experian check stays the
   disabled seam (D34 amended, 2026-09-11) — and a labelled Vehicle history
   area (the history-check narrative, read-only text, editable in edit mode,
@@ -464,13 +479,17 @@ a non-destructive conflict.
   shown as derived values (D39,
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md#damage-record)).
 - Valuation: each entry with source, date, time, mileage, retail and trade
-  values, plus guide month per entry (`CASE-029`), and Add valuation
-  (`EXT-10`); sources are Glass's valuation, Brego and Super CAP manual entries,
-  Cazana (disabled seam), Engineer's Value and AI market research (automation
-  only) (D40). While editing, a **Valuation month** and one button per source
-  run the valuation for that month: Glass's, Brego and Super CAP are present but
-  inert until a provider exists, and **AI market research** creates a
-  `MarketResearch` job and shows a "Researching · {month}" card until it
+  values, plus guide month per entry (`CASE-029`, `EXT-10`); sources are
+  Glass's, Brego and Super CAP guide cards, Cazana (disabled seam),
+  Engineer's Value and AI market research (automation only) (D40). While
+  editing, each guide source is one card with month, mileage, retail and
+  trade boxes, **Get valuation**, which asks the connected provider for the
+  Case's accepted registration and mileage in that month and fills the boxes
+  (a notice while that source has no provider), and **Save**, which records
+  the card; the same source and month replaces the earlier card, and a typed
+  figure saves the same way. A **Valuation month** and **AI market
+  research** above the cards create a
+  `MarketResearch` job and show a "Researching · {month}" card until it
   completes, a re-run replacing the card (D35,
   [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)).
   Read mode shows only applied increases; the calculator applies presets and
@@ -500,7 +519,9 @@ a non-destructive conflict.
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence)).
   - Documents: every live file as a row — filename, role, size, origin,
     recorded time and its custody-state chip, with Preview, Save as and,
-    while editing, delete.
+    while editing, delete. When an Audit lists **Original report missing**, each
+    non-image row also offers **Mark as original report** while editing; the
+    action assigns the Audit report role and clears that requirement.
   - Images: one grid of every image occurrence — the Case's own image
     documents plus, for each image-intake associated with the Case, its
     photographs labelled by Image Intake Reference. Each tile shows a
@@ -556,11 +577,13 @@ the retained source and its hash untouched (D19). The Estimate section
 carries the estimate set (`EXT-09`: named estimates with source, repair
 days, the selected labour-rate-card snapshot, VAT categories, lines and
 totals; one estimate is Current and drives the report). Each version's card
-prices both panel and paint hours. Its own VAT percentage defaults to 20 and
-applies to selected discounted Labour, Parts, Materials and Specialist
-categories. Unknown repairer VAT blocks Use as Current until staff record an
-explicit status or categories (D9, D17); no comparison or savings figure is
-shown. It also carries Send to AI, which creates an `AI-10`
+prices panel, paint and Specialist work-unit hours. Its own VAT percentage
+defaults to 20 and applies to selected discounted Labour, Parts, Materials
+and Specialist categories. Unknown repairer VAT blocks Use as Current until
+staff record an explicit status or categories (D9, D17); no comparison or
+savings figure is shown. In both read and edit modes, every saved version with lines carries
+**Estimate PDF** in its actions row; previewing it does not save or discard
+pending edits. It also carries Send to AI, which creates an `AI-10`
 [AI Job List](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)
 `Estimate` job (disabled without an Engineer's Value) rather than the
 distinct, DevelopmentOffline-only `AI-09` transport; the report-draft

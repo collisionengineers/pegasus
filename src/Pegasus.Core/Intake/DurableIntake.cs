@@ -697,9 +697,9 @@ public sealed class ProcessQueuedIntake(
     IRegisterUnidentified? registerUnidentified = null,
     ReconcileUnidentifiedDestinations? unidentifiedDestinations = null,
     AssociateRetainedMailWithCase? automaticMailCaseAssociation = null,
-    SubmitMailboxImageIntake? mailboxImageIntake = null,
     IIntakeSubmissionGroupStore? submissionGroups = null,
-    ICaseStaffNotifier? caseNotifier = null) : IProcessQueuedIntake
+    ICaseStaffNotifier? caseNotifier = null,
+    PromoteAssociatedIntakeCaseEvidence? promoteAssociatedCaseEvidence = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
 
@@ -759,6 +759,8 @@ public sealed class ProcessQueuedIntake(
                 // association, image automation, or Unidentified work.
                 return QueuedIntakeProcessingOutcome.NoOp;
             }
+            completedReceipt = await processIntake.RetainHoldingAssetsAsync(
+                completedReceipt, cancellationToken);
             var replayAssociated = await AssociateCaseIfUnambiguousAsync(
                 completedReceipt,
                 completedEvaluation,
@@ -775,6 +777,7 @@ public sealed class ProcessQueuedIntake(
                     completedEvaluation.ProcessedReceiptId,
                     cancellationToken) ?? completedReceipt;
             }
+            await PromoteAssociatedCaseEvidenceAsync(completedReceipt, cancellationToken);
 
             // Completed redelivery replays destination operation identities.
             var replayAllocation = await allocateIntake.AttemptAutomaticAsync(
@@ -803,12 +806,9 @@ public sealed class ProcessQueuedIntake(
                 return QueuedIntakeProcessingOutcome.RetryScheduled;
             }
 
-            var replayMailboxImagesHandled = mailboxImageIntake is not null
-                && await mailboxImageIntake.HasSubmissionAsync(completedReceipt, cancellationToken);
             await SynchronizeUnidentifiedAsync(
                 completedReceipt,
                 replayTriage,
-                replayMailboxImagesHandled,
                 replayImageOutcome.UnidentifiedGroup,
                 cancellationToken);
             return QueuedIntakeProcessingOutcome.NoOp;
@@ -822,7 +822,6 @@ public sealed class ProcessQueuedIntake(
 
         IntakeReceipt processed;
         IntakeEvaluationRevision evaluation;
-        var mailboxImagesHandled = false;
         var groupPending = false;
         try
         {
@@ -830,6 +829,7 @@ public sealed class ProcessQueuedIntake(
             {
                 processed = await receiptQueries.GetAsync(workItem.ProcessedReceiptId!.Value, cancellationToken)
                     ?? throw new InvalidDataException("The pending evaluation receipt is missing.");
+                processed = await processIntake.RetainHoldingAssetsAsync(processed, cancellationToken);
             }
             else
             {
@@ -883,13 +883,6 @@ public sealed class ProcessQueuedIntake(
                 }
             }
             await BeginOcrOperationsAsync(processed, cancellationToken);
-            if (mailboxImageIntake is not null)
-            {
-                mailboxImagesHandled = await mailboxImageIntake.ExecuteAsync(
-                    processed,
-                    workItem.AttemptCount >= RetryDelays.Length,
-                    cancellationToken);
-            }
             evaluation = await workStore.RecordEvaluationAsync(
                 workItem.Id,
                 workItem.LeaseToken,
@@ -910,6 +903,7 @@ public sealed class ProcessQueuedIntake(
                 {
                     processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
                 }
+                await PromoteAssociatedCaseEvidenceAsync(processed, cancellationToken);
 
                 var allocation = await allocateIntake.AttemptAutomaticAsync(
                     processed.Id,
@@ -933,7 +927,6 @@ public sealed class ProcessQueuedIntake(
                 await SynchronizeUnidentifiedAsync(
                     processed,
                     triage,
-                    mailboxImagesHandled,
                     imageOutcome.UnidentifiedGroup,
                     cancellationToken);
             }
@@ -1043,6 +1036,11 @@ public sealed class ProcessQueuedIntake(
             throw new IntakeArtifactIntegrityException();
         }
 
+        // Re-evaluation normally reads the confirmed Box version. If the original
+        // hand-over never completed, first repair custody from the same verified
+        // quarantine assets; a missing Box version is not corrupt source evidence.
+        receipt = await processIntake.RetainHoldingAssetsAsync(receipt, cancellationToken);
+
         try
         {
             await using var logical = await retainedContentReader.OpenAsync(
@@ -1114,7 +1112,6 @@ public sealed class ProcessQueuedIntake(
     private async Task SynchronizeUnidentifiedAsync(
         IntakeReceipt receipt,
         TriageCreationOutcome triage,
-        bool mailboxImagesHandled,
         RegisterUnidentifiedRequest? unidentifiedGroup,
         CancellationToken cancellationToken)
     {
@@ -1126,7 +1123,6 @@ public sealed class ProcessQueuedIntake(
 
         if (registerUnidentified is not null
             && ProcessIntake.IsDeferredForAutomation(receipt)
-            && !mailboxImagesHandled
             && !(ProcessIntake.IsTriageRequest(receipt)
                 && triage is not TriageCreationOutcome.NotQualifying))
         {
@@ -1207,6 +1203,26 @@ public sealed class ProcessQueuedIntake(
             receipt.Id,
             cancellationToken);
         return outcome is AutomaticCaseAssociationOutcome.Associated or AutomaticCaseAssociationOutcome.AlreadyAssociated;
+    }
+
+    private async Task PromoteAssociatedCaseEvidenceAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (promoteAssociatedCaseEvidence is null)
+        {
+            return;
+        }
+
+        var outcome = await promoteAssociatedCaseEvidence.ExecuteAsync(receipt, cancellationToken);
+        if (outcome == AutomaticCaseEvidencePromotionOutcome.Deferred)
+        {
+            // An active staff edit is a temporary Case-target guard. Keep the
+            // existing intake work owner so the same receipt is retried after
+            // its ordinary bounded delay instead of filing against a moving Case.
+            throw new IntakeDependencyUnavailableException(
+                "Automatic Case evidence promotion is waiting for the Case editor.");
+        }
     }
 
     private async Task TryDeleteCompletedStagingAsync(

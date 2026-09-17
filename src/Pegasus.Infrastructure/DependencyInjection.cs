@@ -98,6 +98,10 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<IRetainedMailClassificationStore>(
             provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
+        // The write side is shared: the mailbox poll retains polled messages and
+        // intake retains an uploaded email, on whichever host runs it.
+        services.AddScoped<IRetainedMailboxMessageStore>(
+            provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<ListRetainedMail>();
         services.AddScoped<GetRetainedMail>();
         services.AddScoped<CorrectRetainedMailClassification>();
@@ -121,7 +125,10 @@ public static class DependencyInjection
             provider.GetRequiredService<EfIntakeMutationStore>());
         services.AddScoped<IAutomaticMailCaseAssociationEvidenceQueries>(provider =>
             provider.GetRequiredService<EfIntakeMutationStore>());
+        services.AddScoped<IAutomaticCaseEvidencePromotionStore>(provider =>
+            provider.GetRequiredService<EfIntakeMutationStore>());
         services.AddScoped<AssociateRetainedMailWithCase>();
+        services.AddScoped<PromoteAssociatedIntakeCaseEvidence>();
         services.AddScoped<IResolveIntake, ResolveIntake>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<IRetryIntakeOcr, RetryIntakeOcr>();
@@ -442,6 +449,13 @@ public static class DependencyInjection
         services.AddScoped<IListCaseHistoryByCursor, ListCaseHistoryByCursor>();
         services.AddScoped<IGetCaseHeader, GetCaseHeader>();
         services.AddScoped<IGetCase, GetCase>();
+        services.AddScoped<IGetCasePageFrame, GetCasePageFrame>();
+        services.AddScoped<IGetCaseVehicleSection, GetCaseVehicleSection>();
+        services.AddScoped<IGetCaseValuationSection, GetCaseValuationSection>();
+        services.AddScoped<IGetCaseNotesSection, GetCaseNotesSection>();
+        services.AddScoped<IGetCaseFilesSection, GetCaseFilesSection>();
+        services.AddScoped<IValidateCaseRenderLease, ValidateCaseRenderLease>();
+        services.AddScoped<IListCaseReferences, ListCaseReferences>();
         services.AddScoped<EfCaseDataStore>();
         services.AddScoped<ICaseDataStore>(
             provider => provider.GetRequiredService<EfCaseDataStore>());
@@ -528,6 +542,9 @@ public static class DependencyInjection
         services.AddScoped<ICreateAiJob, CreateAiJob>();
         services.AddScoped<IMarketResearchQueries, MarketResearchQueries>();
         services.AddScoped<IStartMarketResearch, StartMarketResearch>();
+        // Guide providers register beside their adapter; none is connected yet,
+        // so the set is empty and Get valuation answers with a notice.
+        services.AddScoped<IFetchGuideValuation, FetchGuideValuation>();
         services.AddScoped<IWorkAiJob, WorkAiJob>();
         services.AddScoped<IAiDraftQueries, AiDraftQueries>();
         services.AddScoped<ICancelAiJob, CancelAiJob>();
@@ -674,6 +691,9 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ILogicallyRemoveDocument>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<IMarkAsOriginalReportStore>(provider =>
+                provider.GetRequiredService<EfDocumentCustodyStore>());
+            services.AddScoped<MarkAsOriginalReport>();
             services.AddScoped<ITagCaseImage>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IUntagCaseImage>(provider =>
@@ -722,7 +742,9 @@ public static class DependencyInjection
         // renderer registers its own embedded faces, so no host font is read.
         QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
         QuestPDF.Settings.UseEnvironmentFonts = false;
+        services.AddSingleton<ReportRenderGate>();
         services.AddSingleton<IAssessmentReportRenderer, QuestPdfAssessmentReportRenderer>();
+        services.AddSingleton<IEstimateDocumentRenderer, QuestPdfEstimateDocumentRenderer>();
         services.AddScoped<GenerateAssessmentReportDraft>();
         services.AddScoped<EfAssessmentReportProjectionSource>();
         services.AddScoped<IAssessmentReportProjectionSource>(provider =>
@@ -736,6 +758,8 @@ public static class DependencyInjection
             provider.GetRequiredService<EfCaseReportGenerationStore>());
         services.AddScoped<IGeneratedCaseArtifactStore>(provider =>
             provider.GetRequiredService<EfCaseReportGenerationStore>());
+        services.AddScoped<IEstimateDocumentPresentationStore>(provider =>
+            provider.GetRequiredService<EfCaseReportGenerationStore>());
         services.AddScoped<ICaseReportContentSource, EfCaseReportContentSource>();
         services.AddScoped<IGenerateCaseReport, GenerateCaseReport>();
         services.AddScoped<ICaseReportDeliveryPreparationStore, EfCaseReportDeliveryPreparationStore>();
@@ -743,6 +767,7 @@ public static class DependencyInjection
         services.AddScoped<IReportSendReadiness, ReportSendReadiness>();
         services.AddScoped<ISendPreparedCaseReport, SendPreparedCaseReport>();
         services.AddScoped<GenerateCaseAssessmentReportDraft>();
+        services.AddScoped<IRenderCaseEstimateDocument, RenderCaseEstimateDocument>();
         return services;
     }
     public static IServiceCollection AddLocalApprovedInbox(
@@ -753,8 +778,6 @@ public static class DependencyInjection
         services.AddSingleton<LocalApprovedInboxOptions>(optionsFactory);
         services.AddSingleton<IApprovedInboxSource, LocalDurableApprovedInboxSource>();
         services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
-        services.AddScoped<IRetainedMailboxMessageStore>(
-            provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<PollApprovedInbox>();
         return services;
     }
@@ -932,8 +955,6 @@ public static class DependencyInjection
         services.AddSingleton<IApprovedSentSource, GraphApprovedSentSource>();
         services.AddScoped<IApprovedInboxPollStore, EfApprovedInboxPollStore>();
         services.AddScoped<ISentEvidencePollStore, EfSentEvidencePollStore>();
-        services.AddScoped<IRetainedMailboxMessageStore>(
-            provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<PollApprovedInbox>();
         services.AddScoped<PollSentEvidence>();
         services.AddScoped<IStaffMailEvidenceReconciler>(provider =>

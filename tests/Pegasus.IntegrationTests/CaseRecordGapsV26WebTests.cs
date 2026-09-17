@@ -3,13 +3,18 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
+
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -20,7 +25,8 @@ namespace Pegasus.IntegrationTests;
 /// commentary text, the vehicle's VIN / type / body, and the rail, layout and
 /// folded panels painted by the server from their cookies.
 /// </summary>
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseRecordGapsV26WebTests
 {
     [Fact]
     public async Task NotesFromClientSitBesideTheAccidentCircumstancesAndTravelWithTheSave()
@@ -217,7 +223,12 @@ public sealed partial class CaseDetailsWebTests
         var store = new RecordingCaseDetailsStore();
         using var baseFactory = new IntakeWebApplicationFactory();
         using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
+            }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -366,4 +377,200 @@ public sealed partial class CaseDetailsWebTests
             ActionActor actor, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<PrincipalAdministrationDetails>>([]);
     }
+
+    [Fact]
+    public async Task TheInspectionPanelPrintsEachFactOnceAndNamesTheDefaultOnlyWhenItDiffers()
+    {
+        var store = new RecordingCaseDetailsStore();
+        var panel = InspectionPanel(await ReadCaseAsync(store));
+
+        // v26: one geometry of labelled cells — the address, then the Repairer
+        // and Storage sub-panels (storage money moved here from Settlement).
+        Assert.Contains("1 Depot Road", panel, StringComparison.Ordinal);
+        Assert.Contains(">Storage location<", panel, StringComparison.Ordinal);
+        Assert.Contains("14 Storage Lane", panel, StringComparison.Ordinal);
+        Assert.Contains("data-inspection-repairer", panel, StringComparison.Ordinal);
+        Assert.Contains(">Repairer<", panel, StringComparison.Ordinal);
+        Assert.Contains("data-inspection-storage", panel, StringComparison.Ordinal);
+        Assert.Contains(CaseWorkspaceLabels.Inspection.StoragePerDay, panel, StringComparison.Ordinal);
+        // Read mode: the storage money reads; its control joins only the edit session.
+        Assert.DoesNotContain("name=\"storagePerDay\"", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Source<", panel, StringComparison.Ordinal);
+        // The Principal's default is its own cell only where the Case holds
+        // something else; here the Case holds a physical address of its own.
+        Assert.Contains("data-inspection-provider-default hidden", panel, StringComparison.Ordinal);
+        // A physical address says something the address itself does not, so
+        // the mode still rides beside it.
+        Assert.Contains("Physical address", panel, StringComparison.Ordinal);
+
+        // The Principal's own setting, recorded on the Case unchanged: the
+        // value carries its provenance word, no default cell is shown, and no
+        // mode chip repeats the value.
+        var imageBased = new RecordingCaseDetailsStore();
+        imageBased.DataOverride = await InspectionOverrideAsync(imageBased, null);
+        var imagePanel = InspectionPanel(await ReadCaseAsync(imageBased));
+        var addressCell = AddressCell(imagePanel);
+        Assert.Equal(1, Occurrences(addressCell, "Image Based Assessment"));
+        Assert.Contains("data-provenance-word=\"Principal\"", addressCell, StringComparison.Ordinal);
+        Assert.DoesNotContain("status--navy", addressCell, StringComparison.Ordinal);
+        Assert.Contains("data-inspection-provider-default hidden", imagePanel, StringComparison.Ordinal);
+
+        // The same Principal setting where staff recorded somewhere else: the
+        // default is a fact the operator cannot read off the value.
+        var corrected = new RecordingCaseDetailsStore();
+        corrected.DataOverride = await InspectionOverrideAsync(corrected, "9 Other Road");
+        var correctedPanel = InspectionPanel(await ReadCaseAsync(corrected));
+        Assert.DoesNotContain("data-inspection-provider-default hidden", correctedPanel, StringComparison.Ordinal);
+        Assert.Contains("data-inspection-provider-default", correctedPanel, StringComparison.Ordinal);
+        Assert.Contains("Principal default", correctedPanel, StringComparison.Ordinal);
+        Assert.Contains("9 Other Road", AddressCell(correctedPanel), StringComparison.Ordinal);
+        Assert.Contains("Image Based Assessment", correctedPanel, StringComparison.Ordinal);
+    }
+
+    /// <summary>The Inspection section's recorded-address cell (v26 `[data-inspection-address]`).</summary>
+
+    [Fact]
+    public async Task ASaveCarriesTheClaimantContactNumberAndAddressThroughToTheCommand()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.RemoveAll<ISaveCaseWorkspace>();
+                services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+                services.AddSingleton<ISaveCaseWorkspace>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var initialHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var saveResponse = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=Save",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", "Corrected the registration"),
+                ("claimantName", "Rebecca Claimant"),
+                ("claimantContactNumber", "07700 900123"),
+                ("claimantAddress", "12 Example Street, Leeds, LS1 1AA"),
+                ("inspectionAddress", "7 No Script Road"),
+                ("storageLocation", "14 Storage Lane")));
+        AssertPrg(saveResponse, store.CaseId);
+
+        var saved = Assert.Single(store.Saves);
+        Assert.Equal("07700 900123", saved.Overview!.ClaimantContactNumber);
+        Assert.Equal("12 Example Street, Leeds, LS1 1AA", saved.Overview!.ClaimantAddress);
+        Assert.Equal("14 Storage Lane", saved.Inspection!.StorageLocation);
+        Assert.Equal("7 No Script Road", saved.Inspection!.Address);
+        Assert.Equal(CaseReportAddressTreatment.PhysicalVehicleLocation, saved.Inspection!.AddressTreatment);
+
+        // A submitted section still contains the other accepted members.
+        Assert.Equal("Rebecca Claimant", saved.Overview!.ClaimantName);
+        Assert.Equal("CLM-42", saved.Overview.ClaimNumber);
+        Assert.Equal("Case contact", saved.Overview.ContactName);
+        Assert.Null(saved.Vehicle);
+    }
+
+
+    [Fact]
+    public async Task AutomaticReadinessRendersWithoutManualCompletenessControls()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore
+        {
+            State = CaseLifecycleState.Review,
+            CaseState = CaseLifecycleState.Review
+        };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+
+        Assert.Contains("Case workflow", html, StringComparison.Ordinal);
+        Assert.Contains("Review", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ConfirmCompleteness", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Confirm completeness", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("name=\"instructionComplete\"", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// A stale-version refusal is not lease loss, but the requirement still makes the rejected editor
+    /// "reload and reacquire rather than merge or force the save", so the edit forms must not come
+    /// back under the same edit authority.
+    /// </summary>
+
+    private static string AddressCell(string panel)
+    {
+        var start = panel.IndexOf("data-inspection-address>", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The inspection address cell must render.");
+        var end = panel.IndexOf("data-inspection-provider-default", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The inspection address cell must end before the default cell.");
+        return panel[start..end];
+    }
+
+    /// <summary>The Case as an operator who holds no edit lease reads it.</summary>
+
+    private static async Task<CaseDataProjection> InspectionOverrideAsync(
+        RecordingCaseDetailsStore store,
+        string? recordedAddress)
+    {
+        var data = await store.GetAsync(store.CaseId, CancellationToken.None)
+            ?? throw new InvalidOperationException("The case fixture returned no data.");
+        var setting = new CaseDataSource(
+            CaseDataSourceKind.ProviderSetting, "QDOS", "Principal setting", "provider-inspection", 1);
+        var staff = new CaseDataSource(
+            CaseDataSourceKind.StaffCorrection, "staff", "Staff correction", "case-edit", 1);
+        return data with
+        {
+            Inspection = data.Inspection with
+            {
+                Address = new(
+                    new("Image Based Assessment", CaseDataValueKind.Fact, setting),
+                    null,
+                    recordedAddress is null
+                        ? null
+                        : new(recordedAddress, CaseDataValueKind.Confirmed, staff)),
+                Mode = new(
+                    new(CaseInspectionMode.ImageBasedAssessment, CaseDataValueKind.Fact, setting),
+                    null,
+                    null)
+            }
+        };
+    }
+
+    /// <summary>The Inspection section's body, between its host and the next.</summary>
+
+    private static string InspectionPanel(string html)
+    {
+        var start = html.IndexOf("id=\"section-inspection\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Inspection section must render.");
+        var end = html.IndexOf("id=\"section-vehicle\"", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The Inspection section must end before the Vehicle section.");
+        return html[start..end];
+    }
+
+    /// <summary>The ribbon's actions cluster (v26), before the section row.</summary>
 }

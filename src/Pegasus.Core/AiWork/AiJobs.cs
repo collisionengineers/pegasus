@@ -95,6 +95,15 @@ public sealed record AiJobRecord(
     public DateTimeOffset? DraftReadyAtUtc { get; init; }
 }
 
+/// <summary>
+/// The compact display subject used when operational history needs to identify
+/// the record named by an AI job without loading the job ledger.
+/// </summary>
+public sealed record AiJobSubjectReference(
+    AiJobSubjectKind SubjectKind,
+    Guid? SubjectId,
+    string SubjectReference);
+
 public sealed record AiJobCounts(int Active, int Failed);
 
 /// <summary>
@@ -230,6 +239,11 @@ public interface IAiJobStore
     Task<AiJobRecord> CreateAsync(NewAiJob job, CancellationToken cancellationToken);
 
     Task<AiJobRecord?> GetAsync(Guid jobId, CancellationToken cancellationToken);
+
+    /// <summary>Returns display subjects for a bounded set of AI-job identifiers.</summary>
+    Task<IReadOnlyDictionary<Guid, AiJobSubjectReference>> ListSubjectReferencesAsync(
+        IReadOnlyCollection<Guid> jobIds,
+        CancellationToken cancellationToken);
 
     Task<AiJobRecord> TransitionAsync(AiJobTransition transition, CancellationToken cancellationToken);
 }

@@ -42,7 +42,7 @@ public sealed class IndexModel(
     /// so the rows are read (and rendered) only for an Administrator; the actions
     /// post to the one owner, Administration › Logs.
     /// </summary>
-    public IReadOnlyList<IntakeLogDetail> FailedIntake { get; private set; } = [];
+    public IReadOnlyList<IntakeLogActionableFailure> FailedIntake { get; private set; } = [];
 
     /// <summary>The failure kinds Operations lists, in the order it lists them.</summary>
     public static readonly IReadOnlyList<IntakeLogOutcome> FailureKinds = IntakeLogPolicy.RetryableFailures;
@@ -126,16 +126,26 @@ public sealed class IndexModel(
             return Forbid();
         }
 
-        Operations = await getRequestOperations.ExecuteAsync(actor, cancellationToken);
         PreservedRequestId = ReadGuidTempData(PreservedRequestIdKey);
         PreservedReason = TempData[PreservedReasonKey] as string;
         var nowUtc = timeProvider.GetUtcNow();
-        EvaActivity = await evaSubmissionQueries.GetActivityAsync(cancellationToken);
-        EvaFailures = await evaSubmissionQueries.GetRecentFailuresAsync(
+        // These projections each use an independent factory-created context.
+        // Capture the instant once, then let their unrelated reads overlap.
+        var operationsTask = getRequestOperations.ExecuteAsync(
+            actor,
+            asOfUtc: nowUtc,
+            cancellationToken: cancellationToken);
+        var evaActivityTask = evaSubmissionQueries.GetActivityAsync(cancellationToken);
+        var evaFailuresTask = evaSubmissionQueries.GetRecentFailuresAsync(
             nowUtc - ServiceHealthPolicy.EvaRecentFailureWindow,
             ServiceHealthPolicy.MaximumEvaFailures,
             cancellationToken);
-        AiJobs = await ReadAiJobsAsync(nowUtc, cancellationToken);
+        var aiJobsTask = ReadAiJobsAsync(nowUtc, cancellationToken);
+        await Task.WhenAll(operationsTask, evaActivityTask, evaFailuresTask, aiJobsTask);
+        Operations = operationsTask.Result;
+        EvaActivity = evaActivityTask.Result;
+        EvaFailures = evaFailuresTask.Result;
+        AiJobs = aiJobsTask.Result;
         FailedIntake = await ReadFailedIntakeAsync(actor, cancellationToken);
         // Started by is a name, never a stored subject id: the ledger keeps the
         // raw actor, so the usernames are resolved once for the whole list.
@@ -493,7 +503,7 @@ public sealed class IndexModel(
             .ToArray();
     }
 
-    private async Task<IReadOnlyList<IntakeLogDetail>> ReadFailedIntakeAsync(
+    private async Task<IReadOnlyList<IntakeLogActionableFailure>> ReadFailedIntakeAsync(
         ActionActor actor,
         CancellationToken cancellationToken)
     {
@@ -502,23 +512,7 @@ public sealed class IndexModel(
             return [];
         }
 
-        var details = new List<IntakeLogDetail>();
-        foreach (var kind in FailureKinds)
-        {
-            var page = await listIntakeLog.ExecuteAsync(
-                actor,
-                new IntakeLogFilter(Outcome: kind),
-                1,
-                cancellationToken);
-            foreach (var row in page.Items)
-            {
-                if (await listIntakeLog.GetAsync(actor, row.ReceiptId, cancellationToken) is { } detail)
-                {
-                    details.Add(detail);
-                }
-            }
-        }
-        return details;
+        return await listIntakeLog.ListRetryableFailuresAsync(actor, cancellationToken);
     }
 
     private static bool ReachedTerminalToday(AiJobRecord job, string today)

@@ -328,7 +328,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     [Theory]
-    [InlineData(CaseLifecycleState.Review, false, true)]
+    [InlineData(CaseLifecycleState.NotReady, true, false)]
+    [InlineData(CaseLifecycleState.Review, true, false)]
+    [InlineData(CaseLifecycleState.Held, false, true)]
     [InlineData(CaseLifecycleState.ReportPreparation, true, false)]
     [InlineData(CaseLifecycleState.PostReport, true, false)]
     [InlineData(CaseLifecycleState.PostReportComplete, true, true)]
@@ -600,7 +602,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
-    public async Task RepairSpecificationAcceptanceCorrectionAndExactVersionPersist()
+    public async Task RepairSpecificationAcceptanceUsesReportsFreshnessAndExactVersionPersists()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("repair-spec-accept-case");
@@ -628,6 +630,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var draft = await harness.RepairSpecifications.StartDraftAsync(draftRequest, CancellationToken.None);
         var replayedDraft = await harness.RepairSpecifications.StartDraftAsync(draftRequest, CancellationToken.None);
         Assert.Equal(draft.SpecificationId, replayedDraft.SpecificationId);
+        var (currentGenerationId, supersededGenerationId) = await SeedGenerationsAsync(harness, caseId);
 
         var acceptLease = await harness.AcquireLeaseAsync(
             caseId, 1, harness.EngineerActor, "repair-spec-accept-lease");
@@ -637,6 +640,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 acceptLease.Token), CancellationToken.None);
         Assert.Equal(RepairSpecificationState.Accepted, accepted.State);
         Assert.Equal(["Door skin"], RepairSpecificationPolicy.ToDisplayLists(accepted).NewParts);
+        Assert.Equal("Stale", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentGenerationId:D}'"));
+        Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededGenerationId:D}'"));
+        Assert.Equal(1, await StaleRowCountAsync(harness, caseId));
+        Assert.Equal(CaseReportStaleReasons.EstimateChanged, await LatestStaleReasonAsync(harness, caseId));
 
         var correctionLease = await harness.AcquireLeaseAsync(
             caseId, 2, harness.EngineerActor, "repair-spec-correct-lease");
@@ -736,7 +745,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
-    public async Task NamedEstimatesSaveDuplicateDiscardSetCurrentAndListWithOneCurrentPerCase()
+    public async Task NamedEstimatesUseReportsFreshnessWhenReselectingOrChangingCurrent()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("estimate-accept-case");
@@ -826,6 +835,20 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal(currentA.SpecificationId,
             (await setCurrent.ExecuteAsync(useA, CancellationToken.None)).SpecificationId);
 
+        var (currentGenerationId, supersededGenerationId) = await SeedGenerationsAsync(harness, caseId);
+        var leaseReselectA = await LeaseAsync(engineer, "estimate-lease-reselect-a");
+        var reselectedA = await setCurrent.ExecuteAsync(
+            new(caseId, leaseReselectA.Version, engineer, "estimate-reselect-a", "Keep using the repairer's estimate.",
+                leaseReselectA.Token, repairer.SpecificationId),
+            CancellationToken.None);
+        version++;
+        Assert.Equal(currentA.SpecificationId, reselectedA.SpecificationId);
+        Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentGenerationId:D}'"));
+        Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededGenerationId:D}'"));
+        Assert.Equal(0, await StaleRowCountAsync(harness, caseId));
+
         // Switching Current clears the previous in the same transaction; A stays Accepted.
         var leaseUseB = await LeaseAsync(engineer, "estimate-lease-use-b");
         var currentB = await setCurrent.ExecuteAsync(
@@ -834,6 +857,12 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             CancellationToken.None);
         version++;
         Assert.True(currentB.IsCurrent);
+        Assert.Equal("Stale", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentGenerationId:D}'"));
+        Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededGenerationId:D}'"));
+        Assert.Equal(1, await StaleRowCountAsync(harness, caseId));
+        Assert.Equal(CaseReportStaleReasons.EstimateChanged, await LatestStaleReasonAsync(harness, caseId));
         var listed = await list.ExecuteAsync(caseId, CancellationToken.None);
         Assert.Equal(3, listed.Count);
         Assert.Single(listed, item => item.IsCurrent);
@@ -989,7 +1018,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)), parsed.Lines, source);
         var authority = new ImportRawEstimateRequest(engineer, caseId, 0, lease.Token,
             Guid.NewGuid(), Guid.NewGuid(), hash, request.OperationKey, request.Details.Name);
-        foreach (var state in new[] { CaseLifecycleState.Review, CaseLifecycleState.NotReady, CaseLifecycleState.Held })
+        // Not ready and Review are assessment-writable since the 17 September
+        // ruling; the import is refused only where the assessment is read-only.
+        foreach (var state in new[] { CaseLifecycleState.Held, CaseLifecycleState.PostReportComplete })
         {
             await using var setup = await harness.Factory.CreateDbContextAsync();
             var workflow = await setup.CaseWorkflows.SingleAsync(row => row.CaseId == caseId);
@@ -1472,6 +1503,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededId:D}'"));
         Assert.Equal(1, await StaleRowCountAsync(harness, caseId));
+        Assert.Equal(CaseReportStaleReasons.ValuationChanged, await LatestStaleReasonAsync(harness, caseId));
 
         // Replay of the same operation returns before any mutation, so the
         // stale row count does not move.
@@ -1501,6 +1533,73 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededId:D}'"));
         Assert.Equal(2, await StaleRowCountAsync(harness, caseId));
+        Assert.Equal(CaseReportStaleReasons.ValuationChanged, await LatestStaleReasonAsync(harness, caseId));
+    }
+
+    [Fact]
+    public async Task EditingAValuationWithoutChangingEffectiveReportDependenciesKeepsTheGenerationCurrent()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("valuation-effective-accept");
+        var caseId = outcome.Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var save = new SaveValuation(harness.Valuations);
+        var edit = new EditValuation(harness.Valuations);
+        var saveLease = await harness.AcquireLeaseAsync(
+            caseId,
+            0,
+            engineer,
+            "valuation-effective-save-lease");
+        var saved = await save.ExecuteAsync(
+            new SaveValuationRequest(
+                caseId,
+                saveLease.Version,
+                engineer,
+                "valuation-effective-save",
+                "Recorded the Glass's guide.",
+                saveLease.Token,
+                new(
+                    ValuationSource.Glasses,
+                    new DateOnly(2031, 5, 8),
+                    new TimeOnly(9, 0),
+                    42000,
+                    12000m,
+                    10000m,
+                    new DateOnly(2031, 5, 1))),
+            CancellationToken.None);
+        var (currentId, supersededId) = await SeedGenerationsAsync(harness, caseId);
+        var version = await harness.Database.ScalarAsync<long>(
+            $"SELECT Version FROM CaseWorkflows WHERE CaseId = '{caseId:D}'");
+        var editLease = await harness.AcquireLeaseAsync(
+            caseId,
+            version,
+            engineer,
+            "valuation-effective-edit-lease");
+
+        await edit.ExecuteAsync(
+            new EditValuationRequest(
+                caseId,
+                editLease.Version,
+                engineer,
+                "valuation-effective-edit",
+                "Corrected guide-card details that the report does not print.",
+                editLease.Token,
+                saved.ValuationId,
+                new(
+                    ValuationSource.Glasses,
+                    new DateOnly(2031, 5, 9),
+                    new TimeOnly(10, 0),
+                    42125,
+                    12500m,
+                    10500m,
+                    new DateOnly(2031, 5, 1))),
+            CancellationToken.None);
+
+        Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
+        Assert.Equal("Confirmed", await harness.Database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededId:D}'"));
+        Assert.Equal(0, await StaleRowCountAsync(harness, caseId));
     }
 
     private static async Task<(Guid CurrentId, Guid SupersededId)> SeedGenerationsAsync(
@@ -1546,6 +1645,10 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     private static Task<int> StaleRowCountAsync(Harness harness, Guid caseId) =>
         harness.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = 'case' AND AggregateId = '{caseId:D}' AND EventKind = 'case_report_generation_stale'");
+
+    private static Task<string> LatestStaleReasonAsync(Harness harness, Guid caseId) =>
+        harness.Database.ScalarAsync<string>(
+            $"SELECT TOP (1) Reason FROM ActionHistory WHERE AggregateType = 'case' AND AggregateId = '{caseId:D}' AND EventKind = 'case_report_generation_stale' ORDER BY OccurredAtUtc DESC, Id DESC");
 
     [Fact]
     public async Task ValuationsSaveEditListAndOwnTheConfirmedEngineersValueField()

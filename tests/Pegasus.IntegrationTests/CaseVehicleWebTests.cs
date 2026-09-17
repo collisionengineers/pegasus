@@ -5,6 +5,8 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Vehicle;
 using Pegasus.Web.Presentation;
 
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
+
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
@@ -17,7 +19,8 @@ namespace Pegasus.IntegrationTests;
 /// action bar (<c>CaseDetailsWebTests</c>) and the store
 /// (<c>CustodyOutboxIntegrationTests</c>).
 /// </summary>
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseVehicleWebTests
 {
     [Fact]
     public async Task CaseOverviewUsesAcceptedFactsAndLeavesVehicleFactsInVehicleSection()
@@ -344,15 +347,15 @@ public sealed partial class CaseDetailsWebTests
         Assert.Contains("<h3>Vehicle history", readOnly, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"edit-vehicle-history\"", readOnly, StringComparison.Ordinal);
 
-        using var workspace = await EnterEditModeAsync(store, _ => { });
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<IGetAssessmentAccess>(services, store));
         var editing = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
 
         Assert.Contains("data-vehicle-history>", editing, StringComparison.Ordinal);
         Assert.Contains("<h3>Vehicle history", editing, StringComparison.Ordinal);
-        // The history check is an Engineer's field: on this Not ready Case the area
-        // still reads inside the session, and its control joins only With Engineer
-        // (EngineeringEditorsShareTheCaseSave… covers the textarea there).
-        Assert.DoesNotContain("id=\"edit-vehicle-history\"", editing, StringComparison.Ordinal);
+        // The Engineer fields on Vehicle join the edit session in Not ready.
+        Assert.Contains("id=\"edit-vehicle-condition\"", editing, StringComparison.Ordinal);
+        Assert.Contains("id=\"edit-vehicle-history\"", editing, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -474,9 +477,15 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
                 Substitute<IGetAssessmentAccess>(
                     services,
                     (IGetAssessmentAccess)new FakeGetAssessmentAccess(canOpenAssessment));
+                Substitute<IGetAssessmentWorkspace>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -544,7 +553,13 @@ public sealed partial class CaseDetailsWebTests
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         using var readOnlyFactory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
+            }));
         using var readOnlyClient = readOnlyFactory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -633,37 +648,6 @@ public sealed partial class CaseDetailsWebTests
         return html[start..(end + "</form>".Length)];
     }
 
-    private static string OverviewPanel(string html)
-    {
-        var host = html.IndexOf("id=\"section-overview\"", StringComparison.Ordinal);
-        Assert.True(host >= 0, "The Case overview panel must render.");
-        var start = html.LastIndexOf("<section", host, StringComparison.Ordinal);
-        Assert.True(start >= 0, "The Case overview panel must be a section.");
-
-        var depth = 0;
-        var index = start;
-        while (true)
-        {
-            var open = html.IndexOf("<section", index, StringComparison.Ordinal);
-            var close = html.IndexOf("</section>", index, StringComparison.Ordinal);
-            Assert.True(close >= 0, "The Case overview panel must close.");
-
-            if (open >= 0 && open < close)
-            {
-                depth++;
-                index = open + "<section".Length;
-                continue;
-            }
-
-            if (--depth == 0)
-            {
-                return html[start..(close + "</section>".Length)];
-            }
-
-            index = close + "</section>".Length;
-        }
-    }
-
     private static int CountOccurrences(string html, string value)
     {
         var count = 0;
@@ -715,32 +699,5 @@ public sealed partial class CaseDetailsWebTests
         return new(caseId, null, answered, [answered, refused], []);
     }
 
-    private sealed partial class RecordingCaseDetailsStore : IRequestVehicleLookup
-    {
-        public List<RequestVehicleLookupCommand> LookupRequests { get; } = [];
 
-        /// <summary>The case's recorded vehicle lookups, when a test supplies them.</summary>
-        public CaseVehicleEvidence? VehicleLookupEvidence { get; init; }
-
-        /// <summary>
-        /// Drops the vehicle values from the projection, so the section renders
-        /// the state a case with no registration is actually in.
-        /// </summary>
-        public bool OmitVehicleValues { get; init; }
-
-        Task<RequestedVehicleLookup> IRequestVehicleLookup.ExecuteAsync(
-            RequestVehicleLookupCommand command,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            LookupRequests.Add(command);
-            return Task.FromResult(new RequestedVehicleLookup(
-                Guid.NewGuid(),
-                CaseId,
-                command.Registration,
-                VehicleLookupWorkState.Pending,
-                CaseVersion + 1,
-                IsReplay: false));
-        }
-    }
 }

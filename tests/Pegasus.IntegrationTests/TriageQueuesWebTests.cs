@@ -12,6 +12,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
@@ -121,6 +122,35 @@ public sealed class TriageQueuesWebTests
             await StoreMinimalReceiptAsync(services, "instruction-source.pdf"),
             instructionCaseReference);
         var imageIntake = await RegisterImageIntakeAsync(factory, client, services, "AB12CDE");
+        var stages = await services.GetRequiredService<IDashboardQueries>()
+            .GetCaseStageCountsAsync(CancellationToken.None);
+        Assert.Equal(1, stages.NotReady);
+        Assert.Equal(1, stages.AwaitingInstruction);
+        Assert.Equal(0, stages.Complete);
+        Assert.Equal(0, stages.Query);
+        Assert.Equal(0, stages.Review);
+        Assert.Equal(0, stages.Held);
+        Assert.Equal(0, stages.WithEngineer);
+        var triageCount = await services.GetRequiredService<IListTriage>().CountAsync(
+            StaffActor(),
+            state: null,
+            cancellationToken: CancellationToken.None);
+        var openUnidentifiedCount = await services.GetRequiredService<IUnidentifiedStore>()
+            .CountOpenAsync(CancellationToken.None);
+        Assert.Equal(0, triageCount);
+        // The no-registration recognition fake reaches the image group's
+        // terminal Unidentified route. Staff registration then establishes
+        // Awaiting instruction without erasing that separate open exception.
+        Assert.Equal(1, openUnidentifiedCount);
+        var expectedShellCount = stages.NotReady
+            + stages.Review
+            + stages.WithEngineer
+            + stages.Query
+            + stages.Held
+            + triageCount
+            + openUnidentifiedCount;
+        // Completed and Awaiting instruction intentionally are not shell work.
+        Assert.Equal(2, expectedShellCount);
 
         using var notReady = await client.GetAsync("/Cases?tab=not_ready");
         var notReadyHtml = await notReady.Content.ReadAsStringAsync();
@@ -154,12 +184,10 @@ public sealed class TriageQueuesWebTests
             notReadyHtml,
             "<span>Cases</span>\\s*<span class=\"nav-count\" aria-label=\"(\\d+) outstanding\"");
         Assert.True(shellCount.Success, "Cases shell count markup not found.");
-        var railTotal = Regex.Matches(
-                notReadyHtml,
-                "class=\"scope-button[^\"]*\"[\\s\\S]*?<span>(\\d+)</span>\\s*</button>")
-            .Sum(match => int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture));
+        // Awaiting instruction has its own tab but remains pre-Case work. The
+        // shell count includes only the FRD's Case and exception queues.
         Assert.Equal(
-            railTotal,
+            expectedShellCount,
             int.Parse(shellCount.Groups[1].Value, CultureInfo.InvariantCulture));
 
         // The Work Centre's Not ready metric reads the same count query, so
@@ -172,6 +200,148 @@ public sealed class TriageQueuesWebTests
             "data-value=\"not_ready\"[\\s\\S]*?metric-value\">(\\d+)</span>");
         Assert.True(tileMatch.Success, "Work Centre Not ready metric markup not found.");
         Assert.Equal(railCount, int.Parse(tileMatch.Groups[1].Value, CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public async Task WorkflowQueuesKeepCompletedAndQuerySeparateAndTheShellCountsQueryOnly()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var suffix = DateTime.UtcNow.Ticks % 1_000_000;
+        var notReadyReference = $"QDOSN{suffix}";
+        var completeReference = $"QDOSC{suffix}";
+        var queryReference = $"QDOSQ{suffix}";
+
+        await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "query-not-ready.pdf"),
+            notReadyReference);
+        var completeId = await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "query-complete.pdf"),
+            completeReference);
+        var queryId = await SeedNotReadyCaseAsync(
+            services,
+            await StoreMinimalReceiptAsync(services, "query-open.pdf"),
+            queryReference);
+        await SetWorkflowStateAsync(services, completeId, CaseLifecycleState.PostReportComplete);
+        await SetWorkflowStateAsync(services, queryId, CaseLifecycleState.Query);
+        await RegisterImageIntakeAsync(factory, client, services, "AB12CDE");
+
+        var stages = await services.GetRequiredService<IDashboardQueries>()
+            .GetCaseStageCountsAsync(CancellationToken.None);
+        Assert.Equal(1, stages.NotReady);
+        Assert.Equal(1, stages.Complete);
+        Assert.Equal(1, stages.Query);
+        Assert.Equal(1, stages.AwaitingInstruction);
+        Assert.Equal(0, stages.Review);
+        Assert.Equal(0, stages.Held);
+        Assert.Equal(0, stages.WithEngineer);
+        var triageCount = await services.GetRequiredService<IListTriage>().CountAsync(
+            StaffActor(),
+            state: null,
+            cancellationToken: CancellationToken.None);
+        var openUnidentifiedCount = await services.GetRequiredService<IUnidentifiedStore>()
+            .CountOpenAsync(CancellationToken.None);
+        Assert.Equal(0, triageCount);
+        // The no-registration recognition fake reaches the image group's
+        // terminal Unidentified route. Staff registration then establishes
+        // Awaiting instruction without erasing that separate open exception.
+        Assert.Equal(1, openUnidentifiedCount);
+        var expectedShellCount = stages.NotReady
+            + stages.Review
+            + stages.WithEngineer
+            + stages.Query
+            + stages.Held
+            + triageCount
+            + openUnidentifiedCount;
+        // Completed and Awaiting instruction intentionally are not shell work.
+        Assert.Equal(3, expectedShellCount);
+
+        using var queryResponse = await client.GetAsync("/Cases?tab=query");
+        var queryHtml = await queryResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, queryResponse.StatusCode);
+        Assert.Contains(queryReference, queryHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(completeReference, queryHtml, StringComparison.Ordinal);
+        Assert.Equal(1, QueueCount(queryHtml, "Query"));
+        Assert.Equal(expectedShellCount, ShellCasesCount(queryHtml));
+
+        using var completeResponse = await client.GetAsync("/Cases?tab=complete");
+        var completeHtml = await completeResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, completeResponse.StatusCode);
+        Assert.Contains(completeReference, completeHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(queryReference, completeHtml, StringComparison.Ordinal);
+        Assert.Equal(1, QueueCount(completeHtml, "Completed"));
+        Assert.Equal(expectedShellCount, ShellCasesCount(completeHtml));
+    }
+
+    [Fact]
+    public async Task CasesShellCountsOpenTriageAndUnidentifiedButExcludesClosedUnidentified()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var register = services.GetRequiredService<IRegisterUnidentified>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+
+        await OpenTriageForPagingAsync(services, 1);
+        var open = await register.ExecuteAsync(
+            new(
+                UnidentifiedOrigin.Receipt(await StoreMinimalReceiptAsync(services, "open-unidentified.pdf")),
+                UnidentifiedReasonCode.UnreadableOrCorruptContent,
+                "The item remains open for the queue boundary test.",
+                ActionActor.SystemWorker("test-worker"),
+                $"open-unidentified:{Guid.NewGuid():N}",
+                now),
+            CancellationToken.None);
+        var closed = await register.ExecuteAsync(
+            new(
+                UnidentifiedOrigin.Receipt(await StoreMinimalReceiptAsync(services, "closed-unidentified.pdf")),
+                UnidentifiedReasonCode.UnreadableOrCorruptContent,
+                "The item is closed for the queue boundary test.",
+                ActionActor.SystemWorker("test-worker"),
+                $"closed-unidentified:{Guid.NewGuid():N}",
+                now),
+            CancellationToken.None);
+        await services.GetRequiredService<ICloseUnidentified>().ExecuteAsync(
+            new(
+                closed.Item.Id,
+                closed.Item.Version,
+                StaffActor(),
+                $"close-unidentified:{Guid.NewGuid():N}",
+                "No further action is required.",
+                now),
+            CancellationToken.None);
+
+        var unidentified = services.GetRequiredService<IUnidentifiedStore>();
+        Assert.Equal(1, await services.GetRequiredService<IListTriage>().CountAsync(
+            StaffActor(),
+            state: null,
+            cancellationToken: CancellationToken.None));
+        Assert.Equal(1, await unidentified.CountOpenAsync(CancellationToken.None));
+        Assert.Single(await unidentified.ListClosedQueueAsync(null, CancellationToken.None));
+
+        using var openResponse = await client.GetAsync("/Cases?tab=unidentified");
+        var openHtml = await openResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, openResponse.StatusCode);
+        // Match the row's detail link, not the bare reference: a short reference
+        // such as "U1" can occur inside an antiforgery token.
+        Assert.Contains($"href=\"/Unidentified/{open.Item.Id:D}\"", openHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain($"href=\"/Unidentified/{closed.Item.Id:D}\"", openHtml, StringComparison.Ordinal);
+        Assert.Equal(1, QueueCount(openHtml, "Unidentified"));
+        Assert.Equal(2, ShellCasesCount(openHtml));
+
+        using var closedResponse = await client.GetAsync("/Cases?tab=unidentified&show=closed");
+        var closedHtml = await closedResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, closedResponse.StatusCode);
+        Assert.Contains($"href=\"/Unidentified/{closed.Item.Id:D}\"", closedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain($"href=\"/Unidentified/{open.Item.Id:D}\"", closedHtml, StringComparison.Ordinal);
+        Assert.Equal(1, QueueCount(closedHtml, "Unidentified"));
+        Assert.Equal(2, ShellCasesCount(closedHtml));
     }
 
     /// <summary>
@@ -975,6 +1145,35 @@ public sealed class TriageQueuesWebTests
             .Where(item => item.Id == caseId)
             .Select(item => item.Reference)
             .SingleAsync();
+    }
+
+    private static async Task SetWorkflowStateAsync(
+        IServiceProvider services,
+        Guid caseId,
+        CaseLifecycleState state)
+    {
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE CaseWorkflows SET State = {state.ToString()} WHERE CaseId = {caseId}");
+    }
+
+    private static int QueueCount(string html, string label)
+    {
+        var match = Regex.Match(
+            html,
+            "scope-button[\\s\\S]*?<span>" + Regex.Escape(label) + "</span>\\s*<span>(\\d+)</span>");
+        Assert.True(match.Success, $"{label} rail scope markup not found.");
+        return int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+    }
+
+    private static int ShellCasesCount(string html)
+    {
+        var match = Regex.Match(
+            html,
+            "<span>Cases</span>\\s*<span class=\"nav-count\" aria-label=\"(\\d+) outstanding\"");
+        Assert.True(match.Success, "Cases shell count markup not found.");
+        return int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
     }
 
     private static async Task<HttpResponseMessage> PostAttachAsync(

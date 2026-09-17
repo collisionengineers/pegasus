@@ -139,18 +139,16 @@ internal sealed class EfQueuedCustodyProcessor(
                 casePayload.WorkKind,
                 ExternalWorkKinds.CreateAuditReferenceCustody,
                 StringComparison.Ordinal);
-            // CASE-014: an audit's reference already carries its a./ap. prefix,
-            // so the case folder is named by the case reference like every
-            // other case. This also closes a split that made audit custody
-            // behave unlike anything the tests covered: the root was created
-            // under the audit identity while GetExistingCaseRootAsync looked
-            // it up under the case reference.
+            // A linked Audit Case is located through its persisted original
+            // Case relationship; its a. reference names only that child.
             var rootReference = casePayload.CaseReference;
             var root = isAuditCustody
                 ? await caseCustody.GetExistingCaseRootAsync(
                     casePayload.CaseId,
                     casePayload.CaseReference,
-                    cancellationToken)
+                    cancellationToken,
+                    casePayload.OriginalCaseId,
+                    casePayload.OriginalCaseReference)
                 : casePayload is { OriginalCaseId: { } originalCaseId, OriginalCaseReference: { } originalCaseReference }
                     // A linked Audit Case roots under its original's folder (13 September).
                     ? await caseCustody.CreateLinkedAuditCaseRootAsync(
@@ -519,14 +517,14 @@ internal sealed class EfQueuedCustodyProcessor(
         var caseEntity = await context.Cases
             .AsNoTracking()
             .SingleAsync(value => value.Id == caseId, cancellationToken);
+        var originalReference = caseEntity.AuditOfCaseId is { } originalId
+            ? await context.Cases.AsNoTracking()
+                .Where(value => value.Id == originalId)
+                .Select(value => value.Reference)
+                .SingleAsync(cancellationToken)
+            : null;
         if (caseEntity.OriginIntakeReceiptId is null)
         {
-            var originalReference = caseEntity.AuditOfCaseId is { } originalId
-                ? await context.Cases.AsNoTracking()
-                    .Where(value => value.Id == originalId)
-                    .Select(value => value.Reference)
-                    .SingleAsync(cancellationToken)
-                : null;
             return new(
                 workKind,
                 caseEntity.Id,
@@ -597,7 +595,9 @@ internal sealed class EfQueuedCustodyProcessor(
             source.IntakeAssetId,
             operationKey,
             caseRootCreationToken,
-            auditFolderCreationToken);
+            auditFolderCreationToken,
+            caseEntity.AuditOfCaseId,
+            originalReference);
     }
 
     private static void EnsureSourceMatchesReceipt(
@@ -903,6 +903,12 @@ internal sealed class EfQueuedCustodyProcessor(
         var caseEntity = await context.Cases
             .AsNoTracking()
             .SingleAsync(value => value.Id == mergedIntoCaseId, cancellationToken);
+        var originalReference = caseEntity.AuditOfCaseId is { } originalId
+            ? await context.Cases.AsNoTracking()
+                .Where(value => value.Id == originalId)
+                .Select(value => value.Reference)
+                .SingleAsync(cancellationToken)
+            : null;
         // The case root folder is named for the same reference the create path
         // used: the Audit reference for an Audit-type case, otherwise the Case
         // reference.
@@ -918,16 +924,18 @@ internal sealed class EfQueuedCustodyProcessor(
             caseEntity.Id,
             caseRootReference,
             caseEntity.CustodyRootRemoteId,
+            caseEntity.AuditOfCaseId,
+            originalReference,
             operationKey);
     }
 
     /// <summary>
-    /// Resolves the retained source images this registration covers: the
-    /// origin receipt plus, for a group registration, every member receipt
-    /// that is registered against this Image intake — resolved through the
-    /// durable group membership (member → latest evaluation → processed
-    /// receipt), exactly as registration itself resolved them, and ordered by
-    /// the member ordinal so the stored numbering is stable.
+    /// Resolves the retained source documents and selected photographs this
+    /// registration covers: the origin receipt plus, for a group registration,
+    /// every registered member. A PDF/email source and ordinary attachments
+    /// stay with the selected photographs; embedded banners and signatures
+    /// never reach the image-case folder because the shared Core selection
+    /// excludes them before this projection.
     /// </summary>
     private static async Task<IReadOnlyList<ImageAssetPayload>> LoadImageAssetsAsync(
         PegasusDbContext context,
@@ -943,24 +951,15 @@ internal sealed class EfQueuedCustodyProcessor(
             .AsNoTracking()
             .Where(receipt => receiptIds.Contains(receipt.Id))
             .ToDictionaryAsync(receipt => receipt.Id, cancellationToken);
-        var sources = (await context.IntakeAssets
+        var assetsByReceipt = (await context.IntakeAssets
             .AsNoTracking()
-            .Where(asset => receiptIds.Contains(asset.IntakeReceiptId)
-                && asset.Kind == "source"
-                && asset.Disposition == "source")
-            .Select(asset => new
-            {
-                asset.IntakeReceiptId,
-                Payload = new SourcePayload(
-                    asset.Id,
-                    asset.FileName,
-                    asset.MediaType,
-                    asset.ContentLength,
-                    asset.ContentHash,
-                    asset.StorageKey)
-            })
+            .Where(asset => receiptIds.Contains(asset.IntakeReceiptId))
             .ToArrayAsync(cancellationToken))
-            .ToDictionary(source => source.IntakeReceiptId, source => source.Payload);
+            .GroupBy(asset => asset.IntakeReceiptId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<IntakeAssetRecord>)group
+                    .Select(EfIntakeReceiptStore.MapAsset).ToArray());
 
         var registeredDecision = EfIntakeReceiptStore.ToCode(IntakeDecision.ImageIntakeRegistered);
         var assets = new List<ImageAssetPayload>();
@@ -977,19 +976,49 @@ internal sealed class EfQueuedCustodyProcessor(
                 // re-routed) is not part of this registration's image set.
                 continue;
             }
-            if (!sources.TryGetValue(receiptId, out var source))
+            if (!assetsByReceipt.TryGetValue(receiptId, out var retainedAssets))
             {
                 throw new InvalidDataException(
                     "A registered image receipt has no retained source lineage.");
             }
-            EnsureSourceMatchesReceipt(receipt, source);
-            assets.Add(new(
-                receipt.Id,
-                receipt.SourceFileName,
-                receipt.MediaType,
-                receipt.SourceHash,
-                source.StorageKey,
-                source.ContentLength));
+
+            var source = retainedAssets.SingleOrDefault(asset => asset.Kind == IntakeAssetKind.Source
+                && asset.Disposition == IntakeAssetDisposition.Source)
+                ?? throw new InvalidDataException(
+                    "A registered image receipt has no retained source lineage.");
+            if (!string.Equals(source.ContentHash, receipt.SourceHash, StringComparison.OrdinalIgnoreCase)
+                || source.ContentLength != receipt.SourceLength)
+            {
+                throw new InvalidDataException(
+                    "The registered image receipt source does not match its retained source asset.");
+            }
+
+            var selectedAssetIds = InstructionEvidenceImages
+                .Select(retainedAssets)
+                .Select(asset => asset.Id)
+                .ToHashSet();
+            var files = retainedAssets
+                .Where(asset => asset.Kind == IntakeAssetKind.Source
+                    || asset.Kind == IntakeAssetKind.Attachment
+                        && asset.Disposition == IntakeAssetDisposition.Attachment
+                        && !InstructionEvidenceImages.IsImage(asset.MediaType)
+                    || selectedAssetIds.Contains(asset.Id))
+                .OrderBy(asset => asset.Kind == IntakeAssetKind.Source ? 0
+                    : asset.Kind == IntakeAssetKind.Attachment ? 1 : 2)
+                .ThenBy(asset => asset.FileName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(asset => asset.Id)
+                .ToArray();
+            foreach (var file in files)
+            {
+                assets.Add(new(
+                    receipt.Id,
+                    file.Id,
+                    file.FileName,
+                    file.MediaType,
+                    file.ContentHash,
+                    file.StorageKey,
+                    file.ContentLength));
+            }
         }
         if (assets.Count == 0)
         {
@@ -1021,13 +1050,14 @@ internal sealed class EfQueuedCustodyProcessor(
                 root,
                 new(
                     asset.IntakeReceiptId,
-                    asset.SourceFileName,
+                    asset.FileName,
                     asset.MediaType,
-                    asset.SourceHash,
-                    asset.SourceObjectKey,
-                    asset.SourceLength),
+                    asset.ContentHash,
+                    asset.StorageKey,
+                    asset.ContentLength,
+                    IntakeAssetId: asset.AssetId),
                 index + 1,
-                $"{payload.OperationKey}:asset:{asset.IntakeReceiptId:N}",
+                $"{payload.OperationKey}:asset:{asset.AssetId:N}",
                 leaseGuard,
                 cancellationToken);
         }
@@ -1076,7 +1106,9 @@ internal sealed class EfQueuedCustodyProcessor(
         var caseRoot = await caseCustody.GetExistingCaseRootAsync(
             payload.CaseId,
             payload.CaseRootReference,
-            cancellationToken);
+            cancellationToken,
+            payload.OriginalCaseId,
+            payload.OriginalCaseReference);
         await caseCustody.MergeImageCaseContentsAsync(
             imageRoot,
             caseRoot,
@@ -1229,11 +1261,12 @@ internal sealed class EfQueuedCustodyProcessor(
 
     private sealed record ImageAssetPayload(
         Guid IntakeReceiptId,
-        string SourceFileName,
+        Guid AssetId,
+        string FileName,
         string MediaType,
-        string SourceHash,
-        string SourceObjectKey,
-        long SourceLength);
+        string ContentHash,
+        string StorageKey,
+        long ContentLength);
 
     private sealed record ImageMergePayload(
         Guid ImageIntakeId,
@@ -1243,6 +1276,8 @@ internal sealed class EfQueuedCustodyProcessor(
         Guid CaseId,
         string CaseRootReference,
         string? CaseCustodyRootRemoteId,
+        Guid? OriginalCaseId,
+        string? OriginalCaseReference,
         string OperationKey) : CustodyWorkPayload;
 
     private sealed record WorkPayload(

@@ -239,13 +239,17 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(read);
-        await ReadGate.WaitAsync(cancellationToken);
+        using (DocumentReadTelemetry.Start("document.provider.gate"))
+        {
+            await ReadGate.WaitAsync(cancellationToken);
+        }
         try
         {
             for (var attempt = 1; ; attempt++)
             {
                 try
                 {
+                    using var providerRead = DocumentReadTelemetry.Start("document.provider.read");
                     return await read(cancellationToken);
                 }
                 catch (HttpRequestException exception)

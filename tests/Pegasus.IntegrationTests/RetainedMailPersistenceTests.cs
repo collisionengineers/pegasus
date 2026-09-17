@@ -6,6 +6,7 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
@@ -230,6 +231,151 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task AttachmentProjectionUsesOrdinalAndSourceLabelForDuplicateFileNamesIncludingUnsearchableFiles()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("duplicate-attachments") with
+        {
+            Metadata = Message("duplicate-attachments").Metadata with
+            {
+                Attachments =
+                [
+                    new("evidence.pdf", "application/pdf", 11),
+                    new("evidence.pdf", "application/pdf", 22)
+                ]
+            }
+        };
+        await RetainAsync(database, message);
+        var firstAssetId = Guid.NewGuid();
+        var secondAssetId = Guid.NewGuid();
+        await using (var context = await database.CreateContextAsync())
+        {
+            var receipt = Receipt(Guid.NewGuid(), message.ExternalReceiptToken);
+            receipt.SourceChannel = "mailbox";
+            receipt.Assets.AddRange(
+            [
+                AttachmentAsset(firstAssetId, receipt.Id, "message, attachment 1", "evidence.pdf", 11, "A"),
+                AttachmentAsset(secondAssetId, receipt.Id, "message, attachment 2", "evidence.pdf", 22, "B")
+            ]);
+            receipt.SearchDocuments.AddRange(
+            [
+                SearchDocument(receipt, 0, "message, attachment 1", "evidence.pdf", null, 0),
+                SearchDocument(receipt, 1, "message, attachment 2", "evidence.pdf", "Readable evidence.", 1)
+            ]);
+            context.IntakeReceipts.Add(receipt);
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetAsync(await RetainedIdAsync(database, message), CancellationToken.None));
+
+        Assert.Collection(
+            detail.Attachments,
+            first =>
+            {
+                Assert.Equal("evidence.pdf", first.FileName);
+                Assert.False(first.IsSearchable);
+                Assert.Equal(firstAssetId, first.IntakeAssetId);
+            },
+            second =>
+            {
+                Assert.Equal("evidence.pdf", second.FileName);
+                Assert.True(second.IsSearchable);
+                Assert.Equal(secondAssetId, second.IntakeAssetId);
+            });
+    }
+
+    [Fact]
+    public async Task AttachmentProjectionWithholdsTheAssetIdWhenTheSourceLabelIsMissingOrAmbiguous()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("unresolved-attachments") with
+        {
+            Metadata = Message("unresolved-attachments").Metadata with
+            {
+                Attachments =
+                [
+                    new("missing.pdf", "application/pdf", 11),
+                    new("ambiguous.pdf", "application/pdf", 22)
+                ]
+            }
+        };
+        await RetainAsync(database, message);
+        await using (var context = await database.CreateContextAsync())
+        {
+            var receipt = Receipt(Guid.NewGuid(), message.ExternalReceiptToken);
+            receipt.SourceChannel = "mailbox";
+            receipt.Assets.AddRange(
+            [
+                AttachmentAsset(Guid.NewGuid(), receipt.Id, "message, attachment 2", "ambiguous.pdf", 22, "A"),
+                AttachmentAsset(Guid.NewGuid(), receipt.Id, "message, attachment 2", "ambiguous.pdf", 22, "B")
+            ]);
+            receipt.SearchDocuments.AddRange(
+            [
+                SearchDocument(receipt, 0, "message, attachment 1", "missing.pdf", null, 0),
+                SearchDocument(receipt, 1, "message, attachment 2", "ambiguous.pdf", null, 1)
+            ]);
+            context.IntakeReceipts.Add(receipt);
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetAsync(await RetainedIdAsync(database, message), CancellationToken.None));
+
+        Assert.All(detail.Attachments, attachment => Assert.Null(attachment.IntakeAssetId));
+    }
+
+    [Fact]
+    public async Task AttachmentProjectionRefusesAmbiguousOrdinalLabelsAndCaseInsensitiveAssetMatches()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("ambiguous-ordinal-labels") with
+        {
+            Metadata = Message("ambiguous-ordinal-labels").Metadata with
+            {
+                Attachments =
+                [
+                    new("ambiguous-label.pdf", "application/pdf", 11),
+                    new("case-sensitive.pdf", "application/pdf", 22)
+                ]
+            }
+        };
+        await RetainAsync(database, message);
+        await using (var context = await database.CreateContextAsync())
+        {
+            var receipt = Receipt(Guid.NewGuid(), message.ExternalReceiptToken);
+            receipt.SourceChannel = "mailbox";
+            receipt.Assets.AddRange(
+            [
+                AttachmentAsset(Guid.NewGuid(), receipt.Id, "message, attachment 1a", "ambiguous-label.pdf", 11, "A"),
+                AttachmentAsset(Guid.NewGuid(), receipt.Id, "message, attachment 2", "case-sensitive.pdf", 22, "B")
+            ]);
+            receipt.SearchDocuments.AddRange(
+            [
+                SearchDocument(receipt, 0, "message, attachment 1a", "ambiguous-label.pdf", null, 0),
+                SearchDocument(receipt, 1, "message, attachment 1b", "ambiguous-label.pdf", null, 0),
+                SearchDocument(receipt, 2, "MESSAGE, ATTACHMENT 2", "case-sensitive.pdf", null, 1)
+            ]);
+            context.IntakeReceipts.Add(receipt);
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetAsync(await RetainedIdAsync(database, message), CancellationToken.None));
+
+        Assert.All(detail.Attachments, attachment => Assert.Null(attachment.IntakeAssetId));
+    }
+
+    [Fact]
     public async Task OriginMailboxReceiptResolvesItsExactRetainedMessage()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -392,6 +538,147 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task ResolvedUnidentifiedItemsLeaveTheInboxUnidentifiedScopeWithoutChangingMailFacts()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var resolvedMessage = Message("resolved-unidentified", subject: "Resolved unidentified");
+        var openMessage = Message("open-unidentified", subject: "Open unidentified");
+        await RetainAsync(database, resolvedMessage);
+        await RetainAsync(database, openMessage);
+        var resolvedReceipt = await StoreClassifiedReceiptAsync(
+            database,
+            resolvedMessage,
+            MailClassificationResult.Unclassified([], "fixture", "test", 1));
+        var openReceipt = await StoreClassifiedReceiptAsync(
+            database,
+            openMessage,
+            MailClassificationResult.Unclassified([], "fixture", "test", 1));
+
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var register = services.GetRequiredService<IRegisterUnidentified>();
+        var resolvedItem = (await register.ExecuteAsync(
+            new(
+                UnidentifiedOrigin.Receipt(resolvedReceipt.Id),
+                UnidentifiedReasonCode.NoUsableIdentification,
+                "test detail",
+                ActionActor.SystemWorker("test-worker"),
+                $"unidentified-test:{Guid.NewGuid():N}",
+                ReceivedAtUtc))).Item;
+        await register.ExecuteAsync(
+            new(
+                UnidentifiedOrigin.Receipt(openReceipt.Id),
+                UnidentifiedReasonCode.NoUsableIdentification,
+                "test detail",
+                ActionActor.SystemWorker("test-worker"),
+                $"unidentified-test:{Guid.NewGuid():N}",
+                ReceivedAtUtc));
+        await services.GetRequiredService<IUnidentifiedStore>().ResolveAsync(
+            new(
+                resolvedItem.Id,
+                resolvedItem.Version,
+                ActionActor.Automation("test-worker"),
+                $"unidentified-resolve-test:{Guid.NewGuid():N}",
+                "resolved",
+                UnidentifiedResolutionTargetKind.ExternalReference,
+                "target-1",
+                null,
+                ReceivedAtUtc.AddMinutes(1)));
+
+        var queries = services.GetRequiredService<IRetainedMailQueries>();
+        var unidentifiedScope = new MailWorkspaceScope(
+            null,
+            MailFolderScope.Inbox,
+            Destination: MailOperationalDestination.Unidentified);
+        var unidentified = await queries.ListAsync(
+            unidentifiedScope,
+            1,
+            25,
+            CancellationToken.None);
+        Assert.Equal(1, await queries.CountAsync(unidentifiedScope, CancellationToken.None));
+        Assert.Equal("Open unidentified", Assert.Single(unidentified.Items).Subject);
+
+        var allIncoming = await queries.ListAsync(
+            new(null, MailFolderScope.Inbox),
+            1,
+            25,
+            CancellationToken.None);
+        Assert.Equal(2, allIncoming.Items.Count);
+        var resolvedSummary = Assert.Single(
+            allIncoming.Items,
+            item => item.Subject == "Resolved unidentified");
+        Assert.True(resolvedSummary.UnidentifiedResolved);
+        Assert.Equal(MailClassificationOutcome.Unclassified, resolvedSummary.Classification!.Outcome);
+        Assert.False(Assert.Single(
+            allIncoming.Items,
+            item => item.Subject == "Open unidentified").UnidentifiedResolved);
+    }
+
+    [Fact]
+    public async Task CountManyMatchesEachInboxRailScopeAndKeepsDuplicateAndEmptyScopePositions()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var fixtures = new[]
+        {
+            ("batch-receiving", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"), [], "fixture", "test", 1)),
+            ("batch-queries", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query"), [], "fixture", "test", 1)),
+            ("batch-triage", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.PreInstructionEmails, "triage-request"), [], "fixture", "test", 1)),
+            ("batch-unidentified", MailClassificationResult.Unclassified([], "fixture", "test", 1)),
+            ("batch-dismissed", MailClassificationResult.Unclassified([], "fixture", "test", 1))
+        };
+        foreach (var (key, classification) in fixtures)
+        {
+            var message = Message(key, subject: key);
+            await RetainAsync(database, message);
+            await StoreClassifiedReceiptAsync(database, message, classification);
+        }
+
+        await using (var context = await database.CreateContextAsync())
+        {
+            var dismissed = await context.RetainedMailboxMessages.SingleAsync(item =>
+                item.ImmutableMessageId == "batch-dismissed");
+            dismissed.DismissedAtUtc = ReceivedAtUtc.AddMinutes(1);
+            dismissed.DismissedBySubjectId = "fixture-staff";
+            await context.SaveChangesAsync();
+        }
+
+        // The seven Mail/Index scope-rail queries, then a duplicate and an empty
+        // scope to pin CountMany's positional contract.
+        IReadOnlyList<MailWorkspaceScope> scopes =
+        [
+            new(null, MailFolderScope.Inbox),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.ReceivingWork),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.Queries),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.Triage),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.Unidentified),
+            new(null, MailFolderScope.Sent),
+            new(null, MailFolderScope.Inbox, DismissedOnly: true),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.Queries),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.Other)
+        ];
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        var individualCounts = new int[scopes.Count];
+        for (var index = 0; index < scopes.Count; index++)
+        {
+            individualCounts[index] = await queries.CountAsync(scopes[index], CancellationToken.None);
+        }
+
+        var batchCounts = await queries.CountManyAsync(scopes, CancellationToken.None);
+
+        Assert.Equal([4, 1, 1, 1, 1, 0, 1, 1, 0], individualCounts);
+        Assert.Equal(individualCounts, batchCounts);
+        Assert.Equal(batchCounts[2], batchCounts[7]);
+        Assert.Equal(0, batchCounts[8]);
+    }
+
+    [Fact]
     public async Task CaseQueryStoreProjectsCurrentlyLinkedQueryMailNewestFirst()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -496,8 +783,8 @@ public sealed class RetainedMailPersistenceTests
             details.QueryEmails.Select(item => item.Subject));
         Assert.Equal(ReceivedAtUtc.AddMinutes(5), details.QueryEmails[0].ReceivedAtUtc);
         Assert.Equal("sender@example.invalid", details.QueryEmails[0].SenderAddress);
-        Assert.Equal(ReceivedMailFamily.Billing, details.QueryEmails[0].Classification.ReceivedFamily);
-        Assert.Equal("billing-query", details.QueryEmails[0].Classification.Subtype);
+        Assert.Equal(ReceivedMailFamily.Billing, details.QueryEmails[0].Classification!.ReceivedFamily);
+        Assert.Equal("billing-query", details.QueryEmails[0].Classification!.Subtype);
         Assert.Equal("second@example.invalid", details.QueryEmails[2].SenderAddress);
         Assert.DoesNotContain(details.QueryEmails, item => item.Subject is
             "Other case" or "Case update" or "Reversed" or "Unassociated");
@@ -1636,6 +1923,49 @@ public sealed class RetainedMailPersistenceTests
             .GetRequiredService<EfRetainedMailboxMessageStore>()
             .RetainAsync(message, CancellationToken.None);
     }
+
+    private static Task<Guid> RetainedIdAsync(
+        LocalDbTestDatabase database,
+        RetainedMailboxMessage message) => database.ScalarAsync<Guid>(
+            $"SELECT Id FROM RetainedMailboxMessages WHERE ImmutableMessageId = '{message.ImmutableMessageId}';");
+
+    private static IntakeAssetEntity AttachmentAsset(
+        Guid id,
+        Guid receiptId,
+        string sourceLabel,
+        string fileName,
+        long contentLength,
+        string hashCharacter) => new()
+    {
+        Id = id,
+        IntakeReceiptId = receiptId,
+        SourceLabel = sourceLabel,
+        FileName = fileName,
+        MediaType = "application/pdf",
+        Kind = "attachment",
+        Disposition = "unidentified",
+        ContentLength = contentLength,
+        ContentHash = new string(hashCharacter[0], 64),
+        StorageKey = $"test:{id:N}"
+    };
+
+    private static IntakeSearchDocumentEntity SearchDocument(
+        IntakeReceiptEntity receipt,
+        int ordinal,
+        string sourceLabel,
+        string fileName,
+        string? text,
+        int attachmentOrdinal) => new()
+    {
+        Id = Guid.NewGuid(),
+        IntakeReceiptId = receipt.Id,
+        IntakeReceipt = receipt,
+        Ordinal = ordinal,
+        AttachmentOrdinal = attachmentOrdinal,
+        SourceLabel = sourceLabel,
+        AttachmentFileName = fileName,
+        Text = text
+    };
 
     private static Task<IntakeReceipt> StoreClassifiedReceiptAsync(
         LocalDbTestDatabase database,

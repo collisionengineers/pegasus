@@ -28,12 +28,20 @@
     var layoutButtons = layoutSwitch
         ? Array.prototype.slice.call(layoutSwitch.querySelectorAll('[data-case-layout]'))
         : [];
-    var layoutKey = 'pegasus.caseLayout';
     var layout = 'scroll';
     var activeKey = record.getAttribute('data-section-current') || 'overview';
     var fragmentPath = window.location.pathname.replace(/\/+$/, '') + '/Section';
     var dirty = false;
+    var dirtyEditors = new Map();
+    var activeEditor = null;
+    var submitting = false;
+    var editorLabels = {
+        'case-edit-form': 'Case',
+        'case-estimate-form': 'Estimate',
+        'case-valuation-form': 'Valuation'
+    };
     var pendingAnchor = null;
+    var navigationVersion = 0;
 
     function links() {
         return Array.prototype.slice.call(nav.querySelectorAll('[data-section-link]'));
@@ -48,9 +56,7 @@
         return links().find(function (link) { return link.getAttribute('data-section-link') === key; });
     }
 
-    // The sticky block's own bottom edge is the reading line, so the offset
-    // is never written down twice. site.js measures the same block into
-    // --sticky-h on the record; this repeats it after an in-place swap.
+    // Keep anchors aligned when the ribbon changes height, including swaps.
     function measure() {
         record.style.setProperty('--sticky-h', block.offsetHeight + 'px');
     }
@@ -58,24 +64,9 @@
         return block.getBoundingClientRect().bottom;
     }
 
-    // The layout is served in the first paint from the session cookie
-    // "pegasus-case-layout" (data-layout on the record). A session's earlier
-    // choice kept under sessionStorage seeds a missing cookie once.
     var layoutCookie = 'pegasus-case-layout';
     function readLayout() {
-        var served = record.getAttribute('data-layout') === 'tabs' ? 'tabs' : 'scroll';
-        var prefs = window.pegasusPreferences;
-        if (!prefs || prefs.read(layoutCookie) !== null) {
-            return served;
-        }
-        var legacy = served;
-        try {
-            legacy = window.sessionStorage.getItem(layoutKey) === 'tabs' ? 'tabs' : served;
-        } catch (_) {
-            legacy = served;
-        }
-        prefs.write(layoutCookie, legacy);
-        return legacy;
+        return record.getAttribute('data-layout') === 'tabs' ? 'tabs' : 'scroll';
     }
     function saveLayout() {
         if (window.pegasusPreferences) {
@@ -99,6 +90,7 @@
         sections().forEach(function (host) {
             host.classList.remove('is-active');
             host.removeAttribute('role');
+            host.removeAttribute('aria-labelledby');
         });
     }
     function applyTabState() {
@@ -116,15 +108,18 @@
         sections().forEach(function (host) {
             var key = host.getAttribute('data-section');
             host.setAttribute('role', 'tabpanel');
+            host.setAttribute('aria-labelledby', 'case-section-tab-' + key);
             host.classList.toggle('is-active', key === activeKey);
         });
     }
     function selectTab(key) {
+        navigationVersion += 1;
         pendingAnchor = null;
         if (!linkFor(key)) {
             return;
         }
         activeKey = key;
+        updateSectionFields();
         applyTabState();
         var target = sectionFor(key);
         if (target && target.hasAttribute('data-lazy')) {
@@ -133,6 +128,7 @@
         window.scrollTo({ top: 0, behavior: 'auto' });
     }
     function setLayout(value, persist) {
+        navigationVersion += 1;
         pendingAnchor = null;
         layout = value === 'tabs' ? 'tabs' : 'scroll';
         record.setAttribute('data-layout', layout);
@@ -181,25 +177,33 @@
         placeholder.dataset.lazyAttemptedAt = String(Date.now());
         var headers = { 'Accept': 'text/html' };
         var lease = editLeaseToken();
+        var requestedMain = main;
+        var requestedVersion = record.getAttribute('data-case-version');
+        function stillCurrent() {
+            return placeholder.isConnected && requestedMain === main && main.contains(placeholder)
+                && record.getAttribute('data-case-version') === requestedVersion && editLeaseToken() === lease;
+        }
         if (lease) {
             headers['X-Pegasus-Edit-Lease'] = lease;
         }
         fetch(fragmentPath + '?section=' + encodeURIComponent(key), { credentials: 'same-origin', headers: headers })
             .then(function (response) {
-                if (!response.ok) {
+                if (!response.ok || response.redirected || !(response.headers.get('Content-Type') || '').includes('text/html')) {
                     throw new Error('section ' + key + ': ' + response.status);
                 }
                 return response.text();
             })
             .then(function (html) {
-                if (!placeholder.isConnected) {
+                if (!stillCurrent()) {
+                    waiting.length = 0;
+                    delete placeholder.dataset.lazyState;
                     return;
                 }
                 var parsed = document.createElement('div');
                 parsed.innerHTML = html;
-                var host = parsed.querySelector('.record-section') || parsed.firstElementChild;
-                if (!host) {
-                    throw new Error('section ' + key + ': empty');
+                var host = parsed.querySelector('.record-section');
+                if (!host || host.id !== 'section-' + key || host.getAttribute('data-section') !== key) {
+                    throw new Error('section ' + key + ': invalid response');
                 }
                 placeholder.replaceWith(host);
                 // Binders scan below their root, so the mounted section is
@@ -215,6 +219,11 @@
                 settlePendingAnchor();
             })
             .catch(function (error) {
+                if (!stillCurrent()) {
+                    waiting.length = 0;
+                    delete placeholder.dataset.lazyState;
+                    return;
+                }
                 placeholder.dataset.lazyState = 'failed';
                 placeholder.textContent = 'This section could not be loaded.';
                 waiting.length = 0;
@@ -274,6 +283,7 @@
         try { heading.focus({ preventScroll: true }); } catch (_) { heading.focus(); }
     }
     function jumpTo(key, focus) {
+        var navigation = ++navigationVersion;
         if (layout === 'tabs') {
             selectTab(key);
             return;
@@ -286,6 +296,7 @@
         pendingAnchor = predecessors.length ? { key: key, predecessors: predecessors } : null;
         if (target.hasAttribute('data-lazy')) {
             mount(target, function (host) {
+                if (navigation !== navigationVersion || layout !== 'scroll') { return; }
                 scrollSectionIntoView(host);
                 mountApproaching();
                 if (focus) { focusSection(host); }
@@ -318,7 +329,10 @@
         links().forEach(function (link) {
             link.setAttribute('aria-current', link.getAttribute('data-section-link') === current ? 'true' : 'false');
         });
-        record.querySelectorAll('[data-case-section-field]').forEach(function (field) { field.value = current; });
+        updateSectionFields();
+    }
+    function updateSectionFields() {
+        record.querySelectorAll('[data-case-section-field]').forEach(function (field) { field.value = activeKey; });
     }
     window.pegasusCaseJumpTo = jumpTo;
 
@@ -380,7 +394,7 @@
         }, 80);
     }, { passive: true });
     ['wheel', 'touchstart', 'pointerdown', 'keydown'].forEach(function (name) {
-        window.addEventListener(name, function () { pendingAnchor = null; }, { passive: true });
+        window.addEventListener(name, function () { pendingAnchor = null; navigationVersion += 1; }, { passive: true });
     });
     window.addEventListener('resize', function () {
         pendingAnchor = null;
@@ -389,34 +403,59 @@
             spy();
         }
     });
+    if ('ResizeObserver' in window) {
+        new ResizeObserver(measure).observe(block);
+    }
 
     // ---- the edit session: dirty guard, heartbeat, expiry ------------------
     function announce(isDirty) {
         dirty = isDirty;
         document.dispatchEvent(new CustomEvent('pegasus:dirty', { detail: { dirty: isDirty } }));
     }
-    function saveForm() {
-        return document.getElementById('case-edit-form');
-    }
-    document.addEventListener('input', function (event) {
-        var control = event.target;
+    function editorFor(control) {
         var form = control.form || (control.closest ? control.closest('form') : null);
-        // The form carries an <input name="id">, which shadows the form's own
-        // id property, so the attribute is read instead.
-        if (!form || form.getAttribute('id') !== 'case-edit-form') {
-            return;
-        }
-        if (!dirty) {
-            announce(true);
-        }
+        return form && editorLabels[form.getAttribute('id')] ? form : null;
+    }
+    function markDirty(form) {
+        var id = form.getAttribute('id');
+        dirtyEditors.set(id, (dirtyEditors.get(id) || 0) + 1);
+        activeEditor = id;
+        announce(true);
+    }
+    ['input', 'change'].forEach(function (name) {
+        document.addEventListener(name, function (event) {
+            var form = editorFor(event.target);
+            if (form) { markDirty(form); }
+        });
     });
+    document.addEventListener('focusin', function (event) {
+        var form = editorFor(event.target);
+        if (form) { activeEditor = form.getAttribute('id'); }
+    });
+    function activeDirtyForm() {
+        var id = dirtyEditors.has(activeEditor) ? activeEditor : dirtyEditors.keys().next().value;
+        return id ? document.getElementById(id) : null;
+    }
+    window.pegasusDirtyEditForm = activeDirtyForm;
     window.pegasusCaseIsDirty = function () { return dirty; };
+    window.addEventListener('beforeunload', function (event) {
+        if (!dirty) { return; }
+        event.preventDefault();
+        event.returnValue = '';
+    });
 
     var heartbeat = null;
+    var heartbeatGeneration = 0;
+    var heartbeatOnVisible = null;
     function stopHeartbeat() {
+        heartbeatGeneration += 1;
         if (heartbeat) {
             window.clearInterval(heartbeat);
             heartbeat = null;
+        }
+        if (heartbeatOnVisible) {
+            document.removeEventListener('visibilitychange', heartbeatOnVisible);
+            heartbeatOnVisible = null;
         }
     }
     function bindHeartbeat() {
@@ -434,10 +473,11 @@
         if (renew) {
             renew.hidden = true;
         }
+        var generation = heartbeatGeneration;
         function expired() {
             stopHeartbeat();
             if (line) {
-                line.textContent = 'Editing expired · changes are not kept';
+                line.textContent = line.getAttribute('data-lease-expired-text') || '';
                 line.classList.add('is-expiring');
                 line.hidden = false;
             }
@@ -446,7 +486,7 @@
             }
         }
         function beat() {
-            if (!heartbeat) {
+            if (!heartbeat || generation !== heartbeatGeneration) {
                 return;
             }
             fetch(form.getAttribute('action') || window.location.href, {
@@ -454,7 +494,13 @@
                 body: new FormData(form),
                 credentials: 'same-origin'
             }).then(function (response) {
-                if (response.status !== 204) {
+                if (generation !== heartbeatGeneration || response.status === 204) {
+                    return;
+                }
+                // 409 and 403 are the server refusing the lease itself. Anything
+                // else - a faulted request, a replica restarting - says nothing
+                // about the lease, and the next beat settles it.
+                if (response.status === 409 || response.status === 403) {
                     expired();
                 }
             }).catch(function () {
@@ -462,23 +508,30 @@
             });
         }
         heartbeat = window.setInterval(beat, seconds * 1000);
-        document.addEventListener('visibilitychange', function () {
+        heartbeatOnVisible = function () {
             if (!document.hidden) {
                 beat();
             }
-        });
+        };
+        document.addEventListener('visibilitychange', heartbeatOnVisible);
     }
 
     // ---- in-place actions: every form in the record posts by fetch and the
     //      record's parts are swapped for the response's (v25 decision 3) ----
     var confirmDialog = document.getElementById('edit-finish-confirm');
     var confirmResolve = null;
+    var confirmInvoker = null;
     function askUnsaved() {
         if (!confirmDialog) {
-            return Promise.resolve('discard');
+            return Promise.resolve('keep');
         }
         return new Promise(function (resolve) {
             confirmResolve = resolve;
+            confirmInvoker = document.activeElement;
+            var form = activeDirtyForm();
+            var label = form ? editorLabels[form.getAttribute('id')] : 'Case';
+            confirmDialog.querySelector('h2').textContent = 'Unsaved ' + Array.from(dirtyEditors.keys()).map(function (id) { return editorLabels[id]; }).join(', ') + ' changes';
+            confirmDialog.querySelector('[data-edit-finish-save]').textContent = label === 'Valuation' ? 'Apply valuation' : 'Save ' + label;
             confirmDialog.hidden = false;
             var keep = confirmDialog.querySelector('[data-edit-finish-keep]');
             if (keep) { keep.focus(); }
@@ -491,12 +544,21 @@
         confirmDialog.hidden = true;
         var resolve = confirmResolve;
         confirmResolve = null;
+        if (confirmInvoker && confirmInvoker.isConnected) { confirmInvoker.focus(); }
         resolve(answer);
     }
     if (confirmDialog) {
         confirmDialog.querySelector('[data-edit-finish-keep]').addEventListener('click', function () { settleUnsaved('keep'); });
         confirmDialog.querySelector('[data-edit-finish-discard]').addEventListener('click', function () { settleUnsaved('discard'); });
         confirmDialog.querySelector('[data-edit-finish-save]').addEventListener('click', function () { settleUnsaved('save'); });
+        confirmDialog.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') { event.preventDefault(); settleUnsaved('keep'); }
+            if (event.key === 'Tab') {
+                var buttons = confirmDialog.querySelectorAll('button');
+                if (event.shiftKey && document.activeElement === buttons[0]) { event.preventDefault(); buttons[buttons.length - 1].focus(); }
+                else if (!event.shiftKey && document.activeElement === buttons[buttons.length - 1]) { event.preventDefault(); buttons[0].focus(); }
+            }
+        });
     }
 
     function anchor() {
@@ -522,24 +584,89 @@
     }
 
     var swapRoots = ['[data-case-notices]', '[data-case-ribbon-facts]', '[data-case-ribbon-actions]', '[data-case-stale]', '#case-main', '[data-case-aside]', '[data-case-dialogs]', '[data-case-viewer-host]'];
-    function swap(html) {
+    function swap(html, command) {
         var parsed = new DOMParser().parseFromString(html, 'text/html');
         var incoming = parsed.querySelector('[data-case-record]');
         if (!incoming) {
             return false;
         }
+        var commit = null;
+        try { commit = JSON.parse(incoming.getAttribute('data-editor-commit') || 'null'); } catch (_) { /* An unrecognised response cannot clear a draft. */ }
+        var confirmed = command && commit && commit.editor === command.editor
+            && commit.operationKey === command.operationKey && String(commit.expectedVersion) === command.expectedVersion;
+        var mayAdvance = confirmed && String(commit.version) === incoming.getAttribute('data-case-version')
+            && incoming.getAttribute('data-case-editing') === 'true';
+        if (confirmed && dirtyEditors.get(command.editor) === command.revision) {
+            dirtyEditors.delete(command.editor);
+        }
+        // Keep the live controls (including grid rows, form-associated fields and
+        // preparation state) rather than reconstructing drafts from fresh HTML.
+        var retainedSections = new Set();
+        dirtyEditors.forEach(function (_, id) {
+            var form = document.getElementById(id);
+            if (!form) { return; }
+            var nextForm = parsed.getElementById(id);
+            var oldVersion = form.querySelector('[name="expectedVersion"]');
+            if (mayAdvance && nextForm && oldVersion && oldVersion.value === command.expectedVersion) {
+                var authorityFields = ['expectedVersion', 'editLeaseToken'];
+                if (id === command.editor) { authorityFields.push('operationKey'); }
+                authorityFields.forEach(function (name) {
+                    var current = form.querySelector('[name="' + name + '"]');
+                    var next = nextForm.querySelector('[name="' + name + '"]');
+                    if (current && next) { current.value = next.value; }
+                });
+            }
+            [form].concat(Array.from(form.elements)).forEach(function (control) {
+                var host = control.closest('.record-section');
+                if (host) { retainedSections.add(host); }
+            });
+            if (form.__pegasusPreparationStaged) {
+                main.querySelectorAll('[data-preparation-card]').forEach(function (card) {
+                    var host = card.closest('.record-section');
+                    if (host) { retainedSections.add(host); }
+                });
+            }
+        });
+        // A refusal or unknown outcome must not replace any draft or its original
+        // authority. Server notices can still explain the failed command.
+        var noticesOnly = dirtyEditors.size > 0 && !confirmed;
         var saved = anchor();
         var collapsed = {};
         sections().forEach(function (host) { collapsed[host.getAttribute('data-section')] = host.classList.contains('is-collapsed'); });
+        if (!noticesOnly) {
+            retainedSections.forEach(function (host) {
+                var next = parsed.getElementById(host.id);
+                if (mayAdvance) {
+                    var newLease = incoming.querySelector('[name="editLeaseToken"]');
+                    host.querySelectorAll('form').forEach(function (form) {
+                        var version = form.querySelector('[name="expectedVersion"]');
+                        var lease = form.querySelector('[name="editLeaseToken"]');
+                        if (lease && newLease && lease.value === command.editLeaseToken
+                            && (!version || version.value === command.expectedVersion)) {
+                            lease.value = newLease.value;
+                            if (version) { version.value = String(commit.version); }
+                        }
+                    });
+                }
+                if (next) { next.replaceWith(host); }
+            });
+        }
         swapRoots.forEach(function (selector) {
+            if (noticesOnly && selector !== '[data-case-notices]' && selector !== '[data-case-stale]') { return; }
+            if (selector === '[data-case-ribbon-actions]' && dirtyEditors.size > 0 && !mayAdvance) { return; }
             var current = document.querySelector(selector);
             var next = parsed.querySelector(selector);
             if (!current || !next) {
                 return;
             }
+            current.querySelectorAll('[data-dialog]:not([hidden]), [data-reason-dialog]:not([hidden])').forEach(function (dialog) {
+                if (typeof dialog.pegasusClose === 'function') {
+                    dialog.pegasusClose();
+                }
+            });
             current.replaceWith(next);
         });
-        ['class', 'data-case-version', 'data-case-editing', 'data-section-current'].forEach(function (name) {
+        (noticesOnly ? [] : ['class', 'data-case-version', 'data-case-editing', 'data-section-current']).forEach(function (name) {
             var value = incoming.getAttribute(name);
             if (value === null) { record.removeAttribute(name); } else { record.setAttribute(name, value); }
         });
@@ -556,10 +683,22 @@
             var root = document.querySelector(selector);
             if (root) { bindMounted(root); }
         });
-        if (layout === 'tabs') { applyTabState(); } else { applyScrollState(); }
+        if (dirtyEditors.size > 0) {
+            record.classList.add('is-editing');
+            record.setAttribute('data-case-editing', 'true');
+        }
+        if (layout === 'tabs') {
+            applyTabState();
+            var selected = sectionFor(activeKey);
+            if (selected && selected.hasAttribute('data-lazy')) { mount(selected, applyTabState); }
+        } else { applyScrollState(); }
+        updateSectionFields();
         measure();
         keep(saved);
-        announce(false);
+        announce(dirtyEditors.size > 0);
+        if (confirmed && dirtyEditors.size > 0 && !mayAdvance) {
+            showActionError('The save completed, but the Case changed again or editing expired. Your other unsaved changes still use their original version.');
+        }
         bindHeartbeat();
         mountApproaching();
         spy();
@@ -567,6 +706,13 @@
         if (confirmation && typeof window.pegasusToast === 'function') {
             var text = confirmation.querySelector('span');
             if (text) { window.pegasusToast(text.textContent.trim()); }
+        }
+        // Only a refusal the server rendered into the swapped-in notices;
+        // showActionError has already toasted its own [data-inplace-error].
+        var alertNotice = document.querySelector('[data-case-notices] [role="alert"]:not([data-inplace-error])');
+        if (alertNotice && typeof window.pegasusToast === 'function') {
+            var alertText = alertNotice.textContent.trim();
+            if (alertText) { window.pegasusToast(alertText, 'danger'); }
         }
         document.dispatchEvent(new CustomEvent('pegasus:case-swapped'));
         return true;
@@ -583,6 +729,11 @@
     }
     function submitInPlace(form, submitter) {
         var body = new FormData(form, submitter && submitter.name ? submitter : undefined);
+        var command = editorLabels[form.getAttribute('id')] ? {
+            editor: form.getAttribute('id'), operationKey: body.get('operationKey'),
+            expectedVersion: body.get('expectedVersion'), editLeaseToken: body.get('editLeaseToken'),
+            revision: dirtyEditors.get(form.getAttribute('id'))
+        } : null;
         var action = (submitter && submitter.getAttribute('formaction')) || form.getAttribute('action') || window.location.href;
         var method = ((submitter && submitter.getAttribute('formmethod')) || form.getAttribute('method') || 'get').toUpperCase();
         var request = { method: method, credentials: 'same-origin', redirect: 'follow', headers: { 'X-Requested-With': 'fetch', 'Accept': 'text/html' } };
@@ -594,31 +745,47 @@
             request.body = body;
         }
         form.setAttribute('aria-busy', 'true');
-        fetch(action, request).then(function (response) {
+        return fetch(action, request).then(function (response) {
             var landed = response.url || action;
             if (!samePage(landed)) {
+                if (dirty) { throw new Error('The action left the Case before its result was confirmed.'); }
                 window.location.assign(landed);
                 return null;
             }
             if (response.status === 403 || response.status === 404) {
-                window.location.assign(landed);
-                return null;
+                throw new Error('The action is unavailable or no longer permitted.');
             }
+            if (!response.ok) { throw new Error('The server could not confirm the action.'); }
             return response.text();
         }).then(function (html) {
             if (html === null) {
                 return;
             }
-            if (!swap(html)) {
-                window.location.reload();
+            if (!swap(html, command)) {
+                throw new Error('The server did not return the Case.');
             }
-        }).catch(function () {
-            // The plain submit is the fallback: nothing here can be worse than
-            // the page the operator already has.
+        }).catch(function (error) {
+            showActionError(error.message + ' Your unsaved changes are still here.');
+        }).finally(function () {
             form.removeAttribute('aria-busy');
             form.removeAttribute('data-inplace-submitting');
-            form.submit();
+            submitting = false;
         });
+    }
+    function showActionError(message) {
+        var notices = document.querySelector('[data-case-notices]');
+        if (!notices) { return; }
+        var error = notices.querySelector('[data-inplace-error]');
+        if (!error) {
+            error = document.createElement('p');
+            error.setAttribute('data-inplace-error', '');
+            error.setAttribute('role', 'alert');
+            notices.appendChild(error);
+        }
+        error.textContent = message;
+        if (typeof window.pegasusToast === 'function') {
+            window.pegasusToast(message, 'danger');
+        }
     }
 
     function inPlace(form) {
@@ -641,40 +808,69 @@
         if (submitter && (submitter.hasAttribute('formtarget') || submitter.hasAttribute('data-no-inplace'))) {
             return;
         }
-        if (form.dataset.inplaceSubmitting === 'true') {
-            return;
-        }
         event.preventDefault();
-        var isSave = form.getAttribute('id') === 'case-edit-form';
-        var isCancel = form.hasAttribute('data-case-cancel-form');
+        if (submitting || confirmResolve || form.dataset.inplaceSubmitting === 'true') { return; }
+        var isSave = !!editorLabels[form.getAttribute('id')];
         var proceed = function () {
+            submitting = true;
+            if (isSave && !dirtyEditors.has(form.getAttribute('id'))) { markDirty(form); }
             form.dataset.inplaceSubmitting = 'true';
             submitInPlace(form, submitter);
         };
-        if (!isSave && dirty && (isCancel || record.getAttribute('data-case-editing') === 'true')) {
-            // Unsaved edits: ask before an action that would lose them
-            // (Cancel, or an immediate post while the session has edits).
+        // Cancel is the operator discarding: it needs no second question.
+        var isCancel = form.hasAttribute('data-case-cancel-form');
+        if (!isSave && dirty && !isCancel) {
             askUnsaved().then(function (answer) {
                 if (answer === 'keep') {
                     return;
                 }
                 if (answer === 'save') {
-                    var save = saveForm();
-                    if (save) {
-                        save.dataset.inplaceSubmitting = 'true';
-                        submitInPlace(save, null);
-                    }
+                    var save = activeDirtyForm();
+                    if (save) { save.requestSubmit(); }
                     return;
                 }
+                dirtyEditors.clear();
+                announce(false);
                 proceed();
             });
             return;
         }
+        if (isCancel) {
+            dirtyEditors.clear();
+            announce(false);
+        }
         proceed();
     });
 
-    // Escape while a swap is unwanted nothing; Ctrl+S is site.js's and lands
-    // on #case-edit-form, which the submit listener above intercepts.
+    // The frame owns this shortcut even inside a field; site.js handles it on
+    // other pages. Each editor retains its distinct Save/Apply command.
+    document.addEventListener('keydown', function (event) {
+        if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') { return; }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (submitting || confirmResolve) { return; }
+        var form = activeDirtyForm();
+        if (form) { form.requestSubmit(); }
+    }, true);
+    document.addEventListener('click', function (event) {
+        var link = event.target.closest('a[href]');
+        if (!dirty || !link || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey
+            || link.hasAttribute('target') || link.hasAttribute('download') || link.hasAttribute('data-section-link')
+            || link.hasAttribute('data-section-jump') || link.hasAttribute('data-evidence-item')
+            || link.getAttribute('href').startsWith('#')) { return; }
+        event.preventDefault();
+        if (submitting || confirmResolve) { return; }
+        askUnsaved().then(function (answer) {
+            if (answer === 'save') {
+                var form = activeDirtyForm();
+                if (form) { form.requestSubmit(); }
+            } else if (answer === 'discard') {
+                dirtyEditors.clear();
+                announce(false);
+                window.location.assign(link.href);
+            }
+        });
+    });
 
     // ---- the section-head Edit posts the ribbon's claim and remembers the
     //      section so the swapped page keeps the reader where they were ------
@@ -1180,11 +1376,13 @@
                     schedule();
                 }
             });
-            // A click anywhere on a card picks it as the basis.
+            // A click anywhere on a card picks it as the basis; a click on one
+            // of an entry card's own controls is the operator typing, not choosing.
             section.querySelectorAll('[data-valuation-card]').forEach(function (card) {
                 card.addEventListener('click', function (event) {
                     var radio = card.querySelector('[data-valuation-basis]');
-                    if (!radio || event.target === radio || radio.checked) {
+                    if (!radio || event.target === radio || radio.checked
+                        || (event.target.closest && event.target.closest('input,button,select,label,a'))) {
                         return;
                     }
                     radio.checked = true;
@@ -1198,18 +1396,6 @@
             }
         });
 
-        // The chosen valuation month is the Add valuation dialog's default too.
-        root.querySelectorAll('[data-valuation-month]').forEach(function (month) {
-            if (month.dataset.valuationMonthBound === 'true') {
-                return;
-            }
-            month.dataset.valuationMonthBound = 'true';
-            month.addEventListener('change', function () {
-                document.querySelectorAll('[data-add-valuation-month]').forEach(function (target) {
-                    target.value = month.value;
-                });
-            });
-        });
     }
 
     bind(document);
@@ -1303,6 +1489,19 @@
         // as by the save, so a removeLine redraw never counts it.
         form.addEventListener('submit', function () {
             body.querySelectorAll('tr[data-estimate-phantom]').forEach(function (row) { row.remove(); });
+            window.setTimeout(appendPhantom, 0);
+        });
+
+        body.addEventListener('click', function (event) {
+            var remove = event.target.closest('button[name="removeLine"]');
+            if (!remove) { return; }
+            event.preventDefault();
+            remove.closest('tr').remove();
+            body.querySelectorAll('tr[data-estimate-line] button[name="removeLine"]').forEach(function (button, index) {
+                button.value = String(index);
+            });
+            form.dispatchEvent(new Event('input', { bubbles: true }));
+            appendPhantom();
         });
 
         appendPhantom();
@@ -1339,6 +1538,7 @@
                     box.checked = expected.indexOf(box.getAttribute('data-vat-category')) >= 0;
                 });
                 paint();
+                status.dispatchEvent(new Event('change', { bubbles: true }));
             });
         }
         paint();
@@ -1598,24 +1798,77 @@
             if (preview && feeNote) {
                 feeNote.addEventListener('change', function () { preview.setAttribute('href', previewHref()); });
             }
-            if (preview) {
-                preview.addEventListener('click', function (event) {
-                    var viewer = window.pegasusCaseViewer;
-                    if (!viewer || typeof viewer.openDocument !== 'function') {
-                        return;
-                    }
-                    event.preventDefault();
-                    var href = previewHref();
-                    var menu = preview.closest('details[data-menu]');
-                    if (menu) { menu.open = false; }
-                    viewer.openDocument({
-                        href: href,
-                        name: preview.getAttribute('data-file-name') || 'Report draft',
-                        download: href,
-                        downloadLabel: 'Download draft'
-                    });
-                });
+        });
+    }
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
+
+// --- saved document previews -------------------------------------------------
+// Fetch once, then give the viewer and its Download action the same Blob URL.
+// Plain links remain the no-script browser-PDF path.
+(function () {
+    'use strict';
+
+    function fileName(response, fallback) {
+        var disposition = response.headers.get('content-disposition') || '';
+        var match = /filename="?([^";]+)"?/i.exec(disposition);
+        return match ? match[1] : fallback;
+    }
+
+    function mediaType(response) {
+        return (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    }
+
+    async function failureMessage(response) {
+        if (response.status === 422 && mediaType(response) === 'application/problem+json') {
+            try {
+                var problem = await response.json();
+                if (problem && typeof problem.detail === 'string' && problem.detail.trim()) {
+                    return problem.detail.trim().slice(0, 500);
+                }
+            } catch (_) {
+                // A malformed refusal is an unexpected response below.
             }
+        }
+        return 'Preview unavailable';
+    }
+
+    function bind(root) {
+        root.querySelectorAll('[data-document-preview]').forEach(function (trigger) {
+            if (trigger.dataset.documentPreviewBound === 'true') { return; }
+            trigger.dataset.documentPreviewBound = 'true';
+            trigger.addEventListener('click', async function (event) {
+                var viewer = window.pegasusCaseViewer;
+                if (!viewer || typeof viewer.openDocument !== 'function') { return; }
+                event.preventDefault();
+                var menu = trigger.closest('details[data-menu]');
+                if (menu) { menu.open = false; }
+                var response;
+                var message = 'Preview unavailable';
+                try {
+                    response = await fetch(trigger.href, {
+                        credentials: 'same-origin',
+                        headers: { 'X-Pegasus-Document-Preview': '1' }
+                    });
+                    if (!response.ok || mediaType(response) !== 'application/pdf') {
+                        message = await failureMessage(response);
+                        throw new Error(message);
+                    }
+                    var url = URL.createObjectURL(await response.blob());
+                    viewer.openDocument({
+                        href: url,
+                        name: fileName(response, trigger.getAttribute('data-file-name') || 'Estimate PDF'),
+                        download: url,
+                        downloadLabel: trigger.hasAttribute('data-report-preview') ? 'Download draft' : 'Download',
+                        revoke: url,
+                        invoker: trigger
+                    });
+                } catch (error) {
+                    if (typeof window.pegasusToast === 'function') { window.pegasusToast(message); }
+                    else { window.alert(message); }
+                }
+            });
         });
     }
     bind(document);
@@ -2158,10 +2411,11 @@
             show(start < 0 ? 0 : start);
         }
         function openDocument(options) {
+            state.items.forEach(function (item) { if (item.revoke) { URL.revokeObjectURL(item.revoke); } });
             state.items = [{
                 href: options.href, downloadHref: options.download || options.href, mediaType: 'application/pdf', kind: 'document',
                 name: options.name || '', thumb: '', tag: '', occurrence: '', excluded: false,
-                downloadLabel: options.downloadLabel || downloadDefault, element: null
+                downloadLabel: options.downloadLabel || downloadDefault, element: null, revoke: options.revoke || ''
             }];
             state.invoker = options.invoker || document.activeElement;
             show(0);
@@ -2182,6 +2436,7 @@
             document.body.classList.remove('has-viewer');
             document.removeEventListener('keydown', onKeydown, true);
             image.removeAttribute('src'); frame.removeAttribute('src'); video.removeAttribute('src'); video.load();
+            state.items.forEach(function (item) { if (item.revoke) { URL.revokeObjectURL(item.revoke); item.revoke = ''; } });
             image.style.transform = ''; image.style.clipPath = '';
             stage.removeAttribute('aria-busy');
             if (state.invoker && typeof state.invoker.focus === 'function') { state.invoker.focus(); }

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 
@@ -293,7 +294,7 @@ public sealed class ProcessIntakeTests
             "embedded vehicle image",
             "vehicle.jpg",
             "image/jpeg",
-            new byte[] { 0x02, 0x03 },
+            new byte[InstructionEvidenceImages.EmbeddedPhotographMinimumBytes],
             IntakeAssetKind.EmbeddedImage,
             IntakeAssetDisposition.Embedded,
             PageNumber: 1);
@@ -389,6 +390,176 @@ public sealed class ProcessIntakeTests
         Assert.Equal(2, custody.OperationKeys.Count);
         Assert.Single(custody.OperationKeys.Distinct(StringComparer.Ordinal));
         Assert.Equal(IncomingArtifactCustodyState.Confirmed, retentionStore.State);
+    }
+
+    [Fact]
+    public async Task EmbeddedBannerIsExcludedBeforeItCanReachHoldingCustody()
+    {
+        var banner = new IntakeAssetCandidate(
+            "uploaded images.pdf, page 1, image 1",
+            "page-1-image-1.png",
+            "image/png",
+            new byte[110_783],
+            IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
+            PageNumber: 1,
+            WidthPixels: 1990,
+            HeightPixels: 437);
+        var photograph = new IntakeAssetCandidate(
+            "uploaded images.pdf, page 1, image 2",
+            "page-1-image-2.jpg",
+            "image/jpeg",
+            new byte[121_652],
+            IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
+            PageNumber: 1,
+            WidthPixels: 547,
+            HeightPixels: 650);
+        var readResult = Readable() with { Assets = [banner, photograph] };
+        var artifactStore = new RecordingArtifactStore();
+
+        var receipt = await CreateSut(
+            new StubReader(readResult), new RecordingStore(), artifactStore).ExecuteAsync(CreateSource());
+
+        Assert.Equal(["selected.pdf", "page-1-image-2.jpg"],
+            receipt.AssetRecords.Select(asset => asset.FileName));
+        Assert.Equal(2, artifactStore.StoredHashes.Count);
+    }
+
+    [Fact]
+    public async Task UnconfirmedHoldingCustodyKeepsTheReceiptOnTheExistingRetryPath()
+    {
+        var receiptStore = new RecordingStore();
+        var retention = new RetainIncomingArtifact(
+            new RecordingHoldingCustody(CaseArtifactCustodyDisposition.Unknown),
+            new UnknownHoldingRetentionStore());
+        var sut = CreateSut(
+            new StubReader(Readable()), receiptStore,
+            retainIncomingArtifact: retention);
+
+        await Assert.ThrowsAsync<IntakeDependencyUnavailableException>(
+            () => sut.ExecuteAsync(CreateSource()));
+
+        Assert.Single(receiptStore.Drafts);
+    }
+
+    [Fact]
+    public async Task ConfirmedHoldingCustodyDoesNotReadStagingAgainDuringRepair()
+    {
+        var receiptStore = new RecordingStore();
+        var artifacts = new RecordingArtifactStore();
+        var initial = await CreateSut(
+            new StubReader(Readable()), receiptStore, artifacts).ExecuteAsync(CreateSource());
+        var confirmed = initial with
+        {
+            Assets = initial.AssetRecords
+                .Select(asset => asset with { CustodyState = IncomingArtifactCustodyState.Confirmed })
+                .ToArray()
+        };
+        receiptStore.ExistingRecord = confirmed;
+        var custody = new RecordingHoldingCustody();
+        var sut = CreateSut(
+            new StubReader(Readable()), receiptStore, artifacts,
+            retainIncomingArtifact: new RetainIncomingArtifact(
+                custody, new UnknownHoldingRetentionStore()));
+
+        var repaired = await sut.RetainHoldingAssetsAsync(confirmed, CancellationToken.None);
+
+        Assert.Equal(confirmed.Id, repaired.Id);
+        Assert.Equal(0, artifacts.ReadCount);
+        Assert.Empty(custody.OperationKeys);
+    }
+
+    [Theory]
+    [InlineData("Connexus Vehicle Assessors\nEngineer Repairable Report")]
+    [InlineData("INVOICE\nAmount Due")]
+    public async Task RecognizedNonImageDocumentWithPhotographRemainsOnItsOriginalRoute(
+        string documentText)
+    {
+        var photograph = new IntakeAssetCandidate(
+            "standalone-report.pdf, page 1, image 1",
+            "vehicle.jpg",
+            "image/jpeg",
+            new byte[121_652],
+            IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
+            PageNumber: 1,
+            WidthPixels: 547,
+            HeightPixels: 650);
+        var readResult = Readable(
+            transportEvidence: [],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "standalone-report.pdf, page 1",
+                    documentText)
+            ]) with { Assets = [photograph] };
+        var source = CreateSource() with
+        {
+            SourceIdentity = new(IntakeSourceChannel.ManualUpload, "standalone-report")
+        };
+
+        var receipt = await CreateSut(new StubReader(readResult), new RecordingStore())
+            .ExecuteAsync(source);
+
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(
+            "No accepted intake route established the principal for automatic case creation.",
+            receipt.DecisionReason);
+        Assert.Null(receipt.InstructionDraft);
+        Assert.Empty(receipt.Fields);
+        Assert.Contains(receipt.Evidence, item =>
+            item.Signal == IntakeEvidenceSignals.RecognizedNonImageDocument);
+        Assert.True(ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
+        Assert.False(ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt));
+        Assert.False(ProcessIntake.IsDeferredForAutomation(receipt));
+    }
+
+    [Fact]
+    public async Task ConflictingInstructionSelectionWithPhotographRemainsOnItsOriginalRoute()
+    {
+        var photograph = new IntakeAssetCandidate(
+            "conflicting-instruction.pdf, page 1, image 1",
+            "vehicle.jpg",
+            "image/jpeg",
+            new byte[121_652],
+            IntakeAssetKind.EmbeddedImage,
+            IntakeAssetDisposition.Embedded,
+            PageNumber: 1,
+            WidthPixels: 547,
+            HeightPixels: 650);
+        var readResult = Readable(
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "conflicting-instruction.pdf, page 1",
+                    "Other provider instruction")
+            ]) with { Assets = [photograph] };
+        var policies = new IInstructionExtractionPolicy[]
+        {
+            new QdosInstructionExtractionPolicy(),
+            new ProfilePolicy("OTHER", "Other provider instruction")
+        };
+
+        var receipt = await CreateSut(
+                new StubReader(readResult),
+                new RecordingStore(),
+                extractionPolicies: policies)
+            .ExecuteAsync(CreateSource());
+
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(
+            "The instruction profile conflicts with the established principal or another instruction.",
+            receipt.DecisionReason);
+        Assert.Null(receipt.InstructionDraft);
+        Assert.Empty(receipt.Fields);
+        Assert.Contains(receipt.Evidence, item =>
+            item.Signal == IntakeEvidenceSignals.ConflictingInstructionSelection);
+        Assert.True(ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
+        Assert.False(ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt));
+        Assert.False(ProcessIntake.IsDeferredForAutomation(receipt));
     }
 
     [Fact]
@@ -654,6 +825,45 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task AuditWithoutOriginalReportStillCreatesACaseDestination()
+    {
+        const string instructionLabel = "message, attachment 1: audit-instructions.pdf";
+        var automaticEvidence = new RecordingAutomaticAuditEvidence();
+        var readResult = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    instructionLabel,
+                    "AUDIT REPORT NOTIFICATION\nQDOS instruction\nClaimant Name: Review Claimant\nClaim Number: Q-AUDIT")
+            ],
+            [new(IntakeEvidenceSource.Sender, "instructions@qdosassist.co.uk", IntakeSenderIdentityKind.Transport, "outer message")],
+            [],
+            false,
+            Assets:
+            [
+                new(instructionLabel, "audit-instructions.pdf", "application/pdf", new byte[] { 1 }, IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment)
+            ]);
+        var store = new RecordingStore();
+        var sut = CreateSut(
+            new StubReader(readResult),
+            store,
+            automaticStandaloneAuditEvidence: automaticEvidence);
+
+        var result = await sut.ExecuteAsync(CreateSource() with
+        {
+            FileName = "audit.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "audit-without-original-report")
+        });
+
+        Assert.Equal(IntakeDecision.CaseCreated, result.Decision);
+        Assert.Equal(CaseType.Audit, result.MailClassificationDecision!.CaseType);
+        Assert.Null(result.MailClassificationDecision.StandaloneAuditReport);
+        Assert.Empty(automaticEvidence.Requests);
+    }
+
+    [Fact]
     public async Task AmbiguousCaseMatchForcesNeedsSortingOnAnOtherwiseCaseCreatedMessage()
     {
         var caseA = Guid.NewGuid();
@@ -761,10 +971,8 @@ public sealed class ProcessIntakeTests
         // policy must land on the identical decision: a classification is a
         // recorded observation, not a general queue or destination change.
         //
-        // The named exceptions are the two the operator's own rules require —
-        // a standalone Audit without its report, and a Triage request, which
-        // is pre-case work by definition and has its own test below. This one
-        // is therefore driven by an automatic reply, which is classified and
+        // Triage is pre-case work by definition and has its own test below.
+        // This one is driven by an automatic reply, which is classified and
         // changes nothing (INTK-033).
         IntakeSourceReadResult ReadResult() => Readable(
             transportEvidence:
@@ -1363,6 +1571,7 @@ public sealed class ProcessIntakeTests
         IIntakeReceiptStore store,
         IIntakeArtifactStore? artifactStore = null,
         IInstructionExtractionPolicy? extractionPolicy = null,
+        IReadOnlyList<IInstructionExtractionPolicy>? extractionPolicies = null,
         IMailRoutePolicy? mailRoutePolicy = null,
         EvaluateIntakeCaseMatch? caseMatchEvaluator = null,
         IReadOnlyList<IMailClassificationPolicy>? classificationPolicies = null,
@@ -1370,7 +1579,8 @@ public sealed class ProcessIntakeTests
         IRegisterUnidentified? registerUnidentified = null,
         RetainIncomingArtifact? retainIncomingArtifact = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
-            new InstructionExtractionPolicySelector([extractionPolicy ?? new QdosInstructionExtractionPolicy()]),
+            new InstructionExtractionPolicySelector(
+                extractionPolicies ?? [extractionPolicy ?? new QdosInstructionExtractionPolicy()]),
             mailRoutePolicy ?? new PrincipalMailRoutePolicy(),
             classificationPolicies ?? [new PrincipalMailClassificationPolicy("QDOS")],
             caseMatchEvaluator ?? new EvaluateIntakeCaseMatch([], new NoCaseMatchCandidates()),
@@ -1460,6 +1670,27 @@ public sealed class ProcessIntakeTests
             EstablishedPrincipalContext principalContext) => result;
     }
 
+    private sealed class ProfilePolicy(string principalCode, string requiredSignal)
+        : IInstructionExtractionPolicy, IInstructionDocumentProfile
+    {
+        public string PrincipalCode => principalCode;
+
+        public string DocumentProfileKey => $"{principalCode.ToLowerInvariant()}_test_instruction";
+
+        public int DocumentProfileVersion => 1;
+
+        public InstructionDocumentSignature Signature => new(
+            InstructionDocumentSignature.InstructionRole,
+            [requiredSignal],
+            []);
+
+        public InstructionExtractionResult Extract(
+            IntakeSourceReadResult readResult,
+            DateTimeOffset processedAtUtc,
+            EstablishedPrincipalContext principalContext) =>
+            throw new InvalidOperationException("A conflicting profile must not extract an instruction.");
+    }
+
     private sealed class ThrowingPolicy : IInstructionExtractionPolicy
     {
         public string PrincipalCode => "QDOS";
@@ -1498,17 +1729,21 @@ public sealed class ProcessIntakeTests
                     ? ExistingRecord
                     : null);
 
-        public Task<IntakeReceipt> StoreAsync(IntakeReceiptDraft draft, CancellationToken cancellationToken)
+        public async Task<IntakeReceipt> StoreAsync(IntakeReceiptDraft draft, CancellationToken cancellationToken)
         {
             Drafts.Add(draft);
-            return store(draft, cancellationToken);
+            var receipt = await store(draft, cancellationToken);
+            ExistingRecord = receipt;
+            return receipt;
         }
-        public Task<IntakeReceipt> ReplaceEvaluationAsync(
+        public async Task<IntakeReceipt> ReplaceEvaluationAsync(
             IntakeReceiptDraft draft,
             CancellationToken cancellationToken)
         {
             Drafts.Add(draft);
-            return store(draft, cancellationToken);
+            var receipt = await store(draft, cancellationToken);
+            ExistingRecord = receipt;
+            return receipt;
         }
 
         public static IntakeReceipt RecordFrom(IntakeReceiptDraft draft) =>
@@ -1576,6 +1811,8 @@ public sealed class ProcessIntakeTests
 
         public List<string> StoredHashes { get; } = [];
 
+        public int ReadCount { get; private set; }
+
         private readonly Dictionary<string, ReadOnlyMemory<byte>> contentByKey = [];
 
         public Task<string> StoreAsync(
@@ -1597,8 +1834,11 @@ public sealed class ProcessIntakeTests
 
         public Task<ReadOnlyMemory<byte>?> ReadAsync(
             string storageKey,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<ReadOnlyMemory<byte>?>(contentByKey.GetValueOrDefault(storageKey));
+            CancellationToken cancellationToken)
+        {
+            ReadCount++;
+            return Task.FromResult<ReadOnlyMemory<byte>?>(contentByKey.GetValueOrDefault(storageKey));
+        }
 
         public async Task<StagedArtifactInventoryItem> StageAsync(
             Guid stagedReceiptId,
@@ -1621,7 +1861,8 @@ public sealed class ProcessIntakeTests
         }
     }
 
-    private sealed class RecordingHoldingCustody : ICaseArtifactCustody
+    private sealed class RecordingHoldingCustody(
+        CaseArtifactCustodyDisposition disposition = CaseArtifactCustodyDisposition.Confirmed) : ICaseArtifactCustody
     {
         public List<string> OperationKeys { get; } = [];
 
@@ -1630,10 +1871,30 @@ public sealed class ProcessIntakeTests
         {
             OperationKeys.Add(request.OperationKey);
             return Task.FromResult(new CaseArtifactCustodyResult(
-                CaseArtifactCustodyDisposition.Confirmed,
+                disposition,
                 null, null, null, "holding-file", "holding-version",
                 request.Sha256, request.ContentLength, request.MediaType, null, null));
         }
+    }
+
+    private sealed class UnknownHoldingRetentionStore : IIncomingArtifactRetentionStore
+    {
+        public Task<RetainedIncomingArtifact?> FindAsync(
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            var assetId = Guid.ParseExact(operationKey.Split(':')[2], "N");
+            return Task.FromResult<RetainedIncomingArtifact?>(
+                new(assetId, operationKey, IncomingArtifactCustodyState.Unknown));
+        }
+
+        public Task<bool> TryClaimHandOverAsync(
+            string operationKey,
+            CancellationToken cancellationToken) => Task.FromResult(true);
+
+        public Task RecordAsync(
+            RetainedIncomingArtifact artifact,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class ReplayHoldingRetentionStore : IIncomingArtifactRetentionStore

@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Reports;
@@ -79,6 +78,37 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     [Fact]
+    public async Task ReportChromeExtractionKeepsCurrentAssessmentTextAndPageCountStable()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var draft = new GenerateAssessmentReportDraft(renderer);
+        var snapshot = ReadySnapshot();
+
+        // The pre-extraction renderer is no longer present. The checked-in
+        // baseline freezes reviewed current text and records that limitation.
+        var current = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
+        var comparison = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
+        var pages = PageTexts(current.Pdf);
+        var reviewedBaseline = File.ReadAllLines(Path.Combine(
+            RepositoryRoot(), "tests", "Pegasus.IntegrationTests", "Reports", "Baselines",
+            "AssessmentReportRenderer.current-text.txt"));
+        var reviewedPageCount = int.Parse(
+            reviewedBaseline.Single(line => line.StartsWith("pages=", StringComparison.Ordinal))["pages=".Length..],
+            System.Globalization.CultureInfo.InvariantCulture);
+        var reviewedText = reviewedBaseline
+            .Where(line => line.Length > 0 && !line.StartsWith('#') && !line.StartsWith("pages=", StringComparison.Ordinal))
+            .ToArray();
+        var actualText = string.Join(" ", pages);
+
+        Assert.Equal(7, current.PageCount);
+        Assert.Equal(current.PageCount, comparison.PageCount);
+        Assert.Equal(PageTexts(current.Pdf), PageTexts(comparison.Pdf));
+        Assert.Equal(reviewedPageCount, pages.Length);
+        Assert.All(reviewedText, expected => Assert.Contains(expected, actualText, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task TheFeeNoteRendersItsOwnDocument()
     {
         await using var provider = RendererProvider();
@@ -131,9 +161,35 @@ public sealed partial class AssessmentReportRendererTests
         var reportPages = pages.Take(plain.PageCount).ToArray();
         Assert.Contains(snapshot.Signatory.PrintedName, reportPages[^1], StringComparison.Ordinal);
         Assert.All(reportPages, page => Assert.DoesNotContain("TOTAL DUE", page, StringComparison.Ordinal));
+        Assert.All(reportPages, page => Assert.DoesNotContain(
+            $"VAT No: {AssessmentReportContract.VatNumber}", page, StringComparison.Ordinal));
+        Assert.All(pages.Skip(plain.PageCount), page => Assert.Contains(
+            $"VAT No: {AssessmentReportContract.VatNumber}", page, StringComparison.Ordinal));
         // The separate fee-note document is exactly the fee note.
         Assert.Equal(combined.PageCount - plain.PageCount, separate.PageCount);
         Assert.Contains("TOTAL DUE", string.Join(" ", PageTexts(separate.Pdf)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EveryPageOfAMultiPageFeeNoteUsesTheFeeFooter()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var snapshot = ReadySnapshot() with
+        {
+            FeeDescriptionLines = Enumerable.Range(1, 80)
+                .Select(index => $"Engineering service line {index:00} with retained billing detail")
+                .ToArray(),
+        };
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(snapshot, CaseReportArtifactKind.FeeNote);
+        var pages = PageTexts(artifact.Pdf);
+
+        Assert.True(artifact.PageCount > 1);
+        Assert.All(pages, page => Assert.Contains(
+            $"VAT No: {AssessmentReportContract.VatNumber}", page, StringComparison.Ordinal));
+        Assert.Contains("TOTAL DUE", string.Join(" ", pages), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -280,12 +336,20 @@ public sealed partial class AssessmentReportRendererTests
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
 
+    private static string RepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null && !File.Exists(Path.Combine(current.FullName, "Pegasus.slnx")))
+        {
+            current = current.Parent;
+        }
+        return current?.FullName ?? throw new InvalidOperationException("Repository root not found.");
+    }
+
     private static ServiceProvider RendererProvider()
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddPegasusInfrastructure((_, options) =>
-            options.UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=renderer;Trusted_Connection=True"));
         services.AddPegasusReportRendering();
         return services.BuildServiceProvider();
     }

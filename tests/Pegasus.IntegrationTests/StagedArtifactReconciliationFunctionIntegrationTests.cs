@@ -550,6 +550,9 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken = default) =>
             throw UnexpectedCall();
 
+        public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(0);
+
         public Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(
             Guid unidentifiedItemId,
             CancellationToken cancellationToken = default) =>
@@ -575,6 +578,10 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
+        public Task<int> CountAsync(
+            Pegasus.Core.Triage.TriageState? state,
+            CancellationToken cancellationToken) => throw UnexpectedCall();
+
         public Task<Pegasus.Core.Triage.TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
@@ -591,6 +598,11 @@ public sealed class StagedArtifactReconciliationFunctionIntegrationTests
     {
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
             bool? associated,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>> ListImagesAsync(
+            IReadOnlyCollection<Guid> imageIntakeIds,
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 

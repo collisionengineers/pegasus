@@ -22,7 +22,7 @@ public sealed class LogsModel(
     ListActionLogs listActionLogs,
     GetAdministrationHealthMetrics getMetrics,
     TimeProvider timeProvider,
-    IGetCaseHeader getCaseHeader,
+    IListCaseReferences listCaseReferences,
     ISearchCases searchCases,
     IStaffAccountQueries staffAccounts,
     IAiJobStore aiJobs,
@@ -457,32 +457,43 @@ public sealed class LogsModel(
         ActionActor actor,
         CancellationToken cancellationToken)
     {
-        foreach (var caseId in Result.Rows
-                     .Where(IsCaseReference)
-                     .Select(row => Guid.TryParse(row.Reference, out var id) ? id : Guid.Empty)
-                     .Where(id => id != Guid.Empty)
-                     .Distinct())
+        var caseIds = Result.Rows
+            .Where(IsCaseReference)
+            .Select(row => Guid.TryParse(row.Reference, out var id) ? id : Guid.Empty)
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray();
+        if (caseIds.Length == 0)
         {
-            var header = await getCaseHeader.ExecuteAsync(new(caseId, actor), cancellationToken);
-            if (header is not null)
-            {
-                _caseReferences[caseId] = header.Summary.Reference;
-            }
+            return;
+        }
+
+        var references = await listCaseReferences.ExecuteAsync(new(actor, caseIds), cancellationToken);
+        foreach (var (caseId, reference) in references)
+        {
+            _caseReferences[caseId] = reference;
         }
     }
 
-    // One read per distinct job on the page, not per transition row: a job
-    // writes a history row for every state it passes through.
+    // A job writes a history row for every state it passes through, so resolve
+    // each distinct job's compact display subject in one bounded page read.
     private async Task ResolveAiJobReferencesAsync(CancellationToken cancellationToken)
     {
-        foreach (var jobId in Result.Rows
-                     .Where(IsAiJobReference)
-                     .Select(row => Guid.TryParse(row.Reference, out var id) ? id : Guid.Empty)
-                     .Where(id => id != Guid.Empty)
-                     .Distinct())
+        var jobIds = Result.Rows
+            .Where(IsAiJobReference)
+            .Select(row => Guid.TryParse(row.Reference, out var id) ? id : Guid.Empty)
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToArray();
+        if (jobIds.Length == 0)
         {
-            var job = await aiJobs.GetAsync(jobId, cancellationToken);
-            if (job?.SubjectId is { } subjectId
+            return;
+        }
+
+        var references = await aiJobs.ListSubjectReferencesAsync(jobIds, cancellationToken);
+        foreach (var (jobId, job) in references)
+        {
+            if (job.SubjectId is { } subjectId
                 && AiJobActions.RecordPage(job.SubjectKind) is { } page)
             {
                 _aiJobReferences[jobId] = new(page, subjectId, job.SubjectReference);

@@ -29,17 +29,29 @@ public sealed class EfIntakeSubmissionGroupStore(
                            && submissionGroup.ExpectedMemberCount > 1 && work.State == "completed"
                            && receipt.Decision == "needs_sorting"
                            && receipt.InstructionDraft == null && receipt.FieldsJson == emptyFields
-                           && receipt.Assets.Any()
-                           && !receipt.Assets.Any(asset => !EF.Functions.Like(
-                               asset.MediaType, ImageIntakeLifecycleRules.ImageMediaTypePrefix + "%"))
                            && !context.UnidentifiedItems.Any(item => item.OriginKind == groupOrigin && item.OriginId == submissionGroup.Id)
                        select new { submissionGroup.Id, submissionGroup.ReceivedAtUtc, ReceiptId = receipt.Id, member.Ordinal };
-        return await eligible.GroupBy(item => new { item.Id, item.ReceivedAtUtc })
+        var candidates = await eligible.ToArrayAsync(cancellationToken);
+        var receiptIds = candidates.Select(candidate => candidate.ReceiptId).Distinct().ToArray();
+        var receipts = receiptIds.Length == 0
+            ? new Dictionary<Guid, IntakeReceiptEntity>()
+            : (await context.IntakeReceipts.AsNoTracking()
+                    .Include(receipt => receipt.Assets)
+                    .Include(receipt => receipt.MailClassificationDecision)
+                    .Include(receipt => receipt.MailRouteDecision)
+                    .Where(receipt => receiptIds.Contains(receipt.Id))
+                    .ToArrayAsync(cancellationToken))
+                .ToDictionary(receipt => receipt.Id);
+        return candidates
+            .Where(candidate => receipts.TryGetValue(candidate.ReceiptId, out var receipt)
+                && ImageIntakeLifecycleRules.IsImageAutomationEligible(
+                    EfIntakeReceiptStore.Map(receipt, isDuplicate: false)))
+            .GroupBy(item => new { item.Id, item.ReceivedAtUtc })
             .OrderBy(group => group.Key.ReceivedAtUtc)
             .ThenBy(group => group.Key.Id)
             .Select(group => group.OrderBy(item => item.Ordinal).Select(item => item.ReceiptId).First())
             .Take(maximumItems)
-            .ToListAsync(cancellationToken);
+            .ToArray();
     }
 
     public async Task<IntakeSubmissionGroup?> GetAsync(

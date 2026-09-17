@@ -71,8 +71,7 @@ public sealed class CreateManualCase(
         }
         if (request.CaseType == CaseType.Audit)
         {
-            throw new InvalidOperationException(
-                "An Audit needs its retained original-report evidence and cannot be created manually.");
+            throw new InvalidOperationException("The case type is invalid.");
         }
 
         var outcome = await store.CreateAsync(request with

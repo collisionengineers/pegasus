@@ -294,14 +294,13 @@ public sealed class DashboardBoundaryTests
     [Fact]
     public async Task TheOperationsBadgeCountsRetryableExternalFailuresOnly()
     {
-        var badge = new GetOperationsBadge(new GetRequestOperations(
-            new StubRequestOperationStore
-            {
-                Items = [NewExternalWork(canRetry: true), NewExternalWork(canRetry: false), NewExternalWork(canRetry: true)]
-            },
-            new FixedTimeProvider(NowUtc)));
+        var store = new StubRequestOperationStore
+        {
+            RetryableFailureCount = 137
+        };
+        var badge = new GetOperationsBadge(store, new FixedTimeProvider(NowUtc));
 
-        Assert.Equal(2, await badge.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])));
+        Assert.Equal(137, await badge.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])));
     }
 
     [Fact]
@@ -600,6 +599,12 @@ public sealed class DashboardBoundaryTests
                 .ToArray();
             return Task.FromResult(new TriageListPage(page, query.Page, query.PageSize, matches.Length));
         }
+
+        public Task<int> CountAsync(
+            ActionActor actor,
+            TriageState? state,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(Items.Count(item => state is null || item.State == state));
     }
 
     private sealed class StubDueWorkQueries : ICaseDueWorkQueries
@@ -639,13 +644,16 @@ public sealed class DashboardBoundaryTests
 
     private sealed class StubUnidentifiedQueue : IUnidentifiedStore
     {
-        public IReadOnlyList<UnidentifiedQueueRow> Rows { get; init; } = [];
+        public UnidentifiedQueueRow[] Rows { get; init; } = [];
 
         public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(
             UnidentifiedMediaKind? mediaKind,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<UnidentifiedQueueRow>>(
                 Rows.Where(row => mediaKind is null || row.MediaKind == mediaKind).ToArray());
+
+        public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(Rows.Length);
 
         public Task<UnidentifiedRegisterResult> RegisterAsync(
             RegisterUnidentifiedRequest request,
@@ -687,11 +695,17 @@ public sealed class DashboardBoundaryTests
     {
         public IReadOnlyList<RequestOperationProjection> Items { get; init; } = [];
 
+        public int RetryableFailureCount { get; init; }
+
         public Task<RequestOperationsProjection> GetAsync(
             int maximumItems,
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken) =>
             Task.FromResult(new RequestOperationsProjection([.. Items], LimitReached: false));
+
+        public Task<int> CountRetryableExternalFailuresAsync(
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken) => Task.FromResult(RetryableFailureCount);
     }
 
     /// <summary>Resolves nobody: every owner reads as former staff, and nothing throws.</summary>
@@ -702,6 +716,11 @@ public sealed class DashboardBoundaryTests
 
         public Task<StaffAccountSummary?> GetAsync(Guid staffId, CancellationToken cancellationToken) =>
             Task.FromResult<StaffAccountSummary?>(null);
+
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffAccountSummary>>([]);
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
@@ -719,6 +738,11 @@ public sealed class DashboardBoundaryTests
             throw new NotSupportedException("Not used by these tests.");
 
         public Task<StaffAccountSummary?> GetAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(

@@ -96,10 +96,49 @@ public sealed class StaffAccountsAndRolesWebTests
         Assert.Null(recorded!.Reason);
     }
 
+    [Fact]
+    public async Task SettingsHeartbeatReturnsOkAndInvalidScopeReturnsConflict()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var accounts = await scope.ServiceProvider.GetRequiredService<IStaffAccountQueries>()
+            .ListAsync(0, ListStaffAccounts.MaximumPageSize, default);
+        var administrator = accounts.Accounts.Single(item =>
+            item.UserName == DevelopmentOfflineIdentity.UserName);
+        var path = AreaRoute + "?editStaffId=" + administrator.Id
+            + "&expectedVersion=" + administrator.Version;
+        using var editResponse = await client.GetAsync(path);
+        var editHtml = await editResponse.Content.ReadAsStringAsync();
+        var antiForgery = Field(editHtml, "__RequestVerificationToken");
+
+        using var renewed = await client.PostAsync(
+            AreaRoute + "?handler=HeartbeatSettings",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["staffId"] = administrator.Id.ToString("D"),
+                ["editLeaseToken"] = Field(editHtml, "editLeaseToken"),
+                ["__RequestVerificationToken"] = antiForgery
+            }));
+        Assert.Equal(HttpStatusCode.OK, renewed.StatusCode);
+
+        using var refused = await client.PostAsync(
+            AreaRoute + "?handler=HeartbeatSettings",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["staffId"] = administrator.Id.ToString("D"),
+                ["editLeaseToken"] = string.Empty,
+                ["__RequestVerificationToken"] = antiForgery
+            }));
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+    }
+
     // The settings dialog auto-opens (data-dialog-open-on-load) and carries
-    // Disable/Delete/Force logout/Reset password as direct row forms: no
-    // confirmation dialog, no reason. Disable posts on the click and its
-    // history row records no reason.
+    // Disable/Force logout/Reset password as direct row forms: no
+    // confirmation dialog, no reason. Delete confirms in its own native dialog
+    // because the row is removed. Disable posts on the click and its history
+    // row records no reason.
     [Fact]
     public async Task SettingsDialogPostsAccountActionsDirectly()
     {
@@ -138,6 +177,8 @@ public sealed class StaffAccountsAndRolesWebTests
             Assert.Contains("?handler=" + handler + "\"", html, StringComparison.Ordinal);
         }
         Assert.DoesNotContain("data-dialog=\"" + settingsId + "-", html, StringComparison.Ordinal);
+        Assert.Contains("<dialog id=\"" + settingsId + "-delete\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open=\"" + settingsId + "-delete\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"reason\"", html, StringComparison.Ordinal);
 
         using var disabled = await client.PostAsync(

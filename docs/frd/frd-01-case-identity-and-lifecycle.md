@@ -12,14 +12,23 @@ resolution can link it to a supported destination, without changing that U-refer
 
 - Principal and internal reference are immutable after allocation.
 - Reference allocation occurs once safe source processing establishes an unambiguous Principal and Case type and all identity-critical gates pass. Manual upload additionally requires explicit staff acceptance under [FRD-02](frd-02-intake-and-source-identity.md); its extracted proposal remains pre-Case with no reserved Case/PO until acceptance. Incomplete ordinary business detail, images, or required external checks create or retain an accepted Case as `Not ready`; they do not otherwise leave a valid instruction pre-Case.
-- The normal Case/PO is `{principal code}{YY}{shared sequence}` with a three-digit minimum: `001` through `999`, then `1000` through `9999`. Inspection, standalone Audit, and Inspection + Audit consume one principal/year sequence. Exhaustion at `9999` is visible and blocks allocation; references and sequence values never wrap or return to use.
-- An Audit requires two separate document attachments: the Audit instruction and the original report to be audited. Who states that report's outcome depends on the route. On the retained-email route Pegasus reads the literal outcome in the report itself: `repairable` derives `a.{Case/PO}` and `total loss` derives `ap.{Case/PO}`, and missing, conflicting or ambiguous original-report evidence withholds only the later Audit reference. A definitive instruction still creates the normal Case/PO once Principal and identity-critical gates pass. On the Provider API route the authenticated Principal declares the verdict and that declaration derives the reference (operator decision, 2026-08-28); the original report is still required as an attachment, because the Engineer needs the report they are auditing, but it is not parsed to decide the prefix. No staff confirmation is an intake gate on either route.
+- The normal Case/PO is `{principal code}{YY}{shared sequence}` with a three-digit minimum: `001` through `999`, then `1000` onward without a fixed-width ceiling. Inspection, standalone Audit, and Inspection + Audit consume one principal/year sequence. References and sequence values never wrap or return to use.
+- A standalone Audit instruction creates its `a.` Case/PO once the Principal
+  and identity-critical gates pass, with or without the original report. On the
+  retained-email route a readable original report records the assessment at
+  intake. When the report is missing, **Original report missing** is an
+  outstanding requirement on the Case until staff mark a filed document as the
+  original report. The assessment is a recorded Case fact, not identity, and
+  the prefixed value is the Case/PO itself, not a second or later reference.
+  On the Provider API route the authenticated Principal still declares the
+  verdict and attaches the original report; the declaration records the
+  assessment. Manual upload additionally requires explicit staff acceptance.
 - Inspection + Audit begins with the normal Inspection Case/PO reference. Once
   a report has been generated on that Case, **Create audit** (the Case record's
   Actions menu, inside an edit session) creates one linked Audit Case. The
   Audit Case keeps the Principal and sequence, has Case type Audit and its own
-  reference: `ap.{Case/PO}` when the Settlement outcome is total loss and
-  `a.{Case/PO}` for every other outcome; the operator is never asked. It
+  `a.{Case/PO}` reference for every assessment outcome; the operator is never
+  asked. It
   inherits the original's Engineer, starts in Review, carries the Case data,
   assessment and estimate forward, and shares the original's files by
   reference to the same stored bytes. Pegasus creates its Box subfolder under
@@ -91,6 +100,12 @@ The named Core workflow records the policy key and version used for readiness.
 Review-gated transitions evaluate instruction and image completeness from
 persisted facts inside the transaction; posted readiness claims are not
 authority, and staff-confirmation checkboxes are retired (CASE-046, PLAT-072).
+For automatically matched follow-up photographs, image completeness becomes
+true only after the receipt's selected photographs and required source files
+are confirmed in Case custody. Pending or failed filing cannot clear the
+Images blocker. This attributed, idempotent completion evaluates the existing
+readiness policy; it does not satisfy unrelated blockers, assign an Engineer,
+or bypass Review. A replay does not override a later staff completeness change.
 Complete instructions and images move a Case from Not ready to Review. In
 Review, **Hand to Engineer** is the review action: selecting an eligible
 Engineer assigns the Case and moves it to With Engineer atomically. No
@@ -177,8 +192,9 @@ requirements. No formal Case appears as terminally Closed.
   API on Review permits a staff retry only after its automatic delivery
   failed. Pegasus generation has no EVA action. EVA never gates native work.
 - Damage, Valuation, Estimate, Settlement and Report are always viewable.
-  Engineering edits require With Engineer and the normal Case edit authority.
-  No pre-assignment valuation check may depend on an Engineer-only edit.
+  Staff with `PerformCasework` may edit them in Not ready, Review and With
+  Engineer under the normal Case edit authority. Held and completed states are
+  read-only. Adopting the Engineer's Value remains an Engineer act.
 - **Report sent** confirms retained exact Sent evidence under FRD-08; generation,
   an export or a manual assertion is insufficient.
 - **Completed** records that the current work is complete. Query receipt or

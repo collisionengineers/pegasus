@@ -12,7 +12,10 @@ public sealed class ApplicationExceptionAlertContractTests
             "platform.bicep"));
 
         Assert.Contains("name: '${prefix}-application-exceptions'", template, StringComparison.Ordinal);
-        Assert.Contains("severity: 1", template, StringComparison.Ordinal);
+        // Sev2 since 15 September 2026: the rule pages on correlated exceptions, not
+        // on a single transient fault; the Web 5xx rule fires only above one 5xx.
+        Assert.Contains("severity: 2", template, StringComparison.Ordinal);
+        Assert.Contains("threshold: 1", template, StringComparison.Ordinal);
         Assert.Contains("windowSize: 'PT15M'", template, StringComparison.Ordinal);
         Assert.Contains("actionGroups: [actionGroup.id]", template, StringComparison.Ordinal);
         Assert.Contains("AppRequests", template, StringComparison.Ordinal);

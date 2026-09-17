@@ -555,5 +555,13 @@ public sealed class CasesIndexWebTests
             Guid caseId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>> ListImagesAsync(
+            IReadOnlyCollection<Guid> imageIntakeIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>>(
+                imageIntakeIds.Distinct().ToDictionary(
+                    imageIntakeId => imageIntakeId,
+                    _ => (IReadOnlyList<ImageIntakeImage>)[]));
     }
 }

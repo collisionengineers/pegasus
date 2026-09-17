@@ -27,7 +27,7 @@ public static class ActorDisplayNames
 
     /// <summary>
     /// Resolves the distinct staff subject ids referenced by a set of actors into
-    /// their current username, in one query per distinct account. Disabled and
+    /// their current username, in one batch query. Disabled and
     /// deleted accounts still resolve; an id absent from the result no longer
     /// exists at all, and callers fall back to <see cref="FormerStaff"/> rather
     /// than inventing a name.
@@ -40,17 +40,14 @@ public static class ActorDisplayNames
         ArgumentNullException.ThrowIfNull(staffAccounts);
         ArgumentNullException.ThrowIfNull(staffIds);
 
-        var names = new Dictionary<Guid, string>();
-        foreach (var staffId in staffIds.Where(id => id != Guid.Empty).Distinct())
+        var distinctIds = staffIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+        if (distinctIds.Length == 0)
         {
-            var account = await staffAccounts.GetAsync(staffId, cancellationToken);
-            if (account is not null)
-            {
-                names[staffId] = account.UserName;
-            }
+            return new Dictionary<Guid, string>();
         }
 
-        return names;
+        var accounts = await staffAccounts.GetManyAsync(distinctIds, cancellationToken);
+        return accounts.ToDictionary(account => account.Id, account => account.UserName);
     }
 
     /// <summary>

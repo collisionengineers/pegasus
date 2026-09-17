@@ -8,6 +8,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
@@ -318,7 +319,7 @@ public sealed class EfCaseWorkflowStore(
         ArchivedCaseGuard.RequireNotArchived(workflow);
 
         var now = timeProvider.GetUtcNow();
-        RequireLease(workflow, request.Actor, request.LeaseToken, now);
+        CaseMutationGuard.RequireHeartbeat(workflow, request.Actor, request.LeaseToken);
         var expiresAtUtc = now + EditLeaseDuration;
         workflow.EditLeaseExpiresAtUtc = expiresAtUtc;
         await context.SaveChangesAsync(cancellationToken);
@@ -607,6 +608,36 @@ public sealed class EfCaseWorkflowStore(
             !configuration.RequireImages || workflow.Case.ImagesComplete);
     }
 
+    private static async Task MarkReportStaleIfEffectiveSignatoryChangedAsync(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        Guid? beforeAssignedEngineerId,
+        Guid? beforeSignOffEngineerId,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var profiles = await new EfStaffAccountQueries(context)
+            .ListSignOffEngineersAsync(cancellationToken);
+        var before = CaseSignOffEngineerResolver.Resolve(
+            beforeSignOffEngineerId,
+            beforeAssignedEngineerId,
+            profiles)?.StaffId;
+        var after = CaseSignOffEngineerResolver.Resolve(
+            workflow.SignOffEngineerId,
+            workflow.AssignedEngineerId,
+            profiles)?.StaffId;
+        var freshness = CaseReportFreshness.ClassifySignatory(before, after);
+        if (freshness.IsStale)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context,
+                workflow.CaseId,
+                freshness.ReasonCode!,
+                now,
+                cancellationToken);
+        }
+    }
+
     public Task<CaseWorkflowRecord> AssignEngineerAsync(
         AssignCaseEngineerRequest request,
         Guid? signOffEngineerId,
@@ -615,6 +646,8 @@ public sealed class EfCaseWorkflowStore(
         MutateAsync(request, $"state_{targetState}", async (context, workflow, now) =>
         {
             await RequireReviewReadinessAsync(context, workflow, cancellationToken);
+            var beforeAssignedEngineerId = workflow.AssignedEngineerId;
+            var beforeSignOffEngineerId = workflow.SignOffEngineerId;
             workflow.AssignedEngineerId = request.EngineerId;
             workflow.SignOffEngineerId = signOffEngineerId;
             workflow.State = targetState.ToString();
@@ -623,15 +656,30 @@ public sealed class EfCaseWorkflowStore(
                 AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
                     context, workflow, checked(workflow.Version + 1), now);
             }
+            await MarkReportStaleIfEffectiveSignatoryChangedAsync(
+                context,
+                workflow,
+                beforeAssignedEngineerId,
+                beforeSignOffEngineerId,
+                now,
+                cancellationToken);
         }, cancellationToken, targetState.ToString());
 
     public Task<CaseWorkflowRecord> SetSignOffEngineerAsync(
         SetCaseSignOffEngineerRequest request,
         CancellationToken cancellationToken) =>
-        MutateAsync(request, "case_sign_off_engineer_selected", (context, workflow, now) =>
+        MutateAsync(request, "case_sign_off_engineer_selected", async (context, workflow, now) =>
         {
+            var beforeAssignedEngineerId = workflow.AssignedEngineerId;
+            var beforeSignOffEngineerId = workflow.SignOffEngineerId;
             workflow.SignOffEngineerId = request.SignOffEngineerId;
-            return Task.CompletedTask;
+            await MarkReportStaleIfEffectiveSignatoryChangedAsync(
+                context,
+                workflow,
+                beforeAssignedEngineerId,
+                beforeSignOffEngineerId,
+                now,
+                cancellationToken);
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> RecordReportApprovalAsync(

@@ -129,6 +129,9 @@ public sealed class ListTriagePageTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
+            Task.FromResult(0);
+
         public Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

@@ -84,8 +84,8 @@ removed clause maps to its owner:
   the mandatory instruction-completeness, image-completeness, and staff-review
   readiness gates with EVA-owned Engineer assignment (clause 3); manual
   cancellation handling with no automatic Case mutation (clause 4); and the
-  three-digit-minimum-to-`9999` Case/PO sequence with fail-closed exhaustion
-  (clause 7).
+  three-digit-minimum Case/PO sequence that expands without a fixed ceiling and
+  never wraps or reuses a value (clause 7).
 - [FRD-02 — Intake and source identity](../frd/frd-02-intake-and-source-identity.md):
   image-led material remaining a pre-Case Image intake (clause 1); the global
   vehicle identity/specification, vehicle-history/risk, and market-valuation

@@ -25,6 +25,8 @@ public sealed class VehicleModel(
 {
     protected override (IGetCase Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => (getCase, acquireLease);
 
+    public IActionResult OnGet() => NotFound();
+
     public Task<IActionResult> OnPostRequestVehicleLookupAsync(
         Guid id,
         long expectedVersion,

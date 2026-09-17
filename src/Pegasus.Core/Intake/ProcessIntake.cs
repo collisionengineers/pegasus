@@ -22,7 +22,8 @@ public sealed class ProcessIntake(
     IRegisterUnidentified? registerUnidentified = null,
     IProviderSubmissionBindings? providerSubmissionBindings = null,
     IRetainedInstructionAnalysisStore? retainedInstructionAnalysisStore = null,
-    RetainIncomingArtifact? retainIncomingArtifact = null)
+    RetainIncomingArtifact? retainIncomingArtifact = null,
+    IRetainedMailboxMessageStore? retainedMessages = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
 
@@ -100,15 +101,15 @@ public sealed class ProcessIntake(
 
             if (!replaceExisting)
             {
-                await RetainHoldingAssetsAsync(existing, cancellationToken);
+                var retained = await RetainHoldingAssetsAsync(existing, cancellationToken);
                 await RecordAutomaticAuditEvidenceAsync(
-                    existing,
-                    existing.MailClassificationDecision,
+                    retained,
+                    retained.MailClassificationDecision,
                     cancellationToken);
                 activity?.SetTag("intake.reader_result", "not_read_replay");
-                activity?.SetTag("intake.reader_key", existing.SourceReaderKey);
-                RecordTelemetry(activity, existing, "replay", started);
-                return existing with { IsDuplicate = true };
+                activity?.SetTag("intake.reader_key", retained.SourceReaderKey);
+                RecordTelemetry(activity, retained, "replay", started);
+                return retained with { IsDuplicate = true };
             }
         }
 
@@ -185,7 +186,8 @@ public sealed class ProcessIntake(
         var assets = new List<IntakeAssetRecord> { sourceAsset };
         try
         {
-            foreach (var candidate in readResult.AssetCandidates)
+            foreach (var candidate in readResult.AssetCandidates
+                .Where(InstructionEvidenceImages.IsRetentionCandidate))
             {
                 assets.Add(await RetainAsync(candidate, cancellationToken));
             }
@@ -202,18 +204,6 @@ public sealed class ProcessIntake(
             safeSource.SourceIdentity,
             processedAtUtc,
             cancellationToken);
-        if (assessment.Decision == IntakeDecision.CaseCreated
-            && assessment.MailClassificationDecision is
-                { CaseType: CaseType.Audit, StandaloneAuditReport: null })
-        {
-            assessment = assessment with
-            {
-                Decision = IntakeDecision.NeedsSorting,
-                DecisionReason = "A standalone Audit instruction requires one attached original report stating Repairable or Total loss.",
-                InstructionDraft = null,
-                MissingFields = []
-            };
-        }
         activity?.SetTag("intake.policy_key", assessment.ExtractionPolicyKey);
         activity?.SetTag("intake.policy_version", assessment.ExtractionPolicyVersion);
         activity?.SetTag(
@@ -285,7 +275,8 @@ public sealed class ProcessIntake(
             RecordFailureTelemetry(activity, "persistence_failure", started);
             throw;
         }
-        await RetainHoldingAssetsAsync(receipt, cancellationToken);
+        await RetainUploadedCorrespondenceAsync(safeSource, sourceHash, readResult, cancellationToken);
+        receipt = await RetainHoldingAssetsAsync(receipt, cancellationToken);
         await RecordAutomaticAuditEvidenceAsync(
             receipt,
             assessment.MailClassificationDecision,
@@ -296,23 +287,60 @@ public sealed class ProcessIntake(
         return receipt;
     }
 
-    private async Task RetainHoldingAssetsAsync(
+    /// <summary>
+    /// An uploaded email is correspondence: it is retained the way a polled
+    /// message is, under the upload scope, so the Case's Correspondence tab
+    /// lists it and the mail viewer opens it. A polled message is retained by
+    /// the mailbox poll itself; a source that is not an email has nothing to
+    /// retain here. Retention is idempotent on the source bytes, so a replay
+    /// is a no-op.
+    /// </summary>
+    private async Task RetainUploadedCorrespondenceAsync(
+        IntakeSource source,
+        string sourceHash,
+        IntakeSourceReadResult readResult,
+        CancellationToken cancellationToken)
+    {
+        if (retainedMessages is null
+            || source.SourceIdentity.Channel != IntakeSourceChannel.ManualUpload
+            || readResult.RootEmail is not { } email)
+        {
+            return;
+        }
+
+        await retainedMessages.RetainAsync(
+            UploadedCorrespondence.Retained(source, sourceHash, email, timeProvider.GetUtcNow()),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Ensures every eligible retained intake asset has confirmed holding
+    /// custody. This is also the repair entry point for a completed receipt:
+    /// callers must run it before attempting to reopen its Box-backed source.
+    /// </summary>
+    internal async Task<IntakeReceipt> RetainHoldingAssetsAsync(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
         if (retainIncomingArtifact is null)
         {
-            return;
+            return receipt;
         }
 
         var actor = ActionActor.SystemWorker("intake-processing");
-        foreach (var asset in IntakeFileIdentity.Ordered(receipt).Where(IsHoldingRetentionCandidate))
+        var unconfirmedStates = new HashSet<IncomingArtifactCustodyState>();
+        var selectedPhotographIds = InstructionEvidenceImages.Select(receipt.AssetRecords)
+            .Select(asset => asset.Id)
+            .ToHashSet();
+        foreach (var asset in IntakeFileIdentity.Ordered(receipt)
+            .Where(asset => asset.CustodyState != IncomingArtifactCustodyState.Confirmed)
+            .Where(asset => IsHoldingRetentionCandidate(asset, selectedPhotographIds)))
         {
             var content = await artifactStore.ReadAsync(asset.StorageKey, cancellationToken)
                 ?? throw new FileNotFoundException(
                     $"The retained intake asset '{asset.Id}' is unavailable.");
             await using var stream = new MemoryStream(content.ToArray(), writable: false);
-            await retainIncomingArtifact.ExecuteAsync(
+            var retained = await retainIncomingArtifact.ExecuteAsync(
                 actor,
                 new(
                     OccurrenceId: asset.Id,
@@ -325,15 +353,51 @@ public sealed class ProcessIntake(
                     Sha256: asset.ContentHash),
                 stream,
                 cancellationToken);
+            if (!retained.IsConfirmed)
+            {
+                unconfirmedStates.Add(retained.State);
+            }
         }
+
+        if (unconfirmedStates.Count != 0)
+        {
+            // RetainIncomingArtifact has recorded the honest custody state.
+            // Do not allow the queue to acknowledge this receipt as complete
+            // while its durable files remain unavailable; its existing bounded
+            // transient retry schedule re-presents the same operation keys.
+            Activity.Current?.SetTag("intake.holding_custody", "unconfirmed");
+            Activity.Current?.SetTag(
+                "intake.holding_custody_states",
+                string.Join(',', unconfirmedStates.OrderBy(state => state)));
+            throw new IntakeDependencyUnavailableException(
+                "Incoming file custody is not confirmed.");
+        }
+
+        Activity.Current?.SetTag("intake.holding_custody", "confirmed");
+
+        // Retention writes custody state and Box identities through its own
+        // store. Reload rather than returning the pre-handoff projection so
+        // the current caller, gallery and following automation all see the
+        // confirmed files without waiting for a later request.
+        return await receiptStore.FindBySourceIdentityAsync(receipt.SourceIdentity, cancellationToken)
+            ?? throw new InvalidDataException(
+                "The receipt retained for holding custody is no longer available.");
     }
 
-    private static bool IsHoldingRetentionCandidate(IntakeAssetRecord asset) =>
-        asset.ContentLength > 0
-        && asset.ContentHash.Length == 64
-        && !string.IsNullOrWhiteSpace(asset.StorageKey)
-        && !string.IsNullOrWhiteSpace(asset.FileName)
-        && !string.IsNullOrWhiteSpace(asset.MediaType);
+    private static bool IsHoldingRetentionCandidate(
+        IntakeAssetRecord asset,
+        HashSet<Guid> selectedPhotographIds)
+    {
+        var isSource = asset.Kind == IntakeAssetKind.Source;
+        var isNonImageDocument = asset.Kind != IntakeAssetKind.EmbeddedImage
+            && !InstructionEvidenceImages.IsImage(asset.MediaType);
+        return (isSource || isNonImageDocument || selectedPhotographIds.Contains(asset.Id))
+            && asset.ContentLength > 0
+            && asset.ContentHash.Length == 64
+            && !string.IsNullOrWhiteSpace(asset.StorageKey)
+            && !string.IsNullOrWhiteSpace(asset.FileName)
+            && !string.IsNullOrWhiteSpace(asset.MediaType);
+    }
 
     /// <summary>
     /// Identifies the retained source's document role from the document itself
@@ -547,9 +611,8 @@ public sealed class ProcessIntake(
     /// </summary>
     internal static bool IsDeferredForAutomation(IntakeReceipt receipt) =>
         receipt.Decision == IntakeDecision.NeedsSorting
-        && (ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
-            || IsTriageRequest(receipt)
-            || SubmitMailboxImageIntake.IsCandidate(receipt));
+        && (ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt)
+            || IsTriageRequest(receipt));
 
     /// <summary>
     /// Whether this receipt is a Triage request. One reading, so no surface
@@ -629,7 +692,7 @@ public sealed class ProcessIntake(
         // classification; a Provider API Audit has it declared, and the verdict
         // with it (operator decision, 2026-08-28). Either way exactly one
         // retained attachment is the original report and one AuditAssessment
-        // derives the a./ap. reference.
+        // is recorded separately from the a. reference.
         var report = classification?.StandaloneAuditReport
             ?? await DeclaredAuditReportAsync(receipt, cancellationToken);
         if (report is null)
@@ -786,6 +849,14 @@ public sealed class ProcessIntake(
         }
 
         var instructionSelection = extractionPolicies.Select(readResult, InstructionDocumentSignature.InstructionRole);
+        readerEvidence = AppendImageAutomationBlockerEvidence(
+            readerEvidence,
+            ThirdPartyReportProfiles.HasRecognizedNonImageDocument(readResult)
+                ? IntakeEvidenceSignals.RecognizedNonImageDocument
+                : null,
+            instructionSelection.Outcome == InstructionPolicySelectionOutcome.Ambiguous
+                ? IntakeEvidenceSignals.AmbiguousInstructionSelection
+                : null);
         var mailRouteDecision = EvaluateMailRoute(readResult, sourceChannel, instructionSelection);
         if (mailRouteDecision is not null
             && mailRouteDecision.Disposition != MailRouteDisposition.Accepted)
@@ -810,6 +881,13 @@ public sealed class ProcessIntake(
             || (instructionSelection.Policy is { } selected
                 && principalContext is not null
                 && !string.Equals(selected.PrincipalCode, principalContext.PrincipalCode, StringComparison.Ordinal));
+        if (conflictingProfile
+            && instructionSelection.Outcome != InstructionPolicySelectionOutcome.Ambiguous)
+        {
+            readerEvidence = AppendImageAutomationBlockerEvidence(
+                readerEvidence,
+                IntakeEvidenceSignals.ConflictingInstructionSelection);
+        }
         var extractionPolicy = principalContext is null || conflictingProfile ? null
             : instructionSelection.Policy ?? (principalContext.PrincipalCode == QdosInstructionExtractionPolicy.SupportedPrincipalCode
                 ? extractionPolicies.ForPrincipal(principalContext.PrincipalCode) : null);
@@ -1013,6 +1091,28 @@ public sealed class ProcessIntake(
             mailRouteDecision,
             mailClassificationDecision,
             caseMatchDecision);
+    }
+
+    /// <summary>
+    /// Persists a finite policy fact that prevents selected photographs from
+    /// replacing the original document's known non-image route. The signal is
+    /// deliberately separate from the decision and reason: those remain the
+    /// assessment owner's explanation for staff.
+    /// </summary>
+    private static IntakeEvidence[] AppendImageAutomationBlockerEvidence(
+        IReadOnlyList<IntakeEvidence> evidence,
+        params string?[] signals)
+    {
+        var additions = signals
+            .Where(signal => !string.IsNullOrWhiteSpace(signal))
+            .Select(signal => new IntakeEvidence(
+                IntakeEvidenceSource.SystemDefault,
+                IntakeEvidenceStrength.Strong,
+                IntakeEvidenceFinding.Information,
+                signal!,
+                "A known document role or instruction selection requires the original intake route."))
+            .ToArray();
+        return additions.Length == 0 ? [.. evidence] : [.. evidence, .. additions];
     }
 
     /// <summary>

@@ -121,9 +121,9 @@ Mapping proved on the corpus: `ENGINEER NOTIFICATION` → Inspection;
 (provable from the instruction letter alone, with no third-party report
 attached to the email — operator-confirmed on EREF10);
 `AUDIT REPORT NOTIFICATION` → Audit. Missing or ambiguous standalone Audit
-evidence withholds only the later Audit reference (product invariant,
-`AGENTS.md`). Once normal processing and principal gates pass, normal Case/PO
-allocation proceeds; the separate Audit reference still waits for its evidence.
+evidence withholds the Audit Case/PO allocation. Once the original report and
+its assessment satisfy that gate, the allocated Case/PO uses the `a.` prefix;
+the assessment remains a separate Case fact.
 
 ## 4. Case association — linking mail to an existing case
 

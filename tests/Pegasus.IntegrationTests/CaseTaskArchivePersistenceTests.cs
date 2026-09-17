@@ -965,7 +965,11 @@ public sealed class CaseTaskArchivePersistenceTests
                     new CaseCustodyRoot(caseId, $"case-{caseReference}", caseReference));
 
             public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
-                Guid caseId, string caseReference, CancellationToken cancellationToken) => Task.FromResult(
+                Guid caseId,
+                string caseReference,
+                CancellationToken cancellationToken,
+                Guid? parentCaseId = null,
+                string? parentCaseReference = null) => Task.FromResult(
                     new CaseCustodyRoot(caseId, $"case-{caseReference}", caseReference));
 
             public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
