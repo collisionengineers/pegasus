@@ -13,20 +13,16 @@ resolution can link it to a supported destination, without changing that U-refer
 - Principal and internal reference are immutable after allocation.
 - Reference allocation occurs once safe source processing establishes an unambiguous Principal and Case type and all identity-critical gates pass. Manual upload additionally requires explicit staff acceptance under [FRD-02](frd-02-intake-and-source-identity.md); its extracted proposal remains pre-Case with no reserved Case/PO until acceptance. Incomplete ordinary business detail, images, or required external checks create or retain an accepted Case as `Not ready`; they do not otherwise leave a valid instruction pre-Case.
 - The normal Case/PO is `{principal code}{YY}{shared sequence}` with a three-digit minimum: `001` through `999`, then `1000` through `9999`. Inspection, standalone Audit, and Inspection + Audit consume one principal/year sequence. Exhaustion at `9999` is visible and blocks allocation; references and sequence values never wrap or return to use.
-- A standalone Audit requires its instruction and the separate original report
-  being audited before any Case/PO or sequence is allocated or reserved
-  (operator clarification, 2026-09-16). On the retained-email route Pegasus
-  reads an unambiguous literal outcome from that report. The Audit reference is
-  `a.` followed by the allocated base reference; the assessment outcome is
-  recorded on the Case, not in its identity. The prefixed value is the Case/PO
-  itself, not a second or later reference. Missing or
-  ambiguous original-report evidence leaves the instruction in Unidentified
-  under [FRD-02](frd-02-intake-and-source-identity.md#unidentified-destination-and-reference).
-  On the Provider API route the authenticated Principal declares the verdict
-  (operator decision, 2026-08-28), and the original report remains a required
-  attachment; the declaration records the assessment. Manual upload
-  additionally requires explicit staff acceptance. Neither automatic route
-  requires staff confirmation of the outcome.
+- A standalone Audit instruction creates its `a.` Case/PO once the Principal
+  and identity-critical gates pass, with or without the original report. On the
+  retained-email route a readable original report records the assessment at
+  intake. When the report is missing, **Original report missing** is an
+  outstanding requirement on the Case until staff mark a filed document as the
+  original report. The assessment is a recorded Case fact, not identity, and
+  the prefixed value is the Case/PO itself, not a second or later reference.
+  On the Provider API route the authenticated Principal still declares the
+  verdict and attaches the original report; the declaration records the
+  assessment. Manual upload additionally requires explicit staff acceptance.
 - Inspection + Audit begins with the normal Inspection Case/PO reference. Once
   a report has been generated on that Case, **Create audit** (the Case record's
   Actions menu, inside an edit session) creates one linked Audit Case. The

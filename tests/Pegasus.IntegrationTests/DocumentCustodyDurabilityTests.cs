@@ -17,6 +17,229 @@ namespace Pegasus.IntegrationTests;
 public sealed class DocumentCustodyDurabilityTests
 {
     [Fact]
+    public async Task CaseDocumentsOriginalReportMarkIsDurableReplaySafeAndUnique()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "Audit");
+            var firstOccurrenceId = await SeedCurrentDocumentAsync(database, caseId, 0, "audit-report.pdf");
+            var secondOccurrenceId = await SeedCurrentDocumentAsync(database, caseId, 1, "other-report.pdf");
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            MarkAsOriginalReportCommand command;
+            OriginalReportRecorded recorded;
+
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                    .ClaimAsync(
+                        new(caseId, 0, actor, $"original-report-lease:{Guid.NewGuid():N}"),
+                        CancellationToken.None);
+                command = new(
+                    caseId,
+                    lease.Version,
+                    actor,
+                    $"original-report:{Guid.NewGuid():N}",
+                    lease.Token,
+                    firstOccurrenceId);
+                var mark = scope.ServiceProvider.GetRequiredService<MarkAsOriginalReport>();
+
+                await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                    mark.ExecuteAsync(
+                        command with
+                        {
+                            OperationKey = $"wrong-case-document:{Guid.NewGuid():N}",
+                            DocumentOccurrenceId = Guid.NewGuid()
+                        },
+                        CancellationToken.None));
+
+                recorded = await mark.ExecuteAsync(command, CancellationToken.None);
+                var replay = await mark.ExecuteAsync(command, CancellationToken.None);
+
+                Assert.Equal(recorded, replay);
+            }
+
+            await using (var verification = await database.CreateContextAsync())
+            {
+                var occurrences = await verification.Set<DocumentOccurrenceEntity>()
+                    .OrderBy(value => value.Id)
+                    .ToArrayAsync();
+                Assert.Equal(
+                    DocumentSemanticRole.AuditReport,
+                    occurrences.Single(value => value.Id == firstOccurrenceId).SemanticRole);
+                Assert.Equal(
+                    DocumentSemanticRole.Instruction,
+                    occurrences.Single(value => value.Id == secondOccurrenceId).SemanticRole);
+                var history = await verification.CaseWorkflowEvents
+                    .SingleAsync(value => value.EventType == "original_report_recorded");
+                Assert.Equal("Original report: audit-report.pdf", history.Reason);
+                Assert.Equal(command.OperationKey, history.OperationKey);
+            }
+
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                    .ClaimAsync(
+                        new(caseId, recorded.CaseVersion, actor, $"second-original-report-lease:{Guid.NewGuid():N}"),
+                        CancellationToken.None);
+                var second = command with
+                {
+                    ExpectedVersion = lease.Version,
+                    OperationKey = $"second-original-report:{Guid.NewGuid():N}",
+                    EditLeaseToken = lease.Token,
+                    DocumentOccurrenceId = secondOccurrenceId
+                };
+
+                await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                    scope.ServiceProvider.GetRequiredService<MarkAsOriginalReport>()
+                        .ExecuteAsync(second, CancellationToken.None));
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RemovedOriginalReportCanBeReplacedButCannotBeMarkedAgain()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database, "Audit");
+            var removedOccurrenceId = await SeedCurrentDocumentAsync(
+                database, caseId, 0, "removed-original-report.pdf");
+            var replacementOccurrenceId = await SeedCurrentDocumentAsync(
+                database, caseId, 1, "replacement-original-report.pdf");
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            OriginalReportRecorded firstMark;
+
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                    .ClaimAsync(
+                        new(caseId, 0, actor, $"first-original-report-lease:{Guid.NewGuid():N}"),
+                        CancellationToken.None);
+                firstMark = await scope.ServiceProvider.GetRequiredService<MarkAsOriginalReport>()
+                    .ExecuteAsync(
+                        new(
+                            caseId,
+                            lease.Version,
+                            actor,
+                            $"first-original-report:{Guid.NewGuid():N}",
+                            lease.Token,
+                            removedOccurrenceId),
+                        CancellationToken.None);
+            }
+
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                    .ClaimAsync(
+                        new(
+                            caseId,
+                            firstMark.CaseVersion,
+                            actor,
+                            $"remove-original-report-lease:{Guid.NewGuid():N}"),
+                        CancellationToken.None);
+                await scope.ServiceProvider.GetRequiredService<ILogicallyRemoveDocument>()
+                    .ExecuteAsync(
+                        new(
+                            caseId,
+                            removedOccurrenceId,
+                            actor,
+                            "Superseded original report.",
+                            $"remove-original-report:{Guid.NewGuid():N}",
+                            lease.Version,
+                            lease.Token),
+                        CancellationToken.None);
+            }
+
+            OriginalReportRecorded replacement;
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                    .ClaimAsync(
+                        new(
+                            caseId,
+                            firstMark.CaseVersion + 1,
+                            actor,
+                            $"replacement-original-report-lease:{Guid.NewGuid():N}"),
+                        CancellationToken.None);
+                var mark = scope.ServiceProvider.GetRequiredService<MarkAsOriginalReport>();
+                await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                    mark.ExecuteAsync(
+                        new(
+                            caseId,
+                            lease.Version,
+                            actor,
+                            $"remark-removed-original-report:{Guid.NewGuid():N}",
+                            lease.Token,
+                            removedOccurrenceId),
+                        CancellationToken.None));
+
+                replacement = await mark.ExecuteAsync(
+                    new(
+                        caseId,
+                        lease.Version,
+                        actor,
+                        $"replacement-original-report:{Guid.NewGuid():N}",
+                        lease.Token,
+                        replacementOccurrenceId),
+                    CancellationToken.None);
+            }
+
+            Assert.Equal(replacementOccurrenceId, replacement.DocumentOccurrenceId);
+            Assert.Equal(firstMark.CaseVersion + 2, replacement.CaseVersion);
+            await using var verification = await database.CreateContextAsync();
+            var occurrences = await verification.Set<DocumentOccurrenceEntity>()
+                .Where(value => value.CaseId == caseId)
+                .ToArrayAsync();
+            Assert.Equal(
+                DocumentSemanticRole.AuditReport,
+                occurrences.Single(value => value.Id == removedOccurrenceId).SemanticRole);
+            Assert.Equal(
+                DocumentSemanticRole.AuditReport,
+                occurrences.Single(value => value.Id == replacementOccurrenceId).SemanticRole);
+            var documentIds = occurrences.Select(value => value.DocumentId).ToArray();
+            var versions = await verification.Set<DocumentVersionEntity>()
+                .Where(value => documentIds.Contains(value.DocumentId))
+                .ToArrayAsync();
+            var removedVersionId = occurrences
+                .Single(value => value.Id == removedOccurrenceId)
+                .VersionId;
+            var replacementVersionId = occurrences
+                .Single(value => value.Id == replacementOccurrenceId)
+                .VersionId;
+            var removedVersion = versions.Single(value => value.Id == removedVersionId);
+            Assert.False(removedVersion.IsCurrent);
+            Assert.True(removedVersion.IsLogicallyRemoved);
+            var replacementVersion = versions.Single(value => value.Id == replacementVersionId);
+            Assert.True(replacementVersion.IsCurrent);
+            Assert.False(replacementVersion.IsLogicallyRemoved);
+            Assert.Equal(
+                2,
+                await verification.CaseWorkflowEvents.CountAsync(
+                    value => value.EventType == "original_report_recorded"));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task RemovingAFileWritesOneNoteTheOperatorCanActuallySee()
     {
         // The point of this test is the ROUND TRIP, not the row. A note written
@@ -741,7 +964,9 @@ public sealed class DocumentCustodyDurabilityTests
         }
     }
 
-    private static async Task<Guid> SeedCaseAsync(LocalDbTestDatabase database)
+    private static async Task<Guid> SeedCaseAsync(
+        LocalDbTestDatabase database,
+        string caseType = "Inspection")
     {
         await using var context = await database.CreateContextAsync();
         var seeded = await SeededPrincipals.QdosAsync(context);
@@ -776,8 +1001,8 @@ public sealed class DocumentCustodyDurabilityTests
                 SequenceLineageId = seeded.SequenceLineageId,
                 Year = 2031,
                 Sequence = 1,
-                Reference = "QDOS001",
-                Type = "Inspection",
+                Reference = caseType == "Audit" ? "a.QDOS001" : "QDOS001",
+                Type = caseType,
                 InitialState = "NotReady",
                 // Lowercase, as ToCode writes it in production. The seed said
                 // "Confirmed" and nothing noticed, because no test in this file
@@ -798,6 +1023,55 @@ public sealed class DocumentCustodyDurabilityTests
             });
         await context.SaveChangesAsync();
         return caseId;
+    }
+
+    private static async Task<Guid> SeedCurrentDocumentAsync(
+        LocalDbTestDatabase database,
+        Guid caseId,
+        int ordinal,
+        string fileName)
+    {
+        await using var context = await database.CreateContextAsync();
+        var documentId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var occurrenceId = Guid.NewGuid();
+        context.AddRange(
+            new CaseDocumentEntity
+            {
+                Id = documentId,
+                CaseId = caseId,
+                Ordinal = ordinal,
+                SourceOccurrenceIdentity = $"test-document:{occurrenceId:N}"
+            },
+            new DocumentVersionEntity
+            {
+                Id = versionId,
+                DocumentId = documentId,
+                Version = 1,
+                FileName = fileName,
+                MediaType = "application/pdf",
+                ContentLength = 1,
+                Sha256 = new string('a', 64),
+                CustodyStatus = DocumentCustodyStatus.Confirmed,
+                CreatedAtUtc = DateTimeOffset.UtcNow,
+                CreatedBy = "Staff:test",
+                IsCurrent = true
+            },
+            new DocumentOccurrenceEntity
+            {
+                Id = occurrenceId,
+                CaseId = caseId,
+                DocumentId = documentId,
+                VersionId = versionId,
+                Ordinal = ordinal,
+                SemanticRole = DocumentSemanticRole.Instruction,
+                Source = DocumentSource.StaffUpload,
+                SourceOccurrenceIdentity = $"test-document:{occurrenceId:N}",
+                RecordedAtUtc = DateTimeOffset.UtcNow,
+                OperationKey = $"seed-document:{occurrenceId:N}"
+            });
+        await context.SaveChangesAsync();
+        return occurrenceId;
     }
 
     private static async Task<Guid> SeedCurrentImageAsync(LocalDbTestDatabase database, Guid caseId)

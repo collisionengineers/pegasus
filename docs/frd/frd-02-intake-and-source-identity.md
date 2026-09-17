@@ -184,15 +184,14 @@ explicit acceptance of the editable proposal under the
 [upload confirmation contract](#upload-confirmation-surface); extraction alone
 never allocates or reserves its Case/PO. Incomplete ordinary business detail,
 images, or mandatory external checks retain that Case as `Not ready`; they do
-not form another pre-Case acceptance gate. For standalone Audit, the original
-report and its repairable or total-loss outcome are identity-critical: no
-Case/PO or sequence is allocated or reserved before that evidence exists.
-The allocated Case/PO itself has the `a.` prefix defined in FRD-01; the
-assessment is recorded on the Case rather than encoded in that identity;
-there is no preliminary identity. A manual proposal may create an Audit only
-when its own retained receipt is already classified Audit and has its existing
-standalone-Audit evidence; the existing acceptance gate verifies that evidence
-belongs to that receipt.
+not form another pre-Case acceptance gate. For standalone Audit, a missing
+original report is a Case requirement, not a pre-Case gate: once the Principal
+and identity-critical gates pass, the instruction creates the `a.` Case/PO and
+**Original report missing** remains outstanding until staff mark a filed
+document as the original report. A readable report records the assessment at
+intake. A manual proposal may create an Audit from a receipt already classified
+Audit, whether or not that receipt has standalone-Audit evidence; when evidence
+exists, acceptance verifies that it belongs to that receipt.
 If the route cannot establish an identity-critical fact, it persists only what is safe and enters the
 corresponding pre-Case outcome, which is Unidentified; there is no separate
 blocked outcome for an operator. Material that could not be read (unsupported,

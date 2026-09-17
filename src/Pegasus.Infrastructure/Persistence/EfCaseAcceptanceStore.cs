@@ -60,13 +60,6 @@ public sealed class EfCaseAcceptanceStore(
         {
             throw new ArgumentOutOfRangeException(nameof(request), "The case type is invalid.");
         }
-        if (request.CaseType == CaseType.Audit
-            && request.StandaloneAuditEvidenceId is null)
-        {
-            throw new ArgumentException(
-                "A standalone Audit requires retained original-report evidence.",
-                nameof(request));
-        }
         if (request.StandaloneAuditEvidenceId == Guid.Empty)
         {
             throw new ArgumentException(
@@ -220,14 +213,11 @@ public sealed class EfCaseAcceptanceStore(
         var acceptedAtUtc = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
         var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
             context, principal, acceptedAtUtc, cancellationToken);
-        // CASE-014, operator direction: "There is no Case/PO AND audit
-        // identity. They are all just Case/PO." An Audit prefix belongs on the
-        // Case's own reference. The outcome is known here because the report is
-        // extracted before allocation, which is why a standalone Audit refuses
-        // to allocate without it.
+        // CASE-014: an Audit prefix belongs on the Case's own reference. The
+        // assessment is a recorded fact and is not part of identity.
         var allocated = allocatedIdentity.Reference;
-        var reference = standaloneAuditAssessment is { } assessment
-            ? AuditIdentity.Create(allocated, assessment)
+        var reference = request.CaseType == CaseType.Audit
+            ? AuditIdentity.Create(allocated)
             : allocated;
         // No second identity is allocated for an audit any more (CASE-014).
         string? auditReference = null;

@@ -415,10 +415,11 @@ public sealed partial class CaseDetailsWebTests
         IUntagCaseImage,
         ICreateImageTag,
         ICreateRequestUploadLink,
-        IRevokeRequestUploadLink
+        IRevokeRequestUploadLink,
+        IMarkAsOriginalReportStore
     {
         /// <summary>The case's documents, when a test supplies them.</summary>
-        public IReadOnlyList<CaseDocument> CaseDocuments { get; init; } = [];
+        public IReadOnlyList<CaseDocument> CaseDocuments { get; set; } = [];
 
         /// <summary>The case's request-scoped upload links, when a test supplies them.</summary>
         public IReadOnlyList<CaseRequestUploadSummary> RequestUploadLinks { get; init; } = [];
@@ -432,6 +433,7 @@ public sealed partial class CaseDetailsWebTests
         public List<CreateRequestUploadLinkCommand> RequestLinkCreations { get; } = [];
         public List<RequestUploadSecret> RequestLinkSecrets { get; } = [];
         public List<RevokeRequestUploadLinkCommand> RequestLinkRevocations { get; } = [];
+        public List<MarkAsOriginalReportCommand> OriginalReportMarks { get; } = [];
 
         Task<RetryCaseCustodyResult> IRetryCaseCustody.ExecuteAsync(
             RetryCaseCustodyRequest request,
@@ -551,6 +553,35 @@ public sealed partial class CaseDetailsWebTests
             ThrowNextFailure();
             RequestLinkRevocations.Add(command);
             return Task.CompletedTask;
+        }
+
+        Task<OriginalReportRecorded> IMarkAsOriginalReportStore.MarkAsOriginalReportAsync(
+            MarkAsOriginalReportCommand command,
+            CancellationToken cancellationToken)
+        {
+            ThrowNextFailure();
+            OriginalReportMarks.Add(command);
+            var document = CaseDocuments.Single(value =>
+                value.Occurrences.Any(occurrence => occurrence.Id == command.DocumentOccurrenceId));
+            var occurrence = document.Occurrences.Single(value => value.Id == command.DocumentOccurrenceId);
+            var version = document.Versions.Single(value => value.Id == occurrence.VersionId);
+            CaseDocuments = CaseDocuments
+                .Select(value => value.Id == document.Id
+                    ? value with
+                    {
+                        Occurrences = value.Occurrences
+                            .Select(item => item.Id == occurrence.Id
+                                ? item with { SemanticRole = DocumentSemanticRole.AuditReport }
+                                : item)
+                            .ToArray()
+                    }
+                    : value)
+                .ToArray();
+            return Task.FromResult(new OriginalReportRecorded(
+                command.CaseId,
+                occurrence.Id,
+                version.FileName,
+                command.ExpectedVersion + 1));
         }
     }
 }

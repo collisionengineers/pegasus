@@ -175,7 +175,8 @@ public sealed record CaseDataProjection(
     CaseInstructionData Instruction,
     CaseInspectionData Inspection,
     // Appended for the v1 Case workspace (CASE-047).
-    CaseWorkspaceData? Workspace = null);
+    CaseWorkspaceData? Workspace = null,
+    Guid? StandaloneAuditEvidenceId = null);
 
 /// <summary>
 /// The v1 Case workspace facts that carry no intake candidate set: every one

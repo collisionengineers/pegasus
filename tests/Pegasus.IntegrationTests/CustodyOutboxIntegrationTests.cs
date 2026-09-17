@@ -2428,6 +2428,100 @@ public sealed class CustodyOutboxIntegrationTests
             await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
     }
 
+    [Fact]
+    public async Task MailboxAuditWithoutOriginalReportAllocatesOneCaseWithNoAssessment()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await SeedPrincipalAsync(services, QdosPrincipal.Code);
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var instruction = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: $"Reportless Audit {fixtureId}",
+            claimNumber: $"AUD-NO-REPORT-{fixtureId}",
+            notificationTitle: "AUDIT REPORT NOTIFICATION");
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress(
+            "Synthetic sender",
+            "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress(
+            "Pegasus Intake",
+            "intake@example.test"));
+        message.Subject = "QDOS audit instruction without original report";
+        var builder = new MimeKit.BodyBuilder
+        {
+            TextBody = "Please see the attached audit instruction."
+        };
+        builder.Attachments.Add(
+            "AuditReportNotification.pdf",
+            instruction,
+            MimeKit.ContentType.Parse("application/pdf"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+        var sourceIdentity = new IntakeSourceIdentity(
+            IntakeSourceChannel.Mailbox,
+            $"mailbox-audit-without-report:{Guid.NewGuid():N}");
+        var received = await services.GetRequiredService<ReceiveIntake>()
+            .ExecuteAsync(
+                new(
+                    $"mailbox-audit-{fixtureId}.eml",
+                    "message/rfc822",
+                    output.ToArray(),
+                    FixedUtcNow,
+                    "mailbox-test",
+                    sourceIdentity),
+                $"mailbox-audit-receive:{Guid.NewGuid():N}",
+                CancellationToken.None);
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var claim = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+            FixedUtcNow,
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
+        await workStore.MarkDispatchedAsync(
+            claim.Id,
+            Assert.IsType<string>(claim.LeaseToken),
+            FixedUtcNow,
+            CancellationToken.None);
+        await new ProcessQueuedIntake(
+                workStore,
+                services.GetRequiredService<IIntakeArtifactStore>(),
+                services.GetRequiredService<ProcessIntake>(),
+                services.GetRequiredService<IIntakeReceiptQueries>(),
+                services.GetRequiredService<ICreateTriageFromIntake>(),
+                services.GetRequiredService<IAutomaticCaseAssociationStore>(),
+                services.GetRequiredService<IAllocateIntake>(),
+                services.GetRequiredService<TimeProvider>(),
+                services.GetRequiredService<IReadLogicalDocumentVersion>(),
+                services.GetRequiredService<IIntakeOcrOperationStore>())
+            .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
+
+        var receipt = Assert.IsType<IntakeReceipt>(
+            await services.GetRequiredService<IIntakeReceiptStore>()
+                .FindBySourceIdentityAsync(sourceIdentity, CancellationToken.None));
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        Assert.NotNull(receipt.CurrentCaseId);
+        await using var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var cases = await context.Set<CaseEntity>()
+            .AsNoTracking()
+            .Where(item => item.OriginIntakeReceiptId == receipt.Id)
+            .Select(item => new
+            {
+                item.Reference,
+                item.StandaloneAuditAssessment,
+                item.StandaloneAuditEvidenceId
+            })
+            .ToArrayAsync();
+        var allocated = Assert.Single(cases);
+        Assert.StartsWith("a.", allocated.Reference, StringComparison.Ordinal);
+        Assert.Null(allocated.StandaloneAuditAssessment);
+        Assert.Null(allocated.StandaloneAuditEvidenceId);
+        Assert.Empty(await context.UnidentifiedItems.AsNoTracking().ToArrayAsync());
+    }
+
     /// <summary>
     /// The three things an operator reported about QDOS26009 that only appear
     /// once custody has actually completed, asserted on one case at the

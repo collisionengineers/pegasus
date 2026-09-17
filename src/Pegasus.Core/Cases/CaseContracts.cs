@@ -123,18 +123,10 @@ public static class CasePrincipalCode
 
 public static class AuditIdentity
 {
-    public static string Create(string caseReference, AuditAssessment assessment)
+    public static string Create(string caseReference)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(caseReference);
-        var prefix = assessment switch
-        {
-            AuditAssessment.Repairable => "a.",
-            AuditAssessment.TotalLoss => "a.",
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(assessment),
-                "The Audit assessment is invalid.")
-        };
-        return prefix + caseReference;
+        return "a." + caseReference;
     }
 }
 

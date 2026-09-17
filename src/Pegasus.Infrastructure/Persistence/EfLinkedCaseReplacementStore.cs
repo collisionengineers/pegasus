@@ -493,15 +493,7 @@ public sealed class EfLinkedCaseReplacementStore(
         {
             return null;
         }
-        if (original.StandaloneAuditAssessment is null)
-        {
-            throw new InvalidDataException(
-                "The standalone Audit case has no retained original-report assessment.");
-        }
-
-        return AuditIdentity.Create(
-            replacementReference,
-            AuditAssessmentCode.Parse(original.StandaloneAuditAssessment));
+        return AuditIdentity.Create(replacementReference);
     }
 
     private static CaseInitialState ParseInitialState(string value) => value switch

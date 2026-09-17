@@ -50,13 +50,6 @@ public sealed class CreateAuditCaseTests
     }
 
     [Fact]
-    public void AuditIdentityRejectsAnInvalidAssessment()
-    {
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            AuditIdentity.Create("QDOS26214", (AuditAssessment)int.MaxValue));
-    }
-
-    [Fact]
     public async Task EachPreconditionFailsClosedWithItsOwnRefusal()
     {
         await Refuses(AuditCaseRefusal.NotInspectionAndAudit, Sut(new RecordingStore(), caseType: CaseType.Inspection));

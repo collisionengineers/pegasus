@@ -45,7 +45,7 @@ A listed identity does not imply current activation or acceptance.
 | INT-20 | Field provenance, validation, missing-value, and contradiction display | [Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity) |
 | INT-21 | Human-reviewed extraction cohort, holdout, and field-level accuracy reporting | [Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity) |
 | INT-22 | Automatic identification of the correct principal/provider | [Matching conflicts and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) |
-| INT-23 | Unidentified queue with immutable U-references for uncertain or unsupported intake | [Unidentified destination and reference](frd/frd-02-intake-and-source-identity.md#unidentified-destination-and-reference) |
+| INT-23 | Unidentified queue with immutable U-references for uncertain or unsupported intake; a missing Audit original report is a Case requirement, not an Unidentified reason | [Unidentified destination and reference](frd/frd-02-intake-and-source-identity.md#unidentified-destination-and-reference) |
 | INT-24 | Material that cannot become a Case: Unidentified Close with reason and Reopen, Could not be read items, and Retry allocation, Retry OCR and Re-evaluate on Operations and the Intake log | [Mandatory pre-case gates](frd/frd-02-intake-and-source-identity.md#mandatory-pre-case-gates) |
 | INT-25 | Automatic case creation from definitive authorised intake | [Matching conflicts and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) |
 | INT-26 | Manual case creation through the same business rules | [Matching conflicts and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) |
@@ -67,7 +67,7 @@ A listed identity does not imply current activation or acceptance.
 | TRI-09 | Optional Triage assignee, with no due date and no chasers | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | CASE-01 | Every active QDOS case type can travel end to end from intake through accepted case workflow to successful EVA export/handoff | [Requirements](frd/frd-01-case-identity-and-lifecycle.md#case-identity-and-lifecycle) |
 | CASE-02 | Inspection cases | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
-| CASE-03 | Standalone Audit cases | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
+| CASE-03 | Standalone Audit cases allocate one `a.` Case/PO with or without the original report and show the missing report as an outstanding Case requirement | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
 | CASE-04 | Inspection + Audit: an Inspection Case and its linked Audit Case with its own `a.` reference, created by Create audit | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |
 | CASE-07 | Shared principal/year case sequence | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |
 | CASE-08 | One `a.` Audit reference prefix, independent of assessment outcome | [Principal, reference, and Case/PO identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity) |

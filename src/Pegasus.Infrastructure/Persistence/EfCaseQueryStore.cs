@@ -430,7 +430,12 @@ public sealed class EfCaseQueryStore(
             .ToArrayAsync(cancellationToken);
         var recordNotes = await ReadRecordNotesAsync(context, workflow, caseId, cancellationToken);
         var frame = new CaseSectionFrame(summary, MapWorkflow(workflow), ResolveActiveLease(workflow, timeProvider.GetUtcNow()));
-        return new(frame, documents, availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(), recordNotes);
+        return new(
+            frame,
+            documents,
+            availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
+            recordNotes,
+            workflow.Case.AuditOfCaseId);
     }
 
     /// <summary>
@@ -525,7 +530,7 @@ public sealed class EfCaseQueryStore(
         var frame = new CaseSectionFrame(summary, MapWorkflow(workflow), ResolveActiveLease(workflow, timeProvider.GetUtcNow()));
         return new(frame, documents, workflow.Case.CustodyRootRemoteId,
             ParseCustodyState(workflow.Case.CustodyState), requestUploadLinks,
-            queryEmails);
+            queryEmails, workflow.Case.StandaloneAuditEvidenceId, workflow.Case.AuditOfCaseId);
     }
 
     public async Task<CaseRenderLeaseValidation?> GetRenderLeaseValidationAsync(

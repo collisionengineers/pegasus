@@ -391,6 +391,12 @@ public sealed partial class CaseDetailsWebTests
         /// <summary>The Case type the summary reports; a plain Inspection unless a test says otherwise.</summary>
         public CaseType SummaryCaseType { get; init; } = CaseType.Inspection;
 
+        /// <summary>The retained standalone Audit evidence, when intake supplied one.</summary>
+        public Guid? StandaloneAuditEvidenceId { get; init; }
+
+        /// <summary>The source Case for a linked Audit; null for a standalone Audit.</summary>
+        public Guid? AuditOfCaseId { get; init; }
+
         /// <summary>The Principal and Claim source records' notes the Case reads live.</summary>
         public CaseRecordNotes RecordNotes { get; init; } = CaseRecordNotes.None;
 
