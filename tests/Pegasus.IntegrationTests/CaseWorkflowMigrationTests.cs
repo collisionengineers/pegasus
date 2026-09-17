@@ -169,7 +169,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260914100000_WidenDocumentContentCacheVariant",
                 "20260914150656_UploadedCorrespondenceMailbox",
                 "20260916090000_VehicleLookupTypeSignals",
-                "20260917014000_EstimateDocumentPreviewEvents"
+                "20260917014000_EstimateDocumentPreviewEvents",
+                "20260917150000_RemoveCaseSequenceCeiling"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }
