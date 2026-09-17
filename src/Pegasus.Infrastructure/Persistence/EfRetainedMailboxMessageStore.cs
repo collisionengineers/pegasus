@@ -802,7 +802,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             return [];
         }
 
-        // Four lookups for the whole page, never one per row.
+        // Five lookups for the whole page, never one per row.
         var tokens = rows.Select(item => item.ExternalReceiptToken).Distinct().ToArray();
         var receipts = await context.IntakeReceipts
             .AsNoTracking()
