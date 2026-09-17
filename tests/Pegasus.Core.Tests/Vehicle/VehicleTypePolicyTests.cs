@@ -24,6 +24,8 @@ public sealed class VehicleTypePolicyTests
 
     [Theory]
     [InlineData("2-WHEEL", null, "motorcycle")]
+    [InlineData("2 WHEEL", null, "motorcycle")]
+    [InlineData("3 WHEEL", null, "motorcycle")]
     [InlineData("2 AXLE RIGID BODY", 0, "car")]
     [InlineData("2 AXLE RIGID BODY", 1_800, "van")]
     [InlineData("2 AXLE RIGID BODY", 7_500, "other")]

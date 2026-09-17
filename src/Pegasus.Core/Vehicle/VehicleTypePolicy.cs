@@ -6,9 +6,6 @@ namespace Pegasus.Core.Vehicle;
 /// </summary>
 public static class VehicleTypePolicy
 {
-    public const string MethodKey = "dvla-type-approval";
-    public const int MethodVersion = 1;
-
     public static string? Classify(VehicleDetails? vehicle)
     {
         if (vehicle is null)
@@ -39,8 +36,9 @@ public static class VehicleTypePolicy
         }
 
         var wheelplan = Normalize(vehicle.Wheelplan);
-        if (wheelplan.Contains("2-WHEEL", StringComparison.Ordinal)
-            || wheelplan.Contains("3-WHEEL", StringComparison.Ordinal))
+        // VES writes "2 WHEEL"; Normalize drops spaces and hyphens alike.
+        if (wheelplan.Contains("2WHEEL", StringComparison.Ordinal)
+            || wheelplan.Contains("3WHEEL", StringComparison.Ordinal))
         {
             return "motorcycle";
         }
@@ -65,5 +63,7 @@ public static class VehicleTypePolicy
     private static string Normalize(string? value) =>
         string.IsNullOrWhiteSpace(value)
             ? string.Empty
-            : value.Trim().ToUpperInvariant().Replace(" ", string.Empty, StringComparison.Ordinal);
+            : value.Trim().ToUpperInvariant()
+                .Replace(" ", string.Empty, StringComparison.Ordinal)
+                .Replace("-", string.Empty, StringComparison.Ordinal);
 }
