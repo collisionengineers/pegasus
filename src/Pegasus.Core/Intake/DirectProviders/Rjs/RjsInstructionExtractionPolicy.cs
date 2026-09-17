@@ -39,7 +39,7 @@ public sealed partial class RjsInstructionExtractionPolicy
     public IReadOnlyDictionary<string, InstructionFieldRole> FieldRoles { get; } = Definitions.ToDictionary(
         item => item.Name, item => new InstructionFieldRole(item.PartyRole, item.ReferenceRole), StringComparer.Ordinal);
 
-    public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, DateTimeOffset processedAtUtc, EstablishedPrincipalContext principalContext)
+public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, InstructionExtractionTiming timing, EstablishedPrincipalContext principalContext)
     {
         ArgumentNullException.ThrowIfNull(readResult);
         ArgumentNullException.ThrowIfNull(principalContext);
@@ -49,7 +49,7 @@ public sealed partial class RjsInstructionExtractionPolicy
             throw new ArgumentException("The established principal is not RJS.", nameof(principalContext));
 
         var (fields, missing, extracted) = InstructionFieldEngine.ExtractFields(
-            readResult.Content.SelectMany(InstructionFields).ToArray(), Definitions, Cache, processedAtUtc);
+        readResult.Content.SelectMany(InstructionFields).ToArray(), Definitions, Cache, timing);
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(SupportedPrincipalCode,
             InstructionFieldEngine.TypedString(values["Claimant name"], 300),

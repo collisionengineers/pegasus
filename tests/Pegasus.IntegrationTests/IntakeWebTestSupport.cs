@@ -859,7 +859,8 @@ internal static class IntakeTestEvidence
         string? vehicle = null,
         string notificationTitle = "ENGINEER NOTIFICATION",
         IEnumerable<string>? additionalLines = null,
-        bool addSignatureLines = true)
+        bool addSignatureLines = true,
+        IEnumerable<string>? interleavedClientDetailsLines = null)
     {
         var builder = new PdfDocumentBuilder();
         var font = builder.AddStandard14Font(Standard14Font.Helvetica);
@@ -885,6 +886,11 @@ internal static class IntakeTestEvidence
         {
             lines.AddRange(additionalLines
                 .SelectMany(line => line.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)));
+        }
+
+        if (interleavedClientDetailsLines is not null)
+        {
+            lines.AddRange(interleavedClientDetailsLines);
         }
 
         foreach (var (line, index) in lines.Select((line, index) => (line, index)))
