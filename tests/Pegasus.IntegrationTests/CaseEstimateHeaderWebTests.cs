@@ -1,5 +1,7 @@
 using Pegasus.Web.Presentation;
 
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
+
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
@@ -7,7 +9,8 @@ namespace Pegasus.IntegrationTests;
 /// confirmed; before that the control is absent, not drawn locked with an
 /// explanation (design authority, no explanatory copy; 15 September walk).
 /// </summary>
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseEstimateHeaderWebTests
 {
     [Fact]
     public async Task WithoutAConfirmedEngineersValueTheEstimateHeaderShowsNeitherSendToAiNorALockedPill()
