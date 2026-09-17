@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using Microsoft.Extensions.Logging.Abstractions;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Pegasus.Core;
@@ -277,10 +278,10 @@ public sealed class DependencyDirectionTests
         var intakeId = Guid.NewGuid();
         var workId = Guid.NewGuid();
 
-        await new UnifiedWorkFunction(intakeProcessor, processor, null!, null!, TimeProvider.System).RunAsync(
+        await new UnifiedWorkFunction(intakeProcessor, processor, null!, null!, TimeProvider.System, NullLogger<UnifiedWorkFunction>.Instance).RunAsync(
             UnifiedWorkQueueMessage.Format(UnifiedWorkQueueKind.Intake, intakeId),
             CancellationToken.None);
-        await new UnifiedWorkFunction(intakeProcessor, processor, null!, null!, TimeProvider.System).RunAsync(
+        await new UnifiedWorkFunction(intakeProcessor, processor, null!, null!, TimeProvider.System, NullLogger<UnifiedWorkFunction>.Instance).RunAsync(
             UnifiedWorkQueueMessage.Format(UnifiedWorkQueueKind.External, workId),
             CancellationToken.None);
         var poisonReconciler = new ReconcilePoisonedQueueWork(
@@ -289,7 +290,7 @@ public sealed class DependencyDirectionTests
         await new UnifiedWorkPoisonFunction(poisonReconciler, null!, TimeProvider.System)
             .RunAsync(UnifiedWorkQueueMessage.Format(UnifiedWorkQueueKind.External, workId), CancellationToken.None);
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new UnifiedWorkFunction(intakeProcessor, processor, null!, null!, TimeProvider.System).RunAsync("not-a-work-id", CancellationToken.None));
+            new UnifiedWorkFunction(intakeProcessor, processor, null!, null!, TimeProvider.System, NullLogger<UnifiedWorkFunction>.Instance).RunAsync("not-a-work-id", CancellationToken.None));
 
         Assert.Equal([intakeId], intakeProcessor.ProcessedIds);
         Assert.Equal([workId], processor.ProcessedIds);
