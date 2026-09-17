@@ -165,7 +165,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260913200000_CaseFieldProposals",
                 "20260914091000_PreCaseImagePreparation",
                 "20260914100000_WidenDocumentContentCacheVariant",
-                "20260914150656_UploadedCorrespondenceMailbox"
+                "20260914150656_UploadedCorrespondenceMailbox",
+                "20260916090000_VehicleLookupTypeSignals"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
