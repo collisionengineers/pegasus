@@ -32,6 +32,7 @@ internal sealed class QuestPdfAssessmentReportRenderer : IAssessmentReportRender
 
     public QuestPdfAssessmentReportRenderer()
     {
+        using var timing = DocumentReadTelemetry.Start("report.renderer.initialize");
         RegisterFonts();
     }
 

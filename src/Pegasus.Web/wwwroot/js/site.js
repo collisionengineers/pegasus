@@ -1967,7 +1967,9 @@
         items.forEach(function (item, position) {
             item.setAttribute('aria-selected', position === index ? 'true' : 'false');
         });
-        items[index].scrollIntoView({ block: 'nearest' });
+        if (!dialog.hidden) {
+            items[index].scrollIntoView({ block: 'nearest' });
+        }
     }
 
     function filter() {
