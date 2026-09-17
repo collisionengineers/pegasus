@@ -185,7 +185,8 @@ public sealed partial class AssessmentReportDraftWebTests
         }
         var renderer = new FakeRenderer([1]);
         using var factory = Compose(baseFactory, new FakeGetCase(caseId),
-            FullAssessmentProjection(caseId), source, renderer);
+            FullAssessmentProjection(caseId), source, renderer,
+            failIfReportServicesResolved: true);
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
@@ -335,7 +336,8 @@ public sealed partial class AssessmentReportDraftWebTests
         bool canOpen = true,
         IGenerateCaseReport? generateReport = null,
         IPrepareCaseReportDelivery? prepareDelivery = null,
-        ISendPreparedCaseReport? sendPreparedReport = null) =>
+        ISendPreparedCaseReport? sendPreparedReport = null,
+        bool failIfReportServicesResolved = false) =>
         baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -352,6 +354,15 @@ public sealed partial class AssessmentReportDraftWebTests
                 services.RemoveAll<ICaseReportSnapshotSource>();
                 services.RemoveAll<IAssessmentReportRenderer>();
                 services.RemoveAll<IDocumentContentStore>();
+                if (failIfReportServicesResolved)
+                {
+                    services.RemoveAll<GenerateCaseAssessmentReportDraft>();
+                    services.RemoveAll<IGenerateCaseReport>();
+                    services.AddScoped<GenerateCaseAssessmentReportDraft>(static _ =>
+                        throw new InvalidOperationException("Case GET must not resolve draft rendering."));
+                    services.AddScoped<IGenerateCaseReport>(static _ =>
+                        throw new InvalidOperationException("Case GET must not resolve report rendering."));
+                }
                 if (getCase is IAcquireCaseEditLease leases)
                 {
                     // v26: the Report head's controls render inside the edit

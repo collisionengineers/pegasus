@@ -5,6 +5,8 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Vehicle;
 using Pegasus.Web.Presentation;
 
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
+
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
@@ -17,7 +19,8 @@ namespace Pegasus.IntegrationTests;
 /// action bar (<c>CaseDetailsWebTests</c>) and the store
 /// (<c>CustodyOutboxIntegrationTests</c>).
 /// </summary>
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseVehicleWebTests
 {
     [Fact]
     public async Task CaseOverviewUsesAcceptedFactsAndLeavesVehicleFactsInVehicleSection()
@@ -645,37 +648,6 @@ public sealed partial class CaseDetailsWebTests
         return html[start..(end + "</form>".Length)];
     }
 
-    private static string OverviewPanel(string html)
-    {
-        var host = html.IndexOf("id=\"section-overview\"", StringComparison.Ordinal);
-        Assert.True(host >= 0, "The Case overview panel must render.");
-        var start = html.LastIndexOf("<section", host, StringComparison.Ordinal);
-        Assert.True(start >= 0, "The Case overview panel must be a section.");
-
-        var depth = 0;
-        var index = start;
-        while (true)
-        {
-            var open = html.IndexOf("<section", index, StringComparison.Ordinal);
-            var close = html.IndexOf("</section>", index, StringComparison.Ordinal);
-            Assert.True(close >= 0, "The Case overview panel must close.");
-
-            if (open >= 0 && open < close)
-            {
-                depth++;
-                index = open + "<section".Length;
-                continue;
-            }
-
-            if (--depth == 0)
-            {
-                return html[start..(close + "</section>".Length)];
-            }
-
-            index = close + "</section>".Length;
-        }
-    }
-
     private static int CountOccurrences(string html, string value)
     {
         var count = 0;
@@ -727,32 +699,5 @@ public sealed partial class CaseDetailsWebTests
         return new(caseId, null, answered, [answered, refused], []);
     }
 
-    private sealed partial class RecordingCaseDetailsStore : IRequestVehicleLookup
-    {
-        public List<RequestVehicleLookupCommand> LookupRequests { get; } = [];
 
-        /// <summary>The case's recorded vehicle lookups, when a test supplies them.</summary>
-        public CaseVehicleEvidence? VehicleLookupEvidence { get; init; }
-
-        /// <summary>
-        /// Drops the vehicle values from the projection, so the section renders
-        /// the state a case with no registration is actually in.
-        /// </summary>
-        public bool OmitVehicleValues { get; init; }
-
-        Task<RequestedVehicleLookup> IRequestVehicleLookup.ExecuteAsync(
-            RequestVehicleLookupCommand command,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            LookupRequests.Add(command);
-            return Task.FromResult(new RequestedVehicleLookup(
-                Guid.NewGuid(),
-                CaseId,
-                command.Registration,
-                VehicleLookupWorkState.Pending,
-                CaseVersion + 1,
-                IsReplay: false));
-        }
-    }
 }

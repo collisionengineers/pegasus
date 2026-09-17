@@ -152,7 +152,7 @@ jobs:
     # Two levels of overlap, because neither alone is enough on a four-vCPU
     # runner: test classes run in parallel within a shard, capped by
     # tests/Pegasus.IntegrationTests/xunit.runner.json, and the shards divide
-    # whole classes across runners. Allow setup/build plus the longest shard
+    # whole classes across six runners. Allow setup/build plus the longest shard
     # and evidence upload: the 2026-09-09 run exhausted a 30-minute job budget.
     needs: [changes, documentation, local-development-scripts, reference-data]
     if: needs.changes.outputs.build == 'true'
@@ -162,7 +162,7 @@ jobs:
       # One shard's failure must not hide another shard's coverage report.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/dotnet-build
@@ -172,7 +172,7 @@ jobs:
           ./scripts/Invoke-TestShard.ps1
           -Project ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj
           -Filter "Category!=Corpus"
-          -Shard ${{ matrix.shard }} -ShardCount 3
+          -Shard ${{ matrix.shard }} -ShardCount 6
       - name: Retain what this shard enumerated and ran
         if: always()
         uses: actions/upload-artifact@v6
@@ -202,4 +202,4 @@ jobs:
           path: artifacts/test-shards
       - name: Every enumerated test ran in exactly one shard
         shell: pwsh
-        run: ./scripts/Invoke-TestShard.ps1 -VerifyPartition -ShardCount 3
+        run: ./scripts/Invoke-TestShard.ps1 -VerifyPartition -ShardCount 6
