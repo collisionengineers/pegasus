@@ -291,6 +291,37 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(CaseReportGenerationOutcome.Generated, generator.LastOutcome);
     }
 
+    [Fact]
+    public async Task UnconfirmedReportDoesNotOfferGenerateWithoutAPreparedDraft()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        const string retainedOperationKey = "retained-report-operation";
+        var projection = ReadyInput(caseId);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new UnavailableSnapshotSource(projection),
+            new FakeRenderer([1]))
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(
+                    caseId,
+                    includeFeeNote: false,
+                    reportStatus: CaseReportArtifactStatus.Failed,
+                    reportOperationKey: retainedOperationKey));
+            }));
+        using var client = Client(factory);
+
+        var html = await EnterEditModeAsync(client, caseId);
+
+        Assert.DoesNotContain("data-generate-report", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-generate-report-form\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(retainedOperationKey, html, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// The generated card names what the operator actually issued, so a
     /// combined document is never offered as if a separate fee note existed.
@@ -673,6 +704,22 @@ public sealed partial class AssessmentReportDraftWebTests
             return Task.FromResult(new CaseReportGenerationResult(
                 CaseReportGenerationOutcome.Pending, null, []));
         }
+    }
+
+    private sealed class UnavailableSnapshotSource(AssessmentReportProjectionInput input)
+        : IAssessmentReportProjectionSource, ICaseReportSnapshotSource
+    {
+        public Task<AssessmentReportProjectionInput?> GetAsync(
+            Guid caseId,
+            ActionActor actor,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<AssessmentReportProjectionInput?>(input);
+
+        Task<CaseReportFreezeInputs?> ICaseReportSnapshotSource.GetAsync(
+            Guid caseId,
+            ActionActor actor,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseReportFreezeInputs?>(null);
     }
 
     private sealed class RecordingPrepareDelivery(Guid caseId, Guid generationId)
