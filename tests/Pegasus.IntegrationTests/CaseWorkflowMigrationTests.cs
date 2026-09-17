@@ -171,7 +171,9 @@ public sealed class CaseWorkflowMigrationTests
                 "20260916090000_VehicleLookupTypeSignals",
                 "20260917014000_EstimateDocumentPreviewEvents",
                 "20260917140000_GrantWorkerCaseAssessmentFields",
-                "20260917150000_RemoveCaseSequenceCeiling"
+                "20260917150000_RemoveCaseSequenceCeiling",
+                "20260917152000_CaseDueByStaffOverride",
+                "20260917153000_CaseClaimSourceContactOverride"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }
