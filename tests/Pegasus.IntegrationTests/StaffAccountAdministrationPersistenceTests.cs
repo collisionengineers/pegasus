@@ -47,6 +47,28 @@ public sealed class StaffAccountAdministrationPersistenceTests
     }
 
     [Fact]
+    public async Task BatchStaffReadKeepsTheExactlyOneRoleInvariant()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureServices: IdentityPersistenceTestServices.Configure);
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var userManager = services.GetRequiredService<UserManager<PegasusIdentityUser>>();
+        var single = await CreateStaffAccountAsync(
+            userManager, "batch-single-role", StaffRole.Engineer);
+        // The unique index on AspNetUserRoles.UserId makes a second role
+        // impossible; the reachable breach is an account with no role row.
+        var roleless = new PegasusIdentityUser { Id = Guid.NewGuid(), UserName = "batch-no-role" };
+        Assert.True((await userManager.CreateAsync(roleless, "Password-1")).Succeeded);
+        var queries = services.GetRequiredService<IStaffAccountQueries>();
+
+        var one = Assert.Single(await queries.GetManyAsync([single.Id], default));
+        Assert.Equal(StaffRole.Engineer, one.Role);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => queries.GetAsync(roleless.Id, default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => queries.GetManyAsync([single.Id, roleless.Id], default));
+    }
+
+    [Fact]
     public async Task StaffAccountQueryProjectsOneRoleAndItsVersion()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(
