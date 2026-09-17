@@ -286,22 +286,33 @@ public sealed record EstimateHours(
         decimal paintPanel = 0m, blendPanel = 0m;
         foreach (var line in estimate.Lines)
         {
-            switch (line.Type)
+            var operation = EstimateOperations.FromLineType(line.Type);
+            switch (operation)
             {
-                case "new_part": replace += line.WorkUnits ?? 0m; break;
-                case "repair": repair += line.WorkUnits ?? 0m; break;
-                case "rnr": removeAndRefit += line.WorkUnits ?? 0m; break;
-                case "check_labour": check += line.WorkUnits ?? 0m; break;
-                case "specialist_wu": specialistPriced += line.WorkUnits ?? 0m; break;
-                case "specialist_fixed": unpricedSpecialist += line.WorkUnits ?? 0m; break;
-                case "paint_new" or "paint_repair" or "paint_prep":
+                case EstimateOperation.Replace: replace += line.WorkUnits ?? 0m; break;
+                case EstimateOperation.Repair: repair += line.WorkUnits ?? 0m; break;
+                case EstimateOperation.RemoveAndRefit: removeAndRefit += line.WorkUnits ?? 0m; break;
+                case EstimateOperation.Other: check += line.WorkUnits ?? 0m; break;
+                case EstimateOperation.Specialist:
+                    if (line.Type == "specialist_wu")
+                    {
+                        specialistPriced += line.WorkUnits ?? 0m;
+                    }
+                    else
+                    {
+                        unpricedSpecialist += line.WorkUnits ?? 0m;
+                    }
+                    break;
+                case EstimateOperation.Paint:
                     paintPanel += line.WorkUnits ?? 0m;
                     paint += line.PaintWorkUnits ?? 0m;
                     break;
-                case "paint_blend":
+                case EstimateOperation.Blend:
                     blendPanel += line.WorkUnits ?? 0m;
                     blend += line.PaintWorkUnits ?? 0m;
                     break;
+                default:
+                    throw new InvalidOperationException($"Unknown estimate operation '{operation}'.");
             }
         }
         return new(replace, repair, removeAndRefit, check, specialistPriced, paint, blend, unpricedSpecialist)

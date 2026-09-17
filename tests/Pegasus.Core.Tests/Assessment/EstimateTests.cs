@@ -213,6 +213,7 @@ public sealed class EstimateTests
             Line("rnr", workUnits: 0.6m),
             Line("paint_repair", paintWorkUnits: 2m),
             Line("paint_blend", paintWorkUnits: 0.5m),
+            Line("specialist_wu", workUnits: 2m),
             Line("specialist_fixed", price: 180m, workUnits: 6m),
             Line("check_labour", workUnits: 0.5m),
             Line("repair", materials: 12m));
@@ -220,14 +221,14 @@ public sealed class EstimateTests
         var raw = EstimateTotals.Compute(estimate).Raw;
 
         Assert.Equal(240m, raw.Parts);
-        // 0.4 Replace + 1.5 Repair + 0.6 R&I + 0.5 Other = 3.0 panel hours;
-        // the Specialist row's 6 hours are shown but never priced.
-        Assert.Equal(150m, raw.PanelLabour);
+        // 0.4 Replace + 1.5 Repair + 0.6 R&I + 2.0 Specialist work units
+        // + 0.5 Other = 5.0 panel hours; only specialist_fixed is unpriced.
+        Assert.Equal(250m, raw.PanelLabour);
         Assert.Equal(125m, raw.PaintLabour);
         Assert.Equal(17m, raw.Materials);
         Assert.Equal(187m, raw.Specialist);
         Assert.Equal(0m, raw.OffPattern);
-        Assert.Equal(719m, raw.Net);
+        Assert.Equal(819m, raw.Net);
     }
 
     [Theory]
@@ -665,6 +666,16 @@ public sealed class EstimateTests
         Assert.Equal(5.5m, hours.PricedTotal);
         Assert.Equal(120m, totals.Raw.PanelLabour);
         Assert.Equal(100m, totals.Raw.PaintLabour);
+    }
+
+    [Fact]
+    public void HoursRefuseAnUnknownLineTypeThroughTheSharedVocabularyOwner()
+    {
+        var estimate = Estimate(Header(), Line("weld", workUnits: 1m));
+
+        var exception = Assert.Throws<InvalidOperationException>(() => EstimateHours.Of(estimate));
+
+        Assert.Equal("Unknown estimate line type 'weld'.", exception.Message);
     }
 
     [Fact]

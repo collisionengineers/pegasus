@@ -96,17 +96,8 @@ public sealed class EstimateDocumentRenderingTests
     public void GoldenFixedSpecialistFixturePinsTheCorrectNetArithmetic()
     {
         var estimate = Estimate(
-            Details(rate: 83.28m, paintMaterials: 510.58m, otherCosts: 238.60m),
-            Line("repair", 1, workUnits: 12.3m),
-            Line("paint_repair", 2, paintWorkUnits: 4.7m),
-            Line("new_part", 3, price: 160.63m),
-            Line("specialist_fixed", 4, price: 180m),
-            Line("specialist_fixed", 5, price: 112.42m),
-            Line("specialist_fixed", 6, workUnits: 1m),
-            Line("specialist_fixed", 7, workUnits: 1m),
-            Line("specialist_fixed", 8, workUnits: 1m),
-            Line("specialist_fixed", 9, workUnits: 1m),
-            Line("specialist_fixed", 10, workUnits: 1m));
+            Details(rate: 83.28m),
+            EvaEstimateLines("specialist_fixed"));
 
         var totals = EstimateTotals.Compute(estimate);
         var hours = EstimateHours.Of(estimate);
@@ -121,6 +112,18 @@ public sealed class EstimateDocumentRenderingTests
         Assert.Equal(17m, hours.PricedTotal);
         Assert.Equal(5m, hours.UnpricedSpecialist);
         Assert.Equal(5, totals.OffPattern.Count(anomaly => anomaly.Field == "hours"));
+    }
+
+    [Fact]
+    public void GoldenCheckLabourFixturePinsTheCorrectlyTypedDocumentTotals()
+    {
+        var snapshot = Snapshot(Estimate(
+            Details(rate: 83.28m),
+            EvaEstimateLines("check_labour")));
+
+        Assert.Equal(1_832.16m, snapshot.Totals.Printed.PanelLabour + snapshot.Totals.Printed.PaintLabour);
+        Assert.Equal(22m, snapshot.Hours.PricedTotal);
+        Assert.Equal(3_034.39m, snapshot.Totals.Printed.Net);
     }
 
     [Fact]
@@ -238,6 +241,32 @@ public sealed class EstimateDocumentRenderingTests
         Guid.NewGuid(), CaseId, 1, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         lines, null, "engineer", Now, null, null, null, null, details);
+
+    private static CaseEstimateLineRecord[] EvaEstimateLines(string timedOperationType) =>
+    [
+        Line("new_part", 1, "Right Front Door Membrane", workUnits: 0.1m, price: 103.18m),
+        Line("new_part", 2, "Right Front Door Protective Moulding", price: 43.19m),
+        Line("rnr", 3, "Rear Bumper Lining", workUnits: 0.8m),
+        Line("repair", 4, "Right Rear Side Panel", workUnits: 10m),
+        Line("new_part", 5, "Right Side Panel Protective Moulding", workUnits: 0.1m, price: 14.26m),
+        Line("rnr", 6, "Right Front Door Strip & Set-Up for Paint", workUnits: 1.3m),
+        Line("specialist_fixed", 7, ".Assessment Damage Appraisal Charge", price: 176.96m),
+        Line("specialist_fixed", 8, ".Environmental Charge", price: 31.23m),
+        Line(timedOperationType, 9, ".QC & Road Test", workUnits: 1m),
+        Line(timedOperationType, 10, ".Standard shutdown", workUnits: 1m),
+        Line("specialist_fixed", 11, ".Sundries", price: 20m),
+        Line(timedOperationType, 12, ".System Diagnostic Check (Post Repair)", workUnits: 1m),
+        Line(timedOperationType, 13, ".System Diagnostic Check (Pre Repair)", workUnits: 1m),
+        Line("specialist_fixed", 14, ".Vehicle Care Kit", price: 10.41m),
+        Line(timedOperationType, 15, ".Wash/Clean", workUnits: 1m),
+        Line("specialist_fixed", 16, "OSR tyre", price: 180m),
+        Line("specialist_fixed", 17, "Wheel Alignment (check)", price: 112.42m),
+        Line("paint_repair", 18, "Right Front Door, Complete", paintWorkUnits: 0.8m, materials: 191.20m),
+        Line("paint_repair", 19, "Right Rear Side Panel, Complete", paintWorkUnits: 1.6m, materials: 187.60m),
+        Line("paint_prep", 20, "Prep. metal (on vehicle without pre-painting)", paintWorkUnits: 1.7m, materials: 120.16m),
+        Line("paint_repair", 21, "Colour mixing (1)", paintWorkUnits: 0.3m),
+        Line("paint_repair", 22, "Sample colour creation (1)", paintWorkUnits: 0.3m, materials: 11.62m),
+    ];
 
     private static CaseEstimateLineRecord Line(
         string type,
