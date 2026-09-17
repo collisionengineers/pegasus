@@ -21,6 +21,8 @@ public sealed class ClosureModel(
     IArchiveCase archiveCase,
     ILogger<ClosureModel> logger) : CaseMutationPageModel(logger)
 {
+    public IActionResult OnGet() => NotFound();
+
     public Task<IActionResult> OnPostRecordReportApprovalAsync(
         Guid id,
         long expectedVersion,

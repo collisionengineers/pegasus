@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
@@ -24,6 +26,218 @@ public sealed class ImageCaseCustodyIntegrationTests
     private static ActionActor StaffActor() => ActionActor.Staff(
         DevelopmentOfflineIdentity.AdministratorId,
         [StaffRole.Administrator]);
+
+    [Fact]
+    public async Task PdfParentRetainsItsSourceAndEachSelectedEmbeddedPhotographExactlyOnce()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var sourceBytes = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "seed.png",
+            "image/png",
+            sourceBytes,
+            Guid.NewGuid().ToString("N"));
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var artifacts = services.GetRequiredService<IIntakeArtifactStore>();
+        var photographOne = new byte[50_000];
+        var photographTwo = new byte[51_000];
+        var banner = new byte[110_783];
+        photographOne[0] = 1;
+        photographTwo[0] = 2;
+        banner[0] = 3;
+        var first = await StageAsync(photographOne);
+        var second = await StageAsync(photographTwo);
+        var duplicate = await StageAsync(photographOne);
+        var excludedBanner = await StageAsync(banner);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        Guid sourceAssetId;
+        Guid firstAssetId;
+        Guid secondAssetId;
+        Guid duplicateAssetId;
+        Guid bannerAssetId;
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            var receipt = await context.IntakeReceipts
+                .Include(item => item.Assets)
+                .SingleAsync(item => item.Id == receiptId);
+            receipt.SourceFileName = "images.pdf";
+            receipt.MediaType = "application/pdf";
+            receipt.Decision = "needs_sorting";
+            receipt.DecisionReason = "The PDF contains photographs for image intake.";
+            // Keep the versioned fields envelope written by StoreAsync; this
+            // fixture changes the retained material, not its JSON contract.
+            receipt.FailureCode = null;
+            receipt.FailureReason = null;
+            sourceAssetId = receipt.Assets.Single(item => item.Kind == "source").Id;
+            var source = receipt.Assets.Single(item => item.Id == sourceAssetId);
+            source.FileName = "images.pdf";
+            source.MediaType = "application/pdf";
+
+            firstAssetId = AddEmbeddedImage(
+                context, receiptId, "page-1-image-2.jpg", first, 547, 650);
+            secondAssetId = AddEmbeddedImage(
+                context, receiptId, "page-1-image-3.jpg", second, 552, 650);
+            // Same bytes as the first photograph: selection deduplicates by
+            // hash, so this asset must not become another custody file.
+            duplicateAssetId = AddEmbeddedImage(
+                context, receiptId, "page-1-image-4.jpg", duplicate, 547, 650);
+            // The U50-sized letterhead banner is deliberately retained in this
+            // fixture to prove downstream custody also excludes historic bad
+            // candidates when a receipt is replayed.
+            bannerAssetId = AddEmbeddedImage(
+                context, receiptId, "page-1-image-1.png", excludedBanner, 1990, 437);
+            await context.SaveChangesAsync();
+        }
+
+        var resolver = services.GetRequiredService<IImageIntakeOriginResolver>();
+        var origin = await resolver.ResolveOriginAsync(receiptId, CancellationToken.None);
+        var registered = await services.GetRequiredService<IRegisterImageIntake>().ExecuteAsync(
+            new(
+                origin!,
+                "AB12CDE",
+                StaffActor(),
+                $"pdf-image-custody-register:{receiptId:N}",
+                "Staff registered the PDF's retained photographs."),
+            CancellationToken.None);
+        Guid workId;
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            workId = await context.ExternalWorkItems
+                .Where(item => item.ImageIntakeId == registered.Id
+                    && item.Kind == ExternalWorkKinds.CreateImageCaseCustody)
+                .Select(item => item.Id)
+                .SingleAsync();
+        }
+
+        var processor = services.GetRequiredService<IProcessQueuedCustody>();
+        await processor.ExecuteAsync(workId, CancellationToken.None);
+        await processor.ExecuteAsync(workId, CancellationToken.None);
+
+        var imagesDirectory = Path.Combine(
+            factory.ArtifactDirectory,
+            "custody",
+            "cases",
+            registered.Id.ToString("N"),
+            "images");
+        var retainedDirectories = Directory.GetDirectories(imagesDirectory)
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(
+            [
+                $"001-{sourceAssetId:N}",
+                $"002-{firstAssetId:N}",
+                $"003-{secondAssetId:N}"
+            ],
+            retainedDirectories.Select(Path.GetFileName));
+        Assert.DoesNotContain(retainedDirectories, path => path.Contains($"{duplicateAssetId:N}", StringComparison.Ordinal));
+        Assert.DoesNotContain(retainedDirectories, path => path.Contains($"{bannerAssetId:N}", StringComparison.Ordinal));
+        Assert.Equal(sourceBytes, await File.ReadAllBytesAsync(Path.Combine(retainedDirectories[0], "content")));
+        Assert.Equal(photographOne, await File.ReadAllBytesAsync(Path.Combine(retainedDirectories[1], "content")));
+        Assert.Equal(photographTwo, await File.ReadAllBytesAsync(Path.Combine(retainedDirectories[2], "content")));
+
+        var metadata = new List<JsonDocument>();
+        foreach (var directory in retainedDirectories)
+        {
+            metadata.Add(JsonDocument.Parse(
+                await File.ReadAllTextAsync(Path.Combine(directory, "metadata.json"))));
+        }
+        try
+        {
+            Assert.Equal(
+                [
+                    $"image-case-custody:{registered.Id:N}:asset:{sourceAssetId:N}",
+                    $"image-case-custody:{registered.Id:N}:asset:{firstAssetId:N}",
+                    $"image-case-custody:{registered.Id:N}:asset:{secondAssetId:N}"
+                ],
+                metadata.Select(document => document.RootElement.GetProperty("OperationKey").GetString()));
+            Assert.Equal(
+                ["images.pdf", "page-1-image-2.jpg", "page-1-image-3.jpg"],
+                metadata.Select(document => document.RootElement.GetProperty("FileName").GetString()));
+        }
+        finally
+        {
+            foreach (var document in metadata)
+            {
+                document.Dispose();
+            }
+        }
+
+        await using var verified = await contextFactory.CreateDbContextAsync();
+        var work = await verified.ExternalWorkItems.SingleAsync(item => item.Id == workId);
+        Assert.Equal("completed", work.State);
+        Assert.Equal(1, work.AttemptCount);
+
+        async Task<(string Hash, string StorageKey, int Length)> StageAsync(byte[] bytes)
+        {
+            var hash = Convert.ToHexString(SHA256.HashData(bytes));
+            return (hash, await artifacts.StoreAsync(hash, bytes, CancellationToken.None), bytes.Length);
+        }
+    }
+
+    [Fact]
+    public async Task MixedGroupExcludesUnregisteredDocumentSiblingFromImagesCountsAndCustody()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development", true, recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var bytes = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(client,
+            form.AntiforgeryToken, form.ExternalReceiptToken,
+            [("vehicle.png", "image/png", bytes), ("document-photo.png", "image/png", bytes)]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var group = (await services.GetRequiredService<IIntakeSubmissionGroupStore>().GetAsync(groupId))!;
+        var receiptIds = new List<Guid>();
+        foreach (var member in group.Members.OrderBy(member => member.Ordinal))
+        {
+            receiptIds.Add((await IntakeWebDriver.DrainStagedAsync(services, member.StagedReceiptId)).ProcessedReceiptId);
+        }
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            // Seed a processed office document with a retained photograph. Its
+            // material role is outside the image/PDF/mail automation route.
+            var sibling = await context.IntakeReceipts.SingleAsync(item => item.Id == receiptIds[1]);
+            sibling.MediaType = "application/msword";
+            sibling.SourceFileName = "report.doc";
+            await context.SaveChangesAsync();
+        }
+        var origin = (await services.GetRequiredService<IImageIntakeOriginResolver>()
+            .ResolveOriginAsync(receiptIds[0], CancellationToken.None))!;
+        var record = await services.GetRequiredService<IRegisterImageIntake>().ExecuteAsync(new(
+            origin, "AB12CDE", StaffActor(), $"mixed-image-group:{groupId:N}",
+            "Register only the image-evidence member.", SubmissionGroupId: groupId), CancellationToken.None);
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        Assert.Equal(receiptIds[0], Assert.Single(await queries.ListImagesAsync(record.Id, CancellationToken.None)).ReceiptId);
+        var batched = await queries.ListImagesAsync([record.Id], CancellationToken.None);
+        Assert.Equal(receiptIds[0], Assert.Single(batched[record.Id]).ReceiptId);
+        Assert.Equal(1, Assert.Single(await queries.SearchByRegistrationAsync("AB12CDE", CancellationToken.None)).ImageCount);
+        Assert.Null(await queries.GetByOriginReceiptAsync(receiptIds[1], CancellationToken.None));
+        var siblingReceipt = (await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptIds[1], CancellationToken.None))!;
+        Assert.Equal(IntakeDecision.NeedsSorting, siblingReceipt.Decision);
+        Guid workId;
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            workId = await context.ExternalWorkItems.Where(item => item.ImageIntakeId == record.Id
+                && item.Kind == ExternalWorkKinds.CreateImageCaseCustody).Select(item => item.Id).SingleAsync();
+        }
+        await services.GetRequiredService<IProcessQueuedCustody>().ExecuteAsync(workId, CancellationToken.None);
+        var retained = Assert.Single(Directory.GetDirectories(Path.Combine(
+            factory.ArtifactDirectory, "custody", "cases", record.Id.ToString("N"), "images")));
+        Assert.Equal(bytes, await File.ReadAllBytesAsync(Path.Combine(retained, "content")));
+    }
 
     [Fact]
     public async Task RegistrationStoresEveryGroupImageAndMergeFoldsThemIntoTheCase()
@@ -105,6 +319,16 @@ public sealed class ImageCaseCustodyIntegrationTests
         // A redelivered queue message is a no-op replay.
         await processor.ExecuteAsync(createWorkId, CancellationToken.None);
 
+        Guid[] sourceAssetIds;
+        await using (var sourceContext = await contextFactory.CreateDbContextAsync())
+        {
+            var sources = await sourceContext.IntakeAssets.AsNoTracking()
+                .Where(asset => memberReceiptIds.Contains(asset.IntakeReceiptId)
+                    && asset.Kind == "source" && asset.Disposition == "source")
+                .Select(asset => new { asset.IntakeReceiptId, asset.Id })
+                .ToDictionaryAsync(asset => asset.IntakeReceiptId, asset => asset.Id);
+            sourceAssetIds = memberReceiptIds.Select(receiptId => sources[receiptId]).ToArray();
+        }
         var custodyRootDirectory = Path.Combine(
             factory.ArtifactDirectory, "custody", "cases", record.Id.ToString("N"));
         await using (var context = await contextFactory.CreateDbContextAsync())
@@ -123,18 +347,29 @@ public sealed class ImageCaseCustodyIntegrationTests
         // Every group image is retained under the registration, in ordinal
         // order, byte-exact.
         var firstImagePath = Path.Combine(
-            custodyRootDirectory, "images", $"001-{memberReceiptIds[0]:N}", "content");
+            custodyRootDirectory, "images", $"001-{sourceAssetIds[0]:N}", "content");
         var secondImagePath = Path.Combine(
-            custodyRootDirectory, "images", $"002-{memberReceiptIds[1]:N}", "content");
+            custodyRootDirectory, "images", $"002-{sourceAssetIds[1]:N}", "content");
         Assert.Equal(pngBytes, await File.ReadAllBytesAsync(firstImagePath));
         Assert.Equal(pngBytes, await File.ReadAllBytesAsync(secondImagePath));
 
         // Merge into a formal case: the transition enqueues the fold and
         // commits regardless of external storage availability.
-        var caseId = await SeedCaseAsync(services, memberReceiptIds[0], "IMG26001");
+        var originalCaseId = await SeedCaseAsync(services, memberReceiptIds[0], "IMG26001");
+        var caseId = await SeedCaseAsync(
+            services, memberReceiptIds[0], "a.IMG26001", originalCaseId);
         var caseCustody = services.GetRequiredService<ICaseCustody>();
-        var caseRoot = await caseCustody.CreateCaseRootAsync(
-            caseId, "IMG26001", $"img-case-root:{caseId:N}", CancellationToken.None);
+        await caseCustody.CreateCaseRootAsync(
+            originalCaseId, "IMG26001", $"img-case-root:{originalCaseId:N}", CancellationToken.None);
+        var caseRoot = await caseCustody.CreateLinkedAuditCaseRootAsync(
+            caseId,
+            "a.IMG26001",
+            originalCaseId,
+            "IMG26001",
+            "0123456789ABCDEFGHJKMNPQRS",
+            $"img-case-root:{caseId:N}",
+            null,
+            CancellationToken.None);
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
@@ -217,15 +452,21 @@ public sealed class ImageCaseCustodyIntegrationTests
         // image-case folder is gone.
         Assert.False(Directory.Exists(custodyRootDirectory));
         var caseImagesDirectory = Path.Combine(
-            factory.ArtifactDirectory, "custody", "cases", caseId.ToString("N"), "images");
+            factory.ArtifactDirectory,
+            "custody",
+            "cases",
+            originalCaseId.ToString("N"),
+            "cases",
+            caseId.ToString("N"),
+            "images");
         Assert.Equal(
             pngBytes,
             await File.ReadAllBytesAsync(Path.Combine(
-                caseImagesDirectory, $"001-{memberReceiptIds[0]:N}", "content")));
+                caseImagesDirectory, $"001-{sourceAssetIds[0]:N}", "content")));
         Assert.Equal(
             pngBytes,
             await File.ReadAllBytesAsync(Path.Combine(
-                caseImagesDirectory, $"002-{memberReceiptIds[1]:N}", "content")));
+                caseImagesDirectory, $"002-{sourceAssetIds[1]:N}", "content")));
     }
 
     [Fact]
@@ -368,10 +609,41 @@ public sealed class ImageCaseCustodyIntegrationTests
         return intake.CustodyState;
     }
 
+    private static Guid AddEmbeddedImage(
+        PegasusDbContext context,
+        Guid receiptId,
+        string fileName,
+        (string Hash, string StorageKey, int Length) staged,
+        int widthPixels,
+        int heightPixels)
+    {
+        var id = Guid.NewGuid();
+        context.IntakeAssets.Add(new IntakeAssetEntity
+        {
+            Id = id,
+            IntakeReceiptId = receiptId,
+            SourceLabel = $"uploaded images.pdf, page 1, {fileName}",
+            FileName = fileName,
+            MediaType = fileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                ? "image/png"
+                : "image/jpeg",
+            Kind = "embedded_image",
+            Disposition = "embedded",
+            ContentLength = staged.Length,
+            ContentHash = staged.Hash,
+            StorageKey = staged.StorageKey,
+            PageNumber = 1,
+            WidthPixels = widthPixels,
+            HeightPixels = heightPixels
+        });
+        return id;
+    }
+
     private static async Task<Guid> SeedCaseAsync(
         IServiceProvider services,
         Guid originReceiptId,
-        string reference)
+        string reference,
+        Guid? auditOfCaseId = null)
     {
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
@@ -386,8 +658,10 @@ public sealed class ImageCaseCustodyIntegrationTests
             $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {now})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO Principals (Id, OrganizationId, Code, SequenceLineageId, IsActive, Version) VALUES ({principalId}, {organizationId}, {reference}, {lineageId}, {true}, {0L})");
+        var caseType = auditOfCaseId is null ? "inspection" : "audit";
+        var auditReference = auditOfCaseId is null ? null : reference;
         await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState, CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {"inspection"}, {"not_ready"}, {"pending"}, {originReceiptId}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
+            $"INSERT INTO Cases (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, AuditReference, Type, InitialState, CustodyState, OriginIntakeReceiptId, AuditOfCaseId, InstructionComplete, ImagesComplete, CreatedAtUtc, Version, ConcurrencyToken) VALUES ({caseId}, {principalId}, {lineageId}, {2031}, {1}, {reference}, {auditReference}, {caseType}, {"not_ready"}, {"pending"}, {originReceiptId}, {auditOfCaseId}, {true}, {true}, {now}, {0L}, {Guid.NewGuid()})");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
         return caseId;
@@ -410,7 +684,9 @@ public sealed class ImageCaseCustodyIntegrationTests
         public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
             Guid caseId,
             string caseReference,
-            CancellationToken cancellationToken) =>
+            CancellationToken cancellationToken,
+            Guid? parentCaseId = null,
+            string? parentCaseReference = null) =>
             Task.FromException<CaseCustodyRoot>(failure());
 
         public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(

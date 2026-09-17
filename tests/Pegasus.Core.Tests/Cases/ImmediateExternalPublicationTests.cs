@@ -87,6 +87,43 @@ public sealed class ImmediateExternalPublicationTests
     }
 
     [Fact]
+    public async Task AuditWithoutOriginalReportEvidenceIsAccepted()
+    {
+        var store = new AcceptanceStore(Guid.NewGuid());
+        var acceptance = new AcceptIntake(
+            store,
+            new ConfigurationStore(),
+            new InspectionModeStore(),
+            new RecordingPublisher(),
+            new RecordingTriagePairing());
+
+        await acceptance.ExecuteAsync(
+            AcceptanceRequest() with { CaseType = CaseType.Audit },
+            CancellationToken.None);
+
+        Assert.Equal(CaseType.Audit, store.LastRequest!.CaseType);
+        Assert.Null(store.LastRequest.StandaloneAuditEvidenceId);
+    }
+
+    [Fact]
+    public async Task NonAuditWithOriginalReportEvidenceIsRefused()
+    {
+        var store = new AcceptanceStore(Guid.NewGuid());
+        var acceptance = new AcceptIntake(
+            store,
+            new ConfigurationStore(),
+            new InspectionModeStore(),
+            new RecordingPublisher(),
+            new RecordingTriagePairing());
+
+        await Assert.ThrowsAsync<ArgumentException>(() => acceptance.ExecuteAsync(
+            AcceptanceRequest() with { StandaloneAuditEvidenceId = Guid.NewGuid() },
+            CancellationToken.None));
+
+        Assert.Null(store.LastRequest);
+    }
+
+    [Fact]
     public async Task DuplicateAcceptanceRetriesPairingWithoutRepublishingAcceptanceCustody()
     {
         var workItemId = Guid.NewGuid();
@@ -159,11 +196,13 @@ public sealed class ImmediateExternalPublicationTests
     {
         private readonly CaseAcceptanceOutcome outcome = Outcome(workItemId, vehicleLookupWorkId);
         private bool accepted;
+        public CaseAcceptanceRequest? LastRequest { get; private set; }
 
         public Task<CaseAcceptanceOutcome> AcceptAsync(
             CaseAcceptanceRequest request,
             CancellationToken cancellationToken)
         {
+            LastRequest = request;
             var result = outcome with { IsDuplicate = accepted };
             accepted = true;
             return Task.FromResult(result);

@@ -253,6 +253,20 @@ public sealed record LogicallyRemoveDocumentCommand(
     long ExpectedCaseVersion,
     string EditLeaseToken);
 
+public sealed record MarkAsOriginalReportCommand(
+    Guid CaseId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string EditLeaseToken,
+    Guid DocumentOccurrenceId);
+
+public sealed record OriginalReportRecorded(
+    Guid CaseId,
+    Guid DocumentOccurrenceId,
+    string FileName,
+    long CaseVersion);
+
 public interface ICaseDocumentStateQueries
 {
     Task<CaseDocumentState?> GetAsync(
@@ -306,6 +320,13 @@ public interface ILogicallyRemoveDocument
 {
     Task ExecuteAsync(
         LogicallyRemoveDocumentCommand command,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IMarkAsOriginalReportStore
+{
+    Task<OriginalReportRecorded> MarkAsOriginalReportAsync(
+        MarkAsOriginalReportCommand command,
         CancellationToken cancellationToken = default);
 }
 

@@ -50,10 +50,10 @@ Audit and Inspection + Audit are active and in scope. An Audit report uses the
 same approved Inspection report contract, template, wording, layout, and
 renderer presentation as the equivalent Inspection report. Audit is distinct
 only in its accepted workflow provenance and immutable internal reference: the
-normal Case/PO remains authoritative, with the existing `a.{Case/PO}` reference
-for a repairable Audit or `ap.{Case/PO}` for a total-loss Audit. Those identity
-facts travel through the shared Core-owned report contract; they do not select
-or create a separate physical report family.
+normal Case/PO remains authoritative, with the `a.{Case/PO}` reference for
+every Audit assessment outcome. The assessment remains a separate Case fact.
+Those identity facts travel through the shared Core-owned report contract;
+they do not select or create a separate physical report family.
 
 For Inspection + Audit, the Inspection report is produced on the Inspection
 Case and the Audit report on the linked Audit Case that Create audit makes
@@ -113,10 +113,16 @@ separately addressable generated artifacts through custody. The generating
 operator chooses whether the fee note is a separate document or the report's
 own final pages, and the frozen snapshot carries that choice, so the combined
 report is one artifact under the report's file name and reproduces the same
-way. The fee facts, readiness requirements and accepted fee terms are the same
-either way. Relevant accepted
-fact changes mark a generation stale; notes and recipient edits do not. A
-ready generation records ActionHistory `case_report_generation_ready`.
+way. A later separate fee-note request names the current confirmed, non-stale
+report generation and adds the fee-note artifact to it from that generation's
+frozen report date and fee facts; it does not supersede or re-freeze the
+report. No current generation, a stale generation, or a report that already
+contains its fee note refuses that request. The fee facts, readiness
+requirements and accepted fee terms are the same either way. One Core-owned
+change classification over normalized effective values marks a generation
+stale only when an accepted report fact changes; notes, no-op saves and
+recipient edits do not. A ready generation records ActionHistory
+`case_report_generation_ready`.
 Preview creates neither an artifact nor Sent evidence. Viewing a preview
 records a `case_report_draft_previewed` Case-history event, distinct from a
 generation event and from a download. Reopening a confirmed generated
@@ -124,10 +130,15 @@ artifact's bytes records a `case_report_artifact_downloaded` Case-history
 event, at most once per Case or artifact, staff member and London day.
 
 Snapshot assembly captures the Case version before reading its components and
-refuses a changed version before freezing; the resolved signatory tuple is
-rechecked in the freeze transaction. Confirming or removing source evidence,
-or changing the effective signatory's eligibility, name, qualifications or
-signature, invalidates affected current generations in the same transaction.
+refuses a changed version before freezing. Generation and preparation commands
+also carry the Case version displayed in the submitting browser and refuse it
+when stale rather than replacing it with a freshly read version. An operation
+key replays only the same artifact kind, report packaging choice and named
+target generation; reuse for a different command is a conflict. The resolved
+signatory tuple is rechecked in the freeze transaction. Confirming or removing
+source evidence, or changing the effective signatory's eligibility, name,
+qualifications or signature, invalidates affected current generations in the
+same transaction.
 Report outputs identified by their generated-artifact operation identity are
 not report inputs and do not invalidate their own generation. Other retained
 artifacts remain source evidence regardless of their transport's source label.
@@ -154,6 +165,11 @@ A fee-note preview is non-persisting presentation of the recorded fee and
 description. It does not replace retained report generation or create a new
 report family. Native Hand to Engineer opens engineering work without an EVA
 export; EVA is optional and does not gate report readiness.
+
+The Estimate section exposes **Estimate PDF**, an unretained Estimate document
+in the accepted house style for any saved estimate version from
+`EstimateTotals`; viewing is recorded as `case_estimate_document_previewed`,
+and is neither a report, approval, delivery nor correspondence action.
 
 Settlement and Report editors use the Case's one workspace Save and share its
 expected version and edit lease; a save needs no reason
@@ -336,7 +352,7 @@ printed Net plus printed VAT. No residual penny moves between components.
 | Figure | Rule |
 | --- | --- |
 | Parts | Explicit part prices × quantity |
-| Labour | Panel and paint hours × the selected labour-rate-card rate |
+| Labour | Panel, paint and Specialist work-unit hours × the selected labour-rate-card rate; hours on a fixed-price Specialist line are retained, shown and not priced |
 | Parts, materials and specialist | Explicit estimate amounts, discounted where selected |
 | Taxable | Selected discounted Labour, Parts, Materials and Specialist categories |
 | VAT | Taxable × VAT % |

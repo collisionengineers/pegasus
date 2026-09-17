@@ -70,6 +70,24 @@ internal static class CaseMutationGuard
             nowUtc);
     }
 
+    public static void RequireHeartbeat(
+        CaseWorkflowEntity workflow,
+        ActionActor actor,
+        string editLeaseToken)
+    {
+        ArgumentNullException.ThrowIfNull(workflow);
+        ArgumentNullException.ThrowIfNull(actor);
+        CaseEditAuthority.RequireHeartbeat(
+            workflow.CaseId,
+            workflow.Version,
+            actor,
+            editLeaseToken,
+            RetainedHolderKind(workflow.EditLeaseHolderKind),
+            workflow.EditLeaseHolder,
+            !string.IsNullOrWhiteSpace(workflow.EditLeaseTokenHash),
+            MatchesRetainedHash(workflow.EditLeaseTokenHash, editLeaseToken));
+    }
+
     public static void ClearLease(CaseWorkflowEntity workflow)
     {
         ArgumentNullException.ThrowIfNull(workflow);
@@ -111,7 +129,7 @@ internal static class CaseMutationGuard
     /// A retained hash that cannot be read is a hash the presented token cannot be proven against,
     /// so it refuses like any other mismatch rather than surfacing a format failure.
     /// </summary>
-    private static bool MatchesRetainedHash(string? retainedHash, string? presentedToken)
+    internal static bool MatchesRetainedHash(string? retainedHash, string? presentedToken)
     {
         if (string.IsNullOrWhiteSpace(retainedHash) || string.IsNullOrWhiteSpace(presentedToken))
         {

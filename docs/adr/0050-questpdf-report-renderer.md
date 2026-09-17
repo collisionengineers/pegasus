@@ -4,7 +4,7 @@ status: accepted
 date: 2026-09-13
 supersedes: [ADR-0028]
 superseded_by: []
-related_capabilities: [EXT-08, RPT-01, RPT-02]
+related_capabilities: [EXT-08, RPT-01, RPT-02, RPT-07]
 related_frd: [frd-11]
 tags: [architecture, renderer, questpdf, reports]
 ---
@@ -46,6 +46,11 @@ supplied per render. `EngineVersion` identifies QuestPDF and its version. The
 page count is read from the produced PDF with PdfPig; PDFsharp and Playwright
 leave the solution. The QuestPDF Community licence is declared in code at
 composition, as the operator's organisation qualifies.
+
+`IEstimateDocumentRenderer` uses the same embedded resources and shared report
+chrome to present the Core-owned `EstimateDocumentSnapshot` as an unretained
+Estimate document PDF. Both renderers share one bounded in-process render gate;
+Core continues to own every business figure and validation rule.
 
 The HTML and CSS templates, the Playwright package, the browser base image,
 the local browser install and doctor steps, and the `.playwright` artifact

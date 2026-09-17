@@ -25,13 +25,13 @@ public sealed record AssessmentWorkspaceHeader(
 public sealed record AssessmentAccessState(CaseLifecycleState State)
 {
     /// <summary>
-    /// Native engineering actions are available With Engineer or Complete.
-    /// Retained workspace content is viewable in every state, independently.
+    /// Native engineering actions are available in every assessment-writable
+    /// state; the completed workspace can still open read-only.
     /// </summary>
     public bool CanOpen => AssessmentAccessPolicy.CanOpen(this);
 
     /// <summary>
-    /// FRD-11: only Report preparation and Post report are editable.
+    /// The assessment follows the shared lifecycle-state write policy.
     /// </summary>
     public bool IsReadOnly => AssessmentAccessPolicy.IsReadOnly(this);
 }
@@ -41,17 +41,14 @@ public static class AssessmentAccessPolicy
     public static bool CanOpen(AssessmentAccessState access)
     {
         ArgumentNullException.ThrowIfNull(access);
-        return access.State
-            is CaseLifecycleState.ReportPreparation
-                or CaseLifecycleState.PostReport
-                or CaseLifecycleState.PostReportComplete;
+        return AssessmentPolicy.IsWritableState(access.State)
+            || access.State is CaseLifecycleState.PostReportComplete;
     }
 
     public static bool IsReadOnly(AssessmentAccessState access)
     {
         ArgumentNullException.ThrowIfNull(access);
-        return access.State is not (CaseLifecycleState.ReportPreparation
-            or CaseLifecycleState.PostReport);
+        return !AssessmentPolicy.IsWritableState(access.State);
     }
 }
 

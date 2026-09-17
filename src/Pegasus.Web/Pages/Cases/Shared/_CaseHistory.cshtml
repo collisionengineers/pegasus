@@ -10,11 +10,11 @@
 @using Pegasus.Web.Presentation
 @using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
 @{
-    var details = Model.Case!;
-    var workflow = details.Workflow;
+    var section = Model.NotesSection;
+    var workflow = section?.Frame.Workflow ?? Model.Case!.Workflow;
     var leaseToken = Model.LeaseToken;
     var mayEdit = Model.CanEditCaseData;
-    var entries = details.History.OrderByDescending(entry => entry.OccurredAtUtc).ToArray();
+    var entries = (section?.History ?? []).OrderByDescending(entry => entry.OccurredAtUtc).ToArray();
     var offersNote = !Model.IsPostReportReadOnly && workflow.Archive is null;
     var offersChase = mayEdit && workflow.DueWork is { State: Pegasus.Core.Tasks.CaseDueWorkState.Scheduled };
 }
@@ -65,13 +65,14 @@
                 @foreach (var entry in entries)
                 {
                     var isNote = entry.EventType == "operator_note";
+                    var isOriginalReport = entry.EventType == "original_report_recorded";
                     @if (entry.EventType != "case_guidance_applied")
                     {
                         <div class="note @(isNote ? null : "sys")" data-history-event="@entry.EventType">
                             <div class="nw"><span>@OperatorLabels.OfficeDate(entry.OccurredAtUtc)</span> <span>@OperatorLabels.OfficeClock(entry.OccurredAtUtc)</span></div>
                             <div class="nb">
                                 <b>@entry.ActorDisplayName</b>
-                                @if (isNote)
+                                @if (isNote || isOriginalReport)
                                 {
                                     <text> — @entry.Reason</text>
                                 }

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -195,6 +196,63 @@ public sealed class WorkCentreWebTests
     }
 
     [Fact]
+    public async Task RefreshHandlerReturnsOnlyTheWorkCentreBodyAndRetainsRefreshState()
+    {
+        var lastSeen = Now.AddHours(-2);
+        var selected = Item(NeedsAttentionKind.ReviewCase, "QDOS26150", NeedsAttentionPriority.Today, Now.AddHours(2));
+        var snapshot = new FakeSnapshot { Items = [selected], TodayCount = 1, TotalCountOverride = 100 };
+        var feed = new FakeRecentCases { LastSeen = lastSeen };
+        using var host = Host(snapshot, feed);
+        using var client = Client(host);
+
+        using var response = await client.GetAsync(
+            $"/?handler=Refresh&scope=mine&kind=review&selected={selected.Id:D}&page=2&newPage=3&refresh=true&since={Uri.EscapeDataString(lastSeen.ToString("O"))}");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.CacheControl?.NoStore);
+        Assert.Contains("data-work-centre", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("<html", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(NeedsAttentionScope.Mine, Assert.Single(snapshot.Queries).Scope);
+        Assert.Equal((3, false), Assert.Single(feed.Calls));
+        Assert.Contains("name=\"refresh\" value=\"true\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"newPage\" value=\"3\"", html, StringComparison.Ordinal);
+        Assert.Contains($"name=\"since\" value=\"{HtmlEncoder.Default.Encode($"{lastSeen:O}")}\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RefreshHandlerMarksOnlyTheFailedSectionUnavailable()
+    {
+        using var host = Host(new FakeSnapshot { Throw = true });
+        using var client = Client(host);
+
+        var html = await GetOkAsync(client, "/?handler=Refresh&refresh=true");
+
+        Assert.Contains("data-wc-refresh-outcome=\"partial\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"attention\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"new-cases\" data-wc-refresh-state=\"current\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"ai-jobs\" data-wc-refresh-state=\"current\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RefreshHandlerMarksTheWholeFragmentFailedWhenEverySectionReadFails()
+    {
+        using var host = Host(
+            new FakeSnapshot { Throw = true },
+            new FakeRecentCases { Throw = true },
+            new FakeAiJobs { Throw = true });
+        using var client = Client(host);
+
+        var html = await GetOkAsync(client, "/?handler=Refresh&refresh=true");
+
+        Assert.Contains("data-wc-refresh-outcome=\"failed\"", html, StringComparison.Ordinal);
+        Assert.Contains(">Refresh unavailable</span>", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"attention\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"new-cases\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
+        Assert.Contains("data-wc-refresh-section=\"ai-jobs\" data-wc-refresh-state=\"unavailable\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AiJobsListDraftReadyTakenQueuedAndFailedWithPerKindActions()
     {
         var caseId = Guid.NewGuid();
@@ -383,9 +441,16 @@ public sealed class WorkCentreWebTests
 
         public DateTimeOffset? LastSeen { get; init; }
 
-        public Task<RecentCasesFeed> ExecuteAsync(ActionActor actor, int page, bool markSeen, CancellationToken cancellationToken)
+        public bool Throw { get; init; }
+
+        public Task<RecentCasesFeed> ExecuteAsync(ActionActor actor, int page, bool markSeen,
+            CancellationToken cancellationToken, DateTimeOffset? asOfUtc = null)
         {
             Calls.Add((page, markSeen));
+            if (Throw)
+            {
+                throw new InvalidOperationException("recent cases failed");
+            }
             return Task.FromResult(new RecentCasesFeed(
                 new RecentCasesPage(Rows, page, RecentCasesPolicy.PageSize, Rows.Count),
                 RecentCasesPolicy.WindowStart(Now),
@@ -399,7 +464,12 @@ public sealed class WorkCentreWebTests
 
         public List<AiJobRecord> Recent { get; } = [];
 
-        public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) => Task.FromResult(Open);
+        public bool Throw { get; init; }
+
+        public Task<IReadOnlyList<AiJobRecord>> ListOpenAsync(CancellationToken cancellationToken) =>
+            Throw
+                ? Task.FromException<IReadOnlyList<AiJobRecord>>(new InvalidOperationException("AI jobs failed"))
+                : Task.FromResult(Open);
 
         public Task<IReadOnlyList<AiJobRecord>> ListRecentAsync(int max, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AiJobRecord>>(Recent);

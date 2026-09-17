@@ -3,7 +3,7 @@ id: ADR-0002
 status: accepted
 date: 2026-07-23
 supersedes: []
-superseded_by: [ADR-0004, ADR-0007, ADR-0015, ADR-0030, ADR-0032]
+superseded_by: [ADR-0004, ADR-0007, ADR-0015, ADR-0030, ADR-0032, ADR-0043, ADR-0049, ADR-0051]
 related_capabilities: []
 related_frd: []
 tags: [architecture, stack, hosting]
@@ -17,13 +17,17 @@ tags: [architecture, stack, hosting]
 
 ## Current applicability
 
-The modular-monolith decision remains accepted. ADR-0043 partially supersedes
-the reusable-vendor-secret clause only for per-Engineer credentials and their
-protected session state in existing SQL. Other secret ownership is unchanged.
-
-## Current applicability
-
-The modular-monolith and Core ownership choices survive. Hosting follows ADR-0015, environment shape ADR-0014, and current intake scheduling ADR-0033. Schema compatibility is bounded by the actual supported data/consumer contract; ADR-0030’s historical alpha milestone is not a new development-data obligation.
+The modular-monolith and Core ownership choices survive. Web hosting follows
+ADR-0049 (ADR-0015’s Container Apps hosting is superseded), environment shape
+ADR-0014, and current intake scheduling ADR-0033. Schema compatibility is
+bounded by the actual supported data/consumer contract; ADR-0030’s historical
+alpha milestone is not a new development-data obligation. ADR-0043 partially
+supersedes the reusable-vendor-secret clause only for per-Engineer credentials
+and their protected session state in existing SQL; other secret ownership is
+unchanged. ADR-0051 supersedes the "secondary Audit reference" wording in
+Case reference allocation: an `a.` reference is the reference of a
+linked Audit Case, not a second reference on the Inspection + Audit Case; the
+sequence rule itself is unchanged.
 
 ## Context
 
@@ -224,10 +228,12 @@ Important consistency rules are:
 The principal/year sequence is allocated transactionally in SQL and protected by
 a unique constraint. It must never be implemented as an unprotected `MAX + 1`
 query. One sequence number is consumed per principal case for the year,
-irrespective of case type. `a.` and `ap.` references are derived from the same
-base reference, including the secondary Audit reference created by an
-Inspection + Audit case. This is the only authoritative numbering implementation
-used by the web app, worker, API, MCP, EVA export, and Box naming.
+irrespective of case type. An Audit reference is `a.` followed by the same base
+reference for either assessment outcome; the outcome is recorded on the Case,
+not in its identity. A linked Audit created from an Inspection + Audit case
+shares the original sequence. This is the only authoritative numbering
+implementation used by the web app, worker, API, MCP, EVA export, and Box
+naming.
 
 ## Outlook ingestion
 

@@ -7,6 +7,8 @@ description: Implement or refactor server-rendered ASP.NET Core Razor Pages and 
 
 Translate an agreed experience into clear, maintainable Razor UI. Follow the repository's existing architecture, design system, dependency choices, and test conventions.
 
+When the work starts from an approved mockup round, [razor-html-mockup-conversion](../razor-html-mockup-conversion/SKILL.md) owns the inputs (the vNN files, notes and page decisions), what in the mockup is not product, the conformance evidence and the close-out. This skill owns the Razor mechanics it calls on.
+
 ## Inspect before choosing a mechanism
 
 Find the relevant page model, markup, shared views, styles, scripts, validation, tests, and asset pipeline. Search for an existing component or convention that already solves the need. Do not introduce a library, build tool, abstraction, or parallel styling system merely because it is available.

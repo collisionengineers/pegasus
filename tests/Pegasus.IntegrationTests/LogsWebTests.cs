@@ -187,11 +187,9 @@ public sealed class LogsWebTests
         using var client = CreateClient(factory);
 
         var operations = await GetHtmlAsync(client, "/Operations");
-        // Three failure kinds, each read by its own Intake log outcome, each row
-        // offering only its own action.
-        Assert.Equal(
-            [IntakeLogOutcome.AllocationFailed, IntakeLogOutcome.OcrFailed, IntakeLogOutcome.ProcessingFailed],
-            log.Filters.Select(filter => filter.Outcome!.Value).ToArray());
+        // The dedicated failure projection returns each retryable outcome with
+        // only the action that outcome permits.
+        Assert.Equal(1, log.RetryableFailureReads);
         var allocationRow = FailedRow(operations, "allocation");
         Assert.Contains("action=\"/Administration/Logs?handler=RetryIntakeAllocation\"", allocationRow, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=RetryIntakeOcr", allocationRow, StringComparison.Ordinal);
@@ -295,6 +293,7 @@ public sealed class LogsWebTests
         public Guid MessageId { get; } = Guid.NewGuid();
         public IntakeLogFilter? LastFilter { get; private set; }
         public List<IntakeLogFilter> Filters { get; } = [];
+        public int RetryableFailureReads { get; private set; }
         public List<ReevaluateIntakeRequest> Reevaluations { get; } = [];
         public List<RetryIntakeOcrRequest> OcrRetries { get; } = [];
         public List<RetryIntakeAllocationRequest> AllocationRetries { get; } = [];
@@ -371,6 +370,24 @@ public sealed class LogsWebTests
                     ReceivedAtUtc,
                     SafeReason: "The principal code was not recognised.")],
                 new IntakeLogActions(CanReevaluate: true, CanRetryAllocation: true, CanRetryOcr: true)));
+
+        public Task<IReadOnlyList<IntakeLogActionableFailure>> ListRetryableFailuresAsync(
+            ActionActor actor,
+            CancellationToken cancellationToken)
+        {
+            RetryableFailureReads++;
+            return Task.FromResult<IReadOnlyList<IntakeLogActionableFailure>>(
+            [
+                new(RowFor(IntakeLogOutcome.AllocationFailed), 7,
+                    new IntakeAllocationState(AttemptId, IntakeAllocationProjectionStatus.FailedRecoverable, null, ReceivedAtUtc,
+                        SafeReason: "The principal code was not recognised."),
+                    new IntakeLogActions(CanReevaluate: true, CanRetryAllocation: true, CanRetryOcr: true)),
+                new(RowFor(IntakeLogOutcome.OcrFailed), 7, null,
+                    new IntakeLogActions(CanReevaluate: true, CanRetryAllocation: false, CanRetryOcr: true)),
+                new(RowFor(IntakeLogOutcome.ProcessingFailed), 7, null,
+                    new IntakeLogActions(CanReevaluate: true, CanRetryAllocation: false, CanRetryOcr: false))
+            ]);
+        }
 
         public Task<IntakeReceipt> ExecuteAsync(ReevaluateIntakeRequest request, CancellationToken cancellationToken = default)
         {

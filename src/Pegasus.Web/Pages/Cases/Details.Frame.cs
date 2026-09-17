@@ -38,11 +38,11 @@ public sealed partial class DetailsModel
     /// edit session is open. Post-report read-only Cases still open it so the
     /// Return to Engineer action can be taken ("Enable return").
     /// </summary>
-    public bool IsEditing => !string.IsNullOrWhiteSpace(LeaseToken) && Case?.Workflow.Archive is null;
+    public bool IsEditing => !string.IsNullOrWhiteSpace(LeaseToken) && CurrentWorkflow?.Archive is null;
 
     /// <summary>A colleague holds the Case's edit lease.</summary>
     public bool ColleagueIsEditing =>
-        !ViewerHoldsEditAuthority && Case?.ActiveEditLease is not null && EditAuthorityHolder is not null;
+        !ViewerHoldsEditAuthority && CurrentEditLease is not null && EditAuthorityHolder is not null;
 
     /// <summary>
     /// The one control that can end this viewer's own second window's lease:
@@ -73,8 +73,8 @@ public sealed partial class DetailsModel
     /// </summary>
     public string? ProposedAuditReference =>
         Case is { } details
-        && AuditCasePolicy.AssessmentFor(Assessment?.Field(AssessmentVocabulary.Outcome)?.Value) is { } assessment
-            ? AuditIdentity.Create(details.Workflow.Identity.Reference, assessment)
+        && AuditCasePolicy.AssessmentFor(Assessment?.Field(AssessmentVocabulary.Outcome)?.Value) is not null
+            ? AuditIdentity.Create(details.Workflow.Identity.Reference)
             : null;
 
     /// <summary>The Engineer sections that follow the assessment access rule.</summary>
@@ -92,7 +92,7 @@ public sealed partial class DetailsModel
     /// </summary>
     public string? SectionAvailability(string key)
     {
-        if (Case is not { } details)
+        if (CurrentWorkflow is null)
         {
             return null;
         }
@@ -108,10 +108,6 @@ public sealed partial class DetailsModel
         {
             return CaseWorkspaceLabels.Frame.ReturnToEngineerToEdit;
         }
-        if (EngineerSectionKeys.Contains(key))
-        {
-            return CaseWorkspaceLabels.Frame.AvailableWithEngineer;
-        }
         return null;
     }
 
@@ -124,7 +120,7 @@ public sealed partial class DetailsModel
         !IsEditing
         && !ColleagueIsEditing
         && !IsPostReportReadOnly
-        && Case?.Workflow.Archive is null
+        && CurrentWorkflow?.Archive is null
         && key is not ("files" or "notes");
 
     /// <summary>The state chip's text, with the hold's review date when one is set.</summary>

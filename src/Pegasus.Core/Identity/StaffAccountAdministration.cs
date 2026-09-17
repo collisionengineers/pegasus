@@ -192,6 +192,10 @@ public interface IStaffAccountQueries
         Guid staffId,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+        IReadOnlyCollection<Guid> staffIds,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
         CancellationToken cancellationToken);
 
@@ -870,6 +874,7 @@ public enum StaffAccountAdministrationError
     StaffAccountNotFound,
     DisabledAccount,
     LastAdministrator,
+    AssignedToOpenCases,
     SelfAction,
     OperationConflict,
     SignOffEngineerRequiresEngineerRole,

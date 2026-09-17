@@ -130,6 +130,13 @@
     var vatOverridden = vatPolicy.CategoriesOverridden;
     var readLines = estimate?.Lines.OrderBy(line => line.Position).ToArray() ?? [];
     var vatChargedOn = VatLabels.Categories.Where(vatPolicy.Charges).Select(VatLabels.CategoryLabel).ToArray();
+    var estimateDocumentHref = estimate is null
+        ? null
+        : Url.Page("/Cases/Details", "EstimateDocument", new
+        {
+            id = caseId,
+            estimateId = estimate.SpecificationId
+        });
 
     // The work-lists sort recorded lines by operation; a type the mapping
     // does not know lands with the additional operations rather than failing.
@@ -221,13 +228,6 @@
                     <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
                     <span>@EstimateLabels.SendToAi</span>
                 </a>
-            }
-            else if (editing && Model.SendToClaudeCondition == EngineerLabels.ConfirmedEngineerValueRequired)
-            {
-                <span class="gated" data-estimate-send-to-ai-condition>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
-                    <span>@EngineerLabels.ConfirmedEngineerValueRequired</span>
-                </span>
             }
             @{
                 var offersNewEstimate = editing && Model.ActorIsEngineer && Model.AssessmentCanOpen;
@@ -423,10 +423,29 @@
             </div>
         }
 
+        @if (!editing && estimate is { Lines.Count: > 0 } && !Model.EditingNewEstimate)
+        {
+            <div class="est-actions" data-estimate-actions>
+                <a class="btn btn--small" href="@estimateDocumentHref" target="_blank" rel="noopener"
+                   data-document-preview data-file-name="Estimate PDF" data-no-inplace>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                    <span>Estimate PDF</span>
+                </a>
+            </div>
+        }
+
         @if (editing && estimate is not null && !Model.EditingNewEstimate)
         {
             @* Use estimate / Duplicate / Discard for the selected version. *@
             <div class="est-actions" data-estimate-actions>
+                @if (estimate.Lines.Count > 0)
+                {
+                    <a class="btn btn--small" href="@estimateDocumentHref" target="_blank" rel="noopener"
+                       data-document-preview data-file-name="Estimate PDF" data-no-inplace>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                        <span>Estimate PDF</span>
+                    </a>
+                }
                 @if (Model.SelectedEstimateCanBeCurrent && Model.UseEstimateCondition is null)
                 {
                     <form method="post" asp-page="/Cases/Details" asp-page-handler="SetCurrentEstimate"
@@ -478,7 +497,7 @@
             @if (editable)
             {
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="SaveEstimate"
-                      asp-route-id="@caseId" asp-route-section="estimate" class="stack" data-estimate-form>
+                      asp-route-id="@caseId" asp-route-section="estimate" id="case-estimate-form" class="stack" data-estimate-form>
                     <input type="hidden" name="expectedVersion" value="@caseVersion" />
                     <input type="hidden" name="operationKey" value="@Model.SaveEstimateOperationKey" />
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
@@ -698,8 +717,11 @@
 
 @if (canImport)
 {
+    var openOnLoad = Model.OpenDialog == "import-estimate"
+        ? Html.Raw(" data-dialog-open-on-load=\"true\"")
+        : Html.Raw(" hidden");
     <div id="import-estimate-dialog" class="dialog-backdrop" data-dialog="import-estimate-dialog"
-         hidden="@(Model.OpenDialog == "import-estimate" ? null : "hidden")">
+         @openOnLoad>
         <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="import-estimate-dialog-title">
             <div class="dialog-head">
                 <h2 id="import-estimate-dialog-title" tabindex="-1">@EngineerLabels.ImportEstimate</h2>
@@ -732,8 +754,11 @@
 
 @if (Model.Estimates.Count >= 2)
 {
+    var openOnLoad = Model.OpenDialog == "compare-estimates"
+        ? Html.Raw(" data-dialog-open-on-load=\"true\"")
+        : Html.Raw(" hidden");
     <div id="compare-estimates-dialog" class="dialog-backdrop" data-dialog="compare-estimates-dialog"
-         hidden="@(Model.OpenDialog == "compare-estimates" ? null : "hidden")">
+         @openOnLoad>
         <section class="dialog dialog--wide" role="dialog" aria-modal="true"
                  aria-labelledby="compare-estimates-dialog-title">
             <div class="dialog-head">
@@ -779,8 +804,11 @@
 
 @if (editable && estimate is { IsCurrent: false } discardable && !Model.EditingNewEstimate)
 {
+    var openOnLoad = Model.OpenDialog == "delete-estimate"
+        ? Html.Raw(" data-dialog-open-on-load=\"true\"")
+        : Html.Raw(" hidden");
     <div id="delete-estimate-dialog" class="dialog-backdrop" data-dialog="delete-estimate-dialog"
-         hidden="@(Model.OpenDialog == "delete-estimate" ? null : "hidden")">
+         @openOnLoad>
         <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="delete-estimate-dialog-title">
             <div class="dialog-head">
                 <h2 id="delete-estimate-dialog-title" tabindex="-1">@EstimateLabels.DiscardEstimate</h2>
@@ -811,8 +839,11 @@
 
 @if (editing && Model.SendToClaudeCondition is null)
 {
+    var openOnLoad = Model.OpenDialog == "send-to-claude"
+        ? Html.Raw(" data-dialog-open-on-load=\"true\"")
+        : Html.Raw(" hidden");
     <div id="send-to-ai-dialog" class="dialog-backdrop" data-dialog="send-to-ai-dialog"
-         hidden="@(Model.OpenDialog == "send-to-claude" ? null : "hidden")">
+         @openOnLoad>
         <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="send-to-ai-dialog-title">
             <div class="dialog-head">
                 <h2 id="send-to-ai-dialog-title" tabindex="-1">@EstimateLabels.SendToAi</h2>

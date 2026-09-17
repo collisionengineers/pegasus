@@ -134,6 +134,13 @@ public interface IRenderImageThumbnail
 /// </summary>
 public static class CaseDocumentThumbnails
 {
+    /// <summary>
+    /// The one current derived-thumbnail representation. This changes whenever
+    /// rendering can change its bytes, so the gallery address, cache variant
+    /// and validator all advance together.
+    /// </summary>
+    public const string RendererIdentity = "r2";
+
     /// <summary>The longest edge of a derived thumbnail, in pixels.</summary>
     public const int LongestEdge = 480;
 
@@ -154,12 +161,12 @@ public static class CaseDocumentThumbnails
         var region = crop ?? CaseAssetCrop.Full;
         if (rotation == CaseAssetRotation.None && region.IsFull)
         {
-            return $"thumb-{LongestEdge}";
+            return $"thumb-{LongestEdge}-{RendererIdentity}";
         }
 
         return string.Create(
             System.Globalization.CultureInfo.InvariantCulture,
-            $"thumb-{LongestEdge}-r{(int)rotation}-c{region.Left:0.#######}-{region.Top:0.#######}-{region.Width:0.#######}-{region.Height:0.#######}");
+            $"thumb-{LongestEdge}-{RendererIdentity}-r{(int)rotation}-c{region.Left:0.#######}-{region.Top:0.#######}-{region.Width:0.#######}-{region.Height:0.#######}");
     }
 
     /// <summary>

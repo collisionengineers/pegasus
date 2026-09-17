@@ -7,9 +7,9 @@
     var slug = view.OccurrenceId.ToString("N");
 }
 @* Each row is its own form: pressing it applies or removes that tag and the
-   page comes back with the chips redrawn. The disclosure is the browser's, so
-   nothing here needs script. *@
-<details class="tag-picker" data-tag-picker>
+   page comes back with the chips redrawn. The disclosure is the browser's;
+   data-menu gives it the frame's outside-click and Escape closing. *@
+<details class="tag-picker" data-tag-picker data-menu>
     <summary class="btn btn--small">@TagLabels.Tag</summary>
     <div class="tag-picker-body">
         @foreach (var tag in view.Vocabulary)

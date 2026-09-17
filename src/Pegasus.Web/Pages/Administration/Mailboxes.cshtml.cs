@@ -312,9 +312,26 @@ public sealed class MailboxesModel(
 
             if (ModelState.IsValid)
             {
-                resolution = await resolveApprovedMailboxIdentity.ResolveAsync(
-                    normalizedAddress,
-                    cancellationToken);
+                resolution = existingMailbox is
+                {
+                    State: ApprovedMailboxState.Disabled,
+                    MailboxIdentity: { } mailboxIdentity,
+                    InboxFolderIdentity: { } inboxFolderIdentity,
+                    SentFolderIdentity: { } sentFolderIdentity
+                }
+                    && state == ApprovedMailboxState.Approved
+                    && string.Equals(
+                        normalizedAddress,
+                        existingMailbox.Address,
+                        StringComparison.Ordinal)
+                    ? new(
+                        mailboxIdentity,
+                        inboxFolderIdentity,
+                        sentFolderIdentity,
+                        existingMailbox.FolderBindings)
+                    : await resolveApprovedMailboxIdentity.ResolveAsync(
+                        normalizedAddress,
+                        cancellationToken);
                 if (resolution is null)
                 {
                     ModelState.AddModelError(

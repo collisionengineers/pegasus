@@ -2,10 +2,14 @@ using System.Net;
 using System.Text;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Workflow;
 using ReportImageLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportImages;
+
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -16,14 +20,9 @@ namespace Pegasus.IntegrationTests;
 /// states the same prepared set in the report's own order. Both read one
 /// loaded set, so the tests assert the same values in both places.
 /// </summary>
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseAssetPreparationWebTests
 {
-    private const string CloseUpFileName = "front-nearside.jpg";
-    private const string OverviewFileName = "vehicle-overview.jpg";
-    private const string FirstSupportingFileName = "rear-offside.jpg";
-    private const string SecondSupportingFileName = "interior.jpg";
-    private const string UnusedFileName = "plate.jpg";
-
     /// <summary>
     /// Read-only view: the Files section's Images tab names every image of the
     /// case and offers nothing that could change one while this browser holds
@@ -40,6 +39,9 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
                 Substitute<ICaseAssetPreparationQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -66,6 +68,51 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("<button", grid, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("data-preparation-", grid, StringComparison.Ordinal);
         Assert.DoesNotContain("report-images-title", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FilesImagesWithoutPreparationUseVersionZeroThumbnailAddresses()
+    {
+        var fixture = new PreparedImages();
+        var store = fixture.Store();
+        store.Preparations = [];
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
+                Substitute<ICaseAssetPreparationQueries>(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var files = ImageGrid(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files"));
+
+        foreach (var occurrenceId in new[]
+        {
+            fixture.CloseUpOccurrenceId,
+            fixture.OverviewOccurrenceId,
+            fixture.FirstSupportingOccurrenceId,
+            fixture.SecondSupportingOccurrenceId,
+            fixture.UnusedOccurrenceId
+        })
+        {
+            var tile = Assert.Single(
+                Tiles(files),
+                candidate => candidate.Contains(
+                    $"data-image-tile=\"{occurrenceId:D}\"",
+                    StringComparison.Ordinal));
+            Assert.Contains(
+                $"&amp;prep=0&amp;renderer={CaseDocumentThumbnails.RendererIdentity}\"",
+                tile,
+                StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
@@ -104,6 +151,9 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
                 Substitute<ICaseAssetPreparationQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -224,12 +274,10 @@ public sealed partial class CaseDetailsWebTests
     /// <summary>
     /// D4/FRD-12: an image preparation is not an engineering field. Crop is
     /// offered wherever the Case edit lease is held, so the Save that carries
-    /// one is accepted in Review — where the engineering fields are read-only
-    /// and this edit was refused along with them, which made the offered Crop
-    /// fail on Save.
+    /// one is accepted in Review along with the editable Engineer sections.
     /// </summary>
     [Fact]
-    public async Task ACropIsSavedOnAReviewStateCaseWhoseEngineeringFieldsAreReadOnly()
+    public async Task ACropIsSavedOnAReviewStateCase()
     {
         var fixture = new PreparedImages();
         var store = fixture.Store(CaseLifecycleState.Review);
@@ -362,6 +410,9 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
                 Substitute<ICaseAssetPreparationQueries>(services, store);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -478,27 +529,6 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// The Files body mounts after the page's first response. Match the
-    /// browser request: send the rendered lease token only as fragment
-    /// rendering data, so the server can render the existing edit controls.
-    /// </summary>
-    private static async Task<string> GetFilesFragmentAsync(
-        LeasedWorkspace workspace,
-        string renderedWorkspace)
-    {
-        using var request = new HttpRequestMessage(
-            HttpMethod.Get,
-            $"/Cases/{workspace.Store.CaseId:D}/Section?section=files");
-        request.Headers.Add(
-            "X-Pegasus-Edit-Lease",
-            InputValue(renderedWorkspace, "editLeaseToken"));
-
-        using var response = await workspace.Client.SendAsync(request);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync();
-    }
-
-    /// <summary>
     /// Every report-image card in a section and nothing around them, so an
     /// assertion about the cards is never answered by the panel's other
     /// controls. Cards do not nest, so the scan needs no depth count.
@@ -570,109 +600,39 @@ public sealed partial class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// One case's image occurrences and the preparation each carries: a
-    /// Close-up turned a quarter turn, a cropped Overview, two ordered
-    /// Supporting images and one the report does not use.
-    /// </summary>
-    private sealed class PreparedImages
-    {
-        public Guid CloseUpOccurrenceId { get; } = Guid.NewGuid();
-
-        public Guid OverviewOccurrenceId { get; } = Guid.NewGuid();
-
-        public Guid FirstSupportingOccurrenceId { get; } = Guid.NewGuid();
-
-        public Guid SecondSupportingOccurrenceId { get; } = Guid.NewGuid();
-
-        public Guid UnusedOccurrenceId { get; } = Guid.NewGuid();
-
-        public CaseAssetCrop OverviewCrop { get; } = new(0.1m, 0.1m, 0.8m, 0.8m);
-
-        public RecordingCaseDetailsStore Store(
-            CaseLifecycleState state = CaseLifecycleState.NotReady)
-        {
-            var store = new RecordingCaseDetailsStore
-            {
-                State = state,
-                CaseState = state,
-                CaseDocuments =
-                [
-                    Document(CloseUpOccurrenceId, VersionOf(CloseUpOccurrenceId), CloseUpFileName, "image/jpeg", DocumentSemanticRole.Image),
-                    Document(OverviewOccurrenceId, VersionOf(OverviewOccurrenceId), OverviewFileName, "image/jpeg", DocumentSemanticRole.Image),
-                    Document(FirstSupportingOccurrenceId, VersionOf(FirstSupportingOccurrenceId), FirstSupportingFileName, "image/jpeg", DocumentSemanticRole.Image),
-                    Document(SecondSupportingOccurrenceId, VersionOf(SecondSupportingOccurrenceId), SecondSupportingFileName, "image/jpeg", DocumentSemanticRole.Image),
-                    Document(UnusedOccurrenceId, VersionOf(UnusedOccurrenceId), UnusedFileName, "image/jpeg", DocumentSemanticRole.Image)
-                ]
-            };
-            store.Preparations =
-            [
-                Preparation(store.CaseId, CloseUpOccurrenceId, CaseAssetReportRole.CloseUp, null, CaseAssetRotation.Clockwise90, CaseAssetCrop.Full, 2),
-                Preparation(store.CaseId, OverviewOccurrenceId, CaseAssetReportRole.Overview, null, CaseAssetRotation.None, OverviewCrop, 4),
-                Preparation(store.CaseId, FirstSupportingOccurrenceId, CaseAssetReportRole.Supporting, 1, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
-                Preparation(store.CaseId, SecondSupportingOccurrenceId, CaseAssetReportRole.Supporting, 2, CaseAssetRotation.None, CaseAssetCrop.Full, 1),
-                Preparation(store.CaseId, UnusedOccurrenceId, CaseAssetReportRole.NotUsed, null, CaseAssetRotation.None, CaseAssetCrop.Full, 0)
-            ];
-            return store;
-        }
-
-        /// <summary>
-        /// The pinned version of an occurrence. It is derived from the
-        /// occurrence identity so the document fixture and the preparation
-        /// name the same version without a second table to keep in step.
-        /// </summary>
-        private static Guid VersionOf(Guid occurrenceId)
-        {
-            var bytes = occurrenceId.ToByteArray();
-            bytes[0] ^= 0xFF;
-            return new(bytes);
-        }
-
-        private static CaseAssetPreparation Preparation(
-            Guid caseId,
-            Guid occurrenceId,
-            CaseAssetReportRole role,
-            int? order,
-            CaseAssetRotation rotation,
-            CaseAssetCrop crop,
-            long preparationVersion) =>
-            new(
-                caseId,
-                occurrenceId,
-                Guid.NewGuid(),
-                VersionOf(occurrenceId),
-                1,
-                new string('a', 64),
-                "image/jpeg",
-                role,
-                order,
-                rotation,
-                crop,
-                preparationVersion,
-                preparationVersion == 0 ? null : "staff",
-                preparationVersion == 0 ? null : new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero));
-    }
-
-    /// <summary>
     /// The report-preparation queries the workspace reads. The query answers
     /// in the order the persisted store answers — role, then supporting order
     /// — so the page is exercised against the shape it really receives.
     /// </summary>
-    private sealed partial class RecordingCaseDetailsStore :
-        ICaseAssetPreparationQueries
+
+
+    [Fact]
+    public async Task TheLazyFilesFragmentOffersImagePreparationFromTheHeldLeaseNotAssessmentAccess()
     {
-        /// <summary>The case's image preparations, when a test supplies them.</summary>
-        public IReadOnlyList<CaseAssetPreparation> Preparations { get; set; } = [];
+        var store = new PreparedImages().Store();
+        using var workspace = await EnterEditModeAsync(store, services =>
+        {
+            Substitute<ICaseAssetPreparationQueries>(services, store);
+            services.RemoveAll<IGetAssessmentAccess>();
+            services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen: false));
+        });
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{store.CaseId:D}/Section?section=files");
+        request.Headers.Add("X-Pegasus-Edit-Lease", store.LeaseToken);
 
-        Task<IReadOnlyList<CaseAssetPreparation>> ICaseAssetPreparationQueries.ListForCaseAsync(
-            Guid caseId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(Current());
+        using var response = await workspace.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var fragment = await response.Content.ReadAsStringAsync();
 
-        private IReadOnlyList<CaseAssetPreparation> Current() =>
-        [
-            .. Preparations
-                .OrderBy(item => item.Role)
-                .ThenBy(item => item.Order ?? int.MaxValue)
-        ];
+        Assert.Contains("image-tile", fragment, StringComparison.Ordinal);
+        Assert.Contains("data-preparation-crop", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("report-images", fragment, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// PLAT-011: the case history table shows the resolved actor name, never the
+    /// raw actor subject id (docs/design/README.md:168) — a Staff row shows its
+    /// username and an Automation row shows the client label, not either GUID.
+    /// </summary>
 }

@@ -311,6 +311,14 @@ whole-repository verification. Leave `parallelAlgorithm` at its default `conserv
 installs a fixed-thread synchronization context, and the web factory builds its
 host synchronously, which together deadlock.
 
+PR CI distributes whole integration-test classes across six Windows runners,
+with the same four-class concurrency cap on each runner. Case-page feature
+tests use independent classes rather than one shared partial test class.
+Shared test support contains no tests or shared mutable fixtures. Each shard
+retains its enumerated and assigned test lists and results; the partition gate
+checks that every selected test is assigned exactly once. Keep the shard count
+in the workflow matrix, execution and partition verification consistent.
+
 Each test-run process migrates one template database once and restores every
 disposable test database from its backup instead of migrating each one. A
 process that cannot build the template says so on standard error and falls back
@@ -582,6 +590,14 @@ start boundary and advances the mailbox generation. Old workers and
 subscriptions cannot advance the replacement generation's cursor. Do not
 clear cursors manually to manufacture a backfill. Opening or filtering retained
 mail in Pegasus changes no Outlook read state, folder, flag or category.
+
+Re-enabling the same address with complete stored mailbox and folder identities
+uses those identities for the fresh Inbox access check. It does not repeat a
+directory lookup. New addresses, changed addresses and incomplete identities
+still require address resolution. The Web identity needs Exchange read access
+to the mailbox for this check; successful Worker polling proves only the
+Worker identity's access. Verify both application identities against the
+intended Exchange scope before disabling a mailbox for a webhook refresh.
 
 Global Worker containment, individual Function activation and per-mailbox
 capabilities are independent. For a destructive migration, keep Worker functions

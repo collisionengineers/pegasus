@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
@@ -38,10 +39,23 @@ public sealed class IntakeOcrRetryPersistenceTests
         var receipt = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(receiptId, CancellationToken.None));
         var asset = Assert.IsType<IntakeAssetRecord>(IntakeFileIdentity.SourceAsset(receipt));
         var operationId = Guid.NewGuid();
+        var earlierOperationId = Guid.NewGuid();
         var dueAtUtc = DateTimeOffset.UtcNow.AddMinutes(-5);
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
-            context.Set<IntakeOcrOperationEntity>().Add(new()
+            context.Set<IntakeOcrOperationEntity>().AddRange(
+            new()
+            {
+                Id = earlierOperationId,
+                IntakeAssetId = asset.Id,
+                SourceSha256 = asset.ContentHash,
+                QualifiedPagesJson = $$"""{"version":4,"intakeReceiptId":"{{receiptId:D}}","pages":[1],"attemptCount":5,"submitAttemptedAtUtc":null,"submittedAtUtc":null,"sourceContentLength":{{asset.ContentLength}}}""",
+                OperationKey = $"intake-ocr:{earlierOperationId:N}",
+                State = nameof(IntakeOcrState.Pending),
+                Version = 2,
+                ConcurrencyToken = Guid.NewGuid()
+            },
+            new()
             {
                 Id = operationId,
                 IntakeAssetId = asset.Id,
@@ -53,7 +67,18 @@ public sealed class IntakeOcrRetryPersistenceTests
                 Version = 3,
                 ConcurrencyToken = Guid.NewGuid()
             });
-            context.Set<ExternalWorkItemEntity>().Add(new()
+            context.Set<ExternalWorkItemEntity>().AddRange(
+            new()
+            {
+                Id = earlierOperationId,
+                Kind = ExternalWorkKinds.IntakeOcr,
+                OperationKey = $"intake-ocr:{earlierOperationId:N}",
+                State = ExternalWorkStatePersistence.Completed,
+                AttemptCount = 5,
+                DueAtUtc = dueAtUtc.AddMinutes(-1),
+                CompletedAtUtc = dueAtUtc.AddMinutes(-1)
+            },
+            new()
             {
                 Id = operationId,
                 Kind = ExternalWorkKinds.IntakeOcr,
@@ -64,12 +89,23 @@ public sealed class IntakeOcrRetryPersistenceTests
                 FailureCode = "ocr_pages_missing",
                 FailureReason = "The provider returned no output for page(s) 1."
             });
+            context.Set<IntakeAllocationAttemptEntity>().AddRange(
+                AllocationAttempt(receiptId, 1, "failed", null),
+                AllocationAttempt(receiptId, 2, "succeeded", null));
             await context.SaveChangesAsync();
         }
 
         var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var log = services.GetRequiredService<IListIntakeLog>();
-        Assert.True((await log.GetAsync(administrator, receiptId, CancellationToken.None))!.Actions.CanRetryOcr);
+        var detail = Assert.IsType<IntakeLogDetail>(
+            await log.GetAsync(administrator, receiptId, CancellationToken.None));
+        Assert.True(detail.Actions.CanRetryOcr);
+        var failure = Assert.Single(await log.ListRetryableFailuresAsync(administrator, CancellationToken.None),
+            item => item.Row.ReceiptId == receiptId);
+        Assert.Equal(detail.Receipt.Version, failure.ReceiptVersion);
+        Assert.Equal(detail.AllocationAttempts[^1], failure.LatestAllocationAttempt);
+        Assert.Equal(detail.Actions.CanRetryAllocation, failure.Actions.CanRetryAllocation);
+        Assert.Equal(detail.Actions.CanRetryOcr, failure.Actions.CanRetryOcr);
         var ocrFailed = await log.ExecuteAsync(administrator, new IntakeLogFilter(Outcome: IntakeLogOutcome.OcrFailed), 1, CancellationToken.None);
         Assert.Contains(ocrFailed.Items, row => row.ReceiptId == receiptId && row.Outcome == IntakeLogOutcome.OcrFailed);
         // The Failed intake head-line count includes a failed OCR attempt, not
@@ -136,4 +172,28 @@ public sealed class IntakeOcrRetryPersistenceTests
             new RetryIntakeOcrRequest(receiptId, current.Version, administrator, Guid.NewGuid().ToString("N"), "Again.")));
         Assert.False((await log.GetAsync(administrator, receiptId, CancellationToken.None))!.Actions.CanRetryOcr);
     }
+
+    private static IntakeAllocationAttemptEntity AllocationAttempt(
+        Guid receiptId,
+        long attemptNumber,
+        string status,
+        string? recoveryDisposition) => new()
+    {
+        Id = Guid.NewGuid(),
+        IntakeReceiptId = receiptId,
+        AttemptNumber = attemptNumber,
+        Kind = "automatic",
+        Status = status,
+        ExpectedReceiptVersion = 0,
+        PrincipalCode = "TEST",
+        ActorKind = "Staff",
+        ActorSubjectId = Guid.NewGuid().ToString("D"),
+        ActorRolesJson = JsonSerializer.Serialize(new[] { StaffRole.Administrator }),
+        OperationKey = $"intake-allocation-fixture:{Guid.NewGuid():N}",
+        CommandHash = new string('a', 64),
+        Reason = "Fixture allocation attempt.",
+        StartedAtUtc = DateTimeOffset.UtcNow,
+        CompletedAtUtc = DateTimeOffset.UtcNow,
+        RecoveryDisposition = recoveryDisposition
+    };
 }

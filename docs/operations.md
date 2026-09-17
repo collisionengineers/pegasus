@@ -4,6 +4,221 @@ This is the last recorded deployed-state and support summary. It is not a fresh
 cloud observation. Exact source structure belongs in [architecture](current-architecture.md);
 procedures are reached through [the runbook](runbook.md).
 
+## Release 55 — 17 September 2026 (deployment live)
+
+Release 55 is the hotfix for the vehicle-lookup regression Release 54 introduced: every automatic and
+staff DVLA/MOT lookup on the Worker failed with `The SELECT permission was denied on the object
+'CaseAssessmentFields'` because the lookup fill now reads the confirmed mileage source and writes the
+derived Vehicle type while the Worker's least-privilege role had no grant on that table. Web and
+Worker are running, the deployed Web package matches the approved artifact, and full production
+smoke passed.
+
+| Observation | Value |
+| --- | --- |
+| Source and package | Version `0.1.0-alpha.1`, application source `6cade87db86d1104240ada676d1bab5742858e21` (PR 778 plus an `AGENTS.md` update), promoted atomically to both `dev` and `main` at 14:03Z. Manifest schema 3 SHA-256 `4016AA9641DF50FD005061CF18E2ED0D75D93662662D054A946790D2D80BFCA8`; `web.zip` (linux-x64) SHA-256 `671A8C6AD506A877678C6BBD4F5911FE6DADDE7F1036CDE2249B3A39ED762D11`; `worker.zip` SHA-256 `401F08B3A57D6848550C7585CC0F78322322EAB498DE62298119067D97F4F5A3`; retained `efbundle.exe` (win-x64). |
+| Review and verification | PR 778 passed its six-shard CI (shard 4 on its second attempt; the failing test was the load-sensitive `GroupedImageIntakeConcurrencyTests.ConcurrentGroupMembersNeverSplitAcrossRepeatedRuns` recorded under Release 54, unrelated to this change). Local: Release build, Integration `VehicleLookup|AzureSqlRuntimeRole|CaseWorkflowMigrationTests|CommittedMigration` (78 passed, including the new Worker-role lookup test), Architecture (121 passed), `Test-MigrationGrants.ps1`, `Test-AzureDeploymentPlan.ps1 -Mode Local`, documentation links. |
+| Schema and configuration | Migration `additive` (grant only): `20260917140000_GrantWorkerCaseAssessmentFields` grants SELECT, INSERT and UPDATE on `CaseAssessmentFields` to `pegasus_worker_runtime_role` (DELETE stays denied), applied by the bundle at 14:20:01–14:20:14Z over `20260917014000_EstimateDocumentPreviewEvents`; head read back as `20260917140000_GrantWorkerCaseAssessmentFields` and the Worker role's effective grants read back as INSERT, SELECT, UPDATE. Bootstrap verified 708 catalogued permission rows and 490 effective runtime DML rows at 14:20:44Z (three more than Release 54). No infrastructure, dependency or runtime-configuration change; `azd provision` found nothing to change. |
+| Web deployment | OneDeploy `9c6fe5fd-a38c-4b75-ace2-a62aa8bed513` succeeded at 14:22:42Z; the site started in 115 seconds and read back `Running`, `DOTNETCORE\|10.0`, HTTP 200 readiness and the exact source/version at 14:25:16Z. |
+| Worker deployment | ZIP deployment completed successfully at 14:27:59Z after trigger synchronization and the platform health check; the canonical Disabled-setting census passed as `approved-live-worker`. The Worker also now logs an external work failure with its durable id before the queue's retry policy takes over. |
+| Production smoke | Passed at 14:29:46Z. Active Web package `20260917142226.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed with last completed poll `2026-09-17T14:25:00Z` and active subscription expiry `2026-09-20T13:10:00Z`. |
+| Repair | The two dead lookup work items for `QDOS26010` (one `queue_poisoned`, one stuck `processing`) are not revived by the recovery timer or the CASE-008 sweep; the repair is one staff press of **Look up DVLA & MOT** on the Case, which creates a new work item under the corrected grants. |
+| Evidence | `artifacts/releases/release-55-6cade87d` retains the manifest, ZIPs, bundle and phase logs; drivers under `artifacts/releases/release-55-driver`. |
+
+## Release 54 — 17 September 2026 (deployment live)
+
+Release 54 deployed the sprint 1609 changes (PRs 764, 766/767, 769–776) through
+the approved normal route with an additive migration. Web and Worker are
+running, the deployed Web package matches the approved artifact, and full
+production smoke passed. The operator-decided intake data wipe followed.
+
+| Observation | Value |
+| --- | --- |
+| Source and package | Version `0.1.0-alpha.1`, application source `24b97fe660cfd8ae53a946d15a0b1f20db6f9158`, promoted atomically to both `dev` and `main` at 11:39Z. Manifest schema 3 SHA-256 `10EA309AD78674C0F8A23BAD5ED105F695B680FE8EB923287735CED14CC5A825`; `web.zip` (linux-x64) SHA-256 `8CBCA9E5D1A85F0053BA53CD2231A7709965F9212C227B303DBC76EF8943B75A`; `worker.zip` SHA-256 `9C45A593A1E79F9A80E4D998AB21A2491B8E637E2DCBA1DDA9EA3148ED168DE3`; retained `efbundle.exe` (win-x64). |
+| Review and verification | Every included PR passed its six-shard CI at its merged head after `dev` was merged in; each was reviewed by an independent Codex review before push. The main-branch run at the promoted SHA ([35216598539](https://github.com/collisionengineers/pegasus/actions/runs/35216598539)) passed every job except shard 4, where `GroupedImageIntakeConcurrencyTests.ConcurrentGroupMembersNeverSplitAcrossRepeatedRuns` failed; the same test failed on two of three shard-4 attempts for PR 776 and passes alone locally, so it is recorded as load-sensitive under the six-shard partition and left open. Release build: zero errors; documentation links and placement passed. |
+| Schema and configuration | Migration `additive`: `20260916090000_VehicleLookupTypeSignals` (three nullable columns on `VehicleLookupObservations`) and `20260917014000_EstimateDocumentPreviewEvents` (the `IX_CaseWorkflowEvents_CaseId_AfterVersion` filter now also excludes `case_estimate_document_previewed`) applied by the bundle at 11:42:53–11:43:00Z over `20260914150656_UploadedCorrespondenceMailbox`; head read back as `20260917014000_EstimateDocumentPreviewEvents`. Bootstrap verified 705 catalogued permission rows and 487 effective runtime DML rows at 11:43:16Z. New Worker setting `AutomaticEvaReviewSubmissionSchedule` (`0 * * * * *`) provisioned. No dependency, tier or publish-mode change. |
+| Provision | Approved `azd provision -e pegasus-prod --no-prompt` exited zero at 11:45:38Z (1 minute 22 seconds). Pre-provision quota read: B1 in uksouth limit 3. |
+| Web deployment | OneDeploy `8c1c6eec-4643-421d-b552-fad2cced3ff6` succeeded at 11:46:01Z. The first container start exited with code 134 after 77 seconds with no application telemetry; the platform restarted the container and the site started at 11:53:06Z after a 122-second warm-up, so the CLI's ten-minute start wait reported failure although the package was serving. Read-back: `Running`, `DOTNETCORE\|10.0`, HTTP 200 readiness and the exact source/version. |
+| Worker deployment | ZIP deployment completed successfully at 12:07:32Z after trigger synchronization and the platform health check; the canonical Disabled-setting census passed as `approved-live-worker`. |
+| Production smoke | Passed at 12:08:06Z. Active Web package `20260917114546.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed with last completed poll `2026-09-17T12:05:16Z` and active subscription expiry `2026-09-20T13:10:00Z`. |
+| Behaviour shipped | Six-shard SQL CI and the Case test split; first-use Case paths and thumbnail caching; matched email PDFs and photographs filed on existing Cases; estimate import dialogs and refusals; Inbox scope for resolved Unidentified items; Vehicle type auto-fill; audit quick fixes; report and fee-note freshness; estimate document PDF with specialist-hours fixes; UI guardrails skill; one `a.` Audit prefix with Audit Cases created without their original report (the missing report is an outstanding Case item cleared by Mark as original report). |
+| Evidence | `artifacts/releases/release-54-24b97fe6` retains the manifest, ZIPs, bundle and the phase logs; the drivers are under `artifacts/releases/release-54-driver`. |
+
+- Intake data wipe, 17 September 2026 (operator decision of 16 September: the
+  Audit prefix change ships without a data migration because the estate is
+  test data): Worker `pegasus-prod-worker-252ow37gij` stopped at 12:08:39Z for
+  the maintenance window, then resumed and read back `Running` at 12:09:23Z.
+  Every blob in `pegcustody252ow37gij/transient-intake` was cleared (zero
+  remaining) and 446 rows deleted from 91 non-preserved tables in `pegasus`
+  (447 affected rows reported). The committed mail cutoff is
+  `2026-09-17T12:09:05.3052004+00:00`; 519 preserved rows remain.
+  `CaseSequences` (9), `ImageIntakeSequences` (7), `TriageSequences` (2) and
+  `UnidentifiedSequences` (1) were unchanged; `ValuationPresets` remained 0/0.
+  `authentication-ring`, `box-links`, `pegtrans252ow37gij`, Outlook and Box
+  were untouched. Post-run verification reported zero blobs remaining and zero
+  wiped tables holding rows. Full production smoke passed again at 12:16Z after
+  the first post-wipe inbound poll (`2026-09-17T12:15:03Z`).
+
+## Release 53 — 15 September 2026 (deployment live)
+
+Release 53 deployed the reviewed performance and Case-read changes through the
+approved normal route. Web and Worker are running, the deployed Web package
+matches the approved artifact, and full production smoke passed.
+
+| Observation | Value |
+| --- | --- |
+| Source and package | Version `0.1.0-alpha.1`, application source `e8efb19779baadc5ea46bd9c62e6c9c54740cac7`, promoted to both `dev` and `main` through [PR 761](https://github.com/collisionengineers/pegasus/pull/761). Manifest schema 3 SHA-256 `D1327BCBB11B3E386DEBA5590696B3386E16F2AB43634DC1165B12B740927CAF`; `web.zip` (linux-x64) SHA-256 `A7E081A4373FFFD7ADB87B09D912F9D70BD9AD173359C9A1752A2B0FC6C10463`; `worker.zip` SHA-256 `267CFA412A546842CD92FAF82CFEEE220288FA887D9724CD8158DD50CC1DD425`; retained `efbundle.exe` (win-x64). |
+| Review and verification | Independent review findings were remediated, including Report image controls while Files is deferred. [Candidate CI](https://github.com/collisionengineers/pegasus/actions/runs/35010425465) passed: 4,619 passed, 17 skipped, zero failed; all 2,306 Integration tests were enumerated exactly once. [Main CI](https://github.com/collisionengineers/pegasus/actions/runs/35014174698) also passed. Targeted rerun: 50/50 rows across 45 methods. Release build: zero warnings/errors; documentation links and placement passed. |
+| Schema and configuration | Migration unchanged at `20260914150656_UploadedCorrespondenceMailbox`, confirmed by read-only SQL at 21:04Z. No migration/bootstrap, intake wipe or data reset was executed. UK South B1 Web plan remains capacity 1; Worker remains Flex Consumption; SQL remains S0. No dependency, infrastructure tier or publish-mode change. |
+| Provision | Approved `azd provision -e pegasus-prod --no-prompt` exited zero at 21:05:05Z and found no changes to provision. Preflight matched the approved resource inventory and activation settings. |
+| Web deployment | OneDeploy `09b48b82-6bb4-4332-9c2d-c10ce4af0e9f` succeeded at 21:06:42Z. CLI startup completed after 158 seconds. Subsequent read-back returned `Running`, `DOTNETCORE\|10.0`, HTTP 200 readiness and the exact source/version. |
+| Worker deployment | ZIP deployment `ecf3095f-bcbc-4885-9c4d-628f86e135b3` completed successfully at 21:12:51Z after trigger synchronization and the platform health check. Worker read back `Running`; the canonical Disabled-setting census passed as `approved-live-worker`. |
+| Production smoke | Passed at 21:13:55Z. Active Web package `20260915210628.zip` SHA-256 equals the approved `web.zip`. Intake liveness passed with last completed poll `2026-09-15T21:10:00Z` and active subscription expiry `2026-09-20T13:10:00Z`. Health, source/version, authentication redirect, CSP and Graph validation checks passed. |
+| Focused browser check | The live sign-in page loaded correctly. The operator explicitly skipped the authenticated Work Centre refresh and Case section/image check on 15 September 2026; those live checks were not performed and are not claimed as passed. Exact-source offline browser evidence already covers deferred Files, unsaved edits, image preparation and cancellation. |
+| Behaviour shipped | Work Centre automatic refresh applies a bounded fragment and preserves truthful stale/partial state. Case sections use focused reads; Report and Files share image identities; Operations counts extend beyond the display cap. Case-only assets, one maintained Case controller and sampled document-phase telemetry are included. Local measurements are not production latency, capacity or monetary-saving claims. |
+| Evidence | `artifacts/releases/release-53-e8efb197` retains the manifest, ZIPs, bundle and release evidence. `artifacts/performance/operator-20260915` retains the approval, preflight, deployment and smoke logs; the [PR review record](https://github.com/collisionengineers/pegasus/pull/761#issuecomment-5686605997) links implementation and verification evidence. |
+
+## Intake data wipe — 16 September 2026
+
+- Approved intake wipe: Worker `pegasus-prod-worker-252ow37gij` stopped for the maintenance window, then resumed and read back `Running`; 123 blobs (183,300,964 bytes) cleared from `pegcustody252ow37gij/transient-intake` and 959 rows deleted from 91 non-preserved tables in `pegasus`. The committed mail cutoff is `2026-09-16T09:22:24.7526521+00:00`; 38 effective tables and 512 preserved rows remain. `CaseSequences` (7), `ImageIntakeSequences` (7), `TriageSequences` (2), and `UnidentifiedSequences` (1) were unchanged; `ValuationPresets` remained 0/0. `authentication-ring`, `box-links`, `pegtrans252ow37gij`, Outlook, and Box were untouched. Post-run verification reported zero blobs remaining and zero wiped tables holding rows.
+
+## Retired Container Apps resources — 15 September 2026
+
+After the Release 50 App Service cutover and the subsequent successful Releases
+51 and 52, the operator approved final removal of the retained Container Apps
+rollback resources. The retired `pegasus-prod-web-252ow37gij` Container App was
+already unserved, with no ingress, active revision or replica. The authorised
+cleanup deleted it, then the empty
+`pegasus-prod-aca-env-252ow37gij` managed environment, then the obsolete
+`pegasusprodacr252ow37gij` registry. Every deletion exited zero and an
+independent Azure inventory read-back found none of those three resource types;
+the same-name `Microsoft.Web/sites` App Service remains.
+
+Two earlier cleanup-script preflights exited one before any Azure write: the
+first constructed the version URI incorrectly and the second queried the
+Function App state at the wrong Azure CLI property path. The corrected dry run
+passed every precondition and reached `ShouldProcess` before the successful
+authorised execution.
+
+After deletion, the App Service `/health/ready` endpoint returned 200 and
+`/diagnostics/version` reported source
+`38051586856eb2b4a00b964de842a2e7bcdee555`, version `0.1.0-alpha.1`. The Flex
+Consumption Worker remained `Running`. Full production smoke exited zero: the
+deployed Web package SHA-256 matched Release 52, Worker activation was
+`approved-live-worker`, and intake liveness passed with the last poll at
+`2026-09-15T10:05:03Z`. No application package, schema, configuration, mailbox,
+storage, SQL, Box or Outlook state changed.
+
+## Test-estate reset — 15 September 2026
+
+The operator-approved production reset removed 56 blobs (10,633,488 bytes)
+from `pegcustody252ow37gij/transient-intake` and 345 rows across 91
+intake/case tables. The checked SQL transaction reported 397 affected rows,
+left all 91 target tables empty, and committed the mailbox cutoff
+`2026-09-15T08:37:24.1701441Z` without changing mailbox approval or activation
+times.
+
+The reset retained the sole `alex` Administrator account and removed `andrew`,
+`claudeuiverification`, `engineertest`, and `test1`, including four role rows
+and 42 attributable security events. Post-checks found no remaining account
+traces. The QDOS 2026 counter changed from 9 to 0, so the next allocation is
+`QDOS26001`; Image Intake remained at seven sequence rows, Triage remained
+empty, and Unidentified remained at one sequence row. All 37 preserve-list
+entries were present, 38 tables were effectively preserved, and 481 preserved
+rows remained after the transaction.
+
+The Worker was stopped for the operation and returned to `Running` afterward.
+Independent read-back found zero target blobs and rows, one `alex` account,
+zero removed-account traces, and QDOS still at zero. Authenticated Web checks
+showed zero cases requiring attention, zero recent cases, and zero Inbox
+messages. The authentication ring, `box-links`, `pegtrans252ow37gij`, Outlook,
+Graph, and Box were untouched.
+
+## Release 52 — 15 September 2026 (deployment live)
+
+Release 52 deployed the 14–15 September live-walk batch (PRs 749–758) to the
+Linux App Service Web host and the Flex Consumption Worker by the normal
+route with an additive migration. Full production smoke passed.
+
+| Observation | Value |
+| --- | --- |
+| Source and package | Version `0.1.0-alpha.1`, source `38051586856eb2b4a00b964de842a2e7bcdee555` (dev = main); manifest SHA-256 `D366CE129E2D7D245B7A9EAD1CE69878216DF153E2CB42AFC93892912E001771`; `web.zip` SHA-256 `74EC9599CA3949BB1DD21DD675F6CBABB1F28BA1A74A2D7EAA77D764A9AD376E`; `worker.zip` `B2E6AB40D08B775823D025855F3F0748DC9917A6A18DF2930EB7FEFB6F956F94`; bundle `efbundle.exe` (win-x64). |
+| Promotion and CI | PRs 749–758 each passed review-by-operator instruction and full CI on `dev`; the operator waived the browser walk. Main and dev were atomically fast-forwarded from `bdc85085c` to the source. |
+| Schema | Additive: `20260914150656_UploadedCorrespondenceMailbox` (RetainedMailboxMessages.MailboxId nullable; unique index re-created filtered on non-null) applied over `20260914100000_WidenDocumentContentCacheVariant`. Bootstrap verified 705 catalogued permission/denial rows and 487 effective runtime DML rows. |
+| Provision | `azd provision` succeeded (1 m 28 s) with Web activation `approved` and Worker `approved-live-worker`; it applied the alert tuning: `pegasus-prod-web-http5xx` threshold 1 (fires above one 5xx in five minutes), `pegasus-prod-application-exceptions` severity 2 — both read back. |
+| Deployment | Web deployment `ca09bf40-c04d-48db-8a4a-d123bc7fc69c` (OneDeploy) succeeded at `2026-09-15T08:16:15Z`; the site took 144 s to start and the release skill's two-minute read-back wait expired before it was ready, then `/health/ready` 200 and `/diagnostics/version` reported the source. Worker deployment `d26124a8-d872-44eb-b3de-caa0eb6877cd` succeeded; Worker `Running`, every Disabled setting `false`. |
+| Smoke | Passed at 08:27Z: Web App `Running` on `DOTNETCORE|10.0`, deployed package `20260915081601.zip` SHA-256 equals the approved `web.zip`, intake liveness (last poll `2026-09-15T08:25:03Z`, subscription expires `2026-09-20T13:10:00Z`). |
+| Behaviour shipped | Damage image strip removed; tag picker closes on outside click; crop toolbar no longer overlaps; Cancel discards without the dialog; faulted heartbeats no longer end edit mode; Accounts Delete removes the row; uploaded `.eml` files are Correspondence; Valuation is one route through per-source entry cards (no Add valuation; no provider connected yet); Editing column on the Case list and Search; Estimate pill removed; Intake pending-custody 404; download 409 race fixed; transaction-scoped SQL retry. Not walked in a browser before release by operator instruction. |
+| Evidence | `artifacts/releases/release-52-38051586` retains the manifest, ZIPs, bundle, build and deploy logs and the migration/deploy scripts. |
+
+## Release 51 — 14 September 2026 (deployment live; recovery validated)
+
+Release 51 deployed the reviewed mailbox-reactivation correction to the Linux
+App Service Web host. Mailbox recovery, the generation-3 subscription and poll,
+and full production smoke passed. The delivery trace reported zero records for
+the pause; recent delivery records can lag, so this does not guarantee that no
+mail arrived.
+
+| Observation | Value |
+| --- | --- |
+| Source and package | Version `0.1.0-alpha.1`, source `bdc85085cb5478b5bdf013a30b95059bff451b59`; manifest SHA-256 `54C5FB94B6FA4F880210070A85C5AE74F20EFE207225792780387ADE8C8519B7`; server package `20260914130353.zip` SHA-256 `2DFE8E88CD54950A11C88E23A0485FA6543CDA1EF4ABAA226DA4C02C70343852`, equal to the approved `web.zip`. |
+| Public origin | `https://pegasus-prod-web-252ow37gij.azurewebsites.net/` on the existing UK South B1 Linux plan; the Worker remains Flex Consumption. |
+| Promotion and CI | Main and dev were atomically fast-forwarded to the source. PR 748 merged at `2026-09-14T12:55:54Z`; CI `34841859467` passed every SQL group and coverage check on the exact deployed tree. Its earlier CI `34841313504` failed with `CS0136` local-name conflicts; the correction was included in the passed source and the failure log remains retained. Main CI `34846154877` passed its distinct “Require main history to be contained in dev” check. No local tests duplicated the passing PR CI. |
+| Schema and preflight | The schema remained at `20260914100000_WidenDocumentContentCacheVariant`; B1 UK South remained limit 3. Packaging and read-only preflight Build, Artifact, and PreProvision each exited 0. |
+| Deployment | The Release 51 driver exited 0 at `2026-09-14T13:09:05Z`. Web deployment `808f1ecc-3bdb-4afa-a65a-804cc184c4f5` succeeded at `2026-09-14T13:04:09Z`; the Web App is `Running` on `DOTNETCORE|10.0`. Worker deployment `e9b5082a-6b48-4a7e-b9f9-9845364e9edc` and its configuration smoke passed. |
+| Mailbox | The UI re-enable succeeded with state `Approved`, inbound `true`, sent `false`, and staff send `false`, proving fresh Web Inbox access. The mailbox is version 8, generation 3, activated at `2026-09-14T13:09:31.4060206Z`; the UI shows `Approved` and last completed at 14:10 UK. |
+| Subscription and poll | Subscription `8ae31eda-21a9-4558-8e21-29b16dc09888` is generation 3 `Active`, maintained at `2026-09-14T13:10:00.178085Z`, and expires at `2026-09-20T13:10:00.178085Z`. The generation-3 poll completed at `2026-09-14T13:10:06.1157293Z`; its start boundary equals activation and it had no failures. Worker URL: `https://pegasus-prod-web-252ow37gij.azurewebsites.net/hooks/microsoft-graph/mail`. |
+| Smoke | All production smoke checks passed, exiting 0 at `2026-09-14T13:12:24.6169651Z`. |
+| Pause trace | The complete pause from `2026-09-14T11:37:22.417Z` to `2026-09-14T13:09:31.4060206Z` lasted 5,528.989 seconds (1 hour 32 minutes 8.989 seconds). Exchange reported zero delivery records at `2026-09-14T13:13:41.8177179Z`; this has the explicit recent-delivery latency caveat. No backfill was performed. |
+| External clients | The server URL and MCP metadata are verified. External MCP client reconnections are operator-owned and outside this task, and do not block the release record. |
+| Evidence | `artifacts/releases/release-51-bdc85085` retains the approved packet, manifest, ZIPs, bundle, CI/readiness/approval evidence, `deployment-readback.json`, `deployment-result.json`, `mailbox-ui-recovery.json`, `mailbox-recovery-readback-20260914T131113680Z.json`, `mailbox-pause-delivery-readback.json`, and `smoke-result.json`. |
+
+## Release 50 — 14 September 2026 (historical App Service cutover)
+
+Release 50 moved the Web host from the retiring Container App to the Linux App
+Service Web App. It completed the destructive schema route and initial App
+Service activation. The interrupted mailbox refresh below was subsequently
+recovered by Release 51.
+
+| Observation | Value |
+| --- | --- |
+| Candidate and approval | Source `3ce266fecd1ecf710d0abbdad2241717f2b54978`, version `0.1.0-alpha.1`; procedure commit `da7036dec0d4837acadc9aee124d9ad977e50bcd`. Alex approved the exact packet, targets, manifest, and a 30-minute Web/Worker outage. |
+| Manifest and evidence | Manifest SHA-256 `D18501F7AF0B32D1E2857C139C86D7A28F03F8A49D854F5EE81A6D4CE2D3579D`; schema 3 with `win-x64` / `efbundle.exe`. The approved packet, manifest, artifacts, phase logs and interrupted-refresh evidence remain at `artifacts/releases/release-50-3ce266fe`. |
+| Containment and migration | The retiring Container App source was `37d00f4c2fc6f106554e69ab4e8c3590939c25b7`, with approved active revision `pegasus-prod-web-252ow37gij--37d00f4c2fc6`. Fresh containment left no active old revisions or replicas, ingress disabled, and the old URL unserved. All 13 migrations through `20260914100000_WidenDocumentContentCacheVariant` applied. The route was destructive/non-additive because `LinkedAuditCase` replaced the unfiltered Case sequence uniqueness index with the linked-Audit filtered form. Runtime bootstrap verified 705 catalogued permission/denial rows and 487 effective runtime DML rows. |
+| Outage and staging | Worker outage began `2026-09-14T11:06:50.9505668Z`; polling resumed at `2026-09-14T11:28:22Z`, about 21 minutes 31 seconds later. Web outage began `2026-09-14T11:10:33.8157183Z`; startup was observed at `2026-09-14T11:27:49.183Z`, about 17 minutes 15 seconds later. Both disabled Worker smokes passed and `worker.zip` deployment `37477644-fb2f-409c-b883-a68cab04496b` staged before containment. These initial outages were within the approved 30-minute window. |
+| Provision and activation | Phase 4 provision `pegasus-prod-1789384475` created the UK South B1 Linux plan and Web App. Web ZIP deployment `b639667d-e0bc-463c-b143-1ef0dce051b0` completed successfully while the Web App was intentionally stopped. The Phase 4 wrapper exited 1 only because CLI status tracking waited for that intentionally stopped app; server-side completion was confirmed, its owned poller ended, and no ZIP was reuploaded. Activation deployment `pegasus-prod-1789385054` then succeeded. |
+| Hostname read-back | `Glass__CallbackBaseUri` and `AutomationMcp__PublicOrigin` read `https://pegasus-prod-web-252ow37gij.azurewebsites.net/`. MCP protected-resource metadata named that origin for resource and authorization server; `azd-web-output-readback.json` verified the same four Web output keys in primary and release environments. |
+
+### Interrupted mailbox refresh and recovered route
+
+- The approved mailbox Disable save succeeded at `2026-09-14T11:37:22.417Z`.
+  Its re-enable attempt at `2026-09-14T11:40:36.570Z` failed with “The address
+  could not be found in the mail system.” Read-only SQL then showed `Disabled`,
+  version 7, mailbox generation 2, and the generation-1 subscription `Active`.
+  The mailbox existed and its identity was unchanged by migration.
+- The Web managed identity received `403` from
+  `GET /v1.0/users/instructions%40collisionengineers.co.uk` and had zero
+  Microsoft Graph directory app-role assignments. The approved `User.ReadBasic.All`
+  role-assignment POST failed `403 Authorization_RequestDenied` at
+  `2026-09-14T11:45:38Z`; no successful directory grant was recorded. Two
+  device-authentication attempts completed as the Digital Operator without
+  Global or Privileged Role Administrator authentication. This directory route
+  was disposed and superseded; no further privileged sign-in was pending.
+- Exchange read-back showed the Digital Operator's Exchange Administrator route,
+  no Web service principal, and a Worker service principal with
+  `Application Mail.Read` scoped only to `Pegasus Production Instructions
+  Mailbox`, filtered to `instructions@collisionengineers.co.uk`. The scoped
+  Exchange Web service-principal registration and `Application Mail.Read` grant
+  then completed with exit 0. Its authorization test was in scope for
+  `instructions@collisionengineers.co.uk` and out of scope for `desk`; no
+  directory, mailbox-write, or mail-send grant was added. Release 51 used that
+  route to restore fresh Web Inbox access and re-enable the unchanged mailbox.
+- The initial full smoke preceded the failed mailbox toggle and did not prove a
+  new mailbox generation or webhook. The previous failure and permission-route
+  evidence remains retained in `mailbox-refresh-readback.json`,
+  `mailbox-directory-read-approval.json`, `mailbox-directory-read-grant.log`,
+  `exchange-mailbox-access-readback.json`, `web-exchange-mailbox-read-grant.json`,
+  and `web-exchange-mailbox-read-grant.log`.
+
 ## Release 49 — 11 September 2026
 
 Every Glass's session situation handled on the Case record (PR 736): a
@@ -380,6 +595,23 @@ availability, failure and cost alerts. Additional recipients are configuration,
 not code changes. Critical incidents are acknowledged immediately while Alex is
 in the staffed office; outside staffed hours, response is as soon as reasonably
 possible. This records the support arrangement, not an invented 24/7 SLA.
+
+Two Azure Monitor rules page the action group (`infra/modules/platform.bicep`):
+`pegasus-prod-web-http5xx` (Sev1) fires when the Web App returns more than
+one HTTP 5xx in a five-minute window, and `pegasus-prod-application-exceptions`
+(Sev2 since 15 September 2026) fires on a correlated Web or Worker exception
+signature in a fifteen-minute window. Both auto-resolve. Before the tuning
+each fired on a single event and paged several times a day on transient
+faults.
+
+Causes seen in the 7–14 September window and their disposition: the Case
+list's "Confirmed vehicle fields exist without a confirmed vehicle
+registration" throw was removed by `6d51c993d` (Release 44) and last fired on
+10 September before that release; the content cache's `409 BlobAlreadyExists`
+on a concurrent preview, the Intake Source and Asset `500` while Box custody
+was still pending, and unretried transient SQL faults are fixed by the
+alert-causes change (15 September). Transient SQL faults retry only outside a
+store transaction; inside one they surface as before.
 
 Emergency production access is Alex initially, plus specifically designated
 Administrators or Azure operators. Exact credentials and grants are not stored

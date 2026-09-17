@@ -1,11 +1,16 @@
 # Source architecture
 
-Source structure updated for the 10 September 2026 operator-findings
-rectification (Release 44): image tags replace the Third-party vehicle flag,
-Case document previews and thumbnails read through the content cache, record
-edit scopes re-claim and release themselves, and vehicle lookup runs at Case
-creation. Refresh it when the source structure changes. [Operations](operations.md) owns dated
-deployed observations and exact runtime identities.
+Source structure includes ADR-0049's Linux App Service Web composition: the
+Web host is a framework-dependent Linux x64 `web.zip` deployed to a
+`DOTNETCORE|10.0` App Service Web App, while the Worker remains a Flex
+Consumption Function App. `infra/modules/platform.bicep` supplies the Web
+plan, App Service configuration and managed identity; the release route deploys
+the package with `az webapp deploy`. Both hosts configure SQL Server through
+`Pegasus.Infrastructure.Persistence.PegasusSqlServer.Configure`, whose
+execution strategy retries transient faults outside a store transaction and
+runs once inside one (Release 52). Refresh this document when source
+structure changes. [Operations](operations.md) owns dated deployed observations
+and exact runtime identities.
 
 The corrective change updates intake OCR, estimate import, Contacts, edit
 ownership and Case/report workflows; it retains the dependency direction below.
@@ -93,10 +98,12 @@ flowchart LR
 | Retained-mail persistence and mail-workspace Web evidence | `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs`, `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` |
 | LocalDB migration, concurrency, rollback, and retry evidence | `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs` |
 | Dependency-direction evidence | `tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs` |
-| Core assessment-report draft contract and caller | `src/Pegasus.Core/Reports/AssessmentReportRendering.cs` |
-| Integrated QuestPDF report adapter, governed layout and embedded fonts (ADR-0050) | `src/Pegasus.Infrastructure/Reports/`, composed by `src/Pegasus.Infrastructure/DependencyInjection.cs` in the existing Web boundary; the page count is read back with PdfPig |
+| Core assessment-report and Estimate document contracts and callers | `src/Pegasus.Core/Reports/AssessmentReportRendering.cs`, `src/Pegasus.Core/Reports/EstimateDocumentRendering.cs` |
+| Integrated QuestPDF report adapters, shared governed chrome and embedded fonts (ADR-0050) | `src/Pegasus.Infrastructure/Reports/ReportChrome.cs`, `EstimateDocumentLayout.cs`, `QuestPdfEstimateDocumentRenderer.cs` and the assessment renderer, composed by `src/Pegasus.Infrastructure/DependencyInjection.cs` in the existing Web boundary; page counts are read back with PdfPig |
 | Case image tags (vocabulary, per-occurrence assignments, EVA exclusion by the Third party tag) | `src/Pegasus.Core/Documents/ImageTags.cs` owns the vocabulary and the `TagCaseImage`/`UntagCaseImage`/`CreateImageTag` commands; `src/Pegasus.Infrastructure/Persistence/EfDocumentCustodyStore.cs` persists `ImageTags` and `DocumentOccurrenceTags`; `src/Pegasus.Core/Eva/EvaBundleSchema.cs` excludes tagged images. Web callers: `src/Pegasus.Web/Pages/Cases/Custody.cshtml.cs`, `Pages/Cases/Shared/_CaseImages.cshtml`. |
-| Case document preview and thumbnail reads (no audit row; cached; `size=thumb` variant) | `src/Pegasus.Core/Documents/CaseDocumentPreview.cs` (`IReadCaseDocumentPreview`, `IReadCaseDocumentThumbnail`); `src/Pegasus.Infrastructure/Custody/CachedDocumentContentStore.cs` (content cache variants, SkiaSharp thumbnail rendering); caller `src/Pegasus.Web/Pages/Cases/Documents/Download.cshtml.cs`. |
+| Case document preview and thumbnail reads (no audit row; cached; `size=thumb` variant) | `src/Pegasus.Core/Documents/CaseDocumentPreview.cs` (`IReadCaseDocumentPreview`, `IReadCaseDocumentThumbnail`); `src/Pegasus.Infrastructure/Custody/CachedDocumentContentStore.cs` (content cache variants, SkiaSharp thumbnail rendering); caller `src/Pegasus.Web/Pages/Cases/Documents/Download.cshtml.cs`. Report and Files use the URL methods in `Details.Files.cs`. The occurrence-scoped preparation read resolves one snapshot; explicit matching `prep` and `renderer` identities permit long-lived private thumbnail caching or 304. Missing/stale identities return current content with `private, no-store`. |
+| Focused Case rendering reads | `src/Pegasus.Core/Cases/CaseQueries.cs` owns authorized page-frame, Vehicle, Valuation, Files and Notes readers; `src/Pegasus.Infrastructure/Persistence/EfCaseQueryStore.cs` projects their persisted data. Direct and lazy bodies use the same readers; direct bodies reuse the initial engineering workspace and already-read data/documents. Files' render-only lease validator checks the current holder, expiry and token hash without acquiring or renewing a lease. `wwwroot/js/case-workspace.js` owns Case navigation and lazy mounting; Details alone loads its stylesheet. |
+| Request and document-read phase timing | `src/Pegasus.Core/Documents/DocumentReadTelemetry.cs` defines allowlisted phases; the configured production `src/Pegasus.Web/DocumentReadTelemetryBridge.cs` emits phase/duration events through the existing sampled Application Insights pipeline. `WorkspaceRequestTimingFilter` encloses Case/Work Centre activation/execution and separately times result rendering, distinguishing Section/Refresh requests; the handlers, authentication callback, shell filter and report renderer attribute their own work. Nested spans are not additive. It adds no browser SDK or ingestion endpoint. Offline hosting does not compose this bridge or the production Blob document cache. |
 | Record edit scopes for non-Case records (stale same-holder re-claim, explicit Take over, beacon release) | `src/Pegasus.Core/Workflow/RecordEditScope.cs`, `src/Pegasus.Infrastructure/Persistence/EfEditScopeStore.cs`; `src/Pegasus.Web/wwwroot/js/edit-scope-release.js`. |
 | Automatic vehicle lookup at Case creation and the reconciliation sweep | `src/Pegasus.Infrastructure/Persistence/EfVehicleWorkflowStore.cs` (`EnqueueForCase`), called from `EfManualCaseCreationStore.cs` and `EfCaseAcceptanceStore.cs`; provider adapter `src/Pegasus.Infrastructure/Vehicle/DvlaDvsaProductionAdapter.cs`. |
 | Administration › Logs: Action logs (acting-principal security events, AI-job record links) and the Intake log (one row per received file, its outcome, and Re-evaluate, Retry allocation and Retry OCR) | `src/Pegasus.Infrastructure/Persistence/EfActionLogQueries.cs`; `src/Pegasus.Core/Operations/IntakeLogQueries.cs` (`IListIntakeLog`, outcome and retryable-failure rules), `src/Pegasus.Infrastructure/Persistence/EfIntakeLogQueries.cs`, `src/Pegasus.Core/Intake/RetryIntakeOcr.cs`; Web `src/Pegasus.Web/Pages/Administration/Logs.cshtml.cs` (the old `ActionLogs` route answers 301 to it), `src/Pegasus.Web/Presentation/AiJobActions.cs`. Operations' failed intake rows post to the Logs handlers. |

@@ -2,9 +2,11 @@
 
 Use this route only when the approved manifest carries a migration identity not
 present in the deployed release. For a destructive migration, the release skill
-must already have recorded exact Worker `Stopped` and Web App `Stopped`
-(and unserved) read-backs immediately before this recipe. Unknown or stale
-containment blocks SQL.
+must already have recorded exact Worker `Stopped` and old-Web containment
+immediately before this recipe: the existing App Service Web App is `Stopped`
+and unserved, or the first App Service cutover's Container App has no active
+revisions or replicas, disabled ingress, and an unserved old origin. Unknown or
+stale containment blocks SQL.
 
 1. Run the manifest- and environment-bound gate:
 

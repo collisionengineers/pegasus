@@ -39,3 +39,5 @@ For deeper design criteria and component guidance, read [references/ux-and-compo
 ## Deliverable
 
 Provide enough for implementation: intended flow, page regions, component choices, important states, responsive behavior, accessibility considerations, and unresolved product decisions. Match detail to the size of the change.
+
+When the operator asks for a mockup, a planning round or a design to approve before implementation, the deliverable is the Stage 1 round owned by [razor-html-mockup-creation](../razor-html-mockup-creation/SKILL.md): an offline HTML mockup with its self-check, screenshots, notes and sign-off list. This skill supplies the judgment inside that round.

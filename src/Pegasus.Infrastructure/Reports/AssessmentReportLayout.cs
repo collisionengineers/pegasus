@@ -6,6 +6,7 @@ using QuestPDF.Elements.Table;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using static Pegasus.Infrastructure.Reports.ReportChrome;
 
 namespace Pegasus.Infrastructure.Reports;
 
@@ -31,33 +32,6 @@ internal sealed record PreparedReportImages(
 /// </summary>
 internal static class AssessmentReportLayout
 {
-    /// <summary>The report family every printed run uses; embedded, never a system font.</summary>
-    internal const string FontFamily = "Liberation Sans";
-
-    /// <summary>The DATA register: body copy, tables and the fee note.</summary>
-    private const float DataRegister = 8.8f;
-
-    /// <summary>The LETTER register: the closing and the signatory's printed name.</summary>
-    private const float LetterRegister = 10f;
-
-    private const float BodyLineHeight = 1.22f;
-    private const float SectionGap = 3.5f;
-    private const float ParagraphGap = 3.1f;
-    private const float HeadingGap = 2f;
-
-    private static readonly Color Ink = Color.FromHex("#222222");
-    private static readonly Color Muted = Color.FromHex("#555555");
-    private static readonly Color Brand = Color.FromHex("#c80a32");
-    private static readonly Color Charcoal = Color.FromHex("#2c2a27");
-    private static readonly Color Rule = Color.FromHex("#bebebe");
-    private static readonly Color Zebra = Color.FromHex("#f5f5f5");
-    private static readonly Color Shade = Color.FromHex("#f2f2f2");
-    private static readonly Color DiagramInk = Color.FromHex("#75828a");
-
-    private const string CompanyName = "Collision Engineers Ltd";
-    private const string CompanyEmail = "Engineers@CollisionEngineers.co.uk";
-    private const string CompanyWebsite = "www.CollisionEngineers.co.uk";
-    private const string FooterSeparator = " | ";
 
     /// <summary>
     /// Exactly the requested artifact kind. An assessment report frozen with
@@ -78,56 +52,47 @@ internal static class AssessmentReportLayout
             CaseReportArtifactKind.AssessmentReport => false,
             _ => throw new ReportRenderRejectedException($"Unsupported report artifact kind '{kind}'."),
         };
-        return Document.Create(container => container.Page(page =>
+        return Document.Create(container =>
         {
-            page.Size(PageSizes.A4);
-            // The accepted print margins: 8mm top, 12mm each side and 22mm at
-            // the foot, of which the footer band takes the upper 14mm so the
-            // page numbering sits inside the margin, as the browser footer did.
-            page.MarginTop(8, Unit.Millimetre);
-            page.MarginHorizontal(12, Unit.Millimetre);
-            page.MarginBottom(8, Unit.Millimetre);
-            page.DefaultTextStyle(style => style
-                .FontFamily(FontFamily)
-                .FontSize(DataRegister)
-                .FontColor(Ink)
-                .LineHeight(BodyLineHeight));
-            page.Content().Column(column =>
+            void AddPages(bool pageIsFeeNote)
             {
-                if (feeNote)
+                container.Page(page =>
                 {
-                    FeeNote(column, snapshot, images.Logo);
-                    return;
-                }
-                Report(column, snapshot, images);
-                if (snapshot.IncludeFeeNote)
-                {
-                    column.Item().PageBreak();
-                    FeeNote(column, snapshot, images.Logo);
-                }
-            });
-            page.Footer()
-                .Height(14, Unit.Millimetre)
-                .AlignBottom()
-                .Element(footer => Footer(footer, snapshot, feeNote));
-        }));
-    }
+                    page.Size(PageSizes.A4);
+                    // The accepted print margins: 8mm top, 12mm each side and 22mm at
+                    // the foot, of which the footer band takes the upper 14mm so the
+                    // page numbering sits inside the margin, as the browser footer did.
+                    page.MarginTop(8, Unit.Millimetre);
+                    page.MarginHorizontal(12, Unit.Millimetre);
+                    page.MarginBottom(8, Unit.Millimetre);
+                    page.DefaultTextStyle(style => style
+                        .FontFamily(FontFamily)
+                        .FontSize(DataRegister)
+                        .FontColor(Ink)
+                        .LineHeight(BodyLineHeight));
+                    page.Content().Column(column =>
+                    {
+                        if (pageIsFeeNote)
+                        {
+                            FeeNote(column, snapshot, images.Logo);
+                        }
+                        else
+                        {
+                            Report(column, snapshot, images);
+                        }
+                    });
+                    page.Footer()
+                        .Height(14, Unit.Millimetre)
+                        .AlignBottom()
+                        .Element(footer => Footer(footer, snapshot, pageIsFeeNote));
+                });
+            }
 
-    private static void Footer(IContainer container, AssessmentReportSnapshot snapshot, bool feeNote)
-    {
-        var centre = feeNote
-            ? $"{snapshot.Vehicle.Registration} · {snapshot.OurReference}{FooterSeparator}{CompanyName}{FooterSeparator}VAT No: {AssessmentReportContract.VatNumber}"
-            : $"{snapshot.Vehicle.Registration} · {snapshot.OurReference}{FooterSeparator}{CompanyName}{FooterSeparator}{CompanyWebsite}";
-        container.DefaultTextStyle(style => style.FontSize(8).FontColor(Muted)).Row(row =>
-        {
-            row.RelativeItem().Text(centre);
-            row.AutoItem().Text(text =>
+            AddPages(feeNote);
+            if (!feeNote && snapshot.IncludeFeeNote)
             {
-                text.Span("Page ");
-                text.CurrentPageNumber();
-                text.Span(" of ");
-                text.TotalPages();
-            });
+                AddPages(pageIsFeeNote: true);
+            }
         });
     }
 
@@ -416,7 +381,9 @@ internal static class AssessmentReportLayout
             .Column(totals =>
             {
                 TotalRow(totals.Item().PaddingVertical(1.2f, Unit.Millimetre), "Subtotal (Net)", Number(snapshot.FeeNet));
-                TotalRow(totals.Item().PaddingVertical(1.2f, Unit.Millimetre), "VAT @ 20%", Number(snapshot.FeeVat));
+                var vatPercent = (AssessmentReportContract.FeeVatRate * 100m)
+                    .ToString("0.##", CultureInfo.InvariantCulture);
+                TotalRow(totals.Item().PaddingVertical(1.2f, Unit.Millimetre), $"VAT @ {vatPercent}%", Number(snapshot.FeeVat));
                 TotalRow(
                     totals.Item()
                         .PaddingTop(1, Unit.Millimetre)
@@ -467,104 +434,6 @@ internal static class AssessmentReportLayout
 
     // ---- Shared building blocks -------------------------------------------
 
-    private static void Letterhead(ColumnDescriptor column, byte[] logo, Action<IContainer> rightHandBlock) =>
-        column.Item().PaddingBottom(9, Unit.Millimetre).Row(row =>
-        {
-            row.RelativeItem()
-                .PaddingLeft(7, Unit.Millimetre)
-                .AlignLeft()
-                .Width(53, Unit.Millimetre)
-                .Height(30.3f, Unit.Millimetre)
-                .Image(logo)
-                .WithCompressionQuality(ImageCompressionQuality.VeryHigh)
-                .FitArea();
-            var right = row.AutoItem().PaddingTop(10, Unit.Millimetre).MinWidth(54, Unit.Millimetre);
-            rightHandBlock(right);
-        });
-
-    private static void Reference(ColumnDescriptor column, string label, string value) => column.Item().Row(row =>
-    {
-        row.ConstantItem(18, Unit.Millimetre)
-            .PaddingVertical(1, Unit.Millimetre)
-            .PaddingHorizontal(2, Unit.Millimetre)
-            .AlignRight()
-            .Text(label)
-            .Bold()
-            .FontColor(Color.FromHex("#111111"));
-        row.AutoItem()
-            .PaddingVertical(1, Unit.Millimetre)
-            .PaddingLeft(6, Unit.Millimetre)
-            .Text(value)
-            .Bold();
-    });
-
-    private static void Title(ColumnDescriptor column, string title, bool italic)
-    {
-        var text = column.Item()
-            .PaddingBottom(1, Unit.Millimetre)
-            .AlignCenter()
-            .Text(title.ToUpperInvariant())
-            .FontSize(14)
-            .Bold()
-            .FontColor(Brand);
-        if (italic)
-        {
-            text.Italic().LetterSpacing(0.08f);
-        }
-        column.Item()
-            .PaddingTop(1, Unit.Millimetre)
-            .PaddingBottom(4, Unit.Millimetre)
-            .LineHorizontal(1.5f)
-            .LineColor(Brand);
-    }
-
-    private static void Badge(IContainer container, string text, Color background) => container
-        .Background(background)
-        .PaddingVertical(2, Unit.Millimetre)
-        .PaddingHorizontal(3, Unit.Millimetre)
-        .Text(text)
-        .Bold()
-        .FontColor(Colors.White);
-
-    private static void Tile(IContainer container, string label, string value, bool highlight)
-    {
-        var ink = highlight ? Colors.White : Ink;
-        container
-            .Border(0.4f)
-            .BorderColor(Rule)
-            .Background(highlight ? Brand : Colors.White)
-            .Padding(2, Unit.Millimetre)
-            .Column(tile =>
-            {
-                tile.Item().AlignCenter().Text(label.ToUpperInvariant()).FontSize(7.5f).Bold().FontColor(ink);
-                tile.Item().PaddingTop(1, Unit.Millimetre).AlignCenter().Text(value).FontSize(11).Bold().FontColor(ink);
-            });
-    }
-
-    /// <summary>
-    /// One titled section: the heading under its brand rule, then the body
-    /// items. Sections are separated by the accepted section gap; a heading
-    /// stays with the first body item.
-    /// </summary>
-    private static void Section(ColumnDescriptor column, string title, Action<ColumnDescriptor> body, float bottomGap = 0)
-    {
-        column.Item()
-            .PaddingTop(SectionGap, Unit.Millimetre)
-            .PaddingBottom(bottomGap, Unit.Millimetre)
-            .Column(section =>
-            {
-                section.Item()
-                    .PaddingBottom(HeadingGap, Unit.Millimetre)
-                    .BorderBottom(1.5f)
-                    .BorderColor(Brand)
-                    .PaddingBottom(1, Unit.Millimetre)
-                    .Text(title)
-                    .FontSize(10.6f)
-                    .Bold();
-                body(section);
-            });
-    }
-
     private static void Paragraph(ColumnDescriptor column, string text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -576,69 +445,6 @@ internal static class AssessmentReportLayout
 
     private static void Paragraph(ColumnDescriptor column, Action<TextDescriptor> text) =>
         column.Item().PaddingVertical(ParagraphGap / 2, Unit.Millimetre).Text(text);
-
-    /// <summary>A brand-filled column heading of the data register's tables.</summary>
-    private static void HeaderCell(
-        IContainer cell,
-        string text,
-        float fontSize = DataRegister,
-        bool alignRight = false,
-        float verticalPadding = 1.4f,
-        float horizontalPadding = 1.4f)
-    {
-        var box = cell
-            .Background(Brand)
-            .PaddingVertical(verticalPadding, Unit.Millimetre)
-            .PaddingHorizontal(horizontalPadding, Unit.Millimetre);
-        if (alignRight)
-        {
-            box = box.AlignRight();
-        }
-        box.Text(text).FontSize(fontSize).Bold().FontColor(Colors.White);
-    }
-
-    /// <summary>
-    /// The red-bordered label/value table: brand-filled label cells and
-    /// bordered value cells at 9.2pt, without zebra striping.
-    /// </summary>
-    private static void DataTable(IContainer container, float labelWidthMillimetres, IEnumerable<(string Label, string Value)> rows) => container
-        .PaddingTop(1, Unit.Millimetre)
-        .PaddingBottom(3, Unit.Millimetre)
-        .Border(1.2f)
-        .BorderColor(Brand)
-        .DefaultTextStyle(style => style.FontSize(9.2f))
-        .Table(table =>
-        {
-            table.ColumnsDefinition(columns =>
-            {
-                columns.ConstantColumn(labelWidthMillimetres, Unit.Millimetre);
-                columns.RelativeColumn();
-            });
-            foreach (var (label, value) in rows)
-            {
-                table.Cell()
-                    .Background(Brand)
-                    .Padding(1.4f, Unit.Millimetre)
-                    .AlignMiddle()
-                    .Text(label)
-                    .Bold()
-                    .FontColor(Colors.White);
-                table.Cell()
-                    .Border(0.6f)
-                    .BorderColor(Brand)
-                    .PaddingVertical(1.8f, Unit.Millimetre)
-                    .PaddingHorizontal(2, Unit.Millimetre)
-                    .AlignMiddle()
-                    .Text(value);
-            }
-        });
-
-    /// <summary>A bordered, zebra-striped body cell of the data register's plain table.</summary>
-    private static IContainer BodyCell(ITableCellContainer cell, bool even) => cell
-        .Border(0.4f)
-        .BorderColor(Rule)
-        .Background(even ? Zebra : Colors.White)
-        .Padding(1.4f, Unit.Millimetre);
 
     private static void ImpactTable(IContainer container, IReadOnlyList<ReportImpact> impacts) => container.Table(table =>
     {
@@ -665,27 +471,6 @@ internal static class AssessmentReportLayout
             BodyCell(table.Cell(), even).Text(impacts[i].Zone);
             BodyCell(table.Cell(), even).Text(impacts[i].Severity);
             BodyCell(table.Cell(), even).Text(impacts[i].Note);
-        }
-    });
-
-    private static void CostTable(IContainer container, ReportRepairCosts costs) => container.Table(table =>
-    {
-        table.ColumnsDefinition(columns =>
-        {
-            columns.RelativeColumn();
-            columns.ConstantColumn(35, Unit.Millimetre);
-        });
-        table.Header(header =>
-        {
-            HeaderCell(header.Cell(), "Item");
-            HeaderCell(header.Cell(), "Amount", alignRight: true);
-        });
-        var rows = CostRows(costs);
-        for (var i = 0; i < rows.Length; i++)
-        {
-            var even = i % 2 == 1;
-            BodyCell(table.Cell(), even).Text(rows[i].Label);
-            BodyCell(table.Cell(), even).AlignRight().Text(rows[i].Value);
         }
     });
 
@@ -900,27 +685,6 @@ internal static class AssessmentReportLayout
         ("Salvage Value Agreed", Flag(settlement.SalvageValueAgreed)), ("Salvage Settled", Date(settlement.SalvageSettled)),
     ];
 
-    /// <summary>
-    /// The Current estimate's canonical printed breakdown. Hours and the
-    /// hourly rate are descriptive; the five printed components, the printed
-    /// sub total, the printed VAT and the printed total are the estimate's
-    /// own figures and reconcile exactly.
-    /// </summary>
-    private static (string Label, string Value)[] CostRows(ReportRepairCosts costs) =>
-    [
-        ("Labour Hours", Hours(costs.LabourHours)),
-        ("Paint Hours", Hours(costs.PaintHours)),
-        ("Hourly Rate", Money(costs.HourlyRate)),
-        ("Parts", Money(costs.Printed.Parts)),
-        ("Panel Labour", Money(costs.Printed.PanelLabour)),
-        ("Paint Labour", Money(costs.Printed.PaintLabour)),
-        ("Paint Materials", Money(costs.Printed.Materials)),
-        ("Specialist / Other", Money(costs.Printed.Specialist)),
-        ("Sub Total", Money(costs.Printed.Net)),
-        (costs.VatLabel, Money(costs.Printed.Vat)),
-        ("Total Estimated Repair Cost", Money(costs.Total)),
-    ];
-
     private static (string Label, string Value, bool Highlight)[] Tiles(
         AssessmentReportSnapshot snapshot, AssessmentReportPresentation presentation) =>
         snapshot.Outcome == AssessmentReportOutcome.TotalLoss
@@ -978,14 +742,8 @@ internal static class AssessmentReportLayout
 
     private static string Display(string value) =>
         CultureInfo.GetCultureInfo("en-GB").TextInfo.ToTitleCase(value.Replace('_', ' ').ToLowerInvariant());
-    private static string Hours(decimal value) => value.ToString("0.00", CultureInfo.InvariantCulture);
     private static string Flag(bool? value) => value switch { true => "Yes", false => "No", null => "—" };
-    private static string Date(DateOnly value) => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
-    private static string Date(DateOnly? value) => value is { } date ? Date(date) : "—";
     private static string OptionalMoney(decimal? value) => value is { } amount ? Money(amount) : "—";
     private static string Join(string separator, params string?[] values) =>
         string.Join(separator, values.Where(x => !string.IsNullOrWhiteSpace(x)));
-    private static string Money(decimal value) => value.ToString("£#,##0.00", CultureInfo.GetCultureInfo("en-GB"));
-    private static string Number(decimal value) => value.ToString("#,##0.00", CultureInfo.GetCultureInfo("en-GB"));
-    internal static string Slug(string value) => new(value.ToUpperInvariant().Select(x => char.IsLetterOrDigit(x) ? x : '_').ToArray());
 }

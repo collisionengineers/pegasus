@@ -32,7 +32,7 @@ public sealed class ManualCaseCreationTests
     }
 
     [Fact]
-    public async Task RefusesAStandaloneAuditWithoutRetainedEvidence()
+    public async Task RefusesAStandaloneAuditOutsideTheRetainedClassificationRoute()
     {
         var useCase = new CreateManualCase(new RecordingStore(), new CommittedWorkPublisherDouble());
 
@@ -44,7 +44,7 @@ public sealed class ManualCaseCreationTests
             new(ClaimantName: "Jane Doe", ClaimNumber: "C-1", VehicleRegistration: "AB12CDE")),
             CancellationToken.None));
 
-        Assert.Contains("retained original-report evidence", exception.Message, StringComparison.Ordinal);
+        Assert.Equal("The case type is invalid.", exception.Message);
     }
 
     /// <summary>

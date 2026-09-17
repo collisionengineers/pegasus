@@ -343,13 +343,17 @@ public sealed class CaseReportGenerationTests
     public async Task TheFeeNotePackagingChoiceIsCarriedIntoTheFreeze()
     {
         var store = new FakeStore();
+        var targetGenerationId = Guid.NewGuid();
 
         await Use(store, new RecordingRenderer(), new RecordingCustody())
             .ExecuteAsync(Request() with { IncludeFeeNote = true }, default);
         await Use(store, new RecordingRenderer(), new RecordingCustody())
-            .ExecuteAsync(Request(CaseReportArtifactKind.FeeNote), default);
+            .ExecuteAsync(
+                Request(CaseReportArtifactKind.FeeNote) with { TargetGenerationId = targetGenerationId },
+                default);
 
         Assert.Equal([true, false], store.Freezes.Select(freeze => freeze.IncludeFeeNote));
+        Assert.Equal(targetGenerationId, store.Freezes[1].TargetGenerationId);
         Assert.False(Request().IncludeFeeNote);
     }
 

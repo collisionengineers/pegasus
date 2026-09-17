@@ -21,6 +21,10 @@
     <div class="fact-grid">
         <dl class="fact"><dt>Our ref</dt><dd>@Model.ProviderReference</dd></dl>
         <dl class="fact"><dt>Engineer</dt><dd>@Model.Engineer</dd></dl>
+        @if (Model.Editing.Length > 0)
+        {
+            <dl class="fact"><dt>@Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame.Editing</dt><dd>@Model.Editing</dd></dl>
+        }
         <dl class="fact"><dt>Due</dt><dd>@Model.Due</dd></dl>
         <dl class="fact"><dt>Next action</dt><dd>@Model.NextAction</dd></dl>
     </div>

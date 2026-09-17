@@ -210,9 +210,10 @@
         {
             @* Submitted workspace sections retain unshown accepted values;
                these hidden controls also use Confirmed then Fact, never the
-               suggestion fallback. `vehicleMileage`, `inspectionAddress` and
-               the assessment fields are not hidden here: each has one visible
-               control in its own section, associated with this form. *@
+               suggestion fallback. `vehicleMileage`, `vehicleMileageUnit`,
+               `inspectionAddress` and the assessment fields are not hidden
+               here: each has one visible control in its own section,
+               associated with this form. *@
             <form method="post" asp-page="/Cases/Details" asp-page-handler="Save"
                   asp-route-id="@workflow.CaseId" id="case-edit-form" data-edit-save data-case-save-form>
                 <input type="hidden" name="id" value="@workflow.CaseId" />
@@ -220,10 +221,9 @@
                 <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
                 <input type="hidden" name="section" value="@Model.Section" data-case-section-field />
-                <input type="hidden" name="vehicleMileageUnit" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data!.Vehicle.MileageUnit)?.Value)" />
-                <input type="hidden" name="instructionDate" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Instruction.InstructionDate)?.Value.ToString("yyyy-MM-dd"))" />
-                <input type="hidden" name="inspectionDeadline" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Inspection.Deadline)?.Value.ToString("yyyy-MM-dd"))" />
-                <input type="hidden" name="inspectionMode" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data.Inspection.Mode)?.Value)" />
+                <input type="hidden" name="instructionDate" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data!.Instruction.InstructionDate)?.Value.ToString("yyyy-MM-dd"))" />
+                <input type="hidden" name="inspectionDeadline" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data!.Inspection.Deadline)?.Value.ToString("yyyy-MM-dd"))" />
+                <input type="hidden" name="inspectionMode" value="@(Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data!.Inspection.Mode)?.Value)" />
             </form>
         }
 

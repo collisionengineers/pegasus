@@ -54,6 +54,17 @@ exhausted retry remains visibly failed, with its original output retained.
 
 Receipt/staging and accepted case custody are different states.
 
+An automatically associated follow-up containing photographs has a separate
+Case-filing step. Its original message, attached documents and selected
+photographs become Case document occurrences with intake provenance and the
+appropriate source, correspondence or image role. Holding-folder confirmation
+does not prove this step: Case promotion has stable Case/receipt/asset operation
+identities distinct from the holding hand-over. Partial writes retain their
+pending document identities and resume through existing custody reconciliation;
+confirmed replays neither duplicate files nor repeat the readiness transition.
+The current association, Case eligibility and edit authority are checked again
+when completing delayed custody. Failures remain visible for normal recovery.
+
 - Network, local, or Azure staging is temporary processing storage and is never accepted Case custody proof.
 - Box is the required accepted case-file custody system for the day-one alpha. Every allocated Case/PO uses its immutable reference for its Box case folder, then retains its source emails, instruction documents, images, correspondence, and reports there.
 - A Box failure after Case/PO allocation retains the Case as `Not ready` with explicit failure and staff-initiated retry/recovery evidence. It does not roll back, reuse, or reallocate the reference, and no background or automatic business retry is permitted.
@@ -67,11 +78,21 @@ Receipt/staging and accepted case custody are different states.
 Incoming custody claims use the occurrence's operation identity to select its
 own source record. Intake claims update the matching receipt/asset pair directly;
 they do not probe public-upload records or require broader Worker permissions.
+The receipt and asset GUIDs are typed identities, not filename, source-label
+or formatted-GUID string matches. Before a destination is established, the
+original source and selected photographs are retained in the designated Box
+holding folder, each with verified content and confirmed file/version IDs.
+Unknown or pending holding custody is incomplete work, not success: existing
+bounded processing retries reuse the same asset and operation identities.
+Exhausted failures remain visible for staff recovery. Re-evaluation repairs
+unconfirmed holding custody from integrity-verified retained staging bytes
+before reading the Box-backed source; missing or corrupt bytes fail closed.
 
 An Image-initiated Case also has its own Box folder from registration
 (INTK-014): the folder is named for the permanent Image Intake Reference,
 sits directly under the approved custody root, and retains every registered
-image of the submission group in stored order. The storage is queued work
+photograph and its source PDF in stored order. Each file is identified by its
+retained asset, so several photographs from one PDF cannot collide. The storage is queued work
 behind the registration — a Box failure never blocks or rolls back a
 registration or a merge, the images remain authoritative in intake
 source-artifact retention throughout, and the queued work re-arms itself
@@ -106,6 +127,14 @@ and exact version checks apply regardless of physical source. Do not erase
 staging before verified handoff or invent a new store for this separation
 (ADR-0045).
 
+A linked Audit Case created from an Inspection + Audit Case shares the
+original's documents by reference to the same stored bytes; nothing is copied.
+Its custody root is the `a.` subfolder Pegasus creates under the original
+Case's Box folder when the Audit Case is created, resolved afterwards through
+the persisted relationship, never from the reference prefix
+([ADR-0051](../adr/0051-linked-audit-case-identity-and-custody.md),
+[FRD-01](frd-01-case-identity-and-lifecycle.md)).
+
 An inline image preview is served through this same cached content path,
 never as an audited download: every read re-verifies the source content hash
 and serves only confirmed custody. A cache entry is content-hash addressed,
@@ -119,6 +148,13 @@ current, not logically removed image occurrence whatever its custody has
 reached, and offers the thumbnail, viewer link, tags and Crop only on the
 Confirmed ones. The Documents tab lists the same set, each row stating its
 custody, and offers Preview and Save as only where the bytes are held.
+
+Unidentified and Image Intake likewise show selected photographs independently
+of the source file's media type: photo count, thumbnails or custody
+placeholders, VRM outcome and the original PDF as a separate file. Known
+files whose custody is unconfirmed return an explanatory availability response
+on direct access, not a generic page-not-found. No download bypasses confirmed
+custody by serving staging bytes; missing identities still return not-found.
 
 ## Image tags
 

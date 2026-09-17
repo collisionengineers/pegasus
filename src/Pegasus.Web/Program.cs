@@ -116,6 +116,7 @@ var productionProfile = configuredRuntimeProfile.Equals("Production", StringComp
 QueueClient? intakeWorkQueue = null;
 TokenCredential? automationMcpCredential = null;
 var allowLocalQueueCreation = false;
+var applicationInsightsConfigured = false;
 if (configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal)
     && !builder.Environment.IsDevelopment())
 {
@@ -240,8 +241,10 @@ if (productionProfile)
     {
         builder.Services.AddApplicationInsightsTelemetry();
         builder.Services.AddSingleton<ITelemetryInitializer, PublicUploadTelemetryInitializer>();
+        builder.Services.AddSingleton<DocumentReadTelemetryBridge>();
         builder.Services.Configure<TelemetryConfiguration>(
             telemetry => telemetry.SetAzureTokenCredential(credential));
+        applicationInsightsConfigured = true;
     }
 }
 else
@@ -317,7 +320,11 @@ var sendToAiOptions = SendToAiOptions.TryCreate(
 // Filters collection of its own, so the global filter is added through the
 // underlying MvcOptions instead.
 builder.Services.AddRazorPages()
-    .AddMvcOptions(options => options.Filters.Add<Pegasus.Web.Presentation.RailCountsPageFilter>())
+    .AddMvcOptions(options =>
+    {
+        options.Filters.Add<Pegasus.Web.Presentation.RailCountsPageFilter>();
+        options.Filters.Add<Pegasus.Web.Presentation.WorkspaceRequestTimingFilter>();
+    })
     // The anonymous upload link is the only Razor page reachable without a
     // session, so it is the only one that carries a transport-level bound.
     // Applying it here rather than on MapRazorPages() keeps every
@@ -543,6 +550,7 @@ builder.Services.ConfigureApplicationCookie(options =>
     };
     options.Events.OnValidatePrincipal = async context =>
     {
+        using var validation = DocumentReadTelemetry.Start("web.auth.validation");
         var subjectId = context.Principal?.FindFirst(
             System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "unknown";
         await SecurityStampValidator.ValidatePrincipalAsync(context);
@@ -592,7 +600,15 @@ builder.Services.ConfigureApplicationCookie(options =>
                 subjectId,
                 SecurityEventOutcome.Denied,
                 "disabled_or_missing_staff");
+            return;
         }
+
+        // SecurityStampValidator refreshes a valid principal after checking it.
+        // That refresh is distinct from CookieAuthenticationHandler's own
+        // sliding-expiration refresh, which remains eligible independently.
+        // Reissuing on every zero-interval validation makes otherwise private,
+        // immutable document previews non-cacheable in the browser.
+        context.ShouldRenew = false;
     };
 });
 
@@ -702,7 +718,7 @@ builder.Services.AddPegasusInfrastructure((serviceProvider, options) =>
     var connectionString = serviceProvider.GetRequiredService<IConfiguration>()
         .GetConnectionString("Pegasus")
         ?? throw new InvalidOperationException("Connection string 'Pegasus' is required.");
-    options.UseSqlServer(connectionString);
+    PegasusSqlServer.Configure(options, connectionString);
 }, localArtifactRootFactory, requestUploadLimitsFactory: requestUploadLimitsFactory,
 documentStorage: !productionProfile
     ? null
@@ -827,6 +843,12 @@ if (sendToAiOptions is not null)
 }
 
 var app = builder.Build();
+if (applicationInsightsConfigured)
+{
+    // This singleton owns the listener for the application's lifetime. Resolving
+    // it here makes timing active only in the configured AI composition.
+    _ = app.Services.GetRequiredService<DocumentReadTelemetryBridge>();
+}
 var runtimeProfile = app.Configuration["Runtime:Profile"]
     ?? throw new InvalidOperationException("Runtime:Profile is required.");
 var developmentOffline = runtimeProfile.Equals(
@@ -954,13 +976,15 @@ if (!app.Environment.IsDevelopment())
     app.Use(async (context, next) =>
     {
         // frame-ancestors is 'self', not 'none': the evidence viewer previews a
-        // PDF in a same-origin iframe, and 'none' refuses that too -- the
-        // browser blocks the frame and the operator gets a blank stage. The
-        // clickjacking protection this header exists for is unchanged, because
-        // 'self' still refuses every other origin. Development does not set the
-        // header at all, so the tests could not have caught it (DOCS-011).
+        // PDF in a same-origin iframe. frame-src admits only that existing
+        // source and the in-page Blob URLs used by saved report and estimate
+        // previews. The clickjacking protection this header exists for is
+        // unchanged, because frame-ancestors still refuses every other origin.
+        // Development does not set the header at all, so this policy is tested
+        // through the Production profile (DOCS-011).
         context.Response.Headers.ContentSecurityPolicy =
-            "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'";
+            "default-src 'self'; object-src 'none'; base-uri 'self'; " +
+            "frame-src 'self' blob:; frame-ancestors 'self'";
         context.Response.Headers.XContentTypeOptions = "nosniff";
         await next(context);
     });
@@ -1092,6 +1116,21 @@ if (automationMcpOptions is not null)
     });
 }
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    // Identity's validation-driven cookie reissue used to incidentally attach
+    // no-store to most protected Razor responses. Preserve that requirement at
+    // the response owner without overwriting the document preview's explicit
+    // private cache policy or static-asset cache headers.
+    if (context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Mvc.RazorPages.PageActionDescriptor>() is not null
+        && context.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is null
+        && !context.Response.Headers.ContainsKey("Cache-Control"))
+    {
+        context.Response.Headers.CacheControl = "private, no-store";
+    }
+
+    await next(context);
+});
 app.Use(async (context, next) =>
 {
     if (context.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is null

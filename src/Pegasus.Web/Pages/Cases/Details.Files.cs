@@ -13,15 +13,37 @@ namespace Pegasus.Web.Pages.Cases;
 /// </summary>
 public sealed partial class DetailsModel
 {
-    /// <summary>Every current file that is not an image: the Documents tab.</summary>
-    public IReadOnlyList<CaseFile> CaseDocumentFiles =>
-        Case is null ? [] : [.. CaseFiles.Current(Case.Documents).Where(file => !IsCaseImage(file))];
+    /// <summary>
+    /// Every current file that is not an image and is not listed as
+    /// correspondence: the Documents tab. An uploaded email is retained as a
+    /// correspondence row over the same bytes, and is read from that tab.
+    /// </summary>
+    public IReadOnlyList<CaseFile> CaseDocumentFiles
+    {
+        get
+        {
+            if (Case is null && FilesSection is null)
+            {
+                return [];
+            }
+
+            var correspondence = (FilesSection?.QueryEmails ?? [])
+                .Select(email => email.SourceSha256)
+                .Where(hash => !string.IsNullOrWhiteSpace(hash))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var documents = FilesSection?.Documents ?? Case!.Documents;
+            return [.. CaseFiles.Current(documents).Where(file =>
+                !IsCaseImage(file) && !correspondence.Contains(file.Version.Sha256))];
+        }
+    }
 
     /// <summary>Every current image file, confirmed or still arriving: the Images tab and the strips.</summary>
     public IReadOnlyList<CaseFile> CaseImageFiles =>
-        Case is null ? [] : [.. CaseFiles.Current(Case.Documents).Where(IsCaseImage)];
+        Case is null && FilesSection is null
+            ? []
+            : [.. CaseFiles.Current(FilesSection?.Documents ?? Case!.Documents).Where(IsCaseImage)];
 
-    /// <summary>The images whose bytes can be read: the viewer's set and the evidence strips.</summary>
+    /// <summary>The images whose bytes can be read: the viewer's set and the Report strip.</summary>
     public IReadOnlyList<CaseFile> ViewableCaseImages =>
         [.. CaseImageFiles.Where(file => file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed)];
 
@@ -44,7 +66,7 @@ public sealed partial class DetailsModel
     /// lease and the image has a preparation record, not only in report
     /// preparation and not only for an Engineer.
     /// </summary>
-    public bool MayPrepareImages => CanEditCaseData && Case?.Data is not null;
+    public bool MayPrepareImages => CanEditCaseData;
 
     /// <summary>
     /// Which files the viewer displays over the page: images, PDFs and the two
@@ -61,11 +83,11 @@ public sealed partial class DetailsModel
 
     /// <summary>The inline preview the viewer reads (the original bytes, no history row).</summary>
     public string PreviewUrl(CaseFile file) =>
-        $"/Cases/{Case!.Workflow.CaseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}&inline=true";
+        $"/Cases/{CurrentCaseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}&inline=true";
 
     /// <summary>The audited download.</summary>
     public string DownloadUrl(CaseFile file) =>
-        $"/Cases/{Case!.Workflow.CaseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}";
+        $"/Cases/{CurrentCaseId:D}/Documents/{file.Occurrence.Id:D}/Download?versionId={file.Version.Id:D}";
 
     /// <summary>
     /// The tile's derived rendering. It carries the preparation version so a
@@ -75,8 +97,10 @@ public sealed partial class DetailsModel
     {
         var preparation = PreparationFor(file.Occurrence.Id);
         var address = PreviewUrl(file) + "&size=" + CaseDocumentThumbnails.ThumbSizeToken;
-        return preparation is null
-            ? address
-            : address + "&prep=" + preparation.PreparationVersion.ToString(CultureInfo.InvariantCulture);
+        return address
+            + "&prep=" + (preparation?.PreparationVersion ?? 0).ToString(CultureInfo.InvariantCulture)
+            + "&renderer=" + CaseDocumentThumbnails.RendererIdentity;
     }
+
+    private Guid CurrentCaseId => FilesSection?.Frame.Workflow.CaseId ?? Case!.Workflow.CaseId;
 }

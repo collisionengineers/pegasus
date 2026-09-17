@@ -46,7 +46,7 @@ public sealed partial class AutomaticEvaReviewSubmissionFunction(
 {
     [Function(nameof(AutomaticEvaReviewSubmissionFunction))]
     public async Task RunAsync(
-        [TimerTrigger("%PendingWorkRecoverySchedule%", RunOnStartup = false)] TimerInfo timer,
+        [TimerTrigger("%AutomaticEvaReviewSubmissionSchedule%", RunOnStartup = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
         var processed = await processAutomaticEvaReviewSubmissions.ExecuteAsync(50, cancellationToken);
@@ -58,12 +58,13 @@ public sealed partial class AutomaticEvaReviewSubmissionFunction(
     private static partial void LogProcessed(ILogger logger, int count);
 }
 
-public sealed class UnifiedWorkFunction(
+public sealed partial class UnifiedWorkFunction(
     IProcessQueuedIntake processQueuedIntake,
     IProcessQueuedExternalWork processQueuedExternalWork,
     PollApprovedInbox pollApprovedInbox,
     IApprovedMailboxSubscriptionStore mailboxSubscriptions,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILogger<UnifiedWorkFunction> logger)
 {
     private static readonly ActionActor MailboxWakeActor =
         ActionActor.SystemWorker("approved-inbox-notification");
@@ -130,12 +131,28 @@ public sealed class UnifiedWorkFunction(
                 await processQueuedIntake.ExecuteAsync(identifier, cancellationToken);
                 return;
             case UnifiedWorkQueueKind.External:
-                await processQueuedExternalWork.ExecuteAsync(identifier, cancellationToken);
+                try
+                {
+                    await processQueuedExternalWork.ExecuteAsync(identifier, cancellationToken);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    // The queue's own retry and poison handling is unchanged; the failure
+                    // is named here because a store-level throw otherwise leaves only a
+                    // poisoned work item and no line saying why.
+                    LogExternalWorkFailed(logger, exception, identifier);
+                    throw;
+                }
                 return;
             default:
                 throw new InvalidDataException("The unified work message has an unsupported kind.");
         }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "External work item {WorkItemId} failed; the queue retry policy decides the next attempt.")]
+    private static partial void LogExternalWorkFailed(ILogger logger, Exception exception, Guid workItemId);
 
     private static ApprovedMailboxSubscriptionLifecycleState LifecycleState(
         MailboxWakeKind wakeKind) => wakeKind switch

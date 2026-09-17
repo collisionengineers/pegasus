@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -23,7 +24,9 @@ public sealed record CustodyWork(
 public sealed record CaseCustodyRoot(
     Guid CaseId,
     string RemoteId,
-    string Reference);
+    string Reference,
+    Guid? ParentCaseId = null,
+    string? ParentReference = null);
 
 public sealed record IntakeSourceCustodyReference(
     Guid IntakeReceiptId,
@@ -31,7 +34,8 @@ public sealed record IntakeSourceCustodyReference(
     string MediaType,
     string SourceHash,
     string SourceObjectKey,
-    long SourceLength = -1);
+    long SourceLength = -1,
+    Guid? IntakeAssetId = null);
 
 public sealed record CustodyDocumentVersion(
     Guid CaseId,
@@ -98,7 +102,7 @@ public interface ICaseCustody
     }
 
     /// <summary>
-    /// The root of a linked Audit Case (13 September): the <c>a.</c>/<c>ap.</c> subfolder
+    /// The root of a linked Audit Case (13 September): the <c>a.</c> subfolder
     /// under the original Case's folder, created by Pegasus when the Audit Case is
     /// created. The original's root is resolved by its reference the way every case
     /// root is; the Audit Case's own root is that subfolder from then on. Default:
@@ -118,12 +122,17 @@ public interface ICaseCustody
 
     /// <summary>
     /// Resolves the immutable custody root already allocated for the case. This read does not
-    /// create or relabel a root and must validate the retained case identity.
+    /// create or relabel a root and must validate the retained case identity. An Audit Case
+    /// root is resolved through its persisted original Case identity.
+    /// A linked Audit folder is never inferred from its reference prefix because
+    /// its parent is an immutable relationship, not part of the folder name.
     /// </summary>
     Task<CaseCustodyRoot> GetExistingCaseRootAsync(
         Guid caseId,
         string caseReference,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Guid? parentCaseId = null,
+        string? parentCaseReference = null);
 
     Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
         CaseCustodyRoot root,
@@ -732,7 +741,11 @@ public enum CaseArtifactCustodyDisposition { Confirmed, Pending, Failed, Unknown
 public sealed record CaseArtifactCustodyRequest(
     ActionActor Actor, Guid? CaseId, Guid? IntakeReceiptId, string OccurrenceIdentity,
     string OperationKey, string FileName, string MediaType, long ContentLength,
-    string Sha256, Stream Content);
+    string Sha256, Stream Content,
+    DocumentSemanticRole SemanticRole = DocumentSemanticRole.OriginalSource,
+    DocumentSource Source = DocumentSource.Generated,
+    long? ExpectedCaseVersion = null,
+    bool IsAutomaticIntakeEvidencePromotion = false);
 public sealed record CaseArtifactCustodyResult(
     CaseArtifactCustodyDisposition Disposition, Guid? DocumentId, Guid? VersionId, Guid? OccurrenceId,
     string? BoxFileId, string? BoxVersionId, string? Sha256, long? ContentLength,

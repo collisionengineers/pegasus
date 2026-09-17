@@ -126,6 +126,7 @@
 
 <article class="record case-record @(editing ? "is-editing" : null)" id="case-record" data-case-record
          data-case-id="@summary.CaseId" data-case-version="@workflow.Version"
+         data-editor-commit="@Model.CommittedEditorCommand"
          data-layout="@Pegasus.Web.Presentation.ShellPreferences.CaseLayout(HttpContext.Request)" data-section-current="@Model.Section"
          data-case-editing="@(editing ? "true" : "false")">
     @* The sticky block (v26 frame rule 1): the 56px ribbon and the 40px
@@ -187,7 +188,7 @@
                 }
                 @if (editing)
                 {
-                    <span class="lease-line" data-lease-line hidden></span>
+                    <span class="lease-line" data-lease-line data-lease-expired-text="@Frame.EditingExpired" hidden></span>
                     <form method="post" asp-page-handler="ReleaseLease" id="case-finish-editing-form" data-case-cancel-form hidden>
                         <input type="hidden" name="id" value="@summary.CaseId" />
                         <input type="hidden" name="operationKey" value="@Model.ReleaseLeaseOperationKey" />
@@ -511,9 +512,10 @@
 <partial name="Shared/_EditFinishConfirm" />
 <div data-case-dialogs><partial name="Cases/Shared/_CaseDialogs" model="Model" /></div>
 
-@* B08: the Case record's own progressive enhancements. site.js is the shell's
-   and stays untouched; everything here is a convenience on top of markup that
-   already works, and works with the keyboard, without it. *@
+@section Styles {
+    <link rel="stylesheet" href="~/css/case-workspace.css" asp-append-version="true" />
+}
+
 @section Scripts {
     <script src="~/js/case-workspace.js" asp-append-version="true"></script>
 }

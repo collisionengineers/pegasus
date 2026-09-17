@@ -867,11 +867,12 @@
             method: 'POST',
             body: new FormData(form)
         }).then(function (response) {
-            // 204 is the only answer that means the lease is still ours. A
-            // refusal is final - the lease was released, expired, or is now
-            // someone else's - and the page the operator lands on next already
-            // shows the case's real edit state, so nothing is said here.
-            if (response.status !== 204) {
+            // A 409 or 403 is the server refusing the lease itself: it was
+            // released, expired, or is now someone else's - and the page the
+            // operator lands on next already shows the record's real edit
+            // state, so nothing is said here. Any other answer says nothing
+            // about the lease, and the next beat settles it.
+            if (response.status === 409 || response.status === 403) {
                 stop();
             }
         }).catch(function () {
@@ -1309,7 +1310,12 @@
                 return;
             }
             control.dataset.dialogOpenBound = 'true';
-            control.addEventListener('click', function () { open(control); });
+            control.addEventListener('click', function (event) {
+                if (control.matches('a[href]')) {
+                    event.preventDefault();
+                }
+                open(control);
+            });
         });
     }
     bindBackdropDialogs(document);
@@ -1961,7 +1967,9 @@
         items.forEach(function (item, position) {
             item.setAttribute('aria-selected', position === index ? 'true' : 'false');
         });
-        items[index].scrollIntoView({ block: 'nearest' });
+        if (!dialog.hidden) {
+            items[index].scrollIntoView({ block: 'nearest' });
+        }
     }
 
     function filter() {
@@ -2558,7 +2566,7 @@ window.pegasusPreferences = (function () {
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindCollapsible);
 
     var block = document.querySelector('[data-sticky-block]');
-    if (block) {
+    if (block && !block.closest('[data-case-record]')) {
         var host = block.parentElement;
         var measure = function () {
             host.style.setProperty('--sticky-h', block.offsetHeight + 'px');
@@ -2567,447 +2575,6 @@ window.pegasusPreferences = (function () {
         window.addEventListener('resize', measure);
         if ('ResizeObserver' in window) {
             new ResizeObserver(measure).observe(block);
-        }
-        window.pegasusStickyHeight = function () { return block.getBoundingClientRect().bottom; };
-    }
-})();
-
-// --- Case record: Scroll/Tabs, lazy bodies and sticky geometry ---------------
-// CASE-038 (D29): /Cases/{id} remains one scrolling record without script.
-// With script the operator may retain that view or use Tabs; both modes use
-// these same section hosts and the one Case edit form.
-(function () {
-    'use strict';
-    var sticky = document.querySelector('[data-case-sticky]');
-    var main = document.getElementById('case-main');
-    var nav = document.querySelector('[data-section-nav]');
-    if (!sticky || !main || !nav) {
-        return;
-    }
-
-    var links = Array.prototype.slice.call(nav.querySelectorAll('[data-section-link]'));
-    var layoutSwitch = document.querySelector('[data-case-layout-switch]');
-    var layoutButtons = layoutSwitch
-        ? Array.prototype.slice.call(layoutSwitch.querySelectorAll('[data-case-layout]'))
-        : [];
-    var layoutPreferenceKey = 'pegasus.caseLayout';
-    var layout = readLayoutPreference();
-    var activeKey = currentLinkKey();
-    // The fragment is its own path, `/Cases/{id}/Section`, so a section body
-    // is never mistaken for the record's own response.
-    var fragmentPath = window.location.pathname.replace(/\/+$/, '') + '/Section';
-
-    // The measured height is written on the record itself, not the document
-    // element: every consumer (`.case-section`, `.case-context`) is inside it,
-    // and one element carrying one custom property is the whole inline-style
-    // footprint the record adds.
-    var record = sticky.parentElement;
-
-    var pendingAnchor = null;
-
-    function measure() {
-        record.style.setProperty('--case-sticky-h', sticky.offsetHeight + 'px');
-    }
-
-    // The sticky block's own bottom edge is the reading line, so the offset is
-    // never written down twice.
-    function readingLine() {
-        return sticky.getBoundingClientRect().bottom;
-    }
-
-    function readLayoutPreference() {
-        try {
-            return window.localStorage.getItem(layoutPreferenceKey) === 'tabs' ? 'tabs' : 'scroll';
-        } catch (_) {
-            return 'scroll';
-        }
-    }
-
-    function saveLayoutPreference() {
-        try {
-            window.localStorage.setItem(layoutPreferenceKey, layout);
-        } catch (_) {
-            // The selected view still applies for this page when storage is unavailable.
-        }
-    }
-
-    function currentLinkKey() {
-        var current = links.find(function (link) { return link.getAttribute('aria-current') === 'true'; });
-        return current ? current.getAttribute('data-section-link') :
-            (links.length ? links[0].getAttribute('data-section-link') : 'overview');
-    }
-
-    function linkFor(key) {
-        return links.find(function (link) { return link.getAttribute('data-section-link') === key; });
-    }
-
-    function sectionFor(key) {
-        return document.getElementById('section-' + key);
-    }
-
-    function cancelPendingAnchor() {
-        pendingAnchor = null;
-    }
-
-    function lazySectionsBefore(target) {
-        return Array.prototype.filter.call(main.querySelectorAll('[data-lazy]'), function (placeholder) {
-            return (placeholder.compareDocumentPosition(target) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-        });
-    }
-
-    function settlePendingAnchor() {
-        if (!pendingAnchor || layout !== 'scroll') {
-            return;
-        }
-        var target = sectionFor(pendingAnchor.key);
-        if (!target || target.dataset.lazyState === 'failed') {
-            cancelPendingAnchor();
-            return;
-        }
-        var stillPending = pendingAnchor.predecessors.some(function (placeholder) {
-            return placeholder.isConnected && placeholder.dataset.lazyState !== 'failed';
-        });
-        if (stillPending) {
-            return;
-        }
-        scrollSectionIntoView(target);
-        cancelPendingAnchor();
-    }
-
-    function beginPendingAnchor(key, target) {
-        cancelPendingAnchor();
-        var predecessors = lazySectionsBefore(target).filter(function (placeholder) {
-            return placeholder.dataset.lazyState !== 'failed';
-        });
-        if (!predecessors.length) {
-            return;
-        }
-        pendingAnchor = { key: key, predecessors: predecessors };
-    }
-
-    function focusSection(host) {
-        var heading = host.querySelector('h2');
-        if (!heading) {
-            return;
-        }
-        heading.setAttribute('tabindex', '-1');
-        // The jump has already placed the heading on the record's reading
-        // line. Letting focus scroll it again would use the generic anchor
-        // margin and hide it beneath the live sticky controls.
-        try {
-            heading.focus({ preventScroll: true });
-        } catch (_) {
-            heading.focus();
-        }
-    }
-
-    function applyScrollState() {
-        nav.removeAttribute('role');
-        links.forEach(function (link) {
-            link.removeAttribute('role');
-            link.removeAttribute('aria-selected');
-            link.removeAttribute('aria-controls');
-            link.removeAttribute('tabindex');
-        });
-        main.querySelectorAll('.case-section').forEach(function (host) {
-            host.hidden = false;
-            host.removeAttribute('role');
-            host.removeAttribute('aria-labelledby');
-        });
-    }
-
-    function applyTabState() {
-        nav.setAttribute('role', 'tablist');
-        links.forEach(function (link, index) {
-            var key = link.getAttribute('data-section-link');
-            var selected = key === activeKey;
-            link.id = 'case-section-tab-' + key;
-            link.setAttribute('role', 'tab');
-            link.setAttribute('aria-controls', 'section-' + key);
-            link.setAttribute('aria-selected', selected ? 'true' : 'false');
-            link.setAttribute('tabindex', selected ? '0' : '-1');
-            link.removeAttribute('aria-current');
-        });
-        main.querySelectorAll('.case-section').forEach(function (host) {
-            var key = host.getAttribute('data-section');
-            var link = linkFor(key);
-            host.setAttribute('role', 'tabpanel');
-            if (link) {
-                host.setAttribute('aria-labelledby', link.id);
-            }
-            host.hidden = key !== activeKey;
-        });
-    }
-
-    function selectTab(key) {
-        cancelPendingAnchor();
-        if (!linkFor(key)) {
-            return;
-        }
-        activeKey = key;
-        applyTabState();
-        var target = sectionFor(key);
-        if (target && target.hasAttribute('data-lazy')) {
-            mount(target, function () { applyTabState(); });
-        }
-    }
-
-    function setLayout(value, persist) {
-        cancelPendingAnchor();
-        layout = value === 'tabs' ? 'tabs' : 'scroll';
-        record.setAttribute('data-case-layout', layout);
-        if (layoutSwitch) {
-            layoutSwitch.hidden = false;
-        }
-        layoutButtons.forEach(function (button) {
-            button.setAttribute('aria-pressed', button.getAttribute('data-case-layout') === layout ? 'true' : 'false');
-        });
-        if (layout === 'tabs') {
-            applyTabState();
-            selectTab(activeKey);
-        } else {
-            applyScrollState();
-            mountApproaching();
-            spy();
-        }
-        measure();
-        if (persist) {
-            saveLayoutPreference();
-        }
-    }
-
-    function bindMounted(root) {
-        (window.pegasusMountBinders || []).forEach(function (bind) { bind(root); });
-    }
-
-    function mount(placeholder, then) {
-        var key = placeholder.getAttribute('data-lazy');
-        if (!key) {
-            return;
-        }
-        // Every caller waiting on this section is answered by the one fetch,
-        // so a jump made while its body is already in flight still scrolls to
-        // it instead of being dropped.
-        var waiting = placeholder.pegasusLazyWaiting || (placeholder.pegasusLazyWaiting = []);
-        if (then) {
-            waiting.push(then);
-        }
-        var attempted = Number(placeholder.dataset.lazyAttemptedAt || 0);
-        if (placeholder.dataset.lazyState === 'loading') {
-            return;
-        }
-        // A failed fetch leaves the placeholder in place saying so, and is
-        // tried again rather than being dropped: no response is discarded
-        // silently and no failure retries in a tight loop.
-        if (placeholder.dataset.lazyState === 'failed' && Date.now() - attempted < 5000) {
-            return;
-        }
-        placeholder.dataset.lazyState = 'loading';
-        placeholder.dataset.lazyAttemptedAt = String(Date.now());
-        var fragmentHeaders = { 'Accept': 'text/html' };
-        var editLease = document.querySelector('input[name="editLeaseToken"]');
-        if (editLease && editLease.value) {
-            // Render existing edit controls without replacing cookie-backed
-            // lease state when an asynchronous fragment response completes.
-            fragmentHeaders['X-Pegasus-Edit-Lease'] = editLease.value;
-        }
-        fetch(fragmentPath + '?section=' + encodeURIComponent(key), {
-            credentials: 'same-origin',
-            headers: fragmentHeaders
-        }).then(function (response) {
-            if (!response.ok) {
-                throw new Error('section ' + key + ': ' + response.status);
-            }
-            return response.text();
-        }).then(function (html) {
-            if (!placeholder.isConnected) {
-                return;
-            }
-            var host = document.createElement('section');
-            host.className = 'case-section';
-            host.id = 'section-' + key;
-            host.setAttribute('data-section', key);
-            host.innerHTML = html;
-            placeholder.replaceWith(host);
-            bindMounted(host);
-            measure();
-            if (layout === 'tabs') {
-                applyTabState();
-            } else {
-                spy();
-            }
-            var answered = waiting.splice(0, waiting.length);
-            answered.forEach(function (callback) { callback(host); });
-            settlePendingAnchor();
-        }).catch(function (error) {
-            placeholder.dataset.lazyState = 'failed';
-            // The failure is not swallowed: the reader sees the section did
-            // not arrive, and the record of why goes to the console.
-            placeholder.textContent = 'This section could not be loaded.';
-            waiting.length = 0;
-            settlePendingAnchor();
-            if (window.console && window.console.error) {
-                window.console.error('Case section failed to load: ' + key, error);
-            }
-        });
-    }
-
-    function jumpTo(key, focus) {
-        cancelPendingAnchor();
-        var target = sectionFor(key);
-        if (!target) {
-            return;
-        }
-        beginPendingAnchor(key, target);
-        if (target.hasAttribute('data-lazy')) {
-            mount(target, function (host) {
-                scrollSectionIntoView(host);
-                mountApproaching();
-                if (focus) {
-                    focusSection(host);
-                }
-            });
-            return;
-        }
-        scrollSectionIntoView(target);
-        mountApproaching();
-        if (focus) {
-            focusSection(target);
-        }
-    }
-
-    function scrollSectionIntoView(host) {
-        // The generic CSS anchor margin cannot know the live ribbon, action
-        // bar and workspace controls. Measure their actual lower edge at the
-        // moment of the jump, then leave a small reading gap beneath it.
-        measure();
-        var top = window.scrollY + host.getBoundingClientRect().top - readingLine() - 8;
-        window.scrollTo({ top: Math.max(0, top), behavior: 'auto' });
-    }
-
-    function spy() {
-        if (layout !== 'scroll') {
-            return;
-        }
-        var hosts = main.querySelectorAll('.case-section');
-        if (!hosts.length) {
-            return;
-        }
-        var line = readingLine() + 8;
-        var current = hosts[0].getAttribute('data-section');
-        for (var index = 0; index < hosts.length; index += 1) {
-            if (hosts[index].getBoundingClientRect().top <= line) {
-                current = hosts[index].getAttribute('data-section');
-            }
-        }
-        if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40) {
-            current = hosts[hosts.length - 1].getAttribute('data-section');
-        }
-        activeKey = current;
-        links.forEach(function (link) {
-            link.setAttribute(
-                'aria-current',
-                link.getAttribute('data-section-link') === current ? 'true' : 'false');
-        });
-    }
-
-    function mountApproaching() {
-        if (layout !== 'scroll') {
-            return;
-        }
-        var limit = window.innerHeight * 2.5;
-        main.querySelectorAll('[data-lazy]').forEach(function (placeholder) {
-            if (placeholder.getBoundingClientRect().top < limit) {
-                mount(placeholder);
-            }
-        });
-    }
-
-    links.forEach(function (link) {
-        link.addEventListener('click', function (event) {
-            event.preventDefault();
-            var key = link.getAttribute('data-section-link');
-            if (layout === 'tabs') {
-                selectTab(key);
-            } else {
-                jumpTo(key, true);
-            }
-        });
-        link.addEventListener('keydown', function (event) {
-            if (layout !== 'tabs') {
-                return;
-            }
-            var index = links.indexOf(link);
-            var nextIndex;
-            if (event.key === 'ArrowRight') {
-                nextIndex = index + 1;
-            } else if (event.key === 'ArrowLeft') {
-                nextIndex = index - 1;
-            } else if (event.key === 'Home') {
-                nextIndex = 0;
-            } else if (event.key === 'End') {
-                nextIndex = links.length - 1;
-            } else {
-                return;
-            }
-            event.preventDefault();
-            if (nextIndex < 0) {
-                nextIndex = links.length - 1;
-            }
-            if (nextIndex >= links.length) {
-                nextIndex = 0;
-            }
-            var next = links[nextIndex];
-            next.focus();
-            selectTab(next.getAttribute('data-section-link'));
-        });
-    });
-
-    layoutButtons.forEach(function (button) {
-        button.addEventListener('click', function () {
-            setLayout(button.getAttribute('data-case-layout'), true);
-        });
-    });
-
-    var ticking = false;
-    function onScroll() {
-        if (ticking) {
-            return;
-        }
-        ticking = true;
-        window.setTimeout(function () {
-            ticking = false;
-            if (layout !== 'scroll') {
-                return;
-            }
-            mountApproaching();
-            spy();
-        }, 80);
-    }
-    window.addEventListener('scroll', onScroll, { passive: true });
-    ['wheel', 'touchstart', 'pointerdown', 'keydown'].forEach(function (eventName) {
-        window.addEventListener(eventName, cancelPendingAnchor, { passive: true });
-    });
-    window.addEventListener('resize', function () {
-        cancelPendingAnchor();
-        measure();
-        if (layout === 'scroll') {
-            spy();
-        }
-    });
-
-    setLayout(layout, false);
-
-    var addressed = new URLSearchParams(window.location.search).get('section');
-    if (addressed && layout === 'scroll') {
-        var key = addressed.trim().toLowerCase();
-        // The default Overview route can carry its ordinary fragment in the
-        // no-script link. Keep an initial Overview response at the record top
-        // instead of treating it as a section jump.
-        if (key === 'overview') {
-            window.scrollTo({ top: 0, behavior: 'auto' });
-        } else {
-            jumpTo(key, false);
         }
     }
 })();

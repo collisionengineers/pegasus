@@ -263,9 +263,10 @@ public sealed class AdministrationSearchAccountWebTests
     }
 
     [Fact]
-    public async Task ActionLogsLinkAnAiJobRowToTheRecordTheJobNames()
+    public async Task ActionLogsBatchLinkAiJobRowsAndLeaveMissingJobsUnlabelled()
     {
         var subjectId = Guid.NewGuid();
+        var missingJobId = Guid.NewGuid();
         using var factory = new IntakeWebApplicationFactory();
         // The job's history row is stamped by the app's own clock (a fixed
         // test time, not the wall clock), so the query window has to be
@@ -293,6 +294,26 @@ public sealed class AdministrationSearchAccountWebTests
             jobId = created.JobId;
         }
 
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            context.ActionHistory.Add(new ActionHistoryEntity
+            {
+                Id = Guid.NewGuid(),
+                AggregateType = "ai_job",
+                AggregateId = missingJobId.ToString("D"),
+                EventKind = "ai_job_missing_subject",
+                ActorKind = nameof(ActorKind.Automation),
+                ActorSubjectId = "pegasus-automation",
+                ActorRolesJson = "[]",
+                OccurredAtUtc = now,
+                Outcome = "Succeeded",
+                CorrelationId = "ai-job-missing-subject"
+            });
+            await context.SaveChangesAsync();
+        }
+
         using var client = IntakeWebDriver.CreateClient(factory);
         var from = Uri.EscapeDataString(now.AddDays(-1).ToString("O"));
         var to = Uri.EscapeDataString(now.AddDays(1).ToString("O"));
@@ -307,6 +328,9 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Contains($"/Unidentified/{subjectId:D}", html, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(">U777</a>", html, StringComparison.Ordinal);
         Assert.DoesNotContain(jobId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
+        var missingJobRow = ActionLogRow(html, "ai_job_missing_subject");
+        Assert.Contains("&#x2014;", missingJobRow, StringComparison.Ordinal);
+        Assert.DoesNotContain(missingJobId.ToString("D"), missingJobRow, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

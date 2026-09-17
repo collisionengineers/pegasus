@@ -193,6 +193,32 @@ public sealed partial class GlassCredentialAdministrationWebTests
         Assert.Empty(store.Replaced);
     }
 
+    [Fact]
+    public async Task EditHeartbeatReturnsOkAndInvalidScopeReturnsConflict()
+    {
+        var store = new RecordingCredentialAdministration();
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory, store);
+        var html = await GetHtmlAsync(client, PageFor(StaffId));
+        var editing = await BeginEditingAsync(client, html);
+
+        using var renewed = await client.PostAsync(
+            $"{PageFor(StaffId)}?handler=HeartbeatEdit",
+            Form(
+                editing,
+                ("staffId", StaffId.ToString("D")),
+                ("editLeaseToken", InputValue(editing, "editLeaseToken"))));
+        Assert.Equal(HttpStatusCode.OK, renewed.StatusCode);
+
+        using var refused = await client.PostAsync(
+            $"{PageFor(StaffId)}?handler=HeartbeatEdit",
+            Form(
+                editing,
+                ("staffId", StaffId.ToString("D")),
+                ("editLeaseToken", string.Empty)));
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+    }
+
     /// <summary>
     /// A save the page itself refuses says so, keeps the account name the
     /// operator typed, writes nothing — and leaves the secret field empty.
@@ -550,6 +576,19 @@ public sealed partial class GlassCredentialAdministrationWebTests
                 PegasusUserId = pegasusUserId,
                 Provider = provider
             });
+        }
+
+        public Task<IReadOnlyDictionary<Guid, PerUserExternalCredentialStatus>> GetManyAsync(
+            ActionActor actor,
+            IReadOnlyCollection<Guid> pegasusUserIds,
+            ExternalCredentialProvider provider,
+            CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(actor);
+            var statuses = pegasusUserIds.Distinct().ToDictionary(
+                userId => userId,
+                userId => Status with { PegasusUserId = userId, Provider = provider });
+            return Task.FromResult<IReadOnlyDictionary<Guid, PerUserExternalCredentialStatus>>(statuses);
         }
 
         public Task<PerUserExternalCredentialStatus> ReplaceAsync(

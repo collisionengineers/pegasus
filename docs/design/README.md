@@ -773,12 +773,19 @@ in the approved design:
 | Cazana | Valuation source | ENG-008 / ENG-009 |
 
 **Narrowed 2026-09-01 (D21).** An excluded capability is absent, never drawn as
-a disabled control. The direct Glass's valuation-service and Audatex
-service-launch controls are removed on that rule (ENG-030). This does not
+a disabled control. The direct Audatex service-launch control is removed on
+that rule (ENG-030). By the operator's 15 September 2026 instruction the
+Valuation section has one route to a guide card: while editing, Glass's,
+Brego and Super CAP are each one card with editable month, mileage, retail
+and trade boxes, a Get valuation button that looks the figures up and fills
+the boxes (answering with a notice while that source has no connected
+provider), and Save, which records the card; the boxes are typed by hand
+just as well. There is no separate Add valuation dialog. This does not
 remove the Estimate section's selected configured-Engineer Glass's
-repair-estimate launch (D03). Glass's and Audatex file import stays in scope
-through the whole-page drop, and manual valuation records include Glass's,
-Brego, Super CAP and Engineer's Value; Cazana remains the disabled seam.
+repair-estimate launch (D03); a connected Glass's valuation provider
+supersedes D03's "records no Glass's valuation". Glass's and Audatex file
+import stays in scope through the whole-page drop; Cazana remains the
+disabled seam.
 
 Every other uncomposed capability stays absent: no inert card, no
 "Unavailable" placeholder, no unlinked route. A disabled seam carries its
@@ -1004,14 +1011,14 @@ this section holds the cross-cutting rules every page is held to.
 | Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; no opaque aggregate blocker. |
 | Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it (D31); sticky on the single-scroll Case record (D29). There is no separate Assessment ribbon (D30). |
 | Inspection address | Provider-determined default; reasoned per-Case override; previous values selectable. |
-| Estimates | Each estimate has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT blocks Use as Current until an explicit status or categories are recorded; totals compute once in Core. |
+| Estimates | Each estimate has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT blocks Use as Current until an explicit status or categories are recorded; totals compute once in Core. A saved version's actions row carries **Estimate PDF** in read and edit modes. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; Rotate view is a viewer-local transform. |
 | Mail preview | Keyboard and pointer intent exposes an accessible preview that changes no message or Case state; when intent moves away the pane restores the selected message and stays visible with its navigation links. |
 | Mail refresh | No automatic refresh while an operator is reading or acting. Manual refresh retains scope, page and open message where available. |
 | Lease/conflict | Holder/expiry/recovery, read-only alternative, current conflict and preserved proposed values. |
 | History | Business mutation/accepted evidence/export/material business failure only; no routine views, polling, retry, lease heartbeat or telemetry. |
-| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage, Mail, Image Intake and Operations; Administration actions post on the click with no confirmation dialog. |
+| Reason dialog | Named requirement/consequence, labelled reason, confirmation/cancel, initial focus, focus containment, Escape where safe and focus return to the invoking control. Used by Case, Triage, Mail, Image Intake and Operations; Administration actions post on the click with no confirmation dialog, except Delete account, which confirms in a native dialog because the row is removed. |
 
 ### Presentation responsibilities
 

@@ -409,9 +409,9 @@ public sealed class MessageModel(
         AttachmentRows = Detail.Attachments
             .Select(attachment =>
             {
-                var asset = assets.FirstOrDefault(item =>
-                    item.Kind == IntakeAssetKind.Attachment
-                    && string.Equals(item.FileName, attachment.FileName, StringComparison.OrdinalIgnoreCase));
+                var asset = attachment.IntakeAssetId is { } assetId
+                    ? assets.SingleOrDefault(item => item.Id == assetId)
+                    : null;
                 var outcome = asset is null ? null : outcomes.FirstOrDefault(item => item.AssetId == asset.Id);
                 return new AttachmentRow(
                     attachment,
@@ -1811,7 +1811,7 @@ public sealed class MessageModel(
             || (MailboxFilter is { } mailbox
                 && !string.Equals(mailbox, detail.Summary.MailboxId.ToString("D"), StringComparison.OrdinalIgnoreCase))
             || (SearchTerm is not null && detail.Summary.Matches.Count == 0)
-            || !MatchesQueue(detail.Classification);
+            || !MatchesQueue(detail.Classification, detail.Summary);
 
     private bool TryParseListContext(out MailFolderScope listFolder)
     {
@@ -1847,7 +1847,9 @@ public sealed class MessageModel(
         return true;
     }
 
-    private bool MatchesQueue(MailClassificationDossier? dossier)
+    private bool MatchesQueue(
+        MailClassificationDossier? dossier,
+        RetainedMailSummary summary)
     {
         if (DestinationFilter is null && DetailedClassificationFilter is null)
         {
@@ -1859,7 +1861,10 @@ public sealed class MessageModel(
         }
         if (DestinationFilter is { } destination)
         {
-            return MailOperationalDestinationPolicy.Map(dossier.Current).Destination == destination;
+            var matches = MailOperationalDestinationPolicy.Map(dossier.Current).Destination == destination;
+            return destination == MailOperationalDestination.Unidentified
+                ? matches && !summary.UnidentifiedResolved
+                : matches;
         }
         var actual = dossier.Current.Category;
         var expected = DetailedClassificationFilter;

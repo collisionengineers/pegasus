@@ -31,6 +31,13 @@ public interface IPerUserExternalCredentialAdministration
     Task<PerUserExternalCredentialStatus> GetAsync(
         ActionActor actor, Guid pegasusUserId, ExternalCredentialProvider provider,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyDictionary<Guid, PerUserExternalCredentialStatus>> GetManyAsync(
+        ActionActor actor,
+        IReadOnlyCollection<Guid> pegasusUserIds,
+        ExternalCredentialProvider provider,
+        CancellationToken cancellationToken);
+
     Task<PerUserExternalCredentialStatus> ReplaceAsync(
         ActionActor actor, Guid pegasusUserId, ExternalCredentialProvider provider,
         long expectedCredentialVersion, long expectedStaffAccountVersion,

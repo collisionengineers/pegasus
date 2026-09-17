@@ -4,6 +4,14 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Intake;
 
+/// <summary>
+/// The requested retained file is known, but its durable custody hand-over has
+/// not supplied an exact readable version yet. This is deliberately distinct
+/// from a missing receipt or asset so an operator surface can ask them to try
+/// again instead of presenting a false not-found result.
+/// </summary>
+public sealed class IntakeCustodyUnavailableException(string message) : Exception(message);
+
 public sealed class DownloadIntakeSource(
     IIntakeReceiptQueries receiptQueries,
     IReadLogicalDocumentVersion contentReader) : IDownloadIntakeSource

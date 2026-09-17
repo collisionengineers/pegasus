@@ -1,5 +1,10 @@
 # Pegasus documentation audit
 
+Superseded workflow guidance (15 September 2026): Kanmer is not used.
+The current operator task owns scope and coordination; PR review and CI
+record delivery evidence. Kanmer recommendations below are retained only as
+historical evidence and must not be executed or reinstated.
+
 **Audit date:** 8 September 2026  
 **Repository:** `collisionengineers/pegasus`  
 **Reviewed branch:** `dev`, not `main`  

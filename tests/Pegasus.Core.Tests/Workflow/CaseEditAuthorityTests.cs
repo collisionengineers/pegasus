@@ -348,6 +348,12 @@ public sealed class CaseEditAuthorityTests
                     : null);
         }
 
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException(
+                "Disclosing one holder must not enumerate the staff directory.");
+
         public Task<StaffAccountQuerySlice> ListAsync(
             int offset,
             int limit,
@@ -383,6 +389,53 @@ public sealed class CaseEditAuthorityTests
                 Now));
         }
     }
+
+    [Fact]
+    public void HeartbeatRevivesItsOwnLapsedLeaseWhenTheRetainedTokenStillMatches()
+    {
+        // The expiry is not asked at all: a lapsed lease under the same holder and token is
+        // renewed rather than refused, because a takeover or release would have rewritten
+        // the retained hash.
+        RequireHeartbeat();
+    }
+
+    [Fact]
+    public void HeartbeatIsRefusedWithoutATokenAHashOrAHolder()
+    {
+        Assert.Throws<CaseEditLeaseExpiredException>(() =>
+            RequireHeartbeat(presentedLeaseToken: "   "));
+        Assert.Throws<CaseEditLeaseExpiredException>(() =>
+            RequireHeartbeat(hasRetainedLeaseTokenHash: false));
+        Assert.Throws<CaseEditLeaseExpiredException>(() =>
+            RequireHeartbeat(retainedLeaseHolder: null));
+    }
+
+    [Fact]
+    public void HeartbeatIsAConflictAfterATakeoverOrUnderAnotherHolder()
+    {
+        Assert.Throws<CaseEditLeaseConflictException>(() =>
+            RequireHeartbeat(presentedTokenMatchesRetainedHash: false));
+        Assert.Throws<CaseEditLeaseConflictException>(() =>
+            RequireHeartbeat(retainedLeaseHolder: Guid.NewGuid().ToString("D")));
+        Assert.Throws<CaseEditLeaseConflictException>(() =>
+            RequireHeartbeat(retainedLeaseHolderKind: ActorKind.Automation));
+    }
+
+    private static void RequireHeartbeat(
+        string? presentedLeaseToken = "a-live-token",
+        ActorKind? retainedLeaseHolderKind = ActorKind.Staff,
+        string? retainedLeaseHolder = Holder,
+        bool hasRetainedLeaseTokenHash = true,
+        bool presentedTokenMatchesRetainedHash = true) =>
+        CaseEditAuthority.RequireHeartbeat(
+            CaseId,
+            caseVersion: 4,
+            HolderActor,
+            presentedLeaseToken,
+            retainedLeaseHolderKind,
+            retainedLeaseHolder,
+            hasRetainedLeaseTokenHash,
+            presentedTokenMatchesRetainedHash);
 
     private static void Require(
         string? presentedLeaseToken = "a-live-token",

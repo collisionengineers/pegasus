@@ -257,7 +257,7 @@ public static class AssessmentReportProjection
         var mileage = assessment.CaseOwned.Mileage;
         var mileageUnit = assessment.CaseOwned.MileageUnit ?? "miles";
         var mileageDescription = mileage is { } value
-            ? $"{value:N0} {mileageUnit}"
+            ? $"{value.ToString("N0", CultureInfo.GetCultureInfo("en-GB"))} {mileageUnit}"
             : "To be confirmed";
 
         return new ReportVehicle(

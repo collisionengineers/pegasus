@@ -853,6 +853,20 @@ public sealed class EfTriageStore(
             .ToArray();
     }
 
+    public async Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken)
+    {
+        if (state is not null && !Enum.IsDefined(state.Value))
+        {
+            throw new ArgumentOutOfRangeException(nameof(state));
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var stateCode = state is null ? null : ToCode(state.Value);
+        return await context.Triage
+            .AsNoTracking()
+            .CountAsync(item => stateCode == null || item.State == stateCode, cancellationToken);
+    }
+
     /// <summary>
     /// The keyset page. Both the order and the continuation bound are expressed
     /// in SQL over the <c>(State, CreatedAtUtc)</c> index rather than in memory,

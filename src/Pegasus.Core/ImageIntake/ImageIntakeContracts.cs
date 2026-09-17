@@ -221,9 +221,10 @@ public sealed record SetImageIntakePrincipalRequest(
 public sealed record ImageIntakeImage(
     Guid ReceiptId,
     string FileName,
-    string MediaType)
+    string MediaType,
+    IncomingArtifactCustodyState CustodyState = IncomingArtifactCustodyState.Unknown)
 {
-    /// <summary>The retained image asset, which carries the image's pre-Case crop and tags.</summary>
+    /// <summary>The retained image asset, which carries the image's pre-Case crop, tags and custody identity.</summary>
     public Guid? AssetId { get; init; }
 }
 
@@ -243,6 +244,10 @@ public interface IImageIntakeQueries
         Guid imageIntakeId,
         CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<ImageIntakeImage>>([]);
+
+    Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>> ListImagesAsync(
+        IReadOnlyCollection<Guid> imageIntakeIds,
+        CancellationToken cancellationToken);
 
     Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
 

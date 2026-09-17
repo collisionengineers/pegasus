@@ -4,8 +4,7 @@
 @using Pegasus.Web.Presentation
 @using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
 @{
-    var details = Model.Case!;
-    var workflow = details.Workflow;
+    var workflow = Model.CurrentWorkflow!;
     var leaseToken = Model.RenderLeaseToken;
     var mayEdit = Model.CanEditCaseData;
     // Every current non-image file, whatever its custody has reached. The row
@@ -78,6 +77,16 @@ else
                     }
                     @if (mayEdit)
                     {
+                        @if (Model.OriginalReportMissing)
+                        {
+                            <form method="post" asp-page="/Cases/Custody" asp-page-handler="MarkAsOriginalReport" asp-route-id="@workflow.CaseId">
+                                <input type="hidden" name="occurrenceId" value="@occurrence.Id" />
+                                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                                <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                                <button type="submit" class="btn btn--small">@OperatorLabels.MarkAsOriginalReport</button>
+                            </form>
+                        }
                         <button type="button" class="btn btn--small btn--icon btn--danger" data-dialog-open="remove-doc-@occurrence.Id" title="@FilesLabels.Remove" aria-label="@FilesLabels.Remove @version.FileName">
                             <svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg>
                         </button>

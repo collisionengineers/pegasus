@@ -13,11 +13,11 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// Creates the linked Audit Case (decided 13 September): a new Case row sharing
-/// the original's Principal, year and sequence, with the <c>a.</c>/<c>ap.</c>
+/// the original's Principal, year and sequence, with the <c>a.</c>
 /// value as its own reference, linked back through <c>AuditOfCaseId</c>. The
 /// original's current data, assessment fields, current estimate and files are
 /// copied so the Audit is a Case in its own right; the files share the same
-/// Box content by reference (no copy). Its Box folder is the <c>a.</c>/<c>ap.</c>
+/// Box content by reference (no copy). Its Box folder is the <c>a.</c>
 /// subfolder under the original's, created by the ordinary custody work with
 /// the parent named. One history line lands on each Case. Replays return the
 /// committed result.
@@ -118,7 +118,7 @@ public sealed class EfCreateAuditCaseStore(
             InitialState = "review",
             CustodyState = "pending",
             AuditOfCaseId = source.Id,
-            StandaloneAuditAssessment = command.Assessment.ToString(),
+            StandaloneAuditAssessment = AuditAssessmentCode.ToCode(command.Assessment),
             AcceptedInspectionDeadline = source.AcceptedInspectionDeadline,
             InstructionComplete = true,
             ImagesComplete = true,
@@ -168,7 +168,7 @@ public sealed class EfCreateAuditCaseStore(
         {
             AuditCaseId = auditCaseId,
             command.AuditReference,
-            Assessment = command.Assessment.ToString()
+            Assessment = AuditAssessmentCode.ToCode(command.Assessment)
         });
         CaseMutationHistory.Add(
             context,

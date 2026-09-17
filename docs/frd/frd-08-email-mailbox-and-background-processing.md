@@ -7,6 +7,9 @@ identity, owner, or destination is registered once in Unidentified with its U
 reference and canonical reason. Retryable processing remains retryable; a terminal
 technical failure after custody uses `TechnicalProcessingFailure`. Mail projections
 link to the same Unidentified item rather than synthesising a second queue row.
+The Inbox Unidentified scope lists retained mail whose Unidentified item is still
+open; once it resolves the message leaves that scope while keeping its
+classification record and Case association.
 > Owner capabilities: MAIL · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Email, mailbox, and background processing
@@ -276,6 +279,10 @@ uses the ordinary current-association and staff reversal precedence. It does
 not mutate the mailbox.
 Selecting a Case association opens that Case workspace in the same tab; Back
 returns to the exact message detail and originating list context.
+The message's displayed destination reflects its current Case association even
+when classification remains Unclassified. Classification, actual destination
+and custody completion are separate facts; a resolved Unidentified origin is
+retained as history rather than presented as the current destination.
 Each Case workspace also exposes its associated correspondence as a contextual
 filtered view in one chronological history of linked received and Sent items;
 it defaults to newest first with an explicit oldest-first option. Cross-mailbox
@@ -427,7 +434,7 @@ Staff-initiated Reply, Forward and Compose exist on the Inbox message and the
 Case correspondence surfaces, and are the technical decision of
 [ADR-0036](../adr/0036-outbound-mail-via-approved-mailbox.md). They are
 present only when the outbound capability is composed; when it is not, the
-surfaces carry no send, Flag or Delete control and no composer.
+surfaces carry no send control and no composer.
 
 - **Who may send.** A signed-in staff member with the casework right. There is
   no autonomous, scheduled, or Automation Actor send.
@@ -458,15 +465,16 @@ surfaces carry no send, Flag or Delete control and no composer.
   auto-linked to the Case named at send time. The draft text is not evidence
   until that Sent item exists; a send that Graph refuses leaves no evidence
   and is visible as a failure on the composer, not recorded as sent.
-- **Flag.** A mailbox mutation through the same seam as the confirmed folder
-  move, recorded in the message's history with actor and time; it changes no
-  classification, association, or Case state.
-- **Delete.** Requires a reason, moves the exact item to Deleted Items — never
-  a hard delete — and is recorded in the message's history. The retained
-  message, its evidence, and its associations remain; the item stays reachable
-  through the existing read-only Deleted Items search. Permanent deletion is
-  absent: no surface, action or tool removes a mailbox item irrecoverably
-  (D22, 2026-09-01).
+- **Dismiss.** A retained message is dismissed from a list row or its record
+  into the `Dismissed` logical folder and restored from the Dismissed scope;
+  both are always allowed, an open Unidentified item stays open, and the
+  message keeps its evidence, associations and history. Dismiss is Pegasus
+  data only: the Outlook item does not move and no Graph call is made
+  ([ADR-0052](../adr/0052-dismiss-by-logical-folder.md); scopes and controls
+  in [FRD-12](frd-12-operator-experience.md#inbox)).
+- **No Flag, no Delete.** There is no flag control, no delete control and no
+  Deleted Items move on any surface. Permanent deletion is absent: no surface,
+  action or tool removes a mailbox item at all (D22, 2026-09-01; ADR-0052).
 
 Local alpha and every test profile use the unavailable implementation of the
 seam and never mutate a mailbox. Production activation is a separately

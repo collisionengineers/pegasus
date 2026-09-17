@@ -138,7 +138,6 @@ public static class WorkerDependencyInjection
         services.AddScoped<SubmitGroupedIntake>();
         services.AddScoped<IGroupedIntakeSubmission>(serviceProvider =>
             serviceProvider.GetRequiredService<SubmitGroupedIntake>());
-        services.AddScoped<SubmitMailboxImageIntake>();
         services.AddScoped<DispatchPendingIntakeWork>();
         services.AddScoped<ICommittedIntakeWorkPublisher>(serviceProvider =>
             serviceProvider.GetRequiredService<DispatchPendingIntakeWork>());
@@ -202,7 +201,7 @@ public static class WorkerDependencyInjection
     {
         var connectionString = configuration.GetConnectionString("Pegasus")
             ?? throw new InvalidOperationException("Connection string 'Pegasus' is required.");
-        options.UseSqlServer(connectionString);
+        PegasusSqlServer.Configure(options, connectionString);
     }
 
     private static string GetOfflineArtifactRoot(

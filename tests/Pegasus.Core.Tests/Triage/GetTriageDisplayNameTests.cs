@@ -132,6 +132,9 @@ public sealed class GetTriageDisplayNameTests
         ITriageQueries,
         ITriageResponseEvidenceCandidateQueries
     {
+        public Task<int> CountAsync(TriageState? state, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<TriageSummary>> ListAsync(
             TriageState? state,
             CancellationToken cancellationToken) =>
@@ -173,6 +176,14 @@ public sealed class GetTriageDisplayNameTests
             Task.FromResult(id == staffId
                 ? new StaffAccountSummary(staffId, userName, true, false, StaffRole.User)
                 : null);
+
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
+                staffIds.Contains(staffId)
+                    ? [new(staffId, userName, true, false, StaffRole.User)]
+                    : []);
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>

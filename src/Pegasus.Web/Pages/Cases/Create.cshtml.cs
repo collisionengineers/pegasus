@@ -456,13 +456,6 @@ public sealed partial class CreateModel(
                 string.Empty,
                 "This item was already turned into a case using different details. Reload the page.");
         }
-        catch (CaseIdentitySequenceExhaustedException exception)
-        {
-            LogIdentitySequenceExhausted(logger, Receipt.Id, exception);
-            ModelState.AddModelError(
-                string.Empty,
-                "The case reference sequence is exhausted. No case was created.");
-        }
         catch (Exception exception) when (
             exception is IntakeVersionConflictException or IntakeOperationConflictException)
         {
@@ -518,7 +511,7 @@ public sealed partial class CreateModel(
         }
         else if (CaseType == CaseType.Audit)
         {
-            ModelState.AddModelError(nameof(CaseType), "Audits need their retained original report and cannot be created here.");
+            ModelState.AddModelError(nameof(CaseType), "Choose a valid case type.");
         }
 
         var mileageUnit = VehicleMileage.HasValue ? VehicleMileageUnit : null;
@@ -590,11 +583,6 @@ public sealed partial class CreateModel(
         catch (StaffAuthorizationException)
         {
             return Forbid();
-        }
-        catch (CaseIdentitySequenceExhaustedException exception)
-        {
-            LogIdentitySequenceExhausted(logger, Guid.Empty, exception);
-            ModelState.AddModelError(string.Empty, "The case reference sequence is exhausted. No case was created.");
         }
         catch (PrincipalUnavailableException)
         {
@@ -737,9 +725,7 @@ public sealed partial class CreateModel(
     {
         if (CaseType == CaseType.Audit && !IsRetainedClassifiedAudit)
         {
-            ModelState.AddModelError(
-                string.Empty,
-                "Audits are created automatically from the retained Audit instruction and original report.");
+            ModelState.AddModelError(nameof(CaseType), "Choose a valid case type.");
         }
     }
 
@@ -771,12 +757,6 @@ public sealed partial class CreateModel(
 
     private string? DescribeRefusal()
     {
-        if (Receipt.MailClassificationDecision?.CaseType == CaseType.Audit
-            && !IsRetainedClassifiedAudit)
-        {
-            return "This Audit is created automatically from the retained Audit instruction and original report.";
-        }
-
         // Little or no text came out of the document, which is exactly the
         // hand-keyed case: the correction step normalises the decision, so it
         // is allowed through rather than refused.
@@ -864,8 +844,7 @@ public sealed partial class CreateModel(
     }
 
     public bool IsRetainedClassifiedAudit =>
-        Receipt.MailClassificationDecision?.CaseType == CaseType.Audit
-        && StandaloneAuditEvidenceId is not null;
+        Receipt.MailClassificationDecision?.CaseType == CaseType.Audit;
 
     private async Task<bool> IsImageBasedAsync(
         string? principalCode,
@@ -889,15 +868,6 @@ public sealed partial class CreateModel(
         new(SHA256.HashData(
             Encoding.UTF8.GetBytes($"case-create/{operationId:N}/{purpose}"))
             .AsSpan(0, 16));
-
-    [LoggerMessage(
-        EventId = 1210,
-        Level = LogLevel.Warning,
-        Message = "Case creation exhausted the identity sequence for intake receipt {ReceiptId}.")]
-    private static partial void LogIdentitySequenceExhausted(
-        ILogger logger,
-        Guid receiptId,
-        Exception exception);
 
     [LoggerMessage(
         EventId = 1211,

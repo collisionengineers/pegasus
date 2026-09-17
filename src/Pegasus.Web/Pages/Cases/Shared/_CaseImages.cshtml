@@ -7,8 +7,7 @@
 @using TagLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.ImageTags
 @using FilesLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Files
 @{
-    var details = Model.Case!;
-    var workflow = details.Workflow;
+    var workflow = Model.CurrentWorkflow!;
     var leaseToken = Model.RenderLeaseToken;
     var mayEdit = Model.CanEditCaseData;
     var mayPrepareImages = Model.MayPrepareImages;
@@ -131,7 +130,9 @@ else
             <ul class="thumbs" data-evidence-set>
                 @foreach (var item in intakeImages)
                 {
-                    var href = Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
+                    var href = item.AssetId is { } assetId
+                        ? Url.Page("/Intake/Asset", new { id = item.ReceiptId, assetId })!
+                        : Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
                     <li class="image-tile">
                         <a href="@href"
                            class="th"

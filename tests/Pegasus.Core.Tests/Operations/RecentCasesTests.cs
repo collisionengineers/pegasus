@@ -47,6 +47,22 @@ public sealed class RecentCasesTests
             () => sut.ExecuteAsync(ActionActor.Automation("client"), 1, true, default));
     }
 
+    [Fact]
+    public async Task ARequestCrossingLondonMidnightUsesItsCapturedBoundaryForTheFeedAndVisit()
+    {
+        var requestTime = new DateTimeOffset(2026, 9, 13, 22, 59, 59, TimeSpan.Zero);
+        var queries = new FakeQueries();
+        var visits = new FakeVisits();
+        var sut = new ListRecentCases(queries, visits, new FixedTime(requestTime.AddSeconds(2)));
+
+        var result = await sut.ExecuteAsync(Staff, 1, markSeen: true, default, requestTime);
+
+        var expectedStart = new DateTimeOffset(2026, 9, 5, 23, 0, 0, TimeSpan.Zero);
+        Assert.Equal(expectedStart, result.WindowStartUtc);
+        Assert.Equal([(expectedStart, 1)], queries.Reads);
+        Assert.Equal(requestTime, visits.LastSeen);
+    }
+
     private sealed class FixedTime(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;

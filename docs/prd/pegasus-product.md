@@ -175,5 +175,6 @@ recipient/package/chase and garage-procedure automation remain deferred.
 Inspection, Audit and Inspection + Audit are active product scope. Formal
 Cases have no terminally closed state: Completed returns to Query when a query
 is received or attached, and returns to Completed when the query is replied to.
+Every Audit Case/PO uses the `a.` prefix independently of its assessment outcome.
 Permanent identity and history survive every disposition. FRD-01 owns the
 transitions; this documentation change does not itself prove runtime conformance.

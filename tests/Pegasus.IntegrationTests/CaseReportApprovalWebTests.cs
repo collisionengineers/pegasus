@@ -12,9 +12,12 @@ using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
+
 namespace Pegasus.IntegrationTests;
 
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseReportApprovalWebTests
 {
     /// <summary>
     /// B05/B09: the artifact download reopens the confirmed artifact's
@@ -33,6 +36,7 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: true));
                 Substitute<IGeneratedCaseArtifactStore>(services, artifacts);
             }));
@@ -77,6 +81,7 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
                 Substitute<IGetAssessmentAccess>(services, new FakeGetAssessmentAccess(canOpen: false));
                 Substitute<IGeneratedCaseArtifactStore>(services, artifacts);
             }));
@@ -145,9 +150,21 @@ public sealed partial class CaseDetailsWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetCasePageFrame>();
+                services.RemoveAll<IGetAssessmentWorkspace>();
+                services.RemoveAll<IGetCaseVehicleSection>();
+                services.RemoveAll<IGetCaseValuationSection>();
+                services.RemoveAll<IGetCaseNotesSection>();
+                services.RemoveAll<IGetCaseFilesSection>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.RemoveAll<IRecordCaseReportApproval>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetCasePageFrame>(store);
+                services.AddSingleton<IGetAssessmentWorkspace>(store);
+                services.AddSingleton<IGetCaseVehicleSection>(store);
+                services.AddSingleton<IGetCaseValuationSection>(store);
+                services.AddSingleton<IGetCaseNotesSection>(store);
+                services.AddSingleton<IGetCaseFilesSection>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
                 services.AddSingleton<IRecordCaseReportApproval>(store);
             }));
@@ -241,6 +258,12 @@ public sealed partial class CaseDetailsWebTests
 
     private sealed class ApprovalCaseDetailsStore :
         IGetCase,
+        IGetCasePageFrame,
+        IGetAssessmentWorkspace,
+        IGetCaseVehicleSection,
+        IGetCaseValuationSection,
+        IGetCaseNotesSection,
+        IGetCaseFilesSection,
         IAcquireCaseEditLease,
         IRecordCaseReportApproval
     {
@@ -263,9 +286,7 @@ public sealed partial class CaseDetailsWebTests
         public List<ClaimCaseEditLeaseRequest> Claims { get; } = [];
         public List<RecordCaseReportApprovalRequest> Approvals { get; } = [];
 
-        public Task<CaseDetails?> ExecuteAsync(
-            GetCaseQuery query,
-            CancellationToken cancellationToken)
+        private CaseDetails Details()
         {
             var identity = new CaseIdentity(CaseId, "QDOS", 2031, 42, "QDOS3100042");
             var workflow = new CaseWorkflowRecord(
@@ -308,10 +329,83 @@ public sealed partial class CaseDetailsWebTests
                 [],
                 [])
             {
+                Data = AssessmentWorkspaceTestData.Create(Assessment(workflow)).Data,
                 ReportApprovedByDisplayName = approval is null ? null : ApproverDisplayName
             };
-            return Task.FromResult<CaseDetails?>(details);
+            return details;
         }
+
+        public Task<CaseDetails?> ExecuteAsync(
+            GetCaseQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseDetails?>(query.CaseId == CaseId ? Details() : null);
+
+        private CaseAssessmentProjection Assessment(CaseWorkflowRecord workflow) => new(
+            CaseId,
+            workflow.Identity.Reference,
+            workflow.Version,
+            workflow.State,
+            null,
+            [],
+            [],
+            new("AB12CDE", null, null, null, null, null, "tbc", null, null, null, null));
+
+        private CaseSectionFrame Frame()
+        {
+            var details = Details();
+            return new(details.Summary, details.Workflow, details.ActiveEditLease);
+        }
+
+        Task<CasePageFrame?> IGetCasePageFrame.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken)
+        {
+            if (query.CaseId != CaseId)
+            {
+                return Task.FromResult<CasePageFrame?>(null);
+            }
+
+            var details = Details();
+            return Task.FromResult<CasePageFrame?>(new(
+                new(details.Summary, details.Workflow, details.ActiveEditLease),
+                details.Documents,
+                details.AvailableReportSentEvidence,
+                details.RecordNotes,
+                details.Data!));
+        }
+
+        Task<AssessmentWorkspace?> IGetAssessmentWorkspace.ExecuteAsync(
+            GetAssessmentWorkspaceQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<AssessmentWorkspace?>(null);
+
+        Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseVehicleSection?>(query.CaseId == CaseId
+                ? new(Frame(), query.Data!, null, null)
+                : null);
+
+        Task<CaseValuationSection?> IGetCaseValuationSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseValuationSection?>(query.CaseId == CaseId
+                ? new(Frame(), query.Data!, null)
+                : null);
+
+        Task<CaseNotesSection?> IGetCaseNotesSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseNotesSection?>(query.CaseId == CaseId
+                ? new(Frame(), [])
+                : null);
+
+        Task<CaseFilesSection?> IGetCaseFilesSection.ExecuteAsync(
+            GetCaseSectionQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<CaseFilesSection?>(query.CaseId == CaseId
+                ? new(Frame(), query.Documents ?? [], null, CaseCustodyState.Pending, [], [])
+                : null);
 
         Task<CaseEditLease> IAcquireCaseEditLease.ExecuteAsync(
             ClaimCaseEditLeaseRequest request,
@@ -357,4 +451,59 @@ public sealed partial class CaseDetailsWebTests
                     CaseVersion + 1));
         }
     }
+
+    [Theory]
+    [InlineData(CaseLifecycleState.ReportPreparation, true, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, false, false)]
+    [InlineData(CaseLifecycleState.Review, true, false)]
+    public async Task ReportSentRendersOnlyWithDetectedEvidenceWhileWithEngineer(
+        CaseLifecycleState state,
+        bool hasEvidence,
+        bool offersConfirmation)
+    {
+        var evidence = new RetainedApprovedMailboxReportSentEvidence(
+            Guid.NewGuid(),
+            "reports@collisionengineers.example",
+            "sent-folder-handle",
+            "immutable-item-handle",
+            "internet-message-handle",
+            "conversation-handle",
+            "reply-chain-handle",
+            "source-occurrence-handle",
+            new string('b', 64),
+            new string('c', 64),
+            new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2031, 5, 6, 9, 5, 0, TimeSpan.Zero),
+            ActionActor.SystemWorker("sent-mail-worker"));
+        var store = new RecordingCaseDetailsStore
+        {
+            State = state,
+            AvailableReportSentEvidence = hasEvidence ? [evidence] : []
+        };
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        var html = await workspace.GetWorkspaceAsync();
+
+        Assert.Equal(
+            offersConfirmation,
+            RecordBar(html).Contains("Mark report sent", StringComparison.Ordinal));
+        Assert.Equal(
+            offersConfirmation,
+            html.Contains("handler=LinkReportEvidence", StringComparison.Ordinal));
+        if (offersConfirmation)
+        {
+            var visible = VisibleText(html);
+            Assert.Contains("reports@collisionengineers.example", visible, StringComparison.Ordinal);
+            Assert.DoesNotContain("immutable-item-handle", visible, StringComparison.Ordinal);
+            Assert.DoesNotContain("internet-message-handle", visible, StringComparison.Ordinal);
+            Assert.DoesNotContain(new string('b', 64), visible, StringComparison.Ordinal);
+            Assert.DoesNotContain(new string('c', 64), visible, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// D29/D30: the record is one scrolling page of ten sections in a fixed
+    /// order. Every section has its stable host and its jump link, in that
+    /// order, on every response.
+    /// </summary>
 }

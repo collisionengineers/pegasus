@@ -101,7 +101,7 @@ public sealed record ApprovedInboxMessage(
 /// mailbox looks like now.
 /// </summary>
 public sealed record RetainedMailboxMessage(
-    Guid MailboxId,
+    Guid? MailboxId,
     string MailboxAddress,
     string ImmutableMessageId,
     string ExternalReceiptToken,
@@ -109,7 +109,8 @@ public sealed record RetainedMailboxMessage(
     long SourceLength,
     string SourceSha256,
     RetainedMailboxMessageMetadata Metadata,
-    DateTimeOffset RetainedAtUtc);
+    DateTimeOffset RetainedAtUtc,
+    MailFolderScope Folder = MailFolderScope.Inbox);
 
 public interface IRetainedMailboxMessageStore
 {

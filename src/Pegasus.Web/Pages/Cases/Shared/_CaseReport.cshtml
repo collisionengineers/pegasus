@@ -30,7 +30,26 @@
         : new ReportRecipientReview([], []);
     var labels = CaseWorkspaceLabels.Editors.Report;
     var offersHead = !Model.AssessmentIsReadOnly && Model.ReportDraftPreparation is not null;
-    var canGenerate = offersHead && editing && Model.ReportDraftCondition is null;
+    var reportArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
+        artifact.Kind == CaseReportArtifactKind.AssessmentReport);
+    var reportRetryArtifact = generation is not { State: CaseReportGenerationState.Stale }
+        && reportArtifact?.Status != CaseReportArtifactStatus.Confirmed
+        ? reportArtifact
+        : null;
+    var reportAlreadyConfirmed = generation is not { State: CaseReportGenerationState.Stale }
+        && reportArtifact?.Status == CaseReportArtifactStatus.Confirmed;
+    var canGenerate = editing
+        && offersHead
+        && (reportRetryArtifact is not null
+            || !reportAlreadyConfirmed && Model.ReportDraftCondition is null);
+    var reportOperationKey = reportRetryArtifact?.OperationKey ?? Model.GenerateReportOperationKey;
+    var feeNoteArtifact = generation?.Artifacts
+        .FirstOrDefault(artifact => artifact.Kind == CaseReportArtifactKind.FeeNote);
+    var canGenerateFeeNote = editing
+        && generation is { State: CaseReportGenerationState.Confirmed }
+        && !generation.Snapshot.Report.IncludeFeeNote
+        && feeNoteArtifact?.Status != CaseReportArtifactStatus.Confirmed;
+    var feeNoteOperationKey = feeNoteArtifact?.OperationKey ?? Model.GenerateFeeNoteOperationKey;
     var canPreview = offersHead && Model.ReportDraftCondition is null;
     var reasons = string.Join("; ", Model.ReportDraftReasons.Select(reason => reason.Requirement));
     var isStale = generation is { State: CaseReportGenerationState.Stale };
@@ -61,8 +80,13 @@
             {
                 <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateReport"
                       asp-route-id="@caseId" asp-route-section="report" id="case-generate-report-form" data-generate-report>
-                    <input type="hidden" name="operationKey" value="@Model.GenerateReportOperationKey" />
+                    <input type="hidden" name="operationKey" value="@reportOperationKey" />
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
+                    @if (reportRetryArtifact is not null)
+                    {
+                        <input type="hidden" name="includeFeeNote" value="@(generation!.Snapshot.Report.IncludeFeeNote ? "true" : "false")" />
+                    }
                     <button type="submit" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
                         <span>@ReportLabels.GenerateReport</span>
@@ -88,22 +112,27 @@
                                Download draft (script); the link itself opens the PDF
                                without script. *@
                             <a class="btn" href="@previewHref" target="_blank" rel="noopener"
-                               data-report-preview data-file-name="@draftFileName" data-no-inplace>
+                           data-report-preview data-document-preview data-file-name="@draftFileName" data-no-inplace>
                                 <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                                 <span>@Words.PreviewDraft</span>
                             </a>
                         }
-                        @if (canGenerate)
+                        @if (canGenerateFeeNote)
                         {
                             <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateFeeNote"
                                   asp-route-id="@caseId" asp-route-section="report">
-                                <input type="hidden" name="operationKey" value="@Model.GenerateReportOperationKey" />
+                                <input type="hidden" name="operationKey" value="@feeNoteOperationKey" />
                                 <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
+                                <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
                                 <button type="submit" class="btn">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
                                     <span>@ReportLabels.GenerateFeeNote</span>
                                 </button>
                             </form>
+                        }
+                        @if (canGenerate && reportRetryArtifact is null)
+                        {
                             @* R34B: one choice, bound to the generate form. *@
                             <label class="choice menu-choice" for="report-include-fee-note">
                                 <input type="checkbox" id="report-include-fee-note" name="includeFeeNote" value="true" form="case-generate-report-form" data-include-fee-note />
@@ -185,6 +214,7 @@
                       asp-route-id="@caseId" asp-route-section="report" class="recip-form" data-prepare-delivery>
                     <input type="hidden" name="operationKey" value="@Model.PrepareDeliveryOperationKey" />
                     <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
                     <input type="hidden" name="generationId" value="@generation.Id" />
                     <input type="hidden" name="expectedGenerationVersion" value="@generation.Version" />
                     <span class="lg">@Words.ReviewedRecipients</span>
@@ -317,9 +347,9 @@
                         var occurrence = file.Occurrence;
                         var version = file.Version;
                         var included = prep.Role != CaseAssetReportRole.NotUsed;
-                        var previewUrl = Url.Page("/Cases/Documents/Download", new { caseId, occurrenceId = occurrence.Id, versionId = version.Id, inline = true })!;
-                        var downloadUrl = Url.Page("/Cases/Documents/Download", new { caseId, occurrenceId = occurrence.Id, versionId = version.Id })!;
-                        var thumbnailUrl = Url.Page("/Cases/Documents/Download", new { caseId, occurrenceId = occurrence.Id, versionId = version.Id, inline = true, size = CaseDocumentThumbnails.ThumbSizeToken })!;
+                        var previewUrl = Model.PreviewUrl(file);
+                        var downloadUrl = Model.DownloadUrl(file);
+                        var thumbnailUrl = Model.ThumbnailUrl(file);
                         <a class="th @(included ? null : "off")" href="@previewUrl"
                            data-evidence-item data-download-href="@downloadUrl" data-media-type="@version.MediaType" data-file-name="@version.FileName"
                            data-report-image="@occurrence.Id" data-report-image-role="@prep.Role"

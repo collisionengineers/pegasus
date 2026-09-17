@@ -129,7 +129,10 @@ public sealed class EfEditScopeStore(
             cancellationToken);
         var now = timeProvider.GetUtcNow();
         var scope = await FindAsync(context, request.ScopeKind, request.RecordId, cancellationToken);
-        Require(scope, request.ScopeKind, request.RecordId, request.Actor, request.LeaseToken, now);
+        // CaseEditAuthority.RequireHeartbeat's rule: a beat that still presents the retained
+        // token under the same holder revives its own lapsed scope; nobody else could have
+        // taken it without rewriting the hash.
+        RequireHolder(scope, request.ScopeKind, request.RecordId, request.Actor, request.LeaseToken);
         scope!.ExpiresAtUtc = now.Add(EditScopeAuthority.Duration);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -289,8 +292,22 @@ public sealed class EfEditScopeStore(
         string? leaseToken,
         DateTimeOffset now)
     {
+        if (scope is null || !EditScopeAuthority.IsHeld(scope.ExpiresAtUtc, now))
+        {
+            throw new EditScopeExpiredException(scopeKind, recordId);
+        }
+
+        RequireHolder(scope, scopeKind, recordId, actor, leaseToken);
+    }
+
+    private static void RequireHolder(
+        EditScopeEntity? scope,
+        EditScopeKind scopeKind,
+        Guid recordId,
+        ActionActor actor,
+        string? leaseToken)
+    {
         if (scope is null
-            || !EditScopeAuthority.IsHeld(scope.ExpiresAtUtc, now)
             || string.IsNullOrWhiteSpace(leaseToken)
             || leaseToken.Length != CaseEditAuthority.LeaseTokenLength)
         {

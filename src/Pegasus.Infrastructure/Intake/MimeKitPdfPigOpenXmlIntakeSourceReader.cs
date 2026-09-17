@@ -751,6 +751,13 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             return ReadOutcome.Readable;
         }
 
+        if (isRoot)
+        {
+            // The submitted message as correspondence, read once here so an
+            // uploaded email is retained the way a polled one is.
+            result.RootEmail = await ReadRootEmailAsync(bytes, message, cancellationToken);
+        }
+
         var limits = result.MimeLimits ??= new MimeLimitState();
         await ReadMessageAsync(
             message,
@@ -1175,6 +1182,31 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         return $"unnamed-part-{limits.EntityCount}{extension}";
     }
 
+    /// <summary>
+    /// The display view of the root message: the same reader the local inbox
+    /// source uses, so an upload and a polled message retain identical
+    /// sender, recipient, body and attachment facts.
+    /// </summary>
+    private static async Task<IntakeEmailSummary> ReadRootEmailAsync(
+        ReadOnlyMemory<byte> bytes,
+        MimeMessage message,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = new MemoryStream(bytes.ToArray(), writable: false);
+        var display = await LocalEmailDisplayReader.ReadAsync(stream, cancellationToken);
+        return new IntakeEmailSummary(
+            display.SenderAddress,
+            display.SenderDisplayName,
+            display.ToAddresses ?? [],
+            display.CcAddresses ?? [],
+            display.ReplyToAddresses,
+            string.IsNullOrWhiteSpace(display.Subject) ? null : display.Subject,
+            string.IsNullOrWhiteSpace(display.Body) ? null : display.Body,
+            display.Attachments ?? [],
+            display.ThreadIdentity,
+            message.Date == DateTimeOffset.MinValue ? null : message.Date);
+    }
+
     private static SourceFormat DetectFormat(string fileName, string mediaType)
     {
         var extension = Path.GetExtension(fileName);
@@ -1184,8 +1216,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             return SourceFormat.Pdf;
         }
 
-        if (extension.Equals(".eml", StringComparison.OrdinalIgnoreCase)
-            || mediaType.Equals("message/rfc822", StringComparison.OrdinalIgnoreCase))
+        if (EmailSourceFormat.IsEmail(fileName, mediaType))
         {
             return SourceFormat.Email;
         }
@@ -1298,6 +1329,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
         public bool IsIncomplete { get; set; }
 
+        public IntakeEmailSummary? RootEmail { get; set; }
+
         public IntakeSourceReadResult ToResult(
             IntakeSourceReadStatus status,
             string? failureCode = null,
@@ -1314,7 +1347,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 IsIncomplete,
                 ReaderKey,
                 ReaderVersion,
-                Attachments);
+                Attachments,
+                RootEmail: RootEmail);
     }
 
     private sealed class MimeLimitState

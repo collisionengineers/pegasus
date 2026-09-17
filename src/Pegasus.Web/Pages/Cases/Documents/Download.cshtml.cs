@@ -56,7 +56,9 @@ public sealed partial class DownloadModel(
         Guid versionId,
         CancellationToken cancellationToken,
         bool inline = false,
-        string? size = null)
+        string? size = null,
+        string? prep = null,
+        string? renderer = null)
     {
         if (caseId == Guid.Empty || occurrenceId == Guid.Empty || versionId == Guid.Empty)
         {
@@ -68,7 +70,7 @@ public sealed partial class DownloadModel(
         }
 
         return inline
-            ? await PreviewAsync(caseId, occurrenceId, versionId, actor, size, cancellationToken)
+            ? await PreviewAsync(caseId, occurrenceId, versionId, actor, size, prep, renderer, cancellationToken)
             : await SaveAsync(caseId, occurrenceId, versionId, actor, cancellationToken);
     }
 
@@ -139,8 +141,11 @@ public sealed partial class DownloadModel(
         Guid versionId,
         ActionActor actor,
         string? size,
+        string? prep,
+        string? renderer,
         CancellationToken cancellationToken)
     {
+        using var previewActivity = DocumentReadTelemetry.Start("document.preview");
         CaseDocumentPreview? preview;
         try
         {
@@ -192,16 +197,47 @@ public sealed partial class DownloadModel(
         // and the download stay the original. The variant names the region,
         // so an edited crop is a new representation rather than a stale hit.
         var variant = DocumentThumbnailCacheVariant.Plain;
+        var thumbnailAddressIsCurrent = !wantsThumbnail;
         if (wantsThumbnail)
         {
-            var preparation = (await assetPreparations.ListForCaseAsync(caseId, cancellationToken))
-                .FirstOrDefault(item => item.OccurrenceId == occurrenceId);
+            // Model binding maps both a missing key and ?prep= to null.
+            // An omitted version supports uncached reads; an empty supplied
+            // version is malformed and must stop before reading content.
+            var preparationWasSupplied = Request.Query.ContainsKey("prep");
+            if (preparationWasSupplied && string.IsNullOrEmpty(prep))
+            {
+                return InvalidThumbnailPreparation();
+            }
+            if (!TryParsePreparationVersion(prep, out var requestedPreparationVersion))
+            {
+                return InvalidThumbnailPreparation();
+            }
+
+            CaseAssetPreparation? preparation;
+            using (DocumentReadTelemetry.Start("document.preparation.lookup"))
+            {
+                preparation = await assetPreparations.GetForOccurrenceAsync(
+                    caseId, occurrenceId, cancellationToken);
+            }
             if (preparation is not null)
             {
                 variant = new(preparation.Rotation, preparation.Crop);
             }
+            var currentPreparationVersion = preparation?.PreparationVersion ?? 0;
+            // A thumbnail URL is cacheable only when it explicitly names the
+            // snapshot and renderer it rendered. In particular, a hand-written
+            // or retained old URL without prep= or the current renderer must
+            // not become the cacheable version-zero representation merely
+            // because no preparation exists yet.
+            thumbnailAddressIsCurrent = preparationWasSupplied
+                && requestedPreparationVersion == currentPreparationVersion
+                && string.Equals(
+                    renderer,
+                    CaseDocumentThumbnails.RendererIdentity,
+                    StringComparison.Ordinal);
         }
-        if (TryMatchHeldRepresentation(sha256, wantsThumbnail, variant, out var held))
+        if (thumbnailAddressIsCurrent
+            && TryMatchHeldRepresentation(sha256, wantsThumbnail, variant, out var held))
         {
             // The bytes are already held. Restate the caching terms, because a
             // 304 refreshes them, and send nothing else.
@@ -214,25 +250,30 @@ public sealed partial class DownloadModel(
             var thumbnailUnavailable = false;
             if (wantsThumbnail)
             {
-                var thumbnail = await readCaseDocumentThumbnail.OpenAsync(
-                    new(
-                        actor,
-                        caseId,
-                        preview.DocumentId,
-                        versionId,
-                        sha256,
-                        preview.ContentLength,
-                        mediaType,
-                        variant.Rotation,
-                        variant.Crop),
-                    cancellationToken);
+                CaseDocumentThumbnail? thumbnail;
+                using (DocumentReadTelemetry.Start("document.thumbnail.open"))
+                {
+                    thumbnail = await readCaseDocumentThumbnail.OpenAsync(
+                        new(
+                            actor,
+                            caseId,
+                            preview.DocumentId,
+                            versionId,
+                            sha256,
+                            preview.ContentLength,
+                            mediaType,
+                            variant.Rotation,
+                            variant.Crop),
+                        cancellationToken);
+                }
                 if (thumbnail is not null)
                 {
                     // The rendering is derived, so the custody hash of the
                     // source is not the hash of these bytes and is not claimed
                     // as one; the ETag says which source and region it was
                     // derived from.
-                    SetPreviewCaching(ThumbnailETag(sha256, variant), cacheable: true);
+                    SetPreviewCaching(
+                        ThumbnailETag(sha256, variant), cacheable: thumbnailAddressIsCurrent);
                     Response.ContentLength = thumbnail.ContentLength;
                     SetInlineDisposition(fileName);
                     return File(thumbnail.Content, thumbnail.MediaType);
@@ -246,19 +287,26 @@ public sealed partial class DownloadModel(
                 thumbnailUnavailable = true;
             }
 
-            var content = await readLogicalDocumentVersion.OpenAsync(
-                new(
-                    Actor: actor,
-                    DocumentId: preview.DocumentId,
-                    VersionId: versionId,
-                    IntakeAssetId: null,
-                    CaseId: caseId,
-                    IntakeReceiptId: null,
-                    ExpectedSha256: sha256,
-                    ExpectedContentLength: preview.ContentLength),
-                cancellationToken);
+            LogicalDocumentContent content;
+            using (DocumentReadTelemetry.Start("document.original.open"))
+            {
+                content = await readLogicalDocumentVersion.OpenAsync(
+                    new(
+                        Actor: actor,
+                        DocumentId: preview.DocumentId,
+                        VersionId: versionId,
+                        IntakeAssetId: null,
+                        CaseId: caseId,
+                        IntakeReceiptId: null,
+                        ExpectedSha256: sha256,
+                        ExpectedContentLength: preview.ContentLength),
+                    cancellationToken);
+            }
             SetPreviewCaching(
-                ContentETag(sha256), IsCacheablePreview(mediaType) && !thumbnailUnavailable);
+                ContentETag(sha256),
+                IsCacheablePreview(mediaType)
+                && !thumbnailUnavailable
+                && thumbnailAddressIsCurrent);
             Response.Headers["X-Content-SHA256"] = sha256;
             Response.ContentLength = content.ContentLength;
             SetInlineDisposition(fileName);
@@ -298,6 +346,34 @@ public sealed partial class DownloadModel(
         {
             Response.Headers.ETag = etag;
         }
+    }
+
+    /// <summary>
+    /// The thumbnail URL carries the preparation version the page rendered.
+    /// An omitted value remains a valid uncached read, while malformed values
+    /// must not become a cacheable representation. The current renderer
+    /// identity is checked with the same rule by <see cref="PreviewAsync"/>.
+    /// </summary>
+    private static bool TryParsePreparationVersion(string? value, out long preparationVersion)
+    {
+        if (value is null)
+        {
+            preparationVersion = 0;
+            return true;
+        }
+
+        return long.TryParse(
+            value,
+            System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out preparationVersion)
+            && preparationVersion >= 0;
+    }
+
+    private BadRequestResult InvalidThumbnailPreparation()
+    {
+        Response.Headers.CacheControl = "private, no-store";
+        return BadRequest();
     }
 
     /// <summary>

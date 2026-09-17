@@ -1,5 +1,6 @@
 [
   {
+    "workflow_notice": "This entire ledger is historical evidence. Kanmer workflow recommendations are superseded on 2026-09-15 by the current operator task and PR/CI records.",
     "id": "OP-001",
     "source": "docs/operator-notes.md",
     "heading": "Operator authority",

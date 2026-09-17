@@ -188,10 +188,45 @@ public sealed partial class CaseCreateWebTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains(
-            "Audits are created automatically from the retained Audit instruction and original report.",
+            "Choose a valid case type.",
             html,
             StringComparison.Ordinal);
         Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
+    }
+
+    [Fact]
+    public async Task ClassifiedAuditWithoutOriginalReportCanBeAcceptedManually()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await StoreReceiptAsync(
+            factory.Services,
+            [],
+            draft: null,
+            classification: MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "audit"),
+                [],
+                "A standalone Audit instruction was identified.",
+                "test-audit-classification",
+                1,
+                CaseType.Audit));
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+        Assert.Contains(">Audit</option>", form.Html, StringComparison.Ordinal);
+        var fields = KeyedFields();
+        fields["CaseType"] = CaseType.Audit.ToString();
+        using var response = await PostCreateAsync(client, form, fields);
+        var caseId = AssertCaseRedirect(response);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var created = await context.Cases
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == caseId);
+        Assert.StartsWith("a.", created.Reference, StringComparison.Ordinal);
+        Assert.Null(created.StandaloneAuditAssessment);
+        Assert.Null(created.StandaloneAuditEvidenceId);
     }
 
     /// <summary>
@@ -859,7 +894,8 @@ public sealed partial class CaseCreateWebTests
         IServiceProvider services,
         IReadOnlyList<InstructionReviewField> fields,
         InstructionDraft? draft,
-        IReadOnlyList<IntakeAssetRecord>? assets = null)
+        IReadOnlyList<IntakeAssetRecord>? assets = null,
+        MailClassificationResult? classification = null)
     {
         var token = Guid.NewGuid().ToString("N");
         var sourceHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
@@ -887,7 +923,8 @@ public sealed partial class CaseCreateWebTests
                 "1",
                 "create_screen_test_policy",
                 1,
-                assets),
+                assets,
+                MailClassificationDecision: classification),
             CancellationToken.None);
     }
 

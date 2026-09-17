@@ -238,6 +238,12 @@ public sealed class ImageIntakeLifecycleTests
 
     private sealed class FakeStore : IImageIntakeStore
     {
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>> ListImagesAsync(
+            IReadOnlyCollection<Guid> imageIntakeIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>>(
+                new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>());
+
         public Task<IReadOnlyList<ImageIntakeSummary>> ListPendingPairingAsync(
             int maximumItems, Guid? caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();

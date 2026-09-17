@@ -226,14 +226,14 @@
                             <td>@(intake.Row.OutcomeReason ?? "—")</td>
                             <td><time datetime="@intake.Row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(intake.Row.ReceivedAtUtc)</time></td>
                             <td class="row-actions">
-                                @if (failureKind == IntakeLogOutcome.AllocationFailed && intake.Actions.CanRetryAllocation && intake.AllocationAttempts.LastOrDefault() is { } lastAttempt)
+                                @if (failureKind == IntakeLogOutcome.AllocationFailed && intake.Actions.CanRetryAllocation && intake.LatestAllocationAttempt is { } lastAttempt)
                                 {
                                     <details>
                                         <summary class="btn btn--small">@OperatorLabels.IntakeLog.RetryAllocation</summary>
                                         <form method="post" action="/Administration/Logs?handler=RetryIntakeAllocation" class="row-confirm">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="receiptId" value="@intake.Row.ReceiptId" />
-                                            <input type="hidden" name="expectedVersion" value="@intake.Receipt.Version" />
+                                            <input type="hidden" name="expectedVersion" value="@intake.ReceiptVersion" />
                                             <input type="hidden" name="expectedAttemptId" value="@lastAttempt.AttemptId" />
                                             <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
                                             <input type="hidden" name="returnUrl" value="/Operations" />
@@ -250,7 +250,7 @@
                                         <form method="post" action="/Administration/Logs?handler=RetryIntakeOcr" class="row-confirm">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="receiptId" value="@intake.Row.ReceiptId" />
-                                            <input type="hidden" name="expectedVersion" value="@intake.Receipt.Version" />
+                                            <input type="hidden" name="expectedVersion" value="@intake.ReceiptVersion" />
                                             <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
                                             <input type="hidden" name="returnUrl" value="/Operations" />
                                             <label for="retry-ocr-reason-@intake.Row.ReceiptId">Reason</label>
@@ -266,7 +266,7 @@
                                         <form method="post" action="/Administration/Logs?handler=ReevaluateIntake" class="row-confirm">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="receiptId" value="@intake.Row.ReceiptId" />
-                                            <input type="hidden" name="expectedVersion" value="@intake.Receipt.Version" />
+                                            <input type="hidden" name="expectedVersion" value="@intake.ReceiptVersion" />
                                             <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
                                             <input type="hidden" name="returnUrl" value="/Operations" />
                                             <label for="reevaluate-reason-@intake.Row.ReceiptId">Reason</label>

@@ -1,0 +1,655 @@
+<!DOCTYPE html><html><body>
+<iframe id="f" src="pegasus_shell_v26.html#/" style="width:1580px;height:1000px"></iframe>
+<pre id="out">PENDING</pre>
+<script>
+const log=[],ok=[];const f=document.getElementById('f');
+function check(name,cond){(cond?ok:log).push((cond?'OK ':'FAIL ')+name);}
+f.onload=()=>{
+  const w=f.contentWindow,d=f.contentDocument;
+  w.addEventListener('error',e=>log.push('ERR '+e.message+' @'+e.lineno));
+  const g=x=>w.eval('with(window.__pegasus){'+x+'}');
+  const $=id=>d.getElementById(id);
+  const has=t=>d.getElementById('app').textContent.includes(t);
+  const route=r=>{w.location.hash=r;g('render()');};
+  const dlgOpen=()=>!!d.querySelector('#dialog-root .dialog');
+  const dlgClose=()=>g('closeDialog()');
+  try{
+    const ROUTES=[['/', 'Work Centre'],['/inbox','Inbox'],['/inbox/m4','Enclosing Inspection Request'],['/upload','Upload'],['/cases','Workflow'],['/cases?tab=review','Review'],['/cases?tab=with-engineer','With Engineer'],['/cases?tab=complete','Completed'],['/cases?tab=triage','Triage'],['/cases?tab=awaiting','Awaiting instruction'],['/cases?tab=held','Held'],['/cases?tab=unidentified','Unidentified'],['/cases/new','Create case'],['/triage/t1','FA16VEX'],['/triage/t2','LX10XTJ'],['/triage/t3','KN22XKD'],['/unidentified/u1','U34'],['/unidentified/u2','U35'],['/unidentified/u4','U33'],['/images/ic1','WR68PBY-01'],['/images/ic2','A28LAM-01'],['/images/ic3','AB12CDE-01'],['/cases/c99/suggestions','Suggested changes'],['/connect/authorize','Connection request'],['/cases/new?receipt=r2','From QDOS instruction'],['/cases/new?receipt=r6','This item cannot become a case'],['/search','Search'],['/search?claimant=a','Case results'],['/operations','AI Job List'],['/admin','People and access'],['/admin/accounts','Staff accounts'],['/admin/contacts','Contacts'],['/admin/configuration','Labour-rate cards'],['/admin/mail','Default sender'],['/admin/valuation-presets','Fixed valuation additions'],['/admin/health','Service health'],['/admin/logs','Logs'],['/admin/reports','Turnaround'],['/admin/ai-jobs','AI jobs'],['/admin/automation','AI settings'],['/signin','Sign in'],['/uploads/7Hq2','Secure file request'],['/nowhere','Record not found']];
+    for(const [r,t] of ROUTES){route(r);check('route '+r,has(t));}
+    check('no vendor name in copy',!/Claude/.test(d.getElementById('app').textContent));
+    // every dialog opens and closes without throwing
+    route('/admin/accounts');
+    const dialogArgs={'account-settings':{id:'s2'},'account-reset':{id:'s2'},'account-disable':{id:'s2'},'account-enable':{id:'s6'},'principal-settings':{id:'p1'},'principal-key':{id:'p1'},'principal-replace':{id:'p1'},'rate-card-disable':{id:'rc1'},'mailbox-settings':{id:'mb1'},'mailbox-folders':{id:'mb1'},'category-state':{id:'cat1'},'glass-credentials':{id:'gs2'},'glass-clear':{id:'gs2'},'contact-edit':{id:'k1'},'preset-edit':{id:'vp1'},'preset-remove':{id:'vp1'},'ai-cancel':{id:'ai1'},'withdraw-link':{case:'c99',link:'ul99'},'triage-finding':{id:'t2'},'triage-assign':{id:'t2'},'triage-cancel':{id:'t2'},'triage-reopen':{id:'t1'},'triage-link':{id:'t2'},'triage-note':{id:'t2'},'unidentified-resolve':{id:'u2'},'image-merge':{id:'ic1'},'image-close':{id:'ic1'},'mail-classify':{mail:'m4'},'mail-move':{mail:'m19'},'compose':{mode:'compose'},'mail-link':{mail:'m21'},'add-to-case':{file:'x'},'upload-request':{},'viewer':{name:'x.jpg'},'palette':{},'add':{},'notifications':{},'account':{},'default-sender':{},'token-remove':{},'automation-stop':{},'automation-start':{},'send-unidentified':{},'rate-card-create':{},'mailbox-add':{},'category-add':{},'account-create':{},'principal-create':{}};
+    for(const name of Object.keys(g('DIALOGS'))){try{g('openDialog')(name,dialogArgs[name]||g('MOCK_DIALOG_ARGS')[name]||{});check('dialog '+name,dlgOpen());dlgClose();}catch(e){log.push('EXC dialog '+name+': '+e.message);}}
+    // the working set is deterministic from here: file:// localStorage carries over between runs
+    w.localStorage.removeItem('v26.open');g("S.openRecords=['c99']");g('S.tabState={}');
+    // key flows
+    route('/');g("ACTIONS['select-work']({dataset:{id:'case-c99'}})");check('work centre selects QDOS26214',has('QDOS26214'));
+    route('/inbox');g("ACTIONS['inbox-scope']({dataset:{scope:'all'}})");g("ACTIONS['select-mail']({dataset:{id:'m99'}})");check('inbox preview QDOS26214 mail',has('hire confirmation'));
+    route('/upload');g("ACTIONS['upload-sample']()");check('sample staged',g('S.upload.files.length')===6);g("ACTIONS['upload-submit']()");
+    route('/cases');g("ACTIONS['select-case']({dataset:{id:'c99'}},{target:document.body})");
+    route('/cases?tab=unidentified');g("ACTIONS['select-case']({dataset:{id:'u1'}},{target:document.body})");check('unidentified quick detail',has('No usable identification'));
+    route('/search?claimant=Carter');check('search finds QDOS26214',has('QDOS26214'));
+    route('/admin/contacts');g("openDialog('contact-edit',{id:'k3'})");check('claim source contact carries notes on every Case',dlgOpen()&&d.querySelector('#dialog-root textarea#notes').value.includes('Prefer total loss'));dlgClose();
+    g("openDialog('principal-settings',{id:'p1'})");check('principal settings carry notes on every Case',dlgOpen()&&d.querySelector('#dialog-root textarea#notes').value.includes('check hire status'));dlgClose();
+    route('/admin/contacts');g("S.contactFilter.type='Principal'");g('render()');check('contacts filter principals',!has('Copart Sandwich')&&has('QDOS'));g("S.contactFilter.type=''");
+    route('/admin/valuation-presets');const n0=g('DATA.valuationPresets.length');g("DATA.valuationPresets.push({id:'vpx',name:'Test',amount:1,state:'active'})");g('render()');check('preset added renders',has('Test'));g("DATA.valuationPresets.pop()");
+    route('/admin/accounts');g("openDialog('glass-credentials',{id:'gs4'})");check('glass dialog for unconfigured engineer',dlgOpen()&&!d.querySelector('#dialog-root').textContent.includes('Clear credential'));dlgClose();
+    g("ACTIONS['rail-toggle']()");check('rail collapsed',d.querySelector('.app-shell').classList.contains('rail-collapsed'));g("ACTIONS['rail-toggle']()");
+    // mockup strip
+    check('mock strip present',!!d.getElementById('mock')&&d.getElementById('mock').textContent.includes('Mockup state'));
+    route('/admin/accounts');g("ACTIONS['mock-role']({dataset:{role:'user'}})");check('user role denied admin',has('Administration is available to Administrators only'));g("ACTIONS['mock-role']({dataset:{role:'administrator'}})");
+    route('/');g("ACTIONS['mock-data']({dataset:{data:'empty'}})");check('empty data shows empty work centre',has('Nothing needs attention'));g("ACTIONS['mock-data']({dataset:{data:'fixtures'}})");check('fixtures restored',has('Report sent evidence outstanding'));
+    g("ACTIONS['mock-unavailable']()");check('unavailable notice',has('Work Centre is unavailable'));g("ACTIONS['mock-unavailable']()");check('available again',!has('Work Centre is unavailable'));
+    g("ACTIONS['mock-fresh']({dataset:{fresh:'partial'}})");check('freshness label',d.querySelector('.rail-health').textContent.includes('Partial'));g("ACTIONS['mock-fresh']({dataset:{fresh:'current'}})");
+    route('/triage/t2');g("ACTIONS['mock-triage']({dataset:{id:'t2',state:'completed'}})");check('triage completed via strip',has('Reopen'));g("ACTIONS['mock-triage']({dataset:{id:'t2',state:'open'}})");
+    route('/');g("CHANGES['mock-dialog']({value:'notifications'})");check('strip opens dialog',dlgOpen());dlgClose();
+    check('case tab present',!!d.querySelector('.workspace-tab[href="#/cases/c99"]'));
+    check('no Work Centre or Open tab',!d.querySelector('.workspace-tabs')||(!d.querySelector('.workspace-tabs').textContent.includes('Work Centre')&&!d.querySelector('.workspace-tab--open')));
+    route('/triage/t2');check('triage record joins the working set',!!d.querySelector('.workspace-tab[data-id="t2"][aria-current="page"]'));
+    route('/inbox/m4');check('message joins the working set',!!d.querySelector('.workspace-tab[data-id="m4"]'));
+    g("ACTIONS['close-record']({dataset:{id:'m4'}})");g('render()');check('closing current record leaves it',!d.querySelector('.workspace-tab[data-id="m4"]')&&w.location.hash!=='#/inbox/m4');
+    check('working set persisted',JSON.parse(w.localStorage.getItem('v26.open')).some(t=>t.id==='t2'));
+    g("ACTIONS['mock-tabs']({dataset:{n:'9'}})");check('nine open shows six tabs and more',d.querySelectorAll('.workspace-tab').length===6&&d.querySelector('.tabs-more summary').textContent.includes('3 more'));
+    g("ACTIONS['mock-tabs']({dataset:{n:'0'}})");check('no open records hides the strip',!d.querySelector('.workspace-tabs')&&d.querySelector('.app-shell').classList.contains('no-tabs'));
+    g("ACTIONS['mock-tabs']({dataset:{n:'1'}})");
+    route('/triage/t2');const gal=d.querySelector('.gallery-item[data-name]');check('gallery thumbs carry photos',!!gal&&!!gal.querySelector('img')&&gal.querySelector('img').src.startsWith('data:image/svg'));
+    g("ACTIONS['preview-doc'](document.querySelector('.gallery-item[data-name]'))");check('viewer opens with image',dlgOpen()&&!!d.querySelector('#dialog-root .viewer-stage img'));
+    check('viewer counts the gallery',d.querySelector('#dialog-root .viewer-n').textContent.startsWith('1 of 4'));
+    g("ACTIONS['viewer-step']({dataset:{d:'1'}})");check('viewer steps',d.querySelector('#dialog-root .viewer-n').textContent.startsWith('2 of 4'));
+    g("ACTIONS['viewer-rotate']()");check('viewer rotates',d.querySelector('#dialog-root .viewer-stage img').style.transform.includes('rotate(90deg)'));
+    g("ACTIONS['viewer-zoom']()");check('viewer zooms',!!d.querySelector('#dialog-root .viewer-stage.is-zoomed'));dlgClose();
+    g("openDialog('viewer',{name:'report.pdf'})");check('document preview renders a page',!!d.querySelector('#dialog-root .viewer-stage img')&&!d.querySelector('#dialog-root .viewer-nav'));dlgClose();
+    route('/triage/t2');g("ACTIONS['preview-doc'](document.querySelector('.gallery-item[data-name]'))");g("ACTIONS['viewer-crop']()");check('shell crop mode',!!d.querySelector('#dialog-root .crop-layer'));
+    g("S.dialog.data.sel={x:.1,y:.2,w:.6,h:.5}");g("ACTIONS['viewer-crop-apply']()");check('shell crop applied',!!g("S.imageEdits[S.dialog.data.name].crop")&&d.querySelector('#dialog-root .viewer-stage img').style.clipPath.startsWith('inset('));
+    g("CHANGES['viewer-tag']({value:'Third party'})");check('shell tag set',g("S.imageEdits[S.dialog.data.name].tag")==='Third party'&&d.querySelector('#dialog-root .viewer-title .tag').textContent==='Third party');
+    dlgClose();check('gallery tile shows tag and crop',d.querySelector('.gallery-item .tag')?.textContent==='Third party'&&d.querySelector('.gallery-item img').style.clipPath.startsWith('inset('));
+    route('/cases?tab=awaiting');g("ACTIONS['select-case']({dataset:{id:'ic1'}},{target:document.body})");const qp=d.querySelector('[aria-labelledby="quick-h"]');check('quick detail stays inside its pane',qp.querySelector('.fact-grid').getBoundingClientRect().right<=qp.getBoundingClientRect().right+1);
+    check('case route hands off',typeof w.__pegasus.renderCase==='function'&&w.__pegasus.caseHref({section:'estimate'})==='pegasus_case_workspace_v26.html?layout=tabs&section=estimate');
+    // ================= v26 replica of the live non-Case pages =================
+    const rsn=v=>{const el=d.getElementById('reason');if(el)el.value=v||'Recorded by the self-check';};
+    const act=(name,ds,formSel)=>g('ACTIONS')[name]({dataset:ds||{}},{preventDefault(){},stopPropagation(){},target:d.body},formSel?d.querySelector(formSel):undefined);
+    const chg=(name,el)=>g('CHANGES')[name](el);
+    const strip=()=>d.getElementById('mock').textContent;
+    // ---- Image-initiated Case record ----
+    route('/images/ic1');
+    check('image record header states the principal',has('Principal')&&has('Not known'));
+    act('mock-image-edit',{id:'ic1'});
+    check('principal select offers the empty option',d.querySelector('[data-form="image-principal"] select option').textContent==='Not known');
+    d.querySelector('[data-form="image-principal"] select').value='QDOS';act('image-principal-save',{id:'ic1'},'[data-form="image-principal"]');
+    check('principal recorded on the image record',g("DATA.imageCases.find(i=>i.id==='ic1').principal")==='QDOS');
+    act('mock-image-principal',{id:'ic1'});check('image principal strip row clears it',g("DATA.imageCases.find(i=>i.id==='ic1').principal")==='');
+    check('image record strip row',strip().includes('Image principal')&&strip().includes('Principal not known'));
+    route('/cases?tab=awaiting');
+    check('awaiting instruction lists a Principal column',d.querySelector('table thead').textContent.includes('Principal')&&has('Not known'));
+    g("ACTIONS['select-case']({dataset:{id:'ic3'}},{target:document.body})");
+    check('awaiting quick detail states the principal',d.querySelector('[aria-labelledby="quick-h"]').textContent.includes('QDOS'));
+    g("ACTIONS['select-case']({dataset:{id:'ic1'}},{target:document.body})");
+    check('awaiting quick detail says when it is not known',d.querySelector('[aria-labelledby="quick-h"]').textContent.includes('Not known'));
+    route('/images/ic1');act('mock-image-edit',{id:'ic1'});
+    g("openDialog('image-close',{id:'ic1'})");rsn('No instruction will follow');act('image-close-save',{id:'ic1'});
+    check('image record closed with a reason',g("DATA.imageCases.find(i=>i.id==='ic1').state")==='closed');
+    g("ACTIONS['mock-image']({dataset:{id:'ic1',state:'awaiting'}})");
+    // ---- Triage record ----
+    route('/triage/t1');
+    check('triage states its principal',has('Principal')&&has('QDOS'));
+    check('triage links exact response evidence',has('Exact response evidence')&&has('Unlink response'));
+    g("openDialog('triage-principal',{id:'t1'})");d.querySelector('#dialog-root [name=principalId]').value='PCH';act('triage-principal-save',{id:'t1'},'#dialog-root form');
+    check('triage principal set',g("DATA.triage.find(t=>t.id==='t1').principal")==='PCH');
+    g("openDialog('triage-unassign',{id:'t1'})");rsn('Engineer on leave');act('triage-unassign-save',{id:'t1'});
+    check('triage unassigned',g("DATA.triage.find(t=>t.id==='t1').assignee")===null);
+    g("openDialog('triage-unlink-response',{id:'t1',evidence:'SE-2188'})");rsn('Wrong message');act('triage-unlink-response-save',{id:'t1',evidence:'SE-2188'});
+    check('response evidence unlinked',g("DATA.triage.find(t=>t.id==='t1').responseEvidence.length")===0);
+    route('/triage/t1');check('unlinked response becomes a candidate',has('Record and link exact response'));
+    d.querySelector('[data-form="triage-link-response"] select').value='SE-2188';rsn('Exact reply confirmed');
+    act('triage-link-response-save',{id:'t1'},'[data-form="triage-link-response"]');
+    check('response evidence linked again',g("DATA.triage.find(t=>t.id==='t1').responseEvidence.length")===1);
+    route('/triage/t2');
+    act('mock-triage-findings',{id:'t2',mode:'two'});
+    check('multiple active findings must be reconciled',has('Multiple active findings require reconciliation'));
+    act('mock-triage-findings',{id:'t2',mode:'one'});
+    check('one active finding is editable',!!d.querySelector('[data-form="triage-finding"]'));
+    d.querySelector('[data-form="triage-finding"] [name=road]').value='Unroadworthy';
+    d.querySelector('[data-form="triage-finding"] #reason').value='Rear lamps inoperative';
+    act('triage-finding-save',{id:'t2',supersedes:'fx1'},'[data-form="triage-finding"]');
+    check('finding superseded',g("DATA.triage.find(t=>t.id==='t2').findings.filter(f=>f.superseded).length")===1);
+    act('mock-triage-chaser',{id:'t2',mode:'unknown'});
+    check('chaser status can be reconciled',has('Latest chaser status: Unknown')&&has('Reconcile chaser status'));
+    act('triage-reconcile-chaser',{id:'t2'});check('chaser status reconciled',g("DATA.triage.find(t=>t.id==='t2').chaser.op.state")==='Sent');
+    act('mock-triage-chaser',{id:'t2',mode:'none'});
+    check('chaser correspondence can be sent',!!d.querySelector('[data-form="triage-chaser"]'));
+    act('triage-send-chaser',{id:'t2'},'[data-form="triage-chaser"]');
+    check('chaser queued',g("DATA.triage.find(t=>t.id==='t2').chaser.op.state")==='Queued');
+    act('mock-triage-chaser',{id:'t2',mode:'blocked'});check('chaser blocked while an operation is in flight',has('must finish or be resolved'));
+    act('mock-triage-chaser',{id:'t2',mode:'none'});
+    check('triage strip rows',strip().includes('Triage findings')&&strip().includes('Triage correspondence'));
+    g("openDialog('triage-complete',{id:'t2'})");rsn('Findings issued');act('triage-complete-save',{id:'t2'});
+    route('/triage/t2');check('post-send correction heading',has('Post-send correction'));
+    g("openDialog('triage-reopen',{id:'t2'})");rsn('Further images received');act('triage-reopen-save',{id:'t2'});
+    g("openDialog('triage-link',{id:'t2'})");d.querySelector('#dialog-root [name=caseId]').value='QDOS26214';
+    rsn('Instruction now received');act('triage-link-save',{id:'t2'},'#dialog-root form');
+    check('triage case linked',g("DATA.triage.find(t=>t.id==='t2').caseId")==='c99');
+    route('/triage/t2');check('triage offers unlink case',has('Unlink case'));
+    g("openDialog('triage-unlink',{id:'t2'})");rsn('Wrong case');act('triage-unlink-save',{id:'t2'});
+    check('triage case unlinked',g("DATA.triage.find(t=>t.id==='t2').caseId")===null);
+    route('/triage/t2');act('edit-start',{kind:'triage',id:'t2'});check('triage edit scope taken',g("S.editing.triage")==='t2');act('edit-cancel',{kind:'triage',id:'t2'});
+    g("S.held.triage='t2'");g('render()');check('contested triage edit offers Take over',has('Take over'));
+    act('edit-start',{kind:'triage',id:'t2',takeover:'1'});check('triage edit taken over',!g("S.held.triage")&&g("S.editing.triage")==='t2');act('edit-cancel',{kind:'triage',id:'t2'});
+    // ---- Unidentified ----
+    route('/unidentified/u2');
+    g("openDialog('unidentified-resolve',{id:'u2'})");
+    check('unidentified resolve offers Link to Case',d.querySelector('#dialog-root').textContent.includes('Link to Case'));
+    d.querySelector('#dialog-root [name=q]').value='Carter';act('resolve-search',{},'#dialog-root form');
+    check('unidentified resolve lists case candidates',!!d.querySelector('#dialog-root .row-button--case'));
+    g("ACTIONS['mock-unid']({dataset:{id:'u2',state:'open'}})");
+    // ---- Mail message ----
+    route('/inbox/m4');
+    check('message offers Reply all',has('Reply all'));
+    check('mail delete and flag are gone',!g('DIALOGS')['mail-delete']&&!g('ACTIONS')['mail-flag']&&!has('Delete message'));
+    route('/inbox/m19');check('message offers the recommended folder',has('Move to'));
+    g("openDialog('mail-move',{mail:'m19'})");act('mail-move-recommended',{mail:'m19'});
+    check('message moved to the recommended folder',!!g("DATA.mail.find(m=>m.id==='m19').filed"));
+    g("openDialog('compose',{mode:'reply-all',mail:'m4'})");
+    check('reply all addresses every recipient',dlgOpen()&&d.querySelector('#dialog-root').textContent.includes('Reply all'));dlgClose();
+    route('/inbox/m13');const q0=g('DATA.aiJobs.length');
+    check('query message offers an AI reply',has('Draft reply with AI'));
+    act('mail-query-response',{mail:'m13'});check('AI reply job created',g('DATA.aiJobs.length')===q0+1);
+    // ---- Search ----
+    route('/search?ref=WR68');
+    check('search groups vehicle images',has('Vehicle images')&&has('WR68PBY-01'));
+    check('vehicle image results carry a lifecycle chip',!!d.querySelector('.row-button--case .status'));
+    // ---- Create case ----
+    route('/cases/new');
+    check('create case carries the live field set',has('Principal code')&&has('Claim Source')&&has('Case type')&&has('Mileage unit')&&has('Inspection date')&&has('Accident circumstances'));
+    route('/cases/new?receipt=r4');
+    check('refusal state',has('This item cannot become a case')&&has('Image material never becomes a case on its own'));
+    route('/cases/new?receipt=r2');
+    check('seeded create case chooses an inspection address',has('Address found in the document')&&!!d.querySelector('input[name=addressChoice]'));
+    check('create case strip row',strip().includes('From a received file')&&strip().includes('Cannot become a case'));
+    const nc0=g('DATA.cases.length');act('new-case-accept',{id:'r2'},'[data-form="new-case-seeded"]');
+    check('create case refuses an inactive Principal',g('DATA.cases.length')===nc0);
+    // ---- AI suggestions ----
+    route('/cases/c99/suggestions');
+    check('suggestions page is live copy',has('Where these came from')&&has('Suggested changes')&&has('AI suggests')&&has('Apply what I accepted'));
+    check('suggestions never name the vendor',!/Claude/.test(d.getElementById('app').textContent));
+    check('suggestions start on Reject',d.querySelector('input[name="decision-odometer"][value=reject]').checked);
+    chg('suggest-decision',{value:'accept',dataset:{key:'odometer'}});
+    check('accepted suggestion enables Apply',!d.querySelector('[data-action="suggest-apply"]').disabled);
+    act('suggest-apply',{id:'c99'});
+    check('applied suggestion recorded on the Case',g("DATA.cases.find(c=>c.id==='c99').history[0].text").includes('AI suggestions applied'));
+    route('/cases/c99/suggestions');check('suggestions strip row',strip().includes('Suggestions')&&strip().includes('Nothing accepted'));
+    act('mock-suggest',{id:'c99',mode:'some'});check('suggestions strip decides rows',g("S.suggest.c99.odometer")==='accept');
+    act('mock-suggest',{id:'c99',mode:'none'});
+    // ---- Staff accounts ----
+    route('/admin/accounts');
+    g("openDialog('account-settings',{id:'s2'})");
+    check('account settings carry printed name and qualifications',d.querySelector('#dialog-root [name=printedName]').value==='A Patterson'&&!!d.querySelector('#dialog-root [name=quals]'));
+    check('account settings offer Force logout and Delete',d.querySelector('#dialog-root').textContent.includes('Force logout')&&d.querySelector('#dialog-root').textContent.includes('Delete'));
+    act('account-force-logout',{id:'s2'});check('force logout recorded',g("DATA.actionLogs[0].action")==='Forced logout');
+    act('mock-account-held',{id:'s2'});check('contested account settings offer Take over',has('Take over')&&strip().includes('Held by another operator'));
+    act('account-take-over',{id:'s2'});check('account settings taken over',!g("S.held.account")&&dlgOpen());dlgClose();
+    const st0=g('DATA.staff.length');g("openDialog('account-settings',{id:'s6'})");act('account-delete',{id:'s6'});
+    check('account deleted',g('DATA.staff.length')===st0-1);
+    // ---- Mailboxes ----
+    route('/admin/mail');
+    g("openDialog('mailbox-settings',{id:'mb2'})");
+    check('mailbox settings state the access and folders',d.querySelector('#dialog-root').textContent.includes('Logical folders')&&d.querySelector('#dialog-root').textContent.includes('Not configured'));
+    dlgClose();g("openDialog('mailbox-settings',{id:'mb1'})");act('mailbox-resolve-folders',{id:'mb1'});
+    check('mailbox folders resolved',g("DATA.mailboxes.find(m=>m.id==='mb1').folders.length")===6);dlgClose();
+    g("openDialog('default-sender',{})");act('edit-start',{kind:'sender',id:'default'});
+    d.querySelector('#dialog-root [name=mb]').value='mb1';act('default-sender-save',{},'#dialog-root form');
+    check('default sender set',g("DATA.mailboxes.find(m=>m.isDefault).id")==='mb1');
+    act('mock-mailbox-held',{id:'mb1'});check('contested mailbox settings offer Take over',has('Take over'));
+    act('mailbox-take-over',{id:'mb1'});check('mailbox settings taken over',!g("S.held.mailbox")&&dlgOpen());dlgClose();
+    // ---- Glass's credential ----
+    route('/admin/accounts');g("openDialog('glass-credentials',{id:'gs2'})");
+    check("Glass's credential is read-only until an edit starts",!!d.querySelector('#dialog-root fieldset[disabled]'));
+    g("S.held.glass='gs2'");g('renderDialog()');
+    check("contested Glass's credential offers Take over",d.querySelector('#dialog-root').textContent.includes('Take over'));
+    act('edit-start',{kind:'glass',id:'gs2',takeover:'1'});
+    check("Glass's credential taken over",!g("S.held.glass")&&!d.querySelector('#dialog-root fieldset[disabled]'));
+    d.querySelector('#dialog-root [name=account]').value='a.patterson@collisionengineers.co.uk';
+    d.querySelector('#dialog-root [name=pw]').value='secret';act('glass-credentials-save',{id:'gs2'},'#dialog-root form');
+    check("Glass's credential saved",g("DATA.glassAccounts.find(x=>x.id==='gs2').account")==='a.patterson@collisionengineers.co.uk');
+    // ---- Connector consent ----
+    route('/connect/authorize');
+    check('connector consent has no rail',!d.querySelector('.app-rail')&&has('Connection request'));
+    check('connector consent lists the scopes',has('cases.assess')&&has('Authorise the connector')&&has('Refuse'));
+    act('connect-decide',{decision:'deny'});check('connector refused',has('Refused')&&g("DATA.connector.decided")==='deny');
+    act('mock-connect',{decision:'accept'});check('connector authorised',has('Authorised'));
+    check('connector strip row',strip().includes('Consent')&&strip().includes('Undecided'));
+    act('mock-connect',{decision:''});
+    check('replica routes strip row',strip().includes('Replica routes')&&strip().includes('Connector consent'));
+    // ---- remaining replica actions ----
+    route('/search');
+    check('search filters by record kind',!!d.querySelector('.form-grid [name=kind]')&&d.querySelector('.form-grid [name=kind]').closest('.form-grid').style.gridTemplateColumns.includes('7'));
+    g("S.search.query={kind:'images',ref:'nothing'}");g('render()');
+    check('vehicle-images listing states its own empty result',has('No vehicle images match these filters.')&&!has('Case results'));
+    g("S.search={query:{},results:null,selected:null}");
+    route('/triage/t3');
+    g("openDialog('triage-assign',{id:'t3'})");d.querySelector('#dialog-root [name=who]').value='A Patterson';act('triage-assign-save',{id:'t3'},'#dialog-root form');
+    check('triage assigned',g("DATA.triage.find(t=>t.id==='t3').assignee")==='A Patterson');
+    g("openDialog('triage-await',{id:'t3'})");rsn('Images requested');act('triage-await-save',{id:'t3'});
+    check('triage awaits information',g("DATA.triage.find(t=>t.id==='t3').state")==='awaiting');
+    route('/triage/t3');d.querySelector('[data-form="triage-note"] [name=note]').value='Chased by telephone';
+    act('triage-note-save',{id:'t3'},'[data-form="triage-note"]');
+    check('triage note added',g("DATA.triage.find(t=>t.id==='t3').history[0].text")==='Chased by telephone');
+    route('/triage/t3');check('history does not repeat the event name',!/Operator note: Operator note/.test(d.getElementById('app').textContent));
+    g("openDialog('triage-cancel',{id:'t3'})");rsn('Duplicate of t1');act('triage-cancel-save',{id:'t3'});
+    check('triage cancelled',g("DATA.triage.find(t=>t.id==='t3').state")==='cancelled');
+    route('/inbox/m99');g("openDialog('mail-unlink',{mail:'m99'})");rsn('Filed against the wrong Case');act('mail-unlink-save',{mail:'m99'});
+    check('message unlinked from the Case',!g("DATA.mail.find(m=>m.id==='m99').caseId"));
+    route('/cases/new');
+    const nc1=g('DATA.cases.length');
+    d.querySelector('[data-form="new-case"] [name="nc-principal"]').value='QDOS';
+    d.querySelector('[data-form="new-case"] [name="nc-claimant"]').value='Mr A Reeve';
+    d.querySelector('[data-form="new-case"] [name="nc-ref"]').value='Q-90001-AR';
+    d.querySelector('[data-form="new-case"] [name="nc-reg"]').value='AB12 CDE';
+    act('new-case-create',{},'[data-form="new-case"]');
+    check('case created manually',g('DATA.cases.length')===nc1+1&&w.location.hash.startsWith('#/cases/'));
+    route('/cases/c99/suggestions');
+    g("INPUTS['suggest-amend']({value:'£2,650.00',dataset:{key:'value'}})");
+    check('amended suggestion keeps the operator value',g("S.suggest.c99['amend-value']")==='£2,650.00');
+    route('/admin/accounts');g("openDialog('account-settings',{id:'s3'})");
+    d.querySelector('#dialog-root [name=quals]').value='IMI Level 4';act('account-save',{id:'s3'},'#dialog-root form');
+    check('qualifications saved',g("DATA.staff.find(s=>s.id==='s3').signs.qualifications")==='IMI Level 4');
+    g("openDialog('account-settings',{id:'s3'})");act('account-state',{id:'s3'});
+    check('account disabled',g("DATA.staff.find(s=>s.id==='s3').state")==='disabled');
+    g("openDialog('account-settings',{id:'s3'})");act('account-state',{id:'s3'});
+    g("openDialog('account-settings',{id:'s3'})");act('account-reset',{id:'s3'});
+    check('temporary password shown once',has('Temporary password')&&g("DATA.staff.find(s=>s.id==='s3').mustChange")===true);
+    g("S.tempPassword=null");
+    route('/admin/mail');g("openDialog('mailbox-settings',{id:'mb1'})");
+    d.querySelector('#dialog-root [name=sizeLimit]').value='20000000';act('mailbox-save',{id:'mb1'},'#dialog-root form');
+    check('mailbox saved',g("DATA.mailboxes.find(m=>m.id==='mb1').sizeLimit")===20000000);
+    const mb0=g('DATA.mailboxes.length');g("openDialog('mailbox-add',{})");
+    d.querySelector('#dialog-root [name=address]').value='billing@collisionengineers.co.uk';act('mailbox-add-save',{},'#dialog-root form');
+    check('mailbox added',g('DATA.mailboxes.length')===mb0+1);
+    route('/admin/accounts');g("openDialog('glass-credentials',{id:'gs2'})");act('edit-start',{kind:'glass',id:'gs2'});act('glass-clear-save',{id:'gs2'});
+    check("Glass's credential cleared",g("DATA.glassAccounts.find(x=>x.id==='gs2').state")==='none');
+    // ---- lane wc
+// ---- lane wc: Work Centre, notifications, workflow settings
+{
+  const wcPanel = t => [...d.querySelectorAll('#app .panel')].find(p => p.querySelector('.panel-head h2') && p.querySelector('.panel-head h2').textContent === t);
+  const wcText = t => { const p = wcPanel(t); return p ? p.textContent : ''; };
+  const wcList = () => d.querySelector('[aria-label="Needs attention"]');
+  try { w.localStorage.removeItem('v26.wcView'); w.localStorage.removeItem('v26.notif'); } catch (e) {}
+  g("S.wcKinds=[];S.wcPage=1;S.wcNewPage=1;S.wcSeen='2026-08-31 12:00';S.selectedWork=null");
+  g("ACTIONS['mock-role']({dataset:{role:'administrator'}})");
+  // the earlier flows left every Triage with a finding or cancelled; put one back in the queue
+  g("ACTIONS['mock-triage']({dataset:{id:'t3',state:'awaiting'}})");
+  g("ACTIONS['mock-triage']({dataset:{id:'t2',state:'open'}})");
+  route('/');
+
+  // D7: the strip drops to four; Blocked and High leave
+  check('wc metric strip of four', d.querySelector('.metric-strip').children.length === 4);
+  check('wc metric strip is Not ready, Review, Held, Unidentified', ['Not ready', 'Review', 'Held', 'Unidentified'].every(t => d.querySelector('.metric-strip').textContent.includes(t)));
+  check('wc has no Blocked metric', !d.querySelector('#app .content').textContent.includes('Blocked'));
+  check('wc has no High priority', !/\bHigh\b/.test(d.querySelector('#app .content').textContent));
+  check('wc has no External work rows', g("wcItems().every(i=>['case','held','review','unassigned','unidentified','triage','ai'].includes(i.kind))"));
+  check('wc does not carry the external failure', !d.querySelector('#app .content').textContent.includes('Box did not confirm the file') && g('DATA.externalWork.some(x=>x.canRetry)'));
+
+  // D6 P1 / P9: grouped by due day, each group with its empty state
+  check('wc groups by due day', has('Overdue (') && has('Due today (') && has('Later ('));
+  check('wc group headings carry counts', /Overdue \(\d+\)/.test(d.querySelector('#app .content').textContent));
+
+  // D2: no chip on the rows; the chip is in the Today pane
+  check('wc rows carry no chip', !!wcList() && !wcList().querySelector('.status'));
+  check('wc rows carry the relative due text', !!wcList().querySelector('.wc-due'));
+  check('wc rows carry the received age', /Received \d+ d ago/.test(wcList().textContent));
+  check('wc Today pane carries the overdue chip', d.querySelector('[aria-labelledby="today-h"] .status') && /overdue|Today/.test(d.querySelector('[aria-labelledby="today-h"] .status').textContent));
+
+  check('wc due text: overdue with how late', g("wcDueText('2026-08-31')") === '2 days overdue');
+  check('wc due text: one day overdue', g("wcDueText('2026-09-01')") === '1 day overdue');
+  check('wc due text: today', g("wcDueText('2026-09-02')") === 'Due today');
+  check('wc due text: tomorrow', g("wcDueText('2026-09-03')") === 'Due tomorrow');
+  check('wc due text: weekday when near', g("wcDueText('2026-09-04')") === 'Due Fri');
+  check('wc due text: date when far', g("wcDueText('2026-09-24')") === 'Due 24 Sep');
+  check('wc band: overdue at or before now', g("wcBand('2026-09-01')") === 'overdue' && g("wcBand('2026-09-02')") === 'today' && g("wcBand('2026-09-03')") === 'later');
+
+  // D3: every kind has a due instant, from DATA.workflow
+  check('wc every row has a due instant', g('wcItems().every(i=>!!i.due)'));
+  check('wc workflow settings carry the decided defaults', g('DATA.workflow.chaseIntervalDays') === 7 && g('DATA.workflow.unidentifiedTargetDays') === 0 && g('DATA.workflow.triageTargetDays') === 1 && g('DATA.workflow.heldTargetDays') === 7 && g('DATA.workflow.reviewTargetDays') === 1 && g('DATA.workflow.aiDraftTargetDays') === 1);
+  {
+    const before = g("wcItems().find(i=>i.kind==='triage').due");
+    g('DATA.workflow.triageTargetDays=30'); g('render()');
+    const after = g("wcItems().find(i=>i.kind==='triage').due");
+    check('wc triage due follows the Triage target', before !== after);
+    g('DATA.workflow.triageTargetDays=1'); g('render()');
+  }
+  {
+    const before = g("wcItems().find(i=>i.kind==='ai').due");
+    g('DATA.workflow.aiDraftTargetDays=14'); g('render()');
+    check('wc AI draft ages by the AI draft target', g("wcItems().find(i=>i.kind==='ai').due") !== before);
+    g('DATA.workflow.aiDraftTargetDays=1'); g('render()');
+  }
+  check('wc held row uses the hold review date when the fixture carries one', g("(function(){var c=DATA.cases.find(function(x){return x.state==='held'});var prev=c.holdReviewOn;c.holdReviewOn='2026-09-24';var d1=wcItems().find(function(i){return i.id==='hd-'+c.id}).due;(prev===undefined?delete c.holdReviewOn:c.holdReviewOn=prev);return d1})()") === '2026-09-24');
+
+  // D6 P2: Office and Mine
+  check('wc defaults to Office for an Administrator', g('wcView()') === 'office');
+  const officeCount = g('wcVisible().length');
+  g("ACTIONS['mock-role']({dataset:{role:'engineer'}})"); route('/');
+  check('wc defaults to Mine for an Engineer', g('wcView()') === 'mine');
+  check('wc Mine is a subset of Office', g('wcVisible().length') <= officeCount);
+  check('wc Mine keeps only my work and what I can take', g("wcVisible().every(i=>i.owner===S.user.name||!!i.takeable)"));
+  act('wc-view', { view: 'office' });
+  check('wc view is remembered', w.localStorage.getItem('v26.wcView') === 'office');
+  try { w.localStorage.removeItem('v26.wcView'); } catch (e) {}
+  g("ACTIONS['mock-role']({dataset:{role:'administrator'}})"); route('/');
+
+  // D6 P3: kind filter chips with counts
+  check('wc kind chips are the seven kinds', d.querySelectorAll('.wc-filters .wc-chip').length === 7 && ['Case', 'Held', 'Review', 'Unassigned', 'Unidentified', 'Triage', 'AI draft'].every(t => d.querySelector('.wc-filters').textContent.includes(t)));
+  check('wc kind chips carry counts', d.querySelectorAll('.wc-filters .wc-chip .n').length === 7);
+  act('wc-kind', { kind: 'triage' });
+  check('wc kind filter narrows the list', g("wcItems().filter(i=>i.kind==='triage').length>0") && [...wcList().querySelectorAll('.row-button .sub')].every(e => e.textContent.startsWith('Triage')));
+  act('wc-kind', { kind: 'unidentified' });
+  check('wc kind filter is multi-select', g('S.wcKinds.length') === 2);
+  act('wc-kind', { kind: '' });
+  check('wc All kinds clears the filter', g('S.wcKinds.length') === 0);
+  act('wc-kind', { kind: 'unidentified' });
+  check('wc shows an empty state per group', has('Nothing due today') || has('Nothing later') || has('Nothing overdue'));
+  act('wc-kind', { kind: '' });
+
+  // D4: paged at 50, never cut
+  check('wc pages at 50, earliest due first', /Page 1 of [2-9]\d* · earliest due first/.test(d.querySelector('#app .content').textContent));
+  check('wc page 1 holds 50 rows', wcList().querySelectorAll('.row-button').length === 50);
+  act('wc-page', { dir: 1 });
+  check('wc Next reaches page 2', g('S.wcPage') === 2 && wcList().querySelectorAll('.row-button').length > 0);
+  act('wc-page', { dir: -1 });
+  check('wc metric strip counts everything regardless of paging', Number(d.querySelector('.metric-strip .value').textContent) === g("DATA.cases.filter(c=>c.state==='not_ready').length"));
+
+  // D6 P5: freshness
+  check('wc shows when the snapshot was taken', has('Updated 14:22') && d.querySelector('#app .page-actions').textContent.includes('Refresh'));
+
+  // D6 P4: the next action does the action
+  check('wc Review Case opens the Case at Review', g("wcItems().find(i=>i.kind==='review').action.data.route").includes('section=review'));
+  check('wc Open Triage opens the Triage', g("wcItems().find(i=>i.kind==='triage').action.label") === 'Open Triage' && g("wcItems().find(i=>i.kind==='triage').action.data.route").startsWith('/triage/'));
+  check('wc Assign Engineer opens the assignment dialog', g("wcItems().find(i=>i.kind==='unassigned').action.data.dialog") === 'case-assign');
+  g("openDialog('case-assign',{id:'c3'})");
+  check('case-assign dialog has an Engineer select and a reason', dlgOpen() && !!d.querySelector('#dialog-root select#engineer') && !!d.querySelector('#dialog-root textarea#reason'));
+  d.querySelector('#dialog-root [name=engineer]').value = 'Ed Mawdsley';
+  d.querySelector('#dialog-root [name=reason]').value = 'Next in rotation';
+  act('case-assign-save', { id: 'c3' }, '#dialog-root form');
+  check('case-assign assigns the Engineer', g("DATA.cases.find(c=>c.id==='c3').engineer") === 'Ed Mawdsley');
+  check('assignment raises that Engineer a notification', g("DATA.notifications.some(n=>n.to==='e.mawdsley'&&n.ref==='QDOS261786'&&n.cause==='Assigned to you')"));
+  g("DATA.cases.find(c=>c.id==='c3').engineer=null");
+
+  // D6 P8: take it
+  g("ACTIONS['mock-role']({dataset:{role:'engineer'}})"); route('/');
+  check('wc offers Assign to me to an Engineer on an unassigned row', g("wcItems().some(i=>i.takeable==='case')") && (function () {
+    const it = g("wcItems().filter(i=>i.takeable==='case')")[0];
+    g("S.selectedWork=" + JSON.stringify(it.id)); g('render()');
+    return d.querySelector('[aria-labelledby="today-h"]').textContent.includes('Assign to me');
+  })());
+  {
+    const it = g("wcItems().filter(i=>i.takeable==='case')")[0];
+    act('wc-assign-me', { case: it.caseId });
+    check('Assign to me takes the Case', g("DATA.cases.find(c=>c.id==='" + it.caseId + "').engineer") === g('S.user.name'));
+    g("DATA.cases.find(c=>c.id==='" + it.caseId + "').engineer=null");
+  }
+  g("openDialog('triage-assign',{id:'t2'})");
+  check('Triage assign offers Assign to me to an Engineer', dlgOpen() && d.querySelector('#dialog-root').textContent.includes('Assign to me'));
+  act('wc-assign-me', { triage: 't2' });
+  check('Assign to me takes the Triage', g("DATA.triage.find(t=>t.id==='t2').assignee") === g('S.user.name'));
+  g("DATA.triage.find(t=>t.id==='t2').assignee=null");
+  g("ACTIONS['mock-role']({dataset:{role:'administrator'}})"); route('/');
+
+  // D8: New cases
+  check('wc has a New cases section', !!wcPanel('New cases'));
+  check('New cases shows how each Case arrived', ['Manual', 'E-mail', 'Provider API', 'Automation'].every(t => wcText('New cases').includes(t)));
+  check('New cases shows what automation changed', wcText('New cases').includes('Changed by automation'));
+  check('New cases is the last 7 days only', (function () {
+    const changed = g("DATA.automationChanges.map(a=>a.caseId)");
+    const old = g("DATA.cases.filter(c=>String(c.createdAt).slice(0,10)<'2026-08-26').map(c=>[c.id,c.ref])").filter(x => !changed.includes(x[0])).map(x => x[1]);
+    return old.length > 0 && old.every(r => !wcText('New cases').includes(r));
+  })());
+  check('New cases is paged', /Page 1 of \d+ · newest first/.test(wcText('New cases')));
+  check('New cases marks what is new for this person', wcText('New cases').includes('Since you last looked'));
+  act('mock-wc-seen', { when: 'now' });
+  check('New cases drops the divider once everything is seen', !wcText('New cases').includes('Since you last looked'));
+  act('mock-wc-seen', { when: 'old' });
+
+  // D9: AI jobs
+  check('wc has an AI jobs section', !!wcPanel('AI jobs'));
+  check('AI jobs shows the four unfinished states', ['Queued', 'Running', 'Draft ready', 'Failed'].every(t => wcText('AI jobs').includes(t)));
+  check('AI jobs shows the lease expiry on a taken job', wcText('AI jobs').includes('Lease expires'));
+  check('AI jobs shows a failure reason with Open Case', wcText('AI jobs').includes('The client refused the job') && wcText('AI jobs').includes('Open Case'));
+  check('AI jobs carries the per-kind action', ['Review estimate', 'Open query', 'Complete job'].every(t => wcText('AI jobs').includes(t)));
+  check('AI jobs excludes Market research', g("DATA.aiJobs.some(j=>j.kind==='market'&&j.state==='draft_ready')") && !wcText('AI jobs').includes('Market research'));
+  check('AI jobs excludes completed and cancelled jobs', g("DATA.aiJobs.some(j=>j.state==='completed')") && !/Completed|Cancelled|Expired/.test(wcText('AI jobs')));
+  check('AI draft is a Needs attention kind', g("wcItems().some(i=>i.kind==='ai')"));
+  check('AI draft rows carry the per-kind action', g("wcItems().filter(i=>i.kind==='ai').every(i=>['Review estimate','Open query','Review'].includes(i.action.label))"));
+
+  // D10: the bell is personal notifications and nothing else
+  check('bell carries the unread count', !!d.querySelector('.bell-count') && Number(d.querySelector('.bell-count').textContent) === g('wcUnread()'));
+  check('notifications are addressed to the signed-in person only', g("wcNotifications().every(n=>!n.to||n.to===S.user.username)"));
+  g("openDialog('notifications',{})");
+  check('notifications dialog lists this person only', dlgOpen() && d.querySelectorAll('#dialog-root .row-button').length === g('wcNotifications().length'));
+  check('notifications rows carry reference, cause and when', d.querySelector('#dialog-root .row-button .title').textContent.length > 0 && /QDOS|PCH|AX/.test(d.querySelector('#dialog-root .row-button .sub').textContent));
+  check('notifications mark unread with a chip', d.querySelector('#dialog-root').textContent.includes('Unread'));
+  check('notifications never mirror Needs attention', !d.querySelector('#dialog-root').textContent.includes('Needs attention'));
+  check('notifications offers Mark all read', d.querySelector('#dialog-root').textContent.includes('Mark all read'));
+  dlgClose();
+  g("DATA.notifications.push({id:'nold',to:S.user.username,ref:'QDOS26001',reg:'XX00 XXX',cause:'Assigned to you',when:'2026-07-01 09:00',read:false,route:'#/'})");
+  check('notifications older than 30 days drop off', !g("wcNotifications().some(n=>n.id==='nold')"));
+  g("DATA.notifications=DATA.notifications.filter(n=>n.id!=='nold')");
+  g("openDialog('notifications',{})");
+  check('a notification names where it opens', g("DATA.notifications.find(n=>n.id==='n6').route") === '#/cases/c99');
+  act('notif-open', { id: 'n2', route: '#/inbox/m99' });
+  check('opening a notification marks it read and routes', g("DATA.notifications.find(n=>n.id==='n2').read") === true && w.location.hash === '#/inbox/m99');
+  route('/');
+  try { w.localStorage.setItem('v26.notif', JSON.stringify([{ id: 'store1', ref: 'QDOS26214', reg: 'MA59BDY', cause: 'Estimate draft ready', when: '2026-09-02 14:30', read: false, route: 'pegasus_case_workspace_v26.html?section=estimate' }])); } catch (e) {}
+  g('render()');
+  check('notifications written by the Case record are merged', g("wcNotifications().some(n=>n.id==='store1')") && g('wcUnread()') >= 1);
+  g("openDialog('notifications',{})"); act('notif-read-all');
+  check('Mark all read clears the count', g('wcUnread()') === 0 && !d.querySelector('.bell-count'));
+  check('the stored notification keeps its read state', JSON.parse(w.localStorage.getItem('v26.notif'))[0].read === true);
+  dlgClose();
+  g("var _n=DATA.notifications;DATA.notifications=[]"); try { w.localStorage.removeItem('v26.notif'); } catch (e) {}
+  g('render()'); g("openDialog('notifications',{})");
+  check('notifications empty state', d.querySelector('#dialog-root').textContent.includes('No notifications'));
+  dlgClose(); g('DATA.notifications=_n'); g('render()');
+
+  // Administration › Configuration: the six due targets
+  route('/admin/configuration');
+  check('configuration reads the six workflow settings', ['Chase interval', 'Unidentified target', 'Triage target', 'Held decision target', 'Review target', 'AI draft target'].every(t => wcText('Case workflow').includes(t)));
+  check('configuration read view names the days', wcText('Case workflow').includes('7 days') && wcText('Case workflow').includes('0 days'));
+  check('configuration offers Edit', wcText('Case workflow').includes('Edit'));
+  g("S.held.workflow='workflow'"); g('render()');
+  check('configuration offers Take over when held elsewhere', wcText('Case workflow').includes('Take over'));
+  act('edit-start', { kind: 'workflow', id: 'workflow', takeover: '1' });
+  check('configuration edit form has six number inputs', d.querySelectorAll('[data-form="workflow-targets"] input[type=number]').length === 6);
+  check('configuration edit form names the ranges', d.querySelector('#chaseIntervalDays').min === '1' && d.querySelector('#chaseIntervalDays').max === '365' && d.querySelector('#unidentifiedTargetDays').min === '0' && d.querySelector('[data-form="workflow-targets"]').textContent.includes('0 to 365'));
+  {
+    const v0 = g('DATA.config.version');
+    d.querySelector('[data-form="workflow-targets"] [name=chaseIntervalDays]').value = '0';
+    act('workflow-save', {}, '[data-form="workflow-targets"]');
+    check('configuration refuses a value outside the range', g('DATA.workflow.chaseIntervalDays') === 7 && g('DATA.config.version') === v0);
+    d.querySelector('[data-form="workflow-targets"] [name=chaseIntervalDays]').value = '10';
+    d.querySelector('[data-form="workflow-targets"] [name=heldTargetDays]').value = '14';
+    act('workflow-save', {}, '[data-form="workflow-targets"]');
+    check('configuration saves the targets', g('DATA.workflow.chaseIntervalDays') === 10 && g('DATA.workflow.heldTargetDays') === 14 && g('DATA.config.version') === v0 + 1);
+    check('configuration logs the saved version', g("DATA.actionLogs[0].action").includes('Case workflow saved'));
+  }
+  route('/');
+  {
+    const after14 = g("wcItems().find(i=>i.kind==='held').due");
+    g('DATA.workflow.chaseIntervalDays=7;DATA.workflow.heldTargetDays=7'); g('render()');
+    check('a saved target changes the Work Centre due instants', after14 !== g("wcItems().find(i=>i.kind==='held').due"));
+  }
+
+  // The mockup strip carries the new states
+  check('mock strip has the Work Centre row', d.getElementById('mock').textContent.includes('Office') && d.getElementById('mock').textContent.includes('Mine'));
+  check('mock strip has the New cases and Notifications rows', d.getElementById('mock').textContent.includes('New cases') && d.getElementById('mock').textContent.includes('Open bell'));
+  g("S.wcKinds=[];S.wcPage=1");
+}
+g("S.notifAutoOpened=false");w.location.hash='#/?notifications=1';g('render()');
+check('bell opens from the Case record link',g('S.notifAutoOpened')===true);g('closeDialog()');w.location.hash='#/';g('render()');
+    // ---- lane intake
+// ================= lane intake: the received file is gone =================
+g("S.openRecords=[]");
+// ---- the route and every link to it ----
+w.location.hash = '#/intake/r1'; g('render()');
+check('no /intake route', has('Record not found') && !has('Received item'));
+check('no received-file route entry', !g("routeExists('/intake/r1')"));
+check('no received-file dialogs', !g('DIALOGS')['intake-block'] && !g('DIALOGS')['intake-correct'] && !g('DIALOGS')['intake-link'] && !g('DIALOGS')['intake-register'] && !g('DIALOGS')['intake-triage']);
+route('/'); check('no link anywhere to a received item', !d.getElementById('app').innerHTML.includes('/intake/'));
+check('no Received file button on the strip', !strip().includes('Received file'));
+
+// ---- Unidentified record: the material actions live here ----
+route('/unidentified/u2');
+check('unidentified offers Open file', has('Open file'));
+check('unidentified offers Link to Case, Create case, Register images and Close with reason', has('Link to Case') && has('Create case') && has('Register images') && has('Close with reason'));
+check('unidentified offers Open the Triage where the item can open one', has('Open the Triage'));
+check('unidentified shows the registration readings', has('Registration readings') && has('DE67LLG'));
+check('no Blocked on the Unidentified record', !has('Blocked') && !has('Block'));
+g("openDialog('unidentified-dismiss',{id:'u2',suggestion:'vs2'})"); rsn('Wrong vehicle'); act('unidentified-dismiss-save', { id: 'u2', suggestion: 'vs2' });
+check('registration reading dismissed', g("DATA.intake.find(r=>r.id==='r5').vrmSuggestions[0].disposition") === 'dismissed');
+g("openDialog('unidentified-resolve',{id:'u2'})");
+d.querySelector('#dialog-root [name=q]').value = 'Carter'; act('resolve-search', {}, '#dialog-root form');
+check('Link to Case lists candidate Cases', !!d.querySelector('#dialog-root .row-button--case'));
+const uDocs0 = g("DATA.cases.find(c=>c.id==='c99').documents.length");
+act('unidentified-link-case', { id: 'u2', case: 'c99' });
+check('Link to Case attaches the material to the Case and resolves the item', g("DATA.cases.find(c=>c.id==='c99').documents.length") > uDocs0 && g("DATA.unidentified.find(u=>u.id==='u2').state") === 'resolved');
+g("openDialog('unidentified-reopen',{id:'u2'})"); rsn('Linked to the wrong Case'); act('unidentified-reopen-save', { id: 'u2' });
+check('a resolved Unidentified item can be reopened', g("DATA.unidentified.find(u=>u.id==='u2').state") === 'open' && g("DATA.unidentified.find(u=>u.id==='u2').history[0].text").startsWith('Resolved to Open'));
+g("openDialog('unidentified-close',{id:'u2'})"); rsn('Sender is not a Principal'); act('unidentified-close-save', { id: 'u2' });
+check('unidentified item closed with a free-text reason', g("DATA.unidentified.find(u=>u.id==='u2').resolution") === 'Closed · Sender is not a Principal');
+g("ACTIONS['mock-unid']({dataset:{id:'u2',state:'open'}})");
+
+// ---- the item that could not be read ----
+route('/unidentified/u5');
+check('unreadable item states what happened', has('Could not be read') && has('PDF') && has('scanned images'));
+check('unreadable item offers all seven actions', has('Open file') && has('Open message') && has('Request again') && has('Link to Case') && has('Create case') && has('Register images') && has('Close with reason'));
+check('unreadable item offers no retry', !has('Retry OCR') && !has('Retry allocation'));
+act('unidentified-request-again', { id: 'u5' }); check('Request again composes a reply to the sender', dlgOpen() && d.querySelector('#dialog-root').textContent.includes('Reply')); dlgClose();
+g("openDialog('unidentified-register',{id:'u5'})"); check('Register images is on the item itself', dlgOpen() && !!d.querySelector('#dialog-root [name=vrm]')); dlgClose();
+
+// ---- Cases: the Unidentified tab ----
+route('/cases?tab=unidentified');
+check('unidentified tab lists open items only', has('U37') && !has('U38'));
+check('nothing on the Cases list says Blocked', !d.getElementById('app').textContent.includes('Blocked'));
+check('unidentified tab has no Open received item', !has('Open received item'));
+chg('unid-view', { value: 'closed' });
+check('the Closed filter lists resolved items with Reopen', has('U38') && has('Reopen') && !has('U37'));
+g("openDialog('unidentified-reopen',{id:'u6'})"); rsn('PCH reissued the instruction'); act('unidentified-reopen-save', { id: 'u6' });
+check('a closed item reopens from the list', g("DATA.unidentified.find(u=>u.id==='u6').state") === 'open');
+g("openDialog('unidentified-close',{id:'u6'})"); rsn('the claim numbers do not match'); act('unidentified-close-save', { id: 'u6' });
+chg('unid-view', { value: 'open' });
+check('the Unidentified tab count stays the open items', d.querySelector('.scope-button[href="#/cases?tab=unidentified"] .count').textContent === String(g("DATA.unidentified.filter(u=>u.state==='open').length")));
+
+// ---- Administration › Logs ----
+route('/admin');
+check('the hub card is Logs', has('Logs') && !has('Action logs'));
+route('/admin/logs');
+check('Logs opens with two tabs', has('Action logs') && has('Intake log'));
+check('Action logs is the first tab', has('Time') && has('Actor'));
+act('logs-tab', { tab: 'intake' });
+check('Intake log names its columns', has('Received') && has('Source') && has('Item') && has('Outcome') && has('Became') && has('Attempts'));
+const ilog = () => [...d.querySelectorAll('#app table')].pop().textContent;
+check('Intake log speaks in operator words', ilog().includes('Case created') && ilog().includes('Could not be read') && ilog().includes('Vehicle images') && !ilog().includes('Ready for case allocation') && !ilog().includes('Blocked'));
+check('Intake log links what the item became', !!d.querySelector('a[href="#/unidentified/u5"]'));
+check('Intake log carries the head-line counts', has('Failed intake') && has('Oldest pending intake'));
+route('/admin/logs?tab=intake&outcome=failed');
+check('the Failed intake count filters the list', g("S.intakeFilters.outcome") === 'failed' && g("intakeRows().every(r=>intakeOutcome(r).key==='failed')") && g('intakeRows().length') < g('DATA.intake.length'));
+act('intake-log-clear', {});
+g("openDialog('intake-log-row',{id:'r13'})");
+check('the Intake log row opens a drawer', dlgOpen() && !!d.querySelector('#dialog-root .dialog--drawer'));
+check('the drawer holds the original and the evidence', d.querySelector('#dialog-root').textContent.includes('Retained original') && d.querySelector('#dialog-root').textContent.includes('Processing evidence'));
+check('the drawer offers the technical actions only', d.querySelector('#dialog-root').textContent.includes('Re-evaluate with current policy') && d.querySelector('#dialog-root').textContent.includes('Retry OCR') && !d.querySelector('#dialog-root').textContent.includes('Correct'));
+dlgClose();
+route('/admin/logs'); act('logs-tab', { tab: 'intake' }); act('intake-log-clear', {});
+d.querySelector('[data-form="intake-log"] [name=search]').value = 'U37'; act('intake-log-apply', {}, '[data-form="intake-log"]');
+check('the Intake log searches by reference', g('intakeRows().length') === 1);
+act('intake-log-clear', {}); check('the Intake log filters clear', g('intakeRows().length') > 1);
+
+// ---- Operations ----
+route('/operations');
+check('Operations lists failed intake processing', has('57709_1_LtrtoEngineerIn.pdf') && has('Retry OCR') && has('Retry allocation') && has('Re-evaluate with current policy'));
+check('the Operations rail badge counts retryable failures', g("railCounts().operations") === g("DATA.externalWork.filter(w=>w.canRetry).length"));
+g("openDialog('intake-retry-ocr',{id:'r13'})"); rsn('Higher-resolution scan supplied'); act('intake-retry-ocr-save', { id: 'r13' });
+check('Retry OCR is recorded against the item', g("DATA.intake.find(r=>r.id==='r13').attempts.processing") === 3);
+
+// ---- Message attachments ----
+route('/inbox/m8'); g("S.mailTab='attachments'"); g('render()');
+check('an unreadable attachment says so and links to its Unidentified item', has('Could not be read') && !!d.querySelector('a[href="#/unidentified/u5"]'));
+check('attachments open in the viewer', !!d.querySelector('[data-action="preview-doc"][data-name="57709_1_LtrtoEngineerIn.pdf"]'));
+route('/inbox/m4'); g("S.mailTab='attachments'"); g('render()');
+check('an attachment that became a Case says so', has('Case created') && has('PCH26005'));
+check('an attachment whose processing failed says so', has('Processing failed'));
+route('/inbox/m4'); g("S.mailTab='case'"); g('render()');
+check('the message never links to a receipt', !has('View received item'));
+g("S.mailTab='message'");
+
+// ---- Create case ----
+route('/cases/new?receipt=r6');
+check('the refusal says why and offers the material', has('This item cannot become a case') && has('closed with its reason recorded') && has('Open file') && !has('Open the received item'));
+route('/cases/new?receipt=r2');
+check('the seeded form states where its values came from', has('Suggested from') && !has('Decision evidence'));
+check('the seeded form no longer rejects to a receipt', !has('Reject proposal'));
+
+// ---- Triage and the image record point at the original ----
+route('/triage/t2'); check('Triage opens the message, not a receipt', has('Open message') && !has('View received item') && !has('View email'));
+route('/images/ic1'); check('the image record opens the original', has('Open file') && !has('View received item'));
+route('/cases?tab=awaiting'); g("ACTIONS['select-case']({dataset:{id:'ic1'}},{target:document.body})");
+check('the awaiting quick detail merges on the record', !d.getElementById('app').innerHTML.includes('/intake/'));
+    // ---- lane inbox
+// ---- Inbox: Category, the scope list, Dismiss ----
+route('/inbox');
+check('inbox filter is Category',has('Category')&&!!d.querySelector('#inbox-queue'));
+check('inbox category empty option reads All categories',[...d.querySelectorAll('#inbox-queue option')].some(o=>o.textContent==='All categories'));
+check('inbox filter never says Queue',!/\bQueue\b/.test(d.querySelector('.filter-bar').textContent));
+check('no Unread scope label',g("L.mailScope.unread")===undefined);
+check('inbox scopes are the seven decided',JSON.stringify(g("inboxScopeItems().map(s=>s.key)"))===JSON.stringify(['all','receiving','updates','pre','unidentified','sent','dismissed']));
+check('Dismissed scope is offered',[...d.querySelectorAll('.scope-button')].some(b=>b.textContent.includes('Dismissed')));
+check('unread scope is refused',(()=>{g("ACTIONS['inbox-scope']({dataset:{scope:'unread'}})");return g("S.inbox.scope")!=='unread';})());
+check('unread rows are bold, not chipped',(()=>{g("S.inbox.scope='all'");g("S.inbox.page=1");g("inboxMessages()[0].read=false");g('render()');const r=d.querySelector('.mail-row--unread');return !!r&&!r.textContent.includes('New');})());
+// Dismiss moves the message to the Dismissed folder and is restorable
+g("S.inbox.scope='all'");g('render()');
+const inboxBefore=g("inboxMessages().length");
+g("ACTIONS['mail-dismiss']({dataset:{mail:'m18'}})");
+check('dismiss removes the message from the incoming list',g("inboxMessages().length")===inboxBefore-1);
+check('dismiss is logged',g("DATA.actionLogs[0].action")==='Dismissed');
+check('dismissed message is filed to Dismissed',g("getMail('m18').filed")==='Dismissed');
+g("ACTIONS['inbox-scope']({dataset:{scope:'dismissed'}})");g('render()');
+check('Dismissed scope lists the dismissed message',has('t12fog estimate'));
+check('Dismissed row offers Restore',!!d.querySelector('[data-action="mail-restore"][data-mail="m18"]'));
+g("ACTIONS['mail-restore']({dataset:{mail:'m18'}})");
+check('restore clears the dismissal',g("getMail('m18').dismissed")===false&&g("getMail('m18').filed")!=='Dismissed');
+g("S.inbox.scope='all'");g('render()');
+check('restored message is back in the incoming list',g("inboxMessages().length")===inboxBefore);
+check('inbox row offers Dismiss',!!d.querySelector('[data-action="mail-dismiss"]'));
+// ---- Message record ----
+route('/inbox/m18');
+check('message record offers Dismiss',!!d.querySelector('[data-action="mail-dismiss"][data-mail="m18"]'));
+g("ACTIONS['mail-dismiss']({dataset:{mail:'m18'}})");route('/inbox/m18');
+check('dismissed message record offers Restore',!!d.querySelector('[data-action="mail-restore"][data-mail="m18"]'));
+g("ACTIONS['mail-restore']({dataset:{mail:'m18'}})");
+// ---- Upload: one upload is one group ----
+route('/upload');g("ACTIONS['mock-upload']({dataset:{stage:'done',set:'case'}})");
+check('upload confirmation shows one group decision',has('Attached to Case QDOS26008'));
+check('upload group is one destination',g("S.upload.group.kind")==='associated');
+check('upload confirmation has no receipt link',!/receipt|received item/i.test(d.getElementById('app').textContent));
+check('unreadable member stays with the group',has('Could not be read')&&g("S.upload.files.length")===4);
+check('unreadable member links to its Unidentified item',!!g("S.upload.files.find(f=>f.state==='failed').uRef"));
+check('group confirmation links the Case files',!!d.querySelector('a.btn[href="pegasus_case_workspace_v26.html?layout=tabs&section=files"]'));
+check('upload no longer says Decided',!has('Decided'));
+g("ACTIONS['mock-upload']({dataset:{stage:'done',set:'images'}})");
+check('image group registers under one registration',g("S.upload.group.kind")==='image_registered'&&has('Registered as vehicle images under'));
+g("ACTIONS['mock-upload']({dataset:{stage:'done',set:'unidentified'}})");
+check('unreadable-free group with no identification is Unidentified',g("S.upload.group.kind")==='unidentified'&&has('Unidentified'));
+g("ACTIONS['mock-upload']({dataset:{stage:'done',set:'unreadable'}})");
+check('an all-unreadable group is one Unidentified item',g("S.upload.group.allUnreadable")===true&&!!g("S.upload.group.uRef"));
+check('all-unreadable confirmation links that item',!!d.querySelector('[data-action="go"][data-route^="/unidentified/"]'));
+g("ACTIONS['mock-upload']({dataset:{stage:'idle'}})");
+check('upload strip offers the four group decisions',(()=>{const t=d.getElementById('mock').textContent;return t.includes('Attached to a Case')&&t.includes('Vehicle images')&&t.includes('None could be read');})());
+// ---- Cases > Held: the review date in the State column ----
+route('/cases?tab=held');g("S.queuePrincipal='PCH'");g("S.queuePage=1");g('render()');
+check('held state column carries the review date',has('Held · review on 24 Sep'));
+g("S.queuePrincipal=''");g('render()');
+check('a held Case without a review date reads Held',(()=>{const t=g("stateChip(getCase('c101'))");return t.includes('Held')&&!t.includes('review on');})());
+check('held tab lists both held Cases',g("DATA.cases.filter(c=>c.state==='held').length")>=2);
+  }catch(e){log.push('EXC '+e.message+'\n'+e.stack);}
+  setTimeout(()=>{document.getElementById('out').textContent='RESULT '+JSON.stringify({fail:log,okCount:ok.length});},1500);
+};
+</script></body></html>

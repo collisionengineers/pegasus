@@ -8,6 +8,7 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
@@ -271,6 +272,13 @@ public sealed class EfCaseDataStore(
             $"{CaseDataPolicy.EditPolicyKey}/v{CaseDataPolicy.EditPolicyVersion}",
             now);
 
+        var freshness = CaseReportFreshness.ClassifyCaseData(before, data);
+        if (freshness.IsStale)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, request.CaseId, freshness.ReasonCode!, now, cancellationToken);
+        }
+
         try
         {
             await context.SaveChangesAsync(cancellationToken);
@@ -420,7 +428,8 @@ public sealed class EfCaseDataStore(
             TextField(snapshot, CaseDataFieldNames.StorageLocation),
             TextField(snapshot, CaseDataFieldNames.RepairerAddress),
             TextField(snapshot, CaseDataFieldNames.RepairerName)),
-        Workspace(snapshot));
+        Workspace(snapshot),
+        snapshot.Case.StandaloneAuditEvidenceId);
 
     /// <summary>
     /// The v1 workspace facts. Each is entered by staff through the one Case

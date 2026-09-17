@@ -74,7 +74,7 @@ public sealed class OperationsUseCaseTests
     [Fact]
     public async Task RequestProjectionAndExternalRetryAreStaffBounded()
     {
-        var projectionStore = new RecordingRequestStore();
+        var projectionStore = new RecordingRequestStore(EmptyRequestProjection());
         var retryStore = new RecordingExternalRetryStore();
         var timeProvider = new FixedTimeProvider(FixedUtcNow);
         var query = new GetRequestOperations(projectionStore, timeProvider);
@@ -82,7 +82,7 @@ public sealed class OperationsUseCaseTests
         var actor = StaffActor();
         var workId = Guid.NewGuid();
 
-        var projection = await query.ExecuteAsync(actor, CancellationToken.None);
+        var projection = await query.ExecuteAsync(actor, cancellationToken: CancellationToken.None);
         var result = await retry.ExecuteAsync(
             new(workId, 4, actor, "external-retry"),
             CancellationToken.None);
@@ -96,6 +96,28 @@ public sealed class OperationsUseCaseTests
         Assert.Equal(FixedUtcNow, retryStore.RetryAtUtc);
     }
 
+    [Fact]
+    public async Task RequestProjectionUsesCallerInstantAtUploadExpiryBoundary()
+    {
+        var expiryUtc = FixedUtcNow;
+        var capturedBeforeExpiryUtc = expiryUtc.AddTicks(-1);
+        var projectionStore = new RecordingRequestStore(new(
+            ImmutableArray.Create(ActiveUploadLink(expiryUtc)),
+            LimitReached: false));
+        var query = new GetRequestOperations(
+            projectionStore,
+            new FixedTimeProvider(expiryUtc.AddTicks(1)));
+
+        var result = await query.ExecuteAsync(
+            StaffActor(),
+            asOfUtc: capturedBeforeExpiryUtc,
+            cancellationToken: CancellationToken.None);
+
+        Assert.Equal(capturedBeforeExpiryUtc, projectionStore.AsOfUtc);
+        Assert.NotEqual(expiryUtc.AddTicks(1), projectionStore.AsOfUtc);
+        Assert.Equal(RequestOperationState.Active, Assert.Single(result.Items).State);
+    }
+
     private static ActionActor StaffActor() =>
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
@@ -104,6 +126,35 @@ public sealed class OperationsUseCaseTests
         ImmutableArray<EmailOperationProjection>.Empty,
         ReceivedLimitReached: false,
         SentLimitReached: false);
+
+    private static RequestOperationsProjection EmptyRequestProjection() => new(
+        ImmutableArray<RequestOperationProjection>.Empty,
+        LimitReached: false);
+
+    private static RequestOperationProjection ActiveUploadLink(DateTimeOffset expiryUtc) => new(
+        Guid.NewGuid(),
+        RequestOperationKind.PegasusUploadLink,
+        RequestOperationState.Active,
+        Guid.NewGuid(),
+        "QDOS31001",
+        "QDOS",
+        expiryUtc.AddMinutes(-1),
+        expiryUtc,
+        1,
+        AcceptedFileCount: 0,
+        AcceptedByteCount: 0,
+        MaximumFileCount: 10,
+        MaximumByteCount: 10_000,
+        LimitsVersion: "1",
+        ExternalKind: null,
+        AttemptCount: null,
+        FailureCode: null,
+        FailureReason: null,
+        CanRetry: false,
+        CanRevoke: true,
+        CaseVersion: 1,
+        CaseEditLeaseState: RequestCaseEditLeaseState.Available,
+        CaseEditLeaseExpiresAtUtc: null);
 
     private static EmailOperationProjection EmailItem(string id) => new(
         id,
@@ -155,7 +206,8 @@ public sealed class OperationsUseCaseTests
         }
     }
 
-    private sealed class RecordingRequestStore : IRequestOperationsProjectionStore
+    private sealed class RecordingRequestStore(RequestOperationsProjection result)
+        : IRequestOperationsProjectionStore
     {
         public int? MaximumItems { get; private set; }
 
@@ -168,10 +220,12 @@ public sealed class OperationsUseCaseTests
         {
             MaximumItems = maximumItems;
             AsOfUtc = nowUtc;
-            return Task.FromResult(new RequestOperationsProjection(
-                ImmutableArray<RequestOperationProjection>.Empty,
-                LimitReached: false));
+            return Task.FromResult(result);
         }
+
+        public Task<int> CountRetryableExternalFailuresAsync(
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken) => Task.FromResult(0);
     }
 
     private sealed class RecordingExternalRetryStore : IExternalWorkRetryStore

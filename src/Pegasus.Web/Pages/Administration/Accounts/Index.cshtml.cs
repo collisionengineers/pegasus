@@ -301,15 +301,15 @@ public sealed class IndexModel(
         if (!TryGetActor(out var actor)) return Forbid();
         if (staffId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
         {
-            return BadRequest();
+            return new ConflictObjectResult("Editing this staff account has ended. Reload it before making further changes.");
         }
 
         try
         {
-            var lease = await editScopes.HeartbeatAsync(
+            await editScopes.HeartbeatAsync(
                 new(EditScopeKind.StaffAccount, staffId, actor, editLeaseToken),
                 cancellationToken);
-            return new JsonResult(new { expiresAtUtc = lease.ExpiresAtUtc });
+            return new OkResult();
         }
         catch (EditScopeConflictException)
         {
@@ -434,6 +434,7 @@ public sealed class IndexModel(
         StaffAccountAdministrationError.StaffAccountNotFound => "The staff account no longer exists.",
         StaffAccountAdministrationError.DuplicateUserName => "That username is already assigned.",
         StaffAccountAdministrationError.LastAdministrator => "The change was denied because at least one enabled Administrator must remain.",
+        StaffAccountAdministrationError.AssignedToOpenCases => "The account is the Engineer or Sign-off Engineer on open cases. Reassign those cases first.",
         StaffAccountAdministrationError.SelfAction => "An account cannot act on itself.",
         StaffAccountAdministrationError.OperationConflict => "The form was already used for a different operation. Retry from the current page.",
         StaffAccountAdministrationError.SignOffEngineerRequiresEngineerRole => OperatorLabels.StaffAccounts.EngineerRoleRequired,
@@ -448,17 +449,20 @@ public sealed class IndexModel(
         var accounts = await listStaffAccounts.ExecuteAsync(new(actor, PageSize: ListStaffAccounts.MaximumPageSize), cancellationToken);
         HasMoreAccounts = accounts.HasMoreAccounts;
         var currentOperatorId = Guid.TryParse(actor.SubjectId, out var id) ? id : (Guid?)null;
+        var glassByAccount = await externalCredentials.GetManyAsync(
+            actor,
+            accounts.Accounts.Select(account => account.Id).ToArray(),
+            ExternalCredentialProvider.GlassRepairEstimate,
+            cancellationToken);
         var rows = new List<StaffAccountRow>(accounts.Accounts.Count);
         foreach (var account in accounts.Accounts)
         {
             // Decision M (v26): the Glass's column puts each account's credential on
             // the list; the credential itself is still managed from the account.
-            var glass = await externalCredentials.GetAsync(
-                actor,
-                account.Id,
-                ExternalCredentialProvider.GlassRepairEstimate,
-                cancellationToken);
-            rows.Add(new StaffAccountRow(account, account.Id == currentOperatorId, glass));
+            rows.Add(new StaffAccountRow(
+                account,
+                account.Id == currentOperatorId,
+                glassByAccount.GetValueOrDefault(account.Id)));
         }
         Rows = rows;
     }

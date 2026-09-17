@@ -28,6 +28,7 @@ internal sealed class EfRecentCaseQueries(
         ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
+        var creationEvents = CreationEvents(context.CaseWorkflowEvents);
         var created = await (
             from caseEntity in context.Set<CaseEntity>().AsNoTracking()
             join principal in context.Set<PrincipalEntity>().AsNoTracking()
@@ -43,9 +44,8 @@ internal sealed class EfRecentCaseQueries(
                 principal.Code,
                 caseEntity.CreatedAtUtc,
                 receipt == null ? null : receipt.SourceChannel,
-                context.CaseWorkflowEvents.Any(item =>
+                creationEvents.Any(item =>
                     item.CaseId == caseEntity.Id
-                    && item.BeforeVersion == 0
                     && item.ActorKind == AutomationActorKind),
                 null))
             .ToListAsync(cancellationToken);
@@ -61,7 +61,8 @@ internal sealed class EfRecentCaseQueries(
             from receipt in receipts.DefaultIfEmpty()
             where change.OccurredAtUtc >= sinceUtc
                 && change.ActorKind == AutomationActorKind
-                && change.BeforeVersion > 0
+                && !creationEvents.Select(item => item.Id).Contains(change.Id)
+                && !(change.EventType == "case_guidance_applied" && change.BeforeVersion == 0)
             select new Row(
                 RecentCaseRowKind.ChangedByAutomation,
                 caseEntity.Id,
@@ -120,6 +121,14 @@ internal sealed class EfRecentCaseQueries(
         null => null,
         _ => EfIntakeReceiptStore.ParseSourceChannel(code)
     };
+
+    private static IQueryable<CaseWorkflowEventEntity> CreationEvents(
+        IQueryable<CaseWorkflowEventEntity> events) =>
+        events.Where(item => item.BeforeVersion == 0
+            && item.AfterVersion == 0
+            && (item.EventType == "manual_case_created"
+                || item.EventType == "case_created_as_replacement"
+                || item.EventType == "audit_case_created"));
 
     private sealed record Row(
         RecentCaseRowKind Kind,

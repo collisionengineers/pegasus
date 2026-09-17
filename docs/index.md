@@ -21,6 +21,7 @@ the affected owner; record only the genuinely undecided portion.
 | Engineering and verification policy | [Engineering](engineering.md) |
 | Local, verification and operational procedures | [Runbook directory](runbook.md) and existing release/wipe skills |
 | Visual assets, components and presentation | [Design](design/README.md); functional interactions remain in FRD-12 |
+| Historical v26 mockups and planning evidence | [v26 reference archive](../design/planning-and-old-designs/v26_planning/README.md); retained reference, not current requirements |
 | Principal-policy evidence and descriptive companions | [Principal mappings](principal-profiles/README.md) |
 | Supplied domain evidence | [Reference](../reference/README.md) |
 | Supplied vendor/component contracts | [External component documents](external-component-documents/README.md) |

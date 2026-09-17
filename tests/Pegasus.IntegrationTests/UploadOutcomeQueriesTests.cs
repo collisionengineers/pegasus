@@ -68,7 +68,7 @@ public sealed class UploadOutcomeQueriesTests
         Assert.Equal("Success", result.ChipLabel);
         Assert.Contains("AB12CDE-01", result.Message, StringComparison.Ordinal);
         Assert.NotNull(result.PrimaryAction);
-        Assert.Equal($"/Cases/Details/{caseId:D}", result.PrimaryAction!.Url);
+        Assert.Equal($"/Cases/{caseId:D}", result.PrimaryAction!.Url);
         // No received-item page exists to reverse from (received file D2).
         Assert.Null(result.SecondaryAction);
     }
@@ -397,7 +397,7 @@ public sealed class UploadOutcomeQueriesTests
 
         Assert.Equal(UploadOutcomeKind.Attached, result.Kind);
         Assert.Contains("QDO31001", result.Message, StringComparison.Ordinal);
-        Assert.Equal($"/Cases/Details/{mergedCaseId:D}", result.PrimaryAction!.Url);
+        Assert.Equal($"/Cases/{mergedCaseId:D}", result.PrimaryAction!.Url);
         Assert.Null(result.Attach);
     }
 
@@ -536,6 +536,12 @@ public sealed class UploadOutcomeQueriesTests
             bool? associated, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ImageIntakeSummary>>([]);
 
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>> ListImagesAsync(
+            IReadOnlyCollection<Guid> imageIntakeIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>>>(
+                new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>());
+
         public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult(detail);
 
@@ -568,6 +574,9 @@ public sealed class UploadOutcomeQueriesTests
         UnidentifiedItem? byReceipt,
         UnidentifiedItem? byGroup) : IUnidentifiedStore
     {
+        public Task<int> CountOpenAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<UnidentifiedRegisterResult> RegisterAsync(
             RegisterUnidentifiedRequest request, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

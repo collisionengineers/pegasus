@@ -406,7 +406,14 @@
                                     <span>Classification</span>
                                     <strong>@(dossier is { } d ? Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(d.Current) : Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(Model.Detail.ClassificationOutcome))</strong>
                                 </div>
-                                @if (dossier is { } destinationDossier)
+                                @if (summary.CaseId is { } destinationCaseId)
+                                {
+                                    <div class="decision-row">
+                                        <span>Destination</span>
+                                        <strong><a asp-page="/Cases/Details" asp-route-id="@destinationCaseId">@summary.CaseReference</a></strong>
+                                    </div>
+                                }
+                                else if (dossier is { } destinationDossier)
                                 {
                                     <div class="decision-row">
                                         <span>Destination</span>

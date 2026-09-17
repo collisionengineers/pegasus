@@ -804,6 +804,14 @@ public sealed class RetainedMailTests
             return Task.FromResult(0);
         }
 
+        public Task<IReadOnlyList<int>> CountManyAsync(
+            IReadOnlyList<MailWorkspaceScope> scopes,
+            CancellationToken cancellationToken)
+        {
+            CountedScopes.AddRange(scopes);
+            return Task.FromResult<IReadOnlyList<int>>(scopes.Select(_ => 0).ToArray());
+        }
+
         public Task<RetainedMailDetail?> GetAsync(
             Guid id,
             CancellationToken cancellationToken,
@@ -957,6 +965,11 @@ public sealed class RetainedMailTests
         public Task<StaffAccountSummary?> GetAsync(Guid staffId, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
 
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by these tests.");
@@ -979,6 +992,14 @@ public sealed class RetainedMailTests
             Task.FromResult(id == staffId
                 ? new StaffAccountSummary(staffId, userName, true, false, StaffRole.User)
                 : null);
+
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
+                staffIds.Contains(staffId)
+                    ? [new(staffId, userName, true, false, StaffRole.User)]
+                    : []);
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>

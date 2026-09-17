@@ -22,6 +22,7 @@ public static class CaseWorkspaceLabels
     public static class Frame
     {
         public const string EditCase = "Edit Case";
+        public const string EditingExpired = "Editing expired · changes are not kept";
         public const string EnableReturn = "Enable return";
         public const string Edit = "Edit";
         public const string Cancel = "Cancel";
@@ -38,7 +39,6 @@ public static class CaseWorkspaceLabels
         public const string TakeOver = "Take over";
         public const string Editing = "Editing";
         public const string Archived = "Archived";
-        public const string AvailableWithEngineer = "Available With Engineer";
         public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
         public const string Figures = "Figures";
         public const string NextAction = "Next action";
@@ -162,6 +162,7 @@ public static class CaseWorkspaceLabels
         public static string? Label(string field)
         {
             if (field == FormName(AssessmentVocabulary.HistoryCheck)) return "Vehicle history";
+            if (field == FormName(AssessmentVocabulary.VehicleCondition)) return "Pre-incident condition";
             foreach (var entry in Settlement.Concat(Report).Concat(Damage).Concat(Vehicle))
             {
                 if (field == FormName(entry.Key)) return entry.Value;
@@ -178,7 +179,8 @@ public static class CaseWorkspaceLabels
 
         public static bool IsAssessmentField(string path) =>
             Settlement.ContainsKey(path) || Report.ContainsKey(path) || Damage.ContainsKey(path)
-            || Vehicle.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck;
+            || Vehicle.ContainsKey(path) || path == AssessmentVocabulary.HistoryCheck
+            || path == AssessmentVocabulary.VehicleCondition;
     }
 
     /// <summary>
@@ -197,7 +199,6 @@ public static class CaseWorkspaceLabels
         public const string NoNote = "No note";
         public const string Remove = "Remove";
         public const string TyresAndBelts = "Tyres & seat belts";
-        public const string Images = "Images";
         public const string Multiple = "Multiple";
         public const string OtherAreas = "Other vehicle areas";
 
@@ -461,9 +462,8 @@ public static class CaseWorkspaceLabels
     public static class Valuation
     {
         public const string SectionTitle = "Valuation";
-        public const string AddValuation = "Add valuation";
-        public const string CazanaCondition = "not a live source";
-        public const string CazanaSeam = "Cazana is not connected";
+        public static string NotConnected(ValuationSource source) => SourceLabel(source) + " is not connected";
+        public static string CazanaSeam => NotConnected(ValuationSource.Cazana);
         public const string AbsentGuideMonth = "Not recorded";
 
         // v26: the calculator (v25 decision 8) and the per-source Get valuation row.
@@ -493,10 +493,6 @@ public static class CaseWorkspaceLabels
         public const string NotApplied = "Not applied";
         public const string GuideMonth = "Guide month";
         public const string Mileage = "Mileage";
-        public const string Date = "Date";
-        public const string Time = "Time";
-        public const string Source = "Source";
-        public const string Add = "Add";
         public const string Listings = "listings";
         public const string ChooseBasis = "Choose a basis card to calculate.";
         public const string GuideRetail = "Guide retail";
@@ -511,6 +507,18 @@ public static class CaseWorkspaceLabels
             ValuationSource.Brego => "Brego",
             ValuationSource.SuperCap => "Super CAP",
             _ => source.ToString(),
+        };
+
+        /// <summary>The hook slug for a source, one list beside its label.</summary>
+        public static string SourceSlug(ValuationSource source) => source switch
+        {
+            ValuationSource.Glasses => "glasses",
+            ValuationSource.Cazana => "cazana",
+            ValuationSource.EngineersValue => "engineers-value",
+            ValuationSource.AiMarketResearch => "ai-market-research",
+            ValuationSource.Brego => "brego",
+            ValuationSource.SuperCap => "super-cap",
+            _ => source.ToString().ToLowerInvariant(),
         };
     }
 

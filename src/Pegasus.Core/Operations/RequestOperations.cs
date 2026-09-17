@@ -73,6 +73,15 @@ public interface IRequestOperationsProjectionStore
         int maximumItems,
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Counts every retryable external-work failure. This is deliberately
+    /// separate from <see cref="GetAsync"/>'s bounded operator list: the rail
+    /// badge is a total, not a count of the first page.
+    /// </summary>
+    Task<int> CountRetryableExternalFailuresAsync(
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
 }
 
 public sealed class GetRequestOperations(
@@ -88,10 +97,11 @@ public sealed class GetRequestOperations(
 
     public async Task<RequestOperationsProjection> ExecuteAsync(
         ActionActor actor,
+        DateTimeOffset? asOfUtc = null,
         CancellationToken cancellationToken = default)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        var nowUtc = timeProvider.GetUtcNow();
+        var nowUtc = asOfUtc ?? timeProvider.GetUtcNow();
         var projection = await store.GetAsync(
             MaximumItems,
             nowUtc,
