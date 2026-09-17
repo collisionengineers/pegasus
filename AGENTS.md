@@ -1,38 +1,3 @@
-## Codex reusable subagents
-
-Project-local roles are defined in [`.codex/agents`](.codex/agents):
-`pegasus-scout`, `pegasus-investigator`, `pegasus-implementer`,
-`pegasus-reviewer`, and `pegasus-verifier`. Their configuration follows the
-[OpenAI subagent configuration documentation](https://learn.chatgpt.com/docs/agent-configuration/subagents)
-and [configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference),
-read 2026-09-08.
-
-- Delegate only independent work that is useful to the active task, normally to
-  2–4 children and never beyond the configured eight-child ceiling. Every
-  assignment names either its ticket and worktree, or an explicit direct-work
-  designation and source root, plus input revision, allowed files, expected
-  output, and stop condition. The primary owns assignment, file-overlap
-  resolution, approvals, integration, and release operations.
-- Children do not recursively delegate, change unrelated files, or autonomously
-  start tests, builds, verification scripts, or packaging.
-  Scout, investigator, and reviewer never perform external writes; other children
-  need an explicit bounded workflow that authorizes the action and target. Role
-  profiles do not grant permissions or override parent runtime policy.
-- All host test/build work, including focused commands, verification scripts,
-  and packaging, is serialized behind one explicit current
-  host-slot owner. Record the owner, host, frozen inputs and handoffs in the
-  current operator task context, with a pointer shared by participating sessions.
-  Before running, the owner refuses a missing, stale, ambiguous, wrong-host,
-  wrong-input or non-owner grant; it also checks other active execution contexts
-  and host processes. All host sessions share that record;
-  process absence or a profile never grants a slot. The current owner records
-  explicit idle before transfer, then the primary rereads and records the next
-  owner. Static reads and Git diff inspection may overlap.
-- The verifier runs commands sequentially against frozen inputs, retains failed
-  results, and makes no product fixes. The primary may take the slot for release
-  packaging only after an explicit idle handoff. Other host sessions coordinate
-  and never kill foreign processes.
-
 # Pegasus repository instructions
 
 Pegasus is Collision Engineers' case-management and reporting application.
@@ -41,33 +6,15 @@ and [CONTEXT.md](CONTEXT.md) for reserved business terminology.
 
 ## Project principles
 
-- Treat the project as unreleased development unless the task establishes a
-  real released consumer or a required persistent-data contract. Replace obsolete
-  behavior and update affected consumers; do not invent compatibility machinery.
-- Implement the requested scope with the simplest correct design. Add complexity
-  only for a current requirement. Reuse the existing owner rather than creating
-  another policy, vocabulary or workflow implementation.
+- Treat the project as unreleased development. Replace obsolete
+  behaviour and update affected consumers; do not implement compatibility for features being removed, or legacy fallbacks.
+- Implement the requested scope with the simplest correct design. Reuse the existing owner rather than creating another policy, vocabulary or workflow implementation.
 - Core owns business policy and ports. Infrastructure implements those ports;
   Web and Worker compose both. Imported source, skills and models own no policy.
-- Resolve contradictory requirements against current operator instructions and
-  the governing specification; source history alone is not authority.
-
 ## Verification
-
-Select verification from the effects of the change. Prose-only edits require
-relevant documentation checks and semantic review; do not run dotnet restore,
-build or test solely because Markdown changed. Application code, dependencies,
-build inputs and embedded executable assets require affected build/test evidence.
-Run full solution checks when the affected scope, explicit acceptance criteria
-or release procedure requires them. Reuse qualifying exact-head CI evidence and
-assign one owner for heavy verification on the host.
 
 Read [engineering verification policy](docs/engineering.md#verification-policy)
 and the [verification procedure](docs/runbook.md).
-For routed Razor changes, follow the existing Razor skills. Report failed,
-omitted and inconclusive checks honestly.
-Obsolete documentation-parser contracts do not justify retaining incorrect docs.
-
 ## Repository map
 
 - `src/Pegasus.Core`: business policy and ports.
