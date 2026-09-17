@@ -1,6 +1,6 @@
 # FRD-19: Image-led intake and pairing
 
-> Owner capabilities: INT-13, INT-27, INT-28, INT-32, UI-18 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: INT-13, INT-27, INT-28, INT-32 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -134,7 +134,14 @@ draft for the image half; those exist only on a formal Case.
 Pairing completion is visible in two places: the derived `Associated with
 Case` label wherever the origin receipt's Case association is shown, and the
 merge event on the resulting Case's own history the moment it happens. There
-is no separate notification.
+is no personal notification for pairing.
+
+**Wanted, not built (operator decision, 18 September 2026).** When early
+images are paired with their Case, the Work Centre should show it as a
+needs-attention item, so staff see the job is ready. It is a Work Centre item
+([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)), not a
+personal notification. Nothing raises it today. This is the unbuilt part of
+`INT-32`.
 
 ### Grouped image-intake routing
 
@@ -307,7 +314,7 @@ evidence are separate tiers
 
 ## Links
 
-- Capabilities: `INT-13`, `INT-27`, `INT-28`, `INT-32`, `UI-18` in
+- Capabilities: `INT-13`, `INT-27`, `INT-28`, `INT-32` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-03](frd-03-triage.md),

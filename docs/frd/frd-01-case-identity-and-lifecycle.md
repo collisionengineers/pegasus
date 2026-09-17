@@ -1,6 +1,6 @@
 # FRD-01: Case identity and types
 
-> Owner capabilities: CASE-01, CASE-02, CASE-03, CASE-04, CASE-07, CASE-08, CASE-09, CASE-10, CASE-11, CASE-12 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: ACC-06, CASE-02 to CASE-12 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -175,7 +175,7 @@ Deployment and live acceptance are separate evidence tiers
 
 ## Links
 
-- Capabilities: `CASE-01`–`CASE-04`, `CASE-07`–`CASE-12` in
+- Capabilities: `ACC-06`, `CASE-02`–`CASE-12` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md) (intake and
   Unidentified), [FRD-04](frd-04-parties-accounts-and-access.md) (parties and

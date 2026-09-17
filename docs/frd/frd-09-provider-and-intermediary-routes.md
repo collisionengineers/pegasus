@@ -1,6 +1,6 @@
 # FRD-09: Provider and intermediary routes
 
-> Owner capabilities: API (provider/intermediary routes) · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: API-01 to API-04, INT-04 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -330,7 +330,7 @@ for a named provider needs exact-target approval and its own evidence tier
 
 ## Links
 
-- Capabilities: `API-01`–`API-04`, `INT-33`, `TRI-01`, `TRI-02` in
+- Capabilities: `API-01`–`API-04`, `INT-04` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
   [FRD-02](frd-02-intake-and-source-identity.md),

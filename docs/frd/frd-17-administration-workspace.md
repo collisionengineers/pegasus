@@ -1,6 +1,6 @@
 # FRD-17: Administration workspace
 
-> Owner capabilities: UI-11, MI-01, MI-02, MI-03 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: MI-01 to MI-03, UI-11 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -20,7 +20,8 @@ Administrator. The rules those settings control are owned elsewhere:
 accounts and contacts by [FRD-04](frd-04-parties-accounts-and-access.md),
 completeness and chasing by
 [FRD-13](frd-13-case-lifecycle-and-workflow.md), valuations by
-[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md) and estimates by
+[FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md) and
+estimates by
 [FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md).
 
 ## Behaviour
@@ -30,8 +31,10 @@ completeness and chasing by
 `/Administration` carries **Accounts**, **Contacts**, **Workflow
 configuration**, **Mail settings**, **Valuation presets**, **Service
 health**, **Logs**, **Reports** and **AI jobs**. Automation appears only when
-its capability is composed. There are no separate Principal or Claim Source
-areas.
+its capability is composed. Its Automation & AI page carries the Send to AI
+connector settings
+([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-connector-settings)).
+There are no separate Principal or Claim Source areas.
 
 Every consequential change (role, account state, principal credential,
 automation stop or start) enters permanent history with an optional reason.
@@ -159,7 +162,7 @@ behaviour. Deployment and live acceptance are separate evidence tiers
 
 ## Links
 
-- Capabilities: `UI-11`, `MI-01`, `MI-02`, `MI-03` in
+- Capabilities: `MI-01`–`MI-03`, `UI-11` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),

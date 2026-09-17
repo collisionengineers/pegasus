@@ -1,6 +1,6 @@
 # FRD-18: Manual upload and upload links
 
-> Owner capabilities: INT-01 (manual upload), INT-31, UI-08 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: INT-19, INT-31, UI-08 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -232,7 +232,7 @@ reject change nothing. Deployment and live evidence are separate tiers
 
 ## Links
 
-- Capabilities: `INT-01`, `INT-31`, `UI-08` in
+- Capabilities: `INT-19`, `INT-31`, `UI-08` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),

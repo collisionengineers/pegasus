@@ -1,6 +1,6 @@
 # FRD-03: Triage
 
-> Owner capabilities: TRI-01 to TRI-09 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: TRI-01 to TRI-07, TRI-09 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
@@ -170,7 +170,8 @@ evidence tiers ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 
-- Capabilities: `TRI-01`–`TRI-09` in [capabilities](../capabilities.md).
+- Capabilities: `TRI-01`–`TRI-07`, `TRI-09` in
+  [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-04](frd-04-parties-accounts-and-access.md),
   [FRD-09](frd-09-provider-and-intermediary-routes.md),
