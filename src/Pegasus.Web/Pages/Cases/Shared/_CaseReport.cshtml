@@ -39,8 +39,9 @@
     var reportAlreadyConfirmed = generation is not { State: CaseReportGenerationState.Stale }
         && reportArtifact?.Status == CaseReportArtifactStatus.Confirmed;
     var canGenerate = editing
+        && offersHead
         && (reportRetryArtifact is not null
-            || !reportAlreadyConfirmed && offersHead && Model.ReportDraftCondition is null);
+            || !reportAlreadyConfirmed && Model.ReportDraftCondition is null);
     var reportOperationKey = reportRetryArtifact?.OperationKey ?? Model.GenerateReportOperationKey;
     var feeNoteArtifact = generation?.Artifacts
         .FirstOrDefault(artifact => artifact.Kind == CaseReportArtifactKind.FeeNote);
