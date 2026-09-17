@@ -49,6 +49,7 @@ public sealed class CaseRecordGapsV26WebTests
 
         AssertPrg(response, store.CaseId);
         Assert.Equal("The claimant says the car was parked.", Assert.Single(store.Saves).Overview!.ClientNotes);
+        Assert.Equal(new DateOnly(2031, 5, 10), store.Saves[0].Overview!.DueBy);
     }
 
     [Fact]

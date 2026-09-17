@@ -1,0 +1,29 @@
+{
+  "skill_name": "translator",
+  "evals": [
+    {
+      "id": 0,
+      "name": "postmortem-for-vp",
+      "prompt": "My VP of Sales asked what happened during the checkout outage on the 2nd. Here's the engineering postmortem the team wrote. Turn it into something he can read in two minutes. He's not technical at all and mostly wants to know what happened, how bad it was, and whether it's going to happen again.",
+      "expected_output": "A short plain-language account that leads with customer impact (about 22% of checkouts failing for 38 minutes, ~630 orders lost, no double charges), explains the cause as a chain of concrete events with no undefined jargon, says it is fixed and lists what prevents a repeat with dates. All key numbers and dates preserved.",
+      "files": ["evals/files/incident-postmortem.md"],
+      "expectations": []
+    },
+    {
+      "id": 1,
+      "name": "concept-idempotency-for-pm",
+      "prompt": "I'm a product manager starting on a payments team next week. Can you explain what idempotency keys are and why the engineers keep saying every endpoint that moves money needs one? Keep it plain, I'm not an engineer and I don't want to look lost in my first standup.",
+      "expected_output": "A short explanation (well under 300 words) that says what an idempotency key is in one or two plain sentences, explains the problem it solves (retries causing duplicate charges), gives one concrete example or analogy, and ends with the one thing to remember. Uses the term 'idempotent' only with a plain definition.",
+      "files": [],
+      "expectations": []
+    },
+    {
+      "id": 2,
+      "name": "saas-contract-what-am-i-on-the-hook-for",
+      "prompt": "we're a 12 person design agency about to sign this software subscription. what does this actually say? i just need to know what we're on the hook for and anything that could bite us later. excerpt attached",
+      "expected_output": "A plain-language 'what this means for you' that leads with obligations and risks (auto-renewal with a 60-day cancel window, 90-day cancel-for-convenience that still owes the full term, 1.5%/month late interest, suspension after 15 days' notice, price rises up to 7% or CPI with 45 days' notice, liability capped at 12 months' fees, 30-day data export window), preserves every deadline and percentage, keeps modality (may vs must), flags vague or ambiguous terms such as 'commercially reasonable efforts' and the 30-day credit request window, and ends with things to check or ask before signing.",
+      "files": ["evals/files/saas-terms-excerpt.md"],
+      "expectations": []
+    }
+  ]
+}
