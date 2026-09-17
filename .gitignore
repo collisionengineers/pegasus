@@ -86,3 +86,7 @@ opencode.json
 
 # Private test evidence, independent of the planning workspace.
 /reference-evidence/
+
+# Manual UAT pack: local working documents plus round evidence that carries
+# real claimant material. Kept untracked deliberately.
+/tests/pegasus-testing-plan/
