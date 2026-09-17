@@ -8113,11 +8113,22 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<int?>("RevenueWeightKg")
+                        .HasColumnType("int");
+
                     b.Property<DateTimeOffset>("RetrievedAtUtc")
                         .HasColumnType("datetimeoffset");
 
                     b.Property<DateTimeOffset?>("SourceObservedAtUtc")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("TypeApproval")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Wheelplan")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<Guid>("WorkItemId")
                         .HasColumnType("uniqueidentifier");

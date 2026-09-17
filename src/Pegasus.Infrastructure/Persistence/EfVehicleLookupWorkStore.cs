@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
@@ -187,6 +188,9 @@ internal sealed class EfVehicleLookupWorkStore(
             ManufactureYear = result.Vehicle?.ManufactureYear,
             EngineCapacityCc = result.Vehicle?.EngineCapacityCc,
             FuelType = result.Vehicle?.FuelType,
+            TypeApproval = result.Vehicle?.TypeApproval,
+            Wheelplan = result.Vehicle?.Wheelplan,
+            RevenueWeightKg = result.Vehicle?.RevenueWeightKg,
             MotTestsJson = SerializeMotTests(result.MotTests),
             MileageValue = outcome.Mileage?.Value,
             MileageUnit = outcome.Mileage?.Unit.ToString(),
@@ -210,16 +214,25 @@ internal sealed class EfVehicleLookupWorkStore(
             .Select(item => item.Value)
             .SingleOrDefaultAsync(cancellationToken);
         var beforeVehicle = ReportVehicleDependencies(caseDataFields, selectedMileageSource);
-        FillEmptyVehicleFields(
+        var vehicleTypeFilled = await FillEmptyVehicleFieldsAsync(
             context,
             caseDataFields,
             workflow.CaseId,
             observationId,
             result,
-            outcome.Mileage);
+            outcome.Mileage,
+            recordedAtUtc,
+            cancellationToken);
         var freshness = CaseReportFreshness.ClassifyVehicle(
             beforeVehicle,
             ReportVehicleDependencies(caseDataFields, selectedMileageSource));
+        // A derived Vehicle type is a printed assessment fact rather than a
+        // Case-data vehicle dependency, so its fill stales the generation
+        // under the same reason the assessment classifier would give it.
+        if (!freshness.IsStale && vehicleTypeFilled)
+        {
+            freshness = CaseReportFreshnessDecision.Stale(CaseReportStaleReasons.AssessmentFactsChanged);
+        }
         if (freshness.IsStale)
         {
             await EfCaseReportGenerationStore.MarkStaleAsync(
@@ -314,13 +327,15 @@ internal sealed class EfVehicleLookupWorkStore(
     /// Runs inside the caller's transaction, alongside the observation it
     /// came from, so the two can never disagree about what the lookup said.
     /// </summary>
-    private static void FillEmptyVehicleFields(
+    private static async Task<bool> FillEmptyVehicleFieldsAsync(
         PegasusDbContext context,
         List<CaseDataFieldEntity> caseDataFields,
         Guid caseId,
         Guid observationId,
         VehicleLookupResult result,
-        VehicleMileageCalculation? mileage)
+        VehicleMileageCalculation? mileage,
+        DateTimeOffset recordedAtUtc,
+        CancellationToken cancellationToken)
     {
         var answered = caseDataFields
             .Where(item => item.ValueKind is CaseDataCodes.Fact or CaseDataCodes.Confirmed)
@@ -409,6 +424,39 @@ internal sealed class EfVehicleLookupWorkStore(
                 derived.MethodVersion);
         }
 
+        var vehicleTypeFilled = false;
+        var vehicleType = VehicleTypePolicy.Classify(result.Vehicle);
+        if (vehicleType is not null)
+        {
+            var path = AssessmentVocabulary.VehicleType;
+            var existing = await context.CaseAssessmentFields
+                .SingleOrDefaultAsync(
+                    item => item.CaseId == caseId && item.FieldPath == path,
+                    cancellationToken);
+            if (VehicleLookupFillPolicy.Fills(
+                    hasFact: false,
+                    hasConfirmed: existing?.ConfirmedBy is not null)
+                && (existing is null
+                    || !string.Equals(existing.Value, vehicleType, StringComparison.Ordinal)))
+            {
+                var owningCase = await context.Cases
+                    .SingleAsync(item => item.Id == caseId, cancellationToken);
+                AssessmentFieldWriter.Write(
+                    context,
+                    owningCase,
+                    caseId,
+                    existing,
+                    path,
+                    vehicleType,
+                    ActorKind.Automation,
+                    "vehicle-lookup",
+                    recordedAtUtc,
+                    confirmedBy: null);
+                vehicleTypeFilled = true;
+            }
+        }
+
+        return vehicleTypeFilled;
     }
 
     private static CaseReportVehicleDependencies ReportVehicleDependencies(
@@ -474,13 +522,19 @@ internal sealed class EfVehicleLookupWorkStore(
                 && entity.ManufactureYear is null
                 && entity.EngineCapacityCc is null
                 && entity.FuelType is null
+                && entity.TypeApproval is null
+                && entity.Wheelplan is null
+                && entity.RevenueWeightKg is null
                     ? null
                     : new(
                         entity.Make,
                         entity.Model,
                         entity.ManufactureYear,
                         entity.EngineCapacityCc,
-                        entity.FuelType),
+                        entity.FuelType,
+                        entity.TypeApproval,
+                        entity.Wheelplan,
+                        entity.RevenueWeightKg),
             motTests,
             mileage,
             failure,

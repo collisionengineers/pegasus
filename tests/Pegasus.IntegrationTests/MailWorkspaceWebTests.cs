@@ -12,6 +12,7 @@ using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Email;
@@ -1710,6 +1711,69 @@ public sealed class MailWorkspaceWebTests
             html,
             StringComparison.Ordinal);
         Assert.Contains("Back to Inbox", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ResolvedUnidentifiedMessageIsOutsideTheUnidentifiedViewWhileOpenMessageRemains()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+        var resolvedMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var openMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+        var resolvedReceiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var openReceiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var register = services.GetRequiredService<IRegisterUnidentified>();
+            var resolvedItem = (await register.ExecuteAsync(
+                new(
+                    UnidentifiedOrigin.Receipt(resolvedReceiptId),
+                    UnidentifiedReasonCode.NoUsableIdentification,
+                    "test detail",
+                    ActionActor.SystemWorker("test-worker"),
+                    $"unidentified-test:{Guid.NewGuid():N}",
+                    NowUtc))).Item;
+            await register.ExecuteAsync(
+                new(
+                    UnidentifiedOrigin.Receipt(openReceiptId),
+                    UnidentifiedReasonCode.NoUsableIdentification,
+                    "test detail",
+                    ActionActor.SystemWorker("test-worker"),
+                    $"unidentified-test:{Guid.NewGuid():N}",
+                    NowUtc));
+            await services.GetRequiredService<IUnidentifiedStore>().ResolveAsync(
+                new(
+                    resolvedItem.Id,
+                    resolvedItem.Version,
+                    ActionActor.Automation("test-worker"),
+                    $"unidentified-resolve-test:{Guid.NewGuid():N}",
+                    "resolved",
+                    UnidentifiedResolutionTargetKind.ExternalReference,
+                    "target-1",
+                    null,
+                    NowUtc.AddMinutes(1)));
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var resolved = await GetHtmlAsync(
+            client,
+            $"/Inbox/{resolvedMessageId:D}?queue=unidentified");
+        var open = await GetHtmlAsync(
+            client,
+            $"/Inbox/{openMessageId:D}?queue=unidentified");
+
+        Assert.Contains(
+            "This message is no longer in the view you opened it from.",
+            resolved,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "This message is no longer in the view you opened it from.",
+            open,
+            StringComparison.Ordinal);
     }
 
     [Fact]
