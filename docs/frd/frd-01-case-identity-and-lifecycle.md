@@ -12,7 +12,7 @@ resolution can link it to a supported destination, without changing that U-refer
 
 - Principal and internal reference are immutable after allocation.
 - Reference allocation occurs once safe source processing establishes an unambiguous Principal and Case type and all identity-critical gates pass. Manual upload additionally requires explicit staff acceptance under [FRD-02](frd-02-intake-and-source-identity.md); its extracted proposal remains pre-Case with no reserved Case/PO until acceptance. Incomplete ordinary business detail, images, or required external checks create or retain an accepted Case as `Not ready`; they do not otherwise leave a valid instruction pre-Case.
-- The normal Case/PO is `{principal code}{YY}{shared sequence}` with a three-digit minimum: `001` through `999`, then `1000` through `9999`. Inspection, standalone Audit, and Inspection + Audit consume one principal/year sequence. Exhaustion at `9999` is visible and blocks allocation; references and sequence values never wrap or return to use.
+- The normal Case/PO is `{principal code}{YY}{shared sequence}` with a three-digit minimum: `001` through `999`, then `1000` onward without a fixed-width ceiling. Inspection, standalone Audit, and Inspection + Audit consume one principal/year sequence. References and sequence values never wrap or return to use.
 - A standalone Audit instruction creates its `a.` Case/PO once the Principal
   and identity-critical gates pass, with or without the original report. On the
   retained-email route a readable original report records the assessment at
@@ -192,8 +192,9 @@ requirements. No formal Case appears as terminally Closed.
   API on Review permits a staff retry only after its automatic delivery
   failed. Pegasus generation has no EVA action. EVA never gates native work.
 - Damage, Valuation, Estimate, Settlement and Report are always viewable.
-  Engineering edits require With Engineer and the normal Case edit authority.
-  No pre-assignment valuation check may depend on an Engineer-only edit.
+  Staff with `PerformCasework` may edit them in Not ready, Review and With
+  Engineer under the normal Case edit authority. Held and completed states are
+  read-only. Adopting the Engineer's Value remains an Engineer act.
 - **Report sent** confirms retained exact Sent evidence under FRD-08; generation,
   an export or a manual assertion is insufficient.
 - **Completed** records that the current work is complete. Query receipt or

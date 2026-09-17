@@ -19,9 +19,6 @@ public sealed class EfLinkedCaseReplacementStore(
     IEnumerable<Pegasus.Core.Intake.IProviderCaseMatchPolicy>? caseMatchPolicies = null)
     : ILinkedCaseReplacementStore
 {
-    private static readonly TimeZoneInfo LondonTimeZone =
-        TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
-
     public async Task<CaseAcceptanceOutcome> CreateAsync(
         CreateLinkedReplacementRequest request,
         CancellationToken cancellationToken)
@@ -116,28 +113,14 @@ public sealed class EfLinkedCaseReplacementStore(
 
 
         var now = timeProvider.GetUtcNow();
-        var year = TimeZoneInfo.ConvertTime(now, LondonTimeZone).Year;
-        var sequence = await context.CaseSequences.SingleOrDefaultAsync(
-            item => item.SequenceLineageId == replacementPrincipal.SequenceLineageId
-                && item.Year == year,
+        var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
+            context,
+            replacementPrincipal,
+            now,
             cancellationToken);
-        if (sequence is null)
-        {
-            sequence = new CaseSequenceEntity
-            {
-                SequenceLineageId = replacementPrincipal.SequenceLineageId,
-                Year = year,
-                LastAllocatedSequence = 0
-            };
-            context.CaseSequences.Add(sequence);
-        }
-        if (sequence.LastAllocatedSequence >= 999)
-        {
-            throw new CaseIdentitySequenceExhaustedException(replacementPrincipal.Code, year);
-        }
-
-        var allocatedSequence = ++sequence.LastAllocatedSequence;
-        var reference = $"{replacementPrincipal.Code}{year % 100:00}{allocatedSequence:000}";
+        var year = allocatedIdentity.Year;
+        var allocatedSequence = allocatedIdentity.Sequence;
+        var reference = allocatedIdentity.Reference;
         var auditReference = CreateStandaloneAuditReference(original.Case, reference);
         var initialState = ParseInitialState(original.Case.InitialState);
         var replacementCaseId = Guid.NewGuid();

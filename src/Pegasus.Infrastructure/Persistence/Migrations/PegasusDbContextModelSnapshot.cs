@@ -1921,7 +1921,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("Cases", null, t =>
                         {
-                            t.HasCheckConstraint("CK_Cases_Sequence", "[Sequence] >= 1 AND [Sequence] <= 999");
+                            t.HasCheckConstraint("CK_Cases_Sequence", "[Sequence] >= 1");
 
                             t.HasCheckConstraint("CK_Cases_Version", "[Version] >= 0");
                         });
@@ -2838,7 +2838,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CaseSequences", null, t =>
                         {
-                            t.HasCheckConstraint("CK_CaseSequences_LastAllocatedSequence", "[LastAllocatedSequence] >= 0 AND [LastAllocatedSequence] <= 999");
+                            t.HasCheckConstraint("CK_CaseSequences_LastAllocatedSequence", "[LastAllocatedSequence] >= 0");
 
                             t.HasCheckConstraint("CK_CaseSequences_Year", "[Year] >= 2000 AND [Year] <= 9999");
                         });

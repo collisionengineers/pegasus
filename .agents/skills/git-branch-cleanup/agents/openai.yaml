@@ -1,0 +1,4 @@
+interface:
+  display_name: "Git Branch Cleanup"
+  short_description: "Audit and safely clean Git branches"
+  default_prompt: "Use $git-branch-cleanup to audit this GitHub repository's branches and worktrees, then propose a safe cleanup list for my approval."

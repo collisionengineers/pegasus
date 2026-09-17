@@ -153,10 +153,8 @@ public sealed class CaseVehicleSaveWebTests
     }
 
     /// <summary>
-    /// The record has one mileage box and no unit control beside it, so the
-    /// unit is settled by the box: a figure typed onto a case carrying neither
-    /// is read in miles, which is what every odometer this business inspects
-    /// reads in.
+    /// The record form defaults the unit to miles when the Case carries neither
+    /// part of an odometer reading.
     /// </summary>
     [Fact]
     public async Task TypingAMileageSavesItInMiles()
@@ -176,6 +174,34 @@ public sealed class CaseVehicleSaveWebTests
         Assert.NotNull(data);
         Assert.Equal(51234L, data!.Vehicle.Mileage.Confirmed?.Value);
         Assert.Equal("miles", data.Vehicle.MileageUnit.Confirmed?.Value);
+    }
+
+    [Fact]
+    public async Task ChangingMileageUnitToKilometresDoesNotConvertTheMileageValue()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            useIntegrationTestAuthentication: true);
+        var caseId = await AcceptCaseAsync(
+            factory, "accept-case-vehicle-mileage-kilometres", withMileage: false);
+        using var client = CreateClient(factory);
+        await ClaimLeaseAsync(client, caseId, await GetHtmlAsync(client, $"/Cases/{caseId:D}"));
+
+        await SaveMileageAsync(client, caseId, "42000", "Recorded the mileage read at inspection.");
+        var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
+        Assert.Equal("miles", SelectValue(editing, "vehicleMileageUnit"));
+        await SaveMileageAsync(
+            client,
+            caseId,
+            "42000",
+            "Changed the odometer unit to kilometres.",
+            "kilometres");
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var data = await scope.ServiceProvider.GetRequiredService<ICaseDataQueries>()
+            .GetAsync(caseId, CancellationToken.None);
+        Assert.NotNull(data);
+        Assert.Equal(42000L, data!.Vehicle.Mileage.Confirmed?.Value);
+        Assert.Equal("kilometres", data.Vehicle.MileageUnit.Confirmed?.Value);
     }
 
     /// <summary>
@@ -247,7 +273,8 @@ public sealed class CaseVehicleSaveWebTests
         HttpClient client,
         Guid caseId,
         string mileage,
-        string reason)
+        string reason,
+        string? mileageUnit = null)
     {
         var editing = await GetHtmlAsync(client, $"/Cases/{caseId:D}");
         Assert.Contains("data-case-editing=\"true\"", editing, StringComparison.Ordinal);
@@ -260,7 +287,8 @@ public sealed class CaseVehicleSaveWebTests
                     caseId,
                     vehicleMake: InputValue(editing, "vehicleMake"),
                     reason: reason,
-                    vehicleMileage: mileage)));
+                    vehicleMileage: mileage,
+                    vehicleMileageUnit: mileageUnit)));
         Assert.Equal(HttpStatusCode.Redirect, save.StatusCode);
     }
 
@@ -426,7 +454,8 @@ public sealed class CaseVehicleSaveWebTests
         Guid caseId,
         string vehicleMake = "Ford",
         string reason = "Corrected vehicle make from retained instruction.",
-        string? vehicleMileage = null) =>
+        string? vehicleMileage = null,
+        string? vehicleMileageUnit = null) =>
     [
         ("id", caseId.ToString("D")),
         ("expectedVersion", InputValue(html, "expectedVersion")),
@@ -441,7 +470,7 @@ public sealed class CaseVehicleSaveWebTests
         ("vehicleMake", vehicleMake),
         ("vehicleModel", InputValue(html, "vehicleModel")),
         ("vehicleMileage", vehicleMileage ?? InputValue(html, "vehicleMileage")),
-        ("vehicleMileageUnit", InputValue(html, "vehicleMileageUnit")),
+        ("vehicleMileageUnit", vehicleMileageUnit ?? SelectValue(html, "vehicleMileageUnit")),
         ("accidentCircumstances", TextareaValue(html, "accidentCircumstances")),
         ("incidentDate", InputValue(html, "incidentDate")),
         ("dueBy", InputValue(html, "dueBy")),
@@ -542,6 +571,26 @@ public sealed class CaseVehicleSaveWebTests
         return value.Success
             ? WebUtility.HtmlDecode(value.Groups["value"].Value)
             : string.Empty;
+    }
+
+    private static string SelectValue(string html, string name)
+    {
+        var select = Regex.Match(
+            html,
+            $"<select[^>]*name=\\\"{Regex.Escape(name)}\\\"[^>]*>.*?</select>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+        Assert.True(select.Success, $"The Case form must render '{name}' as a select.");
+        var selectedOption = Regex.Match(
+            select.Value,
+            "<option[^>]*\\sselected(?:=\\\"[^\\\"]*\\\")?[^>]*>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(selectedOption.Success, $"The Case form select '{name}' must have a selected option.");
+        var value = Regex.Match(
+            selectedOption.Value,
+            "value=\\\"(?<value>[^\\\"]*)\\\"",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(value.Success, $"The selected option for '{name}' must have a value.");
+        return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
     private static string TextareaValue(string html, string name)

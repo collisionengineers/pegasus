@@ -379,9 +379,9 @@ The sections, in order, are **Overview**,
 **Inspection**, **Vehicle**, **Damage**, **Valuation**, **Estimate**,
 **Settlement**, **Report**, **Files**, **Notes**. Every
 section is always viewable; the Engineer sections — Damage, Valuation,
-Estimate, Settlement, Report — are editable in With Engineer and read-only
-in every other state (D30; the former D11 access rule is now this read-only
-rule).
+Estimate, Settlement, Report — are editable in Not ready, Review and With
+Engineer for staff with `PerformCasework`, and read-only in Held and after
+completion. Adopting the Engineer's Value remains an Engineer act (D30).
 The whole record enters one edit mode over one lease
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)).
 While editing, each section renders its one edit form in place of its
@@ -457,7 +457,8 @@ a non-destructive conflict.
   when it differs from the recorded value, Storage location, and Repairer
   (D33, [FRD-06](frd-06-vehicle-and-engineering-evidence.md#inspection-address)).
 - Vehicle: registration, make, model, year, and one mileage with its
-  provenance (Extracted · Lookup · Staff); one **Look up DVLA & MOT** action
+  editable unit and provenance (Extracted · Lookup · Staff); one **Look up
+  DVLA & MOT** action
   (`EXT-01`) whose looked-up values fill an empty Make, Model, Year, or
   Mileage, and a Vehicle type that staff have not confirmed, directly and
   never overwrite an extracted or staff-entered value —
