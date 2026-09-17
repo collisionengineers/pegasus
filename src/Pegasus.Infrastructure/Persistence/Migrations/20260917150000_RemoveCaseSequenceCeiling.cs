@@ -32,22 +32,7 @@ public partial class RemoveCaseSequenceCeiling : Migration
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.DropCheckConstraint(
-            name: "CK_CaseSequences_LastAllocatedSequence",
-            table: "CaseSequences");
-
-        migrationBuilder.DropCheckConstraint(
-            name: "CK_Cases_Sequence",
-            table: "Cases");
-
-        migrationBuilder.AddCheckConstraint(
-            name: "CK_CaseSequences_LastAllocatedSequence",
-            table: "CaseSequences",
-            sql: "[LastAllocatedSequence] >= 0 AND [LastAllocatedSequence] <= 999");
-
-        migrationBuilder.AddCheckConstraint(
-            name: "CK_Cases_Sequence",
-            table: "Cases",
-            sql: "[Sequence] >= 1 AND [Sequence] <= 999");
+        throw new NotSupportedException(
+            "This pre-release case sequence ceiling removal migration is forward-only.");
     }
 }

@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Pegasus.Core.Cases;
 
 namespace Pegasus.Infrastructure.Persistence;
 
