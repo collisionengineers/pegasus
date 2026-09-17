@@ -203,6 +203,7 @@ public sealed class EfLinkedCaseReplacementStore(
                 MissingMaterialReason = original.DueWork?.MissingMaterialReason
                     ?? "Corrected replacement awaits required material",
                 DueBy = original.DueWork?.DueBy ?? original.Case.AcceptedInspectionDeadline,
+                DueBySetByStaff = original.DueWork?.DueBySetByStaff ?? false,
                 State = nameof(CaseDueWorkState.Scheduled),
                 NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
                 Version = 0
@@ -293,7 +294,10 @@ public sealed class EfLinkedCaseReplacementStore(
             CompletenessPolicyKey = original.CompletenessPolicyKey,
             CompletenessPolicyVersion = original.CompletenessPolicyVersion,
             CompletenessPolicySatisfied = original.CompletenessPolicySatisfied,
-            AcceptedAtUtc = original.AcceptedAtUtc
+            AcceptedAtUtc = original.AcceptedAtUtc,
+            ClaimSourceOverrideContactName = original.ClaimSourceOverrideContactName,
+            ClaimSourceOverrideContactTelephone = original.ClaimSourceOverrideContactTelephone,
+            ClaimSourceOverrideContactEmailAddress = original.ClaimSourceOverrideContactEmailAddress
         };
         replacement.Fields.AddRange(original.Fields.Select(field => new CaseDataFieldEntity
         {

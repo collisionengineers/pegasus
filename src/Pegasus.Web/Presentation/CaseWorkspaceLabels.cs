@@ -78,6 +78,9 @@ public static class CaseWorkspaceLabels
         public const string ClaimSource = "Claim source";
         public const string ClaimSourceContact = "Claim source contact";
         public const string Contact = "Contact";
+        public const string ContactName = "Contact name";
+        public const string ContactEmail = "Contact e-mail";
+        public const string ContactPhone = "Contact phone";
         public const string Address = "Address";
         public const string VatStatus = "VAT status";
         public const string Notes = "Notes";

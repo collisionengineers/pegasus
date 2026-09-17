@@ -440,13 +440,18 @@ public sealed class EfCaseDataStore(
     {
         var data = CaseDataFieldWriter.ReadEditable(snapshot);
         return new(
-            new(
-                data.ClaimSourceId,
-                data.ClaimSourceVersion,
-                data.ClaimSourceName,
-                data.ClaimSourceContactName,
-                data.ClaimSourceContactTelephone,
-                data.ClaimSourceContactEmailAddress),
+            data.ClaimSourceId is not null
+                ? new(
+                    data.ClaimSourceId,
+                    data.ClaimSourceVersion,
+                    data.ClaimSourceName,
+                    data.ClaimSourceContactName,
+                    data.ClaimSourceContactTelephone,
+                    data.ClaimSourceContactEmailAddress,
+                    data.ClaimSourceOverrideContactName,
+                    data.ClaimSourceOverrideContactTelephone,
+                    data.ClaimSourceOverrideContactEmailAddress)
+                : null,
             new(
                 data.StorageBusinessId,
                 data.StorageBusinessVersion,
@@ -696,6 +701,9 @@ internal static class CaseDataFieldWriter
         Text(CaseDataFieldNames.PrincipalNotes, data.PrincipalNotes);
         Text(CaseDataFieldNames.ClaimSourceNotes, data.ClaimSourceNotes);
         Text(CaseDataFieldNames.ClientNotes, data.ClientNotes);
+        snapshot.ClaimSourceOverrideContactName = data.ClaimSourceOverrideContactName;
+        snapshot.ClaimSourceOverrideContactTelephone = data.ClaimSourceOverrideContactTelephone;
+        snapshot.ClaimSourceOverrideContactEmailAddress = data.ClaimSourceOverrideContactEmailAddress;
     }
 
     public static CaseEditableData ReadEditable(CaseDataSnapshotEntity snapshot) => new(
@@ -752,7 +760,11 @@ internal static class CaseDataFieldWriter
         ConfirmedText(snapshot, CaseDataFieldNames.VehicleYear),
         ConfirmedText(snapshot, CaseDataFieldNames.PrincipalNotes),
         ConfirmedText(snapshot, CaseDataFieldNames.ClaimSourceNotes),
-        ConfirmedText(snapshot, CaseDataFieldNames.ClientNotes));
+        ConfirmedText(snapshot, CaseDataFieldNames.ClientNotes),
+        DueBy: null,
+        ClaimSourceOverrideContactName: snapshot.ClaimSourceOverrideContactName,
+        ClaimSourceOverrideContactTelephone: snapshot.ClaimSourceOverrideContactTelephone,
+        ClaimSourceOverrideContactEmailAddress: snapshot.ClaimSourceOverrideContactEmailAddress);
 
     private static void SetConfirmed(
         PegasusDbContext context,
@@ -943,7 +955,10 @@ internal static class CaseDueWorkScheduler
         }
 
         due.MissingMaterialReason = MissingMaterialReason;
-        due.DueBy = dueBy;
+        if (!due.DueBySetByStaff)
+        {
+            due.DueBy = dueBy;
+        }
         if (due.State == nameof(CaseDueWorkState.Held)
             || (due.State == nameof(CaseDueWorkState.Scheduled) && due.NextChaseAtUtc is not null))
         {
@@ -955,5 +970,78 @@ internal static class CaseDueWorkScheduler
         due.HeldAtUtc = null;
         due.RemainingChaseIntervalTicks = null;
         due.Version++;
+    }
+
+    public static void ApplyStaffDueBy(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        DateOnly? manualDueBy,
+        DateOnly? acceptedDeadline,
+        long? versionBeforeSave)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(workflow);
+        var resolved = CaseDuePolicy.Resolve(manualDueBy, acceptedDeadline);
+        if (workflow.DueWork is not { } due)
+        {
+            due = new()
+            {
+                CaseId = workflow.CaseId,
+                Workflow = workflow,
+                MissingMaterialReason = MissingMaterialReason,
+                DueBy = resolved,
+                DueBySetByStaff = manualDueBy is not null,
+                State = nameof(CaseDueWorkState.Stopped),
+                NextChaseAtUtc = null,
+                Version = 0
+            };
+            workflow.DueWork = due;
+            context.CaseDueWork.Add(due);
+            return;
+        }
+
+        due.DueBy = resolved;
+        due.DueBySetByStaff = manualDueBy is not null;
+        if (versionBeforeSave == due.Version)
+        {
+            due.Version++;
+        }
+    }
+
+    public static void ProjectDueBy(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        DateOnly? acceptedDeadline,
+        long? versionBeforeSave)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(workflow);
+        if (workflow.DueWork is not { } due)
+        {
+            due = new()
+            {
+                CaseId = workflow.CaseId,
+                Workflow = workflow,
+                MissingMaterialReason = MissingMaterialReason,
+                DueBy = acceptedDeadline,
+                State = nameof(CaseDueWorkState.Stopped),
+                NextChaseAtUtc = null,
+                Version = 0
+            };
+            workflow.DueWork = due;
+            context.CaseDueWork.Add(due);
+            return;
+        }
+
+        if (due.DueBySetByStaff || due.DueBy == acceptedDeadline)
+        {
+            return;
+        }
+
+        due.DueBy = acceptedDeadline;
+        if (versionBeforeSave == due.Version)
+        {
+            due.Version++;
+        }
     }
 }

@@ -9,6 +9,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -80,7 +81,13 @@ public sealed class EfCaseWorkspaceStore(
                 "The Case cannot be saved in its current state.");
         }
 
-        var beforeData = CaseDataFieldWriter.ReadEditable(snapshot);
+        var dueWorkVersionBeforeSave = workflow.DueWork?.Version;
+        var beforeData = CaseDataFieldWriter.ReadEditable(snapshot) with
+        {
+            DueBy = CaseDuePolicy.Resolve(
+                workflow.DueWork?.DueBy,
+                snapshot.Case.AcceptedInspectionDeadline)
+        };
         var beforeReportData = EffectiveReportData(snapshot.Fields);
         var beforeMileageField = CaseDataFieldValues.CurrentField(
             snapshot.Fields,
@@ -117,6 +124,8 @@ public sealed class EfCaseWorkspaceStore(
         {
             snapshot.Case.AcceptedInspectionDeadline = data.InspectionDeadline;
         }
+
+        var dueByChanged = request.Overview is not null && data.DueBy != beforeData.DueBy;
 
         var assessmentFields = await context.CaseAssessmentFields
             .Where(item => item.CaseId == request.CaseId)
@@ -241,6 +250,24 @@ public sealed class EfCaseWorkspaceStore(
                     now,
                     cancellationToken);
             }
+        }
+
+        if (dueByChanged)
+        {
+            CaseDueWorkScheduler.ApplyStaffDueBy(
+                context,
+                workflow,
+                data.DueBy,
+                snapshot.Case.AcceptedInspectionDeadline,
+                dueWorkVersionBeforeSave);
+        }
+        else
+        {
+            CaseDueWorkScheduler.ProjectDueBy(
+                context,
+                workflow,
+                snapshot.Case.AcceptedInspectionDeadline,
+                dueWorkVersionBeforeSave);
         }
 
         var beforeVersion = workflow.Version;

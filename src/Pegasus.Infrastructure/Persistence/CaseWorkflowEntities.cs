@@ -120,6 +120,7 @@ internal sealed class CaseDueWorkEntity : IApplicationManagedConcurrencyToken
     public CaseWorkflowEntity Workflow { get; set; } = null!;
     public required string MissingMaterialReason { get; set; }
     public DateOnly? DueBy { get; set; }
+    public bool DueBySetByStaff { get; set; }
     public required string State { get; set; }
     public DateTimeOffset? NextChaseAtUtc
     {
