@@ -24,7 +24,9 @@ public sealed class QdosMappingExtractionTests(ITestOutputHelper output)
         string? VehicleDescription,
         long? Mileage,
         DateOnly? IncidentDate,
-        string? CircumstancesStart = null);
+        string? CircumstancesStart = null,
+        string? ClaimantAddress = null,
+        string? ClaimantContactNumber = null);
 
     // Keyed by the leading "(EREFn) …" prefix that uniquely names each mapped
     // file. Values come from the letters themselves (see the mapping document).
@@ -115,6 +117,18 @@ public sealed class QdosMappingExtractionTests(ITestOutputHelper output)
                 expected.CircumstancesStart,
                 draft.AccidentCircumstances ?? string.Empty,
                 StringComparison.Ordinal);
+        }
+
+        if (expected.ClaimantAddress is not null)
+        {
+            Assert.Equal(expected.ClaimantAddress, draft.ClaimantAddress);
+            Assert.Equal(expected.ClaimantAddress,
+                Assert.Single(result.Fields, field => field.Name == "Claimant address").SuggestedValue);
+        }
+
+        if (expected.ClaimantContactNumber is not null)
+        {
+            Assert.Equal(expected.ClaimantContactNumber, draft.ClaimantContactNumber);
         }
     }
 

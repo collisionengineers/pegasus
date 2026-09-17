@@ -525,7 +525,7 @@ public sealed class AnalyzeRetainedInstruction(
         var profile = (IInstructionDocumentProfile)policy;
         var extraction = policy.Extract(
             readResult,
-            completedAtUtc,
+            new(completedAtUtc, receipt.ReceivedAtUtc),
             // The principal is recorded as PROPOSED BY THE DOCUMENT: the policy
             // key and version carried here are the selector's document-profile
             // identity, not a mail route's, so nothing downstream can mistake
