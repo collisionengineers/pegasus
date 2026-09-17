@@ -16,6 +16,27 @@ public static class DocumentReadTelemetry
     private static readonly HashSet<string> AllowedPhases = new(StringComparer.Ordinal)
     {
         "web.case.main",
+        "web.workcentre.resource",
+        "web.workcentre.result",
+        "web.workcentre.main",
+        "web.workcentre.refresh.resource",
+        "web.workcentre.refresh.result",
+        "web.workcentre.refresh.main",
+        "web.case.frame",
+        "web.case.access",
+        "web.case.workspace",
+        "web.case.direct-sections",
+        "web.case.engineer-sections",
+        "web.case.extras",
+        "web.case.resource",
+        "web.case.result",
+        "web.case.section.resource",
+        "web.case.section.result",
+        "web.auth.validation",
+        "web.shell.counts",
+        "web.shell.operations",
+        "web.shell.notifications",
+        "report.renderer.initialize",
         "web.case.fragment.vehicle",
         "web.case.fragment.valuation",
         "web.case.fragment.files",
@@ -33,6 +54,7 @@ public static class DocumentReadTelemetry
         "document.thumbnail.cache.read",
         "document.thumbnail.cache.write",
         "document.thumbnail.render",
+        "document.thumbnail.render.gate",
         "document.thumbnail.decode.gate"
     };
 
