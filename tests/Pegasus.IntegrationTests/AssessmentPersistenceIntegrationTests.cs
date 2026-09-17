@@ -328,7 +328,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     [Theory]
-    [InlineData(CaseLifecycleState.Review, false, true)]
+    [InlineData(CaseLifecycleState.NotReady, true, false)]
+    [InlineData(CaseLifecycleState.Review, true, false)]
+    [InlineData(CaseLifecycleState.Held, false, true)]
     [InlineData(CaseLifecycleState.ReportPreparation, true, false)]
     [InlineData(CaseLifecycleState.PostReport, true, false)]
     [InlineData(CaseLifecycleState.PostReportComplete, true, true)]
@@ -1016,7 +1018,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)), parsed.Lines, source);
         var authority = new ImportRawEstimateRequest(engineer, caseId, 0, lease.Token,
             Guid.NewGuid(), Guid.NewGuid(), hash, request.OperationKey, request.Details.Name);
-        foreach (var state in new[] { CaseLifecycleState.Review, CaseLifecycleState.NotReady, CaseLifecycleState.Held })
+        // Not ready and Review are assessment-writable since the 17 September
+        // ruling; the import is refused only where the assessment is read-only.
+        foreach (var state in new[] { CaseLifecycleState.Held, CaseLifecycleState.PostReportComplete })
         {
             await using var setup = await harness.Factory.CreateDbContextAsync();
             var workflow = await setup.CaseWorkflows.SingleAsync(row => row.CaseId == caseId);

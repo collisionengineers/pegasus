@@ -283,6 +283,10 @@ public sealed class CaseDetailsWebTests
         {
             Assert.Equal(1, Occurrences(html, $"name=\"{field}\""));
         }
+        Assert.Contains(
+            "<select id=\"edit-mileage-unit\" class=\"fi\" name=\"vehicleMileageUnit\" form=\"case-edit-form\">",
+            html,
+            StringComparison.Ordinal);
         // The Inspection section's control is the record form's entry for the
         // address, wherever it renders on the page.
         Assert.Contains(
