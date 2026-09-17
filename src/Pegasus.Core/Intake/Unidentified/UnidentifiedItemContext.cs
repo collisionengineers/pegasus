@@ -86,8 +86,8 @@ public sealed class GetUnidentifiedItemContext(
 
         var imageIntake = await _imageIntakes.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
         var triage = await _triages.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
-        var isImageOnly = ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt);
-        var readings = isImageOnly
+        var isImageEligible = ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt);
+        var readings = isImageEligible
             ? await _vrmSuggestions.ListForReceiptAsync(receipt.Id, cancellationToken)
             : [];
         var open = item.State == UnidentifiedState.Open;
@@ -97,7 +97,7 @@ public sealed class GetUnidentifiedItemContext(
             readings,
             imageIntake,
             triage,
-            CanRegisterImages: open && isImageOnly && imageIntake is null && receipt.Decision == IntakeDecision.NeedsSorting,
+            CanRegisterImages: open && isImageEligible && imageIntake is null && receipt.Decision == IntakeDecision.NeedsSorting,
             CanOpenTriage: open && triage is null
                 && receipt.Decision == IntakeDecision.NeedsSorting
                 && receipt.Evidence.Count(evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch) == 1);

@@ -4,8 +4,10 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.ImageIntake;
 
@@ -15,6 +17,7 @@ public sealed class DetailsModel(
     IVrmSuggestionStore vrmSuggestionStore,
     IImageIntakeCaseCandidates imageIntakeCaseCandidates,
     IImageIntakeStore imageIntakeStore,
+    IGetIntake getIntake,
     ITriageQueries triageQueries,
     IEditScopeLeases editScopes,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
@@ -34,8 +37,43 @@ public sealed class DetailsModel(
     /// <summary>The Inbox message the images came in, when they came by e-mail (Open message).</summary>
     public Guid? SourceMessageId { get; private set; }
 
+    /// <summary>
+    /// Each receipt represented by the image record: its origin first, then
+    /// the selected photographs' receipts. This keeps every original retained
+    /// file visible alongside its selected photograph.
+    /// </summary>
+    public IReadOnlyList<IntakeReceipt> RetainedReceipts { get; private set; } = [];
+
+    /// <summary>The image record's origin receipt, when it remains available to this operator.</summary>
+    public IntakeReceipt? SourceReceipt => RetainedReceipts.FirstOrDefault(receipt =>
+        receipt.Id == Detail.Record.Origin.ReceiptId);
+
+    public IntakeAssetRecord? SourceAsset => SourceReceipt is { } receipt
+        ? IntakeFileIdentity.SourceAsset(receipt)
+        : null;
+
+    public bool IsSourceStored => SourceAsset?.CustodyState == IncomingArtifactCustodyState.Confirmed;
+
+    /// <summary>
+    /// Originals for every represented receipt, plus non-image e-mail
+    /// attachments such as a PDF submitted with selected photographs.
+    /// </summary>
+    public IReadOnlyList<RetainedIntakeFile> RetainedFiles => RetainedReceipts
+        .SelectMany(receipt => IntakeFileIdentity.Ordered(receipt)
+            .Where(asset => asset.Kind == IntakeAssetKind.Source
+                || (receipt.SourceIdentity.Channel == IntakeSourceChannel.Mailbox
+                    && asset.Kind == IntakeAssetKind.Attachment
+                    && !InstructionEvidenceImages.IsImage(asset.MediaType)))
+            .Select(asset => new RetainedIntakeFile(
+                receipt.Id,
+                asset,
+                asset.Kind == IntakeAssetKind.Source)))
+        .ToArray();
+
     /// <summary>Open file: the retained original through the kept source route, never the receipt page.</summary>
-    public string OpenFileHref => $"/Received/{Detail.Record.Origin.ReceiptId:D}/Source";
+    public string? OpenFileHref => IsSourceStored
+        ? $"/Received/{Detail.Record.Origin.ReceiptId:D}/Source"
+        : null;
 
     /// <summary>Add to an existing case: the Cases list's Awaiting instruction attach owns the decision.</summary>
     public string AddToCaseHref => $"/Cases?tab=awaiting&selected={Detail.Record.Id:D}";
@@ -83,6 +121,23 @@ public sealed class DetailsModel(
 
         Detail = detail;
         Images = await imageIntakeStore.ListImagesAsync(id, cancellationToken);
+        if (TryGetActor(out var sourceActor))
+        {
+            var retainedReceipts = new List<IntakeReceipt>();
+            foreach (var receiptId in new[] { detail.Record.Origin.ReceiptId }
+                         .Concat(Images.Select(image => image.ReceiptId))
+                         .Distinct())
+            {
+                var receipt = await getIntake.ExecuteAsync(
+                    new GetIntakeQuery(receiptId, sourceActor), cancellationToken);
+                if (receipt is not null)
+                {
+                    retainedReceipts.Add(receipt);
+                }
+            }
+
+            RetainedReceipts = retainedReceipts;
+        }
         if (TryGetActor(out var preparationActor))
         {
             Preparations = await getPreparations.ExecuteAsync(
@@ -121,6 +176,15 @@ public sealed class DetailsModel(
             detail.Record.NormalizedVehicleRegistration);
         return Page();
     }
+
+    public static string CustodyLabel(IncomingArtifactCustodyState state) => state switch
+    {
+        IncomingArtifactCustodyState.Pending => "Storing",
+        IncomingArtifactCustodyState.Confirmed => "Stored",
+        IncomingArtifactCustodyState.Unknown => "Storage status unknown",
+        IncomingArtifactCustodyState.Failed => "Storage failed",
+        _ => OperatorLabels.Humanise(state.ToString())
+    };
 
     public async Task<IActionResult> OnPostPrincipalAsync(
         Guid id,

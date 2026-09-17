@@ -68,7 +68,7 @@ public sealed class ReconcileGroupedImageIntake(
             var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken);
             if (receipt is null
                 || receipt.Decision != IntakeDecision.NeedsSorting
-                || !ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt))
+                || !ImageIntakeLifecycleRules.IsImageAutomationEligible(receipt))
             {
                 continue;
             }

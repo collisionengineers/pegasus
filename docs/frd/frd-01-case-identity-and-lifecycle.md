@@ -91,6 +91,12 @@ The named Core workflow records the policy key and version used for readiness.
 Review-gated transitions evaluate instruction and image completeness from
 persisted facts inside the transaction; posted readiness claims are not
 authority, and staff-confirmation checkboxes are retired (CASE-046, PLAT-072).
+For automatically matched follow-up photographs, image completeness becomes
+true only after the receipt's selected photographs and required source files
+are confirmed in Case custody. Pending or failed filing cannot clear the
+Images blocker. This attributed, idempotent completion evaluates the existing
+readiness policy; it does not satisfy unrelated blockers, assign an Engineer,
+or bypass Review. A replay does not override a later staff completeness change.
 Complete instructions and images move a Case from Not ready to Review. In
 Review, **Hand to Engineer** is the review action: selecting an eligible
 Engineer assigns the Case and moves it to With Engineer atomically. No
