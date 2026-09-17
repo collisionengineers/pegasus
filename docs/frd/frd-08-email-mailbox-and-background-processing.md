@@ -7,6 +7,9 @@ identity, owner, or destination is registered once in Unidentified with its U
 reference and canonical reason. Retryable processing remains retryable; a terminal
 technical failure after custody uses `TechnicalProcessingFailure`. Mail projections
 link to the same Unidentified item rather than synthesising a second queue row.
+The Inbox Unidentified scope lists retained mail whose Unidentified item is still
+open; once it resolves the message leaves that scope while keeping its
+classification record and Case association.
 > Owner capabilities: MAIL · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Email, mailbox, and background processing
@@ -276,6 +279,10 @@ uses the ordinary current-association and staff reversal precedence. It does
 not mutate the mailbox.
 Selecting a Case association opens that Case workspace in the same tab; Back
 returns to the exact message detail and originating list context.
+The message's displayed destination reflects its current Case association even
+when classification remains Unclassified. Classification, actual destination
+and custody completion are separate facts; a resolved Unidentified origin is
+retained as history rather than presented as the current destination.
 Each Case workspace also exposes its associated correspondence as a contextual
 filtered view in one chronological history of linked received and Sent items;
 it defaults to newest first with an explicit oldest-first option. Cross-mailbox

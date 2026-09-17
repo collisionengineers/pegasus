@@ -1270,6 +1270,10 @@ internal sealed class BoxCaseCustody(
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(source);
         ArgumentOutOfRangeException.ThrowIfLessThan(ordinal, 1);
+        if (source.IntakeAssetId is not { } assetId || assetId == Guid.Empty)
+        {
+            throw new ArgumentException("Image intake custody requires a retained asset identity.", nameof(source));
+        }
         ValidateOperation(operationKey);
         await ValidateRootAsync(root, cancellationToken);
         var (content, actualHash) = await ReadVerifiedSourceAsync(source, cancellationToken);

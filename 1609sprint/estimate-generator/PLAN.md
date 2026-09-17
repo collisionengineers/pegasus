@@ -27,7 +27,8 @@ decision the glossary needs (decision **A**).
 
 - `1609sprint/estimate-generator/evaestimate.pdf` — one page, EVA-produced,
   printed to PDF. Structure and arithmetic in the extraction record.
-  Notable: EVA prices Specialist hours at the labour rate (22.00 h × £83.28);
+  Notable: EVA sums its Specialist hours into Labour (22.00 h × £83.28) —
+  see § 10 for what that means in Pegasus;
   descriptions clip at the column edge; Litres / Anti-C / A/C columns are
   empty; leading `.` marks EVA's standard-charge items.
 - `reference/rendererref1/` — `DESIGN_SPEC.md` (Design I, locked July 2026:
@@ -197,8 +198,9 @@ are printed where they sit — the totals owner already retains them in
 
 | Block | Cell | Source | Note |
 | --- | --- | --- | --- |
-| Hours | New … Check | Σ `WorkUnits` per operation; Paint and Blend also Σ `PaintWorkUnits` | descriptive, like `ReportRepairCosts.LabourHours` |
-| Hours | Total | Σ of the seven | descriptive |
+| Hours | New … Check | `EstimateHours.Of(estimate)` (§ 10, fix 3): priced hours per operation — `WorkUnits` on Replace / Repair / R & R / Check / `specialist_wu`, `PaintWorkUnits` on Paint / Blend | one classification shared with `EstimateTotals.Compute` |
+| Hours | Total | `EstimateHours.PricedTotal` | **Total × rate = Labour £** on every page, as on EVA's |
+| Hours | Specialist (not priced) | `EstimateHours.UnpricedSpecialist` — `WorkUnits` on `specialist_fixed` lines | printed only when non-zero, outside the Total, so a fixed-price sublet's informational hours never look like labour |
 | Rate and discounts | Labour rate | `EstimateDetails.HourlyRate` | the one rate that prices panel and paint hours |
 | Rate and discounts | Parts / Materials / Specialist / Overall disc | `EstimateDiscounts` as % | Pegasus's four; EVA's "Labour Disc" has no Pegasus fact and is omitted |
 | Totals | Labour | `Printed.PanelLabour + Printed.PaintLabour` | a sum of two printed-pence components; `EstimatePrintedTotals` already defines Net as the sum of all five, so this reconciles by construction. Alternative: print the two separately (decision **D**) |
@@ -462,8 +464,10 @@ delivery) has its letter:
   Estimate section renders an unretained estimate document of any estimate
   version from `EstimateTotals`, in the accepted house style, viewing
   recorded as `case_estimate_document_previewed`; it is neither a report nor
-  an approval. One row in the *Estimate VAT on the rendered report* table is
-  not needed (the rules are unchanged).
+  an approval. In the *Estimate VAT on the rendered report* table the Labour
+  row becomes "Panel, paint and Specialist work-unit hours × the selected
+  labour-rate-card rate; hours on a fixed-price Specialist line are
+  retained, shown and not priced" (§ 10).
 - **FRD-12 / `docs/design/README.md`**: the Estimate section's actions row
   gains Estimate PDF (placement sentence); the document itself is an
   Infrastructure asset (already stated).
@@ -489,13 +493,27 @@ Application code changes, so build/test evidence is required (CLAUDE.md
   accepted version uses `RecordedTotals`, a Draft uses `Compute`; each § 4.5
   refusal by name; `Unpriced` → "To be confirmed"; Quantity null → 1;
   off-pattern values retained.
-- **Golden fixture**: a Draft built from the 22 EVA lines at £83.28 with
-  repairer VAT Registered. Assert the document prints Materials £510.58,
-  Parts £160.63, Specialist £531.02 and VAT/Gross exactly as `EstimateTotals`
-  computes them — and record in the test that Labour will read
-  **£1,415.76 (17.00 h)**, not EVA's £1,832.16, because Pegasus does not price
-  Specialist hours (§ 10). The fixture is evidence of the mapping, not of
-  parity with EVA's arithmetic.
+- **Golden fixture, two typings of the same 22 EVA lines** at £83.28,
+  repairer VAT Registered:
+  - *typed as Pegasus models them* — tyre and alignment `specialist_fixed`,
+    the five 1.00 h operations `check_labour`: the document prints Labour
+    £1,832.16 (22.00 h), Materials £510.58, Parts £160.63, Specialist
+    £531.02, Net £3,034.39, VAT £606.88, Gross £3,641.27 — **EVA's figures
+    exactly**, and no anomaly;
+  - *typed as EVA labels them* — all eleven as `specialist_fixed`: Labour
+    £1,415.76, priced Total 17.00 h, `Specialist (not priced)` 5.00 h, five
+    `hours` anomalies (§ 10, fix 2), Net £2,618.23. The test pins that the
+    shortfall is visible on the page, never silent.
+- **Calculation-fix tests** (`EstimateTests.cs`, `RepairSpecificationPolicyTests.cs`,
+  `AssessmentReportRenderingTests.cs`): `specialist_wu` hours price at the
+  rate into panel labour and count in the Specialist hours column;
+  `specialist_fixed` hours raise the anomaly and stay out of every money
+  figure; `EachOperationLandsInExactlyOneCostBucket` gains the
+  `specialist_wu` row and its Net; `ReportRepairCosts.For` reads
+  `EstimateHours` so the report's Labour Hours × rate equals its printed
+  labour; an accepted v3 estimate still projects its frozen
+  `RecordedTotals` untouched (`ForProjection`), and its hours come from
+  `EstimateHours.Of` over the same lines.
 - **Renderer integration tests** (`tests/Pegasus.IntegrationTests/Reports/EstimateDocumentRendererTests.cs`,
   same shape as `AssessmentReportRendererTests`): renders one page for the
   fixture; PdfPig text contains the title, the five header facts, the
@@ -519,29 +537,114 @@ Application code changes, so build/test evidence is required (CLAUDE.md
 - **Docs**: link check and the base..head `scripts/Test-MarkdownPlacement.ps1`
   gate.
 
-## 10. Observations to raise (not in scope to fix here)
+## 10. Calculation fixes carried with this work
 
-1. **Specialist hours are unpriced in Pegasus but priced by EVA.**
-   `EstimateTotals.Compute` adds Specialist lines' `Price` to the specialist
-   category and ignores their `WorkUnits`; EVA charges them at the labour
-   rate (its Total Hours 22.00 × £83.28). `ReportRepairCosts.For` meanwhile
-   sums `WorkUnits` across all lines for the report's *Labour Hours* figure,
-   so the report already prints 22.00 h beside £1,415.76 of labour. The
-   estimate document will make this visible on every page that has
-   Specialist hours. This is a calculation-policy question for the operator
-   (FRD-11 § Estimate VAT table: "Labour — Panel and paint hours × rate"),
-   not a rendering one; if the policy changes, `PolicyVersion` bumps and the
-   document follows automatically.
-2. **`specialist_wu` ("Specialist, by work units")** is treated identically
-   to `specialist_fixed` by the totals owner; the name promises hours-based
-   pricing it does not do. Same question as (1).
-3. **EVA's leading `.`** on standard charges is imported verbatim by the
-   parsers and will print verbatim. Fine for parity; the operator may prefer
-   it stripped at import (a parser change, separate).
-4. The report's `CostRows` prints *Labour Hours* and *Paint Hours* from all
-   lines; once the estimate document exists the Report's cost table and this
-   document must keep reading the same `ReportRepairCosts`/`EstimateTotals`
-   so the two never disagree — a test in § 9 pins that.
+Operator direction, 16 September: fix the three specialist-hours defects
+rather than record them. They are one small Core change to the one money
+owner, delivered in the same PR as the document so the first estimate
+document ever printed is already right. Each is behaviour the EVA sample
+exposed; none changes an accepted estimate.
+
+**The rule, settled.** EVA's figure (22.00 h × £83.28 = £1,832.16) is the
+commercially right total for that job and the B04 rule is also right — EVA's
+"Specialist" type conflates a fixed-price sublet (tyre £180.00, wheel
+alignment £112.42: a £ amount, hours informational) with hours-based
+operations (QC & road test, standard shutdown, the two diagnostic checks,
+wash/clean: 1.00 h each, charged at the rate by every repairer). Pegasus
+already separates the two — `specialist_fixed` and `check_labour` — and,
+typed that way, reaches the same £1,832.16 / £3,034.39. So the totals rule
+stays: **a fixed-price Specialist line's £ is the whole of its money.** The
+defects are that hours can vanish from the money silently, and that hours
+are counted where they are not priced.
+
+### Fix 1 — `specialist_wu` prices its work units
+
+`Estimates.cs`, `EstimateTotals.Compute`: a `specialist_wu` line's
+`WorkUnits` join **panel hours** and are priced at the estimate's one rate
+(FRD-11 Labour row); its `Price`, if any, is off-pattern like a unit £ on a
+Repair line (existing `OffPatternAmount`). `specialist_fixed` is unchanged.
+Rationale: the type's name and label ("Specialist, by work units") promise
+hours-based pricing; it sits in `EstimateLineCodes.Types` behind the SQL
+check constraint `CK_CaseEstimateLines_LineType` and is accepted by the JSON
+route and the AI toolset, so removing it would be a migration for no gain,
+while pricing it costs one `case` arm. Landing the money in Labour (not the
+Specialist category) keeps *Labour £ = priced hours × rate* true on the
+document, the report and the Settlement strip, which is also how EVA sums
+its Specialist column into Labour.
+
+`RepairSpecificationPolicy.PolicyVersion` → **4** with its one-line history
+note. Only editable versions are recomputed; Accepted and Superseded
+versions keep their frozen `RecordedTotals` (v3) through `ForProjection`,
+so no migration, no re-statement of an accepted figure.
+
+### Fix 2 — hours on a fixed-price Specialist line are an anomaly
+
+`EstimateTotals.Compute`: a `specialist_fixed` line with non-zero
+`WorkUnits` adds an `EstimateAnomaly(Position, "hours", value, "Hours on a
+fixed-price Specialist line are retained but not priced.")`, the same
+mechanism as stray paint hours today. Nothing is dropped, nothing is
+re-bucketed: the value stays on the line and in `OffPattern`, and now has a
+name. Surfacing:
+
+- the estimate document prints those hours in the line's Labour column and
+  in the `Specialist (not priced)` cell of the Hours row (§ 4.4), outside the
+  priced Total;
+- the grid's amber cell with a tooltip is the v27 `offpattern` proposal
+  (shot 79) and lands with its letter; until then the anomaly is visible on
+  the document and in `EstimateTotals.OffPattern`.
+
+Where such lines come from: the editor's **Specialist** operation maps to
+`specialist_fixed`, so an operator who types hours on it hits this; the JSON
+and AI routes can send either type. Whether the editor should offer a
+second Specialist operation that lands as `specialist_wu` is decision **J**
+— the fix does not need it.
+
+### Fix 3 — hours printed anywhere are priced hours
+
+New `EstimateHours` in `Estimates.cs`:
+
+```csharp
+public sealed record EstimateHours(
+    decimal Replace, decimal Repair, decimal RemoveAndRefit, decimal Check,
+    decimal SpecialistPriced,        // specialist_wu WorkUnits
+    decimal Paint, decimal Blend,    // PaintWorkUnits on Paint / Blend lines
+    decimal UnpricedSpecialist)      // specialist_fixed WorkUnits
+{
+    public decimal PricedPanel => Replace + Repair + RemoveAndRefit + Check + SpecialistPriced;
+    public decimal PricedPaint => Paint + Blend;
+    public decimal PricedTotal => PricedPanel + PricedPaint;
+    public static EstimateHours Of(RepairSpecificationVersion estimate);   // pure, over Lines
+}
+```
+
+`EstimateTotals.Compute` takes its `panelHours` / `paintHours` from
+`EstimateHours.Of` so there is exactly one classification of a line's hours.
+`EstimateHours` is **not** added to the persisted `EstimateRawTotals` /
+`RecordedTotals` shape: it is a pure function over lines, so an accepted v3
+estimate reports its hours the same way as a v4 one without touching its
+frozen money. Consumers switch to it:
+
+- `ReportRepairCosts.For` → `LabourHours = hours.PricedPanel`, `PaintHours =
+  hours.PricedPaint` (the report's cost table and the repairable
+  outcome's *Labour hours* tile then satisfy hours × rate = printed labour);
+- `Details.Report.cs` `LabourHours` (the Settlement figures strip) — the
+  same two;
+- the estimate document's Hours row (§ 4.4);
+- a Core test (not a `Validate` rule — accepted versions are never
+  re-checked) pins the invariant on the raw figures, where it is exact:
+  `Raw.PanelLabour + Raw.PaintLabour == PricedTotal × HourlyRate × (1 −
+  Overall discount)`. The printed labour figures are rounded independently,
+  so the page-level check is the one the fixture already makes: printed
+  Labour equals the two printed components, and hours × rate reproduces
+  EVA's £1,832.16 on the correctly typed fixture.
+
+### Remaining observations (unchanged, not in scope)
+
+1. **EVA's leading `.`** on standard charges is imported verbatim and will
+   print verbatim. Fine for parity; stripping it is a parser change.
+2. Once the document exists, the Report's cost table and the document must
+   keep reading the same `ReportRepairCosts` / `EstimateTotals` /
+   `EstimateHours` so they never disagree — the § 9 tests pin that.
 
 ## 11. Decisions for the operator
 
@@ -566,3 +669,8 @@ Application code changes, so build/test evidence is required (CLAUDE.md
   the approved mailbox now.
 - **I. Header "Your Ref".** Print the claim number as the report does
   (recommended) or match EVA's five facts exactly.
+- **J. Reaching `specialist_wu` from the editor.** Leave it to the JSON and
+  AI routes (recommended for now — the three fixes need no editor change),
+  or add a second Specialist operation ("Specialist, by hours") to the
+  editor's operation list so an operator can type an hours-based specialist
+  line without calling it Check.

@@ -7,6 +7,8 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Presentation;
 
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
+
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
@@ -18,7 +20,8 @@ namespace Pegasus.IntegrationTests;
 /// card, and Apply as Engineer's Value posts the calculator's selection to
 /// the Core policy shape.
 /// </summary>
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseValuationV26WebTests
 {
     /// <summary>
     /// The edit session renders the month input on the research form, the AI

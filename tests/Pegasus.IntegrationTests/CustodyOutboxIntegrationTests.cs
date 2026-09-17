@@ -32,8 +32,10 @@ public sealed class CustodyOutboxIntegrationTests
     private static readonly DateTimeOffset FixedUtcNow =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
-    [Fact]
-    public async Task ReevaluationReadsTheRetainedLogicalSourceAfterStagingWasDeleted()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReevaluationRepairsUnknownHoldingBeforeReadingTheRetainedLogicalSource(bool repairHolding)
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -66,6 +68,21 @@ public sealed class CustodyOutboxIntegrationTests
             asset.Kind == IntakeAssetKind.Source
             && asset.Disposition == IntakeAssetDisposition.Source);
 
+        if (repairHolding)
+        {
+            await using var db = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var assets = await db.IntakeAssets.Where(asset => asset.IntakeReceiptId == original.Id).ToListAsync();
+            Assert.NotEmpty(assets);
+            foreach (var asset in assets)
+            {
+                asset.CustodyStatus = "unknown";
+                asset.BoxFileId = null;
+                asset.BoxVersionId = null;
+            }
+            await db.SaveChangesAsync();
+        }
+
         await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(
             new(
                 original.Id,
@@ -87,7 +104,9 @@ public sealed class CustodyOutboxIntegrationTests
             Assert.IsType<string>(dispatch.LeaseToken),
             now,
             CancellationToken.None);
-        var outcome = await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services)
+        var guardedReader = new ConfirmedHoldingLogicalReader(
+            receipts, services.GetRequiredService<IReadLogicalDocumentVersion>());
+        var outcome = await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services, guardedReader)
             .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
 
         Assert.Equal(QueuedIntakeProcessingOutcome.Completed, outcome);
@@ -101,6 +120,93 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(originalSource.Id, reevaluatedSource.Id);
         Assert.Equal(originalSource.StorageKey, reevaluatedSource.StorageKey);
         Assert.Equal(originalSource.ContentHash, reevaluatedSource.ContentHash);
+        Assert.Equal(IncomingArtifactCustodyState.Confirmed, reevaluatedSource.CustodyState);
+        Assert.Equal(original.AssetRecords.Count, reevaluated.AssetRecords.Count);
+        Assert.Equal(originalSource.Id, Assert.Single(guardedReader.ReadAssetIds));
+    }
+
+    private sealed class ConfirmedHoldingLogicalReader(
+        IIntakeReceiptQueries receipts,
+        IReadLogicalDocumentVersion inner) : IReadLogicalDocumentVersion
+    {
+        public List<Guid> ReadAssetIds { get; } = [];
+
+        public async Task<LogicalDocumentContent> OpenAsync(
+            ReadLogicalDocumentVersionRequest request, CancellationToken cancellationToken)
+        {
+            var receipt = await receipts.GetAsync(request.IntakeReceiptId!.Value, cancellationToken);
+            var asset = Assert.Single(Assert.IsType<IntakeReceipt>(receipt).AssetRecords,
+                candidate => candidate.Id == request.IntakeAssetId);
+            Assert.Equal(IncomingArtifactCustodyState.Confirmed, asset.CustodyState);
+            ReadAssetIds.Add(asset.Id);
+            return await inner.OpenAsync(request, cancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task FirstHoldingFailureCanBeReevaluatedBeforeAnyEvaluationExists()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var source = CreatePreCaseReevaluationSource();
+        var received = await services.GetRequiredService<ReceiveIntake>().ExecuteAsync(
+            source.Source, $"first-holding-failure:{Guid.NewGuid():N}", CancellationToken.None);
+        var workStore = services.GetRequiredService<IIntakeWorkStore>();
+        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
+        var dispatch = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+            received.StagedReceiptId, now, TimeSpan.FromMinutes(1), CancellationToken.None));
+        await workStore.MarkDispatchedAsync(dispatch.Id, dispatch.LeaseToken!, now, CancellationToken.None);
+        var handover = new FailFirstHoldingHandover(services.GetRequiredService<ICaseArtifactCustody>());
+        var retention = new RetainIncomingArtifact(
+            handover, services.GetRequiredService<IIncomingArtifactRetentionStore>());
+        var processing = ActivatorUtilities.CreateInstance<ProcessIntake>(services, retention);
+        var processor = ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services, processing);
+
+        Assert.Equal(QueuedIntakeProcessingOutcome.RetryScheduled,
+            await processor.ExecuteAsync(received.StagedReceiptId));
+        Assert.Null(await workStore.GetCompletedEvaluationAsync(received.StagedReceiptId, CancellationToken.None));
+        Assert.Equal(0L, await factory.Database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeEvaluations"));
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        var original = Assert.IsType<IntakeReceipt>(await receipts.FindBySourceIdentityAsync(
+            source.Source.SourceIdentity, CancellationToken.None));
+        Assert.Contains(original.AssetRecords, asset => asset.CustodyState == IncomingArtifactCustodyState.Unknown);
+        var originalIds = original.AssetRecords.Select(asset => asset.Id).Order().ToArray();
+
+        await services.GetRequiredService<IReevaluateIntake>().ExecuteAsync(new(
+            original.Id, original.Version, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
+            $"retry-first-holding:{original.Id:N}", "Retry storage and evaluate the retained source."));
+        dispatch = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+            received.StagedReceiptId, now, TimeSpan.FromMinutes(1), CancellationToken.None));
+        await workStore.MarkDispatchedAsync(dispatch.Id, dispatch.LeaseToken!, now, CancellationToken.None);
+        var guardedReader = new ConfirmedHoldingLogicalReader(receipts,
+            services.GetRequiredService<IReadLogicalDocumentVersion>());
+
+        Assert.Equal(QueuedIntakeProcessingOutcome.Completed,
+            await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services, guardedReader)
+                .ExecuteAsync(received.StagedReceiptId));
+        var repaired = Assert.IsType<IntakeReceipt>(await receipts.GetAsync(original.Id, CancellationToken.None));
+        Assert.Equal(originalIds, repaired.AssetRecords.Select(asset => asset.Id).Order());
+        Assert.All(repaired.AssetRecords, asset => Assert.Equal(IncomingArtifactCustodyState.Confirmed, asset.CustodyState));
+        Assert.Single(guardedReader.ReadAssetIds);
+        Assert.Equal(1L, await factory.Database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeReceipts"));
+        Assert.Equal(1L, await factory.Database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeEvaluations"));
+    }
+
+    private sealed class FailFirstHoldingHandover(ICaseArtifactCustody inner) : ICaseArtifactCustody
+    {
+        private bool failed;
+
+        public Task<CaseArtifactCustodyResult> RetainAsync(
+            CaseArtifactCustodyRequest request, CancellationToken cancellationToken)
+        {
+            if (!failed)
+            {
+                failed = true;
+                throw new IOException("Synthetic holding handover interruption.");
+            }
+            return inner.RetainAsync(request, cancellationToken);
+        }
     }
 
     [Fact]

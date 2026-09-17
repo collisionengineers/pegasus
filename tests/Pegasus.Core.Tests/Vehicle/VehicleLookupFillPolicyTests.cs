@@ -53,8 +53,8 @@ public sealed class VehicleLookupFillPolicyTests
         // An all-null merge is not evidence, and a blank member would fail
         // VehicleLookupResult.EnsureValidFor rather than read as absent.
         Assert.Null(VehicleLookupFillPolicy.Merge(
-            new(null, null, null, null, null),
-            new("  ", "", null, null, "\t")));
+            new(null, null, null, null, null, null, null, null),
+            new("  ", "", null, null, "\t", " ", "\t", 0)));
     }
 
     [Fact]
@@ -75,5 +75,25 @@ public sealed class VehicleLookupFillPolicyTests
             new("TOYOTA", "ALPHARD", 2007, 2362, "DIESEL"));
 
         Assert.Equal(new VehicleDetails("FORD", "ALPHARD", 2020, 999, "PETROL"), merged);
+    }
+
+    [Fact]
+    public void DvlaAnswersFirstForTheVehicleTypeSignals()
+    {
+        var merged = VehicleLookupFillPolicy.Merge(
+            new("FORD", null, 2020, 999, "PETROL", "N1", "2 AXLE RIGID BODY", 3_500),
+            new("TOYOTA", "ALPHARD", 2007, 2362, "DIESEL", "M1", "2-WHEEL", 1_800));
+
+        Assert.Equal(
+            new VehicleDetails(
+                "FORD",
+                "ALPHARD",
+                2020,
+                999,
+                "PETROL",
+                "N1",
+                "2 AXLE RIGID BODY",
+                3_500),
+            merged);
     }
 }

@@ -57,7 +57,8 @@ public sealed partial class DownloadModel(
         CancellationToken cancellationToken,
         bool inline = false,
         string? size = null,
-        string? prep = null)
+        string? prep = null,
+        string? renderer = null)
     {
         if (caseId == Guid.Empty || occurrenceId == Guid.Empty || versionId == Guid.Empty)
         {
@@ -69,7 +70,7 @@ public sealed partial class DownloadModel(
         }
 
         return inline
-            ? await PreviewAsync(caseId, occurrenceId, versionId, actor, size, prep, cancellationToken)
+            ? await PreviewAsync(caseId, occurrenceId, versionId, actor, size, prep, renderer, cancellationToken)
             : await SaveAsync(caseId, occurrenceId, versionId, actor, cancellationToken);
     }
 
@@ -141,6 +142,7 @@ public sealed partial class DownloadModel(
         ActionActor actor,
         string? size,
         string? prep,
+        string? renderer,
         CancellationToken cancellationToken)
     {
         using var previewActivity = DocumentReadTelemetry.Start("document.preview");
@@ -223,11 +225,16 @@ public sealed partial class DownloadModel(
             }
             var currentPreparationVersion = preparation?.PreparationVersion ?? 0;
             // A thumbnail URL is cacheable only when it explicitly names the
-            // snapshot it rendered. In particular, a hand-written or retained
-            // old URL without prep= must not become the cacheable version-zero
-            // representation merely because no preparation exists yet.
+            // snapshot and renderer it rendered. In particular, a hand-written
+            // or retained old URL without prep= or the current renderer must
+            // not become the cacheable version-zero representation merely
+            // because no preparation exists yet.
             thumbnailAddressIsCurrent = preparationWasSupplied
-                && requestedPreparationVersion == currentPreparationVersion;
+                && requestedPreparationVersion == currentPreparationVersion
+                && string.Equals(
+                    renderer,
+                    CaseDocumentThumbnails.RendererIdentity,
+                    StringComparison.Ordinal);
         }
         if (thumbnailAddressIsCurrent
             && TryMatchHeldRepresentation(sha256, wantsThumbnail, variant, out var held))
@@ -344,7 +351,8 @@ public sealed partial class DownloadModel(
     /// <summary>
     /// The thumbnail URL carries the preparation version the page rendered.
     /// An omitted value remains a valid uncached read, while malformed values
-    /// must not become a cacheable representation.
+    /// must not become a cacheable representation. The current renderer
+    /// identity is checked with the same rule by <see cref="PreviewAsync"/>.
     /// </summary>
     private static bool TryParsePreparationVersion(string? value, out long preparationVersion)
     {
