@@ -347,9 +347,10 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// Whether the Engineer sections are read-only: the one Core access rule
-    /// (outside With Engineer), read by the Engineer forms. The record has no
-    /// Open Assessment action and no section visibility gate (D30). An
-    /// unresolved access answer reads as read-only.
+    /// follows the shared assessment-writable lifecycle states and is read by
+    /// the Engineer forms. The record has no Open Assessment action and no
+    /// section visibility gate (D30). An unresolved access answer reads as
+    /// read-only.
     /// </summary>
     public bool AssessmentIsReadOnly { get; private set; } = true;
 

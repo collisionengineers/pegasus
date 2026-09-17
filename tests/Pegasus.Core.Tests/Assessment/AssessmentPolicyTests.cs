@@ -14,14 +14,14 @@ public sealed class AssessmentPolicyTests
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
     [Theory]
-    [InlineData(CaseLifecycleState.NotReady, false)]
-    [InlineData(CaseLifecycleState.Review, false)]
+    [InlineData(CaseLifecycleState.NotReady, true)]
+    [InlineData(CaseLifecycleState.Review, true)]
     [InlineData(CaseLifecycleState.Held, false)]
     [InlineData(CaseLifecycleState.CreatedInError, false)]
     [InlineData(CaseLifecycleState.ReportPreparation, true)]
     [InlineData(CaseLifecycleState.PostReport, true)]
     [InlineData(CaseLifecycleState.PostReportComplete, true)]
-    public void NativeAssessmentActionsRequireWithEngineerOrCompleteWithoutAnExport(
+    public void NativeAssessmentActionsRequireAWritableOrCompletedState(
         CaseLifecycleState state,
         bool expected)
     {
@@ -30,24 +30,44 @@ public sealed class AssessmentPolicyTests
         Assert.Equal(expected, access.CanOpen);
     }
 
-    /// <summary>
-    /// FRD-11: retained content remains read-only outside With Engineer.
-    /// </summary>
     [Theory]
     [InlineData(CaseLifecycleState.ReportPreparation, false)]
     [InlineData(CaseLifecycleState.PostReport, false)]
     [InlineData(CaseLifecycleState.PostReportComplete, true)]
-    [InlineData(CaseLifecycleState.NotReady, true)]
-    [InlineData(CaseLifecycleState.Review, true)]
+    [InlineData(CaseLifecycleState.NotReady, false)]
+    [InlineData(CaseLifecycleState.Review, false)]
     [InlineData(CaseLifecycleState.Held, true)]
     [InlineData(CaseLifecycleState.CreatedInError, true)]
-    public void AssessmentAccessIsReadOnlyOutsideWithEngineer(
+    public void AssessmentAccessIsReadOnlyOutsideWritableStates(
         CaseLifecycleState state,
         bool expected)
     {
         var access = new AssessmentAccessState(state);
 
         Assert.Equal(expected, access.IsReadOnly);
+    }
+
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady, true, false)]
+    [InlineData(CaseLifecycleState.Held, false, true)]
+    [InlineData(CaseLifecycleState.Review, true, false)]
+    [InlineData(CaseLifecycleState.ReportPreparation, true, false)]
+    [InlineData(CaseLifecycleState.PostReport, true, false)]
+    [InlineData(CaseLifecycleState.PostReportComplete, true, true)]
+    [InlineData(CaseLifecycleState.Query, false, true)]
+    [InlineData(CaseLifecycleState.ProviderCancelled, false, true)]
+    [InlineData(CaseLifecycleState.CollisionEngineersRejected, false, true)]
+    [InlineData(CaseLifecycleState.CreatedInError, false, true)]
+    [InlineData(CaseLifecycleState.SourceEmailUnlinked, false, true)]
+    public void AssessmentAccessPinsOpenAndReadOnlyPerLifecycleState(
+        CaseLifecycleState state,
+        bool expectedCanOpen,
+        bool expectedIsReadOnly)
+    {
+        var access = new AssessmentAccessState(state);
+
+        Assert.Equal(expectedCanOpen, access.CanOpen);
+        Assert.Equal(expectedIsReadOnly, access.IsReadOnly);
     }
 
     [Theory]
