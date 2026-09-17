@@ -328,16 +328,18 @@ public sealed class TriageQueuesWebTests
         using var openResponse = await client.GetAsync("/Cases?tab=unidentified");
         var openHtml = await openResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, openResponse.StatusCode);
-        Assert.Contains(open.Item.Reference, openHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(closed.Item.Reference, openHtml, StringComparison.Ordinal);
+        // Match the row's detail link, not the bare reference: a short reference
+        // such as "U1" can occur inside an antiforgery token.
+        Assert.Contains($"href=\"/Unidentified/{open.Item.Id:D}\"", openHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain($"href=\"/Unidentified/{closed.Item.Id:D}\"", openHtml, StringComparison.Ordinal);
         Assert.Equal(1, QueueCount(openHtml, "Unidentified"));
         Assert.Equal(2, ShellCasesCount(openHtml));
 
         using var closedResponse = await client.GetAsync("/Cases?tab=unidentified&show=closed");
         var closedHtml = await closedResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, closedResponse.StatusCode);
-        Assert.Contains(closed.Item.Reference, closedHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(open.Item.Reference, closedHtml, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Unidentified/{closed.Item.Id:D}\"", closedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain($"href=\"/Unidentified/{open.Item.Id:D}\"", closedHtml, StringComparison.Ordinal);
         Assert.Equal(1, QueueCount(closedHtml, "Unidentified"));
         Assert.Equal(2, ShellCasesCount(closedHtml));
     }
