@@ -222,19 +222,22 @@ public sealed record GetCaseQuery(Guid CaseId, ActionActor Actor);
 public sealed record GetCaseHeaderQuery(Guid CaseId, ActionActor Actor);
 
 /// <summary>
-/// The common identity, workflow and live-lease facts every lazily rendered
-/// Case section needs.  It deliberately has no body collections: each section
-/// supplies only its own content.
+/// The common identity, workflow, live-lease and custody-state facts every
+/// lazily rendered Case section needs. It deliberately has no body
+/// collections: each section supplies only its own content.
 /// </summary>
 public sealed record CaseSectionFrame(
     CaseSearchItem Summary,
     CaseWorkflowRecord Workflow,
-    CaseEditLeaseSnapshot? ActiveEditLease);
+    CaseEditLeaseSnapshot? ActiveEditLease,
+    string? CustodyFolderRemoteId = null,
+    CaseCustodyState CustodyState = CaseCustodyState.Pending);
 
 /// <summary>
 /// The already-authorized page inputs a directly rendered body may reuse. A
 /// fragment leaves these absent and obtains the same content through its
-/// focused reader.
+/// focused reader. A supplied frame is request-local and must belong to the
+/// requested Case.
 /// </summary>
 public sealed record GetCaseSectionQuery(
     Guid CaseId,
@@ -242,7 +245,8 @@ public sealed record GetCaseSectionQuery(
     AssessmentWorkspace? AssessmentWorkspace = null,
     bool HasAssessmentWorkspace = false,
     CaseDataProjection? Data = null,
-    IReadOnlyList<CaseDocument>? Documents = null);
+    IReadOnlyList<CaseDocument>? Documents = null,
+    CaseSectionFrame? Frame = null);
 
 /// <summary>
 /// The Case page's first-response frame. It keeps the identity, workflow,
@@ -355,10 +359,15 @@ public interface ICaseQueryStore
         Guid caseId,
         CancellationToken cancellationToken);
 
-    /// <summary>Reads the document-oriented body used by Files.</summary>
+    /// <summary>
+    /// Reads the document-oriented body used by Files. A caller that already
+    /// holds a Case-bound frame supplies it so this reader does not reread the
+    /// workflow and summary.
+    /// </summary>
     Task<CaseFilesSectionData?> GetFilesSectionAsync(
         Guid caseId,
         bool includeDocuments,
+        CaseSectionFrame? frame,
         CancellationToken cancellationToken);
 
     /// <summary>Gets only the material needed to prove a render-only lease header.</summary>
@@ -511,7 +520,7 @@ public sealed class GetCaseVehicleSection(
     public async Task<CaseVehicleSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
     {
         CaseSectionQueries.Validate(query);
-        var frame = await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        var frame = query.Frame ?? await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
         if (frame is null)
         {
             return null;
@@ -534,7 +543,7 @@ public sealed class GetCaseValuationSection(
     public async Task<CaseValuationSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
     {
         CaseSectionQueries.Validate(query);
-        var frame = await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        var frame = query.Frame ?? await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
         if (frame is null)
         {
             return null;
@@ -554,7 +563,7 @@ public sealed class GetCaseNotesSection(
     public async Task<CaseNotesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
     {
         CaseSectionQueries.Validate(query);
-        var frame = await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
+        var frame = query.Frame ?? await store.GetSectionFrameAsync(query.CaseId, cancellationToken);
         if (frame is null)
         {
             return null;
@@ -579,7 +588,11 @@ public sealed class GetCaseFilesSection(ICaseQueryStore store) : IGetCaseFilesSe
     public async Task<CaseFilesSection?> ExecuteAsync(GetCaseSectionQuery query, CancellationToken cancellationToken)
     {
         CaseSectionQueries.Validate(query);
-        var body = await store.GetFilesSectionAsync(query.CaseId, query.Documents is null, cancellationToken);
+        var body = await store.GetFilesSectionAsync(
+            query.CaseId,
+            query.Documents is null,
+            query.Frame,
+            cancellationToken);
         if (body is null)
         {
             return null;
@@ -683,6 +696,11 @@ internal static class CaseSectionQueries
         if (query.Data is { Identity.CaseId: var dataCaseId } && dataCaseId != query.CaseId)
         {
             throw new ArgumentException("The Case data belongs to another Case.", nameof(query));
+        }
+        if (query.Frame is { } frame
+            && (frame.Summary.CaseId != query.CaseId || frame.Workflow.CaseId != query.CaseId))
+        {
+            throw new ArgumentException("The Case section frame belongs to another Case.", nameof(query));
         }
     }
 
