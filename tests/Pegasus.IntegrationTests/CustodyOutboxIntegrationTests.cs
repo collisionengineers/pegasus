@@ -749,71 +749,6 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RequestUploadPortsRemainRegisteredAndFailClosedWithoutAcceptedLimits(
-        bool localCustodyConfigured)
-    {
-        var services = new ServiceCollection();
-        services.AddPegasusInfrastructure(
-            (_, options) => options.UseSqlServer(
-                "Server=(localdb)\\MSSQLLocalDB;Database=unused;Integrated Security=true"),
-            localCustodyConfigured ? _ => Path.GetTempPath() : null);
-        await using var provider = services.BuildServiceProvider(validateScopes: true);
-        await using var scope = provider.CreateAsyncScope();
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>()
-                .ExecuteAsync(
-                    new(
-                        Guid.NewGuid(),
-                        ActionActor.SystemWorker("unauthorized-request-create"),
-                        $"unauthorized-create:{Guid.NewGuid():N}",
-                        0,
-                        "lease"),
-                    CancellationToken.None));
-
-        await Assert.ThrowsAsync<DocumentRequestUnavailableException>(() =>
-            scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>()
-                .ExecuteAsync(
-                    new(
-                        Guid.NewGuid(),
-                        actor,
-                        $"unavailable-create:{Guid.NewGuid():N}",
-                        0,
-                        "lease"),
-                    CancellationToken.None));
-        await Assert.ThrowsAsync<DocumentRequestUnavailableException>(() =>
-            scope.ServiceProvider.GetRequiredService<IRevokeRequestUploadLink>()
-                .ExecuteAsync(
-                    new(
-                        Guid.NewGuid(),
-                        Guid.NewGuid(),
-                        actor,
-                        "Unavailable.",
-                        $"unavailable-revoke:{Guid.NewGuid():N}",
-                        0,
-                        0,
-                        "lease"),
-                    CancellationToken.None));
-        Assert.Equal(
-            RequestUploadDecision.Unavailable,
-            (await scope.ServiceProvider.GetRequiredService<IUploadToRequest>()
-                .ExecuteAsync(
-                    new(
-                        "invalid",
-                        new(
-                            "evidence.txt",
-                            "text/plain",
-                            "evidence"u8.ToArray(),
-                            $"unavailable-upload:{Guid.NewGuid():N}"),
-                        0),
-                    CancellationToken.None)).Decision);
-        Assert.Null(await scope.ServiceProvider.GetRequiredService<IGetRequestUpload>()
-            .ExecuteAsync("invalid", CancellationToken.None));
-    }
-
-    [Theory]
     [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
     [InlineData(CaseLifecycleState.ProviderCancelled)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
@@ -821,10 +756,7 @@ public sealed class CustodyOutboxIntegrationTests
     public async Task EveryTerminalCaseStateRejectsNewCustodyMutationsButPreservesExactReplay(
         CaseLifecycleState terminalState)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        // The accepted request upload below is a real submission, so this host
-        // needs the custody adapter Stream A will register in production.
-        using var factory = PublicUploadRetentionWebTests.WithRetention(baseFactory);
+        using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
         var accepted = await AcceptDirectSourceAsync(scope.ServiceProvider);
         var caseId = accepted.CaseId;
@@ -833,25 +765,6 @@ public sealed class CustodyOutboxIntegrationTests
         var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
         var workflow = Assert.IsType<CaseWorkflowRecord>(
             await queries.GetAsync(caseId, CancellationToken.None));
-
-        var requestLease = await leases.ClaimAsync(
-            new(
-                caseId,
-                workflow.Version,
-                actor,
-                $"terminal-request-lease:{Guid.NewGuid():N}"),
-            CancellationToken.None);
-        var createRequest = new CreateRequestUploadLinkCommand(
-            caseId,
-            actor,
-            $"terminal-request-create:{Guid.NewGuid():N}",
-            requestLease.Version,
-            requestLease.Token);
-        var createUploadLink =
-            scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>();
-        var requestLink = await createUploadLink.ExecuteAsync(
-            createRequest,
-            CancellationToken.None);
 
         workflow = Assert.IsType<CaseWorkflowRecord>(
             await queries.GetAsync(caseId, CancellationToken.None));
@@ -877,19 +790,6 @@ public sealed class CustodyOutboxIntegrationTests
         var addDocument = scope.ServiceProvider.GetRequiredService<IAddCaseDocument>();
         var added = await addDocument.ExecuteAsync(addCommand, CancellationToken.None);
 
-        var uploadCommand = new UploadToRequestCommand(
-            requestLink.Secret!.Token,
-            new(
-                "request-evidence.txt",
-                "text/plain",
-                "request evidence"u8.ToArray(),
-                $"terminal-request-file:{Guid.NewGuid():N}"),
-            AttemptsInCurrentRateWindow: 0);
-        var upload = scope.ServiceProvider.GetRequiredService<IUploadToRequest>();
-        Assert.Equal(
-            RequestUploadDecision.Accepted,
-            (await upload.ExecuteAsync(uploadCommand, CancellationToken.None)).Decision);
-
         workflow = Assert.IsType<CaseWorkflowRecord>(
             await queries.GetAsync(caseId, CancellationToken.None));
         var terminalLease = await leases.ClaimAsync(
@@ -909,18 +809,9 @@ public sealed class CustodyOutboxIntegrationTests
             await context.SaveChangesAsync();
         }
 
-        var requestReplay = await createUploadLink.ExecuteAsync(
-            createRequest,
-            CancellationToken.None);
-        Assert.True(requestReplay.IsReplay);
-        Assert.Null(requestReplay.Secret);
-        Assert.Equal(requestLink.Link, requestReplay.Link);
         Assert.True((await addDocument.ExecuteAsync(
             addCommand,
             CancellationToken.None)).IsReplay);
-        Assert.Equal(
-            RequestUploadDecision.Replay,
-            (await upload.ExecuteAsync(uploadCommand, CancellationToken.None)).Decision);
 
         await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
             addDocument.ExecuteAsync(
@@ -944,147 +835,6 @@ public sealed class CustodyOutboxIntegrationTests
                         terminalLease.Version,
                         terminalLease.Token),
                     CancellationToken.None));
-        await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
-            createUploadLink.ExecuteAsync(
-                createRequest with
-                {
-                    OperationKey = $"terminal-request-new:{Guid.NewGuid():N}",
-                    ExpectedCaseVersion = terminalLease.Version,
-                    EditLeaseToken = terminalLease.Token
-                },
-                CancellationToken.None));
-        await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
-            scope.ServiceProvider.GetRequiredService<IRevokeRequestUploadLink>()
-                .ExecuteAsync(
-                    new(
-                        caseId,
-                        requestLink.Link.Id,
-                        actor,
-                        "Terminal cases are read-only.",
-                        $"terminal-request-revoke:{Guid.NewGuid():N}",
-                        requestLink.Link.Version,
-                        terminalLease.Version,
-                        terminalLease.Token),
-                    CancellationToken.None));
-        Assert.Equal(
-            RequestUploadDecision.Unavailable,
-            (await upload.ExecuteAsync(
-                uploadCommand with
-                {
-                    File = new RequestUploadFile(
-                        uploadCommand.File.FileName,
-                        uploadCommand.File.MediaType,
-                        uploadCommand.File.ContentLength,
-                        uploadCommand.File.OpenContentAsync,
-                        $"terminal-request-file-new:{Guid.NewGuid():N}")
-                },
-                CancellationToken.None)).Decision);
-    }
-
-    [Fact]
-    public async Task RequestCreateAndRevokeRecordExactIdempotentStaffActionHistory()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        await using var scope = factory.Services.CreateAsyncScope();
-        var accepted = await AcceptDirectSourceAsync(scope.ServiceProvider);
-        var staffId = Guid.NewGuid();
-        var actor = ActionActor.Staff(staffId, [StaffRole.Engineer]);
-        var workflow = Assert.IsType<CaseWorkflowRecord>(
-            await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
-                .GetAsync(accepted.CaseId, CancellationToken.None));
-        var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
-        var createLease = await leases.ClaimAsync(
-            new(
-                accepted.CaseId,
-                workflow.Version,
-                actor,
-                $"request-create-lease:{Guid.NewGuid():N}"),
-            CancellationToken.None);
-        var createOperationKey = $"request-create:{Guid.NewGuid():N}";
-        var createRequest = new CreateRequestUploadLinkCommand(
-            accepted.CaseId,
-            actor,
-            createOperationKey,
-            createLease.Version,
-            createLease.Token);
-        var create = scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>();
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            create.ExecuteAsync(
-                createRequest with
-                {
-                    Actor = ActionActor.SystemWorker("custody-test"),
-                    OperationKey = $"request-create-unauthorized:{Guid.NewGuid():N}"
-                },
-                CancellationToken.None));
-
-        var created = await create.ExecuteAsync(createRequest, CancellationToken.None);
-        var createReplay = await create.ExecuteAsync(createRequest, CancellationToken.None);
-
-        Assert.False(created.IsReplay);
-        Assert.NotNull(created.Secret);
-        Assert.True(createReplay.IsReplay);
-        Assert.Null(createReplay.Secret);
-        Assert.Equal(created.Link, createReplay.Link);
-        var changedActor = ActionActor.Staff(staffId, [StaffRole.Administrator]);
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            create.ExecuteAsync(
-                createRequest with { Actor = changedActor },
-                CancellationToken.None));
-
-        var revokeLease = await leases.ClaimAsync(
-            new(
-                accepted.CaseId,
-                checked(createLease.Version + 1),
-                actor,
-                $"request-revoke-lease:{Guid.NewGuid():N}"),
-            CancellationToken.None);
-        var revokeOperationKey = $"request-revoke:{Guid.NewGuid():N}";
-        var revokeRequest = new RevokeRequestUploadLinkCommand(
-            accepted.CaseId,
-            created.Link.Id,
-            actor,
-            "The intended recipient no longer requires access.",
-            revokeOperationKey,
-            created.Link.Version,
-            revokeLease.Version,
-            revokeLease.Token);
-        var revoke = scope.ServiceProvider.GetRequiredService<IRevokeRequestUploadLink>();
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            revoke.ExecuteAsync(
-                revokeRequest with { CaseId = Guid.NewGuid() },
-                CancellationToken.None));
-
-        await revoke.ExecuteAsync(revokeRequest, CancellationToken.None);
-        await revoke.ExecuteAsync(revokeRequest, CancellationToken.None);
-
-        var contextFactory = scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var context = await contextFactory.CreateDbContextAsync();
-        var history = await context.ActionHistory
-            .Where(value => value.AggregateType == "request_upload_link"
-                && (value.CorrelationId == createOperationKey
-                    || value.CorrelationId == revokeOperationKey))
-            .ToArrayAsync();
-        Assert.Equal(2, history.Length);
-        Assert.All(history, entry =>
-        {
-            Assert.Equal(actor.Kind.ToString(), entry.ActorKind);
-            Assert.Equal(actor.SubjectId, entry.ActorSubjectId);
-            Assert.Equal("[\"Engineer\"]", entry.ActorRolesJson);
-            Assert.Equal("Succeeded", entry.Outcome);
-            Assert.False(string.IsNullOrWhiteSpace(entry.AfterJson));
-        });
-        var createHistory = Assert.Single(
-            history,
-            entry => entry.CorrelationId == createOperationKey);
-        Assert.Equal("request_upload_created", createHistory.EventKind);
-        Assert.Null(createHistory.BeforeJson);
-        var revokeHistory = Assert.Single(
-            history,
-            entry => entry.CorrelationId == revokeOperationKey);
-        Assert.Equal("request_upload_revoked", revokeHistory.EventKind);
-        Assert.NotNull(revokeHistory.BeforeJson);
-        Assert.Equal(revokeRequest.Reason, revokeHistory.Reason);
     }
 
     [Fact]

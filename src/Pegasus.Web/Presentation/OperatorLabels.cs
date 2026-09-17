@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using Pegasus.Core;
 using Pegasus.Core.Assessment;
@@ -835,7 +835,6 @@ public static class OperatorLabels
     {
         DocumentSource.Intake => "E-mail",
         DocumentSource.StaffUpload => "Staff upload",
-        DocumentSource.RequestUpload => "Upload link",
         DocumentSource.ExternalCorrespondence => "Correspondence",
         DocumentSource.Generated => "Generated",
         DocumentSource.Automation => "Automatic",
@@ -896,47 +895,6 @@ public static class OperatorLabels
     {
         CaseCustodyState.Pending => "Box case folder: preparing",
         _ => "Box case folder: unavailable"
-    };
-
-    /// <summary>
-    /// The state of an in-house upload request, as the operator reads it.
-    /// </summary>
-    /// <remarks>
-    /// This describes the request Pegasus issues itself, distinct from the
-    /// document custody states above; the enums share member names but no
-    /// members, so one label method cannot serve both.
-    /// </remarks>
-    public static string UploadRequestState(RequestUploadStatus status) => status switch
-    {
-        RequestUploadStatus.Pending => "Being created",
-        RequestUploadStatus.Active => "Active",
-        RequestUploadStatus.Expired => "Expired",
-        RequestUploadStatus.Exhausted => "No uploads left",
-        RequestUploadStatus.Revoked => "Withdrawn",
-        RequestUploadStatus.Failed => "Failed",
-        _ => Humanise(status.ToString())
-    };
-
-    /// <summary>
-    /// The state of one Operations-listed request operation, as the operator
-    /// reads it on the Operations workspace.
-    /// </summary>
-    /// <remarks>
-    /// The Operations projection covers both upload links and external work
-    /// under one state vocabulary; <see cref="UploadRequestState"/> stays the
-    /// map for the request surface itself.
-    /// </remarks>
-    public static string RequestOperationState(RequestOperationState state) => state switch
-    {
-        Pegasus.Core.Operations.RequestOperationState.Pending => "Pending",
-        Pegasus.Core.Operations.RequestOperationState.Active => "Active",
-        Pegasus.Core.Operations.RequestOperationState.Expired => "Expired",
-        Pegasus.Core.Operations.RequestOperationState.Exhausted => "Exhausted",
-        Pegasus.Core.Operations.RequestOperationState.Revoked => "Revoked",
-        Pegasus.Core.Operations.RequestOperationState.Failed => "Failed",
-        Pegasus.Core.Operations.RequestOperationState.Completed => "Completed",
-        Pegasus.Core.Operations.RequestOperationState.UnknownExternal => "Unknown external",
-        _ => Humanise(state.ToString())
     };
 
     /// <summary>
@@ -1933,7 +1891,6 @@ public static class OperatorLabels
         public const string NotLinked = "Not linked";
         // End CASE-041.
         public const string FilesPanel = "Files";
-        public const string UploadRequestsPanel = "Public upload requests";
         public const string AddEvidence = "Add evidence";
         public const string OpenOperations = "Open Operations";
         public const string Preview = "Preview";
@@ -2145,10 +2102,7 @@ public static class OperatorLabels
         // ENG-034 end.
     }
 
-    /// The Upload surfaces' own words (EPIC-011 §1.10) — one list. The
-    /// accepted-files line is built from <see cref="IntakeEnvelopeLimits"/>
-    /// rather than transcribed from the prototype, whose "25 MB each · 10
-    /// files" is fixture data and not this product's limits.
+    /// Labels for the staff manual-upload surface.
     /// </summary>
     public static class Upload
     {
@@ -2158,120 +2112,11 @@ public static class OperatorLabels
         public const string Clear = "Clear";
         public const string Another = "Upload another file";
         public const string Refresh = "Refresh";
-
-        /// <summary>The public request page's single-file wording.</summary>
-        public const string RequestEyebrow = "Secure file request";
-        public const string RequestTitle = "Upload a file";
-        public const string RequestDropzone = "Drag a file here or choose one";
-        public const string RequestChoose = "Choose file";
-        public const string RequestSubmit = "Submit file";
-        public const string RequestReplace = "Replace";
-        public const string RequestFinish = "Finish";
-
-        /// <summary>
-        /// The public request page's refusals. They live here, beside the
-        /// controls they answer, so one sentence has one place and the page
-        /// and its handlers cannot drift apart.
-        /// </summary>
-        public const string RequestLinkInvalid = "This link is no longer valid. Ask for a new one.";
-
-        public const string RequestRefused =
-            "This document was not accepted. Reload the link and try again.";
-
-        public const string RequestTooManyAttempts =
-            "Too many upload attempts were made. Wait before trying again.";
-
-        /// <summary>
-        /// Why the upload control is gone while the submission is still open:
-        /// the link has taken every file it was issued for. The sender can
-        /// still finish, so they are told that rather than left with a form
-        /// that vanished.
-        /// </summary>
-        public const string RequestNoMoreFiles =
-            "This request has taken every file it allows. Finish when you are ready.";
-
-        /// <summary>
-        /// The replace control for one named file. With several files every
-        /// control would otherwise be announced identically, so the label
-        /// names the file it belongs to.
-        /// </summary>
-        public static string RequestReplaceFile(string fileName) =>
-            string.Create(CultureInfo.InvariantCulture, $"Replace {fileName}");
-
-        /// <summary>
-        /// What one file in the submission says to the sender. A file custody
-        /// has not confirmed is never presented as a success, and one it
-        /// refused is never counted as a submitted file.
-        /// </summary>
-        /// <param name="isSuperseded">
-        /// Whether the sender has sent another file in this one's place. That
-        /// answers before the custody state does: custody may well still hold
-        /// these bytes, but they are not what the sender is submitting, so
-        /// calling a replaced file "Received" would name the wrong file.
-        /// </param>
-        public static string RequestFileState(
-            IncomingArtifactCustodyState state,
-            bool isSuperseded = false) =>
-            isSuperseded
-                ? "Replaced"
-                : state switch
-                {
-                    IncomingArtifactCustodyState.Confirmed => "Received",
-                    IncomingArtifactCustodyState.Pending => "Being stored",
-                    IncomingArtifactCustodyState.Failed => "Not accepted",
-                    _ => "Still arriving"
-                };
-
-        /// <summary>
-        /// Why Finish was refused, naming the state that is holding the
-        /// submission open. The sender can see the file on the page, so they
-        /// are told what is happening to it rather than only that something
-        /// is.
-        /// </summary>
-        public static string RequestNotFinished(IncomingArtifactCustodyState? blocking) =>
-            blocking switch
-            {
-                IncomingArtifactCustodyState.Pending =>
-                    "A file is still being stored. Try again in a moment.",
-                _ => "A file has not finished arriving. Try again in a moment."
-            };
-
-        /// <summary>
-        /// Why a closed submission shows its files and no controls. Refusing
-        /// without disclosing the Case does not require saying nothing at all.
-        /// </summary>
-        public static string RequestSessionClosed(PublicUploadSessionState state) => state switch
-        {
-            PublicUploadSessionState.Finalized =>
-                "This submission is finished. No more files can be added.",
-            _ => "This submission has closed. Ask for a new link if you still need to send a file."
-        };
-
-        /// <summary>The request's own size limit, which is set per request.</summary>
-        public static string RequestLimit(string maximumFileSize) =>
-            string.Create(CultureInfo.InvariantCulture, $"Up to {maximumFileSize}.");
-
-        /// <summary>The accepted types and the real envelope limits, as drawn.</summary>
         public static string AcceptedFiles(long maximumFileBytes, int maximumFileCount) =>
             string.Create(
                 CultureInfo.InvariantCulture,
                 $"EML, MSG, PDF, DOC, DOCX, JPG, PNG, MP4 or MOV · up to {FileSize(maximumFileBytes)} each · {maximumFileCount} files");
 
-        /// <summary>
-        /// The public request page's post-submission wording, handed to C08 by
-        /// C07 (INTK-060 scratch/c07-notes, "OperatorLabels handoff") ahead of
-        /// that slice's own integration — added here with the exact text so it
-        /// can switch its local <c>private const</c>s over without a wording
-        /// change. <see cref="RetainedCompletionMessage"/> is
-        /// <c>RequestUploadDecision.Accepted</c>/<c>Replay</c>'s wording (custody
-        /// confirmed); <see cref="StoringCompletionMessage"/> is
-        /// <c>RequestUploadDecision.AcceptedPending</c>'s (custody durable but
-        /// not yet confirmed) — never say "retained securely" before custody has
-        /// said so.
-        /// </summary>
-        public const string RetainedCompletionMessage = "Your document was received and retained securely.";
-        public const string StoringCompletionMessage =
-            "Your document was received and is being stored. You do not need to send it again.";
     }
 
     /// <summary>

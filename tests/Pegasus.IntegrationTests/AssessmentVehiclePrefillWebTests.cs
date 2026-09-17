@@ -166,7 +166,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 ? new ConfirmedVehicleEvidence(null, ConfirmedField("FORD"), null, null, null)
                 : null;
             CaseDetails details = new(
-                summary, workflow, null, [], null, CaseCustodyState.Pending, [], [], [])
+                summary, workflow, null, [], null, CaseCustodyState.Pending, [], [])
             {
                 Data = Data(identity, workflow, includeConfirmedFacts, includePartialConfirmedFacts),
                 VehicleEvidence = new(caseId, confirmed, observation, [observation], []),

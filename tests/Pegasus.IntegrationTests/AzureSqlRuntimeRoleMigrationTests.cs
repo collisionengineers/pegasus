@@ -338,6 +338,11 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         await context.Database.MigrateAsync();
 
         Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'RequestUploadLinks', N'RequestUploadReceipts', N'PublicUploadSessions', N'PublicUploadOccurrences')"));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.CaseDueChasers') AND name IN (N'RequestLinkReference', N'RequestLinkPurpose')"));
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApplicationInitializations'"));
         // 20260803151159_AutomationActorOpenIddict re-creates the four
         // OpenIddict tables for the Automation Actor client-credentials
@@ -1027,9 +1032,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             DELETE FROM dbo.EditScopes WHERE RecordId = '{contactOrganizationId:D}';
             INSERT INTO dbo.AutomaticEvaReviewSubmissions (Id, CaseId, WorkflowVersion, OperationKey, State, CreatedAtUtc, DueAtUtc)
             SELECT TOP (0) NEWID(), Id, 1, N'permission-fixture', N'Pending', SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET() FROM dbo.Cases;
-            UPDATE [dbo].[PublicUploadOccurrences]
-            SET [CustodyState] = [CustodyState]
-            WHERE [Id] = '00000000-0000-0000-0000-000000000000';
             REVERT;
 
             EXECUTE AS USER = N'pegasus_test_worker_runtime';
@@ -1069,17 +1071,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             END CATCH;
             REVERT;
 
-            EXECUTE AS USER = N'pegasus_test_worker_runtime';
-            BEGIN TRY
-                UPDATE [dbo].[PublicUploadOccurrences]
-                SET [CustodyState] = [CustodyState]
-                WHERE [Id] = '00000000-0000-0000-0000-000000000000';
-                THROW 51000, 'Worker runtime unexpectedly updated a PublicUploadOccurrence.', 1;
-            END TRY
-            BEGIN CATCH
-                IF ERROR_NUMBER() <> 229 THROW;
-            END CATCH;
-            REVERT;
             """);
     }
 
@@ -1152,7 +1143,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             $"SELECT COUNT(*) FROM [dbo].[ExternalWorkItems] WHERE [Id] = '{workId:D}' AND [State] = N'pending'"));
 
         // Exercise the actual EF custody claim as Worker, not merely the
-        // permission census: intake must never probe PublicUploadOccurrences.
+        // permission census: intake retention uses only the intake asset row.
         await database.ExecuteAsync($"""
             CREATE USER [pegasus_test_custody_worker] WITHOUT LOGIN;
             ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_custody_worker];
@@ -1165,7 +1156,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         try
         {
             var options = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
-            var custody = new EfPublicUploadRetentionStore(new ConnectedContextFactory(options));
+            var custody = new EfIncomingArtifactRetentionStore(new ConnectedContextFactory(options));
             Assert.False(await custody.TryClaimHandOverAsync($"intake:{Guid.NewGuid():N}:{assetId:N}", CancellationToken.None));
             Assert.True(await custody.TryClaimHandOverAsync($"intake:{receiptId:N}:{assetId:N}", CancellationToken.None));
             Assert.False(await custody.TryClaimHandOverAsync($"intake:{receiptId:N}:{assetId:N}", CancellationToken.None));

@@ -770,7 +770,6 @@ public sealed class EfUnidentifiedStore(
                 id,
                 JsonSerializer.Deserialize<StaffRole[]>(rolesJson) ?? [StaffRole.User]),
             ActorKind.Automation => ActionActor.Automation(subjectId),
-            ActorKind.RequestLink when Guid.TryParse(subjectId, out var requestId) => ActionActor.RequestLink(requestId),
             _ => ActionActor.SystemWorker(subjectId)
         };
     }

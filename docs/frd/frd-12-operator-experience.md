@@ -91,7 +91,7 @@ down, there is no collapse.
 The utility bar carries the page freshness text, the global search input
 (Enter or Ctrl K opens the command palette), **New case** opening the direct
 staff creation form, and the bell. Upload and Inbox retain their named
-navigation; Case upload links remain contextual actions.
+navigation.
 
 The bell is the signed-in person's own notifications, never office-wide work
 or queue counts, with the unread count on it (absent at zero). A notification
@@ -122,14 +122,14 @@ dialog traps focus and inerts the page behind it.
 | --- | --- | --- |
 | `/` | Work Centre — metrics, Needs attention, Today, New cases, AI jobs | Dashboard |
 | `/Inbox`, `/Inbox/{id}` | Retained mail list and message ([FRD-08](frd-08-email-mailbox-and-background-processing.md), § Inbox) | — |
-| `/Upload`, `/Uploads/{token}` | Staff upload and the public upload request ([FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface)); first successful file acceptance starts a fixed non-sliding 15-minute add/replace session, closed by explicit finalisation or expiry (D20) | — |
+| `/Upload` | Staff upload and its retained-source processing outcome ([FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface)) | — |
 | `/Cases` | Queues: workflow, pre-Case work and exceptions | Queues (`/Triage`) |
 | `/Cases/{id}` | Case record — one page of ten sections in Scroll (default) or Tabs; `?section=` jumps (D29, D30) | Case workspace side-nav sections; the Assessment page |
 | `/Cases/{id}/Assessment` | Permanent redirect to `/Cases/{id}?section=estimate` (D30) | Engineer assessment page |
 | `/Search` | Advanced search (`UI-07`) | Cases list |
 | `/Triage/{id}`, `/Unidentified/{id}`, `/VehicleImages/{id}` | Triage, Unidentified and image records | The received-file page |
 | `/Received/{id}/Source`, `/Received/{id}/Image`, `/Received/{id}/Asset/{assetId}` | Open file: the retained original, served to authorised staff only | — |
-| `/Operations` | AI jobs, attention (including failed intake for Administrators), upload links, EVA handoffs; a one-line partial-data notice links to Administration Service health (D37) | Operations Service health table |
+| `/Operations` | AI jobs, attention (including failed intake for Administrators), EVA handoffs; a one-line partial-data notice links to Administration Service health (D37) | Operations Service health table |
 | `/Administration`, `/Administration/...` | Administration areas, including Contacts and Principal settings | Separate Principal and Claim Source areas |
 | `/Administration/Logs` | Action logs and Intake log tabs (§ Administration); `/Administration/ActionLogs` answers a permanent redirect keeping its query | Action Logs |
 
@@ -402,7 +402,7 @@ selects an eligible Engineer or **Assign to me**, and the one handoff assigns
 them and enters With Engineer; **Send to EVA**; **Mark report sent**; **Mark
 completed**; **Return to Review** or **Return to Engineer**; **Archive**;
 **Place on Hold** (reason and optional Review on date) or **Release Hold**;
-**Create upload link**; **Correct principal**; **Create audit** on an
+**Correct principal**; **Create audit** on an
 Inspection + Audit Case once a report has been generated
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity));
 and, after a separator and in red, **Close case**. Outside an edit session the
@@ -512,8 +512,8 @@ a non-destructive conflict.
 - Files: one panel with two tabs, both rendered so a no-script visit shows
   the two lists one after the other under their own headings. The panel
   header's Add evidence, Open Box case folder (or the folder's own state
-  chip before custody is confirmed) and Open Operations actions, plus
-  Create upload link and its request table, sit above both tabs; linked
+  chip before custody is confirmed) and Open Operations actions
+  sit above both tabs; linked
   correspondence sits below them
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence)).
   - Documents: every live file as a row — filename, role, size, origin,
@@ -621,9 +621,8 @@ failed intake: each received file under its failure kind — Allocation failed,
 OCR failed, Processing failed — offering only its own action, Retry allocation,
 Retry OCR or Re-evaluate, each with a reason, through the Logs handlers
 ([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions)));
-**Active upload links** (Case, recipient, created, last activity, files,
-expiry, state, Withdraw); and **EVA handoffs** (route, Engineer, state,
-result). Operations stays open to Engineers and Users. Its rail badge counts
+**EVA handoffs** (route, Engineer, state, result). Operations stays open to
+Engineers and Users. Its rail badge counts
 retryable failed external work and is absent at zero. Service health is
 Administration-only; Operations carries no service health table, and its
 one-line partial-data notice links to Administration Service health (D37).
@@ -770,9 +769,9 @@ reversible work states; no terminal Closed presentation is permitted. `Audit`,
 
 ### Upload
 
-Manual and public-link uploads follow the accepted 100 MiB-per-file, 20-file
+Manual staff uploads follow the accepted 100 MiB-per-file, 20-file
 and 200 MiB aggregate limits in
-[FRD-02](frd-02-intake-and-source-identity.md#source-upload-limits). The
+[FRD-02](frd-02-intake-and-source-identity.md#manual-staff-upload-limits). The
 Provider API envelope stays 30 MB and is owned by
 [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary).
 The authenticated staff `/Upload` route is available only where durable

@@ -612,7 +612,7 @@ public sealed partial class SendToAiIntegrationTests
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
                 DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
             CaseDetails details = new(
-                summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [], [])
+                summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [])
             {
                 Data = CreateData()
             };

@@ -2,17 +2,14 @@
 @model Pegasus.Web.Pages.StatusCodeModel
 @{
     ViewData["Title"] = Model.Heading;
-    Layout = Model.IsExternalSurface ? "Shared/_LayoutExternal" : "Shared/_LayoutAuth";
+    Layout = "Shared/_LayoutAuth";
 }
 
 @* The designed answer to a status code. Before this page existed, an unknown
-   record URL, a dead external upload link, an oversized upload and a
-   rate-limited sign-in all returned the browser's own error page. *@
+   record URL, an oversized staff upload and a rate-limited sign-in all returned
+   the browser's own error page. *@
 <h1>@Model.Heading</h1>
 <p>@Model.Explanation</p>
-@if (Model.ShowReturnToDashboard)
-{
-    <div class="button-row">
-        <a class="btn" asp-page="/Index">Return to @OperatorLabels.Nav.WorkCentre</a>
-    </div>
-}
+<div class="button-row">
+    <a class="btn" asp-page="/Index">Return to @OperatorLabels.Nav.WorkCentre</a>
+</div>

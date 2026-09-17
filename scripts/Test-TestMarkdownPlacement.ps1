@@ -99,6 +99,7 @@ try {
     $initial = Add-TestCommit -Message 'initial grandfathered content'
 
     $allowed = @(
+        'SESSION_PLAN.md',
         'docs/prd/new.md',
         'docs/frd/new.md',
         'docs/adr/new.md',

@@ -94,7 +94,7 @@ public sealed class OrganizationDirectoryPersistenceTests
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         await using var scope = factory.Services.CreateAsyncScope();
         var directory = scope.ServiceProvider.GetRequiredService<IOrganizationDirectoryQueries>();
-        var externalActor = ActionActor.RequestLink(Guid.NewGuid());
+        var externalActor = ActionActor.Provider(Guid.NewGuid());
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             directory.SearchAsync(new(externalActor, "Fenwick", Role: null), CancellationToken.None));

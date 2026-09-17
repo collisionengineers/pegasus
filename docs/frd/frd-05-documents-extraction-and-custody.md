@@ -13,7 +13,7 @@ Pegasus must:
 - isolate parsing and enforce depth, count, size, decompression, relationship,
   and cancellation limits — source upload is bounded by the accepted 100 MiB
   per-file, 20-file and 200 MiB aggregate limits in
-  [FRD-02](frd-02-intake-and-source-identity.md#source-upload-limits), while
+  [FRD-02](frd-02-intake-and-source-identity.md#manual-staff-upload-limits), while
   the Provider API envelope stays at 30 MB and is owned by
   [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary);
 - return structured text/images/provenance and explicit partial/unsupported/technical-failure outcomes;
@@ -77,7 +77,7 @@ when completing delayed custody. Failures remain visible for normal recovery.
 
 Incoming custody claims use the occurrence's operation identity to select its
 own source record. Intake claims update the matching receipt/asset pair directly;
-they do not probe public-upload records or require broader Worker permissions.
+they do not probe unrelated source records or require broader Worker permissions.
 The receipt and asset GUIDs are typed identities, not filename, source-label
 or formatted-GUID string matches. Before a destination is established, the
 original source and selected photographs are retained in the designated Box

@@ -4,16 +4,13 @@ namespace Pegasus.Core.Tasks;
 
 /// <summary>
 /// One immutable due-work occurrence eligible for a generated, copyable chaser.
-/// The optional request reference identifies an existing request-scoped upload link;
-/// it never carries the protected token or URL.
 /// </summary>
 public sealed record DueCaseChaser(
     Guid CaseId,
     long DueWorkVersion,
     string CaseReference,
     string MissingMaterialReason,
-    DateTimeOffset ScheduledAtUtc,
-    Guid? RequestLinkReference)
+    DateTimeOffset ScheduledAtUtc)
 {
     public int ChaseIntervalDays { get; init; } = 7;
 }
@@ -29,8 +26,6 @@ public sealed record GeneratedCaseChaser(
     DateTimeOffset GeneratedAtUtc,
     DateTimeOffset NextChaseAtUtc,
     string CopyableText,
-    Guid? RequestLinkReference,
-    string? RequestLinkPurpose,
     long DueWorkVersion);
 
 public sealed record DueChaserTransition(
@@ -41,8 +36,6 @@ public sealed record DueChaserTransition(
     DateTimeOffset GeneratedAtUtc,
     DateTimeOffset NextChaseAtUtc,
     string CopyableText,
-    Guid? RequestLinkReference,
-    string? RequestLinkPurpose,
     string OperationKey,
     ActionActor Actor)
 {
@@ -68,7 +61,7 @@ public sealed record RunDueChasersResult(
 
 /// <summary>
 /// Supplies bounded due-work snapshots and locally generated drafts. Implementations must
-/// return only open Not-ready work and active request references owned by the same case.
+/// return only open Not-ready work.
 /// </summary>
 public interface ICaseDueChaserQueries
 {
@@ -104,7 +97,6 @@ public sealed class RunDueChasers(
 {
     public const int MaximumBatchSize = 500;
     public const string WorkerSubjectId = "due-work-sweep";
-    public const string MissingMaterialRequestLinkPurpose = "missing-material-upload";
 
     private readonly ICaseDueChaserQueries _queries =
         queries ?? throw new ArgumentNullException(nameof(queries));
@@ -151,10 +143,6 @@ public sealed class RunDueChasers(
                 asOfUtc,
                 nextChaseAtUtc,
                 CreateCopyableText(candidate),
-                candidate.RequestLinkReference,
-                candidate.RequestLinkReference is null
-                    ? null
-                    : MissingMaterialRequestLinkPurpose,
                 CreateOperationKey(candidate),
                 actor) { ChaseIntervalDays = candidate.ChaseIntervalDays };
 
@@ -210,10 +198,6 @@ public sealed class RunDueChasers(
         if (candidate.ScheduledAtUtc > asOfUtc)
         {
             throw new InvalidOperationException("A due-chaser candidate cannot be future-dated.");
-        }
-        if (candidate.RequestLinkReference == Guid.Empty)
-        {
-            throw new InvalidOperationException("A request-link reference cannot be an empty identifier.");
         }
     }
 

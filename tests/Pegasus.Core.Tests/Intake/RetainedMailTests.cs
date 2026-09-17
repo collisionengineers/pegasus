@@ -132,7 +132,7 @@ public sealed class RetainedMailTests
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new ListRetainedMail(queries).ExecuteAsync(
-                ActionActor.RequestLink(Guid.NewGuid()),
+                ActionActor.Provider(Guid.NewGuid()),
                 new(null, MailFolderScope.Inbox),
                 1,
                 25,
@@ -182,7 +182,7 @@ public sealed class RetainedMailTests
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new ListRetainedMail(queries).CountAsync(
-                ActionActor.RequestLink(Guid.NewGuid()),
+                ActionActor.Provider(Guid.NewGuid()),
                 new(null, MailFolderScope.Inbox),
                 CancellationToken.None));
 
@@ -324,7 +324,7 @@ public sealed class RetainedMailTests
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new SearchDeletedMail(source).ExecuteAsync(
-                ActionActor.RequestLink(Guid.NewGuid()),
+                ActionActor.Provider(Guid.NewGuid()),
                 null,
                 "estimate",
                 1,
@@ -353,7 +353,7 @@ public sealed class RetainedMailTests
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new GetRetainedMail(queries, new NoStaffAccounts(), new MailboxStore()).ExecuteAsync(
-                ActionActor.RequestLink(Guid.NewGuid()),
+                ActionActor.Provider(Guid.NewGuid()),
                 Guid.NewGuid(),
                 CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() =>
@@ -364,7 +364,7 @@ public sealed class RetainedMailTests
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             new GetRetainedMail(queries, new NoStaffAccounts(), new MailboxStore())
                 .ExecuteByOriginReceiptAsync(
-                    ActionActor.RequestLink(Guid.NewGuid()),
+                    ActionActor.Provider(Guid.NewGuid()),
                     Guid.NewGuid(),
                     CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() =>

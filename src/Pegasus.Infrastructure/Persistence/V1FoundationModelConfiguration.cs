@@ -113,16 +113,6 @@ internal static class V1FoundationModelConfiguration
             e.Property(x => x.VerifiedSha256).HasMaxLength(64).IsFixedLength(); e.Property(x => x.Version).IsConcurrencyToken();
             e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
         });
-        builder.Entity<PublicUploadSessionEntity>(e =>
-        {
-            e.ToTable("PublicUploadSessions"); e.HasKey(x => x.Id); e.HasIndex(x => x.RequestUploadLinkId).IsUnique();
-            e.Property(x => x.Version).IsConcurrencyToken(); e.Property(x => x.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
-        });
-        builder.Entity<PublicUploadOccurrenceEntity>(e =>
-        {
-            e.ToTable("PublicUploadOccurrences"); e.HasKey(x => x.Id); e.HasAlternateKey(x => new { x.SessionId, x.Id }); e.HasIndex(x => new { x.SessionId, x.OperationKey }).IsUnique(); e.HasIndex(x => new { x.SessionId, x.ReplacesOccurrenceId });
-            e.Property(x => x.Sha256).HasMaxLength(64).IsFixedLength();
-        });
         builder.Entity<UserExternalCredentialEntity>().HasOne<PegasusIdentityUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<GlassRepairEstimateSessionEntity>().HasOne<CaseEntity>().WithMany().HasForeignKey(x => x.CaseId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<GlassRepairEstimateSessionEntity>().HasOne<PegasusIdentityUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
@@ -138,8 +128,5 @@ internal static class V1FoundationModelConfiguration
         builder.Entity<IntakeOcrOperationEntity>().HasOne<IntakeAssetEntity>().WithMany().HasForeignKey(x => x.IntakeAssetId).OnDelete(DeleteBehavior.Restrict).IsRequired();
         builder.Entity<DocumentContentCacheEntryEntity>().HasOne<DocumentVersionEntity>().WithMany().HasForeignKey(x => x.DocumentVersionId).OnDelete(DeleteBehavior.Restrict);
         builder.Entity<DocumentContentCacheEntryEntity>().HasOne<IntakeAssetEntity>().WithMany().HasForeignKey(x => x.IntakeAssetId).OnDelete(DeleteBehavior.Restrict);
-        builder.Entity<PublicUploadSessionEntity>().HasOne<RequestUploadLinkEntity>().WithMany().HasForeignKey(x => x.RequestUploadLinkId).OnDelete(DeleteBehavior.Restrict);
-        builder.Entity<PublicUploadOccurrenceEntity>().HasOne<PublicUploadSessionEntity>().WithMany().HasForeignKey(x => x.SessionId).OnDelete(DeleteBehavior.Restrict);
-        builder.Entity<PublicUploadOccurrenceEntity>().HasOne<PublicUploadOccurrenceEntity>().WithMany().HasForeignKey(x => new { x.SessionId, x.ReplacesOccurrenceId }).HasPrincipalKey(x => new { x.SessionId, x.Id }).OnDelete(DeleteBehavior.Restrict);
     }
 }

@@ -4,12 +4,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
-using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Operations;
-using Pegasus.Core.Workflow;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
 
@@ -22,9 +20,6 @@ namespace Pegasus.Web.Pages.Operations;
 public sealed class IndexModel(
     GetRequestOperations getRequestOperations,
     RetryExternalWork retryExternalWork,
-    IAcquireCaseEditLease acquireCaseEditLease,
-    IReleaseCaseEditLease releaseCaseEditLease,
-    IRevokeRequestUploadLink revokeRequestUploadLink,
     IAiJobQueries aiJobQueries,
     ICreateAiJob createAiJob,
     IConfirmAiJob confirmAiJob,
@@ -46,8 +41,6 @@ public sealed class IndexModel(
 
     /// <summary>The failure kinds Operations lists, in the order it lists them.</summary>
     public static readonly IReadOnlyList<IntakeLogOutcome> FailureKinds = IntakeLogPolicy.RetryableFailures;
-    private const string PreservedReasonKey = "OperationsRequestReason";
-    private const string PreservedRequestIdKey = "OperationsRequestReasonId";
 
     /// <summary>
     /// How far back the list reaches for the terminal jobs of the current day
@@ -68,12 +61,6 @@ public sealed class IndexModel(
         getRequestOperations ?? throw new ArgumentNullException(nameof(getRequestOperations));
     private readonly RetryExternalWork retryExternalWork =
         retryExternalWork ?? throw new ArgumentNullException(nameof(retryExternalWork));
-    private readonly IAcquireCaseEditLease acquireCaseEditLease =
-        acquireCaseEditLease ?? throw new ArgumentNullException(nameof(acquireCaseEditLease));
-    private readonly IReleaseCaseEditLease releaseCaseEditLease =
-        releaseCaseEditLease ?? throw new ArgumentNullException(nameof(releaseCaseEditLease));
-    private readonly IRevokeRequestUploadLink revokeRequestUploadLink =
-        revokeRequestUploadLink ?? throw new ArgumentNullException(nameof(revokeRequestUploadLink));
     private readonly IAiJobQueries aiJobQueries =
         aiJobQueries ?? throw new ArgumentNullException(nameof(aiJobQueries));
     private readonly ICreateAiJob createAiJob =
@@ -113,9 +100,6 @@ public sealed class IndexModel(
 
     public IReadOnlyList<EvaSubmissionFailure> EvaFailures { get; private set; } = [];
 
-    public Guid? PreservedRequestId { get; private set; }
-    public string? PreservedReason { get; private set; }
-
     [TempData]
     public string? StatusMessage { get; set; }
 
@@ -126,8 +110,6 @@ public sealed class IndexModel(
             return Forbid();
         }
 
-        PreservedRequestId = ReadGuidTempData(PreservedRequestIdKey);
-        PreservedReason = TempData[PreservedReasonKey] as string;
         var nowUtc = timeProvider.GetUtcNow();
         // These projections each use an independent factory-created context.
         // Capture the instant once, then let their unrelated reads overlap.
@@ -340,72 +322,6 @@ public sealed class IndexModel(
         return RedirectToPage();
     }
 
-    public async Task<IActionResult> OnPostRevokeLinkAsync(
-        Guid requestId,
-        Guid caseId,
-        long expectedVersion,
-        long expectedCaseVersion,
-        string reason,
-        string operationKey,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        if (!ModelState.IsValid || requestId == Guid.Empty || caseId == Guid.Empty)
-        {
-            PreserveReason(requestId, reason);
-            StatusMessage = "The link could not be withdrawn. Refresh and try again.";
-            return RedirectToPage();
-        }
-
-        var leaseOperationKey = NewOperationKey();
-        CaseEditLease lease;
-        try
-        {
-            lease = await acquireCaseEditLease.ExecuteAsync(
-                new(caseId, expectedCaseVersion, actor, leaseOperationKey),
-                cancellationToken);
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (
-            exception is ArgumentException or InvalidOperationException or DbUpdateConcurrencyException)
-        {
-            PreserveReason(requestId, reason);
-            StatusMessage = "This link's case is open for editing by someone else.";
-            return RedirectToPage();
-        }
-
-        try
-        {
-            await revokeRequestUploadLink.ExecuteAsync(
-                new(caseId, requestId, actor, reason, operationKey, expectedVersion, expectedCaseVersion, lease.Token),
-                cancellationToken);
-            StatusMessage = "The link was withdrawn.";
-        }
-        catch (StaffAuthorizationException)
-        {
-            return Forbid();
-        }
-        catch (Exception exception) when (
-            exception is ArgumentException or InvalidOperationException or DbUpdateConcurrencyException)
-        {
-            PreserveReason(requestId, reason);
-            StatusMessage = "The link changed before it could be withdrawn. Refresh and try again.";
-            await ReleaseQuietlyAsync(caseId, actor, lease.Token, cancellationToken);
-            return RedirectToPage();
-        }
-
-        await ReleaseQuietlyAsync(caseId, actor, lease.Token, cancellationToken);
-        return RedirectToPage();
-    }
-
-    public static string StateLabel(RequestOperationState state) =>
-        Presentation.OperatorLabels.RequestOperationState(state);
 
     /// <summary>
     /// The record page a job's subject opens, through the one map this list
@@ -527,53 +443,6 @@ public sealed class IndexModel(
             : job.ClosedAtUtc;
         return terminalAtUtc is { } terminalAt
             && OperatorLabels.OfficeDate(terminalAt) == today;
-    }
-
-    private async Task ReleaseQuietlyAsync(
-        Guid caseId,
-        ActionActor actor,
-        string leaseToken,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await releaseCaseEditLease.ExecuteAsync(
-                new(caseId, actor, NewOperationKey(), leaseToken),
-                cancellationToken);
-        }
-        catch (Exception exception) when (
-            exception is ArgumentException or InvalidOperationException or DbUpdateConcurrencyException)
-        {
-        }
-
-    }
-
-    private Guid? ReadGuidTempData(string key, bool peek = false)
-    {
-        var value = peek ? TempData.Peek(key) : TempData[key];
-        return value switch
-        {
-            Guid parsed => parsed,
-            string text when Guid.TryParse(text, out var parsed) => parsed,
-            _ => null
-        };
-    }
-
-    private void PreserveReason(Guid requestId, string? reason)
-    {
-        if (requestId == Guid.Empty || string.IsNullOrWhiteSpace(reason))
-        {
-            return;
-        }
-
-        var normalized = reason.Trim();
-        if (normalized.Length > 500)
-        {
-            return;
-        }
-
-        TempData[PreservedRequestIdKey] = requestId.ToString("D");
-        TempData[PreservedReasonKey] = normalized;
     }
 
 }

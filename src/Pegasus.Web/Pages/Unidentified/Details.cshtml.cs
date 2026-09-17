@@ -141,8 +141,7 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// Request again composes a reply to the message the material came in.
-    /// Upload links are issued against a Case, so material with no message has
-    /// no Request again here.
+    /// Material without a source message has no Request again action.
     /// </summary>
     public string? RequestAgainHref => IsOpen && Context.SourceMessageId is { } messageId
         ? $"/Inbox/{messageId:D}?compose=reply"

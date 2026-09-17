@@ -247,7 +247,6 @@ public static class MailClassificationActor
         [ActorKind.Staff] = "staff",
         [ActorKind.SystemWorker] = "system-worker",
         [ActorKind.Automation] = "automation",
-        [ActorKind.RequestLink] = "request-link",
         [ActorKind.Provider] = "provider"
     };
 
