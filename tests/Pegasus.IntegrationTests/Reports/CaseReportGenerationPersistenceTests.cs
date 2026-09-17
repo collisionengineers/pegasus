@@ -1133,6 +1133,31 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(2, (await harness.CaseHistoryEventsAsync("case_report_draft_previewed")).Count);
     }
 
+    [Fact]
+    public async Task PreviewingAnEstimateDocumentRecordsOneEventPerVersionStaffAndDay()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var estimateId = Guid.NewGuid();
+
+        await harness.Store.RecordPreviewedAsync(
+            new(harness.StaffActor, harness.CaseId, estimateId, 3, Harness.StartUtc),
+            CancellationToken.None);
+        await harness.Store.RecordPreviewedAsync(
+            new(harness.StaffActor, harness.CaseId, estimateId, 3, Harness.StartUtc.AddHours(2)),
+            CancellationToken.None);
+
+        var viewed = Assert.Single(await harness.CaseHistoryEventsAsync(
+            CaseReportPresentationEvents.EstimateDocumentPreviewed));
+        Assert.Equal("Estimate document previewed", viewed.Reason);
+        Assert.Equal(viewed.BeforeVersion, viewed.AfterVersion);
+
+        await harness.Store.RecordPreviewedAsync(
+            new(harness.StaffActor, harness.CaseId, estimateId, 4, Harness.StartUtc.AddHours(3)),
+            CancellationToken.None);
+        Assert.Equal(2, (await harness.CaseHistoryEventsAsync(
+            CaseReportPresentationEvents.EstimateDocumentPreviewed)).Count);
+    }
+
     /// <summary>
     /// DOCS-014's other half: reopening a confirmed generation artifact is a
     /// completed download, recorded distinctly from a preview view, and only

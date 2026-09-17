@@ -91,8 +91,10 @@ public static class RepairSpecificationPolicy
     /// category and the VAT rounded to pence independently, net the sum of
     /// the printed components — over the seven closed line operations, the
     /// four discounts and the repairer's VAT categories.
+    /// v4: Specialist work-unit hours are priced as panel labour; fixed-price
+    /// Specialist hours remain recorded but are not priced.
     /// </summary>
-    public const int PolicyVersion = 3;
+    public const int PolicyVersion = 4;
 
     public static void RequireEngineer(ActionActor actor)
     {

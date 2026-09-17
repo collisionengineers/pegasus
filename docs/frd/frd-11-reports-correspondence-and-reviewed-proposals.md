@@ -166,6 +166,11 @@ description. It does not replace retained report generation or create a new
 report family. Native Hand to Engineer opens engineering work without an EVA
 export; EVA is optional and does not gate report readiness.
 
+The Estimate section exposes **Estimate PDF**, an unretained Estimate document
+in the accepted house style for any saved estimate version from
+`EstimateTotals`; viewing is recorded as `case_estimate_document_previewed`,
+and is neither a report, approval, delivery nor correspondence action.
+
 Settlement and Report editors use the Case's one workspace Save and share its
 expected version and edit lease; a save needs no reason
 ([FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery)).
@@ -347,7 +352,7 @@ printed Net plus printed VAT. No residual penny moves between components.
 | Figure | Rule |
 | --- | --- |
 | Parts | Explicit part prices × quantity |
-| Labour | Panel and paint hours × the selected labour-rate-card rate |
+| Labour | Panel, paint and Specialist work-unit hours × the selected labour-rate-card rate; hours on a fixed-price Specialist line are retained, shown and not priced |
 | Parts, materials and specialist | Explicit estimate amounts, discounted where selected |
 | Taxable | Selected discounted Labour, Parts, Materials and Specialist categories |
 | VAT | Taxable × VAT % |

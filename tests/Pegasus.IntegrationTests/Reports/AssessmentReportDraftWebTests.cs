@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -103,6 +104,39 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
         Assert.Equal(pdfBytes, await response.Content.ReadAsByteArrayAsync());
+    }
+
+    [Fact]
+    public async Task EnhancedPreviewReturnsATypedRefusalWhenTheReportIsNotReady()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId) with { CurrentEstimate = null }),
+            new FakeRenderer([1]));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{caseId:D}?handler=PreviewReportDraft&section=report");
+        request.Headers.Add("X-Pegasus-Document-Preview", "1");
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var detail = Assert.IsType<string>(problem.RootElement.GetProperty("detail").GetString());
+        Assert.Contains(
+            AssessmentReportProjection.RepairCostRequirement,
+            detail,
+            StringComparison.Ordinal);
     }
 
     [Fact]

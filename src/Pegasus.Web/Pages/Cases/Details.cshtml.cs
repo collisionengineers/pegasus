@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.Net.Http.Headers;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Address;
@@ -46,6 +47,8 @@ public sealed partial class DetailsModel(
     ICreateAiJob createAiJob,
     ISendToAiControl sendToAiControl,
     GenerateCaseAssessmentReportDraft generateReportDraft,
+    IRenderCaseEstimateDocument renderEstimateDocument,
+    IEstimateDocumentPresentationStore estimateDocumentPresentations,
     IGenerateCaseReport generateReport,
     IGeneratedCaseArtifactStore generatedArtifacts,
     ICaseReportGenerationStore reportGenerations,
@@ -1594,6 +1597,14 @@ public sealed partial class DetailsModel(
             case GenerateCaseAssessmentReportDraftOutcome.NotFound:
                 return NotFound();
             case GenerateCaseAssessmentReportDraftOutcome.NotReady:
+                var detail = "The report draft is not ready. " + string.Join(
+                    " ",
+                    result.Reasons.Select(reason =>
+                        $"{reason.Requirement}: {reason.WhyOutstanding}"));
+                if (Request.Headers.ContainsKey("X-Pegasus-Document-Preview"))
+                {
+                    return EnhancedPreviewRefusal(detail);
+                }
                 return RedirectToEstimate(id);
             default:
                 // DOCS-014: an inline preview of the unretained working
@@ -1605,6 +1616,60 @@ public sealed partial class DetailsModel(
                     cancellationToken);
                 return File(result.Draft!.Pdf, "application/pdf");
         }
+    }
+
+    public async Task<IActionResult> OnGetEstimateDocumentAsync(
+        Guid id,
+        Guid estimateId,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        var result = await renderEstimateDocument.ExecuteAsync(
+            id, estimateId, actor, cancellationToken);
+        switch (result.Outcome)
+        {
+            case RenderCaseEstimateDocumentOutcome.NotFound:
+                return NotFound();
+            case RenderCaseEstimateDocumentOutcome.NotRenderable:
+                var reason = string.Join(" ", result.Reasons);
+                if (Request.Headers.ContainsKey("X-Pegasus-Document-Preview"))
+                {
+                    return EnhancedPreviewRefusal(reason);
+                }
+                TempData["CaseError"] = reason;
+                return RedirectToEstimate(id, estimateId.ToString("D"));
+            case RenderCaseEstimateDocumentOutcome.Rendered:
+                var artifact = result.Artifact!;
+                await estimateDocumentPresentations.RecordPreviewedAsync(
+                    new(actor, id, estimateId, result.EstimateVersion!.Value, DateTimeOffset.UtcNow),
+                    cancellationToken);
+                Response.Headers.ContentDisposition =
+                    new ContentDispositionHeaderValue("inline")
+                    {
+                        FileName = artifact.SuggestedFileName,
+                    }.ToString();
+                return File(artifact.Pdf, "application/pdf");
+            default:
+                throw new InvalidOperationException("Unsupported estimate document outcome.");
+        }
+    }
+
+    private static ObjectResult EnhancedPreviewRefusal(string detail)
+    {
+        var refusal = new ObjectResult(new ProblemDetails
+        {
+            Detail = detail,
+            Status = StatusCodes.Status422UnprocessableEntity,
+        })
+        {
+            StatusCode = StatusCodes.Status422UnprocessableEntity,
+        };
+        refusal.ContentTypes.Add("application/problem+json");
+        return refusal;
     }
 
     /// <summary>
