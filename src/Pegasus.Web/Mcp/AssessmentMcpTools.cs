@@ -571,7 +571,16 @@ internal sealed class AssessmentMcpTools(
                         ?? current.Inspection.Mode.Confirmed?.Value,
                     current.Claimant.ContactNumber.Confirmed?.Value,
                     current.Claimant.Address.Confirmed?.Value,
-                    storageLocation ?? current.Inspection.StorageLocation?.Confirmed?.Value);
+                    storageLocation ?? current.Inspection.StorageLocation?.Confirmed?.Value,
+                    ClaimSourceId: current.Workspace?.ClaimSource?.ClaimSourceId,
+                    ClaimSourceVersion: current.Workspace?.ClaimSource?.ClaimSourceVersion,
+                    ClaimSourceName: current.Workspace?.ClaimSource?.Name,
+                    ClaimSourceContactName: current.Workspace?.ClaimSource?.ContactName,
+                    ClaimSourceContactTelephone: current.Workspace?.ClaimSource?.ContactTelephone,
+                    ClaimSourceContactEmailAddress: current.Workspace?.ClaimSource?.ContactEmailAddress,
+                    ClaimSourceOverrideContactName: current.Workspace?.ClaimSource?.OverrideContactName,
+                    ClaimSourceOverrideContactTelephone: current.Workspace?.ClaimSource?.OverrideContactTelephone,
+                    ClaimSourceOverrideContactEmailAddress: current.Workspace?.ClaimSource?.OverrideContactEmailAddress);
                 var saved = await saveCase.ExecuteAsync(
                     new(
                         caseId,

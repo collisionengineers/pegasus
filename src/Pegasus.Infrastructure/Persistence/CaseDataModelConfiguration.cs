@@ -25,6 +25,9 @@ internal static class CaseDataModelConfiguration
             entity.Property(item => item.SourceReaderVersion).HasMaxLength(200);
             entity.Property(item => item.ExtractionPolicyKey).HasMaxLength(100);
             entity.Property(item => item.CompletenessPolicyKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.ClaimSourceOverrideContactName).HasMaxLength(300);
+            entity.Property(item => item.ClaimSourceOverrideContactTelephone).HasMaxLength(100);
+            entity.Property(item => item.ClaimSourceOverrideContactEmailAddress).HasMaxLength(300);
             entity.HasIndex(item => item.OriginIntakeReceiptId);
             entity.HasOne(item => item.Case)
                 .WithOne()

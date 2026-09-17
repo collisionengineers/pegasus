@@ -19,9 +19,6 @@ public sealed class EfLinkedCaseReplacementStore(
     IEnumerable<Pegasus.Core.Intake.IProviderCaseMatchPolicy>? caseMatchPolicies = null)
     : ILinkedCaseReplacementStore
 {
-    private static readonly TimeZoneInfo LondonTimeZone =
-        TimeZoneInfo.FindSystemTimeZoneById("Europe/London");
-
     public async Task<CaseAcceptanceOutcome> CreateAsync(
         CreateLinkedReplacementRequest request,
         CancellationToken cancellationToken)
@@ -116,28 +113,14 @@ public sealed class EfLinkedCaseReplacementStore(
 
 
         var now = timeProvider.GetUtcNow();
-        var year = TimeZoneInfo.ConvertTime(now, LondonTimeZone).Year;
-        var sequence = await context.CaseSequences.SingleOrDefaultAsync(
-            item => item.SequenceLineageId == replacementPrincipal.SequenceLineageId
-                && item.Year == year,
+        var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
+            context,
+            replacementPrincipal,
+            now,
             cancellationToken);
-        if (sequence is null)
-        {
-            sequence = new CaseSequenceEntity
-            {
-                SequenceLineageId = replacementPrincipal.SequenceLineageId,
-                Year = year,
-                LastAllocatedSequence = 0
-            };
-            context.CaseSequences.Add(sequence);
-        }
-        if (sequence.LastAllocatedSequence >= 999)
-        {
-            throw new CaseIdentitySequenceExhaustedException(replacementPrincipal.Code, year);
-        }
-
-        var allocatedSequence = ++sequence.LastAllocatedSequence;
-        var reference = $"{replacementPrincipal.Code}{year % 100:00}{allocatedSequence:000}";
+        var year = allocatedIdentity.Year;
+        var allocatedSequence = allocatedIdentity.Sequence;
+        var reference = allocatedIdentity.Reference;
         var auditReference = CreateStandaloneAuditReference(original.Case, reference);
         var initialState = ParseInitialState(original.Case.InitialState);
         var replacementCaseId = Guid.NewGuid();
@@ -203,6 +186,7 @@ public sealed class EfLinkedCaseReplacementStore(
                 MissingMaterialReason = original.DueWork?.MissingMaterialReason
                     ?? "Corrected replacement awaits required material",
                 DueBy = original.DueWork?.DueBy ?? original.Case.AcceptedInspectionDeadline,
+                DueBySetByStaff = original.DueWork?.DueBySetByStaff ?? false,
                 State = nameof(CaseDueWorkState.Scheduled),
                 NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, (await EfWorkflowConfigurationStore.ReadAsync(context, cancellationToken)).ChaseIntervalDays),
                 Version = 0
@@ -293,7 +277,10 @@ public sealed class EfLinkedCaseReplacementStore(
             CompletenessPolicyKey = original.CompletenessPolicyKey,
             CompletenessPolicyVersion = original.CompletenessPolicyVersion,
             CompletenessPolicySatisfied = original.CompletenessPolicySatisfied,
-            AcceptedAtUtc = original.AcceptedAtUtc
+            AcceptedAtUtc = original.AcceptedAtUtc,
+            ClaimSourceOverrideContactName = original.ClaimSourceOverrideContactName,
+            ClaimSourceOverrideContactTelephone = original.ClaimSourceOverrideContactTelephone,
+            ClaimSourceOverrideContactEmailAddress = original.ClaimSourceOverrideContactEmailAddress
         };
         replacement.Fields.AddRange(original.Fields.Select(field => new CaseDataFieldEntity
         {

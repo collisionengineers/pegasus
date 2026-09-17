@@ -92,12 +92,16 @@ public sealed class AutomationAssessmentIngressTests
             using var refusal = await ReadJsonRpcAsync(wrongScope);
             Assert.Contains("error", refusal.RootElement.ToString(), StringComparison.OrdinalIgnoreCase);
         }
+        // Review is assessment-writable since the 17 September ruling; the
+        // read-only refusal is exercised from Held, then the Case returns to Review.
+        await SetWorkflowStateAsync(mcpFactory.Services, caseId, CaseLifecycleState.Held);
         using (var beforeHandoff = await PostMcpAsync(client, token, ToolCallPayload(86, "pegasus_estimate_import",
             Arguments(0, lease.LeaseToken, occurrenceId, hash, "mcp:before-handoff"))))
         {
             using var refusal = await ReadJsonRpcAsync(beforeHandoff);
             Assert.Contains("read-only", refusal.RootElement.ToString(), StringComparison.Ordinal);
         }
+        await SetWorkflowStateAsync(mcpFactory.Services, caseId, CaseLifecycleState.Review);
         Assert.Equal(0, content.Reads);
         Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM CaseRepairSpecifications"));
         Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM IntakeOcrOperations"));
@@ -836,6 +840,15 @@ public sealed class AutomationAssessmentIngressTests
         var staffLease = await ClaimAsStaffAsync(mcpFactory, caseId, staff);
         Assert.Equal(staff.SubjectId, staffLease.Holder);
         Assert.Equal(0, await GetWorkflowVersionAsync(mcpFactory, caseId));
+    }
+
+    private static async Task SetWorkflowStateAsync(IServiceProvider services, Guid caseId, CaseLifecycleState state)
+    {
+        await using var scope = services.CreateAsyncScope();
+        await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
+        var workflow = await db.CaseWorkflows.SingleAsync(row => row.CaseId == caseId);
+        workflow.State = state.ToString();
+        await db.SaveChangesAsync();
     }
 
     private static async Task<CaseEditLease> ClaimAsStaffAsync(

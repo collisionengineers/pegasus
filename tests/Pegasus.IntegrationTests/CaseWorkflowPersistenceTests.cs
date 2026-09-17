@@ -2250,6 +2250,12 @@ public sealed class CaseWorkflowPersistenceTests
                 .SingleAsync(item => item.Code == "QDOS");
             principal.Organization.GuidanceTemplate = "Contact the repairer before finalising.";
             principal.Organization.GuidanceTemplateVersion = 1;
+            context.CaseSequences.Add(new CaseSequenceEntity
+            {
+                SequenceLineageId = principal.SequenceLineageId,
+                Year = 2026,
+                LastAllocatedSequence = 9999
+            });
             await context.SaveChangesAsync();
         }
         var standaloneAuditEvidenceId =
@@ -2298,7 +2304,8 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.True(replay.IsDuplicate);
         Assert.Equal(allocated.Identity, replay.Identity);
         Assert.Equal("QDOS", allocated.Identity.PrincipalCode);
-        Assert.StartsWith("a.QDOS26", allocated.Identity.Reference);
+        Assert.Equal(10000, allocated.Identity.Sequence);
+        Assert.Equal("a.QDOS2610000", allocated.Identity.Reference);
         Assert.Equal(
             allocated.Identity.Reference,
             await harness.ReadCaseReferenceAsync(allocated.Identity.CaseId));
@@ -2380,6 +2387,110 @@ public sealed class CaseWorkflowPersistenceTests
         var originalHistory = await harness.QueryStore.ListHistoryByCursorAsync(
             harness.CaseId, null, null, 20, default);
         Assert.Empty(originalHistory.SelectMany(entry => entry.Guidance));
+    }
+
+    [Fact]
+    public async Task WrongPrincipalReplacementRetainsClaimSourceOverridesAndStaffDueBy()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var manualDueBy = new DateOnly(2031, 5, 18);
+        var replacementDeadline = new DateOnly(2031, 6, 2);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var originalCase = await context.Cases.SingleAsync(item => item.Id == harness.CaseId);
+            originalCase.InitialState = "not_ready";
+            originalCase.AcceptedInspectionDeadline = new DateOnly(2031, 5, 20);
+            var originalWorkflow = await context.CaseWorkflows.SingleAsync(
+                item => item.CaseId == harness.CaseId);
+            originalWorkflow.State = nameof(CaseLifecycleState.NotReady);
+            var snapshot = await context.CaseDataSnapshots.SingleAsync(
+                item => item.CaseId == harness.CaseId);
+            snapshot.ClaimSourceOverrideContactName = "Replacement contact";
+            snapshot.ClaimSourceOverrideContactTelephone = "0113 999 0028";
+            snapshot.ClaimSourceOverrideContactEmailAddress = "replacement-contact@example.test";
+            context.CaseDueWork.Add(new CaseDueWorkEntity
+            {
+                CaseId = harness.CaseId,
+                Workflow = originalWorkflow,
+                MissingMaterialReason = "Waiting for images",
+                DueBy = manualDueBy,
+                DueBySetByStaff = true,
+                State = nameof(CaseDueWorkState.Scheduled),
+                NextChaseAtUtc = harness.TimeProvider.GetUtcNow().AddDays(3),
+                Version = 0
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, actor, "replacement-local-state-lease"),
+            default);
+        var replacement = await new CreateLinkedReplacement(
+            harness.ReplacementStore,
+            new CommittedWorkPublisherDouble()).ExecuteAsync(
+            new(
+                harness.CaseId,
+                0,
+                actor,
+                "replacement-local-state-save",
+                "Original case was allocated to the wrong principal",
+                lease.Token,
+                "QDOS"),
+            default);
+
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var snapshot = await context.CaseDataSnapshots.SingleAsync(
+                item => item.CaseId == replacement.Identity.CaseId);
+            var dueWork = await context.CaseDueWork.SingleAsync(
+                item => item.CaseId == replacement.Identity.CaseId);
+            Assert.Equal("Replacement contact", snapshot.ClaimSourceOverrideContactName);
+            Assert.Equal("0113 999 0028", snapshot.ClaimSourceOverrideContactTelephone);
+            Assert.Equal("replacement-contact@example.test", snapshot.ClaimSourceOverrideContactEmailAddress);
+            Assert.Equal(manualDueBy, dueWork.DueBy);
+            Assert.True(dueWork.DueBySetByStaff);
+        }
+
+        var replacementLease = await harness.Store.ClaimAsync(
+            new(replacement.Identity.CaseId, 0, actor, "replacement-deadline-lease"),
+            default);
+        await new EfCaseWorkspaceStore(harness.Factory, harness.TimeProvider).SaveAsync(
+            new(
+                replacement.Identity.CaseId,
+                0,
+                actor,
+                "replacement-deadline-save",
+                "Recorded the replacement inspection deadline",
+                replacementLease.Token)
+            {
+                Inspection = new(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    replacementDeadline,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null)
+            },
+            default);
+
+        await using var verification = await harness.Factory.CreateDbContextAsync();
+        var replacementCase = await verification.Cases.SingleAsync(
+            item => item.Id == replacement.Identity.CaseId);
+        var reprojected = await verification.CaseDueWork.SingleAsync(
+            item => item.CaseId == replacement.Identity.CaseId);
+        Assert.Equal(replacementDeadline, replacementCase.AcceptedInspectionDeadline);
+        Assert.Equal(manualDueBy, reprojected.DueBy);
+        Assert.True(reprojected.DueBySetByStaff);
     }
 
     [Fact]
