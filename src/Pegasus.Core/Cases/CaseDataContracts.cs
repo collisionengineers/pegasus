@@ -270,7 +270,14 @@ public sealed record CaseEditableData(
     string? PrincipalNotes = null,
     string? ClaimSourceNotes = null,
     // Appended for the accident band's Notes from client. Same rule as above.
-    string? ClientNotes = null);
+    string? ClientNotes = null,
+    // Appended for the Overview editor. Due by is projected through CaseDueWork;
+    // the contact overrides are Case-local values beside the selected source's
+    // immutable snapshot.
+    DateOnly? DueBy = null,
+    string? ClaimSourceOverrideContactName = null,
+    string? ClaimSourceOverrideContactTelephone = null,
+    string? ClaimSourceOverrideContactEmailAddress = null);
 
 public sealed record ConfirmCompletenessRequest(
     Guid CaseId,

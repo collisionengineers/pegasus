@@ -88,7 +88,7 @@ public sealed partial class FwInstructionExtractionPolicy
 
     public InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
-        DateTimeOffset processedAtUtc,
+        InstructionExtractionTiming timing,
         EstablishedPrincipalContext principalContext)
     {
         ArgumentNullException.ThrowIfNull(readResult);
@@ -103,7 +103,7 @@ public sealed partial class FwInstructionExtractionPolicy
             scoped,
             Definitions,
             Cache,
-            processedAtUtc);
+            timing);
         var fields = extracted.Select(WithCurrentConflict).ToArray();
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(

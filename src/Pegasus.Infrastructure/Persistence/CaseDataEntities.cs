@@ -17,6 +17,9 @@ internal sealed class CaseDataSnapshotEntity
     public int CompletenessPolicyVersion { get; set; }
     public bool CompletenessPolicySatisfied { get; set; }
     public DateTimeOffset AcceptedAtUtc { get; set; }
+    public string? ClaimSourceOverrideContactName { get; set; }
+    public string? ClaimSourceOverrideContactTelephone { get; set; }
+    public string? ClaimSourceOverrideContactEmailAddress { get; set; }
     public List<CaseDataFieldEntity> Fields { get; set; } = [];
 }
 

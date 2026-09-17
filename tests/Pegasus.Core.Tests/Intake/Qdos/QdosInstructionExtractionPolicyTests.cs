@@ -1203,6 +1203,48 @@ public sealed class QdosInstructionExtractionPolicyTests
     }
 
     [Fact]
+    public void AnInterleavedClientDetailsBlockRetainsTheAddressAndPreferredContact()
+    {
+        var received = new DateTimeOffset(2026, 9, 17, 23, 30, 0, TimeSpan.Zero);
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "instruction letter, page 1",
+                "CLIENT DETAILS\n"
+                + "Vehicle Details\n"
+                + "Client’s Vehicle: FIAT DUCATO 30 100\n"
+                + "M-JET SWB\n"
+                + "Vehicle Registration: SO03SOL\n"
+                + "Accident Date: 16/09/2026\n"
+                + "Mr Mark Audsley-Smith\n"
+                + "9 Walsingham Gardens\n"
+                + "Southampton\n"
+                + "SO18 2QD\n"
+                + "Home Tel: 07932062507\n"
+                + "Work Tel:\n"
+                + "Mobile: 07932062507\n"
+                + "REPAIRER DETAILS\n"
+                + "Tel:\n"
+                + "Fax:\n"
+                + "Email:\n"
+                + "Engineer to Estimate Unknown")),
+            new(ProcessedAtUtc, received),
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("9 Walsingham Gardens, Southampton, SO18 2QD",
+            Field(result, "Claimant address").SuggestedValue);
+        Assert.Equal("9 Walsingham Gardens, Southampton, SO18 2QD", draft.ClaimantAddress);
+        Assert.Equal("07932062507", draft.ClaimantContactNumber);
+        Assert.DoesNotContain("Vehicle", draft.ClaimantAddress, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(LondonCalendar.DateAt(received), draft.InspectionDate);
+        Assert.True(Field(result, "Inspection date").IsDefaulted);
+        Assert.Equal(IntakeEvidenceSource.SystemDefault,
+            Assert.Single(Field(result, "Inspection date").Candidates).Source);
+        Assert.Contains(result.Evidence, item => item.Signal == "inspection-date-defaulted");
+    }
+
+    [Fact]
     public void AMislabelledRepairerEmailRowIsWithheldRatherThanRecorded()
     {
         // One recorded original prints a telephone number under the

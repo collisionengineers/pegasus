@@ -84,7 +84,8 @@ public sealed partial class SendToAiIntegrationTests
                     $"case-accept:{Guid.NewGuid():N}",
                     CaseType.Inspection,
                     QdosPrincipal.Code,
-                    new(true, true)),
+                    new(true, true),
+                    AcceptedInspectionDeadline: receipt.InstructionDraft?.InspectionDate),
                 CancellationToken.None);
         var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();

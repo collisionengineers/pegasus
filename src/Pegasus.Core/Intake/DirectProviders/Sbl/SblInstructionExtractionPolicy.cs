@@ -71,7 +71,7 @@ public sealed partial class SblInstructionExtractionPolicy
 
     public InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
-        DateTimeOffset processedAtUtc,
+        InstructionExtractionTiming timing,
         EstablishedPrincipalContext principalContext)
     {
         ArgumentNullException.ThrowIfNull(readResult);
@@ -83,7 +83,7 @@ public sealed partial class SblInstructionExtractionPolicy
 
         var scoped = readResult.Content.SelectMany(InstructionFields).ToArray();
         var (extractedFields, missing, fieldEvidence) = InstructionFieldEngine.ExtractFields(
-            scoped, Definitions, Cache, processedAtUtc);
+            scoped, Definitions, Cache, timing);
         var fields = extractedFields
             .Where(field => field.Name != HireDateSourceBoundary)
             .Select(NormalizeField)

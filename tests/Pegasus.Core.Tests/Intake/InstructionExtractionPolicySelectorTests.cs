@@ -480,7 +480,7 @@ public sealed class InstructionExtractionPolicySelectorTests
 
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
+            InstructionExtractionTiming timing,
             EstablishedPrincipalContext principalContext)
         {
             ObservedPrincipalContext = principalContext;
@@ -503,7 +503,7 @@ public sealed class InstructionExtractionPolicySelectorTests
 
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
+            InstructionExtractionTiming timing,
             EstablishedPrincipalContext principalContext) =>
             throw new NotSupportedException("Not used by these tests.");
     }
