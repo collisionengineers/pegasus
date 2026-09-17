@@ -143,7 +143,7 @@ public sealed class VehicleLookupGapFillTests
     /// the current one moves: a superseded generation keeps what it issued.
     /// </summary>
     [Fact]
-    public async Task ALookupThatFillsAFieldStalesTheCurrentGeneration()
+    public async Task ALookupThatChangesReportsVehicleFactsStalesTheCurrentGeneration()
     {
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
@@ -158,10 +158,14 @@ public sealed class VehicleLookupGapFillTests
         Assert.Equal("Confirmed", await database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{supersededId:D}'"));
         Assert.Equal(1, await StaleRowCountAsync(database, caseId));
+        Assert.Equal(
+            CaseReportStaleReasons.AssessmentFactsChanged,
+            await database.ScalarAsync<string>(
+                $"SELECT Reason FROM ActionHistory WHERE AggregateType = 'case' AND AggregateId = '{caseId:D}' AND EventKind = 'case_report_generation_stale'"));
     }
 
     [Fact]
-    public async Task ALookupThatFillsNothingStalesNoGeneration()
+    public async Task ALookupThatChangesNoReportsVehicleFactsStalesNoGeneration()
     {
         await using var database = await CreateDatabaseAsync();
         var caseId = await SeedCaseAsync(database);
@@ -188,6 +192,38 @@ public sealed class VehicleLookupGapFillTests
 
         await RecordLookupAsync(database, caseId);
 
+        Assert.Equal("Confirmed", await database.ScalarAsync<string>(
+            $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
+        Assert.Equal(0, await StaleRowCountAsync(database, caseId));
+    }
+
+    [Fact]
+    public async Task ALookupThatPromotesAnEquivalentReportsVehicleFactDoesNotStale()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {"vehicle_make"}, {"suggestion"}, {"text"}, {"RENAULT"}, {"vehicle_lookup"}, {Guid.NewGuid().ToString("D")}, {"offline-replay/fixture-v1"}, {"vehicle-lookup-gap-fill"}, {1})");
+            foreach (var (fieldName, valueType, value) in new[]
+                     {
+                         ("vehicle_model", "text", "CAPTUR"),
+                         ("vehicle_year", "text", "2016"),
+                         ("vehicle_mileage", "integer", "121823"),
+                         ("vehicle_mileage_unit", "text", "Miles")
+                     })
+            {
+                await context.Database.ExecuteSqlInterpolatedAsync(
+                    $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {fieldName}, {"fact"}, {valueType}, {value}, {"vehicle_lookup"}, {"existing-lookup"}, {"offline-replay/fixture-v1"}, {"vehicle-lookup-gap-fill"}, {1})");
+            }
+        }
+        var (currentId, _) = await SeedGenerationsAsync(database, caseId);
+
+        await RecordLookupAsync(database, caseId);
+
+        Assert.Equal("RENAULT", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
         Assert.Equal("Confirmed", await database.ScalarAsync<string>(
             $"SELECT State FROM CaseReportGenerations WHERE Id = '{currentId:D}'"));
         Assert.Equal(0, await StaleRowCountAsync(database, caseId));

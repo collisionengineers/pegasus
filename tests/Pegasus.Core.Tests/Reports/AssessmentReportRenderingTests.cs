@@ -130,6 +130,19 @@ public sealed class AssessmentReportRenderingTests
     }
 
     [Fact]
+    public void FeeVatUsesTheSharedReportContractRate()
+    {
+        var snapshot = Snapshot(AssessmentReportOutcome.Repairable) with { AgreedFee = 123.45m };
+
+        Assert.Equal(
+            decimal.Round(
+                snapshot.FeeNet * AssessmentReportContract.FeeVatRate,
+                2,
+                MidpointRounding.AwayFromZero),
+            snapshot.FeeVat);
+    }
+
+    [Fact]
     public void ComponentsThatDoNotReconcileFailClosed()
     {
         var costs = Costs(20m);

@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
@@ -6,6 +7,8 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -78,6 +81,13 @@ public sealed class EfCaseWorkspaceStore(
         }
 
         var beforeData = CaseDataFieldWriter.ReadEditable(snapshot);
+        var beforeReportData = EffectiveReportData(snapshot.Fields);
+        var beforeMileageField = CaseDataFieldValues.CurrentField(
+            snapshot.Fields,
+            CaseDataFieldNames.VehicleMileage);
+        CaseDataSourceKind? beforeMileageProvenance = beforeMileageField is null
+            ? null
+            : EfCaseDataStore.ParseSourceKind(beforeMileageField.SourceKind);
         var beforeCompleteness = Completeness(snapshot);
         var data = CaseDataPolicy.Normalize(
             CaseWorkspacePolicy.Overlay(beforeData, request));
@@ -101,6 +111,7 @@ public sealed class EfCaseWorkspaceStore(
                     caseMatchPolicies ?? [],
                     now));
         }
+        var afterReportData = EffectiveReportData(snapshot.Fields);
 
         if (request.Inspection is not null)
         {
@@ -110,6 +121,8 @@ public sealed class EfCaseWorkspaceStore(
         var assessmentFields = await context.CaseAssessmentFields
             .Where(item => item.CaseId == request.CaseId)
             .ToListAsync(cancellationToken);
+        var beforeAssessment = assessmentFields.ToDictionary(
+            item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal);
         var requestedFields = CaseWorkspacePolicy.AssessmentFields(request);
         var (fieldsToWrite, merged) = AssessmentWriteSet.Build(requestedFields, assessmentFields);
         AssessmentPolicy.ValidateMergedState(requestedFields, merged);
@@ -121,7 +134,25 @@ public sealed class EfCaseWorkspaceStore(
             fieldsToWrite,
             request.Actor,
             now);
+        var afterAssessment = merged.ToDictionary(
+            item => item.Key,
+            item => (string?)item.Value,
+            StringComparer.Ordinal);
+        var afterMileageField = CaseDataFieldValues.CurrentField(
+            snapshot.Fields,
+            CaseDataFieldNames.VehicleMileage);
+        var beforeMileageSource = CaseVehicleMileageSourcePolicy.Resolve(
+            beforeMileageProvenance,
+            beforeMileageField is not null,
+            beforeAssessment.GetValueOrDefault(AssessmentVocabulary.VehicleMileageSource));
+        var afterMileageSource = CaseVehicleMileageSourcePolicy.Resolve(
+            afterMileageField is null
+                ? null
+                : EfCaseDataStore.ParseSourceKind(afterMileageField.SourceKind),
+            afterMileageField is not null,
+            afterAssessment.GetValueOrDefault(AssessmentVocabulary.VehicleMileageSource));
 
+        IReadOnlyList<CaseAssetPreparation>? beforePreparedImages = null;
         IReadOnlyList<CaseAssetPreparation>? preparedImages = null;
         if (request.ImagePreparation is { Edits: { Count: > 0 } preparationEdits })
         {
@@ -129,6 +160,8 @@ public sealed class EfCaseWorkspaceStore(
             // routine, rather than its public command. The workspace owns the
             // serializable transaction, the single Case version increment and
             // the single history entry for all of the submitted changes.
+            beforePreparedImages = await EfCaseAssetPreparationStore.LoadCurrentAsync(
+                context, request.CaseId, cancellationToken);
             preparedImages = await EfCaseAssetPreparationStore.PrepareSaveAsync(
                 context,
                 workflow,
@@ -151,6 +184,12 @@ public sealed class EfCaseWorkspaceStore(
             now,
             cancellationToken);
 
+        var signOffEngineerProfiles = await new EfStaffAccountQueries(context)
+            .ListSignOffEngineersAsync(cancellationToken);
+        var beforeSignOffEngineerId = CaseSignOffEngineerResolver.Resolve(
+            workflow.SignOffEngineerId,
+            workflow.AssignedEngineerId,
+            signOffEngineerProfiles)?.StaffId;
         if (request.Report?.SignOffEngineerId is { } signOffEngineerId)
         {
             workflow.SignOffEngineerId = signOffEngineerId;
@@ -256,16 +295,29 @@ public sealed class EfCaseWorkspaceStore(
                 .Single(item => item.CaseId == request.CaseId && item.OperationKey == request.OperationKey)
                 .ResultJson = afterJson;
         }
-        // The workspace save covers narrative, content and settlement facts
-        // a frozen report pins: the Case's current generation goes stale in
-        // this same transaction, so the change and the staleness it causes
-        // commit together or not at all.
-        await EfCaseReportGenerationStore.MarkStaleAsync(
-            context,
-            request.CaseId,
-            "case_workspace_saved",
-            now,
-            cancellationToken);
+        var freshness = CaseReportFreshness.ClassifyWorkspace(
+            beforeReportData,
+            afterReportData,
+            beforeAssessment,
+            afterAssessment,
+            beforeSignOffEngineerId,
+            CaseSignOffEngineerResolver.Resolve(
+                workflow.SignOffEngineerId,
+                workflow.AssignedEngineerId,
+                signOffEngineerProfiles)?.StaffId,
+            beforePreparedImages,
+            preparedImages,
+            beforeMileageSource,
+            afterMileageSource);
+        if (freshness.IsStale)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context,
+                request.CaseId,
+                freshness.ReasonCode!,
+                now,
+                cancellationToken);
+        }
 
         try
         {
@@ -464,6 +516,36 @@ public sealed class EfCaseWorkspaceStore(
     {
         var now = timeProvider.GetUtcNow();
         return now.Offset == TimeSpan.Zero ? now : now.ToUniversalTime();
+    }
+
+    private static CaseEditableData EffectiveReportData(
+        IReadOnlyList<CaseDataFieldEntity> fields)
+    {
+        string? Current(string fieldName) => CaseDataFieldValues.Current(fields, fieldName);
+        long? CurrentLong(string fieldName) => Current(fieldName) is { } value
+            ? long.Parse(value, NumberStyles.None, CultureInfo.InvariantCulture)
+            : null;
+        DateOnly? CurrentDate(string fieldName) => Current(fieldName) is { } value
+            ? DateOnly.ParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture)
+            : null;
+        CaseInspectionMode? CurrentInspectionMode() =>
+            Current(CaseDataFieldNames.InspectionMode) is { } value
+                ? CaseDataFieldWriter.ParseInspectionMode(value)
+                : null;
+
+        return new(
+            ClaimantName: Current(CaseDataFieldNames.ClaimantName),
+            ClaimNumber: Current(CaseDataFieldNames.ClaimNumber),
+            VehicleRegistration: Current(CaseDataFieldNames.VehicleRegistration),
+            VehicleMake: Current(CaseDataFieldNames.VehicleMake),
+            VehicleModel: Current(CaseDataFieldNames.VehicleModel),
+            VehicleMileage: CurrentLong(CaseDataFieldNames.VehicleMileage),
+            VehicleMileageUnit: Current(CaseDataFieldNames.VehicleMileageUnit),
+            IncidentDate: CurrentDate(CaseDataFieldNames.IncidentDate),
+            InstructionDate: CurrentDate(CaseDataFieldNames.InstructionDate),
+            InspectionAddress: Current(CaseDataFieldNames.InspectionAddress),
+            InspectionMode: CurrentInspectionMode(),
+            VehicleYear: Current(CaseDataFieldNames.VehicleYear));
     }
 }
 

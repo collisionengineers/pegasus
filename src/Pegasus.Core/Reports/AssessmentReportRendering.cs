@@ -10,6 +10,7 @@ public static class AssessmentReportContract
 {
     public const string TemplateVersion = "rendererref1-v4";
     public const string VatNumber = "262 0937 10";
+    public const decimal FeeVatRate = 0.20m;
     public const string AccountName = "Collision Engineers Ltd";
     public const string BankName = "Lloyds Bank";
     public const string SortCode = "30-12-80";
@@ -503,7 +504,8 @@ public sealed record AssessmentReportSnapshot(
     public decimal FeeNet => AgreedFee;
 
     [JsonIgnore]
-    public decimal FeeVat => decimal.Round(FeeNet * 0.20m, 2, MidpointRounding.AwayFromZero);
+    public decimal FeeVat => decimal.Round(
+        FeeNet * AssessmentReportContract.FeeVatRate, 2, MidpointRounding.AwayFromZero);
     [JsonIgnore]
     public decimal FeeTotal => FeeNet + FeeVat;
 
