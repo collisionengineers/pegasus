@@ -78,6 +78,37 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     [Fact]
+    public async Task ReportChromeExtractionKeepsCurrentAssessmentTextAndPageCountStable()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var draft = new GenerateAssessmentReportDraft(renderer);
+        var snapshot = ReadySnapshot();
+
+        // The pre-extraction renderer is no longer present. The checked-in
+        // baseline freezes reviewed current text and records that limitation.
+        var current = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
+        var comparison = await draft.ExecuteAsync(snapshot, CaseReportArtifactKind.AssessmentReport);
+        var pages = PageTexts(current.Pdf);
+        var reviewedBaseline = File.ReadAllLines(Path.Combine(
+            RepositoryRoot(), "tests", "Pegasus.IntegrationTests", "Reports", "Baselines",
+            "AssessmentReportRenderer.current-text.txt"));
+        var reviewedPageCount = int.Parse(
+            reviewedBaseline.Single(line => line.StartsWith("pages=", StringComparison.Ordinal))["pages=".Length..],
+            System.Globalization.CultureInfo.InvariantCulture);
+        var reviewedText = reviewedBaseline
+            .Where(line => line.Length > 0 && !line.StartsWith('#') && !line.StartsWith("pages=", StringComparison.Ordinal))
+            .ToArray();
+        var actualText = string.Join(" ", pages);
+
+        Assert.Equal(7, current.PageCount);
+        Assert.Equal(current.PageCount, comparison.PageCount);
+        Assert.Equal(PageTexts(current.Pdf), PageTexts(comparison.Pdf));
+        Assert.Equal(reviewedPageCount, pages.Length);
+        Assert.All(reviewedText, expected => Assert.Contains(expected, actualText, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task TheFeeNoteRendersItsOwnDocument()
     {
         await using var provider = RendererProvider();
@@ -304,6 +335,16 @@ public sealed partial class AssessmentReportRendererTests
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex WhitespaceRegex();
+
+    private static string RepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null && !File.Exists(Path.Combine(current.FullName, "Pegasus.slnx")))
+        {
+            current = current.Parent;
+        }
+        return current?.FullName ?? throw new InvalidOperationException("Repository root not found.");
+    }
 
     private static ServiceProvider RendererProvider()
     {

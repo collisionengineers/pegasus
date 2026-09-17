@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Reports;
 using Pegasus.Infrastructure.Custody;
-using QuestPDF.Drawing;
 using QuestPDF.Fluent;
 using SkiaSharp;
 using UglyToad.PdfPig;
@@ -15,7 +14,7 @@ namespace Pegasus.Infrastructure.Reports;
 /// bytes with their SHA-256, page count, template and engine versions, and
 /// fails closed on anything the snapshot does not supply in a printable form.
 /// </summary>
-internal sealed class QuestPdfAssessmentReportRenderer : IAssessmentReportRenderer, IDisposable
+internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : IAssessmentReportRenderer
 {
     /// <summary>
     /// The printed photo square's longest edge in pixels: 91mm at 300 dpi
@@ -25,16 +24,7 @@ internal sealed class QuestPdfAssessmentReportRenderer : IAssessmentReportRender
     private const int PhotoSquarePixels = 1200;
     private const int PhotoJpegQuality = 85;
 
-    private static readonly Lock FontLock = new();
-    private static bool fontsRegistered;
-
-    private readonly SemaphoreSlim gate = new(1, 1);
-
-    public QuestPdfAssessmentReportRenderer()
-    {
-        using var timing = DocumentReadTelemetry.Start("report.renderer.initialize");
-        RegisterFonts();
-    }
+    private readonly ReportRenderGate gate = gate ?? throw new ArgumentNullException(nameof(gate));
 
     public string EngineVersion { get; } =
         $"QuestPDF/{typeof(QuestPDF.Settings).Assembly.GetName().Version}";
@@ -45,40 +35,24 @@ internal sealed class QuestPdfAssessmentReportRenderer : IAssessmentReportRender
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        ReportResources.RegisterFonts();
         AssessmentReportRenderPolicy.RequireBoundedImages(snapshot.Photos);
         var feeNote = kind == CaseReportArtifactKind.FeeNote;
-        var fileName = $"{AssessmentReportLayout.Slug(snapshot.OurReference)}_{(feeNote ? "fee_note" : "assessment")}.pdf";
-
-        // One render at a time per process: layout and image decoding are
-        // CPU- and memory-bound, and a report may carry 24 full-size photos.
-        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        var render = Task.Run(() => RenderGated(snapshot, kind), CancellationToken.None);
-        // The render budget and the caller's cancellation bound the wait, not
-        // the layout itself: a render that overruns is abandoned by its caller
-        // and releases the gate when it ends, so a slow document never holds
-        // the process gate for a later caller past its own completion.
-        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        budget.CancelAfter(AssessmentReportRenderPolicy.RenderTimeout);
-        var pdf = await render.WaitAsync(budget.Token).ConfigureAwait(false);
+        var fileName = $"{ReportChrome.Slug(snapshot.OurReference)}_{(feeNote ? "fee_note" : "assessment")}.pdf";
+        var pdf = await gate.RunAsync(() => Render(snapshot, kind), cancellationToken)
+            .ConfigureAwait(false);
         return Artifact(fileName, pdf);
     }
 
-    private byte[] RenderGated(AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind)
+    private static byte[] Render(AssessmentReportSnapshot snapshot, CaseReportArtifactKind kind)
     {
-        try
-        {
-            var images = kind == CaseReportArtifactKind.FeeNote
-                ? new PreparedReportImages([], [], Logo())
-                : new PreparedReportImages(
-                    snapshot.OrderedPhotos.Select(PreparePhoto).ToArray(),
-                    PrepareSignature(snapshot.Signatory),
-                    Logo());
-            return AssessmentReportLayout.Compose(snapshot, kind, images).GeneratePdf();
-        }
-        finally
-        {
-            gate.Release();
-        }
+        var images = kind == CaseReportArtifactKind.FeeNote
+            ? new PreparedReportImages([], [], ReportResources.Logo())
+            : new PreparedReportImages(
+                snapshot.OrderedPhotos.Select(PreparePhoto).ToArray(),
+                PrepareSignature(snapshot.Signatory),
+                ReportResources.Logo());
+        return AssessmentReportLayout.Compose(snapshot, kind, images).GeneratePdf();
     }
 
     private RenderedReportArtifact Artifact(string fileName, byte[] pdf)
@@ -200,43 +174,4 @@ internal sealed class QuestPdfAssessmentReportRenderer : IAssessmentReportRender
         return encoded.ToArray();
     }
 
-    private static byte[] Logo()
-    {
-        using var stream = ResourceStream("brand.logo.png");
-        using var memory = new MemoryStream();
-        stream.CopyTo(memory);
-        return memory.ToArray();
-    }
-
-    /// <summary>
-    /// Registers the embedded report faces with QuestPDF once per process.
-    /// Every printed run names <see cref="AssessmentReportLayout.FontFamily"/>,
-    /// so no system font is consulted.
-    /// </summary>
-    private static void RegisterFonts()
-    {
-        lock (FontLock)
-        {
-            if (fontsRegistered)
-            {
-                return;
-            }
-            foreach (var face in new[] { "Regular", "Bold", "Italic", "BoldItalic" })
-            {
-                using var stream = ResourceStream($"fonts.LiberationSans-{face}.ttf");
-                FontManager.RegisterFont(stream);
-            }
-            fontsRegistered = true;
-        }
-    }
-
-    private static Stream ResourceStream(string suffix)
-    {
-        var assembly = typeof(QuestPdfAssessmentReportRenderer).Assembly;
-        var name = $"Pegasus.Infrastructure.Reports.Assets.{suffix}";
-        return assembly.GetManifestResourceStream(name)
-            ?? throw new InvalidOperationException($"Required report resource '{name}' is missing.");
-    }
-
-    public void Dispose() => gate.Dispose();
 }

@@ -1798,24 +1798,77 @@
             if (preview && feeNote) {
                 feeNote.addEventListener('change', function () { preview.setAttribute('href', previewHref()); });
             }
-            if (preview) {
-                preview.addEventListener('click', function (event) {
-                    var viewer = window.pegasusCaseViewer;
-                    if (!viewer || typeof viewer.openDocument !== 'function') {
-                        return;
-                    }
-                    event.preventDefault();
-                    var href = previewHref();
-                    var menu = preview.closest('details[data-menu]');
-                    if (menu) { menu.open = false; }
-                    viewer.openDocument({
-                        href: href,
-                        name: preview.getAttribute('data-file-name') || 'Report draft',
-                        download: href,
-                        downloadLabel: 'Download draft'
-                    });
-                });
+        });
+    }
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
+
+// --- saved document previews -------------------------------------------------
+// Fetch once, then give the viewer and its Download action the same Blob URL.
+// Plain links remain the no-script browser-PDF path.
+(function () {
+    'use strict';
+
+    function fileName(response, fallback) {
+        var disposition = response.headers.get('content-disposition') || '';
+        var match = /filename="?([^";]+)"?/i.exec(disposition);
+        return match ? match[1] : fallback;
+    }
+
+    function mediaType(response) {
+        return (response.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    }
+
+    async function failureMessage(response) {
+        if (response.status === 422 && mediaType(response) === 'application/problem+json') {
+            try {
+                var problem = await response.json();
+                if (problem && typeof problem.detail === 'string' && problem.detail.trim()) {
+                    return problem.detail.trim().slice(0, 500);
+                }
+            } catch (_) {
+                // A malformed refusal is an unexpected response below.
             }
+        }
+        return 'Preview unavailable';
+    }
+
+    function bind(root) {
+        root.querySelectorAll('[data-document-preview]').forEach(function (trigger) {
+            if (trigger.dataset.documentPreviewBound === 'true') { return; }
+            trigger.dataset.documentPreviewBound = 'true';
+            trigger.addEventListener('click', async function (event) {
+                var viewer = window.pegasusCaseViewer;
+                if (!viewer || typeof viewer.openDocument !== 'function') { return; }
+                event.preventDefault();
+                var menu = trigger.closest('details[data-menu]');
+                if (menu) { menu.open = false; }
+                var response;
+                var message = 'Preview unavailable';
+                try {
+                    response = await fetch(trigger.href, {
+                        credentials: 'same-origin',
+                        headers: { 'X-Pegasus-Document-Preview': '1' }
+                    });
+                    if (!response.ok || mediaType(response) !== 'application/pdf') {
+                        message = await failureMessage(response);
+                        throw new Error(message);
+                    }
+                    var url = URL.createObjectURL(await response.blob());
+                    viewer.openDocument({
+                        href: url,
+                        name: fileName(response, trigger.getAttribute('data-file-name') || 'Estimate PDF'),
+                        download: url,
+                        downloadLabel: trigger.hasAttribute('data-report-preview') ? 'Download draft' : 'Download',
+                        revoke: url,
+                        invoker: trigger
+                    });
+                } catch (error) {
+                    if (typeof window.pegasusToast === 'function') { window.pegasusToast(message); }
+                    else { window.alert(message); }
+                }
+            });
         });
     }
     bind(document);
@@ -2358,10 +2411,11 @@
             show(start < 0 ? 0 : start);
         }
         function openDocument(options) {
+            state.items.forEach(function (item) { if (item.revoke) { URL.revokeObjectURL(item.revoke); } });
             state.items = [{
                 href: options.href, downloadHref: options.download || options.href, mediaType: 'application/pdf', kind: 'document',
                 name: options.name || '', thumb: '', tag: '', occurrence: '', excluded: false,
-                downloadLabel: options.downloadLabel || downloadDefault, element: null
+                downloadLabel: options.downloadLabel || downloadDefault, element: null, revoke: options.revoke || ''
             }];
             state.invoker = options.invoker || document.activeElement;
             show(0);
@@ -2382,6 +2436,7 @@
             document.body.classList.remove('has-viewer');
             document.removeEventListener('keydown', onKeydown, true);
             image.removeAttribute('src'); frame.removeAttribute('src'); video.removeAttribute('src'); video.load();
+            state.items.forEach(function (item) { if (item.revoke) { URL.revokeObjectURL(item.revoke); item.revoke = ''; } });
             image.style.transform = ''; image.style.clipPath = '';
             stage.removeAttribute('aria-busy');
             if (state.invoker && typeof state.invoker.focus === 'function') { state.invoker.focus(); }

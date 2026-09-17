@@ -121,6 +121,73 @@ public sealed class AssessmentReportRenderingTests
     }
 
     [Fact]
+    public void ReportHoursUseTheSamePricedClassifierAsTheMoney()
+    {
+        var draft = new RepairSpecificationVersion(
+            Guid.NewGuid(), Guid.NewGuid(), 1, RepairSpecificationState.Draft,
+            new(RepairSpecificationSourceRoute.Json, null, null, null),
+            [
+                Line(1, "repair", "Repair", workUnits: 2m, price: null),
+                Line(2, "specialist_wu", "Calibration", workUnits: 1m, price: null),
+                Line(3, "specialist_fixed", "Tyre", workUnits: 4m, price: 180m),
+            ],
+            null, "engineer", RecordedAtUtc, null, null, null, null,
+            new("Estimate", null, 60m, null, null, 20m, null,
+                Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)));
+        var costs = ReportRepairCosts.For(draft with
+        {
+            State = RepairSpecificationState.Accepted,
+            RecordedTotals = EstimateTotals.Compute(draft),
+        });
+
+        Assert.Equal(3m, costs.LabourHours);
+        Assert.Equal(0m, costs.PaintHours);
+        Assert.Equal(180m, costs.Totals.Raw.PanelLabour);
+        Assert.Equal(costs.Totals.Raw.PanelLabour, costs.LabourHours * costs.HourlyRate);
+    }
+
+    [Fact]
+    public void VersionThreeEstimateKeepsFrozenMoneyBesideCurrentHours()
+    {
+        var draft = new RepairSpecificationVersion(
+            Guid.NewGuid(), Guid.NewGuid(), 1, RepairSpecificationState.Draft,
+            new(RepairSpecificationSourceRoute.Json, null, null, null),
+            [
+                Line(1, "repair", "Repair", workUnits: 2m, price: null),
+                Line(2, "specialist_wu", "Calibration", workUnits: 1m, price: null),
+            ],
+            null, "engineer", RecordedAtUtc, null, null, null, null,
+            new("Estimate", null, 60m, null, null, 20m, null,
+                Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)));
+        var versionThreeEquivalent = draft with
+        {
+            Lines =
+            [
+                draft.Lines[0],
+                draft.Lines[1] with { Type = "specialist_fixed" },
+            ],
+        };
+        var frozenVersionThreeTotals = EstimateTotals.Compute(versionThreeEquivalent) with
+        {
+            CalculationPolicyVersion = 3,
+            OffPattern = [],
+        };
+
+        var costs = ReportRepairCosts.For(draft with
+        {
+            State = RepairSpecificationState.Accepted,
+            RecordedTotals = frozenVersionThreeTotals,
+        });
+
+        // PLAN §10 records this historical boundary: current v4 hours are
+        // descriptive, while an accepted v3 estimate's money stays frozen.
+        Assert.Equal(3m, costs.LabourHours);
+        Assert.Equal(3, costs.Totals.CalculationPolicyVersion);
+        Assert.Equal(120m, costs.Printed.PanelLabour);
+        Assert.Equal(180m, costs.LabourHours * costs.HourlyRate);
+    }
+
+    [Fact]
     public void TheVatLabelIsTheEstimatesOwnPercentageNotABoolean()
     {
         Assert.Equal("VAT (20%)", Costs(20m).VatLabel);
