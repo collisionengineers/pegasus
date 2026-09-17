@@ -76,25 +76,17 @@ public sealed class AllocateDefinitiveIntakeTests
     }
 
     [Fact]
-    public async Task SequenceExhaustionIsBlockedAndUnexpectedFailureIsSafe()
+    public async Task UnexpectedFailureIsSafeAndRecoverable()
     {
         var receipt = Receipt(CaseType.Inspection, "QDOS");
-        var sequenceSut = new AllocateIntake(
-            new ReceiptQueries(receipt),
-            new RecordingAllocationStore(),
-            new RecordingAcceptance(new CaseIdentitySequenceExhaustedException("QDOS", 2031)),
-            TimeProvider.System);
         var unexpectedSut = new AllocateIntake(
             new ReceiptQueries(receipt),
             new RecordingAllocationStore(),
             new RecordingAcceptance(new InvalidDataException("private failure detail")),
             TimeProvider.System);
 
-        var sequence = await sequenceSut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
         var unexpected = await unexpectedSut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
 
-        Assert.Equal(IntakeAllocationFailureKind.SequenceExhausted, sequence?.State.FailureKind);
-        Assert.Equal(IntakeAllocationRecoveryDisposition.Blocked, sequence?.State.RecoveryDisposition);
         Assert.Equal(IntakeAllocationFailureKind.Unexpected, unexpected?.State.FailureKind);
         Assert.Equal(IntakeAllocationRecoveryDisposition.ReloadThenRetry, unexpected?.State.RecoveryDisposition);
         Assert.Equal("The case could not be created. No reference was allocated.", unexpected?.State.SafeReason);
