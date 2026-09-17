@@ -576,11 +576,13 @@ the retained source and its hash untouched (D19). The Estimate section
 carries the estimate set (`EXT-09`: named estimates with source, repair
 days, the selected labour-rate-card snapshot, VAT categories, lines and
 totals; one estimate is Current and drives the report). Each version's card
-prices both panel and paint hours. Its own VAT percentage defaults to 20 and
-applies to selected discounted Labour, Parts, Materials and Specialist
-categories. Unknown repairer VAT blocks Use as Current until staff record an
-explicit status or categories (D9, D17); no comparison or savings figure is
-shown. It also carries Send to AI, which creates an `AI-10`
+prices panel, paint and Specialist work-unit hours. Its own VAT percentage
+defaults to 20 and applies to selected discounted Labour, Parts, Materials
+and Specialist categories. Unknown repairer VAT blocks Use as Current until
+staff record an explicit status or categories (D9, D17); no comparison or
+savings figure is shown. In both read and edit modes, every saved version with lines carries
+**Estimate PDF** in its actions row; previewing it does not save or discard
+pending edits. It also carries Send to AI, which creates an `AI-10`
 [AI Job List](frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)
 `Estimate` job (disabled without an Engineer's Value) rather than the
 distinct, DevelopmentOffline-only `AI-09` transport; the report-draft

@@ -39,7 +39,8 @@ public sealed class EfCaseReportGenerationStore(
     ICaseReportSnapshotSource snapshotSource,
     IReadLogicalDocumentVersion documentReader,
     TimeProvider timeProvider)
-    : ICaseReportGenerationStore, ICaseReportGenerationQueries, IGeneratedCaseArtifactStore
+    : ICaseReportGenerationStore, ICaseReportGenerationQueries, IGeneratedCaseArtifactStore,
+      IEstimateDocumentPresentationStore
 {
     internal const string PolicyVersion = "case_report_generation/v1";
     internal const string ReadyEventKind = "case_report_generation_ready";
@@ -665,6 +666,29 @@ public sealed class EfCaseReportGenerationStore(
             request.Kind == CaseReportArtifactKind.FeeNote
                 ? "Fee note draft previewed"
                 : "Report draft previewed",
+            request.OccurredAtUtc,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task RecordPreviewedAsync(
+        RecordEstimateDocumentPreviewRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await RecordPresentationEventAsync(
+            context,
+            request.CaseId,
+            CaseReportPresentationEvents.EstimateDocumentPreviewed,
+            OperationKeyOf(
+                "case-estimate-document-previewed",
+                request.EstimateId.ToString("D"),
+                request.EstimateVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                request.Actor,
+                request.OccurredAtUtc),
+            request.Actor,
+            "Estimate document previewed",
             request.OccurredAtUtc,
             cancellationToken).ConfigureAwait(false);
     }

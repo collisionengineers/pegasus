@@ -139,7 +139,7 @@ public sealed partial class DetailsModel
 
     /// <summary>The Current estimate's labour hours (panel and paint), for the figures strip.</summary>
     public decimal? LabourHours => AcceptedSpecification is { } estimate
-        ? ReportRepairCosts.For(estimate).LabourHours + ReportRepairCosts.For(estimate).PaintHours
+        ? EstimateHours.Of(estimate).PricedTotal
         : null;
 
     /// <summary>The report's title as the preview card and the draft file name it: "Total Loss Report — MA59BDY".</summary>

@@ -455,6 +455,7 @@ public static class CaseReportStaleReasons
 public static class CaseReportPresentationEvents
 {
     public const string DraftPreviewed = "case_report_draft_previewed";
+    public const string EstimateDocumentPreviewed = "case_estimate_document_previewed";
     public const string ArtifactDownloaded = "case_report_artifact_downloaded";
 }
 

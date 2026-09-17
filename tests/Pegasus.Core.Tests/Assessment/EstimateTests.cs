@@ -119,6 +119,7 @@ public sealed class EstimateTests
     [Theory]
     [InlineData(RepairSpecificationState.Accepted)]
     [InlineData(RepairSpecificationState.Superseded)]
+    [InlineData(RepairSpecificationState.Discarded)]
     public void AcceptedProjectionUsesItsRecordedBreakdownWhenInputsDiffer(RepairSpecificationState state)
     {
         var original = Estimate(Header(rate: 40m), Line("repair", workUnits: 2m));
@@ -212,6 +213,7 @@ public sealed class EstimateTests
             Line("rnr", workUnits: 0.6m),
             Line("paint_repair", paintWorkUnits: 2m),
             Line("paint_blend", paintWorkUnits: 0.5m),
+            Line("specialist_wu", workUnits: 2m),
             Line("specialist_fixed", price: 180m, workUnits: 6m),
             Line("check_labour", workUnits: 0.5m),
             Line("repair", materials: 12m));
@@ -219,14 +221,14 @@ public sealed class EstimateTests
         var raw = EstimateTotals.Compute(estimate).Raw;
 
         Assert.Equal(240m, raw.Parts);
-        // 0.4 Replace + 1.5 Repair + 0.6 R&I + 0.5 Other = 3.0 panel hours;
-        // the Specialist row's 6 hours are shown but never priced.
-        Assert.Equal(150m, raw.PanelLabour);
+        // 0.4 Replace + 1.5 Repair + 0.6 R&I + 2.0 Specialist work units
+        // + 0.5 Other = 5.0 panel hours; only specialist_fixed is unpriced.
+        Assert.Equal(250m, raw.PanelLabour);
         Assert.Equal(125m, raw.PaintLabour);
         Assert.Equal(17m, raw.Materials);
         Assert.Equal(187m, raw.Specialist);
         Assert.Equal(0m, raw.OffPattern);
-        Assert.Equal(719m, raw.Net);
+        Assert.Equal(819m, raw.Net);
     }
 
     [Theory]
@@ -338,7 +340,7 @@ public sealed class EstimateTests
         var totals = EstimateTotals.Compute(draft);
         Assert.Equal(totals.Printed.Gross, basis.Total);
         Assert.Equal(totals.Printed.Vat, basis.Vat);
-        Assert.Equal("repair-specification/v3", basis.PolicyVersion);
+        Assert.Equal("repair-specification/v4", basis.PolicyVersion);
         Assert.Equal(basis, RepairSpecificationPolicy.ValidateCalculationBasis(basis));
 
         var unconfirmed = draft with { Lines = [Line("repair", workUnits: 1m, confirmed: false)] };
@@ -584,7 +586,7 @@ public sealed class EstimateTests
     }
 
     [Fact]
-    public void SpecialistHoursAreShownAndNeverMultipliedByTheRate()
+    public void SpecialistWorkUnitHoursArePricedAsPanelLabourAndTheirPriceIsOffPattern()
     {
         var estimate = Estimate(
             Header(rate: 40m),
@@ -593,8 +595,87 @@ public sealed class EstimateTests
         var totals = EstimateTotals.Compute(estimate);
 
         Assert.Equal(180m, totals.Raw.Specialist);
-        Assert.Equal(0m, totals.Raw.PanelLabour);
+        Assert.Equal(240m, totals.Raw.PanelLabour);
+        Assert.Equal(180m, totals.Raw.OffPattern);
+        Assert.Equal(420m, totals.Raw.Net);
+        Assert.Equal("unit amount", Assert.Single(totals.OffPattern).Field);
         Assert.Equal(6m, Assert.Single(estimate.Lines).WorkUnits);
+    }
+
+    [Fact]
+    public void FixedPriceSpecialistHoursAreRetainedButNotPriced()
+    {
+        var estimate = Estimate(
+            Header(rate: 40m),
+            Line("specialist_fixed", workUnits: 2.5m, price: 180m));
+
+        var totals = EstimateTotals.Compute(estimate);
+        var hours = EstimateHours.Of(estimate);
+
+        Assert.Equal(180m, totals.Raw.Specialist);
+        Assert.Equal(0m, totals.Raw.PanelLabour);
+        Assert.Equal(0m, hours.PricedTotal);
+        Assert.Equal(2.5m, hours.UnpricedSpecialist);
+        var anomaly = Assert.Single(totals.OffPattern);
+        Assert.Equal("hours", anomaly.Field);
+        Assert.Equal(2.5m, anomaly.Value);
+        Assert.Equal(
+            "Hours on a fixed-price Specialist line are retained but not priced.",
+            anomaly.Reason);
+    }
+
+    [Fact]
+    public void PricedHoursExactlyOwnRawDiscountedLabour()
+    {
+        var estimate = Estimate(
+            Header(rate: 83.28m, discounts: new(0m, 0m, 0m, 0.075m)),
+            Line("new_part", workUnits: 0.2m),
+            Line("repair", workUnits: 10m),
+            Line("rnr", workUnits: 2.1m),
+            Line("check_labour", workUnits: 1m),
+            Line("specialist_wu", workUnits: 3.7m),
+            Line("paint_repair", paintWorkUnits: 4m),
+            Line("paint_blend", paintWorkUnits: 1m));
+
+        var totals = EstimateTotals.Compute(estimate);
+        var hours = EstimateHours.Of(estimate);
+
+        Assert.Equal(
+            hours.PricedTotal * estimate.Details.HourlyRate * (1m - estimate.Details.AppliedDiscounts.Overall),
+            totals.Raw.PanelLabour + totals.Raw.PaintLabour);
+    }
+
+    [Fact]
+    public void PaintAndBlendRowsKeepPanelAndPaintHoursInTheSharedSummary()
+    {
+        var estimate = Estimate(
+            Header(rate: 40m),
+            Line("repair", workUnits: 1m),
+            Line("paint_repair", workUnits: 1.25m, paintWorkUnits: 2m),
+            Line("paint_blend", workUnits: 0.75m, paintWorkUnits: 0.5m));
+
+        var hours = EstimateHours.Of(estimate);
+        var totals = EstimateTotals.Compute(estimate);
+
+        Assert.Equal(1.25m, hours.PaintPanel);
+        Assert.Equal(0.75m, hours.BlendPanel);
+        Assert.Equal(3.25m, hours.PaintTotal);
+        Assert.Equal(1.25m, hours.BlendTotal);
+        Assert.Equal(3m, hours.PricedPanel);
+        Assert.Equal(2.5m, hours.PricedPaint);
+        Assert.Equal(5.5m, hours.PricedTotal);
+        Assert.Equal(120m, totals.Raw.PanelLabour);
+        Assert.Equal(100m, totals.Raw.PaintLabour);
+    }
+
+    [Fact]
+    public void HoursRefuseAnUnknownLineTypeThroughTheSharedVocabularyOwner()
+    {
+        var estimate = Estimate(Header(), Line("weld", workUnits: 1m));
+
+        var exception = Assert.Throws<InvalidOperationException>(() => EstimateHours.Of(estimate));
+
+        Assert.Equal("Unknown estimate line type 'weld'.", exception.Message);
     }
 
     [Fact]
@@ -633,17 +714,74 @@ public sealed class EstimateTests
     }
 
     [Fact]
+    public void EditorSaveRoundTripPreservesAnExistingWorkUnitSpecialistSubtype()
+    {
+        var sourceLine = Line("specialist_wu", workUnits: 2m, price: 180m);
+        var existing = Estimate(Header(rate: 40m), sourceLine);
+        var submitted = SaveRequest(Engineer, RepairSpecificationSourceRoute.Manual) with
+        {
+            EstimateId = existing.SpecificationId,
+            ExistingLineIds = [sourceLine.Id],
+            Lines =
+            [
+                LineInput("specialist_fixed") with
+                {
+                    WorkUnits = sourceLine.WorkUnits,
+                    Price = sourceLine.Price,
+                },
+            ],
+        };
+
+        var resolved = EstimatePolicy.ApplyEditorEvidence(
+            EstimatePolicy.ValidateSave(submitted), existing, Now.AddMinutes(1));
+        var resolvedLine = Assert.Single(resolved.Lines);
+        var totals = EstimateTotals.Compute(existing with
+        {
+            Lines =
+            [
+                sourceLine with
+                {
+                    Type = resolvedLine.Type,
+                    WorkUnits = resolvedLine.WorkUnits,
+                    Price = resolvedLine.Price,
+                },
+            ],
+        });
+
+        Assert.Equal("specialist_fixed", submitted.Lines[0].Type);
+        Assert.Equal("specialist_wu", resolvedLine.Type);
+        Assert.Equal(80m, totals.Raw.PanelLabour);
+        Assert.Equal(180m, totals.Raw.OffPattern);
+
+        var changedOperation = EstimatePolicy.ApplyEditorEvidence(
+            EstimatePolicy.ValidateSave(submitted with
+            {
+                Lines =
+                [
+                    LineInput("repair") with
+                    {
+                        WorkUnits = sourceLine.WorkUnits,
+                        Price = sourceLine.Price,
+                    },
+                ],
+            }),
+            existing,
+            Now.AddMinutes(2));
+        Assert.Equal("repair", Assert.Single(changedOperation.Lines).Type);
+    }
+
+    [Fact]
     public void AnAcceptedEstimateKeepsThePolicyVersionItWasCostedUnder()
     {
         // A basis accepted under an earlier policy stays valid as it stands;
-        // policy version 3 is stamped only on what this policy costs.
+        // policy version 4 is stamped only on what this policy costs.
         var historic = RepairSpecificationPolicy.ValidateCalculationBasis(
             new(100m, 20m, 10m, 0m, true, 26m, 156m, "repair-specification/v2"));
         Assert.Equal("repair-specification/v2", historic.PolicyVersion);
 
         var basis = EstimatePolicy.BasisFor(Estimate(Header(rate: 40m), Line("repair", workUnits: 2m)));
-        Assert.Equal("repair-specification/v3", basis.PolicyVersion);
-        Assert.Equal(3, RepairSpecificationPolicy.PolicyVersion);
+        Assert.Equal("repair-specification/v4", basis.PolicyVersion);
+        Assert.Equal(4, RepairSpecificationPolicy.PolicyVersion);
     }
 
     [Fact]
