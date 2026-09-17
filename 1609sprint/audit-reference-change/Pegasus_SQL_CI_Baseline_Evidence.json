@@ -1,0 +1,298 @@
+{
+  "review_date": "2026-09-16",
+  "repository": "collisionengineers/pegasus",
+  "workflow_run_id": 35083151345,
+  "pr_head_sha": "e4fc0ea05762aab67dd6ec3c8aaf35a280d5f2aa",
+  "checked_out_merge_sha_from_shard2_log": "fae2100585e133ea2b8218db4a103e8c82b8c878",
+  "base_sha_from_shard2_log": "5765a527a7729e606fe5683b3af3d47a17c708ff",
+  "method": "Read ZIP members in memory; parse retained TRX XML; compare exact display-name multisets. This is not candidate test execution or full theory-argument equality.",
+  "shards": {
+    "1": {
+      "artifact_id": 10442209843,
+      "artifact_url": "https://github.com/collisionengineers/pegasus/actions/runs/35083151345/artifacts/10442209843",
+      "archive_sha256": "bb3486afb2c97df6d4be63b4aef2e17601ac16793e3dcc1ba89875dd1e3ff652",
+      "members": {
+        "assigned-1.txt": {
+          "bytes": 105313,
+          "sha256": "673f3e3461b73adb5044f4cba6b2b0332a715dc4ea87a064dbd5406e2f4bff17"
+        },
+        "listed-1.txt": {
+          "bytes": 296450,
+          "sha256": "5e49ca22f2e0bdcd425189fe73ecda51e19950c3e9c9ed4ce801224b4eba43a5"
+        },
+        "shard-1.trx": {
+          "bytes": 3560961,
+          "sha256": "881b244593f73fdc264f6d4d056b4ec94a4cbd6bdc5064e17577b30b6ea0dfef"
+        }
+      },
+      "discovered_rows": 2349,
+      "unique_discovery_display_names": 2349,
+      "assigned_rows": 860,
+      "assigned_classes": 62,
+      "trx_present": true,
+      "result_records": 860,
+      "outcomes": {
+        "Passed": 858,
+        "NotExecuted": 2
+      },
+      "missing_result_display_names": [],
+      "extra_result_display_names": [],
+      "result_display_name_multiset_matches_assignment": true,
+      "trx_counters": {
+        "total": "860",
+        "executed": "858",
+        "passed": "858",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "trx_times": {
+        "creation": "2026-09-16T10:13:26.5952545+00:00",
+        "queuing": "2026-09-16T10:13:26.5952550+00:00",
+        "start": "2026-09-16T10:12:19.6854034+00:00",
+        "finish": "2026-09-16T10:52:03.0816976+00:00"
+      },
+      "top_classes_by_cumulative_test_seconds": [
+        {
+          "class": "Pegasus.IntegrationTests.CaseDetailsWebTests",
+          "rows": 188,
+          "cumulative_test_seconds": 1867.109562
+        },
+        {
+          "class": "Pegasus.IntegrationTests.MailWorkspaceWebTests",
+          "rows": 46,
+          "cumulative_test_seconds": 536.259064
+        },
+        {
+          "class": "Pegasus.IntegrationTests.CaseWorkflowPersistenceTests",
+          "rows": 45,
+          "cumulative_test_seconds": 488.740736
+        },
+        {
+          "class": "Pegasus.IntegrationTests.AssessmentPersistenceIntegrationTests",
+          "rows": 41,
+          "cumulative_test_seconds": 422.13317
+        },
+        {
+          "class": "Pegasus.IntegrationTests.AzureSqlRuntimeRoleMigrationTests",
+          "rows": 24,
+          "cumulative_test_seconds": 393.373641
+        },
+        {
+          "class": "Pegasus.IntegrationTests.RetainedMailPersistenceTests",
+          "rows": 42,
+          "cumulative_test_seconds": 389.64613
+        },
+        {
+          "class": "Pegasus.IntegrationTests.CaseCreateWebTests",
+          "rows": 24,
+          "cumulative_test_seconds": 315.384245
+        },
+        {
+          "class": "Pegasus.IntegrationTests.AdministrationSearchAccountWebTests",
+          "rows": 31,
+          "cumulative_test_seconds": 286.25661
+        },
+        {
+          "class": "Pegasus.IntegrationTests.UploadConfirmationWebTests",
+          "rows": 20,
+          "cumulative_test_seconds": 254.994823
+        },
+        {
+          "class": "Pegasus.IntegrationTests.CustodyOutboxIntegrationTests",
+          "rows": 29,
+          "cumulative_test_seconds": 236.411203
+        }
+      ]
+    },
+    "2": {
+      "artifact_id": 10441879122,
+      "artifact_url": "https://github.com/collisionengineers/pegasus/actions/runs/35083151345/artifacts/10441879122",
+      "archive_sha256": "d534acc0ab1c9eb13a46b884b0a4a780797035ca7e07ccbf58816558510972ee",
+      "members": {
+        "assigned-2.txt": {
+          "bytes": 101133,
+          "sha256": "e33dcfeceb032664803c9b25816a2e8692221a1cd917eae68d02a2d9711b367e"
+        },
+        "listed-2.txt": {
+          "bytes": 296450,
+          "sha256": "5e49ca22f2e0bdcd425189fe73ecda51e19950c3e9c9ed4ce801224b4eba43a5"
+        }
+      },
+      "discovered_rows": 2349,
+      "unique_discovery_display_names": 2349,
+      "assigned_rows": 757,
+      "assigned_classes": 62,
+      "trx_present": false
+    },
+    "3": {
+      "artifact_id": 10442110508,
+      "artifact_url": "https://github.com/collisionengineers/pegasus/actions/runs/35083151345/artifacts/10442110508",
+      "archive_sha256": "70ad959fba6f79fad34d8e69c187d368a6ef9fb66bc5c6b7dc2a86c19ade830e",
+      "members": {
+        "assigned-3.txt": {
+          "bytes": 90004,
+          "sha256": "3419dfec0effe2847d93fc97f1e7b82eae517d21a4fc1e72b4fdabe0b2bafe5c"
+        },
+        "listed-3.txt": {
+          "bytes": 296450,
+          "sha256": "5e49ca22f2e0bdcd425189fe73ecda51e19950c3e9c9ed4ce801224b4eba43a5"
+        },
+        "shard-3.trx": {
+          "bytes": 2592013,
+          "sha256": "fc63dc757d41601acb108ad6530fb91a8172a64cc3fb35c657f8bdb46ac40835"
+        }
+      },
+      "discovered_rows": 2349,
+      "unique_discovery_display_names": 2349,
+      "assigned_rows": 732,
+      "assigned_classes": 62,
+      "trx_present": true,
+      "result_records": 732,
+      "outcomes": {
+        "Passed": 732
+      },
+      "missing_result_display_names": [],
+      "extra_result_display_names": [],
+      "result_display_name_multiset_matches_assignment": true,
+      "trx_counters": {
+        "total": "732",
+        "executed": "732",
+        "passed": "732",
+        "failed": "0",
+        "error": "0",
+        "timeout": "0",
+        "aborted": "0",
+        "inconclusive": "0",
+        "passedButRunAborted": "0",
+        "notRunnable": "0",
+        "notExecuted": "0",
+        "disconnected": "0",
+        "warning": "0",
+        "completed": "0",
+        "inProgress": "0",
+        "pending": "0"
+      },
+      "trx_times": {
+        "creation": "2026-09-16T10:11:29.2916097+00:00",
+        "queuing": "2026-09-16T10:11:29.2916099+00:00",
+        "start": "2026-09-16T10:11:26.9705047+00:00",
+        "finish": "2026-09-16T10:23:49.2223775+00:00"
+      },
+      "top_classes_by_cumulative_test_seconds": [
+        {
+          "class": "Pegasus.IntegrationTests.StaffCorrespondenceWebTests",
+          "rows": 50,
+          "cumulative_test_seconds": 325.304722
+        },
+        {
+          "class": "Pegasus.IntegrationTests.PublicUploadRetentionWebTests",
+          "rows": 43,
+          "cumulative_test_seconds": 237.341111
+        },
+        {
+          "class": "Pegasus.IntegrationTests.GlassRepairEstimatePersistenceTests",
+          "rows": 36,
+          "cumulative_test_seconds": 223.20243
+        },
+        {
+          "class": "Pegasus.IntegrationTests.QdosTriageIntegrationTests",
+          "rows": 26,
+          "cumulative_test_seconds": 168.796294
+        },
+        {
+          "class": "Pegasus.IntegrationTests.OperationsWebTests",
+          "rows": 27,
+          "cumulative_test_seconds": 146.158889
+        },
+        {
+          "class": "Pegasus.IntegrationTests.ImageIntakePersistenceTests",
+          "rows": 16,
+          "cumulative_test_seconds": 120.194398
+        },
+        {
+          "class": "Pegasus.IntegrationTests.Reports.AssessmentReportDraftWebTests",
+          "rows": 20,
+          "cumulative_test_seconds": 117.562076
+        },
+        {
+          "class": "Pegasus.IntegrationTests.CaseWorkspacePersistenceTests",
+          "rows": 20,
+          "cumulative_test_seconds": 115.011669
+        },
+        {
+          "class": "Pegasus.IntegrationTests.AutomationAdministrationWebTests",
+          "rows": 10,
+          "cumulative_test_seconds": 101.498946
+        },
+        {
+          "class": "Pegasus.IntegrationTests.StaffMailSendPersistenceTests",
+          "rows": 19,
+          "cumulative_test_seconds": 91.463014
+        }
+      ]
+    }
+  },
+  "partition": {
+    "all_three_discoveries_identical": true,
+    "assigned_union_count": 2349,
+    "assigned_rows": 2349,
+    "duplicate_assignments": [],
+    "missing_assignments": [],
+    "extra_assignments": [],
+    "all_assigned_rows_have_retained_results": false,
+    "reason": "Shard 2 has no completed TRX in its artifact; assignment is not execution.",
+    "original_class_count": 186
+  },
+  "case_details": {
+    "discovered_rows": 188,
+    "distinct_methods": 127,
+    "result_rows": 188,
+    "outcomes": {
+      "Passed": 188
+    },
+    "cumulative_test_duration_seconds": 1867.109562,
+    "elapsed_first_start_to_last_end_seconds": 1867.255069,
+    "first_start_utc": "2026-09-16T10:20:55.658101+00:00",
+    "last_end_utc": "2026-09-16T10:52:02.913170+00:00",
+    "truncated_display_names": [
+      "Pegasus.IntegrationTests.CaseDetailsWebTests.TheActionsMenuOffersTheItemsTheStatePermits(state: Held, offered: \"case-release-hold-dialog,case-correct-principal-di\"\u00b7\u00b7\u00b7, absent: \"case-hold-dialog,case-complete-dialog,case-return-\"\u00b7\u00b7\u00b7)",
+      "Pegasus.IntegrationTests.CaseDetailsWebTests.TheActionsMenuOffersTheItemsTheStatePermits(state: NotReady, offered: \"case-hold-dialog,case-correct-principal-dialog\", absent: \"case-release-hold-dialog,case-complete-dialog,case\"\u00b7\u00b7\u00b7)",
+      "Pegasus.IntegrationTests.CaseDetailsWebTests.TheActionsMenuOffersTheItemsTheStatePermits(state: PostReport, offered: \"case-complete-dialog,case-return-review-dialog,cas\"\u00b7\u00b7\u00b7, absent: \"case-release-hold-dialog,case-return-engineer-dial\"\u00b7\u00b7\u00b7)",
+      "Pegasus.IntegrationTests.CaseDetailsWebTests.TheActionsMenuOffersTheItemsTheStatePermits(state: PostReportComplete, offered: \"case-return-engineer-dialog\", absent: \"case-hold-dialog,case-release-hold-dialog,case-com\"\u00b7\u00b7\u00b7)",
+      "Pegasus.IntegrationTests.CaseDetailsWebTests.TheRailLayoutAndFoldedPanelsArePaintedFromTheirCookies(cookie: \"pegasus-rail=collapsed; pegasus-case-layout=tabs; \"\u00b7\u00b7\u00b7, remembered: True)",
+      "Pegasus.IntegrationTests.CaseDetailsWebTests.TheRailLayoutAndFoldedPanelsArePaintedFromTheirCookies(cookie: \"pegasus-rail=sideways; pegasus-case-layout=grid; p\"\u00b7\u00b7\u00b7, remembered: False)"
+    ],
+    "all_discovery_truncated_display_name_count": 57,
+    "warning": "Display names are unique in this baseline, but truncated names cannot prove complete argument preservation.",
+    "non_parameterized_display_names_count": 110,
+    "parameterized_display_names_count": 78
+  },
+  "expected_organization_after_pure_split": {
+    "non_corpus_rows": 2349,
+    "case_rows": 188,
+    "unchanged_non_case_rows": 2161,
+    "case_method_count": 127,
+    "case_class_count": 15,
+    "total_class_count": 200,
+    "scope": "Expectations only for the documented pure split against this frozen baseline; account explicitly for any subsequent legitimate source changes."
+  },
+  "source_identity_comparison": {
+    "base": "e4fc0ea05762aab67dd6ec3c8aaf35a280d5f2aa",
+    "head": "fae2100585e133ea2b8218db4a103e8c82b8c878",
+    "github_compare_status": "ahead",
+    "ahead_by": 1,
+    "changed_files": [],
+    "interpretation": "The original synthetic merge commit had the same file tree as the PR head; differing commit SHAs do not indicate differing source bytes in this run."
+  }
+}

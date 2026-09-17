@@ -9,6 +9,8 @@ using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
 
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
+
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
@@ -16,7 +18,8 @@ namespace Pegasus.IntegrationTests;
 /// Actions menu per state, Place on Hold with an optional review date, Assign
 /// to me, Create audit, the Notes band, and a Save that asks for no reason.
 /// </summary>
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseRecordFrameV26WebTests
 {
     /// <summary>
     /// The Actions menu offers exactly the items the state permits inside an
@@ -386,28 +389,7 @@ public sealed partial class CaseDetailsWebTests
         };
     }
 
-    private sealed partial class RecordingCaseDetailsStore : IAssignCaseToMe
-    {
-        /// <summary>The Case type the summary reports; a plain Inspection unless a test says otherwise.</summary>
-        public CaseType SummaryCaseType { get; init; } = CaseType.Inspection;
 
-        /// <summary>The Principal and Claim source records' notes the Case reads live.</summary>
-        public CaseRecordNotes RecordNotes { get; init; } = CaseRecordNotes.None;
-
-        /// <summary>The hold's review date the workflow reports.</summary>
-        public DateOnly? HoldReviewOn { get; set; }
-
-        public List<AssignCaseToMeRequest> SelfAssignments { get; } = [];
-
-        Task<CaseWorkflowRecord> IAssignCaseToMe.ExecuteAsync(
-            AssignCaseToMeRequest request,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            SelfAssignments.Add(request);
-            return Task.FromResult(CreateWorkflow() with { AssignedEngineerId = Guid.NewGuid() });
-        }
-    }
 
     /// <summary>
     /// The frame's Create audit reads and the use case itself, substituted
