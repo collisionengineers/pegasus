@@ -129,7 +129,7 @@ staging before verified handoff or invent a new store for this separation
 
 A linked Audit Case created from an Inspection + Audit Case shares the
 original's documents by reference to the same stored bytes; nothing is copied.
-Its custody root is the `a.`/`ap.` subfolder Pegasus creates under the original
+Its custody root is the `a.` subfolder Pegasus creates under the original
 Case's Box folder when the Audit Case is created, resolved afterwards through
 the persisted relationship, never from the reference prefix
 ([ADR-0051](../adr/0051-linked-audit-case-identity-and-custody.md),

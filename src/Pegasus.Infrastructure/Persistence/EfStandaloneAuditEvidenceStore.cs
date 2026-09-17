@@ -174,7 +174,7 @@ internal sealed class EfStandaloneAuditEvidenceStore(
             entity.Id,
             entity.IntakeReceiptId,
             entity.OriginalReportAssetId,
-            ParseAssessment(entity.Assessment),
+            AuditAssessmentCode.Parse(entity.Assessment),
             staffId,
             entity.ConfirmedAtUtc,
             entity.Reason,
@@ -182,18 +182,5 @@ internal sealed class EfStandaloneAuditEvidenceStore(
             isDuplicate);
     }
 
-    private static string ToCode(AuditAssessment assessment) => assessment switch
-    {
-        AuditAssessment.Repairable => "repairable",
-        AuditAssessment.TotalLoss => "total_loss",
-        _ => throw new ArgumentOutOfRangeException(nameof(assessment))
-    };
-
-    private static AuditAssessment ParseAssessment(string assessment) => assessment switch
-    {
-        "repairable" => AuditAssessment.Repairable,
-        "total_loss" => AuditAssessment.TotalLoss,
-        _ => throw new InvalidDataException(
-            $"Unknown retained Audit assessment '{assessment}'.")
-    };
+    private static string ToCode(AuditAssessment assessment) => AuditAssessmentCode.ToCode(assessment);
 }

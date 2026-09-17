@@ -438,7 +438,9 @@ a non-destructive conflict.
   Completed ⇄ Query, with Held as an exception badge), outstanding requirements — the
   named unmet items of the versioned instruction- and image-completeness sets,
   each with title, source, reason and resolve action, and never a percentage
-  (D23) — the Case, Principal and Claimant columns of cells (identity cells
+  (D23). An Audit without retained standalone-Audit evidence and without a
+  filed original report also lists **Original report missing**, sourced from
+  Audit — the Case, Principal and Claimant columns of cells (identity cells
   read with a lock while the rest edits), the Claim source chosen from the
   active Claim Source contacts, and a Notes band: the Principal's and the Claim
   source's Notes on every Case, read-only and absent when the record has none
@@ -516,7 +518,9 @@ a non-destructive conflict.
   ([FRD-08](frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence)).
   - Documents: every live file as a row — filename, role, size, origin,
     recorded time and its custody-state chip, with Preview, Save as and,
-    while editing, delete.
+    while editing, delete. When an Audit lists **Original report missing**, each
+    non-image row also offers **Mark as original report** while editing; the
+    action assigns the Audit report role and clears that requirement.
   - Images: one grid of every image occurrence — the Case's own image
     documents plus, for each image-intake associated with the Case, its
     photographs labelled by Image Intake Reference. Each tile shows a

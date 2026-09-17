@@ -65,13 +65,14 @@
                 @foreach (var entry in entries)
                 {
                     var isNote = entry.EventType == "operator_note";
+                    var isOriginalReport = entry.EventType == "original_report_recorded";
                     @if (entry.EventType != "case_guidance_applied")
                     {
                         <div class="note @(isNote ? null : "sys")" data-history-event="@entry.EventType">
                             <div class="nw"><span>@OperatorLabels.OfficeDate(entry.OccurredAtUtc)</span> <span>@OperatorLabels.OfficeClock(entry.OccurredAtUtc)</span></div>
                             <div class="nb">
                                 <b>@entry.ActorDisplayName</b>
-                                @if (isNote)
+                                @if (isNote || isOriginalReport)
                                 {
                                     <text> — @entry.Reason</text>
                                 }

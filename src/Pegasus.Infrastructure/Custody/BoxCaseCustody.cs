@@ -1109,7 +1109,7 @@ internal sealed class BoxCaseCustody(
         ValidateCase(auditCaseId, auditReference);
         ValidateOperation(operationKey);
         // The original's folder is resolved the way every case root is; the Audit
-        // Case's folder is its a./ap. child, owned by this creation like any root.
+        // Case's folder is its a. child, owned by this creation like any root.
         var original = await GetExistingCaseRootAsync(originalCaseId, originalReference, cancellationToken);
         var folder = await GetOrCreateOwnedFolderAsync(
             original.RemoteId,

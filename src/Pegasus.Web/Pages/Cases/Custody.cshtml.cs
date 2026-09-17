@@ -20,6 +20,7 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed class CustodyModel(
     IRetryCaseCustody retryCaseCustody,
     ILogicallyRemoveDocument logicallyRemoveDocument,
+    MarkAsOriginalReport markAsOriginalReport,
     ITagCaseImage tagCaseImage,
     IUntagCaseImage untagCaseImage,
     ICreateImageTag createImageTag,
@@ -109,6 +110,30 @@ public sealed class CustodyModel(
                     editLeaseToken),
                 cancellationToken),
             "The document occurrence was logically removed; custody content and history were retained.",
+            RedirectToFiles,
+            keepEditing: true);
+
+    public Task<IActionResult> OnPostMarkAsOriginalReportAsync(
+        Guid id,
+        Guid occurrenceId,
+        long expectedVersion,
+        string operationKey,
+        string editLeaseToken,
+        CancellationToken cancellationToken) =>
+        ExecuteCaseCommandAsync(
+            id,
+            editLeaseToken,
+            "mark_as_original_report",
+            actor => markAsOriginalReport.ExecuteAsync(
+                new(
+                    id,
+                    expectedVersion,
+                    actor,
+                    operationKey,
+                    editLeaseToken,
+                    occurrenceId),
+                cancellationToken),
+            "The original report was recorded.",
             RedirectToFiles,
             keepEditing: true);
 

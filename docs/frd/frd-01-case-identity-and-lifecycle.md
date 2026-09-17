@@ -13,13 +13,22 @@ resolution can link it to a supported destination, without changing that U-refer
 - Principal and internal reference are immutable after allocation.
 - Reference allocation occurs once safe source processing establishes an unambiguous Principal and Case type and all identity-critical gates pass. Manual upload additionally requires explicit staff acceptance under [FRD-02](frd-02-intake-and-source-identity.md); its extracted proposal remains pre-Case with no reserved Case/PO until acceptance. Incomplete ordinary business detail, images, or required external checks create or retain an accepted Case as `Not ready`; they do not otherwise leave a valid instruction pre-Case.
 - The normal Case/PO is `{principal code}{YY}{shared sequence}` with a three-digit minimum: `001` through `999`, then `1000` through `9999`. Inspection, standalone Audit, and Inspection + Audit consume one principal/year sequence. Exhaustion at `9999` is visible and blocks allocation; references and sequence values never wrap or return to use.
-- An Audit requires two separate document attachments: the Audit instruction and the original report to be audited. Who states that report's outcome depends on the route. On the retained-email route Pegasus reads the literal outcome in the report itself: `repairable` derives `a.{Case/PO}` and `total loss` derives `ap.{Case/PO}`, and missing, conflicting or ambiguous original-report evidence withholds only the later Audit reference. A definitive instruction still creates the normal Case/PO once Principal and identity-critical gates pass. On the Provider API route the authenticated Principal declares the verdict and that declaration derives the reference (operator decision, 2026-08-28); the original report is still required as an attachment, because the Engineer needs the report they are auditing, but it is not parsed to decide the prefix. No staff confirmation is an intake gate on either route.
+- A standalone Audit instruction creates its `a.` Case/PO once the Principal
+  and identity-critical gates pass, with or without the original report. On the
+  retained-email route a readable original report records the assessment at
+  intake. When the report is missing, **Original report missing** is an
+  outstanding requirement on the Case until staff mark a filed document as the
+  original report. The assessment is a recorded Case fact, not identity, and
+  the prefixed value is the Case/PO itself, not a second or later reference.
+  On the Provider API route the authenticated Principal still declares the
+  verdict and attaches the original report; the declaration records the
+  assessment. Manual upload additionally requires explicit staff acceptance.
 - Inspection + Audit begins with the normal Inspection Case/PO reference. Once
   a report has been generated on that Case, **Create audit** (the Case record's
   Actions menu, inside an edit session) creates one linked Audit Case. The
   Audit Case keeps the Principal and sequence, has Case type Audit and its own
-  reference: `ap.{Case/PO}` when the Settlement outcome is total loss and
-  `a.{Case/PO}` for every other outcome; the operator is never asked. It
+  `a.{Case/PO}` reference for every assessment outcome; the operator is never
+  asked. It
   inherits the original's Engineer, starts in Review, carries the Case data,
   assessment and estimate forward, and shares the original's files by
   reference to the same stored bytes. Pegasus creates its Box subfolder under

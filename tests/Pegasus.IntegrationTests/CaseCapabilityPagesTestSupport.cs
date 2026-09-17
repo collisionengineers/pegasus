@@ -873,7 +873,8 @@ internal static partial class CaseWebTestSupport
                 CaseDocuments,
                 AvailableReportSentEvidence,
                 RecordNotes,
-                DataOverride ?? CreateData()));
+                DataOverride ?? CreateData(),
+                AuditOfCaseId));
         }
 
         Task<CaseVehicleSection?> IGetCaseVehicleSection.ExecuteAsync(
@@ -933,7 +934,9 @@ internal static partial class CaseWebTestSupport
                     null,
                     CaseCustodyState.Pending,
                     RequestUploadLinks,
-                    QueryEmails)
+                    QueryEmails,
+                    StandaloneAuditEvidenceId,
+                    AuditOfCaseId)
                 : null);
         }
 
@@ -1032,7 +1035,8 @@ internal static partial class CaseWebTestSupport
                     Confirmed("1 Depot Road"),
                     Confirmed(CaseInspectionMode.PhysicalAddress),
                     Confirmed("14 Storage Lane"),
-                    Empty<string>()));
+                    Empty<string>()),
+                StandaloneAuditEvidenceId: StandaloneAuditEvidenceId);
 
         /// <summary>
         /// The vehicle as the case holds it. A lookup now fills empty fields as

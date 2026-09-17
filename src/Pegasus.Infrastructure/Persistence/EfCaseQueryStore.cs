@@ -171,7 +171,9 @@ public sealed class EfCaseQueryStore(
 
         if (filters.CaseReference is { } caseReference)
         {
-            rows = rows.Where(item => item.Reference.Contains(caseReference));
+            rows = rows.Where(item =>
+                item.Reference.Contains(caseReference)
+                || item.AuditReference != null && item.AuditReference.Contains(caseReference));
         }
         if (filters.Registration is { } registration)
         {
@@ -428,7 +430,12 @@ public sealed class EfCaseQueryStore(
             .ToArrayAsync(cancellationToken);
         var recordNotes = await ReadRecordNotesAsync(context, workflow, caseId, cancellationToken);
         var frame = CreateSectionFrame(summary, workflow);
-        return new(frame, documents, availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(), recordNotes);
+        return new(
+            frame,
+            documents,
+            availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
+            recordNotes,
+            workflow.Case.AuditOfCaseId);
     }
 
     /// <summary>
@@ -534,9 +541,16 @@ public sealed class EfCaseQueryStore(
                 item.AcceptedFileCount, item.AcceptedByteCount, item.Version, item.Recipient, item.Reason))
             .ToArrayAsync(cancellationToken);
         var queryEmails = await ReadQueryEmailsAsync(context, caseId, cancellationToken);
+        // The two Audit facts the Files section needs are not on the section
+        // frame a caller may hand in, so read them in one narrow projection.
+        var auditFacts = await context.Cases
+            .AsNoTracking()
+            .Where(item => item.Id == caseId)
+            .Select(item => new { item.StandaloneAuditEvidenceId, item.AuditOfCaseId })
+            .SingleAsync(cancellationToken);
         return new(sectionFrame, documents, sectionFrame.CustodyFolderRemoteId,
             sectionFrame.CustodyState, requestUploadLinks,
-            queryEmails);
+            queryEmails, auditFacts.StandaloneAuditEvidenceId, auditFacts.AuditOfCaseId);
     }
 
     public async Task<CaseRenderLeaseValidation?> GetRenderLeaseValidationAsync(

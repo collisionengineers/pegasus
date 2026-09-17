@@ -258,7 +258,8 @@ public sealed record CasePageFrame(
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
     CaseRecordNotes RecordNotes,
-    CaseDataProjection Data)
+    CaseDataProjection Data,
+    Guid? AuditOfCaseId = null)
 {
     public CaseSearchItem Summary => Frame.Summary;
     public CaseWorkflowRecord Workflow => Frame.Workflow;
@@ -270,7 +271,8 @@ public sealed record CasePageFrameData(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseDocument> Documents,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
-    CaseRecordNotes RecordNotes);
+    CaseRecordNotes RecordNotes,
+    Guid? AuditOfCaseId = null);
 
 public sealed record CaseVehicleSection(
     CaseSectionFrame Frame,
@@ -298,7 +300,9 @@ public sealed record CaseFilesSection(
     string? CustodyFolderRemoteId,
     CaseCustodyState CustodyState,
     IReadOnlyList<CaseRequestUploadSummary> RequestUploadLinks,
-    IReadOnlyList<CaseQueryEmail> QueryEmails);
+    IReadOnlyList<CaseQueryEmail> QueryEmails,
+    Guid? StandaloneAuditEvidenceId = null,
+    Guid? AuditOfCaseId = null);
 
 /// <summary>
 /// Persistence material used only to prove a fragment's render-only lease
@@ -463,7 +467,9 @@ public sealed record CaseFilesSectionData(
     string? CustodyFolderRemoteId,
     CaseCustodyState CustodyState,
     IReadOnlyList<CaseRequestUploadSummary> RequestUploadLinks,
-    IReadOnlyList<CaseQueryEmail> QueryEmails);
+    IReadOnlyList<CaseQueryEmail> QueryEmails,
+    Guid? StandaloneAuditEvidenceId = null,
+    Guid? AuditOfCaseId = null);
 
 public interface IGetCaseVehicleSection
 {
@@ -507,7 +513,13 @@ public sealed class GetCasePageFrame(
 
         var data = await caseDataQueries.GetAsync(query.CaseId, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
-        return new(frame.Frame, frame.Documents, frame.AvailableReportSentEvidence, frame.RecordNotes, data);
+        return new(
+            frame.Frame,
+            frame.Documents,
+            frame.AvailableReportSentEvidence,
+            frame.RecordNotes,
+            data,
+            frame.AuditOfCaseId);
     }
 }
 
@@ -599,7 +611,8 @@ public sealed class GetCaseFilesSection(ICaseQueryStore store) : IGetCaseFilesSe
         }
 
         return new(body.Frame, query.Documents ?? body.Documents, body.CustodyFolderRemoteId,
-            body.CustodyState, body.RequestUploadLinks, body.QueryEmails);
+            body.CustodyState, body.RequestUploadLinks, body.QueryEmails,
+            body.StandaloneAuditEvidenceId, body.AuditOfCaseId);
     }
 }
 

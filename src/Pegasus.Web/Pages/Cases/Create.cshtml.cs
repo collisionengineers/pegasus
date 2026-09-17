@@ -518,7 +518,7 @@ public sealed partial class CreateModel(
         }
         else if (CaseType == CaseType.Audit)
         {
-            ModelState.AddModelError(nameof(CaseType), "Audits need their retained original report and cannot be created here.");
+            ModelState.AddModelError(nameof(CaseType), "Choose a valid case type.");
         }
 
         var mileageUnit = VehicleMileage.HasValue ? VehicleMileageUnit : null;
@@ -737,9 +737,7 @@ public sealed partial class CreateModel(
     {
         if (CaseType == CaseType.Audit && !IsRetainedClassifiedAudit)
         {
-            ModelState.AddModelError(
-                string.Empty,
-                "Audits are created automatically from the retained Audit instruction and original report.");
+            ModelState.AddModelError(nameof(CaseType), "Choose a valid case type.");
         }
     }
 
@@ -771,12 +769,6 @@ public sealed partial class CreateModel(
 
     private string? DescribeRefusal()
     {
-        if (Receipt.MailClassificationDecision?.CaseType == CaseType.Audit
-            && !IsRetainedClassifiedAudit)
-        {
-            return "This Audit is created automatically from the retained Audit instruction and original report.";
-        }
-
         // Little or no text came out of the document, which is exactly the
         // hand-keyed case: the correction step normalises the decision, so it
         // is allowed through rather than refused.
@@ -864,8 +856,7 @@ public sealed partial class CreateModel(
     }
 
     public bool IsRetainedClassifiedAudit =>
-        Receipt.MailClassificationDecision?.CaseType == CaseType.Audit
-        && StandaloneAuditEvidenceId is not null;
+        Receipt.MailClassificationDecision?.CaseType == CaseType.Audit;
 
     private async Task<bool> IsImageBasedAsync(
         string? principalCode,

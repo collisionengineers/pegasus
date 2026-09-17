@@ -50,10 +50,10 @@ Audit and Inspection + Audit are active and in scope. An Audit report uses the
 same approved Inspection report contract, template, wording, layout, and
 renderer presentation as the equivalent Inspection report. Audit is distinct
 only in its accepted workflow provenance and immutable internal reference: the
-normal Case/PO remains authoritative, with the existing `a.{Case/PO}` reference
-for a repairable Audit or `ap.{Case/PO}` for a total-loss Audit. Those identity
-facts travel through the shared Core-owned report contract; they do not select
-or create a separate physical report family.
+normal Case/PO remains authoritative, with the `a.{Case/PO}` reference for
+every Audit assessment outcome. The assessment remains a separate Case fact.
+Those identity facts travel through the shared Core-owned report contract;
+they do not select or create a separate physical report family.
 
 For Inspection + Audit, the Inspection report is produced on the Inspection
 Case and the Audit report on the linked Audit Case that Create audit makes
