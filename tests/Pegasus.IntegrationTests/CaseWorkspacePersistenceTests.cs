@@ -1,4 +1,6 @@
 using System.Data.Common;
+using System.Security.Cryptography;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -329,6 +331,251 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal("Old rear bumper scrape", result.Assessment.Field(AssessmentVocabulary.DamageUnrelated)?.Value);
         Assert.Equal("125.50", result.Assessment.Field(AssessmentVocabulary.DamageUnrelatedDeduction)?.Value);
         Assert.Equal("White paint transfer", result.Assessment.Field(AssessmentVocabulary.DamageMaterialTransfer)?.Value);
+    }
+
+    [Fact]
+    public async Task SavingUnchangedExtractedOverviewFactsAndANotePreservesReportFreshness()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var claimantFact = Assert.IsType<CaseDataValue<string>>(initial.Claimant.Name.Fact);
+        Assert.Null(initial.Claimant.Name.Confirmed);
+        var generationId = await SeedCurrentGenerationAsync(harness, initial.Version);
+        var lease = await harness.AcquireLeaseAsync(
+            initial.Version,
+            harness.StaffActor,
+            "unchanged-extracted-overview-lease");
+
+        var saved = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "unchanged-extracted-overview-save") with
+            {
+                Overview = Overview(claimantFact.Value) with
+                {
+                    ClientNotes = "Unchanged extracted facts reviewed; note added.",
+                },
+            },
+            CancellationToken.None);
+
+        Assert.Equal(initial.Claimant.Name.Fact, saved.Data.Claimant.Name.Fact);
+        Assert.Null(saved.Data.Claimant.Name.Confirmed);
+        Assert.Equal(
+            "Unchanged extracted facts reviewed; note added.",
+            saved.Data.Workspace!.ClientNotes);
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        Assert.Equal(
+            nameof(CaseReportGenerationState.Confirmed),
+            (await context.Set<CaseReportGenerationEntity>()
+                .SingleAsync(item => item.Id == generationId)).State);
+        Assert.Empty(await context.ActionHistory
+            .Where(item => item.AggregateId == harness.CaseId.ToString("D")
+                && item.EventKind == EfCaseReportGenerationStore.StaleEventKind)
+            .ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task ChangingOnlyTheEffectiveMileageSourceStalesTheCurrentGeneration()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var firstLease = await harness.AcquireLeaseAsync(
+            initial.Version,
+            harness.StaffActor,
+            "mileage-source-first-lease");
+        var withMileage = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, firstLease.Token, "mileage-source-first-save") with
+            {
+                Vehicle = new(
+                    null,
+                    null,
+                    null,
+                    new(72_850, CaseOdometerUnit.Miles, CaseVehicleMileageSourcePolicy.Owner, null),
+                    new Dictionary<string, string?>(StringComparer.Ordinal)),
+            },
+            CancellationToken.None);
+        var generationId = await SeedCurrentGenerationAsync(harness, withMileage.Version);
+
+        var sourceLease = await harness.AcquireLeaseAsync(
+            withMileage.Version,
+            harness.StaffActor,
+            "mileage-source-change-lease");
+        await harness.WorkspaceStore.SaveAsync(
+            Request(harness, withMileage.Version, sourceLease.Token, "mileage-source-change-save") with
+            {
+                Vehicle = new(
+                    null,
+                    null,
+                    null,
+                    new(72_850, CaseOdometerUnit.Miles, CaseVehicleMileageSourcePolicy.Repairer, null),
+                    new Dictionary<string, string?>(StringComparer.Ordinal)),
+            },
+            CancellationToken.None);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        Assert.Equal(
+            nameof(CaseReportGenerationState.Stale),
+            (await context.Set<CaseReportGenerationEntity>()
+                .SingleAsync(item => item.Id == generationId)).State);
+        Assert.Equal(
+            CaseReportStaleReasons.AssessmentFactsChanged,
+            (await context.Set<ActionHistoryEntity>()
+                .SingleAsync(item => item.AggregateId == harness.CaseId.ToString("D")
+                    && item.EventKind == "case_report_generation_stale"))
+                .Reason);
+    }
+
+    [Fact]
+    public async Task DirectAssessmentSaveStalesOnlyForAPrintedFactChange()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var generationId = await SeedCurrentGenerationAsync(harness, initial.Version);
+        var actor = Engineer(harness);
+        var assessmentStore = new EfCaseAssessmentStore(
+            harness.Factory,
+            harness.TimeProvider,
+            new EfRepairSpecificationStore(harness.Factory, harness.TimeProvider));
+        var noteLease = await harness.AcquireLeaseAsync(
+            initial.Version,
+            actor,
+            "direct-assessment-note-lease");
+
+        var noted = await assessmentStore.SaveAsync(
+            new(
+                harness.CaseId,
+                initial.Version,
+                actor,
+                "direct-assessment-note-save",
+                "Recorded an unprinted Engineer note.",
+                noteLease.Token,
+                new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.VehicleEngineerNotes] = "Check the trim on return.",
+                }),
+            CancellationToken.None);
+
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Confirmed,
+            expectedStaleEvents: 0);
+
+        var colourLease = await harness.AcquireLeaseAsync(
+            noted.CaseVersion,
+            actor,
+            "direct-assessment-colour-lease");
+        await assessmentStore.SaveAsync(
+            new(
+                harness.CaseId,
+                noted.CaseVersion,
+                actor,
+                "direct-assessment-colour-save",
+                "Corrected the printed vehicle colour.",
+                colourLease.Token,
+                new Dictionary<string, string?>(StringComparer.Ordinal)
+                {
+                    [AssessmentVocabulary.VehicleColour] = "Blue",
+                }),
+            CancellationToken.None);
+
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Stale,
+            expectedStaleEvents: 1,
+            expectedReason: CaseReportStaleReasons.AssessmentFactsChanged);
+    }
+
+    [Fact]
+    public async Task DirectCaseDataSaveStalesOnlyForAPrintedFactChange()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var initial = await harness.GetRequiredDataAsync();
+        var generationId = await SeedCurrentGenerationAsync(harness, initial.Version);
+        var current = await ReadEditableCaseDataAsync(harness);
+        var noteLease = await harness.AcquireLeaseAsync(
+            initial.Version,
+            harness.StaffActor,
+            "direct-case-data-note-lease");
+
+        var noted = await harness.DataStore.SaveAsync(
+            new(
+                harness.CaseId,
+                initial.Version,
+                harness.StaffActor,
+                "direct-case-data-note-save",
+                "Recorded an unprinted client note.",
+                noteLease.Token,
+                current with { ClientNotes = "Photos will follow." }),
+            CancellationToken.None);
+
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Confirmed,
+            expectedStaleEvents: 0);
+
+        var claimantLease = await harness.AcquireLeaseAsync(
+            noted.Version,
+            harness.StaffActor,
+            "direct-case-data-claimant-lease");
+        await harness.DataStore.SaveAsync(
+            new(
+                harness.CaseId,
+                noted.Version,
+                harness.StaffActor,
+                "direct-case-data-claimant-save",
+                "Corrected the printed claimant name.",
+                claimantLease.Token,
+                current with
+                {
+                    ClaimantName = "Janet Example",
+                    ClientNotes = "Photos will follow.",
+                }),
+            CancellationToken.None);
+
+        await AssertGenerationStateAsync(
+            harness,
+            generationId,
+            CaseReportGenerationState.Stale,
+            expectedStaleEvents: 1,
+            expectedReason: CaseReportStaleReasons.AssessmentFactsChanged);
+    }
+
+    [Fact]
+    public async Task SelectingTheEffectiveDefaultSignatoryThroughWorkspaceDoesNotStaleTheReport()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var signOffEngineerId = await SeedDefaultSignOffEngineerAsync(harness);
+        var initial = await harness.GetRequiredDataAsync();
+        var generationId = await SeedCurrentGenerationAsync(harness, initial.Version);
+        var lease = await harness.AcquireLeaseAsync(
+            initial.Version,
+            harness.StaffActor,
+            "workspace-effective-signatory-lease");
+
+        await harness.WorkspaceStore.SaveAsync(
+            Request(harness, initial.Version, lease.Token, "workspace-effective-signatory-save") with
+            {
+                Report = new(
+                    new Dictionary<string, string?>(StringComparer.Ordinal),
+                    signOffEngineerId,
+                    null),
+            },
+            CancellationToken.None);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        Assert.Equal(
+            signOffEngineerId,
+            (await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId))
+                .SignOffEngineerId);
+        Assert.Equal(
+            nameof(CaseReportGenerationState.Confirmed),
+            (await context.Set<CaseReportGenerationEntity>()
+                .SingleAsync(item => item.Id == generationId)).State);
+        Assert.Empty(await context.ActionHistory
+            .Where(item => item.AggregateId == harness.CaseId.ToString("D")
+                && item.EventKind == EfCaseReportGenerationStore.StaleEventKind)
+            .ToArrayAsync());
     }
 
     [Fact]
@@ -1024,6 +1271,89 @@ public sealed class CaseWorkspacePersistenceTests
                  {DateTimeOffset.UtcNow}, {"Accepted estimate"}, {20m}, {true},
                  {harness.StaffActor.SubjectId}, {DateTimeOffset.UtcNow})
             """);
+    }
+
+    private static async Task<Guid> SeedCurrentGenerationAsync(Harness harness, long caseVersion)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var generationId = Guid.NewGuid();
+        context.Set<CaseReportGenerationEntity>().Add(new()
+        {
+            Id = generationId,
+            CaseId = harness.CaseId,
+            CaseVersion = caseVersion,
+            SnapshotHash = new string('6', 64),
+            SnapshotJson = "{\"operationKey\":\"workspace-mileage-source-generation\"}",
+            TemplateVersion = "assessment-report/v1",
+            RendererVersion = "renderer/v1",
+            State = nameof(CaseReportGenerationState.Confirmed),
+            GeneratedAtUtc = harness.TimeProvider.GetUtcNow(),
+            Version = 1,
+        });
+        await context.SaveChangesAsync();
+        return generationId;
+    }
+
+    private static async Task<CaseEditableData> ReadEditableCaseDataAsync(Harness harness)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var snapshot = await EfCaseDataStore.SnapshotQuery(context, tracking: false)
+            .SingleAsync(item => item.CaseId == harness.CaseId);
+        return CaseDataFieldWriter.ReadEditable(snapshot);
+    }
+
+    private static async Task AssertGenerationStateAsync(
+        Harness harness,
+        Guid generationId,
+        CaseReportGenerationState expectedState,
+        int expectedStaleEvents,
+        string? expectedReason = null)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        Assert.Equal(
+            expectedState.ToString(),
+            (await context.Set<CaseReportGenerationEntity>()
+                .SingleAsync(item => item.Id == generationId)).State);
+        var staleEvents = await context.ActionHistory
+            .Where(item => item.AggregateId == harness.CaseId.ToString("D")
+                && item.EventKind == EfCaseReportGenerationStore.StaleEventKind)
+            .ToArrayAsync();
+        Assert.Equal(expectedStaleEvents, staleEvents.Length);
+        if (expectedReason is not null)
+        {
+            Assert.Equal(expectedReason, Assert.Single(staleEvents).Reason);
+        }
+    }
+
+    private static async Task<Guid> SeedDefaultSignOffEngineerAsync(Harness harness)
+    {
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var engineerRole = await context.Roles.SingleAsync(
+            role => role.NormalizedName == "ENGINEER");
+        var staffId = Guid.NewGuid();
+        var signature = new byte[] { 1, 2, 3, 4 };
+        context.Users.Add(new PegasusIdentityUser
+        {
+            Id = staffId,
+            UserName = $"workspace-signatory-{staffId:N}",
+            NormalizedUserName = $"WORKSPACE-SIGNATORY-{staffId:N}",
+            SecurityStamp = Guid.NewGuid().ToString(),
+            ConcurrencyStamp = Guid.NewGuid().ToString(),
+            IsEnabled = true,
+            IsSignOffEngineer = true,
+            IsDefaultSignOffEngineer = true,
+            SignOffPrintedName = "Workspace Signatory",
+            SignOffQualifications = "ATA VDA",
+            SignOffSignature = signature,
+            SignOffSignatureDigest = Convert.ToHexStringLower(SHA256.HashData(signature)),
+        });
+        context.UserRoles.Add(new IdentityUserRole<Guid>
+        {
+            UserId = staffId,
+            RoleId = engineerRole.Id,
+        });
+        await context.SaveChangesAsync();
+        return staffId;
     }
 
     private static async Task MarkTerminalAsync(Harness harness)
