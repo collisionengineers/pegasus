@@ -28,8 +28,7 @@ function Test-AllowedMarkdownPath {
     param([Parameter(Mandatory)][string] $Path)
 
     $normalized = $Path.Replace('\', '/') -replace '^\./', ''
-    # 1609sprint/ is a temporary, operator-requested sprint handover root (16 September 2026).
-    return $normalized -match '^((docs/(prd|frd|adr|design|engineering|external-component-documents|docs-review-temp|principal-profiles))|workspaces/document-extraction|\.agents/skills|\.design-sync|\.stitch|design/planning-and-old-designs|1609sprint)/.+\.md$'
+    return $normalized -match '^((docs/(prd|frd|adr|design|engineering|external-component-documents|principal-profiles))|workspaces/document-extraction|\.agents/skills|\.design-sync|\.stitch|design/planning-and-old-designs)/.+\.md$'
 }
 
 $resolvedRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
