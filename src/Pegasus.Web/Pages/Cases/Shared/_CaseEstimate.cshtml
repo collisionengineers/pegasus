@@ -691,8 +691,11 @@
 
 @if (canImport)
 {
+    var openOnLoad = Model.OpenDialog == "import-estimate"
+        ? Html.Raw(" data-dialog-open-on-load=\"true\"")
+        : Html.Raw(" hidden");
     <div id="import-estimate-dialog" class="dialog-backdrop" data-dialog="import-estimate-dialog"
-         hidden="@(Model.OpenDialog == "import-estimate" ? null : "hidden")">
+         @openOnLoad>
         <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="import-estimate-dialog-title">
             <div class="dialog-head">
                 <h2 id="import-estimate-dialog-title" tabindex="-1">@EngineerLabels.ImportEstimate</h2>
@@ -725,8 +728,11 @@
 
 @if (Model.Estimates.Count >= 2)
 {
+    var openOnLoad = Model.OpenDialog == "compare-estimates"
+        ? Html.Raw(" data-dialog-open-on-load=\"true\"")
+        : Html.Raw(" hidden");
     <div id="compare-estimates-dialog" class="dialog-backdrop" data-dialog="compare-estimates-dialog"
-         hidden="@(Model.OpenDialog == "compare-estimates" ? null : "hidden")">
+         @openOnLoad>
         <section class="dialog dialog--wide" role="dialog" aria-modal="true"
                  aria-labelledby="compare-estimates-dialog-title">
             <div class="dialog-head">
@@ -772,8 +778,11 @@
 
 @if (editable && estimate is { IsCurrent: false } discardable && !Model.EditingNewEstimate)
 {
+    var openOnLoad = Model.OpenDialog == "delete-estimate"
+        ? Html.Raw(" data-dialog-open-on-load=\"true\"")
+        : Html.Raw(" hidden");
     <div id="delete-estimate-dialog" class="dialog-backdrop" data-dialog="delete-estimate-dialog"
-         hidden="@(Model.OpenDialog == "delete-estimate" ? null : "hidden")">
+         @openOnLoad>
         <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="delete-estimate-dialog-title">
             <div class="dialog-head">
                 <h2 id="delete-estimate-dialog-title" tabindex="-1">@EstimateLabels.DiscardEstimate</h2>
@@ -804,8 +813,11 @@
 
 @if (editing && Model.SendToClaudeCondition is null)
 {
+    var openOnLoad = Model.OpenDialog == "send-to-claude"
+        ? Html.Raw(" data-dialog-open-on-load=\"true\"")
+        : Html.Raw(" hidden");
     <div id="send-to-ai-dialog" class="dialog-backdrop" data-dialog="send-to-ai-dialog"
-         hidden="@(Model.OpenDialog == "send-to-claude" ? null : "hidden")">
+         @openOnLoad>
         <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="send-to-ai-dialog-title">
             <div class="dialog-head">
                 <h2 id="send-to-ai-dialog-title" tabindex="-1">@EstimateLabels.SendToAi</h2>
