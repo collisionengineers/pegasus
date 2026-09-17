@@ -707,9 +707,11 @@
             var text = confirmation.querySelector('span');
             if (text) { window.pegasusToast(text.textContent.trim()); }
         }
-        var alert = document.querySelector('[data-case-notices] [role="alert"]');
-        if (alert && typeof window.pegasusToast === 'function') {
-            var alertText = alert.textContent.trim();
+        // Only a refusal the server rendered into the swapped-in notices;
+        // showActionError has already toasted its own [data-inplace-error].
+        var alertNotice = document.querySelector('[data-case-notices] [role="alert"]:not([data-inplace-error])');
+        if (alertNotice && typeof window.pegasusToast === 'function') {
+            var alertText = alertNotice.textContent.trim();
             if (alertText) { window.pegasusToast(alertText, 'danger'); }
         }
         document.dispatchEvent(new CustomEvent('pegasus:case-swapped'));
