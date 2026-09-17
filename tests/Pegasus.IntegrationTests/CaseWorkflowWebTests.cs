@@ -178,7 +178,7 @@ public sealed class CaseWorkflowWebTests
     }
 
     /// <summary>
-    /// EPIC-011 §1.8 and FRD-07: the EVA handoff is available in Review,
+    /// FRD-07: the EVA handoff is available in Review,
     /// Report Preparation and Post Report. Not Ready offers no EVA control and
     /// draws no disabled handoff.
     /// </summary>
@@ -218,7 +218,7 @@ public sealed class CaseWorkflowWebTests
         Assert.Equal(
             offersHandoff,
             html.Contains("data-dialog=\"eva-handoff-dialog\"", StringComparison.Ordinal));
-        // TICK-223: the trigger is a real link to the fallback page the
+        // The trigger is a real link to the fallback page the
         // dialog's own form posts to, so the handoff stays reachable without
         // JavaScript rather than being a dead button with no static target.
         Assert.Equal(
@@ -269,7 +269,7 @@ public sealed class CaseWorkflowWebTests
         // operator gets the principal's configured EVA route.
         var html = await IntakeWebDriver.GetHtmlAsync(client, $"/Cases/{store.CaseId:D}/Eva/Send");
 
-        // The page's own copy, as EPIC-011 restyled it: the handoff heading,
+        // The page's own copy, as the workspace redesign restyled it: the handoff heading,
         // the case it is for, and its configured route out.
         Assert.Contains("<h1>EVA handoff</h1>", html, StringComparison.Ordinal);
         Assert.Contains(

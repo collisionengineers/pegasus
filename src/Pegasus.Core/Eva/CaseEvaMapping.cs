@@ -74,8 +74,8 @@ public sealed record EvaOperatorExport(
     IReadOnlyList<string> UnrecordedFields);
 
 /// <summary>
-/// Maps one case into the fixed thirteen-field EVA shape. Since ENG-016 there
-/// is one mapping and one act: an operator export. A field the case does not
+/// Maps one case into the fixed thirteen-field EVA shape. Since the hand-off
+/// was folded into the export there is one mapping and one act: an operator export. A field the case does not
 /// hold is emitted empty and named, never refused.
 /// </summary>
 public static partial class CaseEvaMapping
@@ -90,7 +90,7 @@ public static partial class CaseEvaMapping
 
     /// <summary>
     /// What EVA is *sent* for the same thing — the original extractor's own
-    /// literal, hyphenated and lower-case `b` (ENG-015). Deliberately not the
+    /// literal, hyphenated and lower-case `b`. Deliberately not the
     /// same constant as <see cref="ImageBasedAssessment"/>: that one is a gate
     /// compared against stored case data, this one is an output value.
     /// </summary>
@@ -111,15 +111,15 @@ public static partial class CaseEvaMapping
     /// Named source for an inspection date the case did not carry, so the
     /// field's recorded provenance does not imply the instruction supplied it.
     /// Mirrors the existing "SystemDefault:Receipt date" treatment of an absent
-    /// instruction date. It reaches no shipped file: since ENG-014 the archive
+    /// instruction date. It reaches no shipped file: the archive
     /// carries the thirteen-key JSON and Images/ only, and provenance is an
     /// in-memory guard inside EvaBundleSchema.ValidateSource.
     /// </summary>
     public const string ExportDateSource = "SystemDefault:Export date";
 
     /// <summary>
-    /// Maps a case for the operator's export of it (CASE-019) — since ENG-016
-    /// the only mapping, because there is only one act.
+    /// Maps a case for the operator's export of it — since the
+    /// hand-off was folded into the export the only mapping, because there is only one act.
     ///
     /// It had a sibling, <c>MapForProduction</c>, which guarded EVA delivery
     /// and failed closed on anything short of accepted, provenanced evidence
@@ -278,7 +278,7 @@ public static partial class CaseEvaMapping
     /// This field is exempt from <see cref="NormalizeValue"/>'s <c>Trim()</c>
     /// on purpose — the trailing blank lines are the payload, not padding, and
     /// trimming them is what made the export differ from the known-good sample
-    /// by one line (ENG-015).
+    /// by one line.
     ///
     /// Commas separate lines just as newlines do, because the case stores the
     /// address as a single collapsed line. Body content beyond five lines

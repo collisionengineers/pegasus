@@ -14,7 +14,7 @@ public sealed record IntakeSubmissionGroup(
 {
     /// <summary>
     /// Whether this submission declared more than one member. Every manual
-    /// upload is a submission group (INTK-005), but the grouped image
+    /// upload is a submission group, but the grouped image
     /// decision table scopes itself to "a manual upload [that] contains more
     /// than one image" — a one-member group is a lone image governed by the
     /// single-image rules, and this property is the one owner of that

@@ -751,7 +751,7 @@ public static class CaseWorkspaceLabels
         public const string SendCancelled = "The send was cancelled.";
         /// <summary>
         /// One consequence sentence, no retry advice: an Unknown outcome must
-        /// never be blindly repeated (ENG-024), so the copy cannot invite a
+        /// never be blindly repeated, so the copy cannot invite a
         /// retry.
         /// </summary>
         public const string SendUnknown = "The send result is not yet known.";
@@ -789,7 +789,7 @@ public static class CaseWorkspaceLabels
 
         /// <summary>
         /// An uncertain provider outcome states what is known and invites no
-        /// retry, the same rule the report send follows (ENG-024).
+        /// retry, the same rule the report send follows.
         /// </summary>
         public const string OutcomeUnknown = "The Glass's session result is not yet known.";
 

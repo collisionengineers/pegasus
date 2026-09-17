@@ -248,7 +248,7 @@ function Get-MigrationPermissionMatrix {
     }
     # 20260819180000_GrantEvaHandoffDownloadOperations granted the Web role
     # SELECT/INSERT on EvaHandoffDownloadOperations, closing a live production
-    # gap. ENG-016 then dropped that table together with EvaHandoffOperations
+    # gap. The hand-off's removal then dropped that table together with EvaHandoffOperations
     # and EvaHandoffRevisions, and SQL Server drops a table's permission rows
     # with the table -- so the matrix expects nothing for it. The migration is
     # still named here because it remains in the folder and still carries a
@@ -267,7 +267,7 @@ function Get-MigrationPermissionMatrix {
     # and appends its retained decision history without deleting either.
     $expected.Add('pegasus_web_runtime_role|G|UPDATE|IntakeSubmissionGroups')
     $expected.Add('pegasus_web_runtime_role|G|INSERT|IntakeSubmissionGroupHistory')
-    # 20260819234014_GrantWorkerIntakeSubmissionGroupRead (INTK-011): the
+    # 20260819234014_GrantWorkerIntakeSubmissionGroupRead: the
     # original GroupedIntakeSubmission comment above claimed "the Worker never
     # references either table" -- that was wrong. ImageIntakeAutomation
     # .TryApplyGroupAsync, invoked from the Worker's ProcessQueuedIntake
@@ -316,17 +316,17 @@ function Get-MigrationPermissionMatrix {
     $expected.Add('pegasus_web_runtime_role|D|DELETE|RetainedMailFolderMoves')
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|RetainedMailFolderMoves')
     # 20260821095500_GrantWorkerVehicleLookupRequests: the Worker's
-    # automatic vehicle-lookup sweep (CASE-008) inserts the request row;
+    # automatic vehicle-lookup sweep inserts the request row;
     # the reconciliation baseline held only SELECT. DELETE stays denied
     # via the baseline matrix.
     $expected.Add('pegasus_worker_runtime_role|G|INSERT|VehicleLookupRequests')
     # 20260821100623_GrantImageIntakeLifecycleUpdates: both runtime roles
-    # update ImageIntakes lifecycle state (PLAT-020); DELETE stays denied
+    # update ImageIntakes lifecycle state; DELETE stays denied
     # via the baseline matrix.
     $expected.Add('pegasus_web_runtime_role|G|UPDATE|ImageIntakes')
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|ImageIntakes')
-    # 20260822044425_GrantWorkerCaseDocuments: DOCS-007 moved case-document
-    # registration into the Worker's custody processor, and the reconciliation
+    # 20260822044425_GrantWorkerCaseDocuments: case-document registration
+    # moved into the Worker's custody processor, and the reconciliation
     # baseline granted these three tables to Web only, so every deployed case
     # was refused the record write after its evidence reached Box. UPDATE is
     # needed only on DocumentVersions, where a superseded version is cleared.
@@ -359,7 +359,7 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("$role|G|$permission|EvaSubmissions")
         }
     }
-    # 20260828084644_GrantAiJobs: AUTO-011 added the pull-based AI job ledger
+    # 20260828084644_GrantAiJobs: the pull-based AI job ledger arrived
     # (ADR-0035). Only Web touches it — staff create, cancel and confirm from
     # the application and external AI clients claim and finish jobs through
     # the /mcp ingress that Web hosts; the Worker runs no AI timer. Rows are
@@ -369,8 +369,8 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|AiJobs")
     }
-    # 20260828104139_GrantPrincipalApiCredentials: TICK-061 added one Provider
-    # API credential per Principal (API-04). Only Web touches it —
+    # 20260828104139_GrantPrincipalApiCredentials: one Provider API credential
+    # per Principal (API-04). Only Web touches it —
     # Administrators issue, reset, pause, resume and revoke from the
     # application and the Provider API verifies a presented secret in the
     # same process; the Worker never authenticates a provider. A row is
@@ -380,8 +380,8 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|PrincipalApiCredentials")
     }
-    # 20260828111732_GrantProviderSubmissions: TICK-058 added the Provider API
-    # submission record (API-01). Web hosts the API: it inserts one row per
+    # 20260828111732_GrantProviderSubmissions: the Provider API submission
+    # record (API-01). Web hosts the API: it inserts one row per
     # accepted submission and reads rows back for idempotent replay and the
     # provider's own result lookup. The Worker processes the staged files and
     # reads the row to bind each one to the Principal whose credential
@@ -394,8 +394,8 @@ function Get-MigrationPermissionMatrix {
         $expected.Add("pegasus_web_runtime_role|G|$permission|ProviderSubmissions")
     }
     $expected.Add('pegasus_worker_runtime_role|G|SELECT|ProviderSubmissions')
-    # 20260829212237_GrantProviderSubmissionAcceptRecovery: AUTO-012 made the
-    # accept path recoverable. Web writes the four accept records in four
+    # 20260829212237_GrantProviderSubmissionAcceptRecovery: the accept path
+    # was made recoverable. Web writes the four accept records in four
     # separate transactions, so a process loss between them used to leave a
     # submission whose staged receipt id was never written back — the result
     # lookup then answered Received forever, and the Accepted history row was

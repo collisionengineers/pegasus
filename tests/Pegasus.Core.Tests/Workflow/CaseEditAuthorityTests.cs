@@ -129,7 +129,7 @@ public sealed class CaseEditAuthorityTests
     }
 
     /// <summary>
-    /// KANMER-005: a holder is an actor identity, kind and subject together. The Automation
+    /// A holder is an actor identity, kind and subject together. The Automation
     /// Actor presenting the live token under the same subject text as the staff holder is a
     /// competitor, and so is a staff account under an Automation holder's subject.
     /// </summary>
@@ -252,7 +252,7 @@ public sealed class CaseEditAuthorityTests
 
     /// <summary>
     /// ADR-0011 keeps the Automation Actor attributable without impersonating staff, so the two
-    /// unresolvable cases must stay apart. KANMER-005: the retained kind decides, never the shape
+    /// unresolvable cases must stay apart. The retained kind decides, never the shape
     /// of the subject — a GUID-shaped Automation subject is still the Automation Actor, and a
     /// staff GUID with no account behind it is still a member of staff.
     /// </summary>

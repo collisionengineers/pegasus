@@ -1,196 +1,289 @@
 # FRD-04: Parties, accounts, and access
-> Owner capabilities: ACC (staff roles/access, permanent action history) · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
-## Parties, principals, organisations, accounts, and access
+> Owner capabilities: ACC-01 to ACC-15, API-04 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
-A Principal is the policy-bearing role for a customer that instructs and pays
-Collision Engineers. One reusable Organisation identity may also be a Claim
-Source, Repairer, Storage provider or Third Party Engineer. Staff accounts are
-separate from Contacts. A Principal never links to another Principal; each
-non-Principal contact role may link to several Principals. These directory
-links do not rewrite historical Case party snapshots.
+## Short version
+
+- Contacts are external organisations. One organisation can be a Principal,
+  Claim Source, Repairer, Storage provider or Third Party Engineer. Staff
+  accounts are separate.
+- Each Case keeps its own copy of the parties it was accepted with. Editing
+  the Contacts directory later never changes that copy.
+- Every staff account has exactly one role: Administrator, Engineer or User.
+  Administrator can do everything, including Engineer work.
+- Administrators manage accounts from one Settings dialog. No account action
+  asks for confirmation or a reason.
+- Every change is written to permanent action history with who, when and
+  the before and after values.
+
+## Purpose
+
+This document says who the parties on a Case are, how the Contacts
+directory works, what each staff role may do, how staff accounts are managed,
+and what goes into permanent history. Case identity is in
+[FRD-01](frd-01-case-identity-and-lifecycle.md). Edit leases are in
+[FRD-14](frd-14-record-edit-leases.md). The Administration screens are in
+[FRD-17](frd-17-administration-workspace.md#administration).
+
+## Behaviour
+
+### Parties, principals, organisations, accounts, and access
+
+A Principal is the customer role that instructs and pays Collision
+Engineers. One reusable Organisation can also be a Claim Source, Repairer,
+Storage provider or Third Party Engineer. A Principal never links to another
+Principal. Each non-Principal contact role may link to several Principals.
+Staff accounts are not Contacts.
+
 A repairer, broker, agent, client, legal representative, provider, vehicle
-keeper, or other contact may occupy different roles on different cases.
-Reusable repairer-directory identity is separate from the inspection address
-and role snapshot retained by each historical case; raw provider/contact
-workbooks are evidence, not import authority.
+keeper or other contact may play different roles on different Cases. The
+reusable directory record is separate from the inspection address and party
+roles each Case keeps. Raw provider or contact workbooks are evidence, not
+import authority.
 
-A Repairer directory records its name, full address, and contacts. A Repairer
-may relate to multiple Principals, and a Principal may relate to multiple
-Repairers; these reusable relationships do not rewrite the accepted address or
-party-role snapshot on an existing Case.
+The Repairer directory records each repairer's name, full address and
+contacts. A Repairer may relate to several Principals and a Principal to
+several Repairers. These directory links never rewrite the address or
+party-role copy an existing Case already holds.
 
-A Case records its own repairer: the repairer name and address the instruction
-stated, held as ordinary Case facts with their extraction provenance. Staff
-either confirm that text or link the Case to an active Repairer-role Contacts
-organisation, which copies that record's identity, version, name and address
-onto the Case, so a later directory edit never rewrites the Case. The confirmed
-repairer address is one of the Inspect-at options beside the claimant address,
-the storage location and the Principal's own default, and the option names the
-repairer it came from.
+A Case records its own repairer: the name and address the instruction gave,
+kept as ordinary Case facts with their extraction provenance. Staff either
+confirm that text or link the Case to an active Repairer-role Contact. Linking
+copies that Contact's identity, version, name and address onto the Case, so
+a later directory edit never changes the Case. The confirmed repairer address
+is one of the Inspect-at options beside the claimant address, the storage
+location and the Principal's own default. The option names the repairer it
+came from.
 
 ### Staff role access matrix
 
-Staff accounts use Pegasus-managed usernames and passwords with
-non-reversible password hashes until a separately accepted identity change
-supersedes that route. Each account has exactly one current staff role.
+Staff sign in with Pegasus-managed usernames and passwords. Passwords are
+stored as non-reversible hashes. This stays the sign-in route until a
+separately accepted identity change replaces it. Each account has exactly one
+current role.
 
-Administrator has every application-role permission, including every Engineer
-capability. One Administrator role is sufficient for engineering work, Case
-assignment and sign-off eligibility; adding an Engineer role is neither required
-nor permitted. Enabled-account, signature and workflow prerequisites still apply
-to the corresponding action.
+Administrator holds every permission, including every Engineer capability.
+One Administrator role is enough for engineering work, Case assignment and
+sign-off eligibility. Adding an Engineer role to an Administrator is neither
+needed nor allowed. The account must still be enabled and meet any signature
+or workflow prerequisite for the action.
 
 | Staff role | May view | May create or change | Must not access or perform |
 | --- | --- | --- | --- |
-| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action; staff account creation/disable/delete access/force logout/role assignment/password reset (D15); the Sign-off Engineer account setting (D31); principals and successor cutover, including a Principal’s Provider API credential lifecycle; workflow configuration, including labour-rate-card administration (D17); approved-mailbox allowlist; accepted OAuth-client registration/revocation | Pegasus’s own credential-secret, cloud, or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
-| `Engineer` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud/release administration, or permanent deletion |
-| `User` | Cases, inbox items, documents, evidence, and details | Every authorised Intake, Triage, Case, document, evidence, task, transition, and pre-assignment review action | Accounts, roles, principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud/release administration, or permanent deletion |
+| `Administrator` | All authorised application data and settings | Every ordinary Intake, Triage, Case, document, evidence, task and transition action; staff account create, disable, delete access, force logout, role assignment and password reset; the Sign-off Engineer account setting; Principals and successor cutover, including a Principal's Provider API credential lifecycle; workflow configuration, including labour-rate cards; the approved-mailbox allowlist; OAuth-client registration and revocation | Pegasus's own credential-secret, cloud or release administration through the staff UI; permanent deletion; a generic mailbox-rule editor before its policy is accepted |
+| `Engineer` | Cases, inbox items, documents, evidence and details | Every authorised Intake, Triage, Case, document, evidence, task and transition action | Accounts, roles, Principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud or release administration, permanent deletion |
+| `User` | Cases, inbox items, documents, evidence and details | Every authorised Intake, Triage, Case, document, evidence, task and transition action | Accounts, roles, Principals, successor cutover, workflow configuration, mailbox allowlist, authentication-client administration, credentials, cloud or release administration, permanent deletion |
 
-Andrew and Alex are the initial `Administrator` assignments held in application data/configuration. No person, name, email address, or bypass is hard-coded into authorization. Automated processing uses a distinct durable machine identity and only named Core actions; it is not a staff account or an independent policy owner.
+Andrew and Alex are the initial Administrators. That assignment is
+application data. No person, name, email address or bypass is built into
+authorisation. Automated processing uses its own durable machine identity and
+only named Core actions. It is not a staff account and sets no policy of its
+own.
 
-Authorization is enforced in Core use cases and at every caller boundary. It fails closed without revealing case or source data. Immutable principal/reference, source, association, history, and Case edit-authority rules apply regardless of administrative privilege. Development routes and data never confer production access.
+Core use cases and every caller boundary enforce authorisation. A refusal
+reveals no Case or source data. The rules on immutable Principal and
+reference, sources, associations, history and Case edit authority apply to
+Administrators too. Development routes and data never give production
+access.
 
 ### Contacts administration
 
-**Contacts** lists every external organisation with type, name, contact
-person, email, phone, last Case and state filters/sorting. A contact has
-organisation name, contact person, email, phone, address and active state.
-Phone accepts digits, spaces and an optional leading `+` only (UK numbers are
-written with a leading `0` and internal spaces); letters and other characters
-are rejected on both the field and the server.
-**Add contact** first selects Principal, Claim
-Source, Repairer, Storage or Third Party Engineer, then creates that role on a
-new identity or adds it to an operator-selected existing identity. Matching
-names are suggestions only; Pegasus never merges records automatically.
+**Contacts** lists every external organisation with its type, name, contact
+person, email, phone, last Case, and state filters and sorting. A contact has
+an organisation name, contact person, email, phone, address and active
+state. Phone accepts digits, spaces and one optional leading `+` only. UK
+numbers are written with a leading `0` and internal spaces. Letters and other
+characters are rejected in the field and on the server.
 
-Principal policy remains on the Principal role of its Contact. A Principal code
-is created atomically with that role and stays with the same Contact through a
-code replacement following the
-[principal-code replacement rule](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity).
-Duplicate organisation names and Principal codes fail without leaving an orphan
-identity. Visuals and controls are owned by the [design README](frd-12-operator-experience.md).
+**Add contact** first asks for the role: Principal, Claim Source, Repairer,
+Storage or Third Party Engineer. It then creates that role on a new identity
+or adds it to an existing identity the operator picks. Matching names are
+suggestions only. Pegasus never merges records by itself.
+
+Principal policy lives on the Principal role of its Contact. A Principal code
+is created in the same transaction as that role and stays with the same
+Contact through a code replacement
+([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
+A duplicate organisation name or Principal code fails without leaving an
+orphan identity. The screen's visuals and controls are owned by the
+[design README](../design/README.md); its layout is in
+[FRD-17](frd-17-administration-workspace.md#contacts).
 
 The Principal section of a Contact carries:
 
-- the accepted route e-mail domains, read-only when activated — they are read
-  from the provider route policy in
+- the accepted route email domains, read-only once activated, read from the
+  provider route policy in
   [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-and-intermediary-routes);
-- the existing default inspection location: Image Based Assessment or a
-  physical address, saved on the click;
-- the report-generation policy and recipient suggestions: Pegasus, EVA ZIP,
-  manual EVA API, or automatic EVA API on Review; configured additional
-  recipients and the optional original instruction sender are the only
-  delivery suggestions. Claim Source is never implicitly copied. The policy
-  is owned by [FRD-07](frd-07-eva-and-external-engineering-handoff.md) and
-  [ADR-0048](../adr/0048-principal-report-generation-policies.md);
-- the Provider API credential (API-04): issue, reset, revoke, pause, and
-  resume, each acting on the click and entering permanent history with an
-  optional reason. The secret is shown once at issue or reset and
-  never again, including after an exact request replay. Its response is
-  non-cacheable and the secret is never put in TempData, URLs or history;
-  only its hash is retained. The credential is delivered with the
-  submission endpoint it authenticates
+- the default inspection location, Image Based Assessment or a physical
+  address, saved on the click;
+- the report-generation policy and its delivery suggestions, owned by
+  [FRD-07](frd-07-eva-and-external-engineering-handoff.md#eva-handoff-routes)
+  and [ADR-0048](../adr/0048-principal-report-generation-policies.md).
+  Configured additional recipients and the optional original instruction
+  sender are the only delivery suggestions. The Claim Source is never copied
+  in by default;
+- the Provider API credential (API-04): issue, reset, revoke, pause and
+  resume. Each acts on the click and goes into permanent history with an
+  optional reason. The secret is shown once, at issue or reset, and never
+  again, even on an exact replay. The response is non-cacheable. The secret
+  is never put in TempData, URLs or history; only its hash is kept. The
+  credential is handed over with the submission endpoint it authenticates
   ([FRD-09 API-01](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary))
-  and confers no staff access. A reset of a paused credential returns it to
-  active; a revoked credential may be reissued, which starts a new secret and
+  and gives no staff access. Resetting a paused credential makes it active
+  again. A revoked credential can be reissued, which starts a new secret and
   clears the revocation.
 
 A Principal and a Claim Source contact each carry **Notes on every Case**:
 free text stored once on the organisation. The Case record's Overview shows
 the Principal notes and the Claim source notes read-only in its Notes band,
-absent when the record has none, beside that Case's own editable notes. The
-Claim source is chosen on the Case from the active Claim Source contacts, or
-none; the Case keeps a snapshot of the chosen name and contact, its notes
-follow the chosen record, and a changed choice must still be an active Claim
-Source when the Case is saved. Notes are not added to Repairer, Storage or Third
-Party Engineer contacts.
+beside that Case's own editable notes, and shows nothing when the record has
+none. The Claim source is chosen on the Case from the active Claim Source
+contacts, or none. The Case keeps a copy of the chosen name and contact, its
+notes follow the chosen record, and a changed choice must still be an active
+Claim Source when the Case is saved. Repairer, Storage and Third Party
+Engineer contacts have no notes.
 
 Every change is a permanent action-history event with actor, time, operation
-identity, and before/after values. Routine settings changes do not require a
-generic reason; retain one only where the action's policy requires it.
+identity and before and after values. Routine settings changes need no
+reason. A reason is kept only where the action's rule requires one.
 
 ### Staff accounts
 
-The staff accounts table lists Name, Username, Role, and State in compact
-rows. Each row opens a Settings dialog for its one role and account actions;
-Create opens its own dialog (9 September 2026 operator-selected UI correction).
-A settings change preserves entered values and visible validation inside
-Settings when refused. Saving Settings posts on the click and records the
-`staff_account_settings_updated` history event; no Administration action opens
-a confirmation dialog or asks for a reason (11 September 2026 operator
-decision), and `Reason` is optional on every staff-account command in Core.
-Account actions are Create, Enable, Disable, Delete access, Force logout and
-Reset password, each acting on its click from the Settings dialog;
-Disable/Enable and Delete are visually separated as adverse actions from Force
-logout and Reset password. Periodic reviews, review dates and review actions
-are removed by the 6 September 2026 operator decision. An account cannot
-disable or delete itself, and concurrent actions cannot remove the last
-enabled Administrator.
+The staff accounts table lists Name, Username, Role and State in compact
+rows. Each row opens a Settings dialog for its one role and its account
+actions. Create opens its own dialog. If a settings change is refused, the
+entered values and the validation message stay visible inside Settings.
+Saving Settings posts on the click and records the
+`staff_account_settings_updated` history event. No Administration action
+opens a confirmation dialog or asks for a reason, and `Reason` is optional on
+every staff-account command in Core.
 
-**Reset password** is an Administrator-only account action on the same table
-(D15, 2026-09-06). It generates and reveals a temporary password once on the
-redisplayed page, visible to the Administrator so it can be
-conveyed to the user. Accounts are not email-bound; it is not automatically
-emailed. The existing password policy and
-non-reversible hash remain the password owner. The existing
-forced-change state is set, so the account must choose a new password at its
-next sign-in. The reset is a permanent action-history event with actor, time and
-reason. The temporary secret is never emailed, logged, persisted in raw form or
-placed in analytics, and no reset email is sent.
+The account actions are Create, Enable, Disable, Delete access, Force logout
+and Reset password. Each acts on its click from the Settings dialog.
+Disable, Enable and Delete are shown apart from Force logout and Reset
+password as adverse actions. There are no periodic reviews, review dates or
+review actions. An account cannot disable or delete itself. Concurrent
+actions cannot remove the last enabled Administrator.
 
-Disable, role change, reset and Force logout revoke existing sessions and
-tokens; the next request must observe current staff authority. Delete removes
-active access, role and credential material while retaining the minimal actor
-identity needed by immutable business history and printed reports. It never
-deletes a Case. Disable and Delete act immediately from the selected account's
-Settings dialog, with no confirmation step. Force logout clears the account's non-Case edit scopes with its
-session revocation, so an old token cannot later mutate Triage, Image Intake
-or an administration record. Case edit authority retains its existing
-Case-workflow owner and targeted clearance rules.
+**Reset password** is Administrator-only. It generates a temporary password
+and shows it once on the redisplayed page, so the Administrator can pass it
+on. Accounts are not tied to email addresses, so nothing is emailed. The
+existing password policy and hash stay in charge of passwords. The account is
+put into forced-change state, so it must choose a new password at its next
+sign-in. The reset is a permanent history event with actor, time and reason.
+The temporary secret is never emailed, logged, stored in raw form or sent to
+analytics.
+
+Disable, a role change, a reset and Force logout revoke the account's
+sessions and tokens. The next request sees the current authority. Delete
+removes active access, the role and credential material, but keeps the
+minimal actor identity that business history and printed reports need. It
+never deletes a Case. Disable and Delete act at once from the Settings
+dialog, with no confirmation. Force logout also clears the account's record
+edit scopes ([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)), so
+an old token cannot later change a Triage item, a Vehicle images record or
+an administration record. The Case edit lease is handled by the Case
+workflow ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)).
 
 Glass's credentials are protected per Engineer, provider and generation.
-Administration shows configured/enabled/username/updated state and offers
-replace/clear; it never reveals the stored password. Replacement or deletion
-invalidates old sessions. Disabled or deleted staff cannot launch or resume.
+Administration shows whether one is configured and enabled, its username and
+when it was updated, and offers replace and clear. It never shows the stored
+password. Replacing or deleting a credential invalidates old sessions.
+Disabled or deleted staff cannot start or resume a Glass's session.
 
-**Sign-off Engineer** is an Administrator-only account setting (D31,
-2026-09-02): a flag, the account's qualifications and a signature image. Only
-flagged accounts are offered as a Case's Sign-off Engineer
-([FRD-01](frd-01-case-identity-and-lifecycle.md#sign-off-engineer)), and
-reports render the flagged account's tuple
+**Sign-off Engineer** is an Administrator-only account setting: a flag, the
+account's qualifications and a signature image. An Administrator also marks
+one flagged account as the default Sign-off Engineer. Only flagged accounts
+are offered on a Case; which one a Case gets by default is defined in
+[FRD-13](frd-13-case-lifecycle-and-workflow.md#sign-off-engineer). Reports
+render the flagged account's name, qualifications and signature
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#initial-renderer-activation)).
-Every change to the flag, qualifications or signature image is a permanent
-action-history event read in Action logs. The initial Sign-off Engineer
-accounts are A Patterson, N O'Reilly and E Mawdsley (Andy, Neil, Ed). Andy is
-the default; Neil's qualifications are recorded later by an Administrator,
-and until then his reports print the name without a qualification line. The
-flags and qualifications are application data, never hard-coded.
+Every change to the flag, qualifications or signature is a permanent history
+event shown in Action logs. The initial flagged accounts are A Patterson,
+N O'Reilly and E Mawdsley. An account whose qualifications have not been
+recorded yet prints its name without a qualification line. Flags,
+qualifications and the default are application data, never hard-coded.
 
 ### Permanent action history
 
-Permanent business history records every business mutation; download/export; material denial or failure; automated result; and accepted, linked, or used external fact with the exact affected Case when case-bound, source/evidence identity, trusted staff or automated actor, caller, time, policy/version, structured before/after values, outcome, and reason where applicable. A history write is part of the mutable business transaction; a failed write cannot leave an unrecorded successful mutation. History is append-only: correction and reassociation add events rather than rewrite prior facts.
+Permanent business history records every business change, every download or
+export, every material refusal or failure, every automated result, and every
+external fact that was accepted, linked or used. Each event records the
+exact Case when there is one, the source or evidence identity, the staff or
+automated actor, the caller, the time, the policy and version, structured
+before and after values, the outcome, and a reason where one applies. The
+history write is part of the same transaction as the change, so a change can
+never succeed unrecorded. History is append-only: a correction or
+reassociation adds an event and never rewrites an earlier one.
 
-Sign-ins and authentication failures remain in the security log. Routine views, searches, refreshes, polling, retries, lease renewal/expiry/heartbeat, and adapter mechanics remain content-safe telemetry.
+Sign-ins and authentication failures go to the security log. Routine views,
+searches, refreshes, polling, retries, lease renewal, expiry, heartbeats and
+adapter mechanics stay as content-safe telemetry.
 
-**Action logs** (Administration › Logs) is the one administration view over permanent action
-history and the security log. It is filtered by search text, Area, Actor,
-Result, From, and To, sorted newest first with a sort toggle, and shows Time,
-Actor, Area, Action, Reference, and Result per row. Account access changes, role
-changes, Principal settings and credential changes, and automation activity
-are read here; there is no separate periodic review or Automation Activity
-page.
+**Action logs** (Administration › Logs) is the one administration view over
+permanent history and the security log. It filters by search text, Area,
+Actor, Result, From and To. It sorts newest first with a toggle, and shows
+Time, Actor, Area, Action, Reference and Result per row. Account access and
+role changes, Principal settings and credential changes, and automation
+activity are all read here. There is no separate periodic review or
+Automation Activity page.
 
-No identity design, app registration, scope declaration, role table, file, or registration proves that a live caller exists or is accepted.
+No identity design, app registration, scope declaration, role table, file or
+registration proves that a live caller exists or is accepted.
 
-## Case-party provenance
+### Case-party provenance
 
-A Principal instructs and pays; an Intermediary routes work without becoming
-Principal. A Repairer may hold the vehicle and supply evidence. Image Source
-names the actual supplier, which may be any of these or an individual. One
-organization may perform several functions on a Case. Sender identity alone
-does not settle Principal. Later directory corrections must not rewrite the
-Case’s accepted party identities, functions or inspection address.
+A Principal instructs and pays. An Intermediary routes work without becoming
+the Principal. A Repairer may hold the vehicle and supply evidence. The Image
+Source is whoever actually supplied the images; that may be any of these or
+an individual. One organisation may do several of these on one Case. The
+sender's identity alone never settles who the Principal is. Later directory
+corrections never rewrite a Case's accepted party identities, roles or
+inspection address.
 
 Initial Administrator assignments are application data, never hard-coded
-authorization. External customers have no staff application account.
+authorisation. External customers have no staff account.
+
+## States and transitions
+
+| Record | States | How they change |
+| --- | --- | --- |
+| Contact | Active, inactive | Administrator edits under a record edit scope |
+| Staff account | Enabled, disabled, deleted access; forced password change | Create, Enable, Disable, Delete access, Reset password |
+| Provider API credential | Active, paused, revoked | Issue, reset, revoke, pause, resume |
+| Sign-off Engineer flag | Set or not; one account marked default | Administrator account setting |
+
+## Edge cases and fail-closed behaviour
+
+- A duplicate organisation name or Principal code is refused and leaves no
+  orphan record.
+- A phone number with letters or other characters is refused in the field
+  and on the server.
+- An account cannot disable or delete itself, and the last enabled
+  Administrator cannot be removed.
+- A revoked session's token is refused on its next request.
+- The Provider API secret is shown once; a replay shows nothing.
+- A refusal never reveals Case or source data.
+
+## Acceptance evidence
+
+Core tests cover the role matrix, account commands, the credential lifecycle
+and the history write inside each transaction. Integration tests cover the
+Contacts and Staff accounts screens over real HTTP. Deployment and live
+acceptance are separate evidence tiers
+([engineering](../engineering.md#required-evidence-tiers)).
+
+## Links
+
+- Capabilities: `ACC-01`–`ACC-15`, `API-04` in
+  [capabilities](../capabilities.md).
+- Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
+  [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
+  [FRD-09](frd-09-provider-and-intermediary-routes.md),
+  [FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md),
+  [FRD-13](frd-13-case-lifecycle-and-workflow.md),
+  [FRD-14](frd-14-record-edit-leases.md),
+  [FRD-17](frd-17-administration-workspace.md).
+- Technical constraints:
+  [ADR-0004](../adr/0004-provider-api-and-staff-mcp-authentication.md),
+  [ADR-0048](../adr/0048-principal-report-generation-policies.md).

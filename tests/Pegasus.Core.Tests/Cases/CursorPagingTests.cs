@@ -6,7 +6,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Tests.Cases;
 
 /// <summary>
-/// CASE-047: the Case cursor use cases (<see cref="SearchCasesByCursor"/>,
+/// The Case cursor use cases (<see cref="SearchCasesByCursor"/>,
 /// <see cref="ListCaseDocumentsByCursor"/>) bound to the shared G9 <see
 /// cref="ICursorProtector"/> primitive instead of an internal codec — a
 /// cursor minted for one actor, filter set, order, or case is refused
@@ -112,7 +112,7 @@ public sealed class CursorPagingTests
     }
 
     /// <summary>
-    /// CASE-047, Stream A MCP review: the document list's page unit is the
+    /// Stream A MCP review: the document list's page unit is the
     /// occurrence, so the cursor position is minted against the last row's
     /// own occurrence identity — never against a document aggregate — and a
     /// host flattening items one-for-one cannot lose occurrences of a

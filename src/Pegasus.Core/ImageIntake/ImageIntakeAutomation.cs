@@ -17,7 +17,7 @@ namespace Pegasus.Core.ImageIntake;
 /// registration attempt lost a transient concurrency race. Always false for
 /// the non-group path and for a group that resolved to a legitimate terminal
 /// outcome (no usable or ambiguous VRM, technical failure), which are
-/// unchanged INTK-007 scope. What the caller does with a pending outcome is
+/// unchanged Unidentified scope. What the caller does with a pending outcome is
 /// owned by <c>ProcessQueuedIntake.ApplyImageIntakeAutomationAsync</c>.
 /// </param>
 public sealed record ImageIntakeAutomationOutcome(
@@ -198,7 +198,7 @@ public sealed class ImageIntakeAutomation(
         }
         if (group is null || !group.HasSiblingMembers)
         {
-            // Every manual upload is a submission group (INTK-005), but this
+            // Every manual upload is a submission group, but this
             // decision table scopes itself to a submission with more than
             // one member: a one-member group is a lone image and stays on
             // the single-image path below, whose exact-match candidate rule
@@ -320,12 +320,12 @@ public sealed class ImageIntakeAutomation(
             // No accepted VRM is available for ImageIntake registration. This
             // is a legitimate, resolved group outcome (not retriable): keep
             // the intact group available for Unidentified, including the
-            // explicit conflicting_vrms outcome (INTK-007 scope, unchanged).
+            // explicit conflicting_vrms outcome (Unidentified scope, unchanged).
             return new(receipt, UnidentifiedGroup:
                 ImageIntakeGroupRoutingPolicy.BuildUnidentifiedRegistrationRequest(group, routing.ReasonCode));
         }
 
-        // The group is the registration unit (INTK-015): exactly one
+        // The group is the registration unit: exactly one
         // ImageIntake exists per submission group, registered once under a
         // group-scoped operation key, with every image-only member's receipt
         // moved to the registered decision against that one reference. A

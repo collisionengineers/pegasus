@@ -81,7 +81,7 @@ the classification decision is written to the receipt as the accepted
 Triage-match evidence, carrying this policy's key and version. A known vehicle
 registration then opens the Triage; no known registration registers the material
 as Unidentified instead. There is no separate triage matcher — that abstraction
-had only a null implementation and was retired (INTK-033); one owner answers the
+had only a null implementation and was retired; one owner answers the
 question, and it is this policy.
 
 Display labels for the taxonomy (family · subtype) are owned by
@@ -197,7 +197,7 @@ QDOS grammar (policy):
   value as a UK registration; the vehicle-description rule is held off that
   label, which it used to read as the description `Registration : VO75DFJ`. The
   Triage subject template states its registration nowhere else, so without this
-  rule every one of those requests fell to Unidentified (INTK-033).
+  rule every one of those requests fell to Unidentified.
 
 Corpus tests: `tests/Pegasus.IntegrationTests/QdosMappingExtractionTests.cs`
 (per-file expectation table over the real local corpus, skip-if-absent —

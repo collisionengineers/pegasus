@@ -10,7 +10,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
     {
         private const string WorkerRole = "pegasus_worker_runtime_role";
 
-        // CASE-008 moved automatic vehicle-lookup enqueueing into the Worker's
+        // Automatic vehicle-lookup enqueueing moved into the Worker's
         // reconciliation sweep, but the Worker runtime role's grant matrix
         // (20260729199000_RuntimeRoleReconciliation) holds only SELECT on
         // VehicleLookupRequests — the request row INSERT the sweep performs was

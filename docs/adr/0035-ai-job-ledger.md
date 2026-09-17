@@ -22,7 +22,7 @@ its research files are attached. Completion does not adopt an Engineer value.
 
 ## Context
 
-The operator has directed (EPIC-011 decisions D5 and D6) that AI work is a
+The operator has directed (operator decisions D5 and D6) that AI work is a
 catalogue of named jobs — an estimate drafted to a target, an Unidentified
 item's proposed destination, a drafted query reply, a scheduled pass over the
 Unidentified queue — visible to staff as one list on Operations and worked by

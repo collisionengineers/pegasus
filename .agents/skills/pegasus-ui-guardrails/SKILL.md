@@ -16,7 +16,7 @@ UI skills, `docs/design/README.md`, and FRD-12.
 Use this order when requirements conflict:
 
 1. The operator's explicit instruction for the current task.
-2. Current functional requirements, especially `docs/frd/frd-12-operator-experience.md`.
+2. Current functional requirements, especially `docs/frd/frd-12-operator-experience.md` (shell and page contract), `docs/frd/frd-15-work-centre-queues-and-search.md`, `docs/frd/frd-16-case-record-workspace.md` and `docs/frd/frd-17-administration-workspace.md`.
 3. `docs/design/README.md` for presentation, components, assets, layout and visual language.
 4. The current routed implementation and shared design-system classes.
 5. Historical mockups/commits only as evidence of intent.

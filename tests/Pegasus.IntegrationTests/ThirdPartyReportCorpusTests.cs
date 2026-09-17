@@ -10,7 +10,7 @@ using Xunit.Abstractions;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The 29 third-party report originals, read through the real reader (INTK-031).
+/// The 29 third-party report originals, read through the real reader.
 ///
 /// This is the test the rules are actually answerable to. The Core tests read
 /// text the test itself wrote; this one reads the retained PDFs through

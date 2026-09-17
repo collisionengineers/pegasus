@@ -1093,7 +1093,7 @@ public sealed class CaseWorkspacePersistenceTests
     [Fact]
     public async Task ReviewGatedTransitionsReadThePersistedFactsNotThePostedOnes()
     {
-        // CASE-046: the case is demoted through the workspace save, and the
+        // The case is demoted through the workspace save, and the
         // Review-gated transitions then refuse even when the caller sends a
         // readiness envelope claiming the opposite.
         await using var harness = await Harness.CreateAsync();

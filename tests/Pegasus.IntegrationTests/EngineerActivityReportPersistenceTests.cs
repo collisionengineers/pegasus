@@ -5,7 +5,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// PLAT-048 / MI-01. The Engineer Report counts against a real database:
+/// MI-01. The Engineer Report counts against a real database:
 /// reports are case-linked Sent evidence on the Engineer's cases, queries are
 /// post-report mailbox receipts associated with them (D12), both bounded by
 /// the half-open period, and an association the operator reversed no longer

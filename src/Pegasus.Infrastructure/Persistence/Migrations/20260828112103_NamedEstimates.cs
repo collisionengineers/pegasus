@@ -143,7 +143,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 type: "int",
                 nullable: true);
 
-            // ENG-026: every existing specification becomes a named estimate.
+            // Every existing specification becomes a named estimate.
             // The previous filtered unique index guaranteed at most one
             // Accepted row per case, so marking it Current cannot collide
             // with the new [IsCurrent] = 1 index created below. The VAT

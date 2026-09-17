@@ -9,7 +9,7 @@ namespace Pegasus.Core.AiWork;
 
 /// <summary>
 /// Policy for the AI job ledger. Staff create jobs; the Automation Actor
-/// creates only the scheduled Unidentified-queue pass (EPIC-011 D5) and is
+/// creates only the scheduled Unidentified-queue pass (operator decision D5) and is
 /// the only actor that takes, progresses, completes, fails or releases;
 /// staff cancel and confirm. A Taken job whose lease has lapsed reads as
 /// Queued regardless of the job's own expiry (ADR-0035: taken jobs expire

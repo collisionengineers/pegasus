@@ -55,8 +55,8 @@ App, a Container Apps Job, a renderer Function App, or another queue consumer.
 - The application operation must remain durable and idempotent across request
   interruption and Web revision restart as required by FRD-11; this ADR does
   not define or duplicate that behaviour.
-- PLAT-007 owns local container proof, infrastructure changes, deployed
-  capacity and recovery evidence. Any Azure write still requires explicit
+- The platform work that ships this owns local container proof,
+  infrastructure changes, deployed capacity and recovery evidence. Any Azure write still requires explicit
   approval for the exact target.
 - A future detached renderer or move to another host requires measured evidence
   that the Web boundary cannot carry the workload and a new accepted ADR before

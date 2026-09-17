@@ -5,7 +5,7 @@ namespace Pegasus.Core.Tests.Identity;
 
 /// <summary>
 /// The single place a persisted actor kind + subject id becomes an operator-facing
-/// name — covers PLAT-011: a staff subject never renders as its raw GUID, and an
+/// name: a staff subject never renders as its raw GUID, and an
 /// unresolvable actor gets an honest label rather than an invented one.
 /// </summary>
 public sealed class ActorDisplayNamesTests

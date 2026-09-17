@@ -9,7 +9,7 @@ using Pegasus.Web.Authentication;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// CASE-047 B04: the per-staff-account Glass repair-estimate credential page.
+/// The per-staff-account Glass repair-estimate credential page.
 /// Administrator-only, write-only about the secret, and version-checked on
 /// every write.
 /// </summary>

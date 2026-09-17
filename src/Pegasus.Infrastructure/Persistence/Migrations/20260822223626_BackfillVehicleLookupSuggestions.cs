@@ -5,13 +5,13 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    // ENG-013 made a vehicle lookup fill the case's own empty fields, but only
+    // A vehicle lookup was made to fill the case's own empty fields, but only
     // at the moment the lookup runs. Every case already in the estate had its
     // lookup before that shipped, so its findings still sit only on the
     // observation: QDOS26011 reads "Not recorded" for mileage while its
     // observation holds 121,823 miles from the latest MOT. That is exactly the
-    // gap the ticket exists to close, so the recorded past is corrected the
-    // same way DOCS-009 corrected semantic roles.
+    // gap this migration exists to close, so the recorded past is corrected the
+    // same way the semantic-role correction migration corrected those.
     //
     // Writes the same four fields the code writes, at the same suggestion tier,
     // from the most recent observation per case. A suggestion is outranked by
@@ -39,7 +39,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         {
             // Make and model carry this rule's own key; the mileage carries the
             // calculation's, because that is what classifies it as a derived
-            // estimate wherever it is later shown (ENG-010).
+            // estimate wherever it is later shown.
             Backfill(migrationBuilder, "vehicle_make", "text", "[Make]", "'vehicle-lookup-gap-fill'", "1");
             Backfill(migrationBuilder, "vehicle_model", "text", "[Model]", "'vehicle-lookup-gap-fill'", "1");
             Backfill(

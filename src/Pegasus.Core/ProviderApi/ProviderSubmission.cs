@@ -111,7 +111,7 @@ public sealed record ProviderSubmissionAcceptedFile(
 
 /// <summary>
 /// Returned the moment the envelope is durably received. It says nothing
-/// about processing (operator decision, TICK-059 retired): the result is
+/// about processing (operator decision): the result is
 /// read separately.
 /// </summary>
 public sealed record ProviderSubmissionReceipt(
@@ -279,7 +279,7 @@ public static class ProviderSubmissionPolicy
     /// The per-file bound is the channel's own
     /// (<see cref="IntakeEnvelopeLimits.MaximumProviderApiFileLength"/>) and
     /// not the manual channel's larger cap: one Provider API file may never be
-    /// allowed past the envelope that carries it (C07 item 5, INTK-052).
+    /// allowed past the envelope that carries it (C07 item 5).
     /// </summary>
     public static IReadOnlyList<ProviderSubmissionFile> RequireEnvelope(
         IReadOnlyList<ProviderSubmissionFile>? files)
@@ -573,7 +573,7 @@ public sealed class GetProviderSubmissionResult(
     {
         var actor = ProviderSubmissionPolicy.Actor(credential);
         // A paused credential still reads its own receipts and results
-        // (operator decision, TICK-061); only MaySubmit is withheld.
+        // (operator decision); only MaySubmit is withheld.
         StaffAuthorization.Require(actor, StaffAccessRight.SubmitProviderInstruction);
         if (submissionId == Guid.Empty)
         {

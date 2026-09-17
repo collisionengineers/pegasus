@@ -16,7 +16,7 @@
     var hiddenFields = ViewData["DialogHiddenFields"] as IReadOnlyDictionary<string, string?>
         ?? new Dictionary<string, string?>();
     // Supplied only where an action has a consequence from the approved
-    // necessary-copy list; absent otherwise (INTK-029).
+    // necessary-copy list; absent otherwise.
     var consequence = ViewData["DialogConsequence"] as string;
     var reasonMaxLength = ViewData["DialogReasonMaxLength"] as int? ?? 500;
     var reason = ViewData["DialogReason"] as string ?? string.Empty;

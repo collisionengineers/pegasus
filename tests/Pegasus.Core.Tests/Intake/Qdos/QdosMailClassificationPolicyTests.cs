@@ -405,7 +405,7 @@ public sealed class PrincipalMailClassificationPolicyTests
     {
         // The ordinary shape of a reply in this mailbox: every QDOS message
         // reaches us as a staff forward, so the reply prefix sits behind the
-        // forward rather than in front of it (INTK-033 review).
+        // forward rather than in front of it.
         var result = Classify(
             subject: "FW: RE: (EREF9) RTA on 18/06/2026 : Mrs Jane Example",
             document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");

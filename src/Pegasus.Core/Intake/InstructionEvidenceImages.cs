@@ -175,14 +175,14 @@ public static class InstructionEvidenceImages
 /// <summary>
 /// One photograph on the case's Evidence gallery.
 ///
-/// DOCS-007 made Box the record: once intake's files are registered as case
+/// Box is the record: once intake's files are registered as case
 /// documents, <see cref="OccurrenceId"/> and <see cref="VersionId"/> are set and
 /// the image is served from Box through the case-document route. They are null
 /// only for a case accepted before those records existed, which still renders
 /// from its retained intake asset — the transition is additive, and a case
 /// stops rendering the day its staging blobs age out, not the day this shipped.
 ///
-/// DOCS-015: <see cref="IsStored"/> is false while custody is still in flight.
+/// <see cref="IsStored"/> is false while custody is still in flight.
 /// The gallery listed confirmed versions only, so a Case opened during custody
 /// work showed a partial set that grew on reload and looked like files that had
 /// been lost. A pending image is on its way, is named, and says so.

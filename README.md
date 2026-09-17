@@ -28,7 +28,7 @@ by the actual change. A documentation edit alone does not require a .NET build.
 - [Architecture](docs/current-architecture.md): source structure and callers.
 - [Runbook](docs/runbook.md): human-readable operational procedures.
 - Current operator task and its linked PR/CI records: work, ordering and
-  delivery evidence. Kanmer is disabled.
+  delivery evidence.
 
 `workspaces/` records retired source-import provenance; those imports are not
 active application projects. `corpus/` is local, ignored and immutable.

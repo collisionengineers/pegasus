@@ -843,7 +843,7 @@ public sealed class AdministrationSearchAccountWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        // EPIC-011 moved the case search to /Search and the workflow tabs to
+        // The workspace redesign moved the case search to /Search and the workflow tabs to
         // /Cases. A /Cases link that carries a search-only parameter is an
         // old search bookmark and lands on its results, values intact.
         const string keyword = "QDOS-search-no-match";

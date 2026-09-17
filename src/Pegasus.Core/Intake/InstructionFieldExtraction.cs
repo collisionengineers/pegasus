@@ -40,7 +40,7 @@ internal static partial class InstructionFieldEngine
     /// Whether an absent value is filled from the injected clock. Only a field
     /// a profile has explicitly opted in carries this: today's date is not an
     /// extracted fact, so a profile that does not ask for the default records
-    /// the absence instead (INTK-060 C03).
+    /// the absence instead.
     /// </param>
     /// <param name="AllowsSoleUnlabelledRegistration">
     /// Whether the document's single unlabelled registration-shaped value may
@@ -650,7 +650,7 @@ internal static partial class InstructionFieldEngine
     /// base. A definition may set <see cref="FieldDefinition.PrefersLatestFragment"/>
     /// to reverse that for itself — the inspection date does, because an appended
     /// engineer's report states when the vehicle was actually seen and overrides
-    /// whatever the instruction proposed (ENG-015). The reversal is per field, not
+    /// whatever the instruction proposed. The reversal is per field, not
     /// global.
     /// </summary>
     private static InstructionFieldCandidate? ResolveConflictingCandidates(

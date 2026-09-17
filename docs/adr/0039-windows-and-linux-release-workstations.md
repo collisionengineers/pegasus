@@ -13,7 +13,7 @@ tags: [deployment, windows, linux, release]
 
 ## Status
 
-Accepted through DELIV-048 on the operator's explicit 7 September 2026
+Accepted on the operator's explicit 7 September 2026
 requirement to develop and deploy on either Windows or Linux.
 
 ## Context

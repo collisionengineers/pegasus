@@ -363,7 +363,7 @@ public sealed partial class OperationsWebTests
 
         AssertPrg(response, "/Operations");
         var command = Assert.IsType<CreateAiJobCommand>(aiWork.Created);
-        // EPIC-011 D5 and FRD-11: the button starts a resolution for one U
+        // Operator decision D5 and FRD-11: the button starts a resolution for one U
         // reference; the queue pass belongs to the Automation Actor.
         Assert.Equal(AiJobKind.UnidentifiedResolution, command.Kind);
         Assert.Equal(aiWork.OpenUnidentifiedId, command.SubjectId);

@@ -5,14 +5,14 @@
 
 Pegasus is Collision Engineers’ clean-room case-management and reporting application. It must replace fragmented intake, case tracking, document custody, correspondence, engineering workflow, and reporting with one auditable system while preserving operator authority and human approval.
 
-Primary users are authorised Collision Engineers staff. The alpha is an Operations-first staff service focused on a QDOS intake route; that focused caller is the first exercised slice, not the limit of the intended mailbox, provider, casework, or reporting model.
+Primary users are authorised Collision Engineers staff. Pegasus is an Operations-first staff service that began with a QDOS intake route; that first caller is the first exercised slice, not the limit of the intended mailbox, provider, casework, or reporting model.
 
 Required outcomes:
 
 The 6 September 2026 v1 scope completes engineering and final reports in
 Pegasus; EVA is optional. Staff initiate every report/chaser send. Per-Engineer
 Glass's repair estimates are included, while its valuation service and the
-additional spreadsheet-driven workflow automation remain deferred. These are the current product requirements; earlier alpha limitations are
+additional spreadsheet-driven workflow automation remain deferred. These are the current product requirements; earlier limitations are
 historical observations, not competing requirements.
 
 - make receiving work, incomplete intake, Triage, active cases, due work, queries, and completed work visible without reconstructing state from multiple systems;
@@ -72,7 +72,7 @@ The following product exclusions are owned here. The capability registry links t
 - no dormant provider, OCR, AI, external-system, migration, or automation scaffolding;
 - no workspace as a Pegasus runtime, deployment unit, or business-policy owner;
 - no synthetic historical-case reconstruction;
-- no local-alpha Outlook or Box mutation outside an exact separately approved target and operation;
+- no local Outlook or Box mutation outside an exact separately approved target and operation;
 - no model, skill, prompt, or external source issuing an accepted case, engineering, economic, legal, or report outcome;
 - no broad production-data import from raw reference workbooks or evidence.
 

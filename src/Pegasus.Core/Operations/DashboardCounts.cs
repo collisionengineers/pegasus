@@ -16,7 +16,7 @@ namespace Pegasus.Core.Operations;
 /// <param name="WithEngineer">
 /// Cases in <see cref="Pegasus.Core.Workflow.CaseLifecycleState.ReportPreparation"/>
 /// or <see cref="Pegasus.Core.Workflow.CaseLifecycleState.PostReport"/>: the
-/// operator reads both as "With Engineer" (EPIC-011 D3).
+/// operator reads both as "With Engineer" (operator decision D3).
 /// </param>
 /// <param name="AwaitingInstruction">
 /// Unassociated image-initiated records still awaiting instruction.

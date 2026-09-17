@@ -594,7 +594,7 @@ public sealed class EfCaseWorkflowStore(
         }, cancellationToken);
 
     /// <summary>
-    /// CASE-046: the Review gate reads the case's own persisted completeness
+    /// The Review gate reads the case's own persisted completeness
     /// facts inside this transaction. A caller cannot present its own answer,
     /// so a forged or merely stale posted boolean can no longer open Review.
     /// </summary>

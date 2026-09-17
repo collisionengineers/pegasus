@@ -276,7 +276,7 @@ public sealed class ProductionCompositionTests
         // and ADR-0008 put them: the route's own classification policy. This
         // test keeps the same protection pointed at the real mechanism — one
         // named, versioned owner, activated deliberately and not as a side
-        // effect of composition (INTK-033).
+        // effect of composition.
         using var provider = BuildProduction();
 
         var classifiers = provider.GetServices<IMailClassificationPolicy>().ToArray();
@@ -484,7 +484,7 @@ public sealed class ProductionCompositionTests
     [Fact]
     public void AnUnresolvedBoxSecretFailsTheFirstBoxUseNotHostBuild()
     {
-        // PLAT-013: parsing the Box secret during host build aborted the whole
+        // Parsing the Box secret during host build aborted the whole
         // worker process (exit 134) whenever the platform handed over an
         // unresolved Key Vault reference. Composition must succeed and non-Box
         // services must resolve; only the first Box resolution fails closed.

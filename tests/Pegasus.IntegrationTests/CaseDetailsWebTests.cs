@@ -67,7 +67,7 @@ public sealed class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// EPIC-011 §1.8 and FRD-07: the EVA handoff is a Review act. Outside
+    /// FRD-07: the EVA handoff is a Review act. Outside
     /// Review the workspace offers no EVA control and draws no handoff, rather
     /// than drawing a disabled one.
     /// </summary>

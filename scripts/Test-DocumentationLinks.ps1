@@ -11,7 +11,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$excluded = '^(node_modules|corpus|artifacts|\.git|\.claude|\.codex|\.kanmer|docs/docs-review-temp|docs/external-component-documents)/'
+$excluded = '^(node_modules|corpus|artifacts|\.git|\.claude|\.codex|docs/docs-review-temp|docs/external-component-documents)/'
 $linkPattern = [regex]'\[[^\]]*\]\(([^)\s]+)\)'
 # A fence is ``` or ~~~ at up to three spaces of indent; it closes on the next
 # fence of the same character. Blank the body but keep the line count so any

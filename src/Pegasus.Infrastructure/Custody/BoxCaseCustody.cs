@@ -128,7 +128,7 @@ internal readonly record struct BoxAccessToken(string? Value, long? LifetimeSeco
 /// <summary>
 /// Holds one Box access token and renews it before Box's stated expiry.
 ///
-/// PLAT-039: this used to call the SDK's
+/// This used to call the SDK's
 /// <c>RetrieveAuthorizationHeaderAsync</c>, which answers from a token cache
 /// the SDK never expires — it re-mints only when the cache is empty, and
 /// leaves 401 recovery to its own HTTP client. Pegasus calls Box with its own
@@ -341,7 +341,7 @@ internal sealed class BoxContentClient(
     /// The one child with this exact name and type, or null — the duplicate and
     /// wrong-type refusals written once, so a caller that already holds a
     /// listing decides them the same way <see cref="FindChildAsync"/> does
-    /// rather than asking Box again for what it has (PLAT-041).
+    /// rather than asking Box again for what it has.
     /// </summary>
     public static BoxItem? SelectChild(IEnumerable<BoxItem> children, string name, string type)
     {
@@ -730,7 +730,7 @@ internal sealed class BoxContentClient(
     /// <paramref name="fencedParentId"/>, and that folder's own descent was
     /// proved when it was listed.
     ///
-    /// PLAT-041: <see cref="EnsureDescendantAsync"/> re-walks the same ancestry
+    /// <see cref="EnsureDescendantAsync"/> re-walks the same ancestry
     /// on every call, one GET per level, and it dominated the case export —
     /// roughly twenty of its forty-five Box round trips proved, over and over,
     /// what the listing had just established. The fence is re-checked here
@@ -742,7 +742,7 @@ internal sealed class BoxContentClient(
     /// The listing is the proof, not the parent Box restates on each entry: a
     /// stated parent that disagrees is refused, but a parent Box declines to
     /// send cannot refuse a child that was returned by listing the fenced
-    /// folder itself. DOCS-010 is what that sentence is for — a field Box
+    /// folder itself. That sentence exists because a field Box
     /// silently omitted made every managed read fail in production, and no
     /// check here may be made to depend on Box volunteering one.
     ///
@@ -1480,7 +1480,7 @@ internal sealed class BoxCaseCustody(
     /// The staged two-phase folder create: a crash between create and rename
     /// leaves an owner-token staging folder the same replay resumes, and a
     /// same-name folder created by anything else is accepted as the case's —
-    /// the durable folder identity lives in the database (DOCS-005), not in a
+    /// the durable folder identity lives in the database, not in a
     /// marker file inside the folder.
     /// </summary>
     private async Task<BoxContentClient.BoxItem> GetOrCreateOwnedFolderAsync(
