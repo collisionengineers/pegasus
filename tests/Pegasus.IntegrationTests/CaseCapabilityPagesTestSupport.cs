@@ -545,8 +545,6 @@ internal static partial class CaseWebTestSupport
     internal static string[] HostOrder(string html) =>
         [.. SectionHostRegex().Matches(html).Select(match => match.Groups[1].Value)];
 
-    /// <summary>The jump-nav's links, in the order they render.</summary>
-
     internal static int Occurrences(string html, string value) =>
         html.Split(value, StringSplitOptions.None).Length - 1;
 

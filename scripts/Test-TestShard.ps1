@@ -54,7 +54,7 @@ function Assert-PartitionFails {
 }
 
 function Assert-WorkflowShardCountsAgree {
-    $workflowPath = Join-Path $PSScriptRoot '..\.github\workflows\ci.yml'
+    $workflowPath = Join-Path $PSScriptRoot '../.github/workflows/ci.yml'
     $workflow = Get-Content -Raw -LiteralPath $workflowPath
     $matrixMatches = [regex]::Matches(
         $workflow,
