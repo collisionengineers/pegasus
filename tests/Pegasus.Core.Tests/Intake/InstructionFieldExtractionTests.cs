@@ -196,6 +196,31 @@ public sealed class InstructionFieldExtractionTests
     }
 
     [Fact]
+    public void AReceivedDateDefaultUsesTheReceivedLondonCalendarDateAndItsOwnEvidence()
+    {
+        var definition = new InstructionFieldEngine.FieldDefinition(
+            "Inspection date",
+            ["Inspection Date"],
+            DefaultsTo: InstructionFieldEngine.FieldDefaultSource.ReceivedDate,
+            DefaultEvidenceKey: "inspection-date-defaulted",
+            DefaultSourceLabel: "Receipt date");
+        var received = new DateTimeOffset(2026, 7, 1, 23, 30, 0, TimeSpan.Zero);
+
+        var (fields, _, evidence) = InstructionFieldEngine.ExtractFields(
+            [],
+            [definition],
+            new([definition]),
+            new(new DateTimeOffset(2026, 7, 2, 9, 0, 0, TimeSpan.Zero), received));
+
+        var field = Assert.Single(fields);
+        Assert.Equal("2026-07-02", field.SuggestedValue);
+        Assert.True(field.IsDefaulted);
+        Assert.Equal(IntakeEvidenceSource.SystemDefault, Assert.Single(field.Candidates).Source);
+        Assert.Equal("Receipt date", field.Candidates[0].SourceLabel);
+        Assert.Contains(evidence, item => item.Signal == "inspection-date-defaulted");
+    }
+
+    [Fact]
     public void MissingRequiredFieldsAreNamedOnceEach()
     {
         var (_, missing, _) = Run(
