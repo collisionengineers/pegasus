@@ -60,7 +60,7 @@ public sealed class ActorDisplayNamesTests
     }
 
     [Fact]
-    public async Task ResolveStaffNamesAsyncQueriesEachDistinctSubjectOnceAndSkipsUnresolvedOnes()
+    public async Task ResolveStaffNamesAsyncBatchesDistinctSubjectsAndSkipsUnresolvedOnes()
     {
         var knownId = Guid.NewGuid();
         var missingId = Guid.NewGuid();
@@ -96,6 +96,17 @@ public sealed class ActorDisplayNamesTests
             return Task.FromResult(staffId == knownId
                 ? new StaffAccountSummary(staffId, knownUserName, true, false, StaffRole.User)
                 : null);
+        }
+
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken)
+        {
+            RequestedIds.AddRange(staffIds);
+            return Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
+                staffIds.Contains(knownId)
+                    ? [new(knownId, knownUserName, true, false, StaffRole.User)]
+                    : []);
         }
 
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(

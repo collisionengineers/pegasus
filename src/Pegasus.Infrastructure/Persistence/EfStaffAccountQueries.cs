@@ -107,6 +107,39 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
         return Summary(user, ParseSingleRole(roleNames));
     }
 
+    public async Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+        IReadOnlyCollection<Guid> staffIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(staffIds);
+        if (staffIds.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = staffIds.Distinct().ToArray();
+        // One row per user with its role names collected, so an account with
+        // no role or two roles fails the same exactly-one-role invariant as
+        // GetAsync instead of vanishing or appearing twice.
+        var accounts = await (
+            from user in context.Users.AsNoTracking()
+            where ids.Contains(user.Id)
+            select new
+            {
+                User = user,
+                RoleNames = (
+                    from userRole in context.UserRoles
+                    join role in context.Roles on userRole.RoleId equals role.Id
+                    where userRole.UserId == user.Id
+                    select role.Name!).ToList()
+            })
+            .ToListAsync(cancellationToken);
+
+        return accounts
+            .Select(account => Summary(account.User, ParseSingleRole(account.RoleNames)))
+            .ToArray();
+    }
+
     public async Task<IReadOnlyList<StaffHeldCaseEditLease>> ListHeldCaseEditLeasesAsync(
         Guid staffId,
         CancellationToken cancellationToken)
