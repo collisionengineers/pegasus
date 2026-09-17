@@ -11,6 +11,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 using Harness = Pegasus.IntegrationTests.CaseDataCompletenessPersistenceTests.CaseDataHarness;
@@ -1251,6 +1252,277 @@ public sealed class CaseWorkspacePersistenceTests
             .ListHistoryByCursorAsync(harness.CaseId, null, null, 20, default);
         Assert.Contains(history, entry => entry.Reason?.Contains("Claim source: Acme Claims", StringComparison.Ordinal) == true
             && entry.Reason.Contains("Client notes", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AStaffDueBySurvivesALaterInspectionDeadlineChange()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var manualDueBy = new DateOnly(2031, 5, 18);
+        var before = await harness.GetRequiredDataAsync();
+        var firstLease = await harness.AcquireLeaseAsync(before.Version, harness.StaffActor, "staff-due-lease");
+        var withManualDueBy = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, before.Version, firstLease.Token, "staff-due-save") with
+            {
+                Overview = Overview("Jane Example") with { DueBy = manualDueBy }
+            }, default);
+
+        var secondLease = await harness.AcquireLeaseAsync(
+            withManualDueBy.Version,
+            harness.StaffActor,
+            "deadline-change-lease");
+        await harness.WorkspaceStore.SaveAsync(
+            Request(harness, withManualDueBy.Version, secondLease.Token, "deadline-change-save") with
+            {
+                Inspection = Inspection(CaseReportAddressTreatment.PhysicalVehicleLocation, "1 Depot Road") with
+                {
+                    InspectionDeadline = new DateOnly(2031, 5, 25)
+                }
+            }, default);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var due = await context.CaseDueWork.SingleAsync(item => item.CaseId == harness.CaseId);
+        Assert.Equal(manualDueBy, due.DueBy);
+        Assert.True(due.DueBySetByStaff);
+    }
+
+    [Fact]
+    public async Task ClearingAStaffDueByRestoresTheAcceptedInspectionDeadline()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var before = await harness.GetRequiredDataAsync();
+        var firstLease = await harness.AcquireLeaseAsync(before.Version, harness.StaffActor, "set-due-lease");
+        var withManualDueBy = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, before.Version, firstLease.Token, "set-due-save") with
+            {
+                Overview = Overview("Jane Example") with { DueBy = new DateOnly(2031, 5, 18) }
+            }, default);
+
+        var clearLease = await harness.AcquireLeaseAsync(
+            withManualDueBy.Version,
+            harness.StaffActor,
+            "clear-due-lease");
+        await harness.WorkspaceStore.SaveAsync(
+            Request(harness, withManualDueBy.Version, clearLease.Token, "clear-due-save") with
+            {
+                Overview = Overview("Jane Example") with { DueBy = null }
+            }, default);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var due = await context.CaseDueWork.SingleAsync(item => item.CaseId == harness.CaseId);
+        Assert.Equal(new DateOnly(2031, 5, 20), due.DueBy);
+        Assert.False(due.DueBySetByStaff);
+    }
+
+    [Fact]
+    public async Task SavingDueByWithoutDueWorkCreatesAStoppedProjectionWithoutAChase()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await using (var initialContext = await harness.Factory.CreateDbContextAsync())
+        {
+            Assert.False(await initialContext.CaseDueWork.AnyAsync(item => item.CaseId == harness.CaseId));
+        }
+
+        var before = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(before.Version, harness.StaffActor, "due-without-work-lease");
+        var manualDueBy = new DateOnly(2031, 5, 18);
+        await harness.WorkspaceStore.SaveAsync(
+            Request(harness, before.Version, lease.Token, "due-without-work-save") with
+            {
+                Overview = Overview("Jane Example") with { DueBy = manualDueBy }
+            }, default);
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var due = await context.CaseDueWork.SingleAsync(item => item.CaseId == harness.CaseId);
+        Assert.Equal(manualDueBy, due.DueBy);
+        Assert.True(due.DueBySetByStaff);
+        Assert.Equal(nameof(CaseDueWorkState.Stopped), due.State);
+        Assert.Null(due.NextChaseAtUtc);
+    }
+
+    [Fact]
+    public async Task ClaimSourceOverridesStayForTheSameSourceAndClearForAnotherSourceOrNone()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var sourceAId = Guid.NewGuid();
+        var sourceBId = Guid.NewGuid();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            context.Organizations.AddRange(
+                new() { Id = sourceAId, Name = "Source A", Version = 1, Active = true, ContactRoles = [new() { Role = "claim_source" }] },
+                new() { Id = sourceBId, Name = "Source B", Version = 2, Active = true, ContactRoles = [new() { Role = "claim_source" }] });
+            await context.SaveChangesAsync();
+        }
+
+        var before = await harness.GetRequiredDataAsync();
+        var firstLease = await harness.AcquireLeaseAsync(before.Version, harness.StaffActor, "source-a-lease");
+        var sourceA = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, before.Version, firstLease.Token, "source-a-save") with
+            {
+                Overview = Overview("Jane Example") with
+                {
+                    ClaimSource = new(
+                        sourceAId,
+                        1,
+                        "Source A",
+                        "Directory A",
+                        "0113 000 0001",
+                        "a@example.test")
+                }
+            }, default);
+
+        var sourceAOverrideLease = await harness.AcquireLeaseAsync(
+            sourceA.Version,
+            harness.StaffActor,
+            "source-a-again-lease");
+        var sourceAOverride = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, sourceA.Version, sourceAOverrideLease.Token, "source-a-again-save") with
+            {
+                Overview = Overview("Jane Example") with
+                {
+                    ClaimSource = new(
+                        sourceAId,
+                        1,
+                        "Source A",
+                        "Directory A",
+                        "0113 000 0001",
+                        "a@example.test",
+                        "Case A",
+                        "0113 999 0001",
+                        "case-a@example.test")
+                }
+            }, default);
+
+        var sameSourceLease = await harness.AcquireLeaseAsync(
+            sourceAOverride.Version,
+            harness.StaffActor,
+            "source-a-unchanged-lease");
+        var sameSource = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, sourceAOverride.Version, sameSourceLease.Token, "source-a-unchanged-save") with
+            {
+                Overview = Overview("Jane Example") with
+                {
+                    ClaimSource = new(
+                        sourceAId,
+                        1,
+                        "Source A",
+                        "Directory A",
+                        "0113 000 0001",
+                        "a@example.test")
+                }
+            }, default);
+        Assert.Equal("Case A", sameSource.Data.Workspace!.ClaimSource!.OverrideContactName);
+        Assert.Equal("0113 999 0001", sameSource.Data.Workspace.ClaimSource.OverrideContactTelephone);
+        Assert.Equal("case-a@example.test", sameSource.Data.Workspace.ClaimSource.OverrideContactEmailAddress);
+
+        var sourceBLease = await harness.AcquireLeaseAsync(
+            sameSource.Version,
+            harness.StaffActor,
+            "source-b-lease");
+        var sourceB = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, sameSource.Version, sourceBLease.Token, "source-b-save") with
+            {
+                Overview = Overview("Jane Example") with
+                {
+                    ClaimSource = new(
+                        sourceBId,
+                        2,
+                        "Source B",
+                        "Directory B",
+                        "0113 000 0002",
+                        "b@example.test",
+                        "Old Case A",
+                        "0113 999 0001",
+                        "old-case-a@example.test")
+                }
+            }, default);
+        Assert.Null(sourceB.Data.Workspace!.ClaimSource!.OverrideContactName);
+        Assert.Null(sourceB.Data.Workspace.ClaimSource.OverrideContactTelephone);
+        Assert.Null(sourceB.Data.Workspace.ClaimSource.OverrideContactEmailAddress);
+
+        var sourceBOverrideLease = await harness.AcquireLeaseAsync(
+            sourceB.Version,
+            harness.StaffActor,
+            "source-b-override-lease");
+        var sourceBOverride = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, sourceB.Version, sourceBOverrideLease.Token, "source-b-override-save") with
+            {
+                Overview = Overview("Jane Example") with
+                {
+                    ClaimSource = sourceB.Data.Workspace.ClaimSource with
+                    {
+                        OverrideContactName = "Case B"
+                    }
+                }
+            }, default);
+        Assert.Equal("Case B", sourceBOverride.Data.Workspace!.ClaimSource!.OverrideContactName);
+
+        var noneLease = await harness.AcquireLeaseAsync(
+            sourceBOverride.Version,
+            harness.StaffActor,
+            "source-none-lease");
+        var none = await harness.WorkspaceStore.SaveAsync(
+            Request(harness, sourceBOverride.Version, noneLease.Token, "source-none-save") with
+            {
+                Overview = Overview("Jane Example") with { ClaimSource = null }
+            }, default);
+        Assert.Null(none.Data.Workspace!.ClaimSource);
+        await using var finalContext = await harness.Factory.CreateDbContextAsync();
+        var snapshot = await finalContext.CaseDataSnapshots.SingleAsync(item => item.CaseId == harness.CaseId);
+        Assert.Null(snapshot.ClaimSourceOverrideContactName);
+        Assert.Null(snapshot.ClaimSourceOverrideContactTelephone);
+        Assert.Null(snapshot.ClaimSourceOverrideContactEmailAddress);
+    }
+
+    [Fact]
+    public async Task AuditCaseInheritsClaimSourceContactOverrides()
+    {
+        await using var harness = await Harness.CreateAsync();
+        CaseIdentity source;
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var snapshot = await context.CaseDataSnapshots.SingleAsync(
+                item => item.CaseId == harness.CaseId);
+            snapshot.ClaimSourceOverrideContactName = "Audit contact";
+            snapshot.ClaimSourceOverrideContactTelephone = "0113 999 0014";
+            snapshot.ClaimSourceOverrideContactEmailAddress = "audit-contact@example.test";
+            var sourceCase = await context.Cases.Include(item => item.Principal)
+                .SingleAsync(item => item.Id == harness.CaseId);
+            source = new(
+                sourceCase.Id,
+                sourceCase.Principal.Code,
+                sourceCase.Year,
+                sourceCase.Sequence,
+                sourceCase.Reference,
+                sourceCase.AuditReference);
+            await context.SaveChangesAsync();
+        }
+
+        var before = await harness.GetRequiredDataAsync();
+        var lease = await harness.AcquireLeaseAsync(
+            before.Version,
+            harness.StaffActor,
+            "audit-contact-overrides-lease");
+        var audit = await new EfCreateAuditCaseStore(harness.Factory, harness.TimeProvider).CreateAsync(
+            new(
+                new(
+                    harness.CaseId,
+                    before.Version,
+                    harness.StaffActor,
+                    "audit-contact-overrides-save",
+                    lease.Token),
+                source,
+                AuditAssessment.Repairable,
+                $"a.{source.Reference}",
+                null),
+            default);
+
+        await using var verification = await harness.Factory.CreateDbContextAsync();
+        var inherited = await verification.CaseDataSnapshots.SingleAsync(
+            item => item.CaseId == audit.AuditCase.CaseId);
+        Assert.Equal("Audit contact", inherited.ClaimSourceOverrideContactName);
+        Assert.Equal("0113 999 0014", inherited.ClaimSourceOverrideContactTelephone);
+        Assert.Equal("audit-contact@example.test", inherited.ClaimSourceOverrideContactEmailAddress);
     }
 
     private static ActionActor Engineer(Harness harness) => ActionActor.Staff(

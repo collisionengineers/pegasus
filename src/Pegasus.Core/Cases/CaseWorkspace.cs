@@ -125,8 +125,9 @@ public sealed record CaseWorkspaceStorageBusiness(
 
 /// <summary>
 /// The claim source recorded on this case: a copied snapshot of the selected
-/// maintained record. The claim source is distinct from the principal, the
-/// sender, the insurer and any third-party engineer.
+/// maintained record plus optional Case-local contact overrides. The claim
+/// source is distinct from the principal, the sender, the insurer and any
+/// third-party engineer.
 /// </summary>
 public sealed record CaseWorkspaceClaimSource(
     Guid? ClaimSourceId,
@@ -134,7 +135,20 @@ public sealed record CaseWorkspaceClaimSource(
     string? Name,
     string? ContactName,
     string? ContactTelephone,
-    string? ContactEmailAddress);
+    string? ContactEmailAddress,
+    string? OverrideContactName = null,
+    string? OverrideContactTelephone = null,
+    string? OverrideContactEmailAddress = null)
+{
+    public string? EffectiveContactName =>
+        string.IsNullOrWhiteSpace(OverrideContactName) ? ContactName : OverrideContactName;
+
+    public string? EffectiveContactTelephone =>
+        string.IsNullOrWhiteSpace(OverrideContactTelephone) ? ContactTelephone : OverrideContactTelephone;
+
+    public string? EffectiveContactEmailAddress =>
+        string.IsNullOrWhiteSpace(OverrideContactEmailAddress) ? ContactEmailAddress : OverrideContactEmailAddress;
+}
 
 public sealed record CaseWorkspaceOdometer(
     long? OriginalValue,
@@ -159,7 +173,8 @@ public sealed record CaseWorkspaceOverview(
     CaseWorkspaceRepairer? Repairer = null,
     string? PrincipalNotes = null,
     string? ClaimSourceNotes = null,
-    string? ClientNotes = null);
+    string? ClientNotes = null,
+    DateOnly? DueBy = null);
 
 public sealed record CaseWorkspaceInspection(
     CaseReportAddressTreatment? AddressTreatment,
@@ -635,6 +650,8 @@ public static class CaseWorkspacePolicy
         var merged = persisted;
         if (request.Overview is { } overview)
         {
+            var claimSourceChanged = overview.ClaimSource is null
+                || persisted.ClaimSourceId != overview.ClaimSource.ClaimSourceId;
             merged = merged with
             {
                 ClaimantName = overview.ClaimantName,
@@ -660,7 +677,17 @@ public static class CaseWorkspacePolicy
                 ClaimSourceName = overview.ClaimSource?.Name,
                 ClaimSourceContactName = overview.ClaimSource?.ContactName,
                 ClaimSourceContactTelephone = overview.ClaimSource?.ContactTelephone,
-                ClaimSourceContactEmailAddress = overview.ClaimSource?.ContactEmailAddress
+                ClaimSourceContactEmailAddress = overview.ClaimSource?.ContactEmailAddress,
+                DueBy = overview.DueBy,
+                ClaimSourceOverrideContactName = claimSourceChanged
+                    ? null
+                    : overview.ClaimSource?.OverrideContactName ?? persisted.ClaimSourceOverrideContactName,
+                ClaimSourceOverrideContactTelephone = claimSourceChanged
+                    ? null
+                    : overview.ClaimSource?.OverrideContactTelephone ?? persisted.ClaimSourceOverrideContactTelephone,
+                ClaimSourceOverrideContactEmailAddress = claimSourceChanged
+                    ? null
+                    : overview.ClaimSource?.OverrideContactEmailAddress ?? persisted.ClaimSourceOverrideContactEmailAddress
             };
         }
 

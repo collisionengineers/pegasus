@@ -25,6 +25,7 @@ using Pegasus.Infrastructure.Glass;
 using Pegasus.Infrastructure.Email;
 using EstimateVatLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.EstimateVat;
 using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession;
+using FrameLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame;
 using Labels = Pegasus.Web.Presentation.OperatorLabels;
 using EditorLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.Editors;
 
@@ -1315,6 +1316,7 @@ public sealed partial class DetailsModel(
         string? vehicleMileageSource,
         string? accidentCircumstances,
         DateOnly? incidentDate,
+        DateOnly? dueBy,
         string? contactName,
         string? contactEmailAddress,
         string? contactPhoneNumber,
@@ -1341,6 +1343,9 @@ public sealed partial class DetailsModel(
         string? claimSourceNotes,
         string? clientNotes,
         Guid? claimSourceId,
+        string? claimSourceContactName,
+        string? claimSourceContactTelephone,
+        string? claimSourceContactEmail,
         string? section,
         CancellationToken cancellationToken) =>
         ExecuteCaseCommandAsync(
@@ -1437,22 +1442,27 @@ public sealed partial class DetailsModel(
                 var reportSubmitted = reportFields.Count > 0 || Posted(nameof(signOffEngineerId)) || Posted(nameof(reportDate));
                 var overviewSubmitted = new[] { nameof(claimantName), nameof(claimantContactNumber), nameof(claimantAddress),
                     nameof(claimNumber), nameof(contactName), nameof(contactEmailAddress), nameof(contactPhoneNumber),
-                    nameof(incidentDate), nameof(accidentCircumstances), nameof(instructionDate), nameof(vatStatus),
+                    nameof(incidentDate), nameof(dueBy), nameof(accidentCircumstances), nameof(instructionDate), nameof(vatStatus),
                     nameof(repairerName), nameof(repairerAddress), nameof(repairerDirectoryId),
-                    nameof(principalNotes), nameof(claimSourceNotes), nameof(clientNotes), nameof(claimSourceId) }.Any(Posted);
+                    nameof(principalNotes), nameof(claimSourceNotes), nameof(clientNotes), nameof(claimSourceId),
+                    nameof(claimSourceContactName), nameof(claimSourceContactTelephone),
+                    nameof(claimSourceContactEmail) }.Any(Posted);
                 // The claim source is a choice from the active Claim source
                 // records, copied onto the Case as its snapshot. An unposted
                 // select keeps the recorded source; an empty one records none;
                 // the same record keeps the snapshot it already has.
                 var claimSource = persisted?.ClaimSource;
+                var claimSourceChanged = false;
                 if (overviewSubmitted && Posted(nameof(claimSourceId)))
                 {
                     if (claimSourceId is not { } sourceId)
                     {
+                        claimSourceChanged = claimSource is not null;
                         claimSource = null;
                     }
                     else if (sourceId != persisted?.ClaimSource?.ClaimSourceId)
                     {
+                        claimSourceChanged = true;
                         var chosen = (await contactDirectory.ListByRoleAsync(actor, ContactRole.ClaimSource, cancellationToken))
                             .SingleOrDefault(item => item.OrganizationId == sourceId)
                             ?? throw new InvalidOperationException("The selected claim source is not an active Claim source record.");
@@ -1460,6 +1470,24 @@ public sealed partial class DetailsModel(
                             chosen.OrganizationId, chosen.Version, chosen.Name,
                             chosen.ContactPerson, chosen.Telephone, chosen.Email);
                     }
+                }
+                if (claimSource is not null && !claimSourceChanged)
+                {
+                    claimSource = claimSource with
+                    {
+                        OverrideContactName = SubmittedText(
+                            nameof(claimSourceContactName),
+                            claimSourceContactName,
+                            claimSource.OverrideContactName),
+                        OverrideContactTelephone = SubmittedText(
+                            nameof(claimSourceContactTelephone),
+                            claimSourceContactTelephone,
+                            claimSource.OverrideContactTelephone),
+                        OverrideContactEmailAddress = SubmittedText(
+                            nameof(claimSourceContactEmail),
+                            claimSourceContactEmail,
+                            claimSource.OverrideContactEmailAddress)
+                    };
                 }
                 // INTK-058: a linked directory organisation is copied onto the
                 // Case — its identity, its version and its own name and
@@ -1524,7 +1552,12 @@ public sealed partial class DetailsModel(
                         repairer,
                         Submitted(nameof(principalNotes), principalNotes, persisted?.PrincipalNotes),
                         Submitted(nameof(claimSourceNotes), claimSourceNotes, persisted?.ClaimSourceNotes),
-                        Submitted(nameof(clientNotes), clientNotes, persisted?.ClientNotes)),
+                        Submitted(nameof(clientNotes), clientNotes, persisted?.ClientNotes),
+                        Submitted(
+                            nameof(dueBy),
+                            dueBy,
+                            current.Workflow.DueWork?.DueBy
+                                ?? Accepted(data.Inspection.Deadline)?.Value)),
                     Inspection = !inspectionSubmitted ? null : new(treatment, address, persisted?.InspectionLocationProvenance,
                         Submitted(nameof(storageLocation), storageLocation, Accepted(data.Inspection.StorageLocation)?.Value),
                         persisted?.StorageBusiness,
@@ -1563,6 +1596,9 @@ public sealed partial class DetailsModel(
     private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
 
     private T Submitted<T>(string field, T submitted, T recorded) => Posted(field) ? submitted : recorded;
+
+    private string? SubmittedText(string field, string? submitted, string? recorded) =>
+        Posted(field) ? Request.Form[field].ToString() : recorded;
 
     public static CaseDataValue<T>? Accepted<T>(CaseField<T>? field) where T : notnull =>
         field?.Confirmed ?? field?.Fact;
@@ -3371,6 +3407,9 @@ public sealed partial class DetailsModel(
             "vehicleMileageUnit" => Accepted(data.Vehicle.MileageUnit)?.Value,
             "accidentCircumstances" => Accepted(data.Accident.Circumstances)?.Value,
             "incidentDate" => Accepted(data.Accident.IncidentDate)?.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            "dueBy" => (Case?.Workflow.DueWork?.DueBy
+                    ?? Accepted(data.Inspection.Deadline)?.Value)
+                ?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             "contactName" => Accepted(data.Contact.Name)?.Value,
             "contactEmailAddress" => Accepted(data.Contact.EmailAddress)?.Value,
             "contactPhoneNumber" => Accepted(data.Contact.PhoneNumber)?.Value,
@@ -3381,6 +3420,9 @@ public sealed partial class DetailsModel(
             "inspectionAddress" => Accepted(data.Inspection.Address)?.Value,
             "inspectionMode" => Accepted(data.Inspection.Mode)?.Value.ToString(),
             "storageLocation" => Accepted(data.Inspection.StorageLocation)?.Value,
+            "claimSourceContactName" => data.Workspace?.ClaimSource?.OverrideContactName,
+            "claimSourceContactTelephone" => data.Workspace?.ClaimSource?.OverrideContactTelephone,
+            "claimSourceContactEmail" => data.Workspace?.ClaimSource?.OverrideContactEmailAddress,
 
             // The corrected-vehicle-suggestion form posts unprefixed names against the same case
             // fields, so the case's confirmed vehicle values are what it is compared with.
@@ -3413,6 +3455,7 @@ public sealed partial class DetailsModel(
         "vehicleMileageSource" => "Mileage source",
         "accidentCircumstances" => "Accident circumstances",
         "incidentDate" => "Incident date",
+        "dueBy" => FrameLabels.Due,
         "contactName" => "Contact name",
         "contactEmailAddress" => "Contact email",
         "contactPhoneNumber" => "Contact phone",
@@ -3423,6 +3466,9 @@ public sealed partial class DetailsModel(
         "inspectionAddress" => "Inspection address",
         "inspectionMode" => "Inspection mode",
         "storageLocation" => Labels.CaseWorkspace.StorageLocation,
+        "claimSourceContactName" => FrameLabels.ContactName,
+        "claimSourceContactTelephone" => FrameLabels.ContactPhone,
+        "claimSourceContactEmail" => FrameLabels.ContactEmail,
         "reason" => "Reason",
 
         // The completeness flags are labelled as the form the editor was looking at labelled them.
