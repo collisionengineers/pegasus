@@ -45,8 +45,6 @@ public sealed partial class DetailsModel(
     ICaseReportSnapshotSource reportSnapshotSource,
     ICreateAiJob createAiJob,
     ISendToAiControl sendToAiControl,
-    GenerateCaseAssessmentReportDraft generateReportDraft,
-    IGenerateCaseReport generateReport,
     IGeneratedCaseArtifactStore generatedArtifacts,
     ICaseReportGenerationStore reportGenerations,
     IPrepareCaseReportDelivery prepareReportDelivery,
@@ -570,6 +568,8 @@ public sealed partial class DetailsModel(
 
     public string GenerateReportOperationKey { get; private set; } = NewOperationKey();
 
+    public string GenerateFeeNoteOperationKey { get; private set; } = NewOperationKey();
+
     public string PrepareDeliveryOperationKey { get; private set; } = NewOperationKey();
 
     public string LaunchGlassOperationKey { get; private set; } = NewOperationKey();
@@ -755,7 +755,10 @@ public sealed partial class DetailsModel(
         using var activity = DocumentReadTelemetry.Start("web.case.main");
         try
         {
-            Case = await getCasePageFrame.ExecuteAsync(new(id, actor), cancellationToken);
+            using (DocumentReadTelemetry.Start("web.case.frame"))
+            {
+                Case = await getCasePageFrame.ExecuteAsync(new(id, actor), cancellationToken);
+            }
             if (Case is null)
             {
                 return NotFound();
@@ -763,9 +766,13 @@ public sealed partial class DetailsModel(
             // No access answer is not an editable record: an unresolved
             // result fails closed to read-only, the same direction the
             // pre-case gates fail.
-            var assessmentAccess = await getAssessmentAccess.ExecuteAsync(
-                new(id, actor),
-                cancellationToken);
+            AssessmentAccessState? assessmentAccess;
+            using (DocumentReadTelemetry.Start("web.case.access"))
+            {
+                assessmentAccess = await getAssessmentAccess.ExecuteAsync(
+                    new(id, actor),
+                    cancellationToken);
+            }
             AssessmentIsReadOnly = assessmentAccess?.IsReadOnly ?? true;
             AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
             // The lease decides how much of the record is rendered now, so it is
@@ -776,51 +783,64 @@ public sealed partial class DetailsModel(
                 // Only this page renders a manual renew control, so only it needs that key.
                 RenewLeaseOperationKey = GetOrCreateOperationKey(RenewLeaseOperationKeyName);
             }
-            var workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
-            await LoadDirectSectionsAsync(id, actor, workspace, cancellationToken);
-            await LoadEngineerSectionsAsync(id, actor, workspace, estimate, dialog, cancellationToken);
-            if (CanEditCaseData)
+            AssessmentWorkspace? workspace;
+            using (DocumentReadTelemetry.Start("web.case.workspace"))
             {
-                ClaimSourceChoices = await contactDirectory.ListByRoleAsync(
-                    actor, ContactRole.ClaimSource, cancellationToken);
+                workspace = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
             }
-            if (!SectionIsDeferred("settlement"))
+            using (DocumentReadTelemetry.Start("web.case.direct-sections"))
             {
-                Proposals = await fieldProposals.ListForCaseAsync(id, cancellationToken);
+                await LoadDirectSectionsAsync(id, actor, workspace, cancellationToken);
             }
-            if (!SectionIsDeferred("inspection"))
+            using (DocumentReadTelemetry.Start("web.case.engineer-sections"))
             {
-                var choices = await inspectionAddressChoicesQueries.GetAsync(id, cancellationToken);
-                InspectionAddressChoices = choices is null
-                    ? []
-                    : Pegasus.Core.Address.InspectionAddressChoices.Resolve(choices);
+                await LoadEngineerSectionsAsync(id, actor, workspace, estimate, dialog, cancellationToken);
+            }
+            using (DocumentReadTelemetry.Start("web.case.extras"))
+            {
                 if (CanEditCaseData)
                 {
-                    RepairerChoices = await contactDirectory.ListByRoleAsync(
-                        actor, ContactRole.Repairer, cancellationToken);
+                    ClaimSourceChoices = await contactDirectory.ListByRoleAsync(
+                        actor, ContactRole.ClaimSource, cancellationToken);
                 }
+                if (!SectionIsDeferred("settlement"))
+                {
+                    Proposals = await fieldProposals.ListForCaseAsync(id, cancellationToken);
+                }
+                if (!SectionIsDeferred("inspection"))
+                {
+                    var choices = await inspectionAddressChoicesQueries.GetAsync(id, cancellationToken);
+                    InspectionAddressChoices = choices is null
+                        ? []
+                        : Pegasus.Core.Address.InspectionAddressChoices.Resolve(choices);
+                    if (CanEditCaseData)
+                    {
+                        RepairerChoices = await contactDirectory.ListByRoleAsync(
+                            actor, ContactRole.Repairer, cancellationToken);
+                    }
+                }
+                if (!SectionIsDeferred("files"))
+                {
+                    await LoadFilesAsync(id, cancellationToken);
+                }
+                // The Report section is never deferred, so its prepared cards are
+                // rendered on every full response; the Files section reads the
+                // same loaded set rather than asking a second time.
+                await LoadAssetPreparationsAsync(id, cancellationToken);
+                if (!SectionIsDeferred("files"))
+                {
+                    await LoadIntakeGalleriesAsync(cancellationToken);
+                }
+                if (!SectionIsDeferred("valuation"))
+                {
+                    await LoadValuationSectionAsync(id, actor, cancellationToken);
+                }
+                await DescribeWorkspaceExtrasAsync(cancellationToken);
+                AvailableClosureOutcomes = DescribeClosureOutcomes(Case.Workflow, actor);
+                RestoreProposedValues(id);
+                await DescribeEditAuthorityHolderAsync(actor, cancellationToken);
+                await DescribeFrameAsync(actor, cancellationToken);
             }
-            if (!SectionIsDeferred("files"))
-            {
-                await LoadFilesAsync(id, cancellationToken);
-            }
-            // The Report section is never deferred, so its prepared cards are
-            // rendered on every full response; the Files section reads the
-            // same loaded set rather than asking a second time.
-            await LoadAssetPreparationsAsync(id, cancellationToken);
-            if (!SectionIsDeferred("files"))
-            {
-                await LoadIntakeGalleriesAsync(cancellationToken);
-            }
-            if (!SectionIsDeferred("valuation"))
-            {
-                await LoadValuationSectionAsync(id, actor, cancellationToken);
-            }
-            await DescribeWorkspaceExtrasAsync(cancellationToken);
-            AvailableClosureOutcomes = DescribeClosureOutcomes(Case.Workflow, actor);
-            RestoreProposedValues(id);
-            await DescribeEditAuthorityHolderAsync(actor, cancellationToken);
-            await DescribeFrameAsync(actor, cancellationToken);
             return Page();
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -1144,7 +1164,8 @@ public sealed partial class DetailsModel(
             workspace,
             HasAssessmentWorkspace: true,
             Data: Case!.Data,
-            Documents: Case.Documents);
+            Documents: Case.Documents,
+            Frame: Case.Frame);
         foreach (var key in LazySectionViews.Keys.Where(key => !SectionIsDeferred(key)))
         {
             switch (key)
@@ -1561,7 +1582,9 @@ public sealed partial class DetailsModel(
         GenerateCaseAssessmentReportDraftResult result;
         try
         {
-            result = await generateReportDraft.ExecuteAsync(
+            result = await HttpContext.RequestServices
+                .GetRequiredService<GenerateCaseAssessmentReportDraft>()
+                .ExecuteAsync(
                 id, actor, CaseReportArtifactKind.AssessmentReport,
                 includeFeeNote: false, cancellationToken);
         }
@@ -1617,7 +1640,9 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
 
-        var result = await generateReportDraft.ExecuteAsync(
+        var result = await HttpContext.RequestServices
+            .GetRequiredService<GenerateCaseAssessmentReportDraft>()
+            .ExecuteAsync(
             id, actor, CaseReportArtifactKind.AssessmentReport, includeFeeNote, cancellationToken);
         switch (result.Outcome)
         {
@@ -1650,27 +1675,34 @@ public sealed partial class DetailsModel(
         Guid id,
         string operationKey,
         string? editLeaseToken,
+        long expectedCaseVersion,
         bool includeFeeNote,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
-            id, operationKey, editLeaseToken, CaseReportArtifactKind.AssessmentReport,
-            includeFeeNote, cancellationToken);
+            id, operationKey, editLeaseToken, expectedCaseVersion,
+            CaseReportArtifactKind.AssessmentReport, includeFeeNote,
+            targetGenerationId: null, cancellationToken);
 
     public Task<IActionResult> OnPostGenerateFeeNoteAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
+        long expectedCaseVersion,
+        Guid targetGenerationId,
         CancellationToken cancellationToken) =>
         GenerateArtifactAsync(
-            id, operationKey, editLeaseToken, CaseReportArtifactKind.FeeNote,
-            includeFeeNote: false, cancellationToken);
+            id, operationKey, editLeaseToken, expectedCaseVersion,
+            CaseReportArtifactKind.FeeNote, includeFeeNote: false,
+            targetGenerationId, cancellationToken);
 
     private async Task<IActionResult> GenerateArtifactAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
+        long expectedCaseVersion,
         CaseReportArtifactKind kind,
         bool includeFeeNote,
+        Guid? targetGenerationId,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -1686,18 +1718,21 @@ public sealed partial class DetailsModel(
         CaseReportGenerationResult result;
         try
         {
-            result = await generateReport.ExecuteAsync(
+            result = await HttpContext.RequestServices
+                .GetRequiredService<IGenerateCaseReport>()
+                .ExecuteAsync(
                 new(
                     actor,
                     id,
-                    currentCaseVersion,
+                    expectedCaseVersion,
                     editLeaseToken!,
                     operationKey,
                     kind,
                     kind == CaseReportArtifactKind.AssessmentReport
                         ? "Generate the immutable case report"
                         : "Generate the immutable fee note",
-                    includeFeeNote),
+                    includeFeeNote,
+                    targetGenerationId),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -1779,6 +1814,7 @@ public sealed partial class DetailsModel(
         Guid id,
         string operationKey,
         string? editLeaseToken,
+        long expectedCaseVersion,
         Guid generationId,
         long expectedGenerationVersion,
         string[]? toRecipients,
@@ -1801,7 +1837,7 @@ public sealed partial class DetailsModel(
                 new(
                     actor,
                     id,
-                    currentCaseVersion,
+                    expectedCaseVersion,
                     editLeaseToken!,
                     generationId,
                     expectedGenerationVersion,
@@ -1906,40 +1942,22 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// The Report-section mutation guard: the estimate guard's rules
-    /// (Engineer, writable case, valid form, live lease, current version)
-    /// with the Report section's redirect target.
+    /// (Engineer, writable case, valid form and live lease) with the Report
+    /// section's redirect target. The command store compares the posted Case
+    /// version with current persisted state.
     /// </summary>
-    private async Task<IActionResult?> GuardReportCommandAsync(
+    private Task<IActionResult?> GuardReportCommandAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        var refusal = await GuardSectionCommandAsync(
+        CancellationToken cancellationToken) =>
+        GuardSectionCommandAsync(
             id,
             operationKey,
             editLeaseToken,
             "Only an Engineer can generate or deliver reports.",
             () => RedirectToReport(id),
             cancellationToken);
-        if (refusal is not null)
-        {
-            return refusal;
-        }
-        if (!TryGetActor(out var actor))
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-
-        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-        if (details is null)
-        {
-            return NotFound();
-        }
-        currentCaseVersion = details.Workflow.Version;
-        return null;
-    }
 
     /// <summary>
     /// What every section command on the record requires before it touches

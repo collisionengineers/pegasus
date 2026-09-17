@@ -459,7 +459,8 @@ a non-destructive conflict.
 - Vehicle: registration, make, model, year, and one mileage with its
   provenance (Extracted · Lookup · Staff); one **Look up DVLA & MOT** action
   (`EXT-01`) whose looked-up values fill an empty Make, Model, Year, or
-  Mileage directly and never overwrite an extracted or staff-entered value —
+  Mileage, and a Vehicle type that staff have not confirmed, directly and
+  never overwrite an extracted or staff-entered value —
   no checks panel and no suggestion table; Run Experian check stays the
   disabled seam (D34 amended, 2026-09-11) — and a labelled Vehicle history
   area (the history-check narrative, read-only text, editable in edit mode,

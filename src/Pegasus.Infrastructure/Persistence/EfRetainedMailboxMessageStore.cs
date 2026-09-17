@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -801,7 +802,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             return [];
         }
 
-        // Three lookups for the whole page, never one per row.
+        // Five lookups for the whole page, never one per row.
         var tokens = rows.Select(item => item.ExternalReceiptToken).Distinct().ToArray();
         var receipts = await context.IntakeReceipts
             .AsNoTracking()
@@ -844,6 +845,18 @@ internal sealed class EfRetainedMailboxMessageStore(
                     group => group.Key,
                     group => IntakeAllocationState.FromAttempt(
                         EfIntakeAllocationStore.Map(group.First())));
+        var resolved = UnidentifiedState.Resolved.ToString();
+        var receiptOrigin = UnidentifiedOriginKind.Receipt.ToString();
+        var resolvedUnidentifiedReceiptIds = receiptIds.Length == 0
+            ? new HashSet<Guid>()
+            : (await context.Set<UnidentifiedItemEntity>()
+                .AsNoTracking()
+                .Where(item => item.OriginKind == receiptOrigin
+                    && receiptIds.Contains(item.OriginId)
+                    && item.State == resolved)
+                .Select(item => item.OriginId)
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
 
         var addresses = rows.Select(item => item.MailboxAddress).Distinct().ToArray();
         var approvedState = ApprovedMailboxState.Approved.ToString();
@@ -935,7 +948,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                         ? null
                         : MailOperationalDestinationPolicy.Map(classification))
                 {
-                    DismissedAtUtc = row.DismissedAtUtc
+                    DismissedAtUtc = row.DismissedAtUtc,
+                    UnidentifiedResolved = receipt is not null
+                        && resolvedUnidentifiedReceiptIds.Contains(receipt.Id)
                 };
             })
             .ToArray();
@@ -1007,6 +1022,8 @@ internal sealed class EfRetainedMailboxMessageStore(
         var exactFamily = exact?.Name;
         var exactSubtype = exact?.Subtype;
         const string classified = "classified";
+        var resolved = UnidentifiedState.Resolved.ToString();
+        var receiptOrigin = UnidentifiedOriginKind.Receipt.ToString();
 
         return messages.Where(message => context.IntakeReceipts.Any(receipt =>
             receipt.SourceChannel == "mailbox"
@@ -1014,6 +1031,10 @@ internal sealed class EfRetainedMailboxMessageStore(
             && receipt.MailClassificationDecision != null
             && (query.IncludesUnidentified
                 ? receipt.MailClassificationDecision.Outcome != classified
+                    && !context.Set<UnidentifiedItemEntity>().Any(item =>
+                        item.OriginKind == receiptOrigin
+                        && item.OriginId == receipt.Id
+                        && item.State == resolved)
                 : receipt.MailClassificationDecision.Outcome == classified
                     && ((query.IncludesOther
                             && receipt.MailClassificationDecision.OtherName != null)

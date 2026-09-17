@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
@@ -146,7 +147,10 @@ public sealed class ImageViewingWebTests
         // a preview element without a second query.
         Assert.StartsWith("image/", galleryImage.MediaType, StringComparison.Ordinal);
 
-        var expectedSource = $"/Received/{receiptId:D}/Image";
+        // The selected retained asset, not the receipt-wide single-image
+        // fallback, is the stable identity shared by both gallery surfaces.
+        var imageAssetId = Assert.IsType<Guid>(galleryImage.AssetId);
+        var expectedSource = $"/Received/{receiptId:D}/Asset/{imageAssetId:D}";
         var imageCasePage = await IntakeWebDriver.GetHtmlAsync(client, $"/VehicleImages/{detail.Record.Id:D}");
         Assert.Contains(expectedSource, imageCasePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("alt=\"vehicle.png\"", imageCasePage, StringComparison.Ordinal);
@@ -246,9 +250,11 @@ public sealed class ImageViewingWebTests
         Assert.Equal("nosniff", Assert.Single(image.Headers.GetValues("X-Content-Type-Options")));
         Assert.Equal(pngBytes, await image.Content.ReadAsByteArrayAsync());
 
-        // Non-image assets never render inline.
+        // Non-image assets are forced downloads, never inline content.
         using var refusedPdf = await client.GetAsync($"/Received/{receiptId:D}/Asset/{pdfAsset.Id:D}");
-        Assert.Equal(HttpStatusCode.NotFound, refusedPdf.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, refusedPdf.StatusCode);
+        Assert.Equal("application/octet-stream", refusedPdf.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("attachment", refusedPdf.Content.Headers.ContentDisposition?.DispositionType);
 
         // An asset cannot be fetched under another receipt's identity.
         using var foreign = await client.GetAsync($"/Received/{Guid.NewGuid():D}/Asset/{imageAsset.Id:D}");
@@ -261,5 +267,41 @@ public sealed class ImageViewingWebTests
         anonymousRequest.Headers.Add("X-Test-Anonymous", "1");
         using var anonymous = await client.SendAsync(anonymousRequest);
         Assert.Equal(HttpStatusCode.Redirect, anonymous.StatusCode);
+    }
+
+    [Fact]
+    public async Task AssetEndpointForcesSvgToDownload()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IDownloadIntakeAsset>();
+                services.AddSingleton<IDownloadIntakeAsset>(new SvgAssetDownload());
+            }));
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync($"/Received/{Guid.NewGuid():D}/Asset/{Guid.NewGuid():D}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/octet-stream", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("attachment", response.Content.Headers.ContentDisposition?.DispositionType);
+        Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
+    }
+
+    private sealed class SvgAssetDownload : IDownloadIntakeAsset
+    {
+        private static readonly byte[] Content =
+            "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>"u8.ToArray();
+
+        public Task<IntakeSourceDownload?> ExecuteAsync(
+            DownloadIntakeAssetQuery query,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IntakeSourceDownload?>(new(
+                Content,
+                "diagram.svg",
+                "image/svg+xml",
+                Content.Length,
+                "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
     }
 }

@@ -189,17 +189,22 @@ internal sealed class LocalCaseCustody(
         ArgumentNullException.ThrowIfNull(root);
         ArgumentNullException.ThrowIfNull(source);
         ArgumentOutOfRangeException.ThrowIfLessThan(ordinal, 1);
+        if (source.IntakeAssetId is not { } assetId || assetId == Guid.Empty)
+        {
+            throw new ArgumentException("Image intake custody requires a retained asset identity.", nameof(source));
+        }
         ValidateOperationKey(operationKey);
         await ValidateRootAsync(root, cancellationToken);
         var (content, expectedHash) = await ReadVerifiedSourceAsync(source, cancellationToken);
 
-        var relativeId = $"{root.RemoteId}/images/{ordinal:000}-{source.IntakeReceiptId:N}";
+        var relativeId = $"{root.RemoteId}/images/{ordinal:000}-{assetId:N}";
         var directory = Resolve(relativeId);
         Directory.CreateDirectory(directory);
         var contentPath = Path.Combine(directory, "content");
         await CreateOrVerifyContentAsync(contentPath, content, expectedHash, cancellationToken);
         var metadata = new ImageAssetMetadata(
             source.IntakeReceiptId,
+            assetId,
             source.SourceFileName,
             source.MediaType,
             expectedHash,
@@ -556,6 +561,7 @@ internal sealed class LocalCaseCustody(
 
     private sealed record ImageAssetMetadata(
         Guid IntakeReceiptId,
+        Guid IntakeAssetId,
         string FileName,
         string MediaType,
         string Sha256,

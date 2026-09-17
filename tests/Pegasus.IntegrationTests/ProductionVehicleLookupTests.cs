@@ -39,7 +39,7 @@ public sealed class ProductionVehicleLookupTests
             {
                 Assert.Equal(HttpMethod.Post, request.Method);
                 Assert.True(request.Headers.Contains("x-api-key"));
-                return Json(HttpStatusCode.OK, """{"make":"FORD","model":"FOCUS","yearOfManufacture":2020,"engineCapacity":999,"fuelType":"PETROL"}""");
+                return Json(HttpStatusCode.OK, """{"make":"FORD","model":"FOCUS","yearOfManufacture":2020,"engineCapacity":999,"fuelType":"PETROL","typeApproval":"M1","wheelplan":"2 AXLE RIGID BODY","revenueWeight":1800}""");
             }
             if (request.RequestUri.Host == "login.microsoftonline.com")
             {
@@ -54,6 +54,9 @@ public sealed class ProductionVehicleLookupTests
 
         Assert.Equal(VehicleLookupOutcome.Current, result.Outcome);
         Assert.Equal("FORD", result.Vehicle?.Make);
+        Assert.Equal("M1", result.Vehicle?.TypeApproval);
+        Assert.Equal("2 AXLE RIGID BODY", result.Vehicle?.Wheelplan);
+        Assert.Equal(1800, result.Vehicle?.RevenueWeightKg);
         Assert.Equal(12000, Assert.Single(result.MotTests).Mileage);
         Assert.Equal("ves-1.2+mot-history-v1", result.ProviderVersion);
         Assert.Equal(64, result.ResponseIdentity.Length);

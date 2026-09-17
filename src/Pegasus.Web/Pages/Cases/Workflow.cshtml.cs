@@ -26,6 +26,8 @@ public sealed class WorkflowModel(
     ICreateLinkedReplacement createLinkedReplacement,
     ILogger<WorkflowModel> logger) : CaseMutationPageModel(logger)
 {
+    public IActionResult OnGet() => NotFound();
+
     public Task<IActionResult> OnPostHoldAsync(
         Guid id,
         long expectedVersion,

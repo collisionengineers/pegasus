@@ -9,6 +9,8 @@ using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
 
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
+
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
@@ -16,7 +18,8 @@ namespace Pegasus.IntegrationTests;
 /// Actions menu per state, Place on Hold with an optional review date, Assign
 /// to me, Create audit, the Notes band, and a Save that asks for no reason.
 /// </summary>
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseRecordFrameV26WebTests
 {
     /// <summary>
     /// The Actions menu offers exactly the items the state permits inside an
@@ -182,11 +185,11 @@ public sealed partial class CaseDetailsWebTests
     [InlineData(CaseType.InspectionAndAudit, false, false, false)]
     [InlineData(CaseType.Inspection, true, false, false)]
     [InlineData(CaseType.InspectionAndAudit, true, true, false)]
-    public async Task CaseRecordFrameV26CreateAuditIsOfferedOnlyWhereTheUseCaseWouldAccept(
+    public async Task CreateAuditIsOfferedOnlyWhereTheUseCaseWouldAccept(
         CaseType caseType, bool reportGenerated, bool auditExists, bool offered)
     {
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.PostReport, SummaryCaseType = caseType };
-        var audit = new RecordingAuditPorts(reportGenerated, auditExists ? new CaseAuditLink(Guid.NewGuid(), "a.QDOS3100042") : null);
+        var audit = new RecordingAuditPorts(reportGenerated, auditExists ? new CaseAuditLink(Guid.NewGuid(), "ap.QDOS3100042") : null);
         using var workspace = await EnterEditModeAsync(store, audit.Register);
 
         var html = await workspace.GetWorkspaceAsync();
@@ -197,7 +200,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(auditExists, bar.Contains("data-audit-link", StringComparison.Ordinal));
         if (auditExists)
         {
-            Assert.Contains("a.QDOS3100042", bar, StringComparison.Ordinal);
+            Assert.Contains("ap.QDOS3100042", bar, StringComparison.Ordinal);
         }
         Assert.Equal(
             caseType == CaseType.InspectionAndAudit,
@@ -210,7 +213,7 @@ public sealed partial class CaseDetailsWebTests
     /// with Core's reason.
     /// </summary>
     [Fact]
-    public async Task CaseRecordFrameV26CreateAuditLandsOnTheNewCaseOrStatesTheRefusal()
+    public async Task CreateAuditLandsOnTheNewCaseOrStatesTheRefusal()
     {
         var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.PostReport, SummaryCaseType = CaseType.InspectionAndAudit };
         var audit = new RecordingAuditPorts(reportGenerated: true, existing: null);
@@ -386,34 +389,7 @@ public sealed partial class CaseDetailsWebTests
         };
     }
 
-    private sealed partial class RecordingCaseDetailsStore : IAssignCaseToMe
-    {
-        /// <summary>The Case type the summary reports; a plain Inspection unless a test says otherwise.</summary>
-        public CaseType SummaryCaseType { get; init; } = CaseType.Inspection;
 
-        /// <summary>The retained standalone Audit evidence, when intake supplied one.</summary>
-        public Guid? StandaloneAuditEvidenceId { get; init; }
-
-        /// <summary>The source Case for a linked Audit; null for a standalone Audit.</summary>
-        public Guid? AuditOfCaseId { get; init; }
-
-        /// <summary>The Principal and Claim source records' notes the Case reads live.</summary>
-        public CaseRecordNotes RecordNotes { get; init; } = CaseRecordNotes.None;
-
-        /// <summary>The hold's review date the workflow reports.</summary>
-        public DateOnly? HoldReviewOn { get; set; }
-
-        public List<AssignCaseToMeRequest> SelfAssignments { get; } = [];
-
-        Task<CaseWorkflowRecord> IAssignCaseToMe.ExecuteAsync(
-            AssignCaseToMeRequest request,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            SelfAssignments.Add(request);
-            return Task.FromResult(CreateWorkflow() with { AssignedEngineerId = Guid.NewGuid() });
-        }
-    }
 
     /// <summary>
     /// The frame's Create audit reads and the use case itself, substituted
@@ -456,7 +432,7 @@ public sealed partial class CaseDetailsWebTests
             Requests.Add(request);
             return Task.FromResult(new CreateAuditCaseResult(
                 new CaseIdentity(request.CaseId, "QDOS", 2031, 42, "QDOS3100042"),
-                new CaseIdentity(AuditCaseId, "QDOS", 2031, 42, "a.QDOS3100042"),
+                new CaseIdentity(AuditCaseId, "QDOS", 2031, 42, "ap.QDOS3100042"),
                 AuditAssessment.TotalLoss,
                 false));
         }

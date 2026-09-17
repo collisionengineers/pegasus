@@ -37,10 +37,12 @@ public sealed partial class SourceModel(
         {
             return Forbid();
         }
+        catch (IntakeCustodyUnavailableException)
+        {
+            return CustodyUnavailable();
+        }
         catch (FileNotFoundException)
         {
-            // Durable custody has not confirmed the bytes yet: the receipt is
-            // still being filed, so there is nothing to serve, not a fault.
             return NotFound();
         }
         catch (IntakeArtifactIntegrityException exception)
@@ -54,6 +56,13 @@ public sealed partial class SourceModel(
             };
         }
     }
+
+    private static ContentResult CustodyUnavailable() => new()
+    {
+        StatusCode = StatusCodes.Status409Conflict,
+        ContentType = "text/plain; charset=utf-8",
+        Content = "The retained file is not available until durable storage is confirmed. Refresh this record and try again."
+    };
 
     private static string SafeFileName(string fileName)
     {

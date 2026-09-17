@@ -6,6 +6,7 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
@@ -534,6 +535,84 @@ public sealed class RetainedMailPersistenceTests
         Assert.Equal(
             MailOperationalDestination.DetailedClassification,
             detailed.OperationalDestination?.Destination);
+    }
+
+    [Fact]
+    public async Task ResolvedUnidentifiedItemsLeaveTheInboxUnidentifiedScopeWithoutChangingMailFacts()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var resolvedMessage = Message("resolved-unidentified", subject: "Resolved unidentified");
+        var openMessage = Message("open-unidentified", subject: "Open unidentified");
+        await RetainAsync(database, resolvedMessage);
+        await RetainAsync(database, openMessage);
+        var resolvedReceipt = await StoreClassifiedReceiptAsync(
+            database,
+            resolvedMessage,
+            MailClassificationResult.Unclassified([], "fixture", "test", 1));
+        var openReceipt = await StoreClassifiedReceiptAsync(
+            database,
+            openMessage,
+            MailClassificationResult.Unclassified([], "fixture", "test", 1));
+
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var register = services.GetRequiredService<IRegisterUnidentified>();
+        var resolvedItem = (await register.ExecuteAsync(
+            new(
+                UnidentifiedOrigin.Receipt(resolvedReceipt.Id),
+                UnidentifiedReasonCode.NoUsableIdentification,
+                "test detail",
+                ActionActor.SystemWorker("test-worker"),
+                $"unidentified-test:{Guid.NewGuid():N}",
+                ReceivedAtUtc))).Item;
+        await register.ExecuteAsync(
+            new(
+                UnidentifiedOrigin.Receipt(openReceipt.Id),
+                UnidentifiedReasonCode.NoUsableIdentification,
+                "test detail",
+                ActionActor.SystemWorker("test-worker"),
+                $"unidentified-test:{Guid.NewGuid():N}",
+                ReceivedAtUtc));
+        await services.GetRequiredService<IUnidentifiedStore>().ResolveAsync(
+            new(
+                resolvedItem.Id,
+                resolvedItem.Version,
+                ActionActor.Automation("test-worker"),
+                $"unidentified-resolve-test:{Guid.NewGuid():N}",
+                "resolved",
+                UnidentifiedResolutionTargetKind.ExternalReference,
+                "target-1",
+                null,
+                ReceivedAtUtc.AddMinutes(1)));
+
+        var queries = services.GetRequiredService<IRetainedMailQueries>();
+        var unidentifiedScope = new MailWorkspaceScope(
+            null,
+            MailFolderScope.Inbox,
+            Destination: MailOperationalDestination.Unidentified);
+        var unidentified = await queries.ListAsync(
+            unidentifiedScope,
+            1,
+            25,
+            CancellationToken.None);
+        Assert.Equal(1, await queries.CountAsync(unidentifiedScope, CancellationToken.None));
+        Assert.Equal("Open unidentified", Assert.Single(unidentified.Items).Subject);
+
+        var allIncoming = await queries.ListAsync(
+            new(null, MailFolderScope.Inbox),
+            1,
+            25,
+            CancellationToken.None);
+        Assert.Equal(2, allIncoming.Items.Count);
+        var resolvedSummary = Assert.Single(
+            allIncoming.Items,
+            item => item.Subject == "Resolved unidentified");
+        Assert.True(resolvedSummary.UnidentifiedResolved);
+        Assert.Equal(MailClassificationOutcome.Unclassified, resolvedSummary.Classification!.Outcome);
+        Assert.False(Assert.Single(
+            allIncoming.Items,
+            item => item.Subject == "Open unidentified").UnidentifiedResolved);
     }
 
     [Fact]

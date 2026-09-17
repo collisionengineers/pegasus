@@ -8,6 +8,7 @@ using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
@@ -270,6 +271,13 @@ public sealed class EfCaseDataStore(
                 JsonOptions),
             $"{CaseDataPolicy.EditPolicyKey}/v{CaseDataPolicy.EditPolicyVersion}",
             now);
+
+        var freshness = CaseReportFreshness.ClassifyCaseData(before, data);
+        if (freshness.IsStale)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, request.CaseId, freshness.ReasonCode!, now, cancellationToken);
+        }
 
         try
         {

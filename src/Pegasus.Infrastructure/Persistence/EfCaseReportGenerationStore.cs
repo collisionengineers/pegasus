@@ -10,6 +10,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -29,8 +30,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <para>
 /// The snapshot hash is the SHA-256 of the canonical serialization of the
 /// snapshot's <em>material</em> facts — the freeze operation key, its actor
-/// and its timestamp are excluded, so asking for the fee note of an already
-/// frozen report reuses that generation instead of freezing a second one.
+/// and its timestamp are excluded. A separate fee note bypasses fresh snapshot
+/// assembly and extends its explicitly named current report generation.
 /// </para>
 /// </remarks>
 public sealed class EfCaseReportGenerationStore(
@@ -57,28 +58,22 @@ public sealed class EfCaseReportGenerationStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
         var operationKey = ValidateOperationKey(request.OperationKey);
 
-        // Read model first, outside every transaction: it reaches the
-        // Assessment workspace query and case documents, and must never run
-        // under a serializable lock.
-        var inputs = await snapshotSource
-            .GetAsync(request.CaseId, request.Actor, cancellationToken)
-            .ConfigureAwait(false);
-        if (inputs is null)
-        {
-            return new(CaseReportFreezeOutcome.NotFound, null, null, []);
-        }
-
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable, cancellationToken);
 
-        var replay = await context.Set<GeneratedCaseArtifactEntity>()
-            .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken)
-            .ConfigureAwait(false);
-        if (replay is not null)
+        async Task<CaseReportFreezeResult?> ResolveReplayAsync()
         {
-            var replayed = await RequireRecordAsync(context, request.CaseId, replay.GenerationId, cancellationToken)
+            var replay = await context.Set<GeneratedCaseArtifactEntity>()
+                .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken)
                 .ConfigureAwait(false);
+            if (replay is null)
+            {
+                return null;
+            }
+
+            await RequireReplayIdentityAsync(context, request, replay, cancellationToken)
+                .ConfigureAwait(false);
+            var replayed = await RequireRecordAsync(
+                context, request.CaseId, replay.GenerationId, cancellationToken).ConfigureAwait(false);
             return new(
                 replay.State == nameof(CaseReportArtifactStatus.Confirmed)
                     ? CaseReportFreezeOutcome.AlreadyConfirmed
@@ -86,6 +81,48 @@ public sealed class EfCaseReportGenerationStore(
                 replayed,
                 replay.Id,
                 []);
+        }
+
+        // Replay identity is resolved from the stored command before any
+        // current report facts or dates are sampled. The transactional check
+        // below closes the race with a concurrent first application.
+        if (await ResolveReplayAsync().ConfigureAwait(false) is { } resolvedReplay)
+        {
+            return resolvedReplay;
+        }
+
+        if (request.Kind == CaseReportArtifactKind.AssessmentReport
+            && request.TargetGenerationId is not null)
+        {
+            throw new InvalidOperationException("The case report generation is unavailable.");
+        }
+        if (request.Kind == CaseReportArtifactKind.FeeNote
+            && request.TargetGenerationId is null)
+        {
+            throw new InvalidOperationException("The case report generation is unavailable.");
+        }
+
+        // A report freezes freshly projected facts. A separate fee note must
+        // instead use the explicitly targeted generation's frozen snapshot;
+        // it must not resample today's date or current fee facts.
+        CaseReportFreezeInputs? inputs = null;
+        if (request.Kind == CaseReportArtifactKind.AssessmentReport)
+        {
+            inputs = await snapshotSource
+                .GetAsync(request.CaseId, request.Actor, cancellationToken)
+                .ConfigureAwait(false);
+            if (inputs is null)
+            {
+                return new(CaseReportFreezeOutcome.NotFound, null, null, []);
+            }
+        }
+
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable, cancellationToken);
+
+        if (await ResolveReplayAsync().ConfigureAwait(false) is { } concurrentReplay)
+        {
+            return concurrentReplay;
         }
 
         var workflow = await context.CaseWorkflows
@@ -99,7 +136,16 @@ public sealed class EfCaseReportGenerationStore(
         var now = timeProvider.GetUtcNow();
         CaseMutationGuard.Require(
             workflow, request.Actor, request.ExpectedCaseVersion, request.LeaseToken, now);
-        CaseMutationGuard.RequireVersion(workflow, inputs.CaseVersion);
+        if (request.Kind == CaseReportArtifactKind.FeeNote)
+        {
+            return await FreezeFeeNoteAsync(
+                context, transaction, workflow, request, operationKey, now, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        var reportInputs = inputs
+            ?? throw new ArgumentOutOfRangeException(nameof(request), request.Kind, "Unsupported report artifact kind.");
+        CaseMutationGuard.RequireVersion(workflow, reportInputs.CaseVersion);
 
         // Automatic custody does not consume a staff edit lease or advance its
         // Case version. Recheck all source membership/metadata under this same
@@ -109,17 +155,17 @@ public sealed class EfCaseReportGenerationStore(
             context, request.CaseId, cancellationToken);
         var currentSources = EfAssessmentReportProjectionSource.ReportSources(confirmed);
         var currentImages = EfAssessmentReportProjectionSource.ConfirmedImageSources(confirmed);
-        if (!currentSources.SequenceEqual(inputs.Projection.Sources)
-            || currentImages.Count != inputs.Readiness.ConfirmedImageSources.Count
+        if (!currentSources.SequenceEqual(reportInputs.Projection.Sources)
+            || currentImages.Count != reportInputs.Readiness.ConfirmedImageSources.Count
             || currentImages.Any(pair =>
-                !inputs.Readiness.ConfirmedImageSources.TryGetValue(pair.Key, out var captured)
+                !reportInputs.Readiness.ConfirmedImageSources.TryGetValue(pair.Key, out var captured)
                 || pair.Value != captured))
         {
             throw new InvalidOperationException(
                 "The source evidence changed while report inputs were being read; generate again.");
         }
 
-        var readiness = CaseReportReadiness.Evaluate(inputs.Readiness);
+        var readiness = CaseReportReadiness.Evaluate(reportInputs.Readiness);
         if (!readiness.IsReady)
         {
             return new(CaseReportFreezeOutcome.NotReady, null, null, readiness.Reasons);
@@ -132,7 +178,7 @@ public sealed class EfCaseReportGenerationStore(
         // The packaging choice belongs to the report itself: a separate fee
         // note never embeds one, whatever the caller asked for.
         var projected = AssessmentReportProjection.Project(
-            inputs.Projection with
+            reportInputs.Projection with
             {
                 ReportDate = reportDate,
                 IncludeFeeNote = request.IncludeFeeNote
@@ -143,7 +189,7 @@ public sealed class EfCaseReportGenerationStore(
             return new(CaseReportFreezeOutcome.NotReady, null, null, projected.Reasons);
         }
 
-        var snapshot = BuildSnapshot(request, inputs, readiness, projected.Snapshot, reportDate, overridden, now, operationKey);
+        var snapshot = BuildSnapshot(request, reportInputs, readiness, projected.Snapshot, reportDate, overridden, now, operationKey);
         var profiles = await new EfStaffAccountQueries(context)
             .ListSignOffEngineersAsync(cancellationToken).ConfigureAwait(false);
         if (!SignatoryMatches(snapshot, CaseSignOffEngineerResolver.Resolve(
@@ -190,6 +236,11 @@ public sealed class EfCaseReportGenerationStore(
                 item => item.GenerationId == generation.Id && item.Kind == request.Kind.ToString(),
                 cancellationToken).ConfigureAwait(false) is { } existing)
         {
+            if (!string.Equals(existing.OperationKey, operationKey, StringComparison.Ordinal))
+            {
+                throw new CaseOperationConflictException(request.CaseId, operationKey);
+            }
+
             // The same kind of the same frozen snapshot: reuse the artifact
             // row and its recorded operation key, never a second render
             // identity for the same bytes.
@@ -240,6 +291,132 @@ public sealed class EfCaseReportGenerationStore(
         var frozen = await RequireRecordAsync(context, request.CaseId, generation.Id, cancellationToken)
             .ConfigureAwait(false);
         return new(CaseReportFreezeOutcome.Frozen, frozen, artifact.Id, []);
+    }
+
+    private static async Task<CaseReportFreezeResult> FreezeFeeNoteAsync(
+        PegasusDbContext context,
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction,
+        CaseWorkflowEntity workflow,
+        FreezeCaseReportGenerationRequest request,
+        string operationKey,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var generation = await context.Set<CaseReportGenerationEntity>()
+            .SingleOrDefaultAsync(
+                item => item.Id == request.TargetGenerationId
+                    && item.CaseId == request.CaseId
+                    && item.SupersededById == null,
+                cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidOperationException("The case report generation is unavailable.");
+        if (generation.State == nameof(CaseReportGenerationState.Stale))
+        {
+            throw new InvalidOperationException("The case report generation is unavailable.");
+        }
+
+        var snapshot = DeserializeSnapshot(generation);
+        if (snapshot.Report.IncludeFeeNote)
+        {
+            throw new InvalidOperationException("The generated artifact is unavailable.");
+        }
+
+        var report = await context.Set<GeneratedCaseArtifactEntity>()
+            .SingleOrDefaultAsync(
+                item => item.GenerationId == generation.Id
+                    && item.Kind == nameof(CaseReportArtifactKind.AssessmentReport),
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (generation.State != nameof(CaseReportGenerationState.Confirmed)
+            || report?.State != nameof(CaseReportArtifactStatus.Confirmed))
+        {
+            throw new InvalidOperationException("The case report generation is unavailable.");
+        }
+
+        var existing = await context.Set<GeneratedCaseArtifactEntity>()
+            .SingleOrDefaultAsync(
+                item => item.GenerationId == generation.Id
+                    && item.Kind == nameof(CaseReportArtifactKind.FeeNote),
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (existing is not null)
+        {
+            if (!string.Equals(existing.OperationKey, operationKey, StringComparison.Ordinal))
+            {
+                throw new CaseOperationConflictException(request.CaseId, operationKey);
+            }
+
+            var record = await RequireRecordAsync(
+                context, request.CaseId, generation.Id, cancellationToken).ConfigureAwait(false);
+            return new(
+                existing.State == nameof(CaseReportArtifactStatus.Confirmed)
+                    ? CaseReportFreezeOutcome.AlreadyConfirmed
+                    : CaseReportFreezeOutcome.Frozen,
+                record,
+                existing.Id,
+                []);
+        }
+
+        var artifact = new GeneratedCaseArtifactEntity
+        {
+            Id = Guid.NewGuid(),
+            GenerationId = generation.Id,
+            Kind = nameof(CaseReportArtifactKind.FeeNote),
+            State = nameof(CaseReportArtifactStatus.Pending),
+            OperationKey = operationKey,
+        };
+        context.Set<GeneratedCaseArtifactEntity>().Add(artifact);
+        context.ActionHistory.Add(DocumentActionHistory.Succeeded(
+            "case",
+            request.CaseId.ToString("D"),
+            FrozenEventKind,
+            request.Actor,
+            now,
+            operationKey,
+            request.Reason,
+            afterJson: DocumentActionHistory.Serialize(new
+            {
+                GenerationId = generation.Id,
+                ArtifactId = artifact.Id,
+                Kind = nameof(CaseReportArtifactKind.FeeNote),
+                generation.SnapshotHash,
+                CaseVersion = workflow.Version,
+                snapshot.TemplateVersion,
+                snapshot.RendererVersion,
+                snapshot.ReportDate,
+                snapshot.ReportDateOverridden,
+            })));
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        var frozen = await RequireRecordAsync(
+            context, request.CaseId, generation.Id, cancellationToken).ConfigureAwait(false);
+        return new(CaseReportFreezeOutcome.Frozen, frozen, artifact.Id, []);
+    }
+
+    private static async Task RequireReplayIdentityAsync(
+        PegasusDbContext context,
+        FreezeCaseReportGenerationRequest request,
+        GeneratedCaseArtifactEntity replay,
+        CancellationToken cancellationToken)
+    {
+        var generation = await context.Set<CaseReportGenerationEntity>()
+            .AsNoTracking()
+            .SingleAsync(item => item.Id == replay.GenerationId, cancellationToken)
+            .ConfigureAwait(false);
+        var snapshot = DeserializeSnapshot(generation);
+        var expectedIncludeFeeNote = request.Kind == CaseReportArtifactKind.AssessmentReport
+            && request.IncludeFeeNote;
+        var targetMatches = request.Kind == CaseReportArtifactKind.FeeNote
+            ? request.TargetGenerationId == generation.Id
+            : request.TargetGenerationId is null;
+        if (generation.CaseId != request.CaseId
+            || !string.Equals(replay.Kind, request.Kind.ToString(), StringComparison.Ordinal)
+            || snapshot.Report.IncludeFeeNote != expectedIncludeFeeNote
+            || !targetMatches)
+        {
+            throw new CaseOperationConflictException(request.CaseId, replay.OperationKey);
+        }
     }
 
     public async Task<CaseReportGenerationRecord> ConfirmArtifactAsync(

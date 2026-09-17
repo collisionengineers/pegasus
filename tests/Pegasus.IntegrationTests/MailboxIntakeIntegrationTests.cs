@@ -705,7 +705,7 @@ public sealed class MailboxIntakeIntegrationTests
     }
 
     [Fact]
-    public async Task OtherwiseUnidentifiedMailSubmitsOnlyDirectPhotosAsOneImageGroup()
+    public async Task OtherwiseUnidentifiedMailKeepsPhotosAndPdfOnOneParentImageReceipt()
     {
         var workingRoot = Path.Combine(
             Path.GetTempPath(),
@@ -732,7 +732,6 @@ public sealed class MailboxIntakeIntegrationTests
                     services.AddScoped<SubmitGroupedIntake>();
                     services.AddScoped<IGroupedIntakeSubmission>(provider =>
                         provider.GetRequiredService<SubmitGroupedIntake>());
-                    services.AddScoped<SubmitMailboxImageIntake>();
                     services.AddScoped<ProcessQueuedIntake>();
                     services.AddSingleton<IVrmRecognitionEngine>(
                         new FakeVrmRecognitionEngine("AB12CDE"));
@@ -745,7 +744,7 @@ public sealed class MailboxIntakeIntegrationTests
             await ActivateMailboxAsync(database, DateTimeOffset.UnixEpoch);
 
             Guid stagedReceiptId;
-            Guid[] childReceiptIds;
+            Guid parentReceiptId;
             await using (var scope = database.CreateAsyncScope())
             {
                 var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
@@ -776,28 +775,28 @@ public sealed class MailboxIntakeIntegrationTests
                 var workStore = scope.ServiceProvider.GetRequiredService<IIntakeWorkStore>();
                 var evaluation = Assert.IsType<IntakeEvaluationRevision>(
                     await workStore.GetCompletedEvaluationAsync(stagedReceiptId, CancellationToken.None));
-                var groups = scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>();
-                var group = Assert.IsType<IntakeSubmissionGroup>(
-                    await groups.FindAsync(
-                        IntakeSourceChannel.Mailbox,
-                        $"mailbox-images:{evaluation.ProcessedReceiptId:N}",
-                        CancellationToken.None));
-
-                Assert.Equal(IntakeSourceChannel.Mailbox, group.Channel);
-                Assert.Equal(evaluation.ProcessedReceiptId, group.ParentReceiptId);
+                parentReceiptId = evaluation.ProcessedReceiptId;
+                var receipt = Assert.IsType<IntakeReceipt>(await scope.ServiceProvider
+                    .GetRequiredService<IIntakeReceiptQueries>().GetAsync(parentReceiptId, CancellationToken.None));
+                Assert.Equal(IntakeSourceChannel.Mailbox, receipt.SourceIdentity.Channel);
+                Assert.Equal(IntakeDecision.ImageIntakeRegistered, receipt.Decision);
                 Assert.Equal(
                     ["vehicle-1.jpg", "vehicle-2.jpg", "vehicle-3.jpg"],
-                    group.Members
-                        .Select(member => member.SourceFileName)
+                    InstructionEvidenceImages.Select(receipt.AssetRecords)
+                        .Select(asset => asset.FileName)
                         .OrderBy(fileName => fileName, StringComparer.Ordinal));
-                childReceiptIds = group.Members
-                    .OrderBy(member => member.Ordinal)
-                    .Select(member => member.StagedReceiptId)
-                    .ToArray();
+                Assert.Contains(receipt.AssetRecords, asset => asset.FileName == "cover.pdf");
+                Assert.DoesNotContain(receipt.AssetRecords, asset => asset.FileName == "logo.png");
+                var outcomes = await scope.ServiceProvider.GetRequiredService<IGetRetainedMailAttachmentOutcomes>()
+                    .ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]), parentReceiptId);
+                Assert.Equal(4, outcomes.Count);
+                Assert.All(outcomes, outcome => Assert.Equal(AttachmentOutcomeKind.VehicleImages, outcome.Kind));
+                Assert.Single(outcomes.Select(outcome => outcome.Record!.Id).Distinct());
             }
 
             Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM UnidentifiedItems"));
-            Assert.Equal(4L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+            Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+            Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeReceipts"));
 
             await using (var replayScope = database.CreateAsyncScope())
             {
@@ -806,17 +805,8 @@ public sealed class MailboxIntakeIntegrationTests
                     await IntakeWebDriver.CreateProcessor(replayScope.ServiceProvider)
                         .ExecuteAsync(stagedReceiptId, CancellationToken.None));
             }
-            Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeSubmissionGroups"));
+            Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeSubmissionGroups"));
             Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM UnidentifiedItems"));
-
-            foreach (var childReceiptId in childReceiptIds)
-            {
-                await using var scope = database.CreateAsyncScope();
-                _ = await IntakeWebDriver.DrainStagedAsync(
-                    scope.ServiceProvider,
-                    childReceiptId,
-                    CancellationToken.None);
-            }
 
             await using (var scope = database.CreateAsyncScope())
             {
@@ -829,6 +819,7 @@ public sealed class MailboxIntakeIntegrationTests
                 Assert.Equal("AB12CDE-01", imageIntake.ImageIntakeReference);
                 Assert.Equal("AB12CDE", imageIntake.NormalizedVehicleRegistration);
                 Assert.Equal(ImageInitiatedCaseState.AwaitingInstruction, imageIntake.State);
+                Assert.Equal(parentReceiptId, imageIntake.OriginReceiptId);
                 Assert.Equal(
                     ["vehicle-1.jpg", "vehicle-2.jpg", "vehicle-3.jpg"],
                     (await imageQueries.ListImagesAsync(imageIntake.Id, CancellationToken.None))
@@ -1603,7 +1594,9 @@ public sealed class MailboxIntakeIntegrationTests
             {
                 FileName = "cover.pdf",
                 ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
-                Content = new MimeContent(new MemoryStream([4]))
+                Content = new MimeContent(new MemoryStream(
+                    IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+                        notificationTitle: "Photographs supplied", addSignatureLines: false)))
             }
         };
         var message = new MimeMessage

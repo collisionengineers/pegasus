@@ -61,6 +61,25 @@ public sealed partial class DetailsModel(
 
     public IntakeSubmissionGroup? SubmissionGroup { get; private set; }
 
+    /// <summary>
+    /// The receipt or completed members that supply the material this item
+    /// represents. A group origin has no single receipt of its own.
+    /// </summary>
+    public IReadOnlyList<IntakeReceipt> MaterialReceipts { get; private set; } = [];
+
+    /// <summary>The retained originals and non-image e-mail attachments.</summary>
+    public IReadOnlyList<RetainedIntakeFile> RetainedFiles => MaterialReceipts
+        .SelectMany(receipt => IntakeFileIdentity.Ordered(receipt)
+            .Where(asset => asset.Kind == IntakeAssetKind.Source
+                || (receipt.SourceIdentity.Channel == IntakeSourceChannel.Mailbox
+                    && asset.Kind == IntakeAssetKind.Attachment
+                    && !InstructionEvidenceImages.IsImage(asset.MediaType)))
+            .Select(asset => new RetainedIntakeFile(
+                receipt.Id,
+                asset,
+                asset.Kind == IntakeAssetKind.Source)))
+        .ToArray();
+
     public IReadOnlyList<UnidentifiedHistoryEntry> History { get; private set; } = [];
 
     public bool IsOpen => Item.State == UnidentifiedState.Open;
@@ -89,10 +108,32 @@ public sealed partial class DetailsModel(
 
     public bool CanOpenTriage => Context.CanOpenTriage;
 
+    /// <summary>The original retained file, separately from extracted photographs.</summary>
+    public IntakeAssetRecord? SourceAsset => Receipt is { } receipt
+        ? IntakeFileIdentity.SourceAsset(receipt)
+        : null;
+
+    /// <summary>
+    /// The selected photographs this item contains. A PDF may carry several;
+    /// its source media type must not suppress their review surface.
+    /// </summary>
+    public IReadOnlyList<RetainedIntakeImage> EvidenceImages => MaterialReceipts
+        .SelectMany(receipt => InstructionEvidenceImages.Select(receipt.AssetRecords)
+            .Select(asset => new RetainedIntakeImage(receipt.Id, asset)))
+        .ToArray();
+
+    /// <summary>
+    /// VRM observations from each represented receipt. Group action semantics
+    /// remain with its Upload Group page, so this list is review-only there.
+    /// </summary>
+    public IReadOnlyList<ImageVrmSuggestion> RegistrationReadings { get; private set; } = [];
+
+    public bool IsSourceStored => SourceAsset?.CustodyState == IncomingArtifactCustodyState.Confirmed;
+
     /// <summary>Open file: the retained original, through the kept source route.</summary>
-    public string? OpenFileHref => Receipt is { } receipt && Context.SourceMessageId is null
+    public string? OpenFileHref => Receipt is { } receipt && Context.SourceMessageId is null && IsSourceStored
         ? $"/Received/{receipt.Id:D}/Source"
-        : Receipt is { } emailReceipt && IntakeFileIdentity.SourceAsset(emailReceipt) is not null && !IsEmail
+        : Receipt is { } emailReceipt && IsSourceStored && !IsEmail
             ? $"/Received/{emailReceipt.Id:D}/Source"
             : null;
 
@@ -362,6 +403,15 @@ public sealed partial class DetailsModel(
         _ => OperatorLabels.Humanise(disposition.ToString())
     };
 
+    public static string CustodyLabel(IncomingArtifactCustodyState state) => state switch
+    {
+        IncomingArtifactCustodyState.Pending => "Storing",
+        IncomingArtifactCustodyState.Confirmed => "Stored",
+        IncomingArtifactCustodyState.Unknown => "Storage status unknown",
+        IncomingArtifactCustodyState.Failed => "Storage failed",
+        _ => OperatorLabels.Humanise(state.ToString())
+    };
+
     private async Task<IActionResult?> LoadAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -385,20 +435,45 @@ public sealed partial class DetailsModel(
         }
 
         Context = context;
-        if (context.Receipt is { } imageReceipt
-            && imageReceipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
-            && context.SourceAssetId is { } imageAssetId)
+        MaterialReceipts = context.Receipt is { } originReceipt ? [originReceipt] : [];
+        RegistrationReadings = context.RegistrationReadings;
+        if (context.Item.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup)
         {
-            Preparations = await getPreparations.ExecuteAsync(actor, [imageAssetId], cancellationToken);
+            SubmissionGroup = await submissionGroups.GetAsync(context.Item.Origin.Id, cancellationToken);
+            if (SubmissionGroup is not null)
+            {
+                var receipts = new List<IntakeReceipt>();
+                var readings = new List<ImageVrmSuggestion>();
+                foreach (var receiptId in SubmissionGroup.Members
+                             .OrderBy(member => member.Ordinal)
+                             .Select(member => member.ProcessedReceiptId)
+                             .OfType<Guid>()
+                             .Distinct())
+                {
+                    var memberReceipt = await getIntake.ExecuteAsync(
+                        new GetIntakeQuery(receiptId, actor), cancellationToken);
+                    if (memberReceipt is null)
+                    {
+                        continue;
+                    }
+
+                    receipts.Add(memberReceipt);
+                    readings.AddRange(await vrmSuggestions.ListForReceiptAsync(receiptId, cancellationToken));
+                }
+
+                MaterialReceipts = receipts;
+                RegistrationReadings = readings;
+            }
+        }
+
+        var imageAssetIds = EvidenceImages.Select(image => image.Asset.Id).ToArray();
+        if (imageAssetIds.Length > 0)
+        {
+            Preparations = await getPreparations.ExecuteAsync(actor, imageAssetIds, cancellationToken);
             ImageTags = await tagVocabulary.ListAsync(cancellationToken);
         }
 
         History = await store.HistoryAsync(id, cancellationToken);
-        if (context.Item.Origin.Kind == UnidentifiedOriginKind.SubmissionGroup)
-        {
-            SubmissionGroup = await submissionGroups.GetAsync(context.Item.Origin.Id, cancellationToken);
-        }
-
         if (CanLinkCase && Receipt is { } receipt)
         {
             var query = CaseQuery?.Trim();

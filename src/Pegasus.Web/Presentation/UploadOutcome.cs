@@ -209,7 +209,7 @@ public sealed class UploadOutcomeQueries(
                 OperatorLabels.AssociatedWithCase(
                     receipt.CurrentCaseReference,
                     receipt.AssociationWasStaffDecision),
-                new("Open case", $"/Cases/Details/{caseId:D}"),
+                new("Open case", $"/Cases/{caseId:D}"),
                 null);
         }
 
@@ -237,7 +237,7 @@ public sealed class UploadOutcomeQueries(
                     UploadOutcomeKind.Attached,
                     "Associated with a case",
                     OperatorLabels.AssociatedWithCase(detail.MergedIntoCaseReference, byStaffDecision: true),
-                    new("Open case", $"/Cases/Details/{mergedCaseId:D}"),
+                    new("Open case", $"/Cases/{mergedCaseId:D}"),
                     null);
             }
             if (detail is not null)

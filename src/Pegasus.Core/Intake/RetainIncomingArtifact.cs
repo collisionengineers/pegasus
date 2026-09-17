@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 
@@ -281,6 +282,8 @@ public sealed class RetainIncomingArtifact(
     IIncomingArtifactRetentionStore store,
     ICaseArtifactCustodyStatus? custodyStatus = null)
 {
+    private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
+
     private readonly ICaseArtifactCustody custody =
         custody ?? throw new ArgumentNullException(nameof(custody));
 
@@ -304,6 +307,7 @@ public sealed class RetainIncomingArtifact(
         ArgumentNullException.ThrowIfNull(occurrence);
         ArgumentNullException.ThrowIfNull(content);
         Validate(actor, occurrence);
+        using var activity = Telemetry.StartActivity("retain_incoming_artifact");
 
         // No committed arrival, no hand-over. The bytes would reach custody
         // outside the one lifecycle that makes a retry safe, and the refusal
@@ -403,6 +407,17 @@ public sealed class RetainIncomingArtifact(
                 occurrence.CaseId,
                 Sha256: occurrence.Sha256,
                 ContentLength: occurrence.ContentLength);
+
+            // Diagnostics identify the durable arrival and fault category,
+            // never untrusted file metadata or the exception message. The
+            // receipt/occurrence pair is enough to correlate this outcome to
+            // the later same-key reconciliation without exposing content.
+            activity?.SetTag("intake.custody_handoff", "unknown");
+            activity?.SetTag("intake.custody_failure_type", exception.GetType().Name);
+            activity?.SetTag("intake.custody_occurrence_id", occurrence.OccurrenceId.ToString("N"));
+            activity?.SetTag(
+                "intake.custody_receipt_id",
+                occurrence.IntakeReceiptId?.ToString("N"));
 
             // Written on a fresh token on purpose. A hand-over cancelled by
             // the sender disconnecting is exactly the case that must still be

@@ -136,7 +136,7 @@ public sealed class UploadConfirmationWebTests
         // association the attach recorded, not through an accepted case link
         // of its own: the status page still opens it.
         Assert.Contains(">Open case</a>", afterPage, StringComparison.Ordinal);
-        Assert.Contains($"/Cases/Details/{caseId:D}", afterPage, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{caseId:D}\"", afterPage, StringComparison.Ordinal);
         Assert.DoesNotContain("Open receipt", afterPage, StringComparison.Ordinal);
 
         // The same decision submitted again changes nothing and still reports
@@ -261,7 +261,7 @@ public sealed class UploadConfirmationWebTests
         Assert.Contains("Add to an existing case", statusPage, StringComparison.Ordinal);
         Assert.Contains(caseReference, statusPage, StringComparison.Ordinal);
         Assert.DoesNotContain("automatically associated with case", statusPage, StringComparison.Ordinal);
-        Assert.DoesNotContain($"/Cases/Details/{caseId:D}", statusPage, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain($"href=\"/Cases/{caseId:D}\"", statusPage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -564,7 +564,7 @@ public sealed class UploadConfirmationWebTests
         var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.DoesNotContain("This submission", afterPage, StringComparison.Ordinal);
         Assert.Contains("Open case", afterPage, StringComparison.Ordinal);
-        Assert.Contains($"/Cases/Details/{caseId:D}", afterPage, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{caseId:D}\"", afterPage, StringComparison.Ordinal);
         await using var db = await linkScope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
         var historyCount = await db.Database.SqlQueryRaw<int>(
