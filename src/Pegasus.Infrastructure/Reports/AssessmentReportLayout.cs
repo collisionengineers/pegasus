@@ -78,39 +78,48 @@ internal static class AssessmentReportLayout
             CaseReportArtifactKind.AssessmentReport => false,
             _ => throw new ReportRenderRejectedException($"Unsupported report artifact kind '{kind}'."),
         };
-        return Document.Create(container => container.Page(page =>
+        return Document.Create(container =>
         {
-            page.Size(PageSizes.A4);
-            // The accepted print margins: 8mm top, 12mm each side and 22mm at
-            // the foot, of which the footer band takes the upper 14mm so the
-            // page numbering sits inside the margin, as the browser footer did.
-            page.MarginTop(8, Unit.Millimetre);
-            page.MarginHorizontal(12, Unit.Millimetre);
-            page.MarginBottom(8, Unit.Millimetre);
-            page.DefaultTextStyle(style => style
-                .FontFamily(FontFamily)
-                .FontSize(DataRegister)
-                .FontColor(Ink)
-                .LineHeight(BodyLineHeight));
-            page.Content().Column(column =>
+            void AddPages(bool pageIsFeeNote)
             {
-                if (feeNote)
+                container.Page(page =>
                 {
-                    FeeNote(column, snapshot, images.Logo);
-                    return;
-                }
-                Report(column, snapshot, images);
-                if (snapshot.IncludeFeeNote)
-                {
-                    column.Item().PageBreak();
-                    FeeNote(column, snapshot, images.Logo);
-                }
-            });
-            page.Footer()
-                .Height(14, Unit.Millimetre)
-                .AlignBottom()
-                .Element(footer => Footer(footer, snapshot, feeNote));
-        }));
+                    page.Size(PageSizes.A4);
+                    // The accepted print margins: 8mm top, 12mm each side and 22mm at
+                    // the foot, of which the footer band takes the upper 14mm so the
+                    // page numbering sits inside the margin, as the browser footer did.
+                    page.MarginTop(8, Unit.Millimetre);
+                    page.MarginHorizontal(12, Unit.Millimetre);
+                    page.MarginBottom(8, Unit.Millimetre);
+                    page.DefaultTextStyle(style => style
+                        .FontFamily(FontFamily)
+                        .FontSize(DataRegister)
+                        .FontColor(Ink)
+                        .LineHeight(BodyLineHeight));
+                    page.Content().Column(column =>
+                    {
+                        if (pageIsFeeNote)
+                        {
+                            FeeNote(column, snapshot, images.Logo);
+                        }
+                        else
+                        {
+                            Report(column, snapshot, images);
+                        }
+                    });
+                    page.Footer()
+                        .Height(14, Unit.Millimetre)
+                        .AlignBottom()
+                        .Element(footer => Footer(footer, snapshot, pageIsFeeNote));
+                });
+            }
+
+            AddPages(feeNote);
+            if (!feeNote && snapshot.IncludeFeeNote)
+            {
+                AddPages(pageIsFeeNote: true);
+            }
+        });
     }
 
     private static void Footer(IContainer container, AssessmentReportSnapshot snapshot, bool feeNote)
@@ -416,7 +425,9 @@ internal static class AssessmentReportLayout
             .Column(totals =>
             {
                 TotalRow(totals.Item().PaddingVertical(1.2f, Unit.Millimetre), "Subtotal (Net)", Number(snapshot.FeeNet));
-                TotalRow(totals.Item().PaddingVertical(1.2f, Unit.Millimetre), "VAT @ 20%", Number(snapshot.FeeVat));
+                var vatPercent = (AssessmentReportContract.FeeVatRate * 100m)
+                    .ToString("0.##", CultureInfo.InvariantCulture);
+                TotalRow(totals.Item().PaddingVertical(1.2f, Unit.Millimetre), $"VAT @ {vatPercent}%", Number(snapshot.FeeVat));
                 TotalRow(
                     totals.Item()
                         .PaddingTop(1, Unit.Millimetre)

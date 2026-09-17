@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -143,6 +144,10 @@ public sealed class EfRepairSpecificationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         Guard(workflow, request.ExpectedCaseVersion, request.Actor, request.EditLeaseToken, now);
+        var beforeEstimate = await ReadReportEstimateDependenciesAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
         var entity = await RequiredEstimateAsync(context, request.CaseId, request.SpecificationId, cancellationToken);
         if (entity.Version != request.ExpectedSpecificationVersion)
         {
@@ -174,11 +179,13 @@ public sealed class EfRepairSpecificationStore(
         Accept(entity, basis, request.Actor, now);
         entity.IsCurrent = true;
         entity.LastOperationKey = request.OperationKey;
-        // The current estimate's accepted breakdown is a frozen report
-        // input: a new acceptance stales the current generation here, in the
-        // same transaction.
-        await EfCaseReportGenerationStore.MarkStaleAsync(
-            context, request.CaseId, "estimate_accepted", now, cancellationToken);
+        await MarkEstimateStaleIfNeededAsync(
+            context,
+            request.CaseId,
+            beforeEstimate,
+            new(entity.Id, entity.Version),
+            now,
+            cancellationToken);
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "repair_specification_accepted", requestHash,
             new { entity.Id, entity.Version }, now);
@@ -437,6 +444,10 @@ public sealed class EfRepairSpecificationStore(
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         var now = Now();
         Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
+        var beforeEstimate = await ReadReportEstimateDependenciesAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
         var entity = await RequiredEstimateAsync(context, request.CaseId, request.EstimateId, cancellationToken);
 
         // "Use estimate" is the Engineer's acceptance of a Draft: their act
@@ -476,10 +487,13 @@ public sealed class EfRepairSpecificationStore(
         }
         entity.IsCurrent = true;
         entity.LastOperationKey = request.OperationKey;
-        // Currency moved: the newly current estimate's figures are what the
-        // next generation freezes, so any existing one is stale now.
-        await EfCaseReportGenerationStore.MarkStaleAsync(
-            context, request.CaseId, "estimate_set_current", now, cancellationToken);
+        await MarkEstimateStaleIfNeededAsync(
+            context,
+            request.CaseId,
+            beforeEstimate,
+            new(entity.Id, entity.Version),
+            now,
+            cancellationToken);
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "estimate_set_current", requestHash,
             new { entity.Id, entity.Version, entity.Name, Previous = previous.Select(item => item.Id).ToArray() }, now);
@@ -794,6 +808,40 @@ public sealed class EfRepairSpecificationStore(
         await context.CaseRepairSpecifications.Include(item => item.Lines)
             .SingleOrDefaultAsync(item => item.Id == estimateId && item.CaseId == caseId, cancellationToken)
         ?? throw new InvalidOperationException("The estimate was not found on this case.");
+
+    private static async Task<CaseReportEstimateDependencies> ReadReportEstimateDependenciesAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var current = await context.CaseRepairSpecifications.AsNoTracking()
+            .Where(item => item.CaseId == caseId && item.IsCurrent)
+            .Select(item => new { item.Id, item.Version })
+            .SingleOrDefaultAsync(cancellationToken);
+        return current is null
+            ? new(null, null)
+            : new(current.Id, current.Version);
+    }
+
+    private static async Task MarkEstimateStaleIfNeededAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CaseReportEstimateDependencies before,
+        CaseReportEstimateDependencies after,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var freshness = CaseReportFreshness.ClassifyEstimate(before, after);
+        if (freshness.IsStale)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context,
+                caseId,
+                freshness.ReasonCode!,
+                now,
+                cancellationToken);
+        }
+    }
 
     private static async Task<CaseWorkflowEntity> RequiredWorkflowAsync(
         PegasusDbContext context, Guid caseId, CancellationToken cancellationToken) =>

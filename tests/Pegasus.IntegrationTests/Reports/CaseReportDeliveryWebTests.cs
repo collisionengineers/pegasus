@@ -20,6 +20,7 @@ public sealed partial class AssessmentReportDraftWebTests
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var caseId = Guid.NewGuid();
         var operationKey = Guid.NewGuid().ToString("N");
+        var targetGenerationId = Guid.NewGuid();
         var recorder = new RecordingGenerateReport();
         using var factory = Compose(
             baseFactory,
@@ -37,15 +38,20 @@ public sealed partial class AssessmentReportDraftWebTests
                 AntiforgeryValue(html),
                 ("id", caseId.ToString("D")),
                 ("operationKey", operationKey),
-                ("editLeaseToken", "held-report-lease")));
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "41"),
+                ("targetGenerationId", targetGenerationId.ToString("D"))));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var request = Assert.Single(recorder.Requests);
         Assert.Equal(caseId, request.CaseId);
-        Assert.Equal(0, request.ExpectedCaseVersion);
+        Assert.Equal(41, request.ExpectedCaseVersion);
         Assert.Equal("held-report-lease", request.LeaseToken);
         Assert.Equal(operationKey, request.OperationKey);
         Assert.Equal(expectedKind, request.Kind);
+        Assert.Equal(
+            expectedKind == CaseReportArtifactKind.FeeNote ? targetGenerationId : null,
+            request.TargetGenerationId);
         Assert.Equal(ActorKind.Staff, request.Actor.Kind);
         Assert.Contains(StaffRole.Engineer, request.Actor.Roles);
     }
@@ -91,6 +97,7 @@ public sealed partial class AssessmentReportDraftWebTests
             ("id", caseId.ToString("D")),
             ("operationKey", Guid.NewGuid().ToString("N")),
             ("editLeaseToken", "held-report-lease"),
+            ("expectedCaseVersion", "0"),
         ];
         if (includeFeeNote)
         {
@@ -105,6 +112,183 @@ public sealed partial class AssessmentReportDraftWebTests
         var request = Assert.Single(recorder.Requests);
         Assert.Equal(CaseReportArtifactKind.AssessmentReport, request.Kind);
         Assert.Equal(includeFeeNote, request.IncludeFeeNote);
+    }
+
+    [Fact]
+    public async Task ReportAndSeparateFeeNoteFormsUseDistinctOperationKeys()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        using var reportFactory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]));
+        using var reportClient = Client(reportFactory);
+        var reportHtml = await EnterEditModeAsync(reportClient, caseId);
+        var reportForm = FormHtml(reportHtml, "GenerateReport");
+
+        using var feeNoteFactory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]))
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(caseId, false));
+            }));
+        using var feeNoteClient = Client(feeNoteFactory);
+        var feeNoteHtml = await EnterEditModeAsync(feeNoteClient, caseId);
+        var feeNoteForm = FormHtml(feeNoteHtml, "GenerateFeeNote");
+
+        Assert.NotEqual(
+            InputValue(reportForm, "operationKey"),
+            InputValue(feeNoteForm, "operationKey"));
+    }
+
+    [Fact]
+    public async Task ConfirmedReportDoesNotRenderAFreshConflictingSubmission()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generator = new RecordingGenerationJourney(caseId, failFirst: false);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            generateReport: generator)
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(generator);
+            }));
+        using var client = Client(factory);
+        var initialHtml = await EnterEditModeAsync(client, caseId);
+        var form = FormHtml(initialHtml, "GenerateReport");
+
+        using var generated = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=GenerateReport&section=report",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", caseId.ToString("D")),
+                ("operationKey", InputValue(form, "operationKey")),
+                ("editLeaseToken", InputValue(form, "editLeaseToken")),
+                ("expectedCaseVersion", InputValue(form, "expectedCaseVersion"))));
+
+        Assert.Equal(HttpStatusCode.Redirect, generated.StatusCode);
+        Assert.Single(generator.Requests);
+        var confirmedHtml = await EnterEditModeAsync(client, caseId);
+        Assert.Contains("data-report-artifact=\"AssessmentReport\"", confirmedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-generate-report", confirmedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-generate-report-form\"", confirmedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-include-fee-note", confirmedHtml, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(CaseReportArtifactStatus.Pending)]
+    [InlineData(CaseReportArtifactStatus.Failed)]
+    [InlineData(CaseReportArtifactStatus.Unknown)]
+    public async Task UnconfirmedFeeNoteKeepsRetryActionWithItsRetainedOperationKey(
+        CaseReportArtifactStatus status)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        const string retainedOperationKey = "retained-fee-note-operation";
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]))
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(new FakeCurrentGeneration(
+                    caseId,
+                    includeFeeNote: false,
+                    feeNoteStatus: status,
+                    feeNoteOperationKey: retainedOperationKey));
+            }));
+        using var client = Client(factory);
+
+        var html = await EnterEditModeAsync(client, caseId);
+        var feeNoteForm = FormHtml(html, "GenerateFeeNote");
+
+        Assert.Equal(retainedOperationKey, InputValue(feeNoteForm, "operationKey"));
+        Assert.NotEqual(Guid.Empty, Guid.Parse(InputValue(feeNoteForm, "targetGenerationId")));
+    }
+
+    [Fact]
+    public async Task FailedReportRedirectKeepsItsFrozenCommandForASuccessfulRetry()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generator = new RecordingGenerationJourney(caseId, failFirst: true);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            generateReport: generator)
+            .WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<ICaseReportGenerationStore>();
+                services.AddSingleton<ICaseReportGenerationStore>(generator);
+            }));
+        using var client = Client(factory);
+        var initialHtml = await EnterEditModeAsync(client, caseId);
+        var initialForm = FormHtml(initialHtml, "GenerateReport");
+        var retainedOperationKey = InputValue(initialForm, "operationKey");
+
+        using var failed = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=GenerateReport&section=report",
+            Form(
+                AntiforgeryValue(initialHtml),
+                ("id", caseId.ToString("D")),
+                ("operationKey", retainedOperationKey),
+                ("editLeaseToken", InputValue(initialForm, "editLeaseToken")),
+                ("expectedCaseVersion", InputValue(initialForm, "expectedCaseVersion")),
+                ("includeFeeNote", "true")));
+
+        Assert.Equal(HttpStatusCode.Redirect, failed.StatusCode);
+        var retryHtml = await GetHtmlAsync(client, failed.Headers.Location!.OriginalString);
+        var retryForm = FormHtml(retryHtml, "GenerateReport");
+        Assert.Equal(retainedOperationKey, InputValue(retryForm, "operationKey"));
+        Assert.Equal("true", InputValue(retryForm, "includeFeeNote"));
+        Assert.DoesNotContain("data-include-fee-note", retryForm, StringComparison.Ordinal);
+
+        using var retried = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=GenerateReport&section=report",
+            Form(
+                AntiforgeryValue(retryHtml),
+                ("id", caseId.ToString("D")),
+                ("operationKey", InputValue(retryForm, "operationKey")),
+                ("editLeaseToken", InputValue(retryForm, "editLeaseToken")),
+                ("expectedCaseVersion", InputValue(retryForm, "expectedCaseVersion")),
+                ("includeFeeNote", InputValue(retryForm, "includeFeeNote"))));
+
+        Assert.Equal(HttpStatusCode.Redirect, retried.StatusCode);
+        Assert.Collection(
+            generator.Requests,
+            request =>
+            {
+                Assert.Equal(retainedOperationKey, request.OperationKey);
+                Assert.True(request.IncludeFeeNote);
+                Assert.Equal(0, request.ExpectedCaseVersion);
+            },
+            request =>
+            {
+                Assert.Equal(retainedOperationKey, request.OperationKey);
+                Assert.True(request.IncludeFeeNote);
+                Assert.Equal(0, request.ExpectedCaseVersion);
+            });
+        Assert.Equal(CaseReportGenerationOutcome.Generated, generator.LastOutcome);
     }
 
     /// <summary>
@@ -176,6 +360,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 ("id", caseId.ToString("D")),
                 ("operationKey", operationKey),
                 ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0"),
                 ("generationId", generationId.ToString("D")),
                 ("expectedGenerationVersion", "13"),
                 ("toRecipients", "reviewed@recipient.example"),
@@ -276,6 +461,17 @@ public sealed partial class AssessmentReportDraftWebTests
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
     }
 
+    private static string FormHtml(string html, string handler)
+    {
+        var form = System.Text.RegularExpressions.Regex.Match(
+            html,
+            $"<form[^>]*(?:action=\"[^\"]*handler={handler}[^\"]*\"|asp-page-handler=\"{handler}\")[^>]*>[\\s\\S]*?</form>",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                | System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        Assert.True(form.Success, $"The page must render the {handler} form.");
+        return form.Value;
+    }
+
     private static HttpClient Client(WebApplicationFactory<Program> factory)
     {
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -291,10 +487,22 @@ public sealed partial class AssessmentReportDraftWebTests
     /// One confirmed current generation, so the card the page renders can be
     /// read. Only the reads the Case page makes are answered.
     /// </summary>
-    private sealed class FakeCurrentGeneration(Guid caseId, bool includeFeeNote)
+    private sealed class FakeCurrentGeneration(
+        Guid caseId,
+        bool includeFeeNote,
+        CaseReportArtifactStatus? feeNoteStatus = null,
+        string? feeNoteOperationKey = null,
+        CaseReportArtifactStatus reportStatus = CaseReportArtifactStatus.Confirmed,
+        string? reportOperationKey = null)
         : ICaseReportGenerationStore
     {
-        private readonly CaseReportGenerationRecord record = Record(caseId, includeFeeNote);
+        private readonly CaseReportGenerationRecord record = GenerationRecord(
+            caseId,
+            includeFeeNote,
+            feeNoteStatus,
+            feeNoteOperationKey,
+            reportStatus,
+            reportOperationKey);
 
         public Task<CaseReportGenerationRecord?> GetCurrentAsync(
             ActionActor actor, Guid id, CancellationToken cancellationToken) =>
@@ -327,30 +535,130 @@ public sealed partial class AssessmentReportDraftWebTests
             RecordCaseReportDraftPreviewedRequest request, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
-        private static CaseReportGenerationRecord Record(Guid caseId, bool includeFeeNote)
+    }
+
+    private sealed class RecordingGenerationJourney(Guid caseId, bool failFirst)
+        : IGenerateCaseReport, ICaseReportGenerationStore
+    {
+        private CaseReportGenerationRecord? current;
+
+        public List<GenerateCaseReportRequest> Requests { get; } = [];
+
+        public CaseReportGenerationOutcome? LastOutcome { get; private set; }
+
+        public Task<CaseReportGenerationResult> ExecuteAsync(
+            GenerateCaseReportRequest request,
+            CancellationToken cancellationToken)
         {
-            var projected = AssessmentReportProjection.Project(ReadyInput(caseId)).Snapshot!;
-            var report = projected with { IncludeFeeNote = includeFeeNote };
-            var generationId = Guid.NewGuid();
-            var snapshot = new CaseReportGenerationSnapshot(
-                caseId, 0, "CE-100", "operation-1", CaseReportActor.None, ReportFixtureAtUtc,
-                Guid.NewGuid(), new string('a', 64), "image/png", Guid.NewGuid(), 2,
-                report.Costs, report.EngineerValue, Guid.NewGuid(),
-                report.Content, report.Guides, report.ReportDate, false,
-                report.AgreedFee, report.FeeDescriptionLines, [], [],
-                AssessmentReportContract.TemplateVersion, "fake", report);
-            return new(
-                generationId, caseId, 0, 1, new string('b', 64), snapshot,
-                AssessmentReportContract.TemplateVersion, "fake",
-                CaseReportGenerationState.Confirmed, ReportFixtureAtUtc, null,
-                [
-                    new CaseReportArtifactRecord(
-                        Guid.NewGuid(), generationId, CaseReportArtifactKind.AssessmentReport,
-                        CaseReportArtifactStatus.Confirmed, "operation-1", Guid.NewGuid(),
-                        Guid.NewGuid(), new string('c', 64), 3, "CE_100_assessment.pdf",
-                        "application/pdf", null, null, null, null),
-                ]);
+            Requests.Add(request);
+            var status = failFirst && Requests.Count == 1
+                ? CaseReportArtifactStatus.Failed
+                : CaseReportArtifactStatus.Confirmed;
+            current = GenerationRecord(
+                caseId,
+                request.IncludeFeeNote,
+                feeNoteStatus: null,
+                feeNoteOperationKey: null,
+                reportStatus: status,
+                reportOperationKey: request.OperationKey);
+            LastOutcome = status == CaseReportArtifactStatus.Failed
+                ? CaseReportGenerationOutcome.Failed
+                : CaseReportGenerationOutcome.Generated;
+            return Task.FromResult(new CaseReportGenerationResult(
+                LastOutcome.Value,
+                current,
+                []));
         }
+
+        public Task<CaseReportGenerationRecord?> GetCurrentAsync(
+            ActionActor actor,
+            Guid id,
+            CancellationToken cancellationToken) => Task.FromResult(current);
+
+        public Task<CaseReportGenerationRecord?> GetAsync(
+            ActionActor actor,
+            Guid id,
+            Guid generationId,
+            CancellationToken cancellationToken) => Task.FromResult(current);
+
+        public Task<IReadOnlyList<CaseReportGenerationRecord>> ListAsync(
+            ActionActor actor,
+            Guid id,
+            CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<CaseReportGenerationRecord>>(
+                current is null ? [] : [current]);
+
+        public Task<CaseReportFreezeResult> FreezeAsync(
+            FreezeCaseReportGenerationRequest request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<CaseReportGenerationRecord> ConfirmArtifactAsync(
+            ConfirmCaseReportArtifactRequest request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<CaseReportGenerationRecord> RecordArtifactOutcomeAsync(
+            RecordCaseReportArtifactOutcomeRequest request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<int> MarkStaleAsync(
+            Guid id,
+            string reasonCode,
+            CancellationToken cancellationToken) => Task.FromResult(0);
+
+        public Task RecordDraftPreviewedAsync(
+            RecordCaseReportDraftPreviewedRequest request,
+            CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private static CaseReportGenerationRecord GenerationRecord(
+        Guid caseId,
+        bool includeFeeNote,
+        CaseReportArtifactStatus? feeNoteStatus,
+        string? feeNoteOperationKey,
+        CaseReportArtifactStatus reportStatus = CaseReportArtifactStatus.Confirmed,
+        string? reportOperationKey = null)
+    {
+        reportOperationKey ??= "operation-1";
+        var projected = AssessmentReportProjection.Project(ReadyInput(caseId)).Snapshot!;
+        var report = projected with { IncludeFeeNote = includeFeeNote };
+        var generationId = Guid.NewGuid();
+        var snapshot = new CaseReportGenerationSnapshot(
+            caseId, 0, "CE-100", reportOperationKey, CaseReportActor.None, ReportFixtureAtUtc,
+            Guid.NewGuid(), new string('a', 64), "image/png", Guid.NewGuid(), 2,
+            report.Costs, report.EngineerValue, Guid.NewGuid(),
+            report.Content, report.Guides, report.ReportDate, false,
+            report.AgreedFee, report.FeeDescriptionLines, [], [],
+            AssessmentReportContract.TemplateVersion, "fake", report);
+        var reportConfirmed = reportStatus == CaseReportArtifactStatus.Confirmed;
+        List<CaseReportArtifactRecord> artifacts =
+        [
+            new(
+                Guid.NewGuid(), generationId, CaseReportArtifactKind.AssessmentReport,
+                reportStatus, reportOperationKey,
+                reportConfirmed ? Guid.NewGuid() : null,
+                reportConfirmed ? Guid.NewGuid() : null,
+                reportConfirmed ? new string('c', 64) : null,
+                reportConfirmed ? 3 : null,
+                reportConfirmed ? "CE_100_assessment.pdf" : null,
+                reportConfirmed ? "application/pdf" : null,
+                null, null, null,
+                reportStatus == CaseReportArtifactStatus.Failed ? "transient_failure" : null),
+        ];
+        if (feeNoteStatus is { } status)
+        {
+            artifacts.Add(new(
+                Guid.NewGuid(), generationId, CaseReportArtifactKind.FeeNote,
+                status, feeNoteOperationKey ?? "fee-note-operation", null,
+                null, null, null, null, null, null, null, null,
+                status == CaseReportArtifactStatus.Failed ? "transient_failure" : null));
+        }
+        return new(
+            generationId, caseId, 0, 1, new string('b', 64), snapshot,
+            AssessmentReportContract.TemplateVersion, "fake",
+            reportConfirmed
+                ? CaseReportGenerationState.Confirmed
+                : CaseReportGenerationState.Pending,
+            ReportFixtureAtUtc, null,
+            artifacts);
     }
 
     private sealed class RecordingGenerateReport : IGenerateCaseReport

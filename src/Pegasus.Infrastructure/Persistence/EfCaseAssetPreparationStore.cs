@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -126,11 +127,12 @@ public sealed class EfCaseAssetPreparationStore(
             Serialize(result),
             now);
         CaseMutationGuard.Complete(workflow);
-        // Prepared image role, order, rotation and crop are frozen report
-        // inputs: this edit stales the Case's current generation in the same
-        // transaction.
-        await EfCaseReportGenerationStore.MarkStaleAsync(
-            context, request.CaseId, "asset_preparation_changed", now, cancellationToken);
+        var freshness = CaseReportFreshness.ClassifyImages(beforeState, result);
+        if (freshness.IsStale)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, request.CaseId, freshness.ReasonCode!, now, cancellationToken);
+        }
 
         try
         {
@@ -277,11 +279,12 @@ public sealed class EfCaseAssetPreparationStore(
             Serialize(result),
             now);
         CaseMutationGuard.Complete(workflow);
-        // A reset changes the presentation a frozen report pinned just as a
-        // save does; the current generation goes stale in the same
-        // transaction.
-        await EfCaseReportGenerationStore.MarkStaleAsync(
-            context, request.CaseId, "asset_preparation_changed", now, cancellationToken);
+        var freshness = CaseReportFreshness.ClassifyImages(beforeState, result);
+        if (freshness.IsStale)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, request.CaseId, freshness.ReasonCode!, now, cancellationToken);
+        }
 
         try
         {
@@ -437,7 +440,7 @@ public sealed class EfCaseAssetPreparationStore(
         occurrence.CropHeight = crop.Height;
     }
 
-    private static async Task<IReadOnlyList<CaseAssetPreparation>> LoadCurrentAsync(
+    internal static async Task<IReadOnlyList<CaseAssetPreparation>> LoadCurrentAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
