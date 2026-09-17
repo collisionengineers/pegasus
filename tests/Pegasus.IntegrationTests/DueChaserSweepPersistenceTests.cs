@@ -32,10 +32,6 @@ public sealed class DueChaserSweepPersistenceTests
         Assert.Equal(
             "Please provide the outstanding material for case QDOS26001: Vehicle images.",
             generated.CopyableText);
-        Assert.Equal(harness.RequestLinkId, generated.RequestLinkReference);
-        Assert.Equal(
-            RunDueChasers.MissingMaterialRequestLinkPurpose,
-            generated.RequestLinkPurpose);
         Assert.Equal(1, generated.DueWorkVersion);
 
         var workflow = await harness.WorkflowStore.GetAsync(harness.CaseId, default);
@@ -58,22 +54,6 @@ public sealed class DueChaserSweepPersistenceTests
         Assert.Contains("\"dueWorkVersion\":1", history.AfterJson, StringComparison.Ordinal);
         Assert.Contains(generated.Id.ToString("D"), history.AfterJson, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(generated.CopyableText, history.AfterJson, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task ExpiredRequestLinkIsNotAttachedToGeneratedDraft()
-    {
-        var dueAtUtc = StartUtc.AddDays(31);
-        await using var harness = await DueChaserHarness.CreateAsync(dueAtUtc);
-        harness.TimeProvider.SetUtcNow(dueAtUtc);
-
-        var result = await harness.Runner.ExecuteAsync(50, default);
-        var generated = await harness.ChaserStore.GetLatestAsync(harness.CaseId, default);
-
-        Assert.Equal(1, result.GeneratedCount);
-        Assert.NotNull(generated);
-        Assert.Null(generated.RequestLinkReference);
-        Assert.Null(generated.RequestLinkPurpose);
     }
 
     [Fact]
@@ -281,14 +261,12 @@ public sealed class DueChaserSweepPersistenceTests
             AsyncServiceScope scope,
             IDbContextFactory<PegasusDbContext> contextFactory,
             Guid caseId,
-            Guid requestLinkId,
             MutableTimeProvider timeProvider)
         {
             this.database = database;
             this.scope = scope;
             ContextFactory = contextFactory;
             CaseId = caseId;
-            RequestLinkId = requestLinkId;
             TimeProvider = timeProvider;
             ChaserStore = new EfCaseDueChaserStore(contextFactory);
             WorkflowStore = new EfCaseWorkflowStore(contextFactory, timeProvider);
@@ -297,7 +275,6 @@ public sealed class DueChaserSweepPersistenceTests
 
         public IDbContextFactory<PegasusDbContext> ContextFactory { get; }
         public Guid CaseId { get; }
-        public Guid RequestLinkId { get; }
         public MutableTimeProvider TimeProvider { get; }
         public EfCaseDueChaserStore ChaserStore { get; }
         public EfCaseWorkflowStore WorkflowStore { get; }
@@ -314,14 +291,12 @@ public sealed class DueChaserSweepPersistenceTests
                 var contextFactory = scope.ServiceProvider
                     .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
                 var caseId = Guid.NewGuid();
-                var requestLinkId = Guid.NewGuid();
-                await SeedAsync(contextFactory, caseId, requestLinkId, firstDueAtUtc);
+                await SeedAsync(contextFactory, caseId, firstDueAtUtc);
                 return new(
                     database,
                     scope,
                     contextFactory,
                     caseId,
-                    requestLinkId,
                     timeProvider);
             }
             catch
@@ -379,7 +354,6 @@ public sealed class DueChaserSweepPersistenceTests
         private static async Task SeedAsync(
             IDbContextFactory<PegasusDbContext> contextFactory,
             Guid caseId,
-            Guid requestLinkId,
             DateTimeOffset firstDueAtUtc)
         {
             await using var context = await contextFactory.CreateDbContextAsync();
@@ -396,8 +370,6 @@ public sealed class DueChaserSweepPersistenceTests
                 $"INSERT INTO CaseWorkflows (CaseId, State, Version, ConcurrencyToken) VALUES ({caseId}, {nameof(CaseLifecycleState.NotReady)}, {0L}, {Guid.NewGuid()})");
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO CaseDueWork (CaseId, MissingMaterialReason, State, NextChaseAtUtc, NextChaseAtUtcTicks, Version, ConcurrencyToken) VALUES ({caseId}, {"Vehicle images"}, {nameof(CaseDueWorkState.Scheduled)}, {firstDueAtUtc}, {firstDueAtUtc.UtcDateTime.Ticks}, {0L}, {Guid.NewGuid()})");
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO RequestUploadLinks (Id, CaseId, TokenDigest, Status, CreatedAtUtc, ExpiresAtUtc, AcceptedFileCount, AcceptedByteCount, LimitsVersion, Version, CreateOperationKey) VALUES ({requestLinkId}, {caseId}, {new string('b', 64)}, {"Active"}, {StartUtc.AddMinutes(-1)}, {StartUtc.AddDays(30)}, {0}, {0L}, {"due-chaser-test-limits"}, {0L}, {$"due-chaser-link-{caseId:N}"})");
         }
     }
 

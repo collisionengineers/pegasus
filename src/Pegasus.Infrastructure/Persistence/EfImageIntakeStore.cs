@@ -1486,7 +1486,6 @@ public sealed class EfImageIntakeStore(
                 JsonSerializer.Deserialize<StaffRole[]>(rolesJson) ?? []),
             ActorKind.SystemWorker => ActionActor.SystemWorker(subjectId),
             ActorKind.Automation => ActionActor.Automation(subjectId),
-            ActorKind.RequestLink => ActionActor.RequestLink(Guid.Parse(subjectId)),
             _ => throw new InvalidDataException($"Unknown actor kind '{kind}'.")
         };
     }

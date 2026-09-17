@@ -121,18 +121,6 @@ public sealed record CaseEditLeaseSnapshot(
     string OperationKey,
     long Generation = 0);
 
-public sealed record CaseRequestUploadSummary(
-    Guid Id,
-    RequestUploadStatus Status,
-    DateTimeOffset CreatedAtUtc,
-    DateTimeOffset ExpiresAtUtc,
-    DateTimeOffset? RevokedAtUtc,
-    int AcceptedFileCount,
-    long AcceptedByteCount,
-    long Version,
-    string? Recipient = null,
-    string? Reason = null);
-
 public sealed record CaseGuidanceEntry(string EventType, string OrganizationName, long TemplateVersion, string Text);
 
 public sealed record CaseHistoryEntry(
@@ -180,7 +168,6 @@ public sealed record CaseDetails(
     IReadOnlyList<CaseDocument> Documents,
     string? CustodyFolderRemoteId,
     CaseCustodyState CustodyState,
-    IReadOnlyList<CaseRequestUploadSummary> RequestUploadLinks,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
     IReadOnlyList<CaseHistoryEntry> History)
 {
@@ -290,16 +277,14 @@ public sealed record CaseNotesSection(
     IReadOnlyList<CaseHistoryEntry> History);
 
 /// <summary>
-/// The Files body source.  Documents, request links and correspondence belong
-/// together because the section renders them together; history, tasks and
-/// unrelated Case bodies do not.
+/// The Files body source. Documents and correspondence belong together because
+/// the section renders them together; history, tasks and unrelated Case bodies do not.
 /// </summary>
 public sealed record CaseFilesSection(
     CaseSectionFrame Frame,
     IReadOnlyList<CaseDocument> Documents,
     string? CustodyFolderRemoteId,
     CaseCustodyState CustodyState,
-    IReadOnlyList<CaseRequestUploadSummary> RequestUploadLinks,
     IReadOnlyList<CaseQueryEmail> QueryEmails,
     Guid? StandaloneAuditEvidenceId = null,
     Guid? AuditOfCaseId = null);
@@ -466,7 +451,6 @@ public sealed record CaseFilesSectionData(
     IReadOnlyList<CaseDocument> Documents,
     string? CustodyFolderRemoteId,
     CaseCustodyState CustodyState,
-    IReadOnlyList<CaseRequestUploadSummary> RequestUploadLinks,
     IReadOnlyList<CaseQueryEmail> QueryEmails,
     Guid? StandaloneAuditEvidenceId = null,
     Guid? AuditOfCaseId = null);
@@ -611,7 +595,7 @@ public sealed class GetCaseFilesSection(ICaseQueryStore store) : IGetCaseFilesSe
         }
 
         return new(body.Frame, query.Documents ?? body.Documents, body.CustodyFolderRemoteId,
-            body.CustodyState, body.RequestUploadLinks, body.QueryEmails,
+            body.CustodyState, body.QueryEmails,
             body.StandaloneAuditEvidenceId, body.AuditOfCaseId);
     }
 }

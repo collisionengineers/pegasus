@@ -5,7 +5,7 @@
 
 ### Ways intake starts
 
-Intake may begin through staff-forwarded email, a staff-created request-scoped upload link, provider material, manually supplied files, images, correspondence, or a future approved API route. Receipt is not case creation.
+Intake may begin through staff-forwarded email, provider material, manually supplied files, images, correspondence, or a future approved API route. Receipt is not case creation.
 
 Direct Case creation is a staff path that shares the permanent Case/PO
 allocator with intake acceptance. It requires the identity-critical Case
@@ -71,48 +71,8 @@ Every intake path must:
 
 When a retained source becomes Unidentified because no category can be determined, the UI shows its U-reference, canonical reason, bounded safe detail, source/group, custody, and next permitted action rather than presenting the positive rationale for an unrelated category.
 
-### Request-scoped upload links
 
-**Accepted source boundary:** only authenticated staff may create a link. The token has a stable identity and
-is bound to exactly one upload request, its allowed operation, and a
-server-enforced expiry. It is security-sensitive and is never written to
-permanent business history, diagnostic logs, or content-bearing telemetry.
-The functional upload link may be delivered to its intended recipient in a
-staff-initiated chaser; that bounded delivery is not permission to expose it
-elsewhere. Use a cryptographically generated 256-bit token retained only as a hash;
-acceptance must prove expiry, revocation, and cross-request isolation through
-the real caller. Revocation invalidates every later request, and an
-unauthenticated caller cannot extend expiry.
 
-The public page exposes only the bound request's upload fields and its immediate
-structured success or failure. It exposes no case or reference identity,
-request/history state, other document, token-management function, external
-account, or cross-request lookup. An accepted upload result means only that the
-request-local custody boundary succeeded; it is not case creation, Box custody,
-EVA handoff, report generation, or external delivery.
-
-A link starts a fixed, non-sliding 15-minute submission session when it first
-accepts a file successfully (D20, amended 2026-09-02). Failed attempts before
-that first success do not start the session. The requester may add or replace
-files until explicit finalisation or session expiry; either event closes the
-link and all later bytes are refused without disclosing the Case or earlier
-submission. Idempotent retries reconcile to the same result. The current
-manual/public source limits are owned by Source upload limits below.
-
-Public POST admission checks the route-bound token before reading the form.
-Unavailable links refuse the body without buffering it. File and total-body
-transport bounds apply before antiforgery and multipart model binding; normal
-multipart overhead is allowed within a finite bound. Enforcement counts actual
-bytes, including requests with absent or understated Content-Length, and an
-oversized refused body never reaches custody. Form or query values cannot
-substitute a different token for the one in the route.
-
-File type/count/size limits, authentication of the staff creator, token expiry
-and revocation, idempotent retry, abuse handling, durable custody, cross-request
-isolation, and non-disclosing error behavior are acceptance gates.
-Every attempt returns the same bounded result classes without revealing whether
-another request, case, reference, or file exists. This in-house route supersedes
-Box File Request behavior.
 
 ### Source occurrence and dispatch identity
 
@@ -580,13 +540,12 @@ it yields to a live editor and rechecks the current Case version before each
 custody attempt and confirmation. A later eligible retry captures the current
 version, so a completed staff edit does not permanently strand retained files.
 
-## Source upload limits
+## Manual staff-upload limits
 
-The anonymous link remains a hashed 256-bit token and discloses no Case.
-The accepted source limits are 100 MiB per file, 20 files and 200 MiB
-aggregate bytes per multipart request, plus 64 KiB of fixed multipart
-overhead. The Provider API keeps its separate 30 MiB decoded envelope and
-42 MiB encoded request limits.
+The staff upload accepts 100 MiB per file and 200 MiB aggregate file bytes per
+multipart request, plus 64 KiB of fixed multipart overhead, with at most 20
+files. The Provider API keeps its separate 30 MiB decoded envelope and 42 MiB
+encoded request limits.
 
 | Setting | Accepted source value |
 | --- | --- |
@@ -594,24 +553,11 @@ overhead. The Provider API keeps its separate 30 MiB decoded envelope and
 | Multipart request | 200 MiB plus 64 KiB fixed overhead |
 | Per-file bytes | 104 857 600 (100 MiB) |
 | File count | 20 |
-| Link lifetime | 168 h (7 days) |
-| Submission session | Fixed, non-sliding 15 minutes |
-| Rate, per token | 20 per 10 minutes |
-| Rate, per address | 30 per minute |
 | Content types | `application/pdf`, `image/jpeg`, `image/png`, `…wordprocessingml.document`, `application/msword`, `message/rfc822`, `application/vnd.ms-outlook`, `video/mp4`, `video/quicktime` |
 
-`IntakeEnvelopeLimits` is the single Core owner of the manual/public
-per-file, file-count and aggregate ceilings. `RequestUploadLimits` may
-tighten those ceilings for a configured estate and may never raise them.
-The public-upload session reserves capacity before custody, admits at most
-one current successor for a replacement occurrence, and expires after its
-fixed 15-minute window. Expiry, revocation, limit-version mismatch and
-capacity refusal are typed outcomes; none authorises a fresh upload.
-
-The per-address limiter remains necessary because an unknown token is
-refused before the token-partitioned limiter runs, while Razor's antiforgery
-handling may otherwise buffer the multipart request first. It runs after
-routing and before endpoint execution.
+`IntakeEnvelopeLimits` is the single Core owner of the manual per-file,
+file-count and aggregate ceilings. Host and ingress limits may tighten those
+ceilings and may never raise them.
 
 MP4 and MOV uploads are retained immutable as video evidence. Their extension,
 declared media type and ISO base-media header must agree. They are available by
@@ -620,9 +566,7 @@ download; Pegasus does not submit video to document OCR or image cropping.
 
 The repository's deployment configuration and dated live evidence are
 separate from this accepted source policy and remain owned by
-[operations](../operations.md). Existing links are bound to the limits version
-and lifetime recorded when issued; a mismatch fails closed, after which
-staff may issue a new link through the existing Case action.
+[operations](../operations.md).
 
 ## Instruction field meanings
 

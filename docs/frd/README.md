@@ -15,7 +15,7 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | FRD | Domain | Capability families |
 | --- | --- | --- |
 | [FRD-01](frd-01-case-identity-and-lifecycle.md) | Case & reference identity, lifecycle, edit/recovery, chasing, action history | CASE |
-| [FRD-02](frd-02-intake-and-source-identity.md) | Intake starts, upload links, occurrence identity, pre-case gates, matching/association | INT |
+| [FRD-02](frd-02-intake-and-source-identity.md) | Intake starts, occurrence identity, pre-Case gates, matching/association | INT |
 | [FRD-03](frd-03-triage.md) | Triage workflow and completion evidence | TRI |
 | [FRD-04](frd-04-parties-accounts-and-access.md) | Parties/principals/orgs/accounts, staff role-access, action history | ACC |
 | [FRD-05](frd-05-documents-extraction-and-custody.md) | Supported source boundary, staging, Box custody | DOC |

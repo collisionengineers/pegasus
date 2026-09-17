@@ -10,7 +10,6 @@ using Pegasus.Worker;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Web.Pages.Cases;
-using Pegasus.Web.Pages.Uploads;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
@@ -410,17 +409,14 @@ public sealed class DependencyDirectionTests
     }
 
     [Fact]
-    public void WebCustodialPagesHaveNoDormantTransportPath()
+    public void WebCustodialPagesHaveOnlySurvivingDependencies()
     {
         var casePageDependencies = TypeInspection.OnlyConstructorParameterTypes(typeof(DetailsModel));
         var custodyPageDependencies = TypeInspection.OnlyConstructorParameterTypes(typeof(CustodyModel));
-        var requestPageDependencies = TypeInspection.OnlyConstructorParameterTypes(typeof(RequestModel));
 
         Assert.Contains(typeof(IGetCase), casePageDependencies);
-        Assert.Contains(typeof(ICreateRequestUploadLink), custodyPageDependencies);
-        Assert.Contains(typeof(IRevokeRequestUploadLink), custodyPageDependencies);
-        Assert.Contains(typeof(IGetRequestUpload), requestPageDependencies);
-        Assert.Contains(typeof(IUploadToRequest), requestPageDependencies);
+        Assert.Contains(typeof(IRetryCaseCustody), custodyPageDependencies);
+        Assert.Contains(typeof(ILogicallyRemoveDocument), custodyPageDependencies);
     }
 
     [Fact]
@@ -451,9 +447,6 @@ public sealed class DependencyDirectionTests
                     .Matches(source.Content, "Guid\\.NewGuid\\(\\)\\.ToString\\(\"N\"\\)")
                     .Select(_ => source.Path))
                 .Order(StringComparer.Ordinal));
-        Assert.NotNull(typeof(RequestModel).GetCustomAttribute<
-            Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute>());
-        Assert.False(typeof(StaffPageModel).IsAssignableFrom(typeof(RequestModel)));
     }
 
     [Fact]

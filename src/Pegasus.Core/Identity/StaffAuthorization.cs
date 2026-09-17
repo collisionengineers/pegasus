@@ -16,7 +16,6 @@ public enum StaffAccessRight
     ManageAutomationClients,
     ViewOperationalReports,
     ExecuteSystemWork,
-    SubmitRequestUpload,
     SubmitProviderInstruction
 }
 
@@ -36,7 +35,7 @@ public static class StaffAuthorization
 
             // The Automation Actor is granted only the ordinary operational
             // casework surface (ADR-0011). Every management, configuration,
-            // credential, system-work, and request-upload right below stays
+            // credential and system-work rights below stay
             // denied for it, and unknown combinations fail closed.
             StaffAccessRight.PerformCasework =>
                 actor.Kind is ActorKind.Staff or ActorKind.Automation,
@@ -51,7 +50,6 @@ public static class StaffAuthorization
                 actor.Kind == ActorKind.Staff && actor.IsInRole(StaffRole.Administrator),
 
             StaffAccessRight.ExecuteSystemWork => actor.Kind == ActorKind.SystemWorker,
-            StaffAccessRight.SubmitRequestUpload => actor.Kind == ActorKind.RequestLink,
             // The Provider API actor (API-01) may only submit its own
             // Principal's instructions and read its own receipts; every staff,
             // management and system-work right above stays denied for it.

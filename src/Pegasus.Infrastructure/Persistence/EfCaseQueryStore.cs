@@ -266,24 +266,6 @@ public sealed class EfCaseQueryStore(
         var summaryRow = await SearchRows(context)
             .SingleAsync(item => item.CaseId == query.CaseId, cancellationToken);
         var documents = await ReadDocumentsAsync(context, query.CaseId, cancellationToken);
-        var requestUploadLinks = await context.Set<RequestUploadLinkEntity>()
-            .AsNoTracking()
-            .Where(item => item.CaseId == query.CaseId)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(100)
-            .Select(item => new CaseRequestUploadSummary(
-                item.Id,
-                item.Status,
-                item.CreatedAtUtc,
-                item.ExpiresAtUtc,
-                item.RevokedAtUtc,
-                item.AcceptedFileCount,
-                item.AcceptedByteCount,
-                item.Version,
-                item.Recipient,
-                item.Reason))
-            .ToArrayAsync(cancellationToken);
         var availableReportSentEvidence = await context.CaseReportSentEvidence
             .AsNoTracking()
             .Where(item => item.CaseId == null
@@ -316,7 +298,6 @@ public sealed class EfCaseQueryStore(
             documents,
             workflow.Case.CustodyRootRemoteId,
             ParseCustodyState(workflow.Case.CustodyState),
-            requestUploadLinks,
             availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
             history)
         {
@@ -530,16 +511,6 @@ public sealed class EfCaseQueryStore(
         IReadOnlyList<CaseDocument> documents = includeDocuments
             ? await ReadDocumentsAsync(context, caseId, cancellationToken)
             : [];
-        var requestUploadLinks = await context.Set<RequestUploadLinkEntity>()
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(100)
-            .Select(item => new CaseRequestUploadSummary(
-                item.Id, item.Status, item.CreatedAtUtc, item.ExpiresAtUtc, item.RevokedAtUtc,
-                item.AcceptedFileCount, item.AcceptedByteCount, item.Version, item.Recipient, item.Reason))
-            .ToArrayAsync(cancellationToken);
         var queryEmails = await ReadQueryEmailsAsync(context, caseId, cancellationToken);
         // The two Audit facts the Files section needs are not on the section
         // frame a caller may hand in, so read them in one narrow projection.
@@ -549,8 +520,8 @@ public sealed class EfCaseQueryStore(
             .Select(item => new { item.StandaloneAuditEvidenceId, item.AuditOfCaseId })
             .SingleAsync(cancellationToken);
         return new(sectionFrame, documents, sectionFrame.CustodyFolderRemoteId,
-            sectionFrame.CustodyState, requestUploadLinks,
-            queryEmails, auditFacts.StandaloneAuditEvidenceId, auditFacts.AuditOfCaseId);
+            sectionFrame.CustodyState, queryEmails,
+            auditFacts.StandaloneAuditEvidenceId, auditFacts.AuditOfCaseId);
     }
 
     public async Task<CaseRenderLeaseValidation?> GetRenderLeaseValidationAsync(

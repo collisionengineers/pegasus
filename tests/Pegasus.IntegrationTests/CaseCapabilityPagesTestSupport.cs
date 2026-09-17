@@ -844,7 +844,6 @@ internal static partial class CaseWebTestSupport
                 CaseDocuments,
                 null,
                 CaseCustodyState.Pending,
-                RequestUploadLinks,
                 AvailableReportSentEvidence,
                 HistoryEntries)
             {
@@ -933,7 +932,6 @@ internal static partial class CaseWebTestSupport
                     query.Documents ?? CaseDocuments,
                     null,
                     CaseCustodyState.Pending,
-                    RequestUploadLinks,
                     QueryEmails,
                     StandaloneAuditEvidenceId,
                     AuditOfCaseId)

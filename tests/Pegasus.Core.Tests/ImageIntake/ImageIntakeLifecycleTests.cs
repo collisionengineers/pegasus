@@ -42,10 +42,10 @@ public sealed class ImageIntakeLifecycleTests
             Request(actor: ActionActor.SystemWorker("image-intake-automation")));
 
     [Fact]
-    public void RequestLinkActorCannotRegister() =>
+    public void ProviderActorCannotRegister() =>
         Assert.Throws<StaffAuthorizationException>(
             () => ImageIntakeLifecycleRules.ValidateRegister(
-                Request(actor: ActionActor.RequestLink(Guid.NewGuid()))));
+                Request(actor: ActionActor.Provider(Guid.NewGuid()))));
 
     [Theory]
     [InlineData("")]
@@ -121,7 +121,7 @@ public sealed class ImageIntakeLifecycleTests
 
         ImageIntakeLifecycleRules.ValidateClose(request);
         Assert.Throws<StaffAuthorizationException>(() => ImageIntakeLifecycleRules.ValidateClose(
-            request with { Actor = ActionActor.RequestLink(Guid.NewGuid()) }));
+            request with { Actor = ActionActor.Provider(Guid.NewGuid()) }));
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public sealed class ImageIntakeLifecycleTests
 
         Assert.Throws<StaffAuthorizationException>(() =>
             ImageIntakeLifecycleRules.ValidateSetPrincipal(
-                request with { Actor = ActionActor.RequestLink(Guid.NewGuid()) }));
+                request with { Actor = ActionActor.Provider(Guid.NewGuid()) }));
         Assert.Throws<ArgumentException>(() =>
             ImageIntakeLifecycleRules.ValidateSetPrincipal(
                 request with { ImageIntakeId = Guid.Empty }));

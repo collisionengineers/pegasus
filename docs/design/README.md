@@ -172,7 +172,7 @@ folds into a two-up strip above the sections below 1441px.
 
 The **Actions** menu holds exactly the progressions the state permits — Hand to
 Engineer, Send to EVA, Mark report sent, Mark completed, Return to Review or
-Engineer, Archive, Place on Hold or Release Hold, Create upload link, Correct
+Engineer, Archive, Place on Hold or Release Hold, Correct
 principal, Create audit — then, after a separator and in red, Close case.
 Outside an edit session the menu appears only when Send to EVA is available.
 Damage uses the **Plan** clicker only: a top-down silhouette drawn as the
@@ -191,10 +191,8 @@ page padding, so a wide monitor shows equal margins either side rather than
 every table pressed against the rail. Below the cap nothing moves. Every page
 carries the skip link, the toast region and the dialog root.
 
-`_LayoutAuth` and `_LayoutExternal` remain the navless frames: sign-in, the
-signed-out confirmation, access denied, the error family and the one screen a
-third party sees are not places in the application (see
-[External frames](../frd/frd-12-operator-experience.md)).
+Sign-in, access-denied, error and external-identity authorization pages use
+the navless `_LayoutAuth`; they are not places in the authenticated application.
 
 ### Keyboard and dialog contract
 
@@ -499,10 +497,10 @@ SHA-256: E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2
 Current consumers:
 
 - embedded by `src/Pegasus.Infrastructure` for the integrated report renderer;
-- copied byte-for-byte to the Web runtime and embedded by
-  `src/Pegasus.Web/Pages/Shared/_LayoutExternal.cshtml` — the external frame
-  states the company, never the product. `_Layout.cshtml` does **not** use
-  it; the authenticated rail carries the `pegasus-lockup` mark.
+- copied byte-for-byte to the Web runtime and used by
+  `src/Pegasus.Web/Pages/Shared/_LayoutAuth.cshtml` on sign-in and other
+  navless authentication surfaces. `_Layout.cshtml` does **not** use it; the
+  authenticated rail carries the `pegasus-lockup` mark.
 
 Rules:
 
@@ -520,7 +518,7 @@ checksum-pinned repository copy is the durable source.
 
 | Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
 | --- | --- | --- | --- |
-| Primary logo | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte copy embedded by `_LayoutExternal.cshtml` (public upload frame) and, under the integrated design, the `auth-brand` of the sign-in card. |
+| Primary logo | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte copy used by `_LayoutAuth.cshtml` on navless authentication surfaces. |
 
 ### Icons
 
@@ -586,7 +584,7 @@ sixty glyphs; the pre-PLAT-029 seventeen-glyph sprite was
 | `check-circle` | `check-circle` | `CB9B89AA467B527393B51229F14E0314DB15D75792D2071C5FE599AB595C7678` | Confirmed completion |
 | `file` | `file` | `1A3C36C8758354AA3FBE172B2F9AA864C898B425AEF310970A2A30C706899C4A` | Document rows |
 | `mail` | `mail` | `1F2FF3622BA89D178DAC9BB0FBADE33862AF73E2AA627D7B8B682D8FA23B9C81` | Mail rows, Correspondence |
-| `link` | `link` | `6D49DABEC5033468AD49114CA79422BC8CB2F1C1AE3696A34FD98EA5B1E93A1E` | Case link, upload link |
+| `link` | `link` | `6D49DABEC5033468AD49114CA79422BC8CB2F1C1AE3696A34FD98EA5B1E93A1E` | Case association |
 | `edit` | `pencil` | `63FD491D3A18940F7DDDD179F617729039871DBB01E42FCF6CEF81D6315A6C39` | Edit Case, inline edit |
 | `save` | `save` | `BEEDEA57260C30DD0B222C239B536C1EFD8B8DD7BDD3BB5311CFB5DD325677A3` | Save |
 | `close` | `x` | `FE4FAFDA78C537A7218FC7EDE65B1A01BE9BD5DF253C75805309D1EA2E6152DC` | Dialog close, tab close, remove |
@@ -694,7 +692,7 @@ never copied, except the Case Workspace v2 fixture set permitted by D43
 
 | Asset class | Approved consumer and boundary |
 | --- | --- |
-| Master logo | Embedded by the Infrastructure report adapter and copied byte-for-byte to Web for the external and sign-in frames |
+| Master logo | Embedded by the Infrastructure report adapter and copied byte-for-byte to Web for the sign-in surface |
 | Report templates and document stylesheet | Embedded by `src/Pegasus.Infrastructure`; not Web shell assets |
 | Supplied engineer signatures | The report snapshot carries the Case Sign-off Engineer account's printed name, optional qualifications and supplied signature image bytes/media type (D31, DOCS-017). No signature is embedded as an application resource. Supplied signature assets remain governed and are never Web decorative imagery. |
 | Retired renderer workspace, prompt, model, skill and AI material | Historical source evidence only; not a separate runtime or policy owner |
@@ -893,7 +891,7 @@ second caller and a reason in the ticket plan.
 
 | Partial | Role |
 | --- | --- |
-| `_Layout`, `_LayoutAuth`, `_LayoutExternal` | Frames |
+| `_Layout`, `_LayoutAuth` | Frames |
 | `_LucideSprite` | The inlined sprite |
 | `_ShellDialogs` | Account, Notifications, command palette |
 | `_AdminNav` | Administration panel nav |
@@ -939,7 +937,7 @@ prove acceptance.
 | Concern | Durable owner or source | Runtime consumer or evidence |
 | --- | --- | --- |
 | Product capability and horizon | [Requirements](../prd/README.md), [capabilities](../capabilities.md) | Routed staff pages as each wave lands |
-| Open policy and token questions | [Open decisions](../open-decisions.md) | No implementation inference until resolved |
+| Open policy questions | [Open decisions](../open-decisions.md) | No implementation inference until resolved |
 | Architecture and caller boundaries | [Architecture](../current-architecture.md) | Core, Web, Worker, MCP and external adapters |
 | Production, release, monitoring, and recovery state | [Operations](../operations.md) | No deployment claim from design or source presence |
 | Setup, testing, release, and recovery procedure | [Runbook](../runbook.md) | Procedure is not execution evidence |
@@ -949,7 +947,7 @@ prove acceptance.
 | Shell | This file | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml`, `_ShellDialogs`, `RailCountsPageFilter.cs` (PLAT-029) |
 | Tokens and vocabulary | This file | `src/Pegasus.Web/wwwroot/css/site.css`, `site.js` (PLAT-029) |
 | Font | This file | `src/Pegasus.Web/wwwroot/fonts/inter/` (PLAT-029) |
-| Master logo | `docs/design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core and the checksummed Web copy embedded by `_LayoutExternal.cshtml` |
+| Master logo | `docs/design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core and the checksummed Web copy used by `_LayoutAuth.cshtml` |
 | Renderer templates/style | Repository renderer asset sources | Embedded by `src/Pegasus.Infrastructure`; Core owns report policy and accepted presentation values |
 | Engineer signatures | Repository renderer signature sources; the Sign-off Engineer account setting holds the signature image (D31, superseding D18) | Rendered as the Case's sign-off tuple by the renderer (DOCS-017); none is Web decorative imagery |
 | Retired renderer/skills/AI source | Git history and accepted integration records | No separate caller, runtime, or policy owner |
@@ -1006,7 +1004,6 @@ this section holds the cross-cutting rules every page is held to.
 | Row | One keyboard-focusable full-row button with visible affordance; all row text contributes to its accessible name; arrow-key navigation within the list. |
 | Field provenance | Every editable or source-derived Case datum shows its current origin marker. Origin and status remain distinct. |
 | Supporting detail navigation | Opening evidence or supporting detail preserves list/detail position, the current context, and every unsaved edit; returning never silently discards or replaces proposed values. |
-| Request-scoped upload | Staff create a temporary token bound to one request and server-enforced expiry. The public page exposes bound upload fields and an immediate request-local result only. |
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
 | Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; no opaque aggregate blocker. |
 | Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it (D31); sticky on the single-scroll Case record (D29). There is no separate Assessment ribbon (D30). |

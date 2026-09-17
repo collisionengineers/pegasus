@@ -322,17 +322,6 @@
                                             <span>@Frame.PlaceOnHold</span>
                                         </button>
                                     }
-                                    <form method="post" asp-page="/Cases/Custody" asp-route-id="@summary.CaseId"
-                                          asp-page-handler="CreateRequestUploadLink">
-                                        <input type="hidden" name="id" value="@summary.CaseId" />
-                                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                                        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                                        <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                                        <button type="submit" class="btn">
-                                            <svg class="icon" aria-hidden="true"><use href="#icon-link" /></svg>
-                                            <span>@Frame.CreateUploadLink</span>
-                                        </button>
-                                    </form>
                                     <button type="button" class="btn" data-dialog-open="case-correct-principal-dialog">
                                         <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
                                         <span>@Frame.CorrectPrincipal</span>

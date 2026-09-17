@@ -38,7 +38,6 @@ public enum DocumentSource
 {
     Intake,
     StaffUpload,
-    RequestUpload,
     ExternalCorrespondence,
     Generated,
     Automation

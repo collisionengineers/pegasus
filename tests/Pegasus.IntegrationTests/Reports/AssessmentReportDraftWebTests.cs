@@ -667,7 +667,6 @@ public sealed partial class AssessmentReportDraftWebTests
                     details.Documents,
                     null,
                     CaseCustodyState.Pending,
-                    [],
                     []));
         }
 
@@ -690,7 +689,7 @@ public sealed partial class AssessmentReportDraftWebTests
                 caseId, identity.Reference, workflow.Version, workflow.State, null, [], [],
                 new(null, null, null, null, null, null, "tbc", null, null, null, null));
             CaseDetails details = new(
-                summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [], [])
+                summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [])
             {
                 Data = AssessmentWorkspaceTestData.Create(assessment).Data,
             };

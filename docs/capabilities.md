@@ -146,7 +146,6 @@ A listed identity does not imply current activation or acceptance.
 | DATA-01 | Publish immutable cumulative provider-domain reference snapshots from approved spreadsheets | [Provider API principal and contract boundary](frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary) |
 | OPS-23 | Operator acceptance against the real end-to-end workflow | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
 | OPS-25 | Collision Engineers management approval before production release | [Requirements](frd/frd-12-operator-experience.md#operator-experience) |
-| INT-31 | Authenticated staff generate a temporary, revocable, expiring, request-scoped link for isolated unauthenticated image/document upload; it exposes only the upload form and immediate result, never case/reference/request state or another document | [Request-scoped upload links](frd/frd-02-intake-and-source-identity.md#request-scoped-upload-links) |
 | DATA-02 | Prepare inspection-address / repairer reference data from separately approved spreadsheets | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | INT-04 | Activate additional providers through the shared intake/case workflow using separately accepted provider evidence and rules | [Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity) |
 | INT-05 | Automatic ingestion from `desk@collisionengineers.co.uk` | [Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity) |
@@ -246,7 +245,7 @@ A listed identity does not imply current activation or acceptance.
 | BND-03 | Reuse predecessor application code | [Requirements](prd/pegasus-product.md#permanent-boundaries) |
 | BND-04 | SMS integration | [Requirements](prd/pegasus-product.md#permanent-boundaries) |
 | BND-05 | Microsoft Teams integration | [Requirements](prd/pegasus-product.md#permanent-boundaries) |
-| BND-06 | Persistent external case/customer portal; request-scoped upload links under INT-31 are permitted | [Requirements](prd/pegasus-product.md#permanent-boundaries) |
+| BND-06 | Persistent external case/customer portal | [Requirements](prd/pegasus-product.md#permanent-boundaries) |
 | BND-07 | Independent Engineer accounts | [Requirements](prd/pegasus-product.md#permanent-boundaries) |
 | BND-08 | Solicitor, insurer, repairer, or vehicle-owner accounts | [Requirements](prd/pegasus-product.md#permanent-boundaries) |
 | BND-09 | Separate QA/test environment | [Requirements](prd/pegasus-product.md#permanent-boundaries) |
@@ -255,8 +254,9 @@ A listed identity does not imply current activation or acceptance.
 
 ## Retired and source identities
 
-`DOC-06` is retired in favor of `INT-31` and is never reused. Earlier allocation
-tables and delivery statements remain recoverable from Git history.
+`DOC-06` and `INT-31` are retired without active successors and are never
+reused. Earlier allocation tables and delivery statements remain recoverable
+from Git history.
 
 | Source ID | Requirement owner |
 | --- | --- |

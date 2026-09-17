@@ -7,14 +7,14 @@ namespace Pegasus.Core.Intake;
 public static class IntakeEnvelopeLimits
 {
     /// <summary>
-    /// One file uploaded through the staff form or a public request link,
-    /// which arrives inside one bounded multipart HTTP request.
+    /// One file uploaded through the staff form, which arrives inside one
+    /// bounded multipart HTTP request.
     /// </summary>
     /// <remarks>
     /// Exactly 100 MiB, set by C07 item 5 (residual INTK-052) as the single
-    /// per-file cap the manual and public channels share. This class is the
-    /// one owner of that figure: host, ingress and per-request
-    /// <c>DocumentRequests</c> settings may tighten it and may never raise it.
+    /// per-file cap the manual intake channel uses. This class is the one
+    /// owner of that figure: host and ingress limits may tighten it and may
+    /// never raise it.
     ///
     /// The Provider API does not follow this cap. Its files arrive inline as
     /// base64 in one request body, so they are bounded by
@@ -88,18 +88,29 @@ public static class IntakeEnvelopeLimits
     public const int MaximumProviderApiRequestLength = 42 * 1024 * 1024;
 
     /// <summary>
+    /// The aggregate file content in one staff Upload submission, excluding
+    /// multipart boundaries and non-file form fields.
+    /// </summary>
+    /// <remarks>
+    /// Pinned by C07 item 5 (residual INTK-052) at exactly 200 MiB. Every file
+    /// may be at its individual cap; the batch as a whole may not.
+    /// </remarks>
+    public const long MaximumBatchFileContentLength = 200L * 1024 * 1024;
+
+    /// <summary>
     /// The multipart request body budget for one whole Upload submission.
     /// </summary>
     /// <remarks>
-    /// Pinned by C07 item 5 (residual INTK-052) at exactly 200 MiB plus the
-    /// fixed multipart overhead, and deliberately not derived from
+    /// The body budget adds fixed multipart overhead to the independently
+    /// pinned file-content budget; it is deliberately not derived from
     /// <see cref="MaximumBatchFileCount"/> times
     /// <see cref="MaximumContentLength"/>: raising the per-file cap while
     /// deriving this figure would hand one request a body budget far past what
     /// the Web instance can hold. Every file may be at its individual cap; the
     /// batch as a whole may not, and is refused by this budget first.
     /// </remarks>
-    public const long MaximumBatchContentLength = (200L * 1024 * 1024) + MultipartOverhead;
+    public const long MaximumBatchContentLength =
+        MaximumBatchFileContentLength + MultipartOverhead;
 
     /// <summary>
     /// Fixed slack for multipart boundaries and non-file form fields,
@@ -107,16 +118,6 @@ public static class IntakeEnvelopeLimits
     /// </summary>
     public const long MultipartOverhead = 64 * 1024;
 
-    /// <summary>
-    /// The aggregate file byte budget for one whole public Upload submission,
-    /// excluding multipart boundaries and non-file form fields.
-    /// </summary>
-    /// <remarks>
-    /// Pinned by C07 item 5 (residual INTK-052) at exactly 200 MiB. Public
-    /// aggregate byte limit excludes multipart overhead, which belongs only
-    /// to HTTP request framing.
-    /// </remarks>
-    public const long MaximumPublicAggregateContentLength = 200L * 1024 * 1024;
 }
 
 /// <summary>

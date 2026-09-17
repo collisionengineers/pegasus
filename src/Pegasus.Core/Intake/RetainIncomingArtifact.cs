@@ -114,17 +114,16 @@ public sealed record RetainedIncomingArtifact(
 {
     /// <summary>
     /// The one place "did this succeed" is decided. Nothing renders success,
-    /// counts towards a session's completion, or lets a submission be
-    /// finalized on anything but a confirmed retention.
+    /// counts a submission as complete or confirms it on anything but a
+    /// confirmed retention.
     /// </summary>
     public bool IsConfirmed => State == IncomingArtifactCustodyState.Confirmed;
 }
 
 /// <summary>
 /// Where a retained occurrence's custody state lives. Implemented once per
-/// retained record shape — the public-upload occurrence and the intake asset —
-/// so <see cref="RetainIncomingArtifact"/> stays the only command that talks to
-/// custody.
+/// intake asset so <see cref="RetainIncomingArtifact"/> stays the only command
+/// that talks to custody.
 /// </summary>
 public interface IIncomingArtifactRetentionStore
 {
@@ -208,8 +207,7 @@ public interface IIncomingArtifactRetentionStore
 /// nothing was claimed and nothing was recorded, so there is no uncertainty to
 /// reconcile and a retry that commits its arrival first is safe. It is typed
 /// so a caller can tell it from the uncertain hand-over it is emphatically
-/// not, and it carries no operation key, occurrence or Case, because the
-/// public page logs what it catches.
+/// not.
 /// </remarks>
 public sealed class UnclaimedHandOverException()
     : InvalidOperationException(
@@ -236,8 +234,8 @@ public sealed class HandOverContentMismatchException()
 /// The one Core command that hands an incoming artifact to custody.
 /// </summary>
 /// <remarks>
-/// Public uploads, manual intake and mailbox intake retain through here, so there is one
-/// place that decides what "retained" means and one place that records it.
+/// Intake submissions retain through here, so there is one place that
+/// decides what "retained" means and one place that records it.
 /// The command never invents success: a disposition custody did not give is
 /// never upgraded, and a hand-over custody has not finished - a Pending one as
 /// much as an Unknown one - is reconciled through
@@ -258,8 +256,8 @@ public sealed class HandOverContentMismatchException()
 /// nothing to claim, nothing to record the answer on, and nothing for a retry
 /// to reconcile against, so offering the bytes would be exactly the unclaimed
 /// hand-over the claim exists to prevent. Every caller commits its arrival
-/// first - the public upload path does, and the holding destination this
-/// command already carries must too. A hand-over is also only ever offered
+/// first - the intake caller does, and the holding destination this command
+/// already carries must too. A hand-over is also only ever offered
 /// the bytes its arrival was committed with, so one operation key can never
 /// come to name two different files.
 /// </para>
@@ -378,8 +376,8 @@ public sealed class RetainIncomingArtifact(
             // committed no accepted intent, and bytes it read or staged on the
             // way to refusing are not one, so the claim this attempt holds is
             // closed as the refusal it is rather than left uncertain - which
-            // is what lets the sender make a new deliberate submission under a
-            // new key. There is always a claim to close, because nothing
+            // is what lets the intake caller make a new deliberate attempt
+            // under a new key. There is always a claim to close, because nothing
             // reaches custody without one.
             await store.RecordAsync(
                 new(
@@ -420,7 +418,7 @@ public sealed class RetainIncomingArtifact(
                 occurrence.IntakeReceiptId?.ToString("N"));
 
             // Written on a fresh token on purpose. A hand-over cancelled by
-            // the sender disconnecting is exactly the case that must still be
+            // request cancellation is exactly the case that must still be
             // written down, and the cancelled token it arrived on would refuse
             // the write and leave the arrival re-offerable.
             await store.RecordAsync(uncertain, CancellationToken.None);
@@ -647,13 +645,13 @@ public sealed class RetainIncomingArtifact(
 
     private static void Validate(ActionActor actor, IncomingArtifactOccurrence occurrence)
     {
-        // Public submission is a request-link actor; staff and the system
-        // worker retain through the same command on their own rights.
-        if (!StaffAuthorization.IsAuthorized(actor, StaffAccessRight.SubmitRequestUpload)
-            && !StaffAuthorization.IsAuthorized(actor, StaffAccessRight.PerformCasework)
-            && !StaffAuthorization.IsAuthorized(actor, StaffAccessRight.ExecuteSystemWork))
+        if (actor.Kind == ActorKind.SystemWorker)
         {
-            throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
+            StaffAuthorization.Require(actor, StaffAccessRight.ExecuteSystemWork);
+        }
+        else
+        {
+            StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         }
         if (occurrence.OccurrenceId == Guid.Empty)
         {

@@ -6,11 +6,8 @@
 @{
     ViewData["Title"] = "Operations";
     var aiJobs = Model.AiJobs;
-    var uploadLinks = Model.Operations.Items
-        .Where(item => item.Kind == RequestOperationKind.PegasusUploadLink)
-        .ToArray();
     var externalWork = Model.Operations.Items
-        .Where(item => item.Kind == RequestOperationKind.ExternalWork && item.CanRetry)
+        .Where(item => item.CanRetry)
         .ToArray();
     var evaActivity = Model.EvaActivity;
     var evaFailures = Model.EvaFailures;
@@ -315,68 +312,4 @@
         }
     </section>
 
-    <section class="panel" aria-labelledby="upload-links-title">
-        <div class="panel-head">
-            <h2 id="upload-links-title">Active upload links</h2>
-        </div>
-        @if (uploadLinks.Length == 0)
-        {
-            <div class="empty">
-                <h2>No active upload links</h2>
-            </div>
-        }
-        else
-        {
-            <div class="table-wrap no-border">
-                <table>
-                    <caption class="sr-only">Active Pegasus upload links</caption>
-                    <thead><tr><th scope="col">Case</th><th scope="col">Recipient</th><th scope="col">Created</th><th scope="col">Last activity</th><th scope="col">Files</th><th scope="col">Expires</th><th scope="col">State</th><th scope="col">Action</th></tr></thead>
-                    <tbody>
-                    @foreach (var item in uploadLinks)
-                    {
-                        <tr data-upload-link="@item.Id">
-                            <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.CaseReference</a></td>
-                            <td data-upload-link-recipient>@(string.IsNullOrWhiteSpace(item.Recipient) ? "Not recorded" : item.Recipient)</td>
-                            <td>@if (item.CreatedAtUtc is { } created) { <time datetime="@created.ToString("O")">@OperatorLabels.OfficeTime(created)</time> } else { <span class="muted">—</span> }</td>
-                            <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.LastActivityAtUtc)</time></td>
-                            <td>
-                                @if (item.MaximumFileCount is { } maximumFiles)
-                                {
-                                    <span>@item.AcceptedFileCount of @maximumFiles files</span>
-                                }
-                                @if (item.MaximumByteCount is { } maximumBytes)
-                                {
-                                    <span> · @OperatorLabels.FileSize(item.AcceptedByteCount ?? 0) of @OperatorLabels.FileSize(maximumBytes)</span>
-                                }
-                            </td>
-                            <td>@if (item.ExpiresAtUtc is { } expiry) { <time datetime="@expiry.ToString("O")">@OperatorLabels.OfficeTime(expiry)</time> }</td>
-                            <td><partial name="Shared/_StatusChip" model="@IndexModel.StateLabel(item.State)" /></td>
-                            <td>
-                                @if (item.CanRevoke)
-                                {
-                                    <details>
-                                        <summary class="btn btn--danger">
-                                            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                                            <span>Withdraw link</span>
-                                        </summary>
-                                        <form method="post" asp-page-handler="RevokeLink" class="row-confirm">
-                                            <input type="hidden" name="requestId" value="@item.Id" />
-                                            <input type="hidden" name="caseId" value="@item.CaseId" />
-                                            <input type="hidden" name="expectedVersion" value="@item.Version" />
-                                            <input type="hidden" name="expectedCaseVersion" value="@item.CaseVersion" />
-                                            <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                            <label for="withdraw-reason-@item.Id">Reason</label>
-                                            <input id="withdraw-reason-@item.Id" name="reason" maxlength="500" required value="@(Model.PreservedRequestId == item.Id ? Model.PreservedReason : null)" />
-                                            <button class="btn btn--dark" type="submit">Withdraw link</button>
-                                        </form>
-                                    </details>
-                                }
-                            </td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </section>
 </div>

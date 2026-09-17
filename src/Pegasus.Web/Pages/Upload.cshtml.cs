@@ -84,9 +84,11 @@ public sealed partial class UploadModel(
                 $"You selected {Upload.Length} files. Submit {IntakeEnvelopeLimits.MaximumBatchFileCount} "
                 + "or fewer at a time.");
         }
-        if (Upload.Sum(file => file.Length) > IntakeEnvelopeLimits.MaximumPublicAggregateContentLength)
+        if (Upload.Sum(file => file.Length) > IntakeEnvelopeLimits.MaximumBatchFileContentLength)
         {
-            ModelState.AddModelError(nameof(Upload), "The selected files exceed the 200 MiB total upload limit.");
+            ModelState.AddModelError(
+                nameof(Upload),
+                $"The selected files exceed the {OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumBatchFileContentLength)} total upload limit.");
         }
         for (var index = 0; index < Upload.Length; index++)
         {

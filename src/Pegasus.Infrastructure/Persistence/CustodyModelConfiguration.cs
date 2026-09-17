@@ -91,40 +91,5 @@ internal static class CustodyModelConfiguration
             entity.HasOne<ImageTagEntity>().WithMany().HasForeignKey(value => value.TagId).OnDelete(DeleteBehavior.Restrict);
         });
 
-        modelBuilder.Entity<RequestUploadLinkEntity>(entity =>
-        {
-            entity.ToTable("RequestUploadLinks", table =>
-            {
-                table.HasCheckConstraint("CK_RequestUploadLinks_AcceptedFileCount", "[AcceptedFileCount] >= 0");
-                table.HasCheckConstraint("CK_RequestUploadLinks_AcceptedByteCount", "[AcceptedByteCount] >= 0");
-            });
-            entity.HasKey(value => value.Id);
-            entity.Property(value => value.TokenDigest).HasMaxLength(64).IsFixedLength().IsRequired();
-            entity.Property(value => value.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
-            entity.Property(value => value.LimitsVersion).HasMaxLength(64).IsRequired();
-            entity.Property(value => value.Recipient).HasMaxLength(500);
-            entity.Property(value => value.Reason).HasMaxLength(1000);
-            entity.Property(value => value.CreateOperationKey).HasMaxLength(256).IsRequired();
-            entity.Property(value => value.RevokeOperationKey).HasMaxLength(256);
-            entity.Property(value => value.Version).IsConcurrencyToken();
-            entity.HasIndex(value => value.TokenDigest).IsUnique();
-            entity.HasIndex(value => new { value.CaseId, value.CreateOperationKey }).IsUnique();
-            entity.HasIndex(value => new { value.CreatedAtUtc, value.Id }).IsDescending(true, false);
-            entity.HasIndex(value => new { value.RevokedAtUtc, value.Id }).IsDescending(true, false);
-            entity.HasOne<CaseEntity>().WithMany().HasForeignKey(value => value.CaseId).OnDelete(DeleteBehavior.Restrict);
-        });
-
-        modelBuilder.Entity<RequestUploadReceiptEntity>(entity =>
-        {
-            entity.ToTable("RequestUploadReceipts");
-            entity.HasKey(value => value.Id);
-            entity.Property(value => value.OperationKey).HasMaxLength(256).IsRequired();
-            entity.Property(value => value.ContentHash).HasMaxLength(64).IsFixedLength().IsRequired();
-            entity.HasIndex(value => new { value.RequestId, value.OperationKey }).IsUnique();
-            entity.HasIndex(value => new { value.RequestId, value.ReceivedAtUtc }).IsDescending(false, true);
-            entity.HasOne<RequestUploadLinkEntity>().WithMany().HasForeignKey(value => value.RequestId).OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne<DocumentOccurrenceEntity>().WithMany().HasForeignKey(value => value.OccurrenceId).OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne<DocumentVersionEntity>().WithMany().HasForeignKey(value => value.VersionId).OnDelete(DeleteBehavior.Restrict);
-        });
     }
 }

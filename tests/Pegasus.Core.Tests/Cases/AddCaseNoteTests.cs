@@ -71,7 +71,7 @@ public sealed class AddCaseNoteTests
     public async Task AnActorWithNoCaseworkRightStillCannotWriteANote() =>
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             Command(new RecordingStore()).ExecuteAsync(
-                new(Guid.NewGuid(), ActionActor.RequestLink(Guid.NewGuid()), "note-6", "A note."),
+                new(Guid.NewGuid(), ActionActor.Provider(Guid.NewGuid()), "note-6", "A note."),
                 CancellationToken.None));
 
     private static AddCaseNote Command(ICaseNoteStore store) => new(store, TimeProvider.System);

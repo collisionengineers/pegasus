@@ -11,8 +11,7 @@ namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
 /// The Case workspace's document custody actions: custody retry, logical removal,
-/// image tags, and request-scoped upload links. Every action redirects back
-/// to the workspace.
+/// and image tags. Every action redirects back to the workspace.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -24,14 +23,12 @@ public sealed class CustodyModel(
     ITagCaseImage tagCaseImage,
     IUntagCaseImage untagCaseImage,
     ICreateImageTag createImageTag,
-    ICreateRequestUploadLink createRequestUploadLink,
-    IRevokeRequestUploadLink revokeRequestUploadLink,
     IGetCase getCase,
     IAcquireCaseEditLease acquireLease,
     ILogger<CustodyModel> logger) : CaseMutationPageModel(logger)
 {
     /// <summary>
-    /// Tagging, removing and upload links are immediate posts inside the edit
+    /// Tagging and removing are immediate posts inside the edit
     /// session (v25 decision F): after one succeeds the session carries on.
     /// </summary>
     protected override (IGetCase Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => (getCase, acquireLease);
@@ -242,102 +239,4 @@ public sealed class CustodyModel(
         return RedirectToDetailsFilesImages(id);
     }
 
-    public async Task<IActionResult> OnPostCreateRequestUploadLinkAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string editLeaseToken,
-        string? recipient,
-        string? reason,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        // The shared contract keeps the recipient optional; this create action
-        // requires one, so a missing or blank recipient never reaches Core.
-        if (string.IsNullOrWhiteSpace(recipient))
-        {
-            RetainProposedValues(id);
-            TempData["CaseError"] = "The upload request needs a recipient.";
-            return RedirectToFiles(id);
-        }
-
-        try
-        {
-            // An omitted reason is null before Core; supplied text, blank
-            // included, is Core's to trim, bound or refuse.
-            var result = await createRequestUploadLink.ExecuteAsync(
-                new(
-                    id,
-                    actor,
-                    operationKey,
-                    expectedVersion,
-                    editLeaseToken,
-                    recipient,
-                    string.IsNullOrEmpty(reason) ? null : reason),
-                cancellationToken);
-            ClearLeaseState();
-            await ReclaimLeaseAsync(id, cancellationToken);
-            if (result.Secret is null)
-            {
-                TempData["CaseStatus"] =
-                    "This upload request was already created. Its secret cannot be displayed again.";
-            }
-            else
-            {
-                TempData["CaseRequestSecret"] = Url.Page(
-                    "/Uploads/Request",
-                    pageHandler: null,
-                    values: new { token = result.Secret.Token },
-                    protocol: Request.Scheme);
-                TempData["CaseStatus"] =
-                    $"The upload request expires at {result.Link.ExpiresAtUtc:u}. Copy its secret link now.";
-            }
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "create_request_upload_link", exception);
-            HandleLeaseFailure(id, editLeaseToken, exception);
-            RetainProposedValues(id);
-            TempData["CaseError"] =
-                "The upload request could not be created because the case changed, edit mode was lost, or requests are unavailable.";
-        }
-
-        return RedirectToFiles(id);
-    }
-
-    public Task<IActionResult> OnPostRevokeRequestUploadLinkAsync(
-        Guid id,
-        Guid requestId,
-        long expectedRequestVersion,
-        long expectedVersion,
-        string operationKey,
-        string reason,
-        string editLeaseToken,
-        CancellationToken cancellationToken) =>
-        ExecuteTransportCommandAsync(
-            id,
-            editLeaseToken,
-            "revoke_request_upload_link",
-            actor => revokeRequestUploadLink.ExecuteAsync(
-                new(
-                    id,
-                    requestId,
-                    actor,
-                    reason,
-                    operationKey,
-                    expectedRequestVersion,
-                    expectedVersion,
-                    editLeaseToken),
-                cancellationToken),
-            "The upload request was revoked.",
-            RedirectToFiles,
-            keepEditing: true);
 }

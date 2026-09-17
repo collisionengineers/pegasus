@@ -267,9 +267,7 @@ public static class ServiceHealthPolicy
         IReadOnlyList<RequestOperationProjection> operations)
     {
         ArgumentNullException.ThrowIfNull(operations);
-        var work = operations
-            .Where(item => item.Kind == RequestOperationKind.ExternalWork)
-            .ToList();
+        var work = operations.ToList();
         var failed = work
             .Where(item => item.State == RequestOperationState.Failed && item.CanRetry)
             .OrderBy(item => item.LastActivityAtUtc)
