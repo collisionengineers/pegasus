@@ -6,10 +6,13 @@ using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
 using Pegasus.IntegrationTests.Reports;
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
-public sealed partial class CaseDetailsWebTests
+/// <summary>The estimate document handler on the Case page: authorised inline PDF, preview record, refusals.</summary>
+[Trait("Category", "SqlServer")]
+public sealed class CaseEstimateDocumentWebTests
 {
     [Fact]
     public async Task ReportsHandlerReturnsTheEstimatePdfInlineAndRecordsTheViewForAuthorisedStaff()
