@@ -321,6 +321,10 @@ public sealed class VehicleLookupGapFillTests
                 await context.Database.ExecuteSqlInterpolatedAsync(
                     $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {fieldName}, {"fact"}, {valueType}, {value}, {"vehicle_lookup"}, {"existing-lookup"}, {"offline-replay/fixture-v1"}, {"vehicle-lookup-gap-fill"}, {1})");
             }
+            // The fixture's type approval would otherwise derive a Vehicle type,
+            // which is a printed assessment fact and would stale the report.
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseAssessmentFields (CaseId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc, ConfirmedBy, ConfirmedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleType}, {"car"}, {ActorKind.Staff.ToString()}, {"staff"}, {FixedUtcNow}, {"staff"}, {FixedUtcNow})");
         }
         var (currentId, _) = await SeedGenerationsAsync(database, caseId);
 
