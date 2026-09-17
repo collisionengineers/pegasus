@@ -713,7 +713,22 @@ public sealed class QdosAllocationRecoveryTests
             "IntakeAllocationAttempts"));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
 
-        await AllocationTestData.SeedPrincipalAsync(factory.Services, "RECOVER");
+        var sequenceLineageId = await AllocationTestData.SeedPrincipalAsync(
+            factory.Services,
+            "RECOVER");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            context.CaseSequences.Add(new CaseSequenceEntity
+            {
+                SequenceLineageId = sequenceLineageId,
+                Year = 2031,
+                LastAllocatedSequence = 9999
+            });
+            await context.SaveChangesAsync();
+        }
         await AllocationTestData.ChangePersistedClassificationCaseTypeAsync(
             factory.Services,
             receipt.Id,
@@ -748,8 +763,18 @@ public sealed class QdosAllocationRecoveryTests
         }
 
         Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, succeeded.State.Status);
+        Assert.Equal("RECOVER3110000", succeeded.State.CaseReference);
         Assert.Equal(succeeded.State.CaseId, replay.State.CaseId);
         Assert.True(replay.IsReplay);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var recoveredCase = await context.Cases.SingleAsync();
+            Assert.Equal(10000, recoveredCase.Sequence);
+            Assert.Equal("RECOVER3110000", recoveredCase.Reference);
+        }
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal("inspection", await AllocationTestData.CaseTypeAsync(factory.Services));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
