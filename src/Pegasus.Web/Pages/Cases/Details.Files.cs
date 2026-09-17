@@ -97,8 +97,9 @@ public sealed partial class DetailsModel
     {
         var preparation = PreparationFor(file.Occurrence.Id);
         var address = PreviewUrl(file) + "&size=" + CaseDocumentThumbnails.ThumbSizeToken;
-        return address + "&prep="
-            + (preparation?.PreparationVersion ?? 0).ToString(CultureInfo.InvariantCulture);
+        return address
+            + "&prep=" + (preparation?.PreparationVersion ?? 0).ToString(CultureInfo.InvariantCulture)
+            + "&renderer=" + CaseDocumentThumbnails.RendererIdentity;
     }
 
     private Guid CurrentCaseId => FilesSection?.Frame.Workflow.CaseId ?? Case!.Workflow.CaseId;
