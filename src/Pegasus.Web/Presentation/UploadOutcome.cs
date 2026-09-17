@@ -133,7 +133,7 @@ public interface IUploadOutcomeQueries
 /// time this is called. A manual upload keeps even a unique viable match for
 /// an explicit staff confirmation, while <see cref="UploadOutcomeKind.Attached"/>
 /// always reports an association that has already settled. A grouped image
-/// upload can terminal-decide its members independently (INTK-011); this
+/// upload can terminal-decide its members independently; this
 /// builder makes no group-wide assumption — it is evaluated once per member.
 /// </remarks>
 public sealed class UploadOutcomeQueries(

@@ -20,7 +20,7 @@ the affected owner; record only the genuinely undecided portion.
 | Last observed deployed estate and operational support | [Operations](operations.md) |
 | Engineering and verification policy | [Engineering](engineering.md) |
 | Local, verification and operational procedures | [Runbook directory](runbook.md) and existing release/wipe skills |
-| Visual assets, components and presentation | [Design](design/README.md); functional interactions remain in FRD-12 |
+| Visual assets, components and presentation | [Design](design/README.md); functional interactions remain in FRD-12 and FRD-15 to FRD-17 |
 | Historical v26 mockups and planning evidence | [v26 reference archive](../design/planning-and-old-designs/v26_planning/README.md); retained reference, not current requirements |
 | Principal-policy evidence and descriptive companions | [Principal mappings](principal-profiles/README.md) |
 | Supplied domain evidence | [Reference](../reference/README.md) |

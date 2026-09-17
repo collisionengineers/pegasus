@@ -7,7 +7,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// CASE-017 shipped with its Core command covered by a recording fake, so
+/// Case notes shipped with the Core command covered by a recording fake, so
 /// nothing ever asserted where the note actually landed. It landed in
 /// `CaseHistory`; the Notes tab reads `CaseWorkflowEvents`
 /// (`EfCaseQueryStore`). The note persisted, the page said "The note was

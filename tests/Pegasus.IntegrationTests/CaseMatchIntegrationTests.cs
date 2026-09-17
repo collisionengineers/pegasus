@@ -204,7 +204,7 @@ public sealed class CaseMatchIntegrationTests
         Assert.Equal(1, history.AfterCaseVersion);
     }
     /// <summary>
-    /// CASE-024: ordinary automatic association does not wait for an editor to finish. It writes
+    /// Ordinary automatic association does not wait for an editor to finish. It writes
     /// receipt rows only — no case row, no case version — so there is nothing for a staff edit to lose.
     /// and the yield it used to perform was one-shot, silently costing the association for the
     /// length of any editing session now that a lease is held for as long as the editor is open.

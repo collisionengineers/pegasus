@@ -5,26 +5,26 @@ using System.Text.RegularExpressions;
 namespace Pegasus.Core.Intake;
 
 // `partial` because this policy owns generated regexes; the triage-matcher
-// constructor parameter is gone -- INTK-033 replaced that matcher with
+// constructor parameter is gone -- classification replaced that matcher with
 // classification-derived evidence, and nothing here reads it.
 public sealed partial class QdosInstructionExtractionPolicy
     : IInstructionExtractionPolicy, IInstructionDocumentProfile, IInstructionFieldRoles
 {
     public const string Key = "qdos_instruction";
-    // ENG-015 changed the bare `Date` label and inspection-date fragment precedence.
+    // An earlier version changed the bare `Date` label and inspection-date fragment precedence.
     // The version is persisted as each extracted fact's provenance, so facts
     // read before and after must stay distinguishable for audit and
     // re-evaluation. Bumped for the same reason as v3 (letter shapes),
-    // v4 (INTK-025), v5 (INTK-028) and v6 (INTK-033).
+    // v4, v5 and v6.
     //
-    // v8 (INTK-060 C03) changed three more: the combined vehicle description
+    // v8 changed three more: the combined vehicle description
     // is no longer SPLIT into make and model, the labelled damage area is no
     // longer appended to the accident circumstances, and the letter's own
     // party, damage, third-party, repairer and requested-work blocks are read
     // as their own role-bearing fields.
     //
     // v9 reads the report facts from the submission's companion documents
-    // again: INTK-060 narrowed the policy's input to the selected
+    // again: an earlier version narrowed the policy's input to the selected
     // instruction document, and the attached engineer report is deliberately
     // not that document, so every report-sourced mileage was lost.
     public const int Version = 9;
@@ -137,7 +137,7 @@ public sealed partial class QdosInstructionExtractionPolicy
             CanonicalValue: InstructionFieldEngine.CanonicalDate,
             PartyRole: ClaimantRole),
         // The letters date themselves with a bare "Date:" row, so without it
-        // every QDOS case silently fell back to its receipt date (ENG-015).
+        // every QDOS case silently fell back to its receipt date.
         // The bare label is deliberately last: a line that says "Instruction
         // Date" is matched by the specific label first.
         //
@@ -160,8 +160,7 @@ public sealed partial class QdosInstructionExtractionPolicy
             PartyRole: InstructionRole),
         // An appended engineer's report states when the vehicle was actually
         // seen; the instruction can only propose a date. So when both carry
-        // one, the later fragment wins - the reverse of every other field
-        // (ENG-015).
+        // one, the later fragment wins - the reverse of every other field.
         new(
             "Inspection date",
             ["Inspection Date", "Date of Inspection", "Inspection Deadline", "Due By"],
@@ -186,7 +185,7 @@ public sealed partial class QdosInstructionExtractionPolicy
         // The letter's own damage, pre-existing damage and driveability rows.
         // Separate fields, separate roles, and never part of the accident
         // circumstances: what a vehicle looks like now is not how it came to
-        // look that way, and the two were being concatenated (INTK-060 C03).
+        // look that way, and the two were being concatenated.
         // The block reader below rewrites the whole wrapped damage block as
         // one row and appends it after the raw content, so the LATEST fragment
         // wins here: the line scan sees only the block's first physical row,
@@ -364,7 +363,7 @@ public sealed partial class QdosInstructionExtractionPolicy
             // The circumstances prompt is its own test: only the letter asks
             // the question, so a report yields nothing here anyway. Gating
             // this on the report test as well meant broadening that test
-            // could silently cost a letter its circumstances (INTK-028).
+            // could silently cost a letter its circumstances.
             if (CircumstancesParagraph(fragment) is { } circumstances)
             {
                 extended.Add(circumstances);
@@ -387,7 +386,7 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// need the same list: the Vehicle rule cuts its value where the next
     /// column begins, and the Speedo rule must cut at exactly the same
     /// points. Written separately, the two drifted and the Speedo rule
-    /// silently missed every multi-column line (INTK-028).
+    /// silently missed every multi-column line.
     /// </summary>
     private const string ReportColumnCutPattern =
         @"(?i)\s*(?:colour|color|speedo(?:meter)?|registered|reg\s*no|reg"
@@ -399,7 +398,7 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// The report grammar runs over every fragment of the selected
     /// instruction content AND every fragment of the submission's companion
     /// documents — the other current documents the instruction-document
-    /// selector did not select. INTK-060 narrowed the policy's input to the
+    /// selector did not select. An earlier version narrowed the policy's input to the
     /// selected document alone, and because the attached engineer report is
     /// exactly the document the QDOS signature rejects, every report-sourced
     /// mileage was silently dropped from production cases.
@@ -413,7 +412,7 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// it: the letters address the vehicle as "Our Client's Vehicle:" or
     /// "TP Vehicle:", never as a bare "Vehicle:" opening a line, and carry
     /// no "Speedo:" column at all. Its facts are appended after all content,
-    /// so the letter still outranks wherever both speak (INTK-028).
+    /// so the letter still outranks wherever both speak.
     /// </summary>
     /// Trims a column value where the line's next column label begins, so a
     /// value never carries its neighbours.
@@ -459,7 +458,7 @@ public sealed partial class QdosInstructionExtractionPolicy
             }
 
             // Anchored to the label, not to the start of the line: the
-            // Speedo column is almost never first (INTK-028).
+            // Speedo column is almost never first.
             var speedo = SpeedoColumnRegex().Match(rawLine);
             if (speedo.Success)
             {
@@ -593,7 +592,7 @@ public sealed partial class QdosInstructionExtractionPolicy
         // YD14VGJ" and "Vehicle Registration : VO75DFJ"). It is the only
         // place that template states a registration at all — its body is
         // free prose — so without this rule every subject-template Triage
-        // request falls to Unidentified (INTK-033).
+        // request falls to Unidentified.
         //
         // The separator is ONE bounded class, not `\s*[:.]?\s*`. Two
         // unbounded whitespace runs either side of an optional character are
@@ -627,8 +626,8 @@ public sealed partial class QdosInstructionExtractionPolicy
     ///
     /// <list type="bullet">
     /// <item>the labelled damage area, as its OWN field. It used to be
-    /// appended to the accident circumstances under a second label
-    /// (ENG-015); the extraction invariants keep damage, pre-existing damage
+    /// appended to the accident circumstances under a second label;
+    /// the extraction invariants keep damage, pre-existing damage
     /// and driveability separate from how the accident happened, and a
     /// reviewer reading one concatenated value cannot tell which half the
     /// document actually stated.</item>
@@ -887,7 +886,7 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// guess, the extraction invariants forbid exactly that guess, and the
     /// independently labelled corpus records the description as one value in
     /// every sample. The whole description survives as its own field; a make
-    /// or model appears only where the letter labels one (INTK-060 C03).
+    /// or model appears only where the letter labels one.
     /// </summary>
     private static IReadOnlyList<InstructionReviewField> DeriveVehicleRegistration(
         IReadOnlyList<InstructionReviewField> fields,

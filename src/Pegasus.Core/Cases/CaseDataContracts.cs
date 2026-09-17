@@ -174,7 +174,7 @@ public sealed record CaseDataProjection(
     CaseContactData Contact,
     CaseInstructionData Instruction,
     CaseInspectionData Inspection,
-    // Appended for the v1 Case workspace (CASE-047).
+    // Appended for the v1 Case workspace.
     CaseWorkspaceData? Workspace = null,
     Guid? StandaloneAuditEvidenceId = null);
 
@@ -226,7 +226,7 @@ public sealed record CaseEditableData(
     string? ClaimantContactNumber = null,
     string? ClaimantAddress = null,
     string? StorageLocation = null,
-    // Appended for the v1 Case workspace (CASE-047): the claim source
+    // Appended for the v1 Case workspace: the claim source
     // snapshot, the storage business, the report-address treatment and its
     // provenance, the inspection values and the repairer address. Same rule
     // as above — appended, never inserted.
@@ -256,7 +256,7 @@ public sealed record CaseEditableData(
     string? InspectionContactTelephone = null,
     string? InspectionContactEmailAddress = null,
     string? InspectionNotes = null,
-    // Appended for the Case repairer (INTK-058): the repairer's name beside
+    // Appended for the Case repairer: the repairer's name beside
     // the address already above, and the linked Contacts directory row.
     string? RepairerName = null,
     Guid? RepairerId = null,

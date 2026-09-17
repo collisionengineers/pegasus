@@ -13,7 +13,7 @@ using Pegasus.Web.Authentication;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// INTK-014: registering an Image-initiated Case durably enqueues external
+/// Registering an Image-initiated Case durably enqueues external
 /// custody work that stores every group image under the registration
 /// reference, and the merge into an instruction case enqueues a fold that
 /// moves the contents into the case's evidence location and removes the

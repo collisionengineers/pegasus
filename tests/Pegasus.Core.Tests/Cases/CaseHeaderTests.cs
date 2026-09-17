@@ -6,7 +6,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Tests.Cases;
 
 /// <summary>
-/// CASE-047 (Stream A review): <see cref="GetCaseHeader"/> applies the same
+/// <see cref="GetCaseHeader"/> applies the same
 /// actor boundary and case-identifier validation as <see cref="GetCase"/>
 /// (<see cref="StaffAccessRight.PerformCasework"/>) before delegating to the
 /// store's bounded, counted read.

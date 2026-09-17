@@ -106,7 +106,7 @@ public sealed record CaseFile(DocumentOccurrence Occurrence, DocumentVersion Ver
 /// Giving it one owner is also what keeps the Evidence tab's count and its rows
 /// agreeing. They disagreed while the count read the raw document list: removing
 /// a file — the very action this surface offers — left the tab saying one and
-/// the panel showing none (DOCS-012).
+/// the panel showing none.
 /// </remarks>
 public static class CaseFiles
 {
@@ -410,7 +410,7 @@ public interface IDocumentContentStore
     /// <summary>
     /// The contents of several versions of one case, in the order asked for.
     ///
-    /// PLAT-041: a remote store resolves a case's folder and re-proves each
+    /// A remote store resolves a case's folder and re-proves each
     /// file's ancestry on every single read, so N files cost N times the whole
     /// resolution. Asking for the set lets it resolve once and fetch the
     /// contents together. The default is the per-version read, so a store with

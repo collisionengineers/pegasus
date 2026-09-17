@@ -8,7 +8,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Tests.Assessment;
 
 /// <summary>
-/// ENG-026: the one totals owner, the operation mapping, the estimate
+/// The one totals owner, the operation mapping, the estimate
 /// policy, and the actor rules of the named-estimate use cases.
 /// </summary>
 public sealed class EstimateTests

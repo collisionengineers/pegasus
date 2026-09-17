@@ -201,7 +201,7 @@ public sealed partial class CaseAcceptanceReplayTests
             new(receipt.Id, AcceptingActor),
             CancellationToken.None));
 
-        // INTK-029: the source email is gone, so the case it created is
+        // The source email is gone, so the case it created is
         // cancelled — but its lineage is not. Both origins stay on the record.
         Assert.Equal(
             CaseLifecycleState.SourceEmailUnlinked,

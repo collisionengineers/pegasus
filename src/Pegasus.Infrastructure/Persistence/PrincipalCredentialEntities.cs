@@ -1,7 +1,7 @@
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// One Provider API credential per Principal (API-04, TICK-061). Only the
+/// One Provider API credential per Principal (API-04). Only the
 /// PBKDF2 verifier is stored — the clear secret is returned once by the
 /// issue command and never written anywhere. A reset replaces KeyId and
 /// SecretHash in place, so the row's identity is the Principal.

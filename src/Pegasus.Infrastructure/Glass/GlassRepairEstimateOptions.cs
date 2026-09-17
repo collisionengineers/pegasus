@@ -1,7 +1,7 @@
 namespace Pegasus.Infrastructure.Glass;
 
 /// <summary>
-/// What the Glass's repair-estimate adapter needs to exist (CASE-047 B04).
+/// What the Glass's repair-estimate adapter needs to exist.
 ///
 /// Shaped like <see cref="Eva.EvaApiOptions"/> on purpose: a positional record
 /// with one validating factory, so a malformed value fails at composition with

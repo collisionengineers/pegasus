@@ -73,8 +73,8 @@ From cutover, ADR-0002's clause binds again with no exemption.
 
 ## Consequences
 
-- ENG-014 may drop the three dead `EvaHandoffRevisions` columns in one
-  migration. EVA hand-off generation and download are the named affected
+- The EVA hand-off clean-up may drop the three dead `EvaHandoffRevisions`
+  columns in one migration. EVA hand-off generation and download are the named affected
   capability; the table is empty and the hand-off is switched off in
   production, so nothing can reach the broken paths.
 - Every pre-cutover release using this exemption leaves a rollback gap that is
@@ -88,7 +88,7 @@ From cutover, ADR-0002's clause binds again with no exemption.
 - **Keep expand-and-contract universally.** Correct after cutover, but before
   it, it spends two releases per dead column to protect data the operator has
   twice approved discarding.
-- **Relax the rule in `runbook.md` alone.** What PLAT-042 first attempted. The
+- **Relax the rule in `runbook.md` alone.** What was first attempted. The
   runbook is downstream of ADRs in the authority chain, so this left release
   engineers with a lower-authority document contradicting an accepted ADR.
 - **Exempt by verified-empty data rather than by the cutover milestone.**

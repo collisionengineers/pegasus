@@ -20,7 +20,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         // This rides the same diff as the table on purpose. CI runs against
         // full-privilege LocalDB and never exercises these roles, so a missing
         // grant passes every test and then refuses every submission in
-        // production, exactly as DOCS-008 and 20260821095500 did before it.
+        // production, exactly as 20260822044425 and 20260821095500 did before it.
         //
         // SELECT as well as INSERT because the once-per-case rule and the
         // replay check both read prior attempts before deciding whether to

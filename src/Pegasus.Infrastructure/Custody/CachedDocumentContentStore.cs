@@ -67,7 +67,7 @@ internal sealed class CachedDocumentContentStore(
     /// The variant an entry of the durable content itself carries: none.
     /// A derived rendering is a different kind of entry for the same version
     /// (see <see cref="DocumentThumbnailCache"/>), so every query for the
-    /// content entry says which kind it means (DOCS-015).
+    /// content entry says which kind it means.
     /// </summary>
     internal const string OriginalVariant = "";
 
@@ -102,7 +102,7 @@ internal sealed class CachedDocumentContentStore(
         }
         metrics?.RecordMiss();
 
-        // DOCS-015: a cache miss is a Box read, so it takes the same gate and
+        // A cache miss is a Box read, so it takes the same gate and
         // the same 429/5xx retry as every other managed read rather than
         // failing the request the first time Box says "later".
         var downloaded = await BoxDocumentContentStore.ReadGatedWithRetryAsync(
@@ -283,7 +283,7 @@ internal sealed class CachedDocumentContentStore(
     /// cookie the request arrived with.
     /// </summary>
     /// <remarks>
-    /// DOCS-015: the derived-thumbnail read serves from its own cache entry
+    /// The derived-thumbnail read serves from its own cache entry
     /// without opening the durable content, so it applies this same check
     /// itself instead of inheriting it from a read it no longer makes.
     /// </remarks>
@@ -840,7 +840,7 @@ internal sealed class CachedDocumentContentStore(
 /// version's own content entry.
 /// </summary>
 /// <remarks>
-/// DOCS-015: the content cache is one entry per <c>DocumentVersionId</c>, so a
+/// The content cache is one entry per <c>DocumentVersionId</c>, so a
 /// derived rendering needs a variant of its own rather than a second row that
 /// the unique index would refuse and that
 /// <see cref="CachedDocumentContentStore"/> would then read as the content.
@@ -1038,7 +1038,7 @@ internal sealed class DocumentThumbnailCache(
 /// there is one, otherwise derived from the verified full bytes and recorded.
 /// </summary>
 /// <remarks>
-/// DOCS-015. The derivation reads through
+/// The derivation reads through
 /// <see cref="IReadLogicalDocumentVersion"/>, so it inherits that read's
 /// authorization, its custody-hash verification and its confirmed-versions-only
 /// rule rather than restating any of them. A profile with no content cache
@@ -1258,7 +1258,7 @@ internal sealed class ImageThumbnailRenderer : IRenderImageThumbnail
 /// applied.
 /// </summary>
 /// <remarks>
-/// DOCS-015. Nothing here throws at the caller: bytes that are not a decodable
+/// Nothing here throws at the caller: bytes that are not a decodable
 /// image, or an image past the decode bound, mean "no thumbnail", and the full
 /// image is served instead.
 ///

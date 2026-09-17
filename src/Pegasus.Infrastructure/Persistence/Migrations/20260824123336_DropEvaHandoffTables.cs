@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    // ENG-016: the EVA hand-off and the operator export were two acts over
+    // The EVA hand-off and the operator export were two acts over
     // one archive format. They are now one -- Export -- and it records the
     // once-per-case First sent to Engineer proxy that was the hand-off's only
     // unique contribution. Three of the four tables go with the act:

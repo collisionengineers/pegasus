@@ -167,7 +167,7 @@ if (productionProfile)
         "Eva:RequestFrom",
         "Eva:InspectionType",
         "Eva:InstructionEmail",
-        // CASE-047 B04. The Glass's gateway is built from these on first use;
+        // The Glass's gateway is built from these on first use;
         // listed here so a deployment without them fails at startup naming the
         // key, rather than at the Engineer's Launch on a Case record.
         "Glass:MarketValueAssessorBaseUri",
@@ -228,7 +228,7 @@ if (productionProfile)
     // the Worker-only pollers that go with AddProductionExternalAdapters).
     builder.Services.AddSingleton<TokenCredential>(credential);
     builder.Services.AddProductionApprovedMailboxResolver(builder.Configuration["Graph:BaseUri"]);
-    // PLAT-034: the deployed container has carried
+    // The deployed container has carried
     // APPLICATIONINSIGHTS_CONNECTION_STRING since the estate was built, but
     // nothing in this application ever read it — the Web host was never
     // instrumented at all, so thirty days of production produced no traces,
@@ -315,7 +315,7 @@ var sendToAiOptions = SendToAiOptions.TryCreate(
     developmentOfflineProfile);
 
 // RailCountsPageFilter supplies ViewData["RailCounts"] on authenticated full
-// page results (PLAT-003) — the rail (PLAT-001) shipped with the badge
+// page results — the rail shipped with the badge
 // mechanism but nothing populated it until now. RazorPagesOptions has no
 // Filters collection of its own, so the global filter is added through the
 // underlying MvcOptions instead.
@@ -339,7 +339,7 @@ builder.Services.AddRazorPages()
             "/Integrations/Glass/Callback",
             model => model.EndpointMetadata.Add(
                 new EnableRateLimitingAttribute(GlassCallbackRateLimitPolicy)));
-        // CASE-038: the Case record's section fragment answers on its own
+        // The Case record's section fragment answers on its own
         // path, `/Cases/{id}/Section`, rather than on the record's own URL, so
         // a fragment response is never mistaken for the page itself. The
         // constraint admits that one handler, and the route only matches — it
@@ -728,7 +728,7 @@ documentStorage: !productionProfile
         static _ => false,
         // Deferred to first Box use: parsing this at host build aborted the
         // process whenever the platform handed over an unresolved Key Vault
-        // reference (PLAT-013).
+        // reference.
         _ => BoxCustodyOptions.Create(
             builder.Configuration["Box:BaseUri"],
             builder.Configuration["Box:UploadUri"],
@@ -738,7 +738,7 @@ documentStorage: !productionProfile
             builder.Configuration["Box:HoldingFolderId"]))));
 // EXT-04: the manual Send to EVA route. Production only — the offline
 // profile reaches no vendor — and the options are read lazily for the same
-// PLAT-013 reason as Box's.
+// unresolved-Key-Vault-reference reason as Box's.
 if (productionProfile)
 {
     builder.Services.AddEvaApiSubmission(
@@ -981,7 +981,7 @@ if (!app.Environment.IsDevelopment())
         // previews. The clickjacking protection this header exists for is
         // unchanged, because frame-ancestors still refuses every other origin.
         // Development does not set the header at all, so this policy is tested
-        // through the Production profile (DOCS-011).
+        // through the Production profile.
         context.Response.Headers.ContentSecurityPolicy =
             "default-src 'self'; object-src 'none'; base-uri 'self'; " +
             "frame-src 'self' blob:; frame-ancestors 'self'";

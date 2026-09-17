@@ -12,7 +12,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// Loads an <see cref="AssessmentReportProjectionInput"/> for a case by
 /// reusing the same bounded Assessment workspace query as the screen, then
-/// loading confirmed document metadata once. Photograph bytes use PLAT-041's
+/// loading confirmed document metadata once. Photograph bytes use the
 /// ordered batch route; opening the Assessment screen never reaches this
 /// source or the content store.
 /// </summary>

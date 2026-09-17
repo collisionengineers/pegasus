@@ -95,8 +95,7 @@ public sealed record EstimateRateSnapshot(
     decimal HourlyRate);
 
 /// <summary>
-/// The editable header of one named estimate on a Case (EPIC-011 §1.9,
-/// FRD-11 § Estimate VAT on the rendered report). Money is in pounds to two
+/// The editable header of one named estimate on a Case (FRD-11 § Estimate VAT on the rendered report). Money is in pounds to two
 /// places; the one labour rate is per hour; the VAT percentage is free per
 /// estimate (D9).
 /// <see cref="PaintMaterials"/> is the estimate's additional materials.
@@ -1036,7 +1035,7 @@ public interface IListCaseEstimates
 
 /// <summary>
 /// The bounded cursor-page projection of a <see
-/// cref="RepairSpecificationVersion"/> (CASE-047, Stream A review): the
+/// cref="RepairSpecificationVersion"/>: the
 /// header fields a list surface needs, without embedding the
 /// specification's <see cref="RepairSpecificationVersion.Lines"/> — a case
 /// can carry many superseded versions and each an unbounded line list, so a
@@ -1055,8 +1054,8 @@ public sealed record CaseEstimatePageItem(
     RepairCalculationBasis? CalculationBasis);
 
 /// <summary>
-/// The keyset-paged sibling of <see cref="IListCaseEstimates"/> (CASE-047,
-/// requested by Stream A's MCP adapters): newest version first, then
+/// The keyset-paged sibling of <see cref="IListCaseEstimates"/> (requested by
+/// the MCP adapters): newest version first, then
 /// estimate id.
 /// </summary>
 public interface IListCaseEstimatesByCursor

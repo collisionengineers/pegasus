@@ -8,7 +8,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests.Reports;
 
 /// <summary>
-/// DOCS-014: the report-draft preview GET route records a Case-history
+/// The report-draft preview GET route records a Case-history
 /// "viewed" event distinct from a completed download, at most once per Case,
 /// staff member and London day. This reuses
 /// <see cref="AssessmentReportDraftWebTests"/>'s real-pipeline fixtures (a
@@ -16,7 +16,7 @@ namespace Pegasus.IntegrationTests.Reports;
 /// handler) against a genuinely persisted Case, so the event is written
 /// through the real <c>EfCaseReportGenerationStore</c> and read back from
 /// <c>CaseWorkflowEvents</c> — the table the Case's own history panel reads —
-/// not a substituted store. The download side of DOCS-014 (reopening a
+/// not a substituted store. The download side (reopening a
 /// confirmed generated artifact) is exercised at the persistence level in
 /// <c>Reports/CaseReportGenerationPersistenceTests.cs</c>, because the
 /// download route's handler (<c>OnGetGeneratedArtifactAsync</c>) is
@@ -104,7 +104,7 @@ public sealed partial class AssessmentReportDraftWebTests
     }
 
     /// <summary>
-    /// The minimal real Case + Workflow row DOCS-014's presentation events
+    /// The minimal real Case + Workflow row the presentation events
     /// need to attach to: <see cref="Compose"/> fakes every read the page
     /// makes, but the store that records a view or a download reloads the
     /// real <c>CaseWorkflows</c> row directly, so one must actually exist.
@@ -120,7 +120,7 @@ public sealed partial class AssessmentReportDraftWebTests
         var lineageId = Guid.NewGuid();
         var principalId = Guid.NewGuid();
         context.AddRange(
-            new OrganizationEntity { Id = organizationId, Name = "DOCS-014 view/download test", Version = 0 },
+            new OrganizationEntity { Id = organizationId, Name = "Report view/download test", Version = 0 },
             new PrincipalSequenceLineageEntity { Id = lineageId, CreatedAtUtc = ViewDownloadFixtureAtUtc },
             new PrincipalEntity
             {

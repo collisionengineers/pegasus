@@ -209,8 +209,8 @@ public sealed class DependencyDirectionTests
             [typeof(IEnumerable<IInstructionExtractionPolicy>)],
             selectorConstructor.GetParameters().Select(parameter => parameter.ParameterType));
 
-        // One policy per instruction profile, so the SET is not frozen - INTK-060
-        // C03 adds fourteen more beside QDOS. What must hold is where they live
+        // One policy per instruction profile, so the SET is not frozen - the
+        // profile catalogue adds fourteen more beside QDOS. What must hold is where they live
         // and what reaches them: every implementation is Core's, none is
         // duplicated in Infrastructure, while the selector owns their
         // collection boundary.
@@ -460,7 +460,7 @@ public sealed class DependencyDirectionTests
     [Fact]
     public void CustodyAndEvaPoliciesHaveOneCoreOwnerAndAdaptersRemainAtBoundaries()
     {
-        // ENG-016: the EVA hand-off use cases and the policy-authority
+        // The EVA hand-off use cases and the policy-authority
         // capability they carried into persistence are gone with the act.
         // The export reaches Core policy directly, so what has to hold now is
         // that the port and the policy are Core's and the store is not.
@@ -538,7 +538,7 @@ public sealed class DependencyDirectionTests
         Assert.DoesNotContain("EVA hand-off is not switched on", evaMapping, StringComparison.Ordinal);
         Assert.DoesNotContain("Eva:AcceptedMapping", webComposition, StringComparison.Ordinal);
         Assert.DoesNotContain("Eva__AcceptedMapping", platform, StringComparison.Ordinal);
-        // PLAT-041: a case's photographs are read in one batch, not one call
+        // A case's photographs are read in one batch, not one call
         // per image, because a remote store resolves the case folder per call.
         // The read moved into the shared reader with EXT-04; the rule is the
         // same and now covers both EVA routes at once.

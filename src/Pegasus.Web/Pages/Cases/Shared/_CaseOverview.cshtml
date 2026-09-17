@@ -199,7 +199,7 @@
                 }
                 @if (workflow.ReportSentEvidence is { } sentEvidence)
                 {
-                    @* Inherited scope (PLAT-015): the mailbox address and the
+                    @* Inherited scope: the mailbox address and the
                        authoritative time, never the retained identifiers. *@
                     <div class="fc ro mt-2"><span class="lbl">@Frame.ReportSent</span><div class="fv">@sentEvidence.MailboxIdentity · @OperatorLabels.OfficeTime(sentEvidence.SentAtUtc)</div></div>
                 }
@@ -272,7 +272,7 @@
                 </div>
             </div>
         </div>
-        @* The Case's own contact (CASE-027): who to speak to, distinct from the claimant. *@
+        @* The Case's own contact: who to speak to, distinct from the claimant. *@
         <div class="sub-panel"><h3>Case contact</h3>
             <div class="fg g3">
                 <div class="fc">@{ Lbl("f-contact-name", "Contact name"); }<div class="@ValueClass(contactName)">@Value(contactName)</div>@if (mayEdit){<input id="f-contact-name" class="fi" name="contactName" form="case-edit-form" maxlength="300" value="@contactName" />}</div>

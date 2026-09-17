@@ -9,7 +9,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// CASE-008: the automatic-lookup sweep enqueues one vehicle lookup for every
+/// The automatic-lookup sweep enqueues one vehicle lookup for every
 /// active case whose current registration (confirmed, else fact) has never
 /// been looked up — leaseless, attributed to the Automation actor, and
 /// idempotent per case and registration.

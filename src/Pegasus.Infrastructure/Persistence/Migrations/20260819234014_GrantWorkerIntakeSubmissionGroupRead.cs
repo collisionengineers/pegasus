@@ -14,8 +14,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             // 20260819101344_GroupedIntakeSubmission granted only
             // pegasus_web_runtime_role, reasoning "EfIntakeSubmissionGroupStore
             // (Get/Find/GetOrCreate/List) ... the Worker never references
-            // either table". That reasoning was wrong: INTK-011's production
-            // investigation confirmed ImageIntakeAutomation.TryApplyGroupAsync
+            // either table". That reasoning was wrong: the grouped-image
+            // production investigation confirmed ImageIntakeAutomation.TryApplyGroupAsync
             // (called from the Worker's ProcessQueuedIntake pipeline) calls
             // IIntakeSubmissionGroupStore.FindForMemberSourceAsync/ListMembersAsync
             // at runtime to apply a grouped image submission's outcome. Grant

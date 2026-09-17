@@ -1185,7 +1185,7 @@ public sealed class RequestUploadPolicy
     /// not move. Plan item 6 allows replacements until the session is finalized
     /// or expires, and a link exhausted by file count is neither - it is
     /// precisely where a sender most needs to correct the last file they sent,
-    /// and refusing there would be the broken path INTK-051 forbids.
+    /// and refusing there would be the broken finalize path the upload rules forbid.
     /// </para>
     /// <para>
     /// The byte bound still binds, because custody keeps the superseded bytes

@@ -36,7 +36,7 @@ public sealed class AddCaseNoteTests
     /// <summary>
     /// The rule this asserts is unchanged: the Automation Actor holds casework
     /// rights and records what it does under its own events, so it may not also
-    /// author an operator note. TICK-058 widened the guard by exactly one kind
+    /// author an operator note. The Provider API widened the guard by exactly one kind
     /// (below) and left this one denied.
     /// </summary>
     [Fact]
