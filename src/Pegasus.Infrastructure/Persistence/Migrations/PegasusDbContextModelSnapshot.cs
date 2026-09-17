@@ -1451,6 +1451,18 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("AcceptedAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<string>("ClaimSourceOverrideContactEmailAddress")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("ClaimSourceOverrideContactName")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("ClaimSourceOverrideContactTelephone")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("CompletenessPolicyKey")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1614,6 +1626,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.Property<DateOnly?>("DueBy")
                         .HasColumnType("date");
+
+                    b.Property<bool>("DueBySetByStaff")
+                        .HasColumnType("bit");
 
                     b.Property<DateTimeOffset?>("HeldAtUtc")
                         .HasColumnType("datetimeoffset");

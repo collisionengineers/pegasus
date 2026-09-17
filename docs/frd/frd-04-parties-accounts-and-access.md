@@ -103,8 +103,10 @@ absent when the record has none, beside that Case's own editable notes. The
 Claim source is chosen on the Case from the active Claim Source contacts, or
 none; the Case keeps a snapshot of the chosen name and contact, its notes
 follow the chosen record, and a changed choice must still be an active Claim
-Source when the Case is saved. Notes are not added to Repairer, Storage or Third
-Party Engineer contacts.
+Source when the Case is saved. The Case may override the chosen source's contact
+name, telephone and e-mail for that Case alone. The override wins per field;
+changing or clearing the chosen source clears it. Notes are not added to
+Repairer, Storage or Third Party Engineer contacts.
 
 Every change is a permanent action-history event with actor, time, operation
 identity, and before/after values. Routine settings changes do not require a
