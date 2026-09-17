@@ -6,6 +6,7 @@ using Azure.Storage.Blobs.Models;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure.Persistence;
 using SkiaSharp;
@@ -370,6 +371,14 @@ internal sealed class CachedDocumentContentStore(
                         .Select(value => value.CustodyRootRemoteId)
                         .SingleAsync(cancellationToken)
                     ?? throw new FileNotFoundException("The authorized Case custody root is unavailable.");
+            }
+            if (!string.Equals(asset.CustodyStatus, "confirmed", StringComparison.Ordinal)
+                || string.IsNullOrWhiteSpace(asset.BoxFileId)
+                || string.IsNullOrWhiteSpace(asset.BoxVersionId)
+                || string.IsNullOrWhiteSpace(expectedParentId))
+            {
+                throw new IntakeCustodyUnavailableException(
+                    "Durable custody has not confirmed the retained intake file.");
             }
             return ResolvedSource.Create(
                 documentVersionId: null,

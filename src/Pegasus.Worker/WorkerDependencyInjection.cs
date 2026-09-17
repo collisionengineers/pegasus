@@ -138,7 +138,6 @@ public static class WorkerDependencyInjection
         services.AddScoped<SubmitGroupedIntake>();
         services.AddScoped<IGroupedIntakeSubmission>(serviceProvider =>
             serviceProvider.GetRequiredService<SubmitGroupedIntake>());
-        services.AddScoped<SubmitMailboxImageIntake>();
         services.AddScoped<DispatchPendingIntakeWork>();
         services.AddScoped<ICommittedIntakeWorkPublisher>(serviceProvider =>
             serviceProvider.GetRequiredService<DispatchPendingIntakeWork>());

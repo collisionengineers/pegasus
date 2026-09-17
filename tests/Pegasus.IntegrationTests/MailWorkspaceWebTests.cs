@@ -1420,6 +1420,68 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
+    public async Task LinkedUnclassifiedMessageShowsTheCaseDestinationWhileAnUnlinkedMessageRemainsUnidentified()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+        var linkedMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var unlinkedMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var caseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, receiptId, "MAIL-DESTINATION", nameof(CaseLifecycleState.Review));
+        using var client = CreateClient(factory);
+
+        var target = await GetHtmlAsync(
+            client,
+            $"/Inbox/{linkedMessageId:D}?caseQuery=MAIL-DESTINATION&targetCaseId={caseId:D}");
+        var confirmation = await PrepareAssociationAsync(client, target, "PrepareLinkCase");
+        var submission = AssociationSubmission(
+            confirmation,
+            "LinkCase",
+            "The retained message belongs to this Case/PO.");
+        using var linkedResponse = await client.PostAsync(
+            submission.Action,
+            new FormUrlEncodedContent(submission.Fields));
+        Assert.Equal(HttpStatusCode.Redirect, linkedResponse.StatusCode);
+
+        // The linking session retains its confirmation context on the Case tab.
+        // A fresh viewer checks the persisted message destination independently.
+        using var viewer = CreateClient(factory);
+        var linked = await GetHtmlAsync(viewer, $"/Inbox/{linkedMessageId:D}");
+        Assert.Contains("<span>Classification</span>", linked, StringComparison.Ordinal);
+        Assert.Contains("<strong>Unclassified</strong>", linked, StringComparison.Ordinal);
+        Assert.Contains("<span>Destination</span>", linked, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<a href=\"/Cases/{caseId:D}\">MAIL-DESTINATION</a>",
+            linked,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("<strong>Unidentified</strong>", linked, StringComparison.Ordinal);
+
+        var previewPage = await GetHtmlAsync(viewer, $"/Inbox?selected={linkedMessageId:D}");
+        var linkedRowStart = previewPage.IndexOf(
+            $"data-mail-row=\"{linkedMessageId:D}\"",
+            StringComparison.OrdinalIgnoreCase);
+        Assert.True(linkedRowStart >= 0, "The linked message row was not rendered.");
+        var linkedRowEnd = previewPage.IndexOf("</div>", linkedRowStart, StringComparison.Ordinal);
+        Assert.True(linkedRowEnd > linkedRowStart, "The linked message row was not complete.");
+        var linkedRow = previewPage[linkedRowStart..linkedRowEnd];
+        Assert.Contains("Unclassified", linkedRow, StringComparison.Ordinal);
+        Assert.DoesNotMatch("Unclassified\\s*·\\s*Unidentified", linkedRow);
+
+        var preview = Between(previewPage, "<aside id=\"mail-quick-preview\"", "</aside>");
+        Assert.Contains("data-mail-preview-classification>Unclassified</dd>", preview, StringComparison.Ordinal);
+        Assert.Contains("data-mail-preview-association>MAIL-DESTINATION</dd>", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unidentified", preview, StringComparison.Ordinal);
+
+        var unlinked = await GetHtmlAsync(viewer, $"/Inbox/{unlinkedMessageId:D}");
+        Assert.Contains("<strong>Unclassified</strong>", unlinked, StringComparison.Ordinal);
+        Assert.Contains("<strong>Unidentified</strong>", unlinked, StringComparison.Ordinal);
+        Assert.Contains(">No case</strong>", unlinked, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task MessageDetailShowsTheOperationalDestinationDerivedFromAClassifiedDecision()
     {
         using var factory = new IntakeWebApplicationFactory();

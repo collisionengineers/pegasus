@@ -288,6 +288,30 @@ public static class ThirdPartyReportProfiles
     public static IReadOnlyList<ThirdPartyDocumentSignature> Signatures => SignatureTable;
 
     /// <summary>
+    /// Whether a document-owned signature establishes a non-image source role.
+    /// Ambiguous signatures still establish that the source is not image-only,
+    /// so every matching non-image role protects its normal intake route. This
+    /// deliberately has no source context because the caller needs only the
+    /// classification fact; it must not manufacture a receipt or asset identity
+    /// merely to test a route guard.
+    /// </summary>
+    public static bool HasRecognizedNonImageDocument(IntakeSourceReadResult readResult)
+    {
+        ArgumentNullException.ThrowIfNull(readResult);
+
+        var pages = ThirdPartySourcePage.Read(readResult);
+        if (pages.Count == 0)
+        {
+            return false;
+        }
+
+        var document = string.Join(' ', pages.Select(page => page.Flat));
+        return Compiled.Any(candidate =>
+            candidate.Signature.Role != ThirdPartyDocumentRole.ImageEvidence
+            && candidate.Matches(document));
+    }
+
+    /// <summary>
     /// Selects the issuer family or the explicit non-report role for one source.
     /// Every signature is evaluated; the outcome is decided by how many matched.
     /// </summary>

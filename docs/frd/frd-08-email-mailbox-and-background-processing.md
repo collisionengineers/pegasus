@@ -279,6 +279,10 @@ uses the ordinary current-association and staff reversal precedence. It does
 not mutate the mailbox.
 Selecting a Case association opens that Case workspace in the same tab; Back
 returns to the exact message detail and originating list context.
+The message's displayed destination reflects its current Case association even
+when classification remains Unclassified. Classification, actual destination
+and custody completion are separate facts; a resolved Unidentified origin is
+retained as history rather than presented as the current destination.
 Each Case workspace also exposes its associated correspondence as a contextual
 filtered view in one chronological history of linked received and Sent items;
 it defaults to newest first with an explicit oldest-first option. Cross-mailbox

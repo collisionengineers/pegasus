@@ -7,11 +7,10 @@ using Pegasus.Core.Intake;
 namespace Pegasus.Web.Pages.Intake;
 
 /// <summary>
-/// Serves one retained intake asset (an evidence photograph) inline, beside
-/// <see cref="ImageModel"/> which serves an image receipt's source. Only a
-/// true <c>image/*</c> media type is ever rendered inline — everything else
-/// stays off this route, so retained HTML or scripts can never execute from
-/// this origin.
+/// Serves one retained intake asset. Only the admitted raster image types
+/// render inline for the evidence viewer; every other type is a forced
+/// download, so retained SVG, HTML or scripts can never execute from this
+/// origin.
 /// </summary>
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed partial class AssetModel(
@@ -53,16 +52,25 @@ public sealed partial class AssetModel(
             {
                 return NotFound();
             }
-            // Defence-in-depth restatement of the image-only rule: this
-            // endpoint accepts any asset id, so it gates on the parsed type.
-            if (!MediaTypeHeaderValue.TryParse(asset.ContentType, out var mediaType)
-                || !mediaType.Type.Equals("image", StringComparison.OrdinalIgnoreCase))
+            if (!MediaTypeHeaderValue.TryParse(asset.ContentType, out var mediaType))
             {
                 return NotFound();
             }
 
             Response.Headers.CacheControl = "private, no-store";
             Response.Headers.XContentTypeOptions = "nosniff";
+            // Keep the intake route at the same safe raster boundary used by
+            // report rendering. SVG is an image media type but can execute
+            // active content when navigated from this origin.
+            if (!mediaType.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
+                && !mediaType.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase)
+                && !mediaType.MediaType.Equals("image/webp", StringComparison.OrdinalIgnoreCase))
+            {
+                return File(
+                    asset.Content.ToArray(),
+                    "application/octet-stream",
+                    SafeFileName(asset.FileName));
+            }
             Response.Headers.ContentDisposition = new ContentDispositionHeaderValue("inline")
             {
                 FileName = asset.FileName
@@ -73,10 +81,12 @@ public sealed partial class AssetModel(
         {
             return Forbid();
         }
+        catch (IntakeCustodyUnavailableException)
+        {
+            return CustodyUnavailable();
+        }
         catch (FileNotFoundException)
         {
-            // Durable custody has not confirmed the bytes yet: the receipt is
-            // still being filed, so there is nothing to serve, not a fault.
             return NotFound();
         }
         catch (IntakeArtifactIntegrityException exception)
@@ -89,6 +99,31 @@ public sealed partial class AssetModel(
                 Content = "The retained image could not be displayed safely."
             };
         }
+    }
+
+    private static ContentResult CustodyUnavailable() => new()
+    {
+        StatusCode = StatusCodes.Status409Conflict,
+        ContentType = "text/plain; charset=utf-8",
+        Content = "The retained file is not available until durable storage is confirmed. Refresh this record and try again."
+    };
+
+    private static string SafeFileName(string fileName)
+    {
+        var name = Path.GetFileName(fileName);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return "intake-asset.bin";
+        }
+
+        var invalid = Path.GetInvalidFileNameChars();
+        var safe = string.Concat(name.Where(character =>
+            !char.IsControl(character)
+            && character != '"'
+            && character != '\''
+            && character != ';'
+            && !invalid.Contains(character)));
+        return string.IsNullOrWhiteSpace(safe) ? "intake-asset.bin" : safe;
     }
 
     [LoggerMessage(
