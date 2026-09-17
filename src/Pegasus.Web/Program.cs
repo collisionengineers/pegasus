@@ -320,7 +320,11 @@ var sendToAiOptions = SendToAiOptions.TryCreate(
 // Filters collection of its own, so the global filter is added through the
 // underlying MvcOptions instead.
 builder.Services.AddRazorPages()
-    .AddMvcOptions(options => options.Filters.Add<Pegasus.Web.Presentation.RailCountsPageFilter>())
+    .AddMvcOptions(options =>
+    {
+        options.Filters.Add<Pegasus.Web.Presentation.RailCountsPageFilter>();
+        options.Filters.Add<Pegasus.Web.Presentation.WorkspaceRequestTimingFilter>();
+    })
     // The anonymous upload link is the only Razor page reachable without a
     // session, so it is the only one that carries a transport-level bound.
     // Applying it here rather than on MapRazorPages() keeps every
@@ -546,6 +550,7 @@ builder.Services.ConfigureApplicationCookie(options =>
     };
     options.Events.OnValidatePrincipal = async context =>
     {
+        using var validation = DocumentReadTelemetry.Start("web.auth.validation");
         var subjectId = context.Principal?.FindFirst(
             System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "unknown";
         await SecurityStampValidator.ValidatePrincipalAsync(context);
@@ -595,7 +600,15 @@ builder.Services.ConfigureApplicationCookie(options =>
                 subjectId,
                 SecurityEventOutcome.Denied,
                 "disabled_or_missing_staff");
+            return;
         }
+
+        // SecurityStampValidator refreshes a valid principal after checking it.
+        // That refresh is distinct from CookieAuthenticationHandler's own
+        // sliding-expiration refresh, which remains eligible independently.
+        // Reissuing on every zero-interval validation makes otherwise private,
+        // immutable document previews non-cacheable in the browser.
+        context.ShouldRenew = false;
     };
 });
 
@@ -1101,6 +1114,21 @@ if (automationMcpOptions is not null)
     });
 }
 app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    // Identity's validation-driven cookie reissue used to incidentally attach
+    // no-store to most protected Razor responses. Preserve that requirement at
+    // the response owner without overwriting the document preview's explicit
+    // private cache policy or static-asset cache headers.
+    if (context.GetEndpoint()?.Metadata.GetMetadata<Microsoft.AspNetCore.Mvc.RazorPages.PageActionDescriptor>() is not null
+        && context.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is null
+        && !context.Response.Headers.ContainsKey("Cache-Control"))
+    {
+        context.Response.Headers.CacheControl = "private, no-store";
+    }
+
+    await next(context);
+});
 app.Use(async (context, next) =>
 {
     if (context.GetEndpoint()?.Metadata.GetMetadata<IAllowAnonymous>() is null
