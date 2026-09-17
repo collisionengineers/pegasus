@@ -41,8 +41,7 @@ public sealed record RetainedMailAttachmentOutcome(
 
 /// <summary>
 /// The facts one attachment's outcome is decided from: the receipt that
-/// processed it (the message's own receipt, or for a direct image attachment
-/// its member receipt in the message's image submission group), the image
+/// processed it (the message's own receipt), the image
 /// record and Unidentified item that receipt or its group produced, and whether
 /// processing flagged the member as unreadable.
 /// </summary>
@@ -123,14 +122,11 @@ public interface IGetRetainedMailAttachmentOutcomes
 
 /// <summary>
 /// Per-attachment outcomes for a retained message. A message is processed as
-/// one receipt, so a document attachment's outcome is that receipt's; a direct
-/// image attachment is resubmitted as a member of the message's image
-/// submission group (<see cref="SubmitMailboxImageIntake"/>), so its outcome is
-/// read from its own member receipt and the group's destination.
+/// one receipt, so photographs, PDFs and other document attachments share
+/// that receipt's destination without manufacturing child submissions.
 /// </summary>
 public sealed class GetRetainedMailAttachmentOutcomes(
     IIntakeReceiptQueries receipts,
-    IIntakeSubmissionGroupStore submissionGroups,
     IImageIntakeQueries imageIntakes,
     IUnidentifiedStore unidentifiedStore) : IGetRetainedMailAttachmentOutcomes
 {
@@ -157,57 +153,14 @@ public sealed class GetRetainedMailAttachmentOutcomes(
             await unidentifiedStore.GetByOriginAsync(UnidentifiedOrigin.Receipt(receipt.Id), cancellationToken),
             MemberCouldNotBeRead: false);
 
-        var images = SubmitMailboxImageIntake.SelectAttachments(receipt);
-        var group = images.Count == 0
-            ? null
-            : await submissionGroups.FindAsync(
-                IntakeSourceChannel.Mailbox,
-                SubmitMailboxImageIntake.SubmissionToken(receipt.Id),
-                cancellationToken);
-        var groupImage = group is null
-            ? null
-            : await ImageRecordAsync(imageIntakes.GetBySubmissionGroupAsync(group.Id, cancellationToken));
-        var groupUnidentified = group is null
-            ? null
-            : await unidentifiedStore.GetByOriginAsync(UnidentifiedOrigin.SubmissionGroup(group.Id), cancellationToken);
-
-        // The group's member ordinal is the image attachment's position in the submission.
-        var ordinals = images
-            .Select((image, ordinal) => (image.Id, ordinal))
-            .ToDictionary(entry => entry.Id, entry => entry.ordinal);
         var outcomes = new List<RetainedMailAttachmentOutcome>();
         foreach (var asset in receipt.AssetRecords.Where(asset => asset.Kind == IntakeAssetKind.Attachment))
         {
-            var facts = group is not null && ordinals.TryGetValue(asset.Id, out var ordinal)
-                ? await MemberFactsAsync(group, ordinal, groupImage, groupUnidentified, cancellationToken)
-                : messageFacts;
-            var (kind, record, reason) = RetainedMailAttachmentOutcomePolicy.Decide(facts);
+            var (kind, record, reason) = RetainedMailAttachmentOutcomePolicy.Decide(messageFacts);
             outcomes.Add(new(asset.Id, asset.FileName, kind, record, reason));
         }
 
         return outcomes;
-    }
-
-    private async Task<AttachmentOutcomeFacts> MemberFactsAsync(
-        IntakeSubmissionGroup group,
-        int ordinal,
-        AttachmentOutcomeRecord? groupImage,
-        UnidentifiedItem? groupUnidentified,
-        CancellationToken cancellationToken)
-    {
-        var member = group.Members.FirstOrDefault(item => item.Ordinal == ordinal);
-        if (member?.ProcessedReceiptId is not { } memberReceiptId
-            || await receipts.GetAsync(memberReceiptId, cancellationToken) is not { } memberReceipt)
-        {
-            return new(null, null, null, false);
-        }
-
-        return new(
-            memberReceipt,
-            groupImage ?? await ImageRecordAsync(imageIntakes.GetByOriginReceiptAsync(memberReceipt.Id, cancellationToken)),
-            groupUnidentified
-                ?? await unidentifiedStore.GetByOriginAsync(UnidentifiedOrigin.Receipt(memberReceipt.Id), cancellationToken),
-            member.CouldNotBeRead == true);
     }
 
     private static async Task<AttachmentOutcomeRecord?> ImageRecordAsync(Task<ImageIntakeDetail?> read) =>

@@ -186,6 +186,22 @@ public enum IntakeEvidenceFinding
     AcceptedTriageMatch
 }
 
+/// <summary>
+/// Stable policy signals retained with an intake assessment. They are facts
+/// established by Core policy rather than text copied from the incoming file.
+/// </summary>
+public static class IntakeEvidenceSignals
+{
+    public const string RecognizedNonImageDocument =
+        "recognized-non-image-document";
+
+    public const string AmbiguousInstructionSelection =
+        "ambiguous-instruction-selection";
+
+    public const string ConflictingInstructionSelection =
+        "conflicting-instruction-selection";
+}
+
 public enum IntakeSourceReadStatus
 {
     Readable,

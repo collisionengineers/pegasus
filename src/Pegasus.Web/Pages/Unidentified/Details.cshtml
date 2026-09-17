@@ -94,7 +94,27 @@
                         <div class="fact"><dt>Source</dt><dd>@Model.SourceLabel</dd></div>
                         <div class="fact"><dt>Needs attention</dt><dd>@OperatorLabels.UnidentifiedReason(Model.Item.ReasonCode)</dd></div>
                     </dl>
-                    @if (Model.SubmissionGroup is { } group)
+                    @if (Model.RetainedFiles.Count > 0)
+                    {
+                        <ul class="unidentified-files" aria-label="Retained files">
+                            @foreach (var file in Model.RetainedFiles)
+                            {
+                                <li>
+                                    <strong>@(file.IsSource ? "Original file" : "Attached file")</strong> ·
+                                    @if (file.IsStored)
+                                    {
+                                        <a href="@file.Href" target="_blank" rel="noopener">@file.Asset.FileName</a>
+                                    }
+                                    else
+                                    {
+                                        <span>@file.Asset.FileName</span>
+                                    }
+                                    · @Record.CustodyLabel(file.Asset.CustodyState)
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else if (Model.SubmissionGroup is { } group)
                     {
                         <ul class="unidentified-files" aria-label="Retained files">
                             @foreach (var member in group.Members.OrderBy(member => member.Ordinal))
@@ -103,12 +123,28 @@
                             }
                         </ul>
                     }
-                    @if (Model.Receipt is { } imageReceipt && imageReceipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                    @if (Model.EvidenceImages.Count > 0)
                     {
-                        var href = $"/Received/{imageReceipt.Id:D}/Image";
-                        var imageAssetId = Model.Context.SourceAssetId;
+                        var gallery = Model.EvidenceImages
+                            .Select(image =>
+                            {
+                                var href = $"/Received/{image.ReceiptId:D}/Asset/{image.Asset.Id:D}";
+                                return new GalleryImage(
+                                    href,
+                                    href,
+                                    image.Asset.FileName,
+                                    image.Asset.MediaType,
+                                    IsStored: image.Asset.CustodyState == Pegasus.Core.Intake.IncomingArtifactCustodyState.Confirmed,
+                                    IntakeAssetId: image.Asset.Id,
+                                    Preparation: Model.Preparations.GetValueOrDefault(image.Asset.Id),
+                                    IntakeReceiptId: image.ReceiptId,
+                                    CustodyState: image.Asset.CustodyState);
+                            })
+                            .ToArray();
                         ViewData["PreCaseImageTags"] = Model.ImageTags;
-                        <partial name="Shared/_ImageGallery" model="@new[] { new GalleryImage(href, href, imageReceipt.SourceFileName, imageReceipt.MediaType, IntakeAssetId: imageAssetId, Preparation: imageAssetId is { } preparedId ? Model.Preparations.GetValueOrDefault(preparedId) : null, IntakeReceiptId: imageReceipt.Id) }" />
+                        <h3>Extracted photographs</h3>
+                        <p class="muted">@gallery.Length photograph@(gallery.Length == 1 ? string.Empty : "s") extracted from the retained file@(Model.MaterialReceipts.Count == 1 ? string.Empty : "s").</p>
+                        <partial name="Shared/_ImageGallery" model="gallery" />
                     }
                     <div class="button-row" data-unidentified-material-actions>
                         @if (Model.OpenFileHref is { } fileHref)
@@ -116,6 +152,12 @@
                             <a class="btn" href="@fileHref" target="_blank" rel="noopener" data-unidentified-action="open-file">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>Open file</span>
                             </a>
+                        }
+                        else if (Model.SourceAsset is { } unavailableSource)
+                        {
+                            <span class="muted" data-unidentified-source-unavailable>
+                                Original file unavailable — @Record.CustodyLabel(unavailableSource.CustodyState).
+                            </span>
                         }
                         @if (Model.OpenMessageHref is { } messageHref)
                         {
@@ -212,21 +254,21 @@
             }
         </div>
 
-        @if (Model.Context.RegistrationReadings.Count > 0)
+        @if (Model.RegistrationReadings.Count > 0)
         {
             <section class="panel" aria-labelledby="unidentified-readings-title" data-unidentified-readings>
                 <div class="panel-head"><h2 id="unidentified-readings-title">Registration readings</h2></div>
                 <table class="table table--compact">
                     <thead><tr><th scope="col">Read</th><th scope="col">Reading</th><th scope="col">Decision</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
                     <tbody>
-                        @foreach (var reading in Model.Context.RegistrationReadings)
+                        @foreach (var reading in Model.RegistrationReadings)
                         {
                             <tr data-unidentified-reading="@reading.Id">
                                 <td class="nowrap">@OperatorLabels.OfficeTime(reading.OccurredAtUtc)</td>
                                 <td class="@(reading.Outcome == VrmRecognitionOutcomeKind.Suggested ? "mono" : null)">@Record.ReadingLabel(reading)</td>
                                 <td>@Record.DispositionLabel(reading.Disposition)</td>
                                 <td>
-                                    @if (Model.IsOpen && reading.Disposition == ImageVrmSuggestionDisposition.Pending && reading.Outcome == VrmRecognitionOutcomeKind.Suggested)
+                                    @if (Model.Receipt is not null && Model.IsOpen && reading.Disposition == ImageVrmSuggestionDisposition.Pending && reading.Outcome == VrmRecognitionOutcomeKind.Suggested)
                                     {
                                         <details class="unidentified-dismiss">
                                             <summary class="btn btn--small">Dismiss</summary>

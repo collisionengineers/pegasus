@@ -43,9 +43,22 @@ public static class VehicleLookupFillPolicy
             Text(dvla?.Model) ?? Text(dvsa?.Model),
             Positive(dvla?.ManufactureYear) ?? Positive(dvsa?.ManufactureYear),
             Positive(dvla?.EngineCapacityCc) ?? Positive(dvsa?.EngineCapacityCc),
-            Text(dvla?.FuelType) ?? Text(dvsa?.FuelType));
+            Text(dvla?.FuelType) ?? Text(dvsa?.FuelType),
+            Text(dvla?.TypeApproval) ?? Text(dvsa?.TypeApproval),
+            Text(dvla?.Wheelplan) ?? Text(dvsa?.Wheelplan),
+            Positive(dvla?.RevenueWeightKg) ?? Positive(dvsa?.RevenueWeightKg));
 
-        return merged is { Make: null, Model: null, ManufactureYear: null, EngineCapacityCc: null, FuelType: null }
+        return merged is
+        {
+            Make: null,
+            Model: null,
+            ManufactureYear: null,
+            EngineCapacityCc: null,
+            FuelType: null,
+            TypeApproval: null,
+            Wheelplan: null,
+            RevenueWeightKg: null
+        }
             ? null
             : merged;
     }

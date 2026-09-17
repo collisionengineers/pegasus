@@ -12,6 +12,7 @@ using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Email;
@@ -1419,6 +1420,68 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
+    public async Task LinkedUnclassifiedMessageShowsTheCaseDestinationWhileAnUnlinkedMessageRemainsUnidentified()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+        var linkedMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var unlinkedMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var caseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, receiptId, "MAIL-DESTINATION", nameof(CaseLifecycleState.Review));
+        using var client = CreateClient(factory);
+
+        var target = await GetHtmlAsync(
+            client,
+            $"/Inbox/{linkedMessageId:D}?caseQuery=MAIL-DESTINATION&targetCaseId={caseId:D}");
+        var confirmation = await PrepareAssociationAsync(client, target, "PrepareLinkCase");
+        var submission = AssociationSubmission(
+            confirmation,
+            "LinkCase",
+            "The retained message belongs to this Case/PO.");
+        using var linkedResponse = await client.PostAsync(
+            submission.Action,
+            new FormUrlEncodedContent(submission.Fields));
+        Assert.Equal(HttpStatusCode.Redirect, linkedResponse.StatusCode);
+
+        // The linking session retains its confirmation context on the Case tab.
+        // A fresh viewer checks the persisted message destination independently.
+        using var viewer = CreateClient(factory);
+        var linked = await GetHtmlAsync(viewer, $"/Inbox/{linkedMessageId:D}");
+        Assert.Contains("<span>Classification</span>", linked, StringComparison.Ordinal);
+        Assert.Contains("<strong>Unclassified</strong>", linked, StringComparison.Ordinal);
+        Assert.Contains("<span>Destination</span>", linked, StringComparison.Ordinal);
+        Assert.Contains(
+            $"<a href=\"/Cases/{caseId:D}\">MAIL-DESTINATION</a>",
+            linked,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("<strong>Unidentified</strong>", linked, StringComparison.Ordinal);
+
+        var previewPage = await GetHtmlAsync(viewer, $"/Inbox?selected={linkedMessageId:D}");
+        var linkedRowStart = previewPage.IndexOf(
+            $"data-mail-row=\"{linkedMessageId:D}\"",
+            StringComparison.OrdinalIgnoreCase);
+        Assert.True(linkedRowStart >= 0, "The linked message row was not rendered.");
+        var linkedRowEnd = previewPage.IndexOf("</div>", linkedRowStart, StringComparison.Ordinal);
+        Assert.True(linkedRowEnd > linkedRowStart, "The linked message row was not complete.");
+        var linkedRow = previewPage[linkedRowStart..linkedRowEnd];
+        Assert.Contains("Unclassified", linkedRow, StringComparison.Ordinal);
+        Assert.DoesNotMatch("Unclassified\\s*·\\s*Unidentified", linkedRow);
+
+        var preview = Between(previewPage, "<aside id=\"mail-quick-preview\"", "</aside>");
+        Assert.Contains("data-mail-preview-classification>Unclassified</dd>", preview, StringComparison.Ordinal);
+        Assert.Contains("data-mail-preview-association>MAIL-DESTINATION</dd>", preview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unidentified", preview, StringComparison.Ordinal);
+
+        var unlinked = await GetHtmlAsync(viewer, $"/Inbox/{unlinkedMessageId:D}");
+        Assert.Contains("<strong>Unclassified</strong>", unlinked, StringComparison.Ordinal);
+        Assert.Contains("<strong>Unidentified</strong>", unlinked, StringComparison.Ordinal);
+        Assert.Contains(">No case</strong>", unlinked, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task MessageDetailShowsTheOperationalDestinationDerivedFromAClassifiedDecision()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -1710,6 +1773,69 @@ public sealed class MailWorkspaceWebTests
             html,
             StringComparison.Ordinal);
         Assert.Contains("Back to Inbox", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ResolvedUnidentifiedMessageIsOutsideTheUnidentifiedViewWhileOpenMessageRemains()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+        var resolvedMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var openMessageId = await MessageIdAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+        var resolvedReceiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var openReceiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-1");
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var register = services.GetRequiredService<IRegisterUnidentified>();
+            var resolvedItem = (await register.ExecuteAsync(
+                new(
+                    UnidentifiedOrigin.Receipt(resolvedReceiptId),
+                    UnidentifiedReasonCode.NoUsableIdentification,
+                    "test detail",
+                    ActionActor.SystemWorker("test-worker"),
+                    $"unidentified-test:{Guid.NewGuid():N}",
+                    NowUtc))).Item;
+            await register.ExecuteAsync(
+                new(
+                    UnidentifiedOrigin.Receipt(openReceiptId),
+                    UnidentifiedReasonCode.NoUsableIdentification,
+                    "test detail",
+                    ActionActor.SystemWorker("test-worker"),
+                    $"unidentified-test:{Guid.NewGuid():N}",
+                    NowUtc));
+            await services.GetRequiredService<IUnidentifiedStore>().ResolveAsync(
+                new(
+                    resolvedItem.Id,
+                    resolvedItem.Version,
+                    ActionActor.Automation("test-worker"),
+                    $"unidentified-resolve-test:{Guid.NewGuid():N}",
+                    "resolved",
+                    UnidentifiedResolutionTargetKind.ExternalReference,
+                    "target-1",
+                    null,
+                    NowUtc.AddMinutes(1)));
+        }
+
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var resolved = await GetHtmlAsync(
+            client,
+            $"/Inbox/{resolvedMessageId:D}?queue=unidentified");
+        var open = await GetHtmlAsync(
+            client,
+            $"/Inbox/{openMessageId:D}?queue=unidentified");
+
+        Assert.Contains(
+            "This message is no longer in the view you opened it from.",
+            resolved,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "This message is no longer in the view you opened it from.",
+            open,
+            StringComparison.Ordinal);
     }
 
     [Fact]

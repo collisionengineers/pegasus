@@ -1,4 +1,7 @@
 using System.Security.Cryptography;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
@@ -15,6 +18,113 @@ namespace Pegasus.IntegrationTests;
 
 public sealed class CaseArtifactCustodyRecoveryTests
 {
+    [Fact]
+    public async Task HoldingCustodyResolvesTheIntakeAssetByItsNFormatGuidAndConfirmsOneBoxFile()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var receiptId = Guid.NewGuid();
+        var assetId = Guid.NewGuid();
+        var bytes = "holding photo bytes"u8.ToArray();
+        var hash = Convert.ToHexString(SHA256.HashData(bytes));
+        await using (var db = await database.CreateContextAsync())
+        {
+            db.Add(new IntakeReceiptEntity
+            {
+                Id = receiptId,
+                SourceFileName = "images.pdf",
+                MediaType = "application/pdf",
+                SourceLength = bytes.Length,
+                SourceHash = hash,
+                SourceChannel = "manual_upload",
+                ExternalReceiptToken = $"holding:{Guid.NewGuid():N}",
+                ReceivedAtUtc = DateTimeOffset.UtcNow,
+                ProcessedAtUtc = DateTimeOffset.UtcNow,
+                SourceReaderKey = "test",
+                SourceReaderVersion = "1",
+                Decision = "needs_sorting",
+                DecisionReason = "Test.",
+                EvidenceJson = "[]",
+                FieldsJson = "[]",
+                OcrCandidatesJson = "[]"
+            });
+            db.Add(new IntakeAssetEntity
+            {
+                Id = assetId,
+                IntakeReceiptId = receiptId,
+                SourceLabel = "uploaded images.pdf, page 1, image 1",
+                FileName = "page-1-image-1.jpg",
+                MediaType = "image/jpeg",
+                Kind = "embedded_image",
+                Disposition = "embedded",
+                ContentLength = bytes.Length,
+                ContentHash = hash,
+                StorageKey = "test/holding-photo"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var box = new HoldingBox();
+        var client = new BoxContentClient(
+            new(
+                new Uri("https://api.box.com/2.0/"),
+                new Uri("https://upload.box.com/api/2.0/"),
+                HoldingBox.RootId,
+                "test", "test", "test", "test", "test", "test", HoldingBox.HoldingFolderId),
+            new HttpClient(new HoldingBoxHandler(box)),
+            new StaticBoxAuthorizationHeaderProvider());
+        var custody = new EfCaseArtifactCustody(
+            factory,
+            new BoxDocumentContentStore(client),
+            new MemoryArtifactStore(),
+            TimeProvider.System,
+            client,
+            HoldingBox.HoldingFolderId);
+        var request = new CaseArtifactCustodyRequest(
+            ActionActor.SystemWorker("intake-processing"),
+            null,
+            receiptId,
+            assetId.ToString("N"),
+            $"intake:{receiptId:N}:{assetId:N}",
+            "page-1-image-1.jpg",
+            "image/jpeg",
+            bytes.Length,
+            hash,
+            new MemoryStream(bytes, writable: false));
+
+        var confirmed = await custody.RetainAsync(request, CancellationToken.None);
+        var replay = await custody.RetainAsync(
+            request with { Content = new MemoryStream(bytes, writable: false) },
+            CancellationToken.None);
+
+        Assert.Equal(CaseArtifactCustodyDisposition.Confirmed, confirmed.Disposition);
+        Assert.Equal(("holding-file", "holding-version"),
+            (confirmed.BoxFileId, confirmed.BoxVersionId));
+        Assert.Equal(1, box.UploadCount);
+        Assert.Equal(confirmed.BoxFileId, replay.BoxFileId);
+        await using var verify = await database.CreateContextAsync();
+        var stored = await verify.Set<IntakeAssetEntity>().SingleAsync(item => item.Id == assetId);
+        Assert.Equal("confirmed", stored.CustodyStatus);
+        Assert.Equal(confirmed.BoxFileId, stored.BoxFileId);
+        Assert.Equal(confirmed.BoxVersionId, stored.BoxVersionId);
+
+        var wrongReceipt = request with
+        {
+            IntakeReceiptId = Guid.NewGuid(),
+            Content = new MemoryStream(bytes, writable: false)
+        };
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => custody.RetainAsync(wrongReceipt, CancellationToken.None));
+        var changedMetadata = request with
+        {
+            FileName = "different.jpg",
+            Content = new MemoryStream(bytes, writable: false)
+        };
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => custody.RetainAsync(changedMetadata, CancellationToken.None));
+    }
+
     [Fact]
     public async Task LocalLogicalReaderRejectsWrongReceiptCaseHashAndLengthBeforeReadingContent()
     {
@@ -1029,5 +1139,112 @@ public sealed class CaseArtifactCustodyRecoveryTests
 
         public Task VerifyAsync(IntakeQuarantineArtifact artifact, CancellationToken cancellationToken) =>
             Task.CompletedTask;
+    }
+
+    private sealed class StaticBoxAuthorizationHeaderProvider : IBoxAuthorizationHeaderProvider
+    {
+        public Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult("Bearer test-token");
+    }
+
+    /// <summary>
+    /// The minimum Box surface holding custody uses: ancestry, an exact-name
+    /// child lookup, upload and a version read-back. Keeping it local to this
+    /// regression makes the test exercise the real Box adapter rather than a
+    /// replacement custody implementation.
+    /// </summary>
+    private sealed class HoldingBox
+    {
+        public const string RootId = "405543781910";
+        public const string HoldingFolderId = "holding-folder";
+        public int UploadCount { get; private set; }
+        private byte[]? uploaded;
+
+        public async Task<HttpResponseMessage> HandleAsync(HttpRequestMessage request)
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (request.Method == HttpMethod.Get && path == $"/2.0/folders/{HoldingFolderId}")
+            {
+                return Json(new
+                {
+                    id = HoldingFolderId,
+                    type = "folder",
+                    parent = new { id = RootId },
+                    trashed_at = (string?)null
+                });
+            }
+
+            if (request.Method == HttpMethod.Get && path == $"/2.0/folders/{HoldingFolderId}/items")
+            {
+                var entries = uploaded is null
+                    ? Array.Empty<object>()
+                    : [new
+                    {
+                        id = "holding-file",
+                        name = "retained-file",
+                        type = "file",
+                        file_version = new { id = "holding-version" },
+                        size = uploaded.LongLength,
+                        content_type = "image/jpeg",
+                        parent = new { id = HoldingFolderId }
+                    }];
+                return Json(new { entries });
+            }
+
+            if (request.Method == HttpMethod.Post && path == "/api/2.0/files/content")
+            {
+                var multipart = Assert.IsType<MultipartFormDataContent>(request.Content);
+                var file = multipart.First(part =>
+                    string.Equals(part.Headers.ContentDisposition?.Name?.Trim('\"'), "file", StringComparison.Ordinal));
+                uploaded = await file.ReadAsByteArrayAsync();
+                UploadCount++;
+                return Json(new
+                {
+                    entries = new[]
+                    {
+                        new
+                        {
+                            id = "holding-file",
+                            type = "file",
+                            file_version = new { id = "holding-version" },
+                            parent = new { id = HoldingFolderId }
+                        }
+                    }
+                });
+            }
+
+            if (request.Method == HttpMethod.Get && path == "/2.0/files/holding-file")
+            {
+                return Json(new
+                {
+                    id = "holding-file",
+                    type = "file",
+                    parent = new { id = HoldingFolderId },
+                    trashed_at = (string?)null
+                });
+            }
+
+            if (request.Method == HttpMethod.Get && path == "/2.0/files/holding-file/content")
+            {
+                return new(HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(uploaded ?? throw new InvalidOperationException("No Box content uploaded."))
+                };
+            }
+
+            throw new InvalidOperationException($"Unexpected Box request: {request.Method} {request.RequestUri}");
+        }
+
+        private static HttpResponseMessage Json<T>(T value) => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(JsonSerializer.Serialize(value), Encoding.UTF8, "application/json")
+        };
+    }
+
+    private sealed class HoldingBoxHandler(HoldingBox box) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) => box.HandleAsync(request);
     }
 }

@@ -295,12 +295,15 @@
                         <span class="row-top">
                             <span class="cluster">
                                 <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(item)" />
-                                @if (item.Classification is { } classification
-                                    && item.OperationalDestination is { } operationalDestination)
+                                @if (item.Classification is { } classification)
                                 {
                                     <span class="row-meta">
                                         @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(classification)
-                                        · @OperatorLabels.MailOperationalDestinationLabel(operationalDestination.Destination)
+                                        @if (item.CaseId is null
+                                            && item.OperationalDestination is { } operationalDestination)
+                                        {
+                                            @: · @OperatorLabels.MailOperationalDestinationLabel(operationalDestination.Destination)
+                                        }
                                     </span>
                                 }
                             </span>

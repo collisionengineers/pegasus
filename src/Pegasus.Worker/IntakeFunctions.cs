@@ -46,7 +46,7 @@ public sealed partial class AutomaticEvaReviewSubmissionFunction(
 {
     [Function(nameof(AutomaticEvaReviewSubmissionFunction))]
     public async Task RunAsync(
-        [TimerTrigger("%PendingWorkRecoverySchedule%", RunOnStartup = false)] TimerInfo timer,
+        [TimerTrigger("%AutomaticEvaReviewSubmissionSchedule%", RunOnStartup = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
         var processed = await processAutomaticEvaReviewSubmissions.ExecuteAsync(50, cancellationToken);

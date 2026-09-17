@@ -1,6 +1,9 @@
+using System.Data.Common;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
@@ -10,6 +13,61 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class StaffAccountAdministrationPersistenceTests
 {
+    [Fact]
+    public async Task ActorDisplayNamesResolveManyStaffIdsInOneSqlCommand()
+    {
+        var commandCounter = new ReaderCommandCounter();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(commandCounter),
+            configureServices: IdentityPersistenceTestServices.Configure);
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var userManager = services.GetRequiredService<UserManager<PegasusIdentityUser>>();
+        var enabled = await CreateStaffAccountAsync(
+            userManager, "actor-display-enabled", StaffRole.Administrator);
+        var disabled = await CreateStaffAccountAsync(
+            userManager, "actor-display-disabled", StaffRole.Engineer);
+        disabled.IsEnabled = false;
+        Assert.True((await userManager.UpdateAsync(disabled)).Succeeded);
+        var missingId = Guid.NewGuid();
+
+        commandCounter.Reset();
+        var names = await ActorDisplayNames.ResolveStaffNamesAsync(
+            services.GetRequiredService<IStaffAccountQueries>(),
+            [enabled.Id, disabled.Id, enabled.Id, missingId, Guid.Empty],
+            default);
+
+        Assert.Equal(1, commandCounter.ExecutedReaderCommands);
+        Assert.Equal("actor-display-enabled", names[enabled.Id]);
+        Assert.Equal("actor-display-disabled", names[disabled.Id]);
+        Assert.False(names.ContainsKey(missingId));
+        Assert.Equal(
+            ActorDisplayNames.FormerStaff,
+            ActorDisplayNames.Resolve(ActorKind.Staff, missingId.ToString("D"), names));
+    }
+
+    [Fact]
+    public async Task BatchStaffReadKeepsTheExactlyOneRoleInvariant()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureServices: IdentityPersistenceTestServices.Configure);
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var userManager = services.GetRequiredService<UserManager<PegasusIdentityUser>>();
+        var single = await CreateStaffAccountAsync(
+            userManager, "batch-single-role", StaffRole.Engineer);
+        // The unique index on AspNetUserRoles.UserId makes a second role
+        // impossible; the reachable breach is an account with no role row.
+        var roleless = new PegasusIdentityUser { Id = Guid.NewGuid(), UserName = "batch-no-role" };
+        Assert.True((await userManager.CreateAsync(roleless, "Password-1")).Succeeded);
+        var queries = services.GetRequiredService<IStaffAccountQueries>();
+
+        var one = Assert.Single(await queries.GetManyAsync([single.Id], default));
+        Assert.Equal(StaffRole.Engineer, one.Role);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => queries.GetAsync(roleless.Id, default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => queries.GetManyAsync([single.Id, roleless.Id], default));
+    }
+
     [Fact]
     public async Task StaffAccountQueryProjectsOneRoleAndItsVersion()
     {
@@ -229,5 +287,24 @@ public sealed class StaffAccountAdministrationPersistenceTests
         Assert.True((await userManager.CreateAsync(user, "Password-1")).Succeeded);
         Assert.True((await userManager.AddToRoleAsync(user, role.ToString())).Succeeded);
         return user;
+    }
+
+    private sealed class ReaderCommandCounter : DbCommandInterceptor
+    {
+        private int executedReaderCommands;
+
+        public int ExecutedReaderCommands => Volatile.Read(ref executedReaderCommands);
+
+        public void Reset() => Interlocked.Exchange(ref executedReaderCommands, 0);
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Interlocked.Increment(ref executedReaderCommands);
+            return ValueTask.FromResult(result);
+        }
     }
 }

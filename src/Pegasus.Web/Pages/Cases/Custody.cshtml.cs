@@ -36,6 +36,8 @@ public sealed class CustodyModel(
     /// </summary>
     protected override (IGetCase Cases, IAcquireCaseEditLease Leases)? LeaseReclaim => (getCase, acquireLease);
 
+    public IActionResult OnGet() => NotFound();
+
     private RedirectToPageResult RedirectToFiles(Guid id) =>
         RedirectToPage("/Cases/Details", new { id, section = "files" });
 

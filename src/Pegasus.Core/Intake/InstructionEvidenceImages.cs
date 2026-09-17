@@ -7,8 +7,9 @@ namespace Pegasus.Core.Intake;
 /// <summary>
 /// The one owner of which of a receipt's retained assets count as the
 /// instruction's evidence photographs: every deliberately attached image
-/// file, plus embedded PDF images large enough to be photographs rather than
-/// letterhead art. Inline images (signature graphics) never qualify, and one
+/// file, a directly uploaded image source, plus embedded PDF images large
+/// enough to be photographs rather than letterhead art. Inline images
+/// (signature graphics) never qualify, and one
 /// photograph carried twice — attached and embedded, or repeated across
 /// pages — appears once, preferring the attached copy. Custody promotion and
 /// the case evidence gallery both resolve through this selection.
@@ -46,13 +47,25 @@ public static class InstructionEvidenceImages
         return assets
             .Where(asset => asset.Kind switch
             {
-                IntakeAssetKind.Attachment => IsImage(asset.MediaType),
+                IntakeAssetKind.Source =>
+                    asset.Disposition == IntakeAssetDisposition.Source
+                    && IsImage(asset.MediaType),
+                IntakeAssetKind.Attachment =>
+                    asset.Disposition == IntakeAssetDisposition.Attachment
+                    && IsImage(asset.MediaType),
                 IntakeAssetKind.EmbeddedImage =>
-                    asset.ContentLength >= EmbeddedPhotographMinimumBytes,
+                    asset.Disposition == IntakeAssetDisposition.Embedded
+                    && IsImage(asset.MediaType)
+                    && asset.ContentLength >= EmbeddedPhotographMinimumBytes,
                 _ => false
             })
             .Where(IsPhotographShaped)
-            .OrderBy(asset => asset.Kind == IntakeAssetKind.Attachment ? 0 : 1)
+            .OrderBy(asset => asset.Kind switch
+            {
+                IntakeAssetKind.Attachment => 0,
+                IntakeAssetKind.Source => 1,
+                _ => 2
+            })
             .ThenBy(asset => asset.FileName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(asset => asset.Id)
             .DistinctBy(asset => asset.ContentHash, StringComparer.OrdinalIgnoreCase)
@@ -60,15 +73,66 @@ public static class InstructionEvidenceImages
     }
 
     /// <summary>
-    /// The evidence images whose bytes can be served now. A photograph whose
-    /// custody hand-over is still pending, or was refused, has nothing behind
-    /// its tile yet, so a page that draws tiles leaves it out; completeness
-    /// (<see cref="Select"/>) still counts it, because the receipt carried it.
+    /// Decides whether a reader candidate becomes a separately retained
+    /// receipt asset. Sources and non-image document attachments remain part
+    /// of the receipt; this gate excludes only image material that cannot be
+    /// vehicle evidence (inline/signature graphics, small embedded document
+    /// art and banner-shaped images). It is intentionally applied before
+    /// storage so excluded document assets never enter custody.
+    /// </summary>
+    public static bool IsRetentionCandidate(IntakeAssetCandidate candidate)
+    {
+        ArgumentNullException.ThrowIfNull(candidate);
+        if (candidate.Kind == IntakeAssetKind.Source)
+        {
+            return true;
+        }
+
+        if (candidate.Kind == IntakeAssetKind.InlineImage
+            || candidate.Disposition == IntakeAssetDisposition.Inline)
+        {
+            return false;
+        }
+
+        if (!IsImage(candidate.MediaType))
+        {
+            return candidate.Kind != IntakeAssetKind.EmbeddedImage;
+        }
+
+        return candidate.Kind switch
+        {
+            IntakeAssetKind.Attachment =>
+                candidate.Disposition == IntakeAssetDisposition.Attachment
+                && IsPhotographShaped(candidate.WidthPixels, candidate.HeightPixels),
+            IntakeAssetKind.EmbeddedImage =>
+                candidate.Disposition == IntakeAssetDisposition.Embedded
+                && candidate.Content.Length >= EmbeddedPhotographMinimumBytes
+                && IsPhotographShaped(candidate.WidthPixels, candidate.HeightPixels),
+            _ => false
+        };
+    }
+
+    /// <summary>
+    /// Whether retained material contains at least one selected photograph.
+    /// Image automation uses this rather than inferring eligibility from the
+    /// receipt source MIME type, because an email or PDF can carry the
+    /// photographs while remaining attached as source evidence itself.
+    /// </summary>
+    public static bool HasSelectedPhotographs(IntakeReceipt receipt)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        return Select(receipt.AssetRecords).Count != 0;
+    }
+
+    /// <summary>
+    /// The evidence images whose durable bytes can be served now. Only a
+    /// confirmed hand-over has an authorized content location; Pending,
+    /// Failed and Unknown all remain visible as receipt metadata but never
+    /// become a download/gallery link.
     /// </summary>
     public static IReadOnlyList<IntakeAssetRecord> Servable(
         IEnumerable<IntakeAssetRecord> assets) =>
-        [.. Select(assets).Where(asset => asset.CustodyState
-            is not (IncomingArtifactCustodyState.Pending or IncomingArtifactCustodyState.Failed))];
+        [.. Select(assets).Where(asset => asset.CustodyState == IncomingArtifactCustodyState.Confirmed)];
 
     /// <summary>
     /// Whether an image is shaped like a photograph rather than a banner.
@@ -79,8 +143,13 @@ public static class InstructionEvidenceImages
     public static bool IsPhotographShaped(IntakeAssetRecord asset)
     {
         ArgumentNullException.ThrowIfNull(asset);
-        if (asset.WidthPixels is not { } width
-            || asset.HeightPixels is not { } height
+        return IsPhotographShaped(asset.WidthPixels, asset.HeightPixels);
+    }
+
+    private static bool IsPhotographShaped(int? widthPixels, int? heightPixels)
+    {
+        if (widthPixels is not { } width
+            || heightPixels is not { } height
             || width <= 0
             || height <= 0)
         {
@@ -92,9 +161,14 @@ public static class InstructionEvidenceImages
         return (double)longest / shortest < MaximumPhotographSideRatio;
     }
 
+    /// <summary>
+    /// The case-file image policy accepts only inert raster formats. In
+    /// particular, an SVG is not evidence-gallery content: it may contain
+    /// active markup and document graphics rather than a vehicle photograph.
+    /// </summary>
     public static bool IsImage(string? mediaType) =>
-        mediaType is not null
-        && mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+        string.Equals(mediaType, "image/jpeg", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(mediaType, "image/png", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>One evidence image of a case's instruction receipts.</summary>

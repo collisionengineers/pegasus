@@ -113,10 +113,16 @@ separately addressable generated artifacts through custody. The generating
 operator chooses whether the fee note is a separate document or the report's
 own final pages, and the frozen snapshot carries that choice, so the combined
 report is one artifact under the report's file name and reproduces the same
-way. The fee facts, readiness requirements and accepted fee terms are the same
-either way. Relevant accepted
-fact changes mark a generation stale; notes and recipient edits do not. A
-ready generation records ActionHistory `case_report_generation_ready`.
+way. A later separate fee-note request names the current confirmed, non-stale
+report generation and adds the fee-note artifact to it from that generation's
+frozen report date and fee facts; it does not supersede or re-freeze the
+report. No current generation, a stale generation, or a report that already
+contains its fee note refuses that request. The fee facts, readiness
+requirements and accepted fee terms are the same either way. One Core-owned
+change classification over normalized effective values marks a generation
+stale only when an accepted report fact changes; notes, no-op saves and
+recipient edits do not. A ready generation records ActionHistory
+`case_report_generation_ready`.
 Preview creates neither an artifact nor Sent evidence. Viewing a preview
 records a `case_report_draft_previewed` Case-history event, distinct from a
 generation event and from a download. Reopening a confirmed generated
@@ -124,10 +130,15 @@ artifact's bytes records a `case_report_artifact_downloaded` Case-history
 event, at most once per Case or artifact, staff member and London day.
 
 Snapshot assembly captures the Case version before reading its components and
-refuses a changed version before freezing; the resolved signatory tuple is
-rechecked in the freeze transaction. Confirming or removing source evidence,
-or changing the effective signatory's eligibility, name, qualifications or
-signature, invalidates affected current generations in the same transaction.
+refuses a changed version before freezing. Generation and preparation commands
+also carry the Case version displayed in the submitting browser and refuse it
+when stale rather than replacing it with a freshly read version. An operation
+key replays only the same artifact kind, report packaging choice and named
+target generation; reuse for a different command is a conflict. The resolved
+signatory tuple is rechecked in the freeze transaction. Confirming or removing
+source evidence, or changing the effective signatory's eligibility, name,
+qualifications or signature, invalidates affected current generations in the
+same transaction.
 Report outputs identified by their generated-artifact operation identity are
 not report inputs and do not invalidate their own generation. Other retained
 artifacts remain source evidence regardless of their transport's source label.

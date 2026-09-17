@@ -347,20 +347,33 @@ decision even when exactly one eligible Case matches. The automatic association
 precedence below applies to non-manual routes. Recognition, complete membership,
 and fail-closed source-identity rules apply to both.
 
-- **Mailbox attachment entry.** When a newly processed mailbox message would
-  otherwise enter Unidentified, has not been routed as an instruction, Case or
-  Triage, and contains one or more direct `image/*` attachments, those direct
-  attachments are submitted as one image group through this same grouped
-  lifecycle. The original EML source, inline images, and images derived from
-  another attachment are excluded. The child image receipts preserve the
-  mailbox source channel and a durable parent-receipt relationship; the parent
-  email does not also receive an Unidentified item. Existing group precedence
-  then produces exactly one settled result: association to one eligible Case,
-  one Image-initiated Case, or one group-level Unidentified item for
-  no-readable/conflicting registrations. A terminal failure to submit the
-  attachments produces one technical-processing Unidentified item for the
-  parent receipt. Completed historical mail is not backfilled or replayed by
-  this rule.
+- **PDF and mailbox photograph entry.** Otherwise-unrouted standalone PDFs
+  and mailbox receipts containing selected photographs use the same image
+  lifecycle as direct image uploads. An established instruction, report, Case
+  or Triage route takes precedence; OCR and technical failures retain their
+  distinct outcomes. The original PDF, selected photographs and, for email,
+  original message remain on their parent receipt with one destination; no
+  child image receipts are manufactured. Existing manual-upload confirmation
+  rules apply even when one Case matches. No readable or conflicting VRMs
+  produce one Unidentified item containing the original PDF and photographs.
+  Completed historical mail is not automatically backfilled.
+- **Photographs for an established Case.** A mailbox receipt with a current
+  automatic association to one eligible pre-report Case files its original
+  message, attached documents and selected photographs on that Case. This
+  route does not require another instruction, a readable VRM, or an Image
+  Intake Reference. The receipt retains its classification and source identity;
+  linking alone is not proof that its files reached Case custody. Promotion
+  rechecks the current association, Case version and edit authority, yields to
+  a staff editor, and resumes through existing intake/custody work. Re-evaluation
+  of an existing association uses the same document operation identities.
+- **Photograph selection.** One Core policy selects direct image evidence and
+  embedded PDF photographs before separate asset retention. Inline/signature
+  graphics are excluded; embedded images require at least 40,000 encoded
+  bytes and, when dimensions are known, a longest-to-shortest side ratio less
+  than 3. Missing dimensions retain the existing size-based selection. These
+  are image heuristics, not a semantic logo classifier. Repeated photograph
+  content is shown and recognised once while source provenance remains.
+  Excluded document art remains only within its retained original document.
 
 - **Membership and completeness.** A group's member count is fixed at the
   originating submission and is never inferred from however many members
@@ -380,8 +393,8 @@ and fail-closed source-identity rules apply to both.
   image members' own decision.
 - **Distinct-VRM aggregation.** Only reads at or above the accepted automatic
   recognition bar count. The decision inspects the distinct set of accepted,
-  normalised VRMs across every image member in the group — never one member's
-  read in isolation.
+  normalised VRMs across every selected image asset in every image member —
+  never one preferred read per PDF or one member's read in isolation.
 - **Associate-or-hand-off precedence, applied in this order:**
   1. Any image member's recognition ended in a technical failure or an
      unavailable dependency: the group fails closed to a named technical
@@ -561,6 +574,11 @@ Definitive authorised intake creates exactly one instructed Case idempotently. A
 One source occurrence has at most one current Case association. Every automatic or manual association records the exact source and Case identities, evidence, actor, time, policy/version, and reason where required. Any authorised staff member may reasonedly unlink or reassociate a mistaken match; the prior relationship and both source origins remain permanent, and dependent facts and counts recompute without deleting history.
 
 Automatic mail association does not wait for a staff editor. It writes only the receipt's own append-only association and history records, never the Case row or its version, so it is one of the background records [FRD-01](frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery) holds separate from editable Case state, and an editor's pending save still validates against the version they loaded. It still yields to an archived case. The staff "add to an existing case" decision above is a Case mutation and acquires the edit lease as any other does. Automatic Image-initiated Case association checks the current Case version and yields to an active staff lease; the subsequent image merge also yields to a live lease and rechecks the current associations inside its transaction.
+
+Filing the automatically associated mail's evidence is a separate Case mutation:
+it yields to a live editor and rechecks the current Case version before each
+custody attempt and confirmation. A later eligible retry captures the current
+version, so a completed staff edit does not permanently strand retained files.
 
 ## Source upload limits
 

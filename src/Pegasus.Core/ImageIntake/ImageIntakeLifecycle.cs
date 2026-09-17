@@ -124,47 +124,75 @@ public static class ImageIntakeLifecycleRules
             or CaseLifecycleState.ReportPreparation;
 
     /// <summary>
-    /// Image-only material: at least one retained asset, every retained asset
-    /// an image, and evaluation produced no instruction evidence. Anything
-    /// else is instruction-bearing and never registers an Image intake. This
-    /// is the one owner of the rule; the automation, the intake surface, and
-    /// the registration write path all consume it.
+    /// Image evidence material: at least one selected photograph and no
+    /// extracted instruction evidence. The retained source can be an image,
+    /// a PDF containing photographs, or an email carrying photographs; it is
+    /// preserved alongside the selected images and does not itself disqualify
+    /// the route. This is the one owner of the rule; the automation, intake
+    /// surface and registration write path all consume it.
     /// </summary>
     public static bool IsImageOnlyMaterial(IntakeReceipt receipt)
     {
         ArgumentNullException.ThrowIfNull(receipt);
-        return IsImageOnlyMaterial(
-            receipt.InstructionDraft is not null,
-            receipt.Fields.Count,
-            receipt.AssetRecords.Select(asset => asset.MediaType));
+        return receipt.InstructionDraft is null
+            && receipt.Fields.Count == 0
+            && InstructionEvidenceImages.HasSelectedPhotographs(receipt);
+    }
+
+    /// <summary>
+    /// The narrower automatic route for image evidence. A photograph does not
+    /// supersede a known instruction/report/triage or an established Case
+    /// association, and only direct image, PDF and email sources are admitted.
+    /// This keeps an incidental photograph in arbitrary office material from
+    /// changing its normal intake destination.
+    /// </summary>
+    public static bool IsImageAutomationEligible(IntakeReceipt receipt)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        if (!IsImageOnlyMaterial(receipt)
+            || receipt.CurrentCaseId is not null
+            || ProcessIntake.IsTriageRequest(receipt)
+            || receipt.Evidence.Any(item =>
+                item is
+                {
+                    Source: IntakeEvidenceSource.SystemDefault,
+                    Finding: IntakeEvidenceFinding.Information,
+                    Signal: IntakeEvidenceSignals.RecognizedNonImageDocument
+                        or IntakeEvidenceSignals.AmbiguousInstructionSelection
+                        or IntakeEvidenceSignals.ConflictingInstructionSelection
+                })
+            || !IsSupportedImageEvidenceSource(receipt.MediaType))
+        {
+            return false;
+        }
+
+        return receipt.MailClassificationDecision is not { } classification
+            || MailOperationalDestinationPolicy.Map(classification).Destination
+                == MailOperationalDestination.Unidentified;
     }
 
     /// <summary>
     /// The media-type prefix that makes retained material an image. Query
-    /// layers that cannot run <see cref="IsImageOnlyMaterial(bool, int, IEnumerable{string})"/>
-    /// (a SQL projection, an endpoint gate) cite this constant instead of
-    /// restating the string.
+    /// query layers use this prefix only as a coarse filter before applying
+    /// <see cref="InstructionEvidenceImages"/> in memory.
     /// </summary>
     public const string ImageMediaTypePrefix = "image/";
+
+    private static bool IsSupportedImageEvidenceSource(string mediaType) =>
+        InstructionEvidenceImages.IsImage(mediaType)
+        || mediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
+        || mediaType.Equals(EmailSourceFormat.MediaType, StringComparison.OrdinalIgnoreCase)
+        || mediaType.Equals("application/vnd.ms-outlook", StringComparison.OrdinalIgnoreCase);
 
     public static bool IsImageOnlyMaterial(
         bool hasInstructionDraft,
         int extractedFieldCount,
-        IEnumerable<string> retainedAssetMediaTypes)
+        IEnumerable<IntakeAssetRecord> retainedAssets)
     {
-        ArgumentNullException.ThrowIfNull(retainedAssetMediaTypes);
-        var sawAsset = false;
-        foreach (var mediaType in retainedAssetMediaTypes)
-        {
-            if (!mediaType.StartsWith(ImageMediaTypePrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            sawAsset = true;
-        }
-
-        return !hasInstructionDraft && extractedFieldCount == 0 && sawAsset;
+        ArgumentNullException.ThrowIfNull(retainedAssets);
+        return !hasInstructionDraft
+            && extractedFieldCount == 0
+            && InstructionEvidenceImages.Select(retainedAssets).Count != 0;
     }
 
     public static void ValidateRegister(RegisterImageIntakeRequest request)

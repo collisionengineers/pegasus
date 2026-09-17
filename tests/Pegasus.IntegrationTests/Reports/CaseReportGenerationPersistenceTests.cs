@@ -102,6 +102,26 @@ public sealed class CaseReportGenerationPersistenceTests
     }
 
     [Fact]
+    public async Task FreezeRefusesTheBrowserExpectedVersionInsteadOfAdoptingTheCurrentVersion()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == harness.CaseId);
+            workflow.Version = 2;
+            await context.SaveChangesAsync();
+        }
+
+        await Assert.ThrowsAsync<CaseVersionConflictException>(() => harness.Store.FreezeAsync(
+            new(harness.StaffActor, harness.CaseId, 1, harness.Lease.Token, Harness.OperationKey,
+                CaseReportArtifactKind.AssessmentReport, "Generate the report",
+                AssessmentReportContract.TemplateVersion, "fake"), default));
+
+        Assert.Empty(await harness.GenerationRowsAsync());
+        Assert.Empty(await harness.ArtifactRowsAsync());
+    }
+
+    [Fact]
     public async Task DefaultReportDateUsesLondonAtBstMidnight()
     {
         await using var harness = await Harness.CreateAsync();
@@ -206,6 +226,91 @@ public sealed class CaseReportGenerationPersistenceTests
             await Assert.ThrowsAsync<InvalidOperationException>(() => harness.PrepareDeliveryAsync(generation));
             await Assert.ThrowsAsync<InvalidOperationException>(() => harness.RequireDeliveryReadyAsync(delivery));
         }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WorkflowSignatoryChangesStaleTheReportAndRefusePreparation(
+        bool throughEngineerAssignment)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var generated = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), default);
+        var generation = generated.Generation!;
+        var replacementId = await harness.AddEligibleSignatoryAsync();
+        var workflowStore = new EfCaseWorkflowStore(harness.Factory, Harness.Clock);
+        CaseWorkflowRecord changed;
+        if (throughEngineerAssignment)
+        {
+            await harness.MarkReviewReadyAsync();
+            changed = await workflowStore.AssignEngineerAsync(
+                new(
+                    harness.CaseId,
+                    1,
+                    harness.StaffActor,
+                    "assign-report-signatory",
+                    "Assign the replacement Engineer.",
+                    harness.Lease.Token,
+                    replacementId,
+                    new(true, true, "persisted-case-readiness")),
+                replacementId,
+                CaseLifecycleState.ReportPreparation,
+                default);
+        }
+        else
+        {
+            changed = await workflowStore.SetSignOffEngineerAsync(
+                new(
+                    harness.CaseId,
+                    1,
+                    harness.StaffActor,
+                    "select-report-signatory",
+                    "Select the replacement sign-off Engineer.",
+                    harness.Lease.Token,
+                    replacementId),
+                default);
+        }
+
+        var stale = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Stale, stale.State);
+        Assert.Equal(CaseReportStaleReasons.SignatoryChanged, await harness.StaleReasonAsync());
+        var lease = await new AcquireCaseEditLease(workflowStore).ExecuteAsync(
+            new(
+                harness.CaseId,
+                changed.Version,
+                harness.StaffActor,
+                "lease-after-report-signatory-change"),
+            default);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.PrepareDeliveryAsync(generation, changed.Version, lease.Token));
+    }
+
+    [Fact]
+    public async Task SelectingTheEffectiveDefaultSignatoryDoesNotStaleTheReport()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), default);
+        var workflowStore = new EfCaseWorkflowStore(harness.Factory, Harness.Clock);
+
+        await workflowStore.SetSignOffEngineerAsync(
+            new(
+                harness.CaseId,
+                1,
+                harness.StaffActor,
+                "select-effective-report-signatory",
+                "Select the already effective sign-off Engineer.",
+                harness.Lease.Token,
+                FakeSnapshotSource.SignatoryId),
+            default);
+
+        var current = Assert.Single(await harness.GenerationRowsAsync());
+        Assert.Equal(CaseReportGenerationState.Confirmed, current.State);
+        Assert.Equal(
+            0,
+            await harness.ActionHistoryCountAsync(EfCaseReportGenerationStore.StaleEventKind));
     }
 
     [Theory]
@@ -498,6 +603,52 @@ public sealed class CaseReportGenerationPersistenceTests
     }
 
     [Fact]
+    public async Task AFailedSeparateFeeNoteRecoversWithItsRetainedOperationIdentity()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        const string feeOperationKey = "case-report-fee-retry";
+        var request = harness.Request(
+            CaseReportArtifactKind.FeeNote,
+            feeOperationKey,
+            targetGenerationId: report.Generation!.Id);
+        var failing = new RecordingCustody(harness)
+        {
+            Disposition = CaseArtifactCustodyDisposition.Failed,
+            FailureCode = "transient_fee_note_failure",
+        };
+
+        var failed = await harness.Generate(failing, new RecordingRenderer(harness))
+            .ExecuteAsync(request, CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.Failed, failed.Outcome);
+        var failedArtifact = Assert.Single(
+            failed.Generation!.Artifacts,
+            artifact => artifact.Kind == CaseReportArtifactKind.FeeNote);
+        Assert.Equal(CaseReportArtifactStatus.Failed, failedArtifact.Status);
+        Assert.Equal(feeOperationKey, failedArtifact.OperationKey);
+
+        var custody = new RecordingCustody(harness);
+        var recovered = await harness.Generate(custody, new RecordingRenderer(harness))
+            .ExecuteAsync(request, CancellationToken.None);
+
+        Assert.Equal(CaseReportGenerationOutcome.Generated, recovered.Outcome);
+        Assert.Equal(report.Generation.Id, recovered.Generation!.Id);
+        var recoveredArtifact = Assert.Single(
+            recovered.Generation.Artifacts,
+            artifact => artifact.Kind == CaseReportArtifactKind.FeeNote);
+        Assert.Equal(failedArtifact.Id, recoveredArtifact.Id);
+        Assert.Equal(feeOperationKey, recoveredArtifact.OperationKey);
+        Assert.Equal(feeOperationKey, Assert.Single(custody.OperationKeys));
+        Assert.Equal(CaseReportArtifactStatus.Confirmed, recoveredArtifact.Status);
+        Assert.Equal(2, recovered.Generation.Artifacts.Count);
+        Assert.All(
+            recovered.Generation.Artifacts,
+            artifact => Assert.Equal(CaseReportArtifactStatus.Confirmed, artifact.Status));
+    }
+
+    [Fact]
     public async Task AnUnknownCustodyOutcomeIsRetainedRatherThanRetriedAway()
     {
         await using var harness = await Harness.CreateAsync();
@@ -557,7 +708,10 @@ public sealed class CaseReportGenerationPersistenceTests
         // confirms it; the report-ready transition is not announced twice.
         var feeNote = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
             .ExecuteAsync(
-                harness.Request(CaseReportArtifactKind.FeeNote, "case-report-fee-1"),
+                harness.Request(
+                    CaseReportArtifactKind.FeeNote,
+                    "case-report-fee-1",
+                    targetGenerationId: report.Generation.Id),
                 CancellationToken.None);
 
         Assert.Equal(CaseReportGenerationOutcome.Generated, feeNote.Outcome);
@@ -568,6 +722,219 @@ public sealed class CaseReportGenerationPersistenceTests
             item => Assert.Equal(CaseReportArtifactStatus.Confirmed, item.Status));
         Assert.True(feeNote.Generation.IsFullyConfirmed);
         Assert.Single(await harness.ReadyEventsAsync());
+    }
+
+    [Fact]
+    public async Task SameOperationKeyWithDifferentArtifactKindIsAConflict()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+
+        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
+            harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+                .ExecuteAsync(
+                    harness.Request(
+                        CaseReportArtifactKind.FeeNote,
+                        Harness.OperationKey,
+                        targetGenerationId: report.Generation!.Id),
+                    CancellationToken.None));
+
+        Assert.Single((await harness.GenerationRowsAsync()).Single().Artifacts);
+    }
+
+    [Fact]
+    public async Task SameOperationKeyWithDifferentArtifactKindConflictsBeforeCustody()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var frozen = await harness.Store.FreezeAsync(
+            new(harness.StaffActor, harness.CaseId, 1, harness.Lease.Token, Harness.OperationKey,
+                CaseReportArtifactKind.AssessmentReport, "Generate the report",
+                AssessmentReportContract.TemplateVersion, "fake"), default);
+
+        await Assert.ThrowsAsync<CaseOperationConflictException>(() => harness.Store.FreezeAsync(
+            new(harness.StaffActor, harness.CaseId, 1, harness.Lease.Token, Harness.OperationKey,
+                CaseReportArtifactKind.FeeNote, "Generate the fee note",
+                AssessmentReportContract.TemplateVersion, "fake",
+                TargetGenerationId: frozen.Generation!.Id), default));
+
+        var artifact = Assert.Single(await harness.ArtifactRowsAsync());
+        Assert.Equal(nameof(CaseReportArtifactKind.AssessmentReport), artifact.Kind);
+        Assert.Equal(nameof(CaseReportArtifactStatus.Pending), artifact.State);
+    }
+
+    [Fact]
+    public async Task SameOperationKeyWithChangedReportPackagingIsAConflict()
+    {
+        await using var harness = await Harness.CreateAsync();
+        await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+
+        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
+            harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+                .ExecuteAsync(harness.Request(includeFeeNote: true), CancellationToken.None));
+
+        Assert.False((await harness.GenerationRowsAsync()).Single().Snapshot.Report.IncludeFeeNote);
+    }
+
+    [Fact]
+    public async Task SameOperationKeyWithChangedTargetGenerationIsAConflict()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        const string feeOperationKey = "case-report-fee-target";
+        await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(
+                harness.Request(
+                    CaseReportArtifactKind.FeeNote,
+                    feeOperationKey,
+                    targetGenerationId: report.Generation!.Id),
+                CancellationToken.None);
+
+        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
+            harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+                .ExecuteAsync(
+                    harness.Request(
+                        CaseReportArtifactKind.FeeNote,
+                        feeOperationKey,
+                        targetGenerationId: Guid.NewGuid()),
+                    CancellationToken.None));
+
+        Assert.Equal(2, (await harness.GenerationRowsAsync()).Single().Artifacts.Count);
+    }
+
+    [Fact]
+    public async Task ASecondOperationKeyCannotClaimAnExistingFeeNoteArtifact()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        const string originalFeeOperationKey = "case-report-fee-original";
+        await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(
+                harness.Request(
+                    CaseReportArtifactKind.FeeNote,
+                    originalFeeOperationKey,
+                    targetGenerationId: report.Generation!.Id),
+                CancellationToken.None);
+
+        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
+            harness.Store.FreezeAsync(
+                new(
+                    harness.StaffActor,
+                    harness.CaseId,
+                    1,
+                    harness.Lease.Token,
+                    "case-report-fee-unbound",
+                    CaseReportArtifactKind.FeeNote,
+                    "Generate the fee note",
+                    AssessmentReportContract.TemplateVersion,
+                    "fake",
+                    TargetGenerationId: report.Generation.Id),
+                CancellationToken.None));
+
+        var artifacts = await harness.ArtifactRowsAsync();
+        Assert.Equal(2, artifacts.Count);
+        Assert.Equal(
+            originalFeeOperationKey,
+            Assert.Single(
+                artifacts,
+                artifact => artifact.Kind == nameof(CaseReportArtifactKind.FeeNote)).OperationKey);
+        Assert.DoesNotContain(artifacts, artifact => artifact.OperationKey == "case-report-fee-unbound");
+    }
+
+    [Fact]
+    public async Task SeparateFeeNoteAttachesToTheNamedCurrentGenerationAndItsFrozenSnapshot()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        var reportDate = report.Generation!.Snapshot.ReportDate;
+
+        var nextDay = Harness.StartUtc.AddDays(1);
+        var nextDayStore = harness.StoreAt(nextDay);
+        var nextDayLease = await new AcquireCaseEditLease(
+                new EfCaseWorkflowStore(harness.Factory, Harness.ClockAt(nextDay)))
+            .ExecuteAsync(
+                new(harness.CaseId, 1, harness.StaffActor, "lease-report-next-day"),
+                CancellationToken.None);
+        var feeNote = await harness.Generate(
+                new RecordingCustody(harness), new RecordingRenderer(harness), store: nextDayStore)
+            .ExecuteAsync(
+                harness.Request(
+                    CaseReportArtifactKind.FeeNote,
+                    "case-report-fee-next-day",
+                    targetGenerationId: report.Generation.Id) with
+                {
+                    LeaseToken = nextDayLease.Token,
+                },
+                CancellationToken.None);
+
+        Assert.Equal(report.Generation.Id, feeNote.Generation!.Id);
+        Assert.Equal(reportDate, feeNote.Generation.Snapshot.ReportDate);
+        Assert.Equal(report.Generation.Snapshot.Report.AgreedFee, feeNote.Generation.Snapshot.Report.AgreedFee);
+        Assert.Equal(2, feeNote.Generation.Artifacts.Count);
+    }
+
+    [Fact]
+    public async Task SeparateFeeNoteIsRefusedWithoutACurrentGeneration()
+    {
+        await using var harness = await Harness.CreateAsync();
+
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+                .ExecuteAsync(
+                    harness.Request(
+                        CaseReportArtifactKind.FeeNote,
+                        "case-report-fee-none",
+                        targetGenerationId: Guid.NewGuid()),
+                    CancellationToken.None));
+
+        Assert.Contains("unavailable", refusal.Message, StringComparison.Ordinal);
+        Assert.Empty(await harness.GenerationRowsAsync());
+    }
+
+    [Fact]
+    public async Task SeparateFeeNoteIsRefusedForAStaleCurrentGeneration()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        await harness.Store.MarkStaleAsync(
+            harness.CaseId, CaseReportStaleReasons.AssessmentFactsChanged, CancellationToken.None);
+
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+                .ExecuteAsync(
+                    harness.Request(
+                        CaseReportArtifactKind.FeeNote,
+                        "case-report-fee-stale",
+                        targetGenerationId: report.Generation!.Id),
+                    CancellationToken.None));
+
+        Assert.Contains("unavailable", refusal.Message, StringComparison.Ordinal);
+        Assert.Single((await harness.GenerationRowsAsync()).Single().Artifacts);
+    }
+
+    [Fact]
+    public async Task SeparateFeeNoteIsRefusedWhenTheReportAlreadyContainsIt()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(includeFeeNote: true), CancellationToken.None);
+
+        var refusal = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+                .ExecuteAsync(
+                    harness.Request(
+                        CaseReportArtifactKind.FeeNote,
+                        "case-report-fee-embedded",
+                        targetGenerationId: report.Generation!.Id),
+                    CancellationToken.None));
+
+        Assert.Contains("unavailable", refusal.Message, StringComparison.Ordinal);
+        Assert.Single((await harness.GenerationRowsAsync()).Single().Artifacts);
     }
 
     [Fact]
@@ -809,7 +1176,8 @@ public sealed class CaseReportGenerationPersistenceTests
     {
         internal const string OperationKey = "case-report-1";
         internal static readonly DateTimeOffset StartUtc = new(2026, 9, 6, 23, 30, 0, TimeSpan.Zero);
-        internal static TimeProvider Clock => new FixedTimeProvider(StartUtc);
+        internal static TimeProvider Clock => ClockAt(StartUtc);
+        internal static TimeProvider ClockAt(DateTimeOffset now) => new FixedTimeProvider(now);
 
         private readonly LocalDbTestDatabase database;
         private readonly string contentRoot;
@@ -938,9 +1306,10 @@ public sealed class CaseReportGenerationPersistenceTests
         public GenerateCaseReportRequest Request(
             CaseReportArtifactKind kind = CaseReportArtifactKind.AssessmentReport,
             string operationKey = OperationKey,
-            bool includeFeeNote = false) => new(
+            bool includeFeeNote = false,
+            Guid? targetGenerationId = null) => new(
                 StaffActor, CaseId, 1, Lease.Token, operationKey, kind,
-                "Generate the immutable case report", includeFeeNote);
+                "Generate the immutable case report", includeFeeNote, targetGenerationId);
 
         public async Task<CaseReportFreezeInputs?> ReadSourceAsync(IGetAssessmentWorkspace? workspace = null)
         {
@@ -1011,9 +1380,19 @@ public sealed class CaseReportGenerationPersistenceTests
             await context.SaveChangesAsync();
         }
 
-        public Task<CaseReportDeliveryPreparationRecord> PrepareDeliveryAsync(CaseReportGenerationRecord generation) =>
+        public Task<CaseReportDeliveryPreparationRecord> PrepareDeliveryAsync(
+            CaseReportGenerationRecord generation,
+            long expectedCaseVersion = 1,
+            string? leaseToken = null) =>
             new EfCaseReportDeliveryPreparationStore(Factory, Clock).PrepareAsync(
-                new(new(StaffActor, CaseId, 1, Lease.Token, generation.Id, generation.Version, "prepare-report"),
+                new(new(
+                        StaffActor,
+                        CaseId,
+                        expectedCaseVersion,
+                        leaseToken ?? Lease.Token,
+                        generation.Id,
+                        generation.Version,
+                        "prepare-report"),
                     new([new StaffMailRecipient("digital@collisionengineers.co.uk", "pegasustest")], [], "Case report"),
                     new string('a', 64)), default);
 
@@ -1056,6 +1435,44 @@ public sealed class CaseReportGenerationPersistenceTests
                     change != "eligibility", "change-signatory",
                     account.Version, lease.Token), default);
             }
+        }
+
+        public async Task<Guid> AddEligibleSignatoryAsync()
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var engineerRole = await context.Roles.SingleAsync(role => role.NormalizedName == "ENGINEER");
+            var staffId = Guid.NewGuid();
+            context.Users.Add(new PegasusIdentityUser
+            {
+                Id = staffId,
+                UserName = $"report-signatory-{staffId:N}",
+                NormalizedUserName = $"REPORT-SIGNATORY-{staffId:N}",
+                SecurityStamp = Guid.NewGuid().ToString(),
+                ConcurrencyStamp = Guid.NewGuid().ToString(),
+                IsEnabled = true,
+                IsSignOffEngineer = true,
+                IsDefaultSignOffEngineer = false,
+                SignOffPrintedName = "Jo Engineer",
+                SignOffQualifications = "ATA VDA",
+                SignOffSignature = SignatureBytes,
+                SignOffSignatureDigest = Convert.ToHexStringLower(SHA256.HashData(SignatureBytes)),
+            });
+            context.UserRoles.Add(new IdentityUserRole<Guid>
+            {
+                UserId = staffId,
+                RoleId = engineerRole.Id,
+            });
+            await context.SaveChangesAsync();
+            return staffId;
+        }
+
+        public async Task MarkReviewReadyAsync()
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            var @case = await context.Cases.SingleAsync(item => item.Id == CaseId);
+            @case.InstructionComplete = true;
+            @case.ImagesComplete = true;
+            await context.SaveChangesAsync();
         }
 
         private static async Task SeedSignatoryAsync(PooledDbContextFactory<PegasusDbContext> factory)

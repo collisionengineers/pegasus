@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -113,6 +114,16 @@ public sealed class EfCaseAssessmentStore(
         var fields = await context.CaseAssessmentFields
             .Where(item => item.CaseId == request.CaseId)
             .ToListAsync(cancellationToken);
+        var beforeAssessment = fields.ToDictionary(
+            item => item.FieldPath, item => (string?)item.Value, StringComparer.Ordinal);
+        var mileageField = CaseDataFieldValues.CurrentField(
+            await context.CaseDataFields.AsNoTracking()
+                .Where(item => item.CaseId == request.CaseId)
+                .ToArrayAsync(cancellationToken),
+            CaseDataFieldNames.VehicleMileage);
+        CaseDataSourceKind? mileageProvenance = mileageField is null
+            ? null
+            : EfCaseDataStore.ParseSourceKind(mileageField.SourceKind);
         var specification = await EfRepairSpecificationStore.DraftQuery(context, request.CaseId)
             .SingleOrDefaultAsync(cancellationToken);
         if (specification is null && request.EstimateLines is not null)
@@ -190,6 +201,27 @@ public sealed class EfCaseAssessmentStore(
                 JsonOptions),
             $"{AssessmentPolicy.PolicyKey}/v{AssessmentPolicy.PolicyVersion}",
             now);
+
+        var afterAssessment = merged.ToDictionary(
+            item => item.Key,
+            item => (string?)item.Value,
+            StringComparer.Ordinal);
+        var freshness = CaseReportFreshness.ClassifyAssessment(
+            beforeAssessment,
+            afterAssessment,
+            CaseVehicleMileageSourcePolicy.Resolve(
+                mileageProvenance,
+                mileageField is not null,
+                beforeAssessment.GetValueOrDefault(AssessmentVocabulary.VehicleMileageSource)),
+            CaseVehicleMileageSourcePolicy.Resolve(
+                mileageProvenance,
+                mileageField is not null,
+                afterAssessment.GetValueOrDefault(AssessmentVocabulary.VehicleMileageSource)));
+        if (freshness.IsStale)
+        {
+            await EfCaseReportGenerationStore.MarkStaleAsync(
+                context, request.CaseId, freshness.ReasonCode!, now, cancellationToken);
+        }
 
         try
         {

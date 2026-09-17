@@ -1310,7 +1310,12 @@
                 return;
             }
             control.dataset.dialogOpenBound = 'true';
-            control.addEventListener('click', function () { open(control); });
+            control.addEventListener('click', function (event) {
+                if (control.matches('a[href]')) {
+                    event.preventDefault();
+                }
+                open(control);
+            });
         });
     }
     bindBackdropDialogs(document);
@@ -1962,7 +1967,9 @@
         items.forEach(function (item, position) {
             item.setAttribute('aria-selected', position === index ? 'true' : 'false');
         });
-        items[index].scrollIntoView({ block: 'nearest' });
+        if (!dialog.hidden) {
+            items[index].scrollIntoView({ block: 'nearest' });
+        }
     }
 
     function filter() {
