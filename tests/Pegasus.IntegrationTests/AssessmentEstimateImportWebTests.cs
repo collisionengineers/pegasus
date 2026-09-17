@@ -473,6 +473,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             RegexOptions.CultureInvariant);
         Assert.True(dialog.Success, "The static target must render the import dialog.");
         Assert.DoesNotContain("hidden=", dialog.Value, StringComparison.Ordinal);
+        Assert.Contains("data-dialog-open-on-load=\"true\"", dialog.Value, StringComparison.Ordinal);
     }
 
     [Fact]
