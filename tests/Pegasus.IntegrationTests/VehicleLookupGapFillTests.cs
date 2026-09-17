@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
@@ -55,6 +56,107 @@ public sealed class VehicleLookupGapFillTests
             $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_year' AND ValueKind = 'fact'"));
         Assert.Equal("vehicle_lookup", await database.ScalarAsync<string>(
             $"SELECT SourceKind FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_year' AND ValueKind = 'fact'"));
+    }
+
+    [Fact]
+    public async Task RecordOutcomeWritesTheDerivedVehicleTypeAsUnconfirmedAutomation()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+
+        await RecordLookupAsync(database, caseId);
+
+        Assert.Equal("car", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+        Assert.Equal(ActorKind.Automation.ToString(), await database.ScalarAsync<string>(
+            $"SELECT RecordedByKind FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+        Assert.Equal("vehicle-lookup", await database.ScalarAsync<string>(
+            $"SELECT RecordedBy FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}' AND ConfirmedBy IS NULL AND ConfirmedAtUtc IS NULL"));
+        Assert.Equal("M1", await database.ScalarAsync<string>(
+            $"SELECT TypeApproval FROM VehicleLookupObservations WHERE WorkItemId IN (SELECT WorkItemId FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}')"));
+        Assert.Equal("2 AXLE RIGID BODY", await database.ScalarAsync<string>(
+            $"SELECT Wheelplan FROM VehicleLookupObservations WHERE WorkItemId IN (SELECT WorkItemId FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}')"));
+        Assert.Equal(1_800, await database.ScalarAsync<int>(
+            $"SELECT RevenueWeightKg FROM VehicleLookupObservations WHERE WorkItemId IN (SELECT WorkItemId FROM VehicleLookupRequests WHERE CaseId = '{caseId:D}')"));
+    }
+
+    [Fact]
+    public async Task AStaffConfirmedVehicleTypeSurvivesRelookup()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+        await using (var context = await database.CreateContextAsync())
+        {
+            var vehicleType = await context.CaseAssessmentFields.SingleAsync(
+                item => item.CaseId == caseId
+                        && item.FieldPath == AssessmentVocabulary.VehicleType);
+            vehicleType.RecordedByKind = ActorKind.Staff.ToString();
+            vehicleType.RecordedBy = "staff";
+            vehicleType.RecordedAtUtc = FixedUtcNow;
+            vehicleType.ConfirmedBy = "staff";
+            vehicleType.ConfirmedAtUtc = FixedUtcNow;
+            await context.SaveChangesAsync();
+        }
+
+        await RecordLookupAsync(
+            database,
+            caseId,
+            typeApproval: "N1",
+            recordedAtUtc: FixedUtcNow.AddMinutes(1));
+
+        Assert.Equal("car", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+        Assert.Equal("staff", await database.ScalarAsync<string>(
+            $"SELECT ConfirmedBy FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+    }
+
+    [Fact]
+    public async Task AnUnconfirmedVehicleTypeIsRestampedOnlyWhenTheCodeChanges()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await RecordLookupAsync(database, caseId);
+
+        await RecordLookupAsync(
+            database,
+            caseId,
+            typeApproval: "M1",
+            recordedAtUtc: FixedUtcNow.AddMinutes(1));
+
+        Assert.Equal(FixedUtcNow, await database.ScalarAsync<DateTimeOffset>(
+            $"SELECT RecordedAtUtc FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+
+        var changedAtUtc = FixedUtcNow.AddMinutes(2);
+        await RecordLookupAsync(
+            database,
+            caseId,
+            typeApproval: "N1",
+            recordedAtUtc: changedAtUtc);
+
+        Assert.Equal("van", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+        Assert.Equal(changedAtUtc, await database.ScalarAsync<DateTimeOffset>(
+            $"SELECT RecordedAtUtc FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+    }
+
+    [Fact]
+    public async Task ALookupWithNoVehicleTypeClassificationWritesNothing()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+
+        await RecordLookupAsync(
+            database,
+            caseId,
+            typeApproval: null,
+            wheelplan: null,
+            revenueWeightKg: null);
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
     }
 
     [Fact]
@@ -186,6 +288,8 @@ public sealed class VehicleLookupGapFillTests
                 await context.Database.ExecuteSqlInterpolatedAsync(
                     $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {fieldName}, {"fact"}, {valueType}, {value}, {"intake_evidence"}, {"instruction.pdf"}, {"page 1"}, {"extraction"}, {1})");
             }
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseAssessmentFields (CaseId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc, ConfirmedBy, ConfirmedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleType}, {"car"}, {ActorKind.Staff.ToString()}, {"staff"}, {FixedUtcNow}, {"staff"}, {FixedUtcNow})");
         }
 
         var (currentId, _) = await SeedGenerationsAsync(database, caseId);
@@ -217,6 +321,10 @@ public sealed class VehicleLookupGapFillTests
                 await context.Database.ExecuteSqlInterpolatedAsync(
                     $"INSERT INTO CaseDataFields (CaseId, FieldName, ValueKind, ValueType, Value, SourceKind, SourceIdentity, SourceLabel, PolicyKey, PolicyVersion) VALUES ({caseId}, {fieldName}, {"fact"}, {valueType}, {value}, {"vehicle_lookup"}, {"existing-lookup"}, {"offline-replay/fixture-v1"}, {"vehicle-lookup-gap-fill"}, {1})");
             }
+            // The fixture's type approval would otherwise derive a Vehicle type,
+            // which is a printed assessment fact and would stale the report.
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO CaseAssessmentFields (CaseId, FieldPath, Value, RecordedByKind, RecordedBy, RecordedAtUtc, ConfirmedBy, ConfirmedAtUtc) VALUES ({caseId}, {AssessmentVocabulary.VehicleType}, {"car"}, {ActorKind.Staff.ToString()}, {"staff"}, {FixedUtcNow}, {"staff"}, {FixedUtcNow})");
         }
         var (currentId, _) = await SeedGenerationsAsync(database, caseId);
 
@@ -276,8 +384,13 @@ public sealed class VehicleLookupGapFillTests
     private static async Task RecordLookupAsync(
         LocalDbTestDatabase database,
         Guid caseId,
-        long mileage = 121_823)
+        long mileage = 121_823,
+        string? typeApproval = "M1",
+        string? wheelplan = "2 AXLE RIGID BODY",
+        int? revenueWeightKg = 1_800,
+        DateTimeOffset? recordedAtUtc = null)
     {
+        var now = recordedAtUtc ?? FixedUtcNow;
         var workItemId = Guid.NewGuid();
         await using (var context = await database.CreateContextAsync())
         {
@@ -304,7 +417,15 @@ public sealed class VehicleLookupGapFillTests
             FixedUtcNow,
             FixedUtcNow,
             FixedUtcNow,
-            new("RENAULT", "CAPTUR", 2016, 1_461, "DIESEL"),
+            new(
+                "RENAULT",
+                "CAPTUR",
+                2016,
+                1_461,
+                "DIESEL",
+                typeApproval,
+                wheelplan,
+                revenueWeightKg),
             [new(new(2025, 9, 25), "PASSED", new(2026, 9, 24), mileage, VehicleMileageUnit.Miles)],
             null);
         await workStore.RecordOutcomeAsync(
@@ -313,7 +434,7 @@ public sealed class VehicleLookupGapFillTests
             new(result, VehicleMileagePolicy.Calculate(result.MotTests)),
             VehicleLookupWorkState.Completed,
             null,
-            FixedUtcNow,
+            now,
             CancellationToken.None);
     }
 

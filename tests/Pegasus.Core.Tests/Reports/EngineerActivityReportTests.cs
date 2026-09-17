@@ -143,6 +143,14 @@ public sealed class EngineerActivityReportTests
                 ? new StaffAccountSummary(staffId, userName, true, false, StaffRole.Engineer)
                 : null);
 
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<StaffAccountSummary>>(
+                staffIds.Contains(knownId)
+                    ? [new(knownId, userName, true, false, StaffRole.Engineer)]
+                    : []);
+
         public Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
             CancellationToken cancellationToken) =>
             throw new NotSupportedException("Not used by the report.");

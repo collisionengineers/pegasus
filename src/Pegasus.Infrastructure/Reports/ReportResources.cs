@@ -1,3 +1,4 @@
+using Pegasus.Core.Documents;
 using QuestPDF.Drawing;
 
 namespace Pegasus.Infrastructure.Reports;
@@ -15,6 +16,9 @@ internal static class ReportResources
             {
                 return;
             }
+            // First-use cost of the embedded fonts, once per process, for the
+            // performance telemetry that the renderer's constructor used to emit.
+            using var timing = DocumentReadTelemetry.Start("report.renderer.initialize");
             foreach (var face in new[] { "Regular", "Bold", "Italic", "BoldItalic" })
             {
                 using var stream = Open($"fonts.LiberationSans-{face}.ttf");

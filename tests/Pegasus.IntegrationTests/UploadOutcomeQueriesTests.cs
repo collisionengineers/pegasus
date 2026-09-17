@@ -68,7 +68,7 @@ public sealed class UploadOutcomeQueriesTests
         Assert.Equal("Success", result.ChipLabel);
         Assert.Contains("AB12CDE-01", result.Message, StringComparison.Ordinal);
         Assert.NotNull(result.PrimaryAction);
-        Assert.Equal($"/Cases/Details/{caseId:D}", result.PrimaryAction!.Url);
+        Assert.Equal($"/Cases/{caseId:D}", result.PrimaryAction!.Url);
         // No received-item page exists to reverse from (received file D2).
         Assert.Null(result.SecondaryAction);
     }
@@ -397,7 +397,7 @@ public sealed class UploadOutcomeQueriesTests
 
         Assert.Equal(UploadOutcomeKind.Attached, result.Kind);
         Assert.Contains("QDO31001", result.Message, StringComparison.Ordinal);
-        Assert.Equal($"/Cases/Details/{mergedCaseId:D}", result.PrimaryAction!.Url);
+        Assert.Equal($"/Cases/{mergedCaseId:D}", result.PrimaryAction!.Url);
         Assert.Null(result.Attach);
     }
 

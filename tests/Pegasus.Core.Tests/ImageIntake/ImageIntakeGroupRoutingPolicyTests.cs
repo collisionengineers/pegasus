@@ -35,6 +35,22 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
     }
 
     [Fact]
+    public void ConflictingPhotographsWithinOnePdfRouteToUnidentified()
+    {
+        var receiptId = Guid.NewGuid();
+        var result = ImageIntakeGroupRoutingPolicy.Evaluate(
+        [
+            new(receiptId, true, VrmRecognitionOutcomeKind.Suggested, "AC04", 0.95),
+            new(receiptId, true, VrmRecognitionOutcomeKind.Suggested, "BD05", 0.95)
+        ],
+        expectedMemberCount: 1,
+        eligibleCaseCount: 1);
+
+        Assert.Equal(ImageIntakeGroupRoutingDecision.RouteToUnidentified, result.Decision);
+        Assert.Equal("conflicting_vrms", result.ReasonCode);
+    }
+
+    [Fact]
     public void AllUnreadableImagesRouteToUnidentifiedWithSpecificReason()
     {
         var result = ImageIntakeGroupRoutingPolicy.Evaluate(

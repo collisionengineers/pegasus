@@ -534,7 +534,8 @@ public sealed class ProductionBoxCustodyTests
             "image/jpeg",
             Sha256(imageBytes),
             "source",
-            imageBytes.Length);
+            imageBytes.Length,
+            IntakeAssetId: Guid.NewGuid());
 
         await custody.RetainImageCaseAssetAsync(imageRoot, source, 1, "image-retain-1", default);
         Assert.False(box.PathExists("AB12CDE-01/pegasus-case-binding.json"));
@@ -564,7 +565,8 @@ public sealed class ProductionBoxCustodyTests
             "image/jpeg",
             Sha256(imageBytes),
             "source",
-            imageBytes.Length);
+            imageBytes.Length,
+            IntakeAssetId: Guid.NewGuid());
         var firstImageRoot = await custody.CreateCaseRootAsync(
             Guid.Parse("20213243-5465-7687-98a9-bacbdcedfe10"),
             "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "first-image-root", default);
@@ -605,7 +607,8 @@ public sealed class ProductionBoxCustodyTests
             "image/jpeg",
             Sha256(imageBytes),
             "source",
-            imageBytes.Length);
+            imageBytes.Length,
+            IntakeAssetId: Guid.NewGuid());
         var imageRoot = await custody.CreateCaseRootAsync(
             Guid.Parse("20213243-5465-7687-98a9-bacbdcedfe10"),
             "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root", default);

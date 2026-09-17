@@ -348,6 +348,12 @@ public sealed class CaseEditAuthorityTests
                     : null);
         }
 
+        public Task<IReadOnlyList<StaffAccountSummary>> GetManyAsync(
+            IReadOnlyCollection<Guid> staffIds,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException(
+                "Disclosing one holder must not enumerate the staff directory.");
+
         public Task<StaffAccountQuerySlice> ListAsync(
             int offset,
             int limit,

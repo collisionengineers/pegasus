@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Security.Claims;
 using Pegasus.Core.Actors;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Notifications;
@@ -101,6 +102,7 @@ public sealed partial class RailCountsPageFilter(
 
             try
             {
+                using var timing = DocumentReadTelemetry.Start("web.shell.notifications");
                 pageModel.ViewData["Notifications"] = await myNotifications.ListAsync(actor, cancellationToken);
             }
             catch (Exception exception) when (exception is not
@@ -143,6 +145,7 @@ public sealed partial class RailCountsPageFilter(
         ActionActor actor,
         CancellationToken cancellationToken)
     {
+        using var timing = DocumentReadTelemetry.Start("web.shell.counts");
         var stagesTask = dashboardQueries.GetCaseStageCountsAsync(cancellationToken);
         var triageTask = listTriage.CountAsync(
             actor,
@@ -181,6 +184,7 @@ public sealed partial class RailCountsPageFilter(
 
         try
         {
+            using var timing = DocumentReadTelemetry.Start("web.shell.operations");
             return await getOperationsBadge.ExecuteAsync(actor, cancellationToken);
         }
         catch (Exception exception) when (exception is not

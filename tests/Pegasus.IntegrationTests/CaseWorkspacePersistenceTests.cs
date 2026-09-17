@@ -106,21 +106,29 @@ public sealed class CaseWorkspacePersistenceTests
         var pageFactory = new PooledDbContextFactory<PegasusDbContext>(pageOptions);
         var frame = await new EfCaseQueryStore(pageFactory, harness.TimeProvider)
             .GetPageFrameAsync(harness.CaseId, CancellationToken.None);
+        var pageFrame = Assert.IsType<CasePageFrameData>(frame).Frame;
 
-        var filesOptions = new DbContextOptionsBuilder<PegasusDbContext>()
+        var directFilesOptions = new DbContextOptionsBuilder<PegasusDbContext>()
+            .UseSqlServer(connectionString)
+            .AddInterceptors(new RejectingQueryReadInterceptor("[CaseWorkflows]", "[CaseAssessmentFields]"))
+            .Options;
+        var directFilesFactory = new PooledDbContextFactory<PegasusDbContext>(directFilesOptions);
+        var directFilesStore = new EfCaseQueryStore(directFilesFactory, harness.TimeProvider);
+        var directFiles = await directFilesStore.GetFilesSectionAsync(
+            harness.CaseId,
+            includeDocuments: false,
+            frame: pageFrame,
+            cancellationToken: CancellationToken.None);
+        var fragmentFilesOptions = new DbContextOptionsBuilder<PegasusDbContext>()
             .UseSqlServer(connectionString)
             .AddInterceptors(new RejectingQueryReadInterceptor("[CaseAssessmentFields]"))
             .Options;
-        var filesFactory = new PooledDbContextFactory<PegasusDbContext>(filesOptions);
-        var filesStore = new EfCaseQueryStore(filesFactory, harness.TimeProvider);
-        var directFiles = await filesStore.GetFilesSectionAsync(
-            harness.CaseId,
-            includeDocuments: false,
-            CancellationToken.None);
-        var fragmentFiles = await filesStore.GetFilesSectionAsync(
+        var fragmentFilesFactory = new PooledDbContextFactory<PegasusDbContext>(fragmentFilesOptions);
+        var fragmentFiles = await new EfCaseQueryStore(fragmentFilesFactory, harness.TimeProvider).GetFilesSectionAsync(
             harness.CaseId,
             includeDocuments: true,
-            CancellationToken.None);
+            frame: null,
+            cancellationToken: CancellationToken.None);
         var history = await new EfCaseQueryStore(harness.Factory, harness.TimeProvider)
             .ListHistoryAsync(harness.CaseId, CancellationToken.None);
 
@@ -1369,7 +1377,7 @@ public sealed class CaseWorkspacePersistenceTests
             .LongCountAsync(item => item.CaseId == harness.CaseId);
     }
 
-    private sealed class RejectingQueryReadInterceptor(string forbiddenCommandText) : DbCommandInterceptor
+    private sealed class RejectingQueryReadInterceptor(params string[] forbiddenCommandTexts) : DbCommandInterceptor
     {
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command,
@@ -1378,10 +1386,11 @@ public sealed class CaseWorkspacePersistenceTests
             CancellationToken cancellationToken = default)
         {
             if (eventData.CommandSource == CommandSource.LinqQuery
-                && command.CommandText.Contains(forbiddenCommandText, StringComparison.Ordinal))
+                && forbiddenCommandTexts.Any(forbiddenCommandText =>
+                    command.CommandText.Contains(forbiddenCommandText, StringComparison.Ordinal)))
             {
                 throw new InvalidOperationException(
-                    $"Focused reader queried the excluded body table {forbiddenCommandText}.");
+                    "Focused reader queried an excluded body table.");
             }
 
             return ValueTask.FromResult(result);

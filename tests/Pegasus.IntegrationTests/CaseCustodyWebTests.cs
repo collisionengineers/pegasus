@@ -2,11 +2,20 @@ using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Eva;
+using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
+using Pegasus.Core.Reports;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
+
+using static Pegasus.IntegrationTests.CaseWebTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
@@ -14,7 +23,8 @@ namespace Pegasus.IntegrationTests;
 /// The Custody page: custody retry, logical removal, image tags, and the
 /// request-scoped upload links.
 /// </summary>
-public sealed partial class CaseDetailsWebTests
+[Trait("Category", "SqlServer")]
+public sealed class CaseCustodyWebTests
 {
     [Fact]
     public async Task CustodyPageBindsRetryRemovalImageTagsAndRequestLinks()
@@ -359,198 +369,504 @@ public sealed partial class CaseDetailsWebTests
         Assert.EndsWith("#case-files-images", location, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// One current case file: a current, unremoved version, custody-confirmed
-    /// unless the test names another custody state.
-    /// </summary>
-    private static CaseDocument Document(
-        Guid occurrenceId,
-        Guid versionId,
-        string fileName,
-        string mediaType,
-        DocumentSemanticRole role = DocumentSemanticRole.Instruction,
-        IReadOnlyList<ImageTagAssignment>? tags = null,
-        DocumentCustodyStatus custody = DocumentCustodyStatus.Confirmed)
+
+    [Fact]
+    public async Task CaseFilesRendersQueriesTableForLinkedQueryMailAndNoManualControls()
     {
-        var documentId = Guid.NewGuid();
-        var recordedAtUtc = new DateTimeOffset(2031, 5, 5, 9, 0, 0, TimeSpan.Zero);
-        return new(
-            documentId,
-            Guid.Empty,
+        var forwardedId = Guid.NewGuid();
+        var senderlessId = Guid.NewGuid();
+        var receivedAtUtc = new DateTimeOffset(2031, 5, 6, 9, 15, 0, TimeSpan.Zero);
+        var store = new RecordingCaseDetailsStore
+        {
+            QueryEmails =
             [
                 new(
-                    occurrenceId,
-                    Guid.Empty,
-                    documentId,
-                    versionId,
-                    role,
-                    DocumentSource.Intake,
-                    "source-1",
-                    recordedAtUtc,
-                    tags ?? [])
-            ],
-            [
+                    forwardedId,
+                    receivedAtUtc,
+                    "original@qdosassist.co.uk",
+                    "Forwarding Desk",
+                    "desk@collisionengineers.co.uk",
+                    "Repair query",
+                    MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query")),
                 new(
-                    versionId,
-                    documentId,
-                    1,
-                    fileName,
-                    mediaType,
-                    24_576,
-                    new string('c', 64),
-                    custody,
-                    recordedAtUtc,
-                    "staff",
-                    IsCurrent: true,
-                    IsLogicallyRemoved: false,
-                    RemovalReason: null)
-            ]);
+                    senderlessId,
+                    receivedAtUtc.AddMinutes(-1),
+                    null,
+                    null,
+                    null,
+                    "Sender unavailable",
+                    MailCategory.Received(ReceivedMailFamily.PostReportEmails, "dispute"))
+            ]
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
+        // v26: the retained query mail is the Files section's Correspondence
+        // tab, counted on its tab and listed as a plain table.
+        Assert.Contains("data-file-tab=\"correspondence\">Correspondence · 2<", html, StringComparison.Ordinal);
+        var queries = Correspondence(html);
+        var visible = WebUtility.HtmlDecode(VisibleText(queries));
+
+        foreach (var heading in new[] { "Received", "Sender", "Subject", "Classification" })
+        {
+            Assert.Contains(heading, visible, StringComparison.Ordinal);
+        }
+        Assert.Contains("06 May 2031 10:15", visible, StringComparison.Ordinal);
+        Assert.Contains("original@qdosassist.co.uk", visible, StringComparison.Ordinal);
+        Assert.DoesNotContain("Forwarding Desk", visible, StringComparison.Ordinal);
+        Assert.DoesNotContain("desk@collisionengineers.co.uk", visible, StringComparison.Ordinal);
+        Assert.Contains("Repair query", visible, StringComparison.Ordinal);
+        Assert.Contains("Post-report · Query", visible, StringComparison.Ordinal);
+        Assert.Contains("Sender unavailable", visible, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sender not recorded", visible, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Inbox/{forwardedId:D}\"", queries, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"href=\"/Inbox/{senderlessId:D}\"", queries, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<form", queries, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<button", queries, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("disabled", queries, StringComparison.OrdinalIgnoreCase);
+        var pageText = WebUtility.HtmlDecode(VisibleText(html));
+        foreach (var control in new[] { "Raise a query", "Reply", "Resolve", "Mark resolved" })
+        {
+            Assert.DoesNotContain(control, pageText, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
-    private sealed partial class RecordingCaseDetailsStore :
-        IRetryCaseCustody,
-        IAddCaseDocument,
-        ILogicallyRemoveDocument,
-        ITagCaseImage,
-        IUntagCaseImage,
-        ICreateImageTag,
-        ICreateRequestUploadLink,
-        IRevokeRequestUploadLink
+
+    [Fact]
+    public async Task CaseFilesOmitsQueriesWhenNoLinkedQueryMailExists()
     {
-        /// <summary>The case's documents, when a test supplies them.</summary>
-        public IReadOnlyList<CaseDocument> CaseDocuments { get; init; } = [];
-
-        /// <summary>The case's request-scoped upload links, when a test supplies them.</summary>
-        public IReadOnlyList<CaseRequestUploadSummary> RequestUploadLinks { get; init; } = [];
-
-        public List<RetryCaseCustodyRequest> CustodyRetries { get; } = [];
-        public List<AddCaseDocumentCommand> DocumentUploads { get; } = [];
-        public List<LogicallyRemoveDocumentCommand> DocumentRemovals { get; } = [];
-        public List<TagCaseImageCommand> ImageTagsApplied { get; } = [];
-        public List<UntagCaseImageCommand> ImageTagsRemoved { get; } = [];
-        public List<CreateImageTagCommand> ImageTagsCreated { get; } = [];
-        public List<CreateRequestUploadLinkCommand> RequestLinkCreations { get; } = [];
-        public List<RequestUploadSecret> RequestLinkSecrets { get; } = [];
-        public List<RevokeRequestUploadLinkCommand> RequestLinkRevocations { get; } = [];
-
-        Task<RetryCaseCustodyResult> IRetryCaseCustody.ExecuteAsync(
-            RetryCaseCustodyRequest request,
-            CancellationToken cancellationToken)
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
-            ThrowNextFailure();
-            CustodyRetries.Add(request);
-            return Task.FromResult(new RetryCaseCustodyResult(
-                RetryCaseCustodyOutcome.Pending,
-                CaseVersion + 1,
-                "Custody retry was queued."));
-        }
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
 
-        Task<AddCaseDocumentResult> IAddCaseDocument.ExecuteAsync(
-            AddCaseDocumentCommand command,
-            CancellationToken cancellationToken)
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
+
+        Assert.Contains("data-file-tab=\"correspondence\">Correspondence · 0<", html, StringComparison.Ordinal);
+        Assert.Contains("data-correspondence-empty", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-correspondence-row", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Raise a query", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// PR 670 port (B01): an upload request names who it was sent to and why,
+    /// read from the request's own record; a request recorded before those
+    /// facts existed shows the absent marker rather than an empty cell.
+    /// </summary>
+
+    [Fact]
+    public async Task UploadRequestsListRecipientAndReasonFromTheRecord()
+    {
+        var createdAtUtc = new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero);
+        var store = new RecordingCaseDetailsStore
         {
-            ThrowNextFailure();
-            DocumentUploads.Add(command with { Content = command.Content.ToArray() });
-            var documentId = Guid.NewGuid();
-            var versionId = Guid.NewGuid();
-            return Task.FromResult(new AddCaseDocumentResult(
+            RequestUploadLinks =
+            [
                 new(
                     Guid.NewGuid(),
-                    CaseId,
-                    documentId,
-                    versionId,
-                    command.SemanticRole,
-                    command.Source,
-                    command.SourceOccurrenceIdentity,
-                    _now,
-                    []),
-                new(
-                    versionId,
-                    documentId,
-                    1,
-                    command.FileName,
-                    command.MediaType,
-                    command.Content.Length,
-                    new string('c', 64),
-                    DocumentCustodyStatus.Pending,
-                    _now,
-                    command.Actor.SubjectId,
-                    true,
-                    false,
-                    null),
-                IsReplay: false));
-        }
-
-        Task ILogicallyRemoveDocument.ExecuteAsync(
-            LogicallyRemoveDocumentCommand command,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            DocumentRemovals.Add(command);
-            return Task.CompletedTask;
-        }
-
-        Task ITagCaseImage.ExecuteAsync(
-            TagCaseImageCommand command,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            ImageTagsApplied.Add(command);
-            return Task.CompletedTask;
-        }
-
-        Task IUntagCaseImage.ExecuteAsync(
-            UntagCaseImageCommand command,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            ImageTagsRemoved.Add(command);
-            return Task.CompletedTask;
-        }
-
-        Task<CreateImageTagResult> ICreateImageTag.ExecuteAsync(
-            CreateImageTagCommand command,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            ImageTagsCreated.Add(command);
-            return Task.FromResult(new CreateImageTagResult(
-                new ImageTag(Guid.NewGuid(), command.Name, command.Colour, IsBuiltIn: false, Version: 1),
-                IsReplay: false));
-        }
-
-        Task<CreateRequestUploadLinkResult> ICreateRequestUploadLink.ExecuteAsync(
-            CreateRequestUploadLinkCommand command,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            RequestLinkCreations.Add(command);
-            var issue = RequestUploadToken.Create();
-            RequestLinkSecrets.Add(issue.Secret);
-            return Task.FromResult(new CreateRequestUploadLinkResult(
-                new(
-                    Guid.NewGuid(),
-                    CaseId,
-                    issue.TokenDigest,
                     RequestUploadStatus.Active,
-                    _now,
-                    _now.AddDays(7),
+                    createdAtUtc,
+                    createdAtUtc.AddDays(7),
                     null,
                     0,
                     0,
-                    "limits-v1",
-                    1),
-                issue.Secret,
-                IsReplay: false));
+                    1,
+                    "Provider claims team",
+                    "Missing photographs of the rear damage"),
+                new(
+                    Guid.NewGuid(),
+                    RequestUploadStatus.Expired,
+                    createdAtUtc.AddDays(-14),
+                    createdAtUtc.AddDays(-7),
+                    null,
+                    2,
+                    4_096,
+                    3)
+            ]
+        };
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                Substitute<IGetCasePageFrame>(services, store);
+                Substitute<IGetCaseVehicleSection>(services, store);
+                Substitute<IGetCaseValuationSection>(services, store);
+                Substitute<IGetCaseNotesSection>(services, store);
+                Substitute<IGetCaseFilesSection>(services, store);
+                Substitute<IGetAssessmentWorkspace>(services, store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
+        var panel = UploadRequests(html);
+        var visible = WebUtility.HtmlDecode(VisibleText(panel));
+
+        foreach (var heading in new[] { "Recipient", "Reason", "State", "Created", "Expires", "Accepted" })
+        {
+            Assert.Contains(heading, visible, StringComparison.Ordinal);
+        }
+        Assert.Contains("Provider claims team", visible, StringComparison.Ordinal);
+        Assert.Contains("Missing photographs of the rear damage", visible, StringComparison.Ordinal);
+        Assert.Equal(2, Occurrences(visible, Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue));
+        Assert.DoesNotContain("id=\"create-upload-request\"", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// PR 670 port (B01), the write side over the shared G17 contract: the
+    /// create dialog requires a recipient and offers a reason; the handler
+    /// forwards both unchanged, and an omitted reason reaches Core as null.
+    /// </summary>
+
+    [Fact]
+    public async Task CreateUploadRequestDialogPostsRecipientAndReasonToTheCommand()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ICreateRequestUploadLink>(services, store));
+
+        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=files");
+        // v26: the create dialog is a div-backdrop dialog opened from the
+        // Files section's More menu; its form is what the test reads.
+        Assert.Contains("data-dialog-open=\"create-upload-request\"", html, StringComparison.Ordinal);
+        var dialog = html[html.IndexOf("id=\"create-upload-request\"", StringComparison.Ordinal)..];
+        dialog = dialog[..dialog.IndexOf("</form>", StringComparison.Ordinal)];
+
+        Assert.Contains($"/Cases/{store.CaseId:D}/Custody?handler=CreateRequestUploadLink", dialog, StringComparison.Ordinal);
+        Assert.Matches("<input[^>]*name=\"recipient\"[^>]*required", dialog);
+        Assert.Contains("name=\"reason\"", dialog, StringComparison.Ordinal);
+
+        using var withReason = await workspace.PostAsync(
+            "Custody?handler=CreateRequestUploadLink",
+            workspace.MutationForm(
+                "create-request-link-1",
+                "  Please send the rear photographs  ",
+                ("recipient", "Provider claims team")));
+        using var withoutReason = await workspace.PostAsync(
+            "Custody?handler=CreateRequestUploadLink",
+            Form(
+                workspace.AntiforgeryToken,
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", "create-request-link-2"),
+                ("editLeaseToken", store.LeaseToken),
+                ("recipient", "Claimant"),
+                ("reason", "")));
+
+        AssertPrg(withReason, store.CaseId);
+        AssertPrg(withoutReason, store.CaseId);
+        Assert.Equal(2, store.RequestLinkCreations.Count);
+        var first = store.RequestLinkCreations[0];
+        AssertClaimant(workspace, first.Actor);
+        Assert.Equal(store.CaseVersion, first.ExpectedCaseVersion);
+        Assert.Equal(store.LeaseToken, first.EditLeaseToken);
+        Assert.Equal("create-request-link-1", first.OperationKey);
+        Assert.Equal("Provider claims team", first.Recipient);
+        Assert.Equal("  Please send the rear photographs  ", first.Reason);
+        var second = store.RequestLinkCreations[1];
+        Assert.Equal("Claimant", second.Recipient);
+        Assert.Null(second.Reason);
+    }
+
+    /// <summary>
+    /// The create action requires the recipient server-side as well: a post
+    /// without one, or with only whitespace, is refused before the command
+    /// port is reached, and the editor keeps edit mode to correct it.
+    /// </summary>
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task CreateUploadRequestWithoutARecipientNeverReachesTheCommand(string? recipient)
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<ICreateRequestUploadLink>(services, store));
+        var fields = new List<(string Name, string Value)>
+        {
+            ("id", store.CaseId.ToString("D")),
+            ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+            ("operationKey", "create-request-link-blank"),
+            ("editLeaseToken", store.LeaseToken),
+            ("reason", "Photographs of the rear damage")
+        };
+        if (recipient is not null)
+        {
+            fields.Add(("recipient", recipient));
         }
 
-        Task IRevokeRequestUploadLink.ExecuteAsync(
-            RevokeRequestUploadLinkCommand command,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            RequestLinkRevocations.Add(command);
-            return Task.CompletedTask;
-        }
+        using var refused = await workspace.PostAsync(
+            "Custody?handler=CreateRequestUploadLink",
+            Form(workspace.AntiforgeryToken, [.. fields]));
+
+        AssertPrg(refused, store.CaseId);
+        Assert.Empty(store.RequestLinkCreations);
+        var html = await workspace.GetWorkspaceAsync();
+        Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
+        Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
     }
+
+    /// <summary>
+    /// The frame's fragment handler answers with one section body and nothing
+    /// of the record around it, so a mounted section cannot replace the frame
+    /// or another section.
+    /// </summary>
+
+    [Fact]
+    public async Task TheLazyFilesFragmentDoesNotTouchCookieBackedEditState()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+
+        using var response = await workspace.Client.GetAsync(
+            $"/Cases/{store.CaseId:D}/Section?section=files");
+        response.EnsureSuccessStatusCode();
+        var fragment = await response.Content.ReadAsStringAsync();
+
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.DoesNotContain("name=\"editLeaseToken\"", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=SaveAssetPreparation", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=CreateRequestUploadLink", fragment, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The browser repeats the token already rendered in its edit form only as
+    /// section-rendering data. This retains supported Files controls without
+    /// restoring or writing cookie-backed TempData from the async GET.
+    /// </summary>
+
+    [Fact]
+    public async Task TheLazyFilesFragmentRendersExistingEditControlsFromItsHeaderWithoutSettingCookies()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{store.CaseId:D}/Section?section=files");
+        request.Headers.Add("X-Pegasus-Edit-Lease", store.LeaseToken);
+
+        using var response = await workspace.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var fragment = await response.Content.ReadAsStringAsync();
+
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.Equal(store.LeaseToken, InputValue(fragment, "editLeaseToken"));
+        Assert.Contains("handler=CreateRequestUploadLink", fragment, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public async Task TheLazyFilesFragmentRejectsARenderHeaderWhenAnotherActorHoldsTheCase()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+        store.LeaseHolder = Guid.NewGuid().ToString("D");
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{store.CaseId:D}/Section?section=files");
+        request.Headers.Add("X-Pegasus-Edit-Lease", store.LeaseToken);
+
+        using var response = await workspace.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var fragment = await response.Content.ReadAsStringAsync();
+
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.DoesNotContain("name=\"editLeaseToken\"", fragment, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public async Task TheLazyFilesFragmentRejectsAWrongRenderLeaseTokenFromItsHolder()
+    {
+        var store = new RecordingCaseDetailsStore();
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{store.CaseId:D}/Section?section=files");
+        request.Headers.Add("X-Pegasus-Edit-Lease", new string('b', CaseEditAuthority.LeaseTokenLength));
+
+        using var response = await workspace.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var fragment = await response.Content.ReadAsStringAsync();
+
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.DoesNotContain("name=\"editLeaseToken\"", fragment, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public async Task TheLazyFilesFragmentRejectsAStaleRenderLeaseToken()
+    {
+        var store = new RecordingCaseDetailsStore { RenderLeaseIsCurrent = false };
+        using var workspace = await EnterEditModeAsync(store, _ => { });
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Cases/{store.CaseId:D}/Section?section=files");
+        request.Headers.Add("X-Pegasus-Edit-Lease", store.LeaseToken);
+
+        using var response = await workspace.Client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
+        var fragment = await response.Content.ReadAsStringAsync();
+
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.DoesNotContain("name=\"editLeaseToken\"", fragment, StringComparison.Ordinal);
+    }
+
+
+    [Fact]
+    public async Task CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        // Capture Review with an eligible native handoff and optional EVA
+        // delivery. No external action is required to assign the Engineer.
+        var store = new RecordingCaseDetailsStore
+        {
+            ExposeCustody = true,
+            State = CaseLifecycleState.Review
+        };
+        var evaStores = new StubEvaSubmissionStores(
+            new EvaSubmissionModes(PrincipalReportGenerationPolicy.EvaZip));
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.AddSingleton<IGetCase>(store);
+                SubstituteDetailsPageReaders(services, store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+                Substitute<IStaffAccountQueries>(services,
+                    new StubStaffAccounts(Guid.NewGuid(), "Engineer", StaffRole.Engineer));
+                Substitute<IEvaSubmissionQueries>(services, evaStores);
+                Substitute<IEvaSubmissionModeStore>(services, evaStores);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var claim = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(initial),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", InputValue(initial, "operationKey"))));
+        AssertPrg(claim, store.CaseId);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.Contains("name=\"expectedVersion\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"operationKey\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"reason\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(store.CaseId.ToString("D"), VisibleText(html), StringComparison.OrdinalIgnoreCase);
+
+        // ENG-016: the export must post, because it records the once-per-case
+        // First sent to Engineer proxy and a prefetched or refreshed GET must
+        // not be able to fire it.
+        //
+        // EXT-04 moved the control: the handoff dialog carries the export as a
+        // posted form and no link to it exists anywhere, and the export route
+        // answers a GET with a redirect rather than a package (asserted below).
+        Assert.Contains("Send to EVA", VisibleText(html), StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            $"href=\"/Cases/{store.CaseId:D}/Documents/Export",
+            html,
+            StringComparison.Ordinal);
+
+        foreach (var route in new[] { "Custody?handler=RetryCustody", "Documents/Export?handler=Bundle" })
+        {
+            using var denied = await client.PostAsync(
+                $"/Cases/{store.CaseId:D}/{route}",
+                new FormUrlEncodedContent([]));
+            Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
+        }
+
+        // The hand-off's own page is gone, not merely unlinked. 405 rather
+        // than 404 is this app's existing answer to a POST at a path with no
+        // page: the 404 is re-executed at /status/{code} by
+        // UseStatusCodePagesWithReExecute, and that page has only an OnGet.
+        using var downloadGone = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}/Eva/Download",
+            Form(AntiforgeryValue(html)));
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, downloadGone.StatusCode);
+
+        // The generate handler is gone too, but its page survives for the
+        // vehicle actions, and Razor Pages answers an unrecognised handler name
+        // by running no handler at all rather than by refusing the request. So
+        // the honest assertion is not 404: it is that a stale form or bookmark
+        // now does nothing -- no redirect back to the workspace, which is what
+        // every real handler on these pages ends with.
+        using var handlerGone = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}/Vehicle?handler=GenerateEvaHandoff",
+            Form(AntiforgeryValue(html)));
+        Assert.NotEqual(HttpStatusCode.Redirect, handlerGone.StatusCode);
+        Assert.Null(handlerGone.Headers.Location);
+
+        // A GET on the export route cannot produce the package: there is no GET
+        // that exports, only one that returns a stale bookmark to the case.
+        using var prefetched = await client.GetAsync(
+            $"/Cases/{store.CaseId:D}/Documents/Export");
+        AssertPrg(prefetched, store.CaseId);
+        Assert.NotEqual(
+            "application/zip",
+            prefetched.Content.Headers.ContentType?.MediaType);
+    }
+
+
+    private static string UploadRequests(string html)
+    {
+        var start = html.IndexOf("data-upload-requests", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The upload requests panel is not rendered.");
+        var end = html.IndexOf("</table>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The upload requests table is not rendered.");
+        return html[start..end];
+    }
+
+    /// <summary>The Files section's Correspondence tab body (v26): the table of retained query mail.</summary>
+
+    private static string Correspondence(string html)
+    {
+        var start = html.IndexOf("data-correspondence>", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The Correspondence tab is not rendered.");
+        var end = html.IndexOf("</table>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The Correspondence table is not rendered.");
+        return html[start..end];
+    }
+
 }

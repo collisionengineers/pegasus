@@ -64,7 +64,6 @@ public sealed class WorkerCompositionTests
             Assert.Equal(
                 "Pegasus.Infrastructure.Persistence.EfPublicUploadRetentionStore",
                 scopedServices.GetRequiredService<IIncomingArtifactRetentionStore>().GetType().FullName);
-            Assert.NotNull(scopedServices.GetRequiredService<SubmitMailboxImageIntake>());
             Assert.NotNull(scopedServices.GetRequiredService<ProcessQueuedIntake>());
             Assert.NotNull(scopedServices.GetRequiredService<VehicleRegistrationCandidateLookup>());
             var analysis = scopedServices.GetRequiredService<AnalyzeRetainedInstruction>();

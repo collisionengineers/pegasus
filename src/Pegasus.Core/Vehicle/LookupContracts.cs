@@ -41,7 +41,10 @@ public sealed record VehicleDetails(
     string? Model,
     int? ManufactureYear,
     int? EngineCapacityCc,
-    string? FuelType);
+    string? FuelType,
+    string? TypeApproval = null,
+    string? Wheelplan = null,
+    int? RevenueWeightKg = null);
 
 public sealed record MotTestObservation(
     DateOnly TestDate,
@@ -151,8 +154,11 @@ public sealed record VehicleLookupResult(
             && ((vehicle.Make is not null && string.IsNullOrWhiteSpace(vehicle.Make))
                 || (vehicle.Model is not null && string.IsNullOrWhiteSpace(vehicle.Model))
                 || (vehicle.FuelType is not null && string.IsNullOrWhiteSpace(vehicle.FuelType))
+                || (vehicle.TypeApproval is not null && string.IsNullOrWhiteSpace(vehicle.TypeApproval))
+                || (vehicle.Wheelplan is not null && string.IsNullOrWhiteSpace(vehicle.Wheelplan))
                 || vehicle.ManufactureYear is <= 0
-                || vehicle.EngineCapacityCc is <= 0))
+                || vehicle.EngineCapacityCc is <= 0
+                || vehicle.RevenueWeightKg is <= 0))
         {
             throw new InvalidDataException("Vehicle details are invalid.");
         }

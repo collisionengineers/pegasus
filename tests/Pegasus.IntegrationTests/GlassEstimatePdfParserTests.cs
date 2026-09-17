@@ -45,6 +45,24 @@ public sealed class GlassEstimatePdfParserTests
         Assert.Contains("printed amount is unreadable", refusal.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void SectionLabourUsesThePrintedHoursAndRateBeforeRounding()
+    {
+        var parsed = GlassEstimatePdfParser.Parse(RoundingDocument("66.62"));
+
+        Assert.Equal(7, parsed.Lines.Count);
+        Assert.Equal(557.98m, parsed.SourceTotals!.Net);
+    }
+
+    [Fact]
+    public void AOnePennyRowLabourDisagreementStillRefusesTheWholeGlassTable()
+    {
+        var refusal = Assert.Throws<EstimateParseRejectedException>(
+            () => GlassEstimatePdfParser.Parse(RoundingDocument("66.63")));
+
+        Assert.Contains("main rows disagree", refusal.Message, StringComparison.Ordinal);
+    }
+
     [ReferencePackTheory]
     [InlineData("VX21TZD", "1046012231790__VX21TZD calculation sheet.pdf", "c75b94438ad6a57aae8b6edb8de554498920c1626cb0c8b0046a3322a55c1016", 10134,
         "AD5107957FDAEE562C29C84D939A709812A4F8A9FC21A057306768FDD387777B", 30, 3, "990.15", "198.03", "1188.18")]
@@ -151,4 +169,64 @@ public sealed class GlassEstimatePdfParserTests
     private static string? Blank(string value) => value == "-" ? null : value;
     private static decimal? Number(string value) => value == "-" ? null
         : decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture);
+
+    private static PdfEstimateDocumentParser.VisualRow[] RoundingDocument(string firstPaintLabour) =>
+    [
+        new(1, 760, [new(28, "Vehicle Registration Number:"), new(200, "AB12 CDE")], "Vehicle Registration Number: AB12 CDE"),
+        new(1, 750, [new(28, "VIN:"), new(200, "TESTVIN1234567890")], "VIN: TESTVIN1234567890"),
+        new(1, 740, [new(28, "Date:"), new(200, "16/09/2026")], "Date: 16/09/2026"),
+        new(1, 730, [new(28, "Database version:"), new(200, "TEST")], "Database version: TEST"),
+        new(1, 720, [new(28, "Labour time unit:"), new(200, "1 Hour")], "Labour time unit: 1 Hour"),
+        new(1, 710, [new(28, "Currency:"), new(200, "GBP")], "Currency: GBP"),
+
+        new(1, 690, [new(28, "Body"), new(350, "Overlap-time")], "Body Overlap-time"),
+        new(1, 680, [new(28, "1001"), new(100, "Body panel"), new(240, "R"), new(300, "1.00"),
+            new(450, "83.28"), new(520, "0.00")], "1001 Body panel R 1.00 83.28 0.00"),
+        new(1, 670, [new(28, "Labour costs"), new(520, "83.28")], "Labour costs 83.28"),
+        new(1, 660, [new(28, "Material costs"), new(520, "0.00")], "Material costs 0.00"),
+        new(1, 650, [new(28, "Total"), new(520, "83.28")], "Total 83.28"),
+
+        new(1, 630, [new(28, "Auxiliary work"), new(350, "Overlap-time")], "Auxiliary work Overlap-time"),
+        new(1, 620, [new(28, "2001"), new(100, "Auxiliary operation"), new(240, "R"), new(300, "1.00"),
+            new(450, "83.28"), new(520, "0.00")], "2001 Auxiliary operation R 1.00 83.28 0.00"),
+        new(1, 610, [new(28, "Labour costs"), new(520, "83.28")], "Labour costs 83.28"),
+        new(1, 600, [new(28, "Material costs"), new(520, "0.00")], "Material costs 0.00"),
+        new(1, 590, [new(28, "Total"), new(520, "83.28")], "Total 83.28"),
+
+        new(1, 570, [new(28, "Paint"), new(100, "Paint type")], "Paint Paint type"),
+        new(1, 560, [new(28, "Paint row 1"), new(240, "200"), new(310, "I"), new(360, "0.80"),
+            new(430, firstPaintLabour), new(520, "0.00")], $"Paint row 1 200 I 0.80 {firstPaintLabour} 0.00"),
+        new(1, 550, [new(28, "Paint row 2"), new(240, "200"), new(310, "I"), new(360, "1.60"),
+            new(430, "133.25"), new(520, "0.00")], "Paint row 2 200 I 1.60 133.25 0.00"),
+        new(1, 540, [new(28, "Paint row 3"), new(240, "200"), new(310, "I"), new(360, "1.70"),
+            new(430, "141.58"), new(520, "0.00")], "Paint row 3 200 I 1.70 141.58 0.00"),
+        new(1, 530, [new(28, "Paint row 4"), new(240, "200"), new(310, "I"), new(360, "0.30"),
+            new(430, "24.98"), new(520, "0.00")], "Paint row 4 200 I 0.30 24.98 0.00"),
+        new(1, 520, [new(28, "Paint row 5"), new(240, "200"), new(310, "I"), new(360, "0.30"),
+            new(430, "24.98"), new(520, "0.00")], "Paint row 5 200 I 0.30 24.98 0.00"),
+        new(1, 510, [new(28, "Labour costs"), new(520, "391.42")], "Labour costs 391.42"),
+        new(1, 500, [new(28, "Material costs"), new(520, "0.00")], "Material costs 0.00"),
+        new(1, 490, [new(28, "Total"), new(520, "391.42")], "Total 391.42"),
+
+        new(1, 470, [new(28, "Summary"), new(100, "totals")], "Summary totals"),
+        new(1, 460, [new(28, "Body"), new(240, "83.28"), new(350, "1.00"), new(430, "83.28"),
+            new(500, "0.00")], "Body 83.28 1.00 83.28 0.00"),
+        new(1, 450, [new(28, "Auxiliary work"), new(240, "83.28"), new(350, "1.00"), new(430, "83.28"),
+            new(500, "0.00")], "Auxiliary work 83.28 1.00 83.28 0.00"),
+        new(1, 440, [new(28, "Paint"), new(240, "83.28"), new(350, "4.70"), new(430, "391.42"),
+            new(500, "0.00")], "Paint 83.28 4.70 391.42 0.00"),
+        new(1, 430, [new(28, "Total Labour"), new(350, "6.70"), new(520, "557.98")], "Total Labour 6.70 557.98"),
+        new(1, 420, [new(28, "Total Material"), new(520, "0.00")], "Total Material 0.00"),
+        new(1, 410, [new(28, "Repair costs excl. VAT"), new(520, "557.98")], "Repair costs excl. VAT 557.98"),
+        new(1, 400, [new(28, "VAT (20.00%)"), new(520, "111.60")], "VAT (20.00%) 111.60"),
+        new(1, 390, [new(28, "Repair costs incl. VAT"), new(520, "669.58")], "Repair costs incl. VAT 669.58"),
+
+        new(1, 370, [new(28, "Part name"), new(200, "Previous part no."), new(340, "Part no.")],
+            "Part name Previous part no. Part no."),
+        new(1, 360, [new(28, "Total Parts"), new(520, "0.00")], "Total Parts 0.00"),
+        new(1, 340, [new(28, "Part name"), new(220, "Guide positions")], "Part name Guide positions"),
+        new(1, 330, [new(28, "Body panel"), new(220, "1001")], "Body panel 1001"),
+        new(1, 320, [new(28, "Auxiliary operation"), new(220, "2001")], "Auxiliary operation 2001"),
+        new(1, 300, [new(28, "Abbreviations"), new(120, "Codes")], "Abbreviations Codes")
+    ];
 }

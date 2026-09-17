@@ -10,6 +10,8 @@ namespace Pegasus.Infrastructure.Assessment;
 /// Reads Glass's printed calculation tables, not flattened text. Included work
 /// and the two appendices remain evidence; only the main rows carry charges.
 /// Printed PDF hours are already net and never use the XML overlap rule.
+/// Printed section labour is section hours multiplied by the printed rate and
+/// rounded once, while each printed row must still reconcile to that rate.
 /// </summary>
 internal static class GlassEstimatePdfParser
 {
@@ -317,7 +319,8 @@ internal static class GlassEstimatePdfParser
                 if (own.Length == 0 || sum.SummaryRate is null || sum.SummaryHours is null
                     || sum.Labour is null || sum.Material is null || sum.Total is null
                     || own.Sum(item => item.Hours ?? 0) != sum.SummaryHours
-                    || own.Sum(item => item.Labour ?? 0) != sum.Labour || sum.Labour != sum.SummaryLabour
+                    || decimal.Round(sum.SummaryHours.Value * sum.SummaryRate.Value, 2, MidpointRounding.AwayFromZero) != sum.Labour
+                    || sum.Labour != sum.SummaryLabour
                     || own.Sum(item => item.Material ?? 0) != sum.Material || sum.Material != sum.SummaryMaterial
                     || sum.Labour + sum.Material != sum.Total
                     || own.Any(item => item.Hours is { } hours && decimal.Round(hours * sum.SummaryRate.Value, 2, MidpointRounding.AwayFromZero) != (item.Labour ?? 0)))
