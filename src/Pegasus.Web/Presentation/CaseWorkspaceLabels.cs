@@ -39,7 +39,6 @@ public static class CaseWorkspaceLabels
         public const string TakeOver = "Take over";
         public const string Editing = "Editing";
         public const string Archived = "Archived";
-        public const string AvailableWithEngineer = "Available With Engineer";
         public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
         public const string Figures = "Figures";
         public const string NextAction = "Next action";
