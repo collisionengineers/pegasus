@@ -33,12 +33,7 @@ internal static class CaseIdentityAllocator
             context.CaseSequences.Add(sequence);
         }
 
-        if (sequence.LastAllocatedSequence >= 999)
-        {
-            throw new CaseIdentitySequenceExhaustedException(principal.Code, year);
-        }
-
-        var number = ++sequence.LastAllocatedSequence;
+        var number = checked(++sequence.LastAllocatedSequence);
         return new(year, number, $"{principal.Code}{year % 100:00}{number:000}");
     }
 }

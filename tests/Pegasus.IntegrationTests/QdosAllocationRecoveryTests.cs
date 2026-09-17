@@ -1318,26 +1318,15 @@ public sealed class QdosAllocationRecoveryTests
             factory.Services,
             CaseType.Inspection,
             disabledCode);
-        var exhaustedCode = "EXHAUSTED";
-        var lineage = await AllocationTestData.SeedPrincipalAsync(factory.Services, exhaustedCode);
-        await AllocationTestData.ExhaustSequenceAsync(factory.Services, lineage);
-        var exhausted = await AllocationTestData.StoreDefinitiveReceiptAsync(
-            factory.Services,
-            CaseType.Inspection,
-            exhaustedCode);
-
         await using var scope = factory.Services.CreateAsyncScope();
         var allocate = scope.ServiceProvider.GetRequiredService<IAllocateIntake>();
         var missingTypeResult = await allocate.AttemptAutomaticAsync(missingType.Id, Guid.NewGuid());
         var disabledResult = await allocate.AttemptAutomaticAsync(disabled.Id, Guid.NewGuid());
-        var exhaustedResult = await allocate.AttemptAutomaticAsync(exhausted.Id, Guid.NewGuid());
 
         Assert.Equal(IntakeAllocationFailureKind.CaseTypeUnavailable, missingTypeResult?.State.FailureKind);
         Assert.Equal(IntakeAllocationRecoveryDisposition.ManualReview, missingTypeResult?.State.RecoveryDisposition);
         Assert.Equal(IntakeAllocationFailureKind.PrincipalUnavailable, disabledResult?.State.FailureKind);
         Assert.Equal(IntakeAllocationRecoveryDisposition.RetryAfterCorrection, disabledResult?.State.RecoveryDisposition);
-        Assert.Equal(IntakeAllocationFailureKind.SequenceExhausted, exhaustedResult?.State.FailureKind);
-        Assert.Equal(IntakeAllocationRecoveryDisposition.Blocked, exhaustedResult?.State.RecoveryDisposition);
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
     }
 
@@ -2071,15 +2060,6 @@ internal static class AllocationTestData
         });
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)))
             .ToLowerInvariant();
-    }
-
-    public static async Task ExhaustSequenceAsync(IServiceProvider services, Guid lineageId)
-    {
-        await using var scope = services.CreateAsyncScope();
-        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var context = await factory.CreateDbContextAsync();
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO CaseSequences (SequenceLineageId, Year, LastAllocatedSequence) VALUES ({lineageId}, {2031}, {999})");
     }
 
     public static async Task ChangePersistedClassificationCaseTypeAsync(

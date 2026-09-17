@@ -456,13 +456,6 @@ public sealed partial class CreateModel(
                 string.Empty,
                 "This item was already turned into a case using different details. Reload the page.");
         }
-        catch (CaseIdentitySequenceExhaustedException exception)
-        {
-            LogIdentitySequenceExhausted(logger, Receipt.Id, exception);
-            ModelState.AddModelError(
-                string.Empty,
-                "The case reference sequence is exhausted. No case was created.");
-        }
         catch (Exception exception) when (
             exception is IntakeVersionConflictException or IntakeOperationConflictException)
         {
@@ -590,11 +583,6 @@ public sealed partial class CreateModel(
         catch (StaffAuthorizationException)
         {
             return Forbid();
-        }
-        catch (CaseIdentitySequenceExhaustedException exception)
-        {
-            LogIdentitySequenceExhausted(logger, Guid.Empty, exception);
-            ModelState.AddModelError(string.Empty, "The case reference sequence is exhausted. No case was created.");
         }
         catch (PrincipalUnavailableException)
         {
@@ -880,15 +868,6 @@ public sealed partial class CreateModel(
         new(SHA256.HashData(
             Encoding.UTF8.GetBytes($"case-create/{operationId:N}/{purpose}"))
             .AsSpan(0, 16));
-
-    [LoggerMessage(
-        EventId = 1210,
-        Level = LogLevel.Warning,
-        Message = "Case creation exhausted the identity sequence for intake receipt {ReceiptId}.")]
-    private static partial void LogIdentitySequenceExhausted(
-        ILogger logger,
-        Guid receiptId,
-        Exception exception);
 
     [LoggerMessage(
         EventId = 1211,

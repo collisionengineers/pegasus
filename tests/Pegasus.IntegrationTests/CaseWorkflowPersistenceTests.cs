@@ -2430,14 +2430,14 @@ public sealed class CaseWorkflowPersistenceTests
             "QDOS");
         var create = new CreateLinkedReplacement(harness.ReplacementStore, new CommittedWorkPublisherDouble());
         var initialCaseCount = await harness.CountCasesAsync();
-        var initialQdosReferenceCount = await harness.CountQdosReferencesAsync();
+        var initialQdosReferenceCount = await harness.CountReferencesAsync("QDOS26");
 
         var denied = await Assert.ThrowsAsync<InvalidOperationException>(
             () => create.ExecuteAsync(request, default));
 
         Assert.Contains("open case task", denied.Message, StringComparison.Ordinal);
         Assert.Equal(initialCaseCount, await harness.CountCasesAsync());
-        Assert.Equal(initialQdosReferenceCount, await harness.CountQdosReferencesAsync());
+        Assert.Equal(initialQdosReferenceCount, await harness.CountReferencesAsync("QDOS26"));
         var unchanged = await harness.Store.GetAsync(harness.CaseId, default);
         Assert.Equal(CaseLifecycleState.Review, unchanged?.State);
         Assert.Null(unchanged?.ReplacementCaseId);
@@ -2452,7 +2452,35 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.True(replay.IsDuplicate);
         Assert.Equal(allocated.Identity, replay.Identity);
         Assert.Equal(initialCaseCount + 1, await harness.CountCasesAsync());
-        Assert.Equal(initialQdosReferenceCount + 1, await harness.CountQdosReferencesAsync());
+        Assert.Equal(initialQdosReferenceCount + 1, await harness.CountReferencesAsync("QDOS26"));
+    }
+
+    [Fact]
+    public async Task WrongPrincipalReplacementAllocatesBeyondFourSequenceDigits()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        await harness.SetLastAllocatedSequenceAsync("QDOS", 2026, 9999);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, actor, "claim-unbounded-replacement"),
+            default);
+
+        var allocated = await new CreateLinkedReplacement(
+                harness.ReplacementStore,
+                new CommittedWorkPublisherDouble())
+            .ExecuteAsync(
+                new(
+                    harness.CaseId,
+                    0,
+                    actor,
+                    "unbounded-principal-replacement",
+                    "Prove corrected-principal allocation expands beyond four digits",
+                    lease.Token,
+                    "QDOS"),
+                default);
+
+        Assert.Equal(10000, allocated.Identity.Sequence);
+        Assert.Equal("QDOS2610000", allocated.Identity.Reference);
     }
 
     [Fact]
@@ -2726,9 +2754,16 @@ public sealed class CaseWorkflowPersistenceTests
         public Task<long> CountCasesAsync() =>
             database.ScalarAsync<long>("SELECT COUNT_BIG(*) FROM Cases");
 
-        public Task<long> CountQdosReferencesAsync() =>
+        public Task<long> CountReferencesAsync(string prefix) =>
             database.ScalarAsync<long>(
-                "SELECT COUNT_BIG(*) FROM Cases WHERE Reference LIKE 'QDOS26%'");
+                $"SELECT COUNT_BIG(*) FROM Cases WHERE Reference LIKE '{prefix}%'");
+
+        public Task SetLastAllocatedSequenceAsync(
+            string principalCode,
+            int year,
+            int lastAllocatedSequence) =>
+            database.ExecuteAsync(
+                $"INSERT INTO CaseSequences (SequenceLineageId, Year, LastAllocatedSequence) SELECT SequenceLineageId, {year}, {lastAllocatedSequence} FROM Principals WHERE Code = '{principalCode}'");
 
         public static async Task<WorkflowHarness> CreateAsync()
         {
