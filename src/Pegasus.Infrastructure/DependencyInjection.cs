@@ -736,7 +736,9 @@ public static class DependencyInjection
         // renderer registers its own embedded faces, so no host font is read.
         QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
         QuestPDF.Settings.UseEnvironmentFonts = false;
+        services.AddSingleton<ReportRenderGate>();
         services.AddSingleton<IAssessmentReportRenderer, QuestPdfAssessmentReportRenderer>();
+        services.AddSingleton<IEstimateDocumentRenderer, QuestPdfEstimateDocumentRenderer>();
         services.AddScoped<GenerateAssessmentReportDraft>();
         services.AddScoped<EfAssessmentReportProjectionSource>();
         services.AddScoped<IAssessmentReportProjectionSource>(provider =>
@@ -750,6 +752,8 @@ public static class DependencyInjection
             provider.GetRequiredService<EfCaseReportGenerationStore>());
         services.AddScoped<IGeneratedCaseArtifactStore>(provider =>
             provider.GetRequiredService<EfCaseReportGenerationStore>());
+        services.AddScoped<IEstimateDocumentPresentationStore>(provider =>
+            provider.GetRequiredService<EfCaseReportGenerationStore>());
         services.AddScoped<ICaseReportContentSource, EfCaseReportContentSource>();
         services.AddScoped<IGenerateCaseReport, GenerateCaseReport>();
         services.AddScoped<ICaseReportDeliveryPreparationStore, EfCaseReportDeliveryPreparationStore>();
@@ -757,6 +761,7 @@ public static class DependencyInjection
         services.AddScoped<IReportSendReadiness, ReportSendReadiness>();
         services.AddScoped<ISendPreparedCaseReport, SendPreparedCaseReport>();
         services.AddScoped<GenerateCaseAssessmentReportDraft>();
+        services.AddScoped<IRenderCaseEstimateDocument, RenderCaseEstimateDocument>();
         return services;
     }
     public static IServiceCollection AddLocalApprovedInbox(

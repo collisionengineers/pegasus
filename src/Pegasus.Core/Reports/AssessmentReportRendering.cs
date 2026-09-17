@@ -239,9 +239,10 @@ public sealed record ReportRepairCosts(
     public static ReportRepairCosts For(RepairSpecificationVersion estimate)
     {
         ArgumentNullException.ThrowIfNull(estimate);
+        var hours = EstimateHours.Of(estimate);
         return new(
-            estimate.Lines.Sum(line => line.WorkUnits ?? 0m),
-            estimate.Lines.Sum(line => line.PaintWorkUnits ?? 0m),
+            hours.PricedPanel,
+            hours.PricedPaint,
             estimate.Details.HourlyRate,
             EstimateTotals.ForProjection(estimate));
     }

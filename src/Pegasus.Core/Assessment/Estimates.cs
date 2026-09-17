@@ -22,8 +22,8 @@ public enum RepairerVatStatus
 
 /// <summary>
 /// The cost categories the estimate's VAT percentage applies to. Labour
-/// covers both panel and paint labour; Materials covers row materials and
-/// the estimate's additional materials.
+/// covers panel labour (including Specialist work units) and paint labour;
+/// Materials covers row materials and the estimate's additional materials.
 /// </summary>
 [Flags]
 public enum EstimateVatCategories
@@ -86,8 +86,8 @@ public sealed record EstimateDiscounts(
 
 /// <summary>
 /// The labour rate the estimate was priced at, and the rate card version it
-/// was taken from when one exists. One rate prices both panel and paint
-/// hours (B04); there is no second paint rate in the arithmetic.
+/// was taken from when one exists. One rate prices panel, paint and Specialist
+/// work-unit hours (B04); there is no second paint rate in the arithmetic.
 /// </summary>
 public sealed record EstimateRateSnapshot(
     Guid? RateCardId,
@@ -122,7 +122,7 @@ public sealed record EstimateDetails(
     EstimateVatPolicy? Vat = null,
     EstimateRateSnapshot? Rate = null)
 {
-    /// <summary>The one rate that prices panel and paint hours alike.</summary>
+    /// <summary>The one rate that prices panel, paint and Specialist work-unit hours.</summary>
     public decimal HourlyRate => Rate?.HourlyRate ?? LabourRate ?? 0m;
 
     public EstimateDiscounts AppliedDiscounts => Discounts ?? EstimateDiscounts.None;
@@ -253,6 +253,66 @@ public sealed record EstimatePrintedTotals(
     decimal Gross);
 
 /// <summary>
+/// The one classification of estimate hours. Only hours which the calculation
+/// prices at the estimate rate are included in <see cref="PricedTotal"/>;
+/// fixed-price Specialist hours remain visible separately.
+/// </summary>
+public sealed record EstimateHours(
+    decimal Replace,
+    decimal Repair,
+    decimal RemoveAndRefit,
+    decimal Check,
+    decimal SpecialistPriced,
+    decimal Paint,
+    decimal Blend,
+    decimal UnpricedSpecialist)
+{
+    /// <summary>Panel-rate hours carried by Paint and Blend rows.</summary>
+    public decimal PaintPanel { get; init; }
+    public decimal BlendPanel { get; init; }
+
+    public decimal PaintTotal => PaintPanel + Paint;
+    public decimal BlendTotal => BlendPanel + Blend;
+    public decimal PricedPanel =>
+        Replace + Repair + RemoveAndRefit + Check + SpecialistPriced + PaintPanel + BlendPanel;
+    public decimal PricedPaint => Paint + Blend;
+    public decimal PricedTotal => PricedPanel + PricedPaint;
+
+    public static EstimateHours Of(RepairSpecificationVersion estimate)
+    {
+        ArgumentNullException.ThrowIfNull(estimate);
+        decimal replace = 0m, repair = 0m, removeAndRefit = 0m, check = 0m;
+        decimal specialistPriced = 0m, paint = 0m, blend = 0m, unpricedSpecialist = 0m;
+        decimal paintPanel = 0m, blendPanel = 0m;
+        foreach (var line in estimate.Lines)
+        {
+            switch (line.Type)
+            {
+                case "new_part": replace += line.WorkUnits ?? 0m; break;
+                case "repair": repair += line.WorkUnits ?? 0m; break;
+                case "rnr": removeAndRefit += line.WorkUnits ?? 0m; break;
+                case "check_labour": check += line.WorkUnits ?? 0m; break;
+                case "specialist_wu": specialistPriced += line.WorkUnits ?? 0m; break;
+                case "specialist_fixed": unpricedSpecialist += line.WorkUnits ?? 0m; break;
+                case "paint_new" or "paint_repair" or "paint_prep":
+                    paintPanel += line.WorkUnits ?? 0m;
+                    paint += line.PaintWorkUnits ?? 0m;
+                    break;
+                case "paint_blend":
+                    blendPanel += line.WorkUnits ?? 0m;
+                    blend += line.PaintWorkUnits ?? 0m;
+                    break;
+            }
+        }
+        return new(replace, repair, removeAndRefit, check, specialistPriced, paint, blend, unpricedSpecialist)
+        {
+            PaintPanel = paintPanel,
+            BlendPanel = blendPanel,
+        };
+    }
+}
+
+/// <summary>
 /// The single owner of estimate money (FRD-11 § Estimate VAT on the rendered
 /// report, plan B04). Nothing else in the application adds up an estimate.
 /// </summary>
@@ -272,7 +332,9 @@ public sealed record EstimateTotals(
     public static EstimateTotals ForProjection(RepairSpecificationVersion estimate)
     {
         ArgumentNullException.ThrowIfNull(estimate);
-        if (estimate.State is not (RepairSpecificationState.Accepted or RepairSpecificationState.Superseded))
+        if (estimate.State == RepairSpecificationState.Draft
+            || (estimate.State == RepairSpecificationState.Discarded
+                && estimate.RecordedTotals is null))
         {
             return Compute(estimate);
         }
@@ -295,8 +357,9 @@ public sealed record EstimateTotals(
         var discounts = details.AppliedDiscounts;
         var rate = details.HourlyRate;
         var anomalies = new List<EstimateAnomaly>();
+        var hours = EstimateHours.Of(estimate);
 
-        decimal parts = 0m, panelHours = 0m, paintHours = 0m;
+        decimal parts = 0m;
         decimal materials = details.PaintMaterials ?? 0m;
         decimal specialist = details.OtherCosts ?? 0m;
         decimal offPattern = 0m;
@@ -311,19 +374,27 @@ public sealed record EstimateTotals(
             {
                 case EstimateOperation.Replace:
                     parts += amount;
-                    panelHours += line.WorkUnits ?? 0m;
                     break;
                 case EstimateOperation.Specialist:
-                    // Specialist hours are displayed, never multiplied by the rate.
-                    specialist += amount;
+                    if (line.Type == "specialist_wu")
+                    {
+                        offPattern += OffPatternAmount(line, amount, anomalies);
+                    }
+                    else
+                    {
+                        specialist += amount;
+                        if (line.WorkUnits is { } fixedHours && fixedHours != 0m)
+                        {
+                            anomalies.Add(new(
+                                line.Position, "hours", fixedHours,
+                                "Hours on a fixed-price Specialist line are retained but not priced."));
+                        }
+                    }
                     break;
                 case EstimateOperation.Paint or EstimateOperation.Blend:
-                    paintHours += line.PaintWorkUnits ?? 0m;
-                    panelHours += line.WorkUnits ?? 0m;
                     offPattern += OffPatternAmount(line, amount, anomalies);
                     break;
                 default:
-                    panelHours += line.WorkUnits ?? 0m;
                     offPattern += OffPatternAmount(line, amount, anomalies);
                     break;
             }
@@ -337,8 +408,8 @@ public sealed record EstimateTotals(
             }
         }
 
-        var panelLabour = panelHours * rate;
-        var paintLabour = paintHours * rate;
+        var panelLabour = hours.PricedPanel * rate;
+        var paintLabour = hours.PricedPaint * rate;
         var discountedParts = parts * (1m - discounts.Parts);
         var discountedMaterials = materials * (1m - discounts.Materials);
         var discountedSpecialist = (specialist + offPattern) * (1m - discounts.Specialist);
@@ -440,6 +511,10 @@ public static class EstimatePolicy
             }
             var carried = line with
             {
+                Type = EstimateOperations.FromLineType(line.Type) == EstimateOperation.Specialist
+                    && EstimateOperations.FromLineType(previous.Type) == EstimateOperation.Specialist
+                        ? previous.Type
+                        : line.Type,
                 GuideCode = previous.GuideCode,
                 Unpriced = previous.Unpriced && line.Price is null,
                 Betterment = previous.Betterment,

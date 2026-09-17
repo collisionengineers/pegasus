@@ -75,6 +75,12 @@ _Avoid_: Merged, delete, erase
 An immutable model-generated candidate repair specification, never a report document, retained separately from the Case until a named Engineer explicitly accepts or applies it.
 _Avoid_: AI assessment, automatic repair specification
 
+**Estimate document**:
+The non-retained PDF presentation of one saved estimate version and its
+Core-owned calculations. It is not a report, approval, delivery or source
+estimate artifact.
+_Avoid_: Estimate report, generated report
+
 **Automation Actor**:
 A named non-human principal that performs one explicitly authorised Pegasus action inventory through Core use cases with its own permanent history.
 _Avoid_: Service account, staff impersonation, background task

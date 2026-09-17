@@ -130,6 +130,13 @@
     var vatOverridden = vatPolicy.CategoriesOverridden;
     var readLines = estimate?.Lines.OrderBy(line => line.Position).ToArray() ?? [];
     var vatChargedOn = VatLabels.Categories.Where(vatPolicy.Charges).Select(VatLabels.CategoryLabel).ToArray();
+    var estimateDocumentHref = estimate is null
+        ? null
+        : Url.Page("/Cases/Details", "EstimateDocument", new
+        {
+            id = caseId,
+            estimateId = estimate.SpecificationId
+        });
 
     // The work-lists sort recorded lines by operation; a type the mapping
     // does not know lands with the additional operations rather than failing.
@@ -416,10 +423,29 @@
             </div>
         }
 
+        @if (!editing && estimate is { Lines.Count: > 0 } && !Model.EditingNewEstimate)
+        {
+            <div class="est-actions" data-estimate-actions>
+                <a class="btn btn--small" href="@estimateDocumentHref" target="_blank" rel="noopener"
+                   data-document-preview data-file-name="Estimate PDF" data-no-inplace>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                    <span>Estimate PDF</span>
+                </a>
+            </div>
+        }
+
         @if (editing && estimate is not null && !Model.EditingNewEstimate)
         {
             @* Use estimate / Duplicate / Discard for the selected version. *@
             <div class="est-actions" data-estimate-actions>
+                @if (estimate.Lines.Count > 0)
+                {
+                    <a class="btn btn--small" href="@estimateDocumentHref" target="_blank" rel="noopener"
+                       data-document-preview data-file-name="Estimate PDF" data-no-inplace>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
+                        <span>Estimate PDF</span>
+                    </a>
+                }
                 @if (Model.SelectedEstimateCanBeCurrent && Model.UseEstimateCondition is null)
                 {
                     <form method="post" asp-page="/Cases/Details" asp-page-handler="SetCurrentEstimate"
