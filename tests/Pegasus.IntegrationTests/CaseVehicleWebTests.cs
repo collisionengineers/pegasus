@@ -347,15 +347,15 @@ public sealed class CaseVehicleWebTests
         Assert.Contains("<h3>Vehicle history", readOnly, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"edit-vehicle-history\"", readOnly, StringComparison.Ordinal);
 
-        using var workspace = await EnterEditModeAsync(store, _ => { });
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<IGetAssessmentAccess>(services, store));
         var editing = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
 
         Assert.Contains("data-vehicle-history>", editing, StringComparison.Ordinal);
         Assert.Contains("<h3>Vehicle history", editing, StringComparison.Ordinal);
-        // The history check is an Engineer's field: on this Not ready Case the area
-        // still reads inside the session, and its control joins only With Engineer
-        // (EngineeringEditorsShareTheCaseSave… covers the textarea there).
-        Assert.DoesNotContain("id=\"edit-vehicle-history\"", editing, StringComparison.Ordinal);
+        // The Engineer fields on Vehicle join the edit session in Not ready.
+        Assert.Contains("id=\"edit-vehicle-condition\"", editing, StringComparison.Ordinal);
+        Assert.Contains("id=\"edit-vehicle-history\"", editing, StringComparison.Ordinal);
     }
 
     /// <summary>

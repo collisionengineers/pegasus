@@ -242,9 +242,16 @@
                         </select>
                     }
                 </div>
-                <div class="fc ro">
-                    <span class="lbl">@VehicleLabels.OdometerUnit</span>
+                <div class="fc">
+                    @{ Lbl(editFields, "edit-mileage-unit", VehicleLabels.OdometerUnit); }
                     <div class="@ValueClass(unit)">@(unitWord is null ? OperatorLabels.CaseWorkspace.AbsentValue : unitWord == "km" ? VehicleLabels.Kilometres : VehicleLabels.Miles)</div>
+                    @if (editFields)
+                    {
+                        <select id="edit-mileage-unit" class="fi" name="vehicleMileageUnit" form="case-edit-form">
+                            <option value="miles" selected="@(unitWord != "km" ? "selected" : null)">@VehicleLabels.Miles</option>
+                            <option value="kilometres" selected="@(unitWord == "km" ? "selected" : null)">@VehicleLabels.Kilometres</option>
+                        </select>
+                    }
                 </div>
             </div>
         </div>
