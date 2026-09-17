@@ -1305,7 +1305,7 @@ public sealed class QdosAllocationRecoveryTests
     }
 
     [Fact]
-    public async Task MissingTypeDisabledPrincipalAndExhaustedSequenceUseExactTaxonomy()
+    public async Task MissingTypeAndDisabledPrincipalUseExactTaxonomy()
     {
         using var factory = new IntakeWebApplicationFactory();
         var missingType = await AllocationTestData.StoreDefinitiveReceiptAsync(
