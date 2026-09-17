@@ -35,7 +35,8 @@ production smoke passed. The operator-decided intake data wipe followed.
   `UnidentifiedSequences` (1) were unchanged; `ValuationPresets` remained 0/0.
   `authentication-ring`, `box-links`, `pegtrans252ow37gij`, Outlook and Box
   were untouched. Post-run verification reported zero blobs remaining and zero
-  wiped tables holding rows.
+  wiped tables holding rows. Full production smoke passed again at 12:16Z after
+  the first post-wipe inbound poll (`2026-09-17T12:15:03Z`).
 
 ## Release 53 — 15 September 2026 (deployment live)
 
