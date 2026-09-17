@@ -107,7 +107,7 @@ az account show --query '{subscription:id,tenant:tenantId}' --output json
 az webapp show --subscription $subscriptionId `
   --resource-group $resourceGroup --name $webApp `
   --query '{state:state,stack:siteConfig.linuxFxVersion,host:defaultHostName}' --output json
-Invoke-RestMethod -Uri ([uri]::new($webOrigin, 'diagnostics/version')) | ConvertTo-Json
+Invoke-RestMethod -Uri ([uri]::new([uri]$webOrigin, 'diagnostics/version')) | ConvertTo-Json
 az functionapp config appsettings list --subscription $subscriptionId `
   --resource-group $resourceGroup --name $workerApp `
   --query "[?contains(name,'Schedule') || starts_with(name,'AzureWebJobs.')].{name:name,value:value}" --output json
@@ -201,6 +201,7 @@ pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreDeploy `
   -ManifestPath $manifestPath -ManifestSha256 $manifestSha256
 ```
 
+The `[uri]$webOrigin` cast matters: with a string first argument PowerShell 7 binds the obsolete `Uri(string, bool)` overload, drops the relative path and probes `/`, which redirects to sign-in and makes the wait report a healthy site as not ready (Releases 52 and 54).
 The Web App runs from the deployed package and identifies its bytes at
 `/diagnostics/version`. The read-back below requires the site `Running`,
 `/health/ready` answering 200 and the version endpoint reporting the exact
@@ -232,9 +233,9 @@ function Wait-PegasusExpectedWebSite {
         $ready = $null
         $reported = $null
         try {
-          $ready = $client.GetAsync([uri]::new($webOrigin, 'health/ready')).GetAwaiter().GetResult()
+          $ready = $client.GetAsync([uri]::new([uri]$webOrigin, 'health/ready')).GetAwaiter().GetResult()
           if ($ready.IsSuccessStatusCode) {
-            $reported = $client.GetStringAsync([uri]::new($webOrigin, 'diagnostics/version')).GetAwaiter().GetResult() | ConvertFrom-Json
+            $reported = $client.GetStringAsync([uri]::new([uri]$webOrigin, 'diagnostics/version')).GetAwaiter().GetResult() | ConvertFrom-Json
           }
         }
         catch { $reported = $null }
@@ -309,7 +310,7 @@ if ([string]$webSite.state -cne 'Running' -or [string]$webSite.stack -cne 'DOTNE
   throw 'Destructive migration requires the Web App Running on DOTNETCORE|10.0 before containment.'
 }
 if ("https://$($webSite.host)/" -cne $webOrigin) { throw 'Web App hostname differs from the fixed target.' }
-$oldWebVersion = Invoke-RestMethod -Uri ([uri]::new($webOrigin, 'diagnostics/version'))
+$oldWebVersion = Invoke-RestMethod -Uri ([uri]::new([uri]$webOrigin, 'diagnostics/version'))
 $oldWebSourceSha = [string]$oldWebVersion.sourceSha
 if ($oldWebSourceSha -cne $approvedOldWebSourceSha) {
   throw 'The Web App reports a source SHA that differs from the exact approved old SHA.'
@@ -383,7 +384,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Unable to read Web App state.' }
     $serving = $true
     try {
-      $live = $probe.GetAsync([uri]::new($webOrigin, 'health/live')).GetAwaiter().GetResult()
+      $live = $probe.GetAsync([uri]::new([uri]$webOrigin, 'health/live')).GetAwaiter().GetResult()
       $serving = $live.IsSuccessStatusCode
     }
     catch { $serving = $false }
@@ -415,7 +416,7 @@ if ($LASTEXITCODE -ne 0 -or $preSqlWebState -cne 'Stopped') {
 }
 $preSqlServing = $true
 try {
-  $preSqlLive = Invoke-WebRequest -Uri ([uri]::new($webOrigin, 'health/live')) -MaximumRedirection 0 -SkipHttpErrorCheck
+  $preSqlLive = Invoke-WebRequest -Uri ([uri]::new([uri]$webOrigin, 'health/live')) -MaximumRedirection 0 -SkipHttpErrorCheck
   $preSqlServing = [int]$preSqlLive.StatusCode -ge 200 -and [int]$preSqlLive.StatusCode -lt 300
 }
 catch { $preSqlServing = $false }
@@ -651,7 +652,7 @@ $oldOrigin = 'https://pegasus-prod-web-252ow37gij.ashymushroom-676209e5.uksouth.
 az containerapp revision list --subscription $subscriptionId `
   --resource-group $resourceGroup --name $webApp `
   --query "[?properties.active].{name:name,image:properties.template.containers[0].image}" --output json
-Invoke-RestMethod -Uri ([uri]::new($oldOrigin, 'diagnostics/version')) | ConvertTo-Json
+Invoke-RestMethod -Uri ([uri]::new([uri]$oldOrigin, 'diagnostics/version')) | ConvertTo-Json
 ```
 
 The Container App and the Web App share the name `pegasus-prod-web-252ow37gij`
@@ -697,7 +698,7 @@ function Assert-FirstCutoverLegacyInventory {
   if ($LASTEXITCODE -ne 0 -or $newWebApps.Count -ne 0) {
     throw 'First-cutover inventory found an App Service Web App before containment.'
   }
-  $oldContainerVersion = Invoke-RestMethod -Uri ([uri]::new($oldOrigin, 'diagnostics/version'))
+  $oldContainerVersion = Invoke-RestMethod -Uri ([uri]::new([uri]$oldOrigin, 'diagnostics/version'))
   if ([string]$oldContainerVersion.sourceSha -cne $approvedOldContainerAppSourceSha) {
     throw 'The retiring Container App source SHA differs from the approved value.'
   }
