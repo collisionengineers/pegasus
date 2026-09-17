@@ -145,6 +145,13 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
         }
     }
+    # 20260917140000_GrantWorkerCaseAssessmentFields: the Worker's vehicle-lookup
+    # fill reads the confirmed mileage source for report freshness and writes the
+    # derived Vehicle type, so it needs the same read/insert/update rights Web holds;
+    # DELETE stays denied for both roles.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|CaseAssessmentFields")
+    }
     foreach ($table in @('AiWorkRequests', 'SendToAiControl')) {
         foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
             $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
