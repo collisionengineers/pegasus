@@ -1,11 +1,12 @@
 using System.Security.Cryptography;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.Black;
 
 public sealed class BlackInstructionExtractionPolicyTests
 {
-    [BlackReferencePackTheory]
+    [ReferencePackTheory]
     [Trait("Category", "Corpus")]
     [InlineData("82495b41afe2-BLACK_01.pdf.txt", "BLACK 01.pdf", "bf9f91b87f71dec6ecbea3f77d54c0522867c9a446599a1ebf5f03d859fa4385", "261436SA", "2026-05-06", "Mr Abraham Huruy", "2026-04-30", "Flat 1-2, 24 Potter Street, Newport Gwent, NP20 2DB", "07405340061", "Toyota Prius - BF16 FOT", "Toyota Prius", "BF16FOT")]
     [InlineData("558b9c4efaa4-BLACK_02.pdf.txt", "BLACK 02.pdf", "7deb35748a1bff7f8804f312b1cee297c0abfdc4323474ab9e3142cf909fb834", "261435SA", "2026-05-06", "Mr Osman Ifow", "2026-05-03", "Brewery Street, Aston, Birmingham, B6 4JB", "07847577303", "Toyota Prius - BX66 SZV", "Toyota Prius", "BX66SZV")]
@@ -17,7 +18,7 @@ public sealed class BlackInstructionExtractionPolicyTests
         string instructionDate, string claimant, string incidentDate, string address,
         string mobile, string rawVehicle, string vehicle, string registration)
     {
-        var root = ReferencePackRoot();
+        var root = ReferencePack.Root();
         var text = File.ReadAllText(Path.Combine(root, "astra_output", "extractions", "text", extractedFile));
         var original = File.ReadAllBytes(Path.Combine(root, "principal-docs", "original-mapper-instruction-corpus", originalFile));
         Assert.Equal(sha256, Convert.ToHexStringLower(SHA256.HashData(original)));
@@ -62,18 +63,4 @@ public sealed class BlackInstructionExtractionPolicyTests
         Assert.Single(result.Fields, field => field.Name == name);
 
     private static string? Date(DateOnly? value) => value?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-
-    private static string ReferencePackRoot() =>
-        Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT")
-        ?? throw new InvalidOperationException("The reference-pack test should have been skipped.");
-}
-
-internal sealed class BlackReferencePackTheoryAttribute : TheoryAttribute
-{
-    public BlackReferencePackTheoryAttribute()
-    {
-        var root = Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT");
-        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
-            Skip = "PEGASUS_REFERENCE_PACK_ROOT is absent; the immutable reference pack differs per machine.";
-    }
 }
