@@ -1,0 +1,176 @@
+[
+  { "folder": "work-centre", "title": "Work Centre",
+    "source": ["src/Pegasus.Web/Pages/Index.cshtml", "src/Pegasus.Web/Pages/_WorkCentreBody.cshtml", "src/Pegasus.Web/Pages/Shared/_Layout.cshtml", "src/Pegasus.Web/Pages/Shared/_ShellDialogs.cshtml"],
+    "intro": "The shell (rail, utility bar, open-records strip, account and notifications dialogs) is part of every captured page; its own presets are listed here because the Work Centre is where it is first met.",
+    "states": ["work-centre", "work-centre-mine", "work-centre-selected-triage", "work-centre-selected-unidentified", "work-centre-kind-unidentified", "work-centre-kind-review", "work-centre-notifications"],
+    "presets": ["shell-account-dialog", "shell-notifications-dialog", "shell-rail-collapsed"],
+    "notCaptured": [
+      "Partial, Stale and Unavailable freshness. The local fixture cannot force a failed or partial read.",
+      "A selected Case item with the Assign Engineer dialog, a populated AI jobs table and a populated New cases list. The fixture holds one Case, already assigned.",
+      "A populated notifications list. The fixture user has no notifications.",
+      "The command palette. It is opened from the keyboard and lists live search results."
+    ] },
+
+  { "folder": "cases/index", "title": "Cases",
+    "source": ["src/Pegasus.Web/Pages/Cases/Index.cshtml", "src/Pegasus.Web/Pages/Cases/Index.cshtml.cs", "src/Pegasus.Web/wwwroot/js/cases-index.js"],
+    "children": [
+      { "title": "Case record", "link": "../case-record/README.md" }, { "title": "Create Case", "link": "../create-case/README.md" },
+      { "title": "Triage", "link": "../triage/README.md" }, { "title": "Unidentified", "link": "../unidentified/README.md" } ],
+    "states": ["cases-not-ready", "cases-review", "cases-with-engineer", "cases-with-engineer-selected", "cases-complete", "cases-query", "cases-held"],
+    "notCaptured": [
+      "Populated Not ready, Review, Completed, Query and Held queues. The fixture's one Case is With Engineer; the other queues show their real empty state.",
+      "The Principal and Missing filters applied, and a second page of results."
+    ] },
+
+  { "folder": "cases/create-case", "title": "Create Case", "parent": { "title": "Cases", "link": "../index/README.md" },
+    "source": ["src/Pegasus.Web/Pages/Cases/Create.cshtml", "src/Pegasus.Web/Pages/Cases/Create.cshtml.cs", "src/Pegasus.Web/Pages/Shared/_InstructionDraftFields.cshtml"],
+    "states": ["create-case", "create-case-from-receipt"],
+    "notCaptured": [
+      "Validation errors after a refused submit, and the refusal mode (\"This item cannot become a case\").",
+      "The address-resolution choice between a found and an entered inspection address."
+    ] },
+
+  { "folder": "cases/case-record", "title": "Case record", "parent": { "title": "Cases", "link": "../index/README.md" },
+    "source": ["src/Pegasus.Web/Pages/Cases/Details.cshtml", "src/Pegasus.Web/Pages/Cases/Details*.cs", "src/Pegasus.Web/Pages/Cases/Shared/*.cshtml", "src/Pegasus.Web/wwwroot/js/case-workspace.js", "src/Pegasus.Web/wwwroot/css/case-workspace.css"],
+    "children": [
+      { "title": "States", "link": "states/README.md" }, { "title": "Panels (sections)", "link": "panels/README.md" },
+      { "title": "Dialogs", "link": "dialogs/README.md" }, { "title": "EVA handoff", "link": "eva-handoff/README.md" },
+      { "title": "Create audit", "link": "../create-audit/README.md" } ],
+    "intro": "The record is one Case worked through the application's own edit session by `v28-build/enrich.mjs`: overview notes, repairer and storage, vehicle details, tyres and belts, two recorded damage zones, one Glass's guide entered by hand, one hand-entered estimate, a repairable outcome and an Engineer's comment. Sections that load as the reader approaches them live are mounted in the saved page the same way `case-workspace.js` mounts them.",
+    "states": ["case-record", "case-record-editing", "case-record-new-estimate", "case-record-eva-send"],
+    "presets": ["case-record-tabs-layout"],
+    "notCaptured": [
+      "Review, Not ready, Held, Query and closed Cases; the fixture Case is With Engineer.",
+      "A colleague holding the edit session, Take over, and the refused-save panel (\"Your change was not applied\").",
+      "An applied Engineer's Value, a generated report or fee note, prepared delivery, and Case documents. Report generation needs sign-off data the fixture lacks.",
+      "An imported or Glass's-sourced estimate, Send to AI, and estimate comparison.",
+      "The save-before-finishing dialog, which the live script raises only when the form is dirty. Edit a field in the edit-session state and press Cancel to see it."
+    ] },
+
+  { "folder": "cases/case-record/states", "title": "Case record states", "parent": { "title": "Case record", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Cases/Details.cshtml", "src/Pegasus.Web/Pages/Cases/Details.Frame.cs"],
+    "states": ["case-record", "case-record-editing", "case-record-new-estimate"],
+    "presets": ["case-record-tabs-layout"],
+    "notCaptured": ["See the Case record page for the states the fixture cannot reach."] },
+
+  { "folder": "cases/case-record/panels", "title": "Case record sections", "parent": { "title": "Case record", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Cases/Shared/_CaseOverview.cshtml", "_CaseInspectionAddress.cshtml", "_CaseVehicle.cshtml", "_CaseDamage.cshtml", "_CaseValuation.cshtml", "_CaseEstimate.cshtml", "_CaseSettlement.cshtml", "_CaseReport.cshtml", "_CaseFiles.cshtml", "_CaseHistory.cshtml"],
+    "intro": "Read mode and the edit session are different markup for most sections. Both are captured; compare the pairs.",
+    "presets": ["case-record-inspection", "case-record-vehicle", "case-record-damage", "case-record-valuation", "case-record-estimate", "case-record-settlement", "case-record-report", "case-record-files", "case-record-notes",
+      "case-record-editing-vehicle", "case-record-editing-damage", "case-record-editing-valuation", "case-record-editing-estimate", "case-record-editing-settlement", "case-record-editing-report", "case-record-editing-files", "case-record-new-estimate-editor"] },
+
+  { "folder": "cases/case-record/dialogs", "title": "Case record dialogs", "parent": { "title": "Case record", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Cases/Shared/_CaseDialogs.cshtml", "src/Pegasus.Web/Pages/Shared/_ReasonDialog.cshtml", "src/Pegasus.Web/Pages/Shared/_EditFinishConfirm.cshtml"],
+    "intro": "These dialogs exist only inside the edit session, so they are presets over that state. Each is opened by the live page's own opener.",
+    "presets": ["case-record-hold-dialog", "case-record-close-dialog", "case-record-correct-principal-dialog", "case-record-return-review-dialog", "case-record-import-estimate-dialog"],
+    "notCaptured": ["Create audit, Release Hold, reopen and the delete-estimate confirmation. The fixture Case does not offer them in its current state."] },
+
+  { "folder": "cases/case-record/eva-handoff", "title": "EVA handoff", "parent": { "title": "Case record", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml", "src/Pegasus.Web/Pages/Cases/Shared/_EvaHandoff.cshtml"],
+    "states": ["case-record-eva-send"],
+    "notCaptured": ["A Case whose Principal has EVA delivery switched on with a generated report ready to send."] },
+
+  { "folder": "cases/create-audit", "title": "Create audit", "parent": { "title": "Case record", "link": "../case-record/README.md" },
+    "source": ["src/Pegasus.Web/Pages/Cases/Shared/_CaseDialogs.cshtml", "src/Pegasus.Web/Pages/Cases/Details.Frame.cs"],
+    "intro": "Create audit is an Actions-menu item on a Case with a recorded outcome that permits an Audit, not a page of its own.",
+    "notCaptured": ["The Create audit dialog. The fixture Case does not meet `CanCreateAudit`, so the live page does not render it."] },
+
+  { "folder": "cases/triage", "title": "Triage", "parent": { "title": "Cases", "link": "../index/README.md" },
+    "source": ["src/Pegasus.Web/Pages/Triage/Details.cshtml", "src/Pegasus.Web/Pages/Triage/Details.cshtml.cs", "src/Pegasus.Web/Pages/Cases/Index.cshtml", "src/Pegasus.Web/wwwroot/css/triage.css"],
+    "intro": "`/Triage` has no list of its own; it answers with a permanent redirect to `/Cases`, and the list is the Triage tab there.",
+    "states": ["cases-triage", "cases-triage-selected", "triage-record"],
+    "presets": ["triage-assign-dialog", "triage-await-dialog", "triage-cancel-dialog", "triage-link-case-dialog", "triage-principal-dialog"],
+    "notCaptured": [
+      "A Triage with a recorded finding, one awaiting information, one with a linked Case (Unlink case), and the chaser form with attachments.",
+      "The edit session on a Triage, and a colleague holding it."
+    ] },
+
+  { "folder": "cases/unidentified", "title": "Unidentified", "parent": { "title": "Cases", "link": "../index/README.md" },
+    "source": ["src/Pegasus.Web/Pages/Unidentified/Details.cshtml", "src/Pegasus.Web/Pages/Unidentified/Details.cshtml.cs", "src/Pegasus.Web/Pages/Cases/Index.cshtml", "src/Pegasus.Web/wwwroot/css/unidentified.css"],
+    "intro": "`/Unidentified` has no list of its own; it answers with a permanent redirect to `/Cases?tab=unidentified`.",
+    "states": ["cases-unidentified", "cases-unidentified-selected", "cases-unidentified-closed", "unidentified-record", "unidentified-record-upload-group", "unidentified-record-mailbox-group"],
+    "presets": ["unidentified-close-dialog", "unidentified-link-dialog"],
+    "notCaptured": ["A closed item with Reopen, an e-mail-kind item, and the \"Original file unavailable\" state."] },
+
+  { "folder": "image-intake", "title": "Image intake",
+    "source": ["src/Pegasus.Web/Pages/ImageIntake/Details.cshtml", "src/Pegasus.Web/Pages/ImageIntake/Details.cshtml.cs", "src/Pegasus.Web/Pages/Cases/Index.cshtml", "src/Pegasus.Web/Pages/Shared/_ImageGallery.cshtml", "src/Pegasus.Web/Pages/Shared/_EvidenceViewer.cshtml"],
+    "intro": "Images that arrived before their instruction sit in the Awaiting instruction tab of Cases and open at `/VehicleImages/{id}`. `/PreCaseImages` answers 404 to a GET.",
+    "states": ["cases-awaiting", "cases-awaiting-selected", "image-intake-record"],
+    "notCaptured": ["The attach confirmation step (\"Confirm and add to this case\"), the edit session with tag pickers, and the \"Original file unavailable\" state."] },
+
+  { "folder": "inbox", "title": "Inbox",
+    "source": ["src/Pegasus.Web/Pages/Mail/Index.cshtml", "src/Pegasus.Web/Pages/Mail/Message.cshtml", "src/Pegasus.Web/Pages/Mail/Compose.cshtml", "src/Pegasus.Web/Pages/Mail/Shared/_ComposeForm.cshtml", "src/Pegasus.Web/wwwroot/css/inbox.css"],
+    "states": ["inbox", "inbox-selected", "inbox-receiving-work", "inbox-oldest", "mail-message", "mail-compose", "mail-compose-for-case"],
+    "notCaptured": [
+      "A processed message with a classification, a linked Case, attachments with outcomes, a thread, and the move-folder, link and unlink dialogs. The fixture holds one unprocessed message.",
+      "Sent Items, Dismissed and Deleted Items with content, and the Submitted and Unknown send states."
+    ] },
+
+  { "folder": "upload", "title": "Upload",
+    "source": ["src/Pegasus.Web/Pages/Upload.cshtml", "src/Pegasus.Web/Pages/UploadStatus.cshtml", "src/Pegasus.Web/Pages/UploadGroupStatus.cshtml", "src/Pegasus.Web/Pages/Shared/_UploadOutcome.cshtml"],
+    "states": ["upload", "upload-group-status"],
+    "notCaptured": ["Single-file status (`/Upload/Status/{id}`) in its processing, complete and failed outcomes, and upload validation errors. They are responses to a post of real files."] },
+
+  { "folder": "search", "title": "Search",
+    "source": ["src/Pegasus.Web/Pages/Search/Index.cshtml", "src/Pegasus.Web/Pages/Search/_CasePreview.cshtml"],
+    "states": ["search", "search-results", "search-selected", "search-no-match"],
+    "notCaptured": ["More filters applied, a second page, and the invalid-filter validation summary."] },
+
+  { "folder": "operations", "title": "Operations",
+    "source": ["src/Pegasus.Web/Pages/Operations/Index.cshtml", "src/Pegasus.Web/Pages/Operations/Index.cshtml.cs"],
+    "states": ["operations"],
+    "notCaptured": ["AI jobs in Queued, Taken, Draft ready and Failed states with their Complete and Cancel actions. The fixture has no AI work."] },
+
+  { "folder": "administration", "title": "Administration",
+    "source": ["src/Pegasus.Web/Pages/Administration/Index.cshtml", "src/Pegasus.Web/Pages/Administration/Shared/_AdminNav.cshtml", "src/Pegasus.Web/wwwroot/css/admin.css"],
+    "intro": "Captured from `dev` after PR 791 removed the Administration edit leases: every settings form is always editable, with no Edit button and no read-only view.",
+    "states": ["admin-hub"] },
+  { "folder": "administration/accounts", "title": "Staff accounts & roles", "parent": { "title": "Administration", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Administration/Accounts/Index.cshtml", "src/Pegasus.Web/wwwroot/js/accounts.js"],
+    "states": ["admin-accounts", "admin-account-settings"], "presets": ["admin-create-account-dialog"],
+    "notCaptured": ["Delete, Disable, Force logout and Reset password confirmations, which are posts."] },
+  { "folder": "administration/glass", "title": "Glass's login", "parent": { "title": "Staff accounts & roles", "link": "../accounts/README.md" },
+    "source": ["src/Pegasus.Web/Pages/Administration/Glass/Index.cshtml"],
+    "states": ["admin-glass-login"], "notCaptured": ["An account with a configured credential (Clear credential)."] },
+  { "folder": "administration/contacts", "title": "Contacts", "parent": { "title": "Administration", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Administration/Contacts/Index.cshtml", "src/Pegasus.Web/Pages/Administration/Contacts/Edit.cshtml", "src/Pegasus.Web/wwwroot/js/contacts-edit.js"],
+    "states": ["admin-contacts", "admin-contact-edit"], "presets": ["admin-contact-type-dialog"],
+    "notCaptured": ["The \"Check existing contacts\" possible-matches step, and an inactive, replaced Principal."] },
+  { "folder": "administration/configuration", "title": "Workflow configuration", "parent": { "title": "Administration", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Administration/Configuration.cshtml"], "states": ["admin-configuration"],
+    "notCaptured": ["Validation errors and the saved confirmation."] },
+  { "folder": "administration/mailboxes", "title": "Mail settings", "parent": { "title": "Administration", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Administration/Mailboxes.cshtml"], "states": ["admin-mailboxes", "admin-mailbox-selected"] },
+  { "folder": "administration/valuation-presets", "title": "Valuation presets", "parent": { "title": "Administration", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Administration/ValuationPresets/Index.cshtml"], "states": ["admin-valuation-presets"] },
+  { "folder": "administration/health", "title": "Service health", "parent": { "title": "Administration", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Administration/Health.cshtml"], "states": ["admin-health"] },
+  { "folder": "administration/logs", "title": "Logs", "parent": { "title": "Administration", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Administration/Logs.cshtml", "src/Pegasus.Web/wwwroot/css/logs.css"], "states": ["admin-logs", "admin-logs-intake"],
+    "notCaptured": ["The intake-log drawer for one receipt with its retry actions."] },
+  { "folder": "administration/action-logs", "title": "Action logs (legacy route)", "parent": { "title": "Logs", "link": "../logs/README.md" },
+    "source": ["src/Pegasus.Web/Pages/Administration/ActionLogs.cshtml"],
+    "intro": "`/Administration/ActionLogs` answers with a permanent redirect to `/Administration/Logs`; there is nothing of its own to capture.",
+    "states": ["admin-logs"] },
+  { "folder": "administration/reports", "title": "Reports", "parent": { "title": "Administration", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Administration/Reports.cshtml"], "states": ["admin-reports"] },
+  { "folder": "administration/ai-jobs", "title": "AI jobs", "parent": { "title": "Administration", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Administration/AiJobs.cshtml"], "states": ["admin-ai-jobs"] },
+  { "folder": "administration/automation", "title": "Automation & AI", "parent": { "title": "Administration", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Administration/Automation/Index.cshtml"], "states": ["admin-automation"],
+    "notCaptured": ["The composed state with channels listed. The local fixture does not compose automation, so the live page shows its unavailable panel; the hub and the Administration nav omit the item for the same reason."] },
+
+  { "folder": "sign-in", "title": "Sign in and account",
+    "source": ["src/Pegasus.Web/Pages/Account/SignIn.cshtml", "src/Pegasus.Web/Pages/Account/SignOut.cshtml", "src/Pegasus.Web/Pages/Account/PasswordChange.cshtml", "src/Pegasus.Web/Pages/Shared/_LayoutAuth.cshtml"],
+    "intro": "Captured from a second local host that uses real sign-in with one throwaway User-role account, so the shell is also seen without the Manage group.",
+    "children": [{ "title": "Connector consent", "link": "connector-consent/README.md" }],
+    "states": ["sign-in", "sign-in-failed", "work-centre-user-role", "signed-out", "password-change"],
+    "notCaptured": ["The forced password change on first sign-in, lockout, and the rate-limited sign-in."] },
+  { "folder": "sign-in/connector-consent", "title": "Connector consent", "parent": { "title": "Sign in", "link": "../README.md" },
+    "source": ["src/Pegasus.Web/Pages/Connect/Authorize.cshtml"],
+    "notCaptured": ["The consent screen. `/authorize` answers 404 on the local fixture because the connector is not composed there."] },
+  { "folder": "errors", "title": "Error and status-code family",
+    "source": ["src/Pegasus.Web/Pages/Error.cshtml", "src/Pegasus.Web/Pages/StatusCode.cshtml", "src/Pegasus.Web/Pages/Account/AccessDenied.cshtml"],
+    "intro": "Access denied renders inside the ordinary shell, not the navless frame.",
+    "states": ["access-denied", "access-denied-user-role", "error", "status-404", "status-403", "status-429"] }
+]

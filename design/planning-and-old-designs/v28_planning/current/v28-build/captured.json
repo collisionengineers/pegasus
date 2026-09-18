@@ -1,0 +1,442 @@
+[
+ {
+  "id": "work-centre",
+  "family": "work_centre",
+  "label": "Office-wide work",
+  "live": "/"
+ },
+ {
+  "id": "work-centre-mine",
+  "family": "work_centre",
+  "label": "Mine",
+  "live": "/?scope=mine"
+ },
+ {
+  "id": "work-centre-selected-triage",
+  "family": "work_centre",
+  "label": "Triage item selected",
+  "live": "/?scope=office&selected=b1cae944-6c1e-40f3-a0ce-1b2c79d85f1b"
+ },
+ {
+  "id": "work-centre-selected-unidentified",
+  "family": "work_centre",
+  "label": "Unidentified item selected",
+  "live": "/?scope=office&selected=4d9ce89f-df77-44ea-bf2a-26805e6dcd33"
+ },
+ {
+  "id": "work-centre-kind-unidentified",
+  "family": "work_centre",
+  "label": "Filtered to Unidentified",
+  "live": "/?scope=office&kind=unidentified"
+ },
+ {
+  "id": "work-centre-kind-review",
+  "family": "work_centre",
+  "label": "Filtered to Review (nothing)",
+  "live": "/?scope=office&kind=review"
+ },
+ {
+  "id": "work-centre-notifications",
+  "family": "work_centre",
+  "label": "Notifications route (/Notifications redirects here)",
+  "live": "/?notifications=1"
+ },
+ {
+  "id": "cases-not-ready",
+  "family": "cases_index",
+  "label": "Not ready",
+  "live": "/Cases"
+ },
+ {
+  "id": "cases-review",
+  "family": "cases_index",
+  "label": "Review",
+  "live": "/Cases?tab=review"
+ },
+ {
+  "id": "cases-with-engineer",
+  "family": "cases_index",
+  "label": "With Engineer",
+  "live": "/Cases?tab=with_engineer"
+ },
+ {
+  "id": "cases-with-engineer-selected",
+  "family": "cases_index",
+  "label": "With Engineer, row selected",
+  "live": "/Cases?tab=with_engineer&selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f"
+ },
+ {
+  "id": "cases-complete",
+  "family": "cases_index",
+  "label": "Completed",
+  "live": "/Cases?tab=complete"
+ },
+ {
+  "id": "cases-query",
+  "family": "cases_index",
+  "label": "Query",
+  "live": "/Cases?tab=query"
+ },
+ {
+  "id": "cases-held",
+  "family": "cases_index",
+  "label": "Held",
+  "live": "/Cases?tab=held"
+ },
+ {
+  "id": "create-case",
+  "family": "cases_index",
+  "label": "Create case, manual",
+  "live": "/Cases/Create"
+ },
+ {
+  "id": "create-case-from-receipt",
+  "family": "cases_index",
+  "label": "Create case from a received instruction",
+  "live": "/Cases/Create?receiptId=74e58afe-48b3-4fa7-b5c8-b9d9e2b065d1"
+ },
+ {
+  "id": "case-record",
+  "family": "case_record",
+  "label": "Read",
+  "live": "/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f"
+ },
+ {
+  "id": "case-record-editing",
+  "family": "case_record",
+  "label": "Page-wide edit session",
+  "live": "/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f"
+ },
+ {
+  "id": "case-record-new-estimate",
+  "family": "case_record",
+  "label": "Edit session, new estimate being entered",
+  "live": "/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=estimate&estimate=new"
+ },
+ {
+  "id": "case-record-eva-send",
+  "family": "case_record",
+  "label": "EVA send",
+  "live": "/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f/Eva/Send"
+ },
+ {
+  "id": "cases-triage",
+  "family": "triage_unidentified",
+  "label": "Cases, Triage tab",
+  "live": "/Cases?tab=triage"
+ },
+ {
+  "id": "cases-triage-selected",
+  "family": "triage_unidentified",
+  "label": "Cases, Triage tab, row selected",
+  "live": "/Cases?tab=triage&selected=b1cae944-6c1e-40f3-a0ce-1b2c79d85f1b"
+ },
+ {
+  "id": "triage-record",
+  "family": "triage_unidentified",
+  "label": "Triage record",
+  "live": "/Triage/b1cae944-6c1e-40f3-a0ce-1b2c79d85f1b"
+ },
+ {
+  "id": "cases-unidentified",
+  "family": "triage_unidentified",
+  "label": "Cases, Unidentified tab",
+  "live": "/Cases?tab=unidentified"
+ },
+ {
+  "id": "cases-unidentified-selected",
+  "family": "triage_unidentified",
+  "label": "Cases, Unidentified tab, row selected",
+  "live": "/Cases?tab=unidentified&selected=4d9ce89f-df77-44ea-bf2a-26805e6dcd33"
+ },
+ {
+  "id": "cases-unidentified-closed",
+  "family": "triage_unidentified",
+  "label": "Cases, Unidentified tab, showing closed",
+  "live": "/Cases?tab=unidentified&show=closed"
+ },
+ {
+  "id": "unidentified-record",
+  "family": "triage_unidentified",
+  "label": "Unidentified record, document",
+  "live": "/Unidentified/4d9ce89f-df77-44ea-bf2a-26805e6dcd33"
+ },
+ {
+  "id": "unidentified-record-upload-group",
+  "family": "triage_unidentified",
+  "label": "Unidentified record, uploaded image group, Register images",
+  "live": "/Unidentified/f4f71937-f4a7-406b-8abb-4b2dd74c026a?action=register-image"
+ },
+ {
+  "id": "unidentified-record-mailbox-group",
+  "family": "triage_unidentified",
+  "label": "Unidentified record, mailbox image group, Add to an existing case",
+  "live": "/Unidentified/7c8c1a34-0834-4378-a6d5-a34944fcda94?action=add-existing-case"
+ },
+ {
+  "id": "cases-awaiting",
+  "family": "image_intake",
+  "label": "Cases, Awaiting instruction tab",
+  "live": "/Cases?tab=awaiting"
+ },
+ {
+  "id": "cases-awaiting-selected",
+  "family": "image_intake",
+  "label": "Cases, Awaiting instruction tab, row selected",
+  "live": "/Cases?tab=awaiting&selected=fa414157-57f9-4e25-ae40-217b49202981"
+ },
+ {
+  "id": "image-intake-record",
+  "family": "image_intake",
+  "label": "Image intake record",
+  "live": "/VehicleImages/fa414157-57f9-4e25-ae40-217b49202981"
+ },
+ {
+  "id": "inbox",
+  "family": "mail_upload",
+  "label": "Inbox, all incoming",
+  "live": "/Inbox"
+ },
+ {
+  "id": "inbox-selected",
+  "family": "mail_upload",
+  "label": "Inbox, message selected",
+  "live": "/Inbox?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728&selected=5e78329b-3ec5-4d89-9c6a-41c8ef1b2401"
+ },
+ {
+  "id": "inbox-receiving-work",
+  "family": "mail_upload",
+  "label": "Inbox, Receiving work",
+  "live": "/Inbox?queue=receiving-work"
+ },
+ {
+  "id": "inbox-oldest",
+  "family": "mail_upload",
+  "label": "Inbox, oldest first",
+  "live": "/Inbox?sort=oldest"
+ },
+ {
+  "id": "mail-message",
+  "family": "mail_upload",
+  "label": "Message record",
+  "live": "/Inbox/5e78329b-3ec5-4d89-9c6a-41c8ef1b2401?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728"
+ },
+ {
+  "id": "mail-compose",
+  "family": "mail_upload",
+  "label": "Compose",
+  "live": "/Inbox/Compose"
+ },
+ {
+  "id": "mail-compose-for-case",
+  "family": "mail_upload",
+  "label": "Compose for a Case",
+  "live": "/Inbox/Compose?caseReference=QDOS31001"
+ },
+ {
+  "id": "upload",
+  "family": "mail_upload",
+  "label": "Upload",
+  "live": "/Upload"
+ },
+ {
+  "id": "upload-group-status",
+  "family": "mail_upload",
+  "label": "Upload group status, images awaiting a decision",
+  "live": "/Upload/Group/43a50498-9c87-4302-99ab-6f7316023587"
+ },
+ {
+  "id": "search",
+  "family": "search_operations",
+  "label": "Search, no filters",
+  "live": "/Search?selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f"
+ },
+ {
+  "id": "search-results",
+  "family": "search_operations",
+  "label": "Search by registration",
+  "live": "/Search?Registration=AB12CDE&selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f"
+ },
+ {
+  "id": "search-selected",
+  "family": "search_operations",
+  "label": "Search, Case selected",
+  "live": "/Search?page=1&selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f"
+ },
+ {
+  "id": "search-no-match",
+  "family": "search_operations",
+  "label": "Search, nothing matches",
+  "live": "/Search?Registration=ZZ99ZZZ"
+ },
+ {
+  "id": "operations",
+  "family": "search_operations",
+  "label": "Operations",
+  "live": "/Operations"
+ },
+ {
+  "id": "admin-hub",
+  "family": "administration",
+  "label": "Administration",
+  "live": "/Administration"
+ },
+ {
+  "id": "admin-accounts",
+  "family": "administration",
+  "label": "Staff accounts and roles",
+  "live": "/Administration/Accounts"
+ },
+ {
+  "id": "admin-account-settings",
+  "family": "administration",
+  "label": "Staff accounts, one account's settings opened",
+  "live": "/Administration/Accounts?editStaffId=283aec53-e6dc-44b4-b5c7-5cc0bae9bec9&expectedVersion=0"
+ },
+ {
+  "id": "admin-glass-login",
+  "family": "administration",
+  "label": "Glass's login for one account",
+  "live": "/Administration/Glass/d47fbbae-ea22-4ca6-b983-01e2ed1fbd13"
+ },
+ {
+  "id": "admin-contacts",
+  "family": "administration",
+  "label": "Contacts",
+  "live": "/Administration/Contacts"
+ },
+ {
+  "id": "admin-contact-edit",
+  "family": "administration",
+  "label": "Contact, a Principal",
+  "live": "/Administration/Contacts/Edit/00000000-0000-4000-8000-00000000d003"
+ },
+ {
+  "id": "admin-configuration",
+  "family": "administration",
+  "label": "Workflow configuration",
+  "live": "/Administration/Configuration"
+ },
+ {
+  "id": "admin-mailboxes",
+  "family": "administration",
+  "label": "Mail settings",
+  "live": "/Administration/Mailboxes"
+ },
+ {
+  "id": "admin-mailbox-selected",
+  "family": "administration",
+  "label": "Mail settings, mailbox opened",
+  "live": "/Administration/Mailboxes?mailboxId=49f47eb9-c5b0-464f-b8f0-8c90ba061728&expectedVersion=2"
+ },
+ {
+  "id": "admin-valuation-presets",
+  "family": "administration",
+  "label": "Valuation presets",
+  "live": "/Administration/ValuationPresets"
+ },
+ {
+  "id": "admin-health",
+  "family": "administration",
+  "label": "Service health",
+  "live": "/Administration/Health"
+ },
+ {
+  "id": "admin-logs",
+  "family": "administration",
+  "label": "Logs, action log",
+  "live": "/Administration/Logs"
+ },
+ {
+  "id": "admin-logs-intake",
+  "family": "administration",
+  "label": "Logs, intake log",
+  "live": "/Administration/Logs?tab=intake"
+ },
+ {
+  "id": "admin-reports",
+  "family": "administration",
+  "label": "Reports",
+  "live": "/Administration/Reports"
+ },
+ {
+  "id": "admin-ai-jobs",
+  "family": "administration",
+  "label": "AI jobs",
+  "live": "/Administration/AiJobs"
+ },
+ {
+  "id": "admin-automation",
+  "family": "administration",
+  "label": "Automation and AI",
+  "live": "/Administration/Automation"
+ },
+ {
+  "id": "sign-in",
+  "family": "account_shell",
+  "label": "Sign in",
+  "live": "/Account/SignIn"
+ },
+ {
+  "id": "sign-in-failed",
+  "family": "account_shell",
+  "label": "Sign in, wrong password",
+  "live": "/Account/SignIn",
+  "note": "Saved from the rendered page because it is the response to a post."
+ },
+ {
+  "id": "work-centre-user-role",
+  "family": "account_shell",
+  "label": "Shell for the User role (no Manage group)",
+  "live": "/"
+ },
+ {
+  "id": "access-denied-user-role",
+  "family": "account_shell",
+  "label": "Access denied, User role opening Administration",
+  "live": "/Account/AccessDenied?ReturnUrl=%2FAdministration"
+ },
+ {
+  "id": "signed-out",
+  "family": "account_shell",
+  "label": "Signed out",
+  "live": "/Account/SignIn?signedOut=True",
+  "note": "Saved from the rendered page because it is the response to a post."
+ },
+ {
+  "id": "password-change",
+  "family": "account_shell",
+  "label": "Change password, voluntary",
+  "live": "/Account/PasswordChange"
+ },
+ {
+  "id": "access-denied",
+  "family": "account_shell",
+  "label": "Access denied",
+  "live": "/Account/AccessDenied"
+ },
+ {
+  "id": "error",
+  "family": "account_shell",
+  "label": "Error",
+  "live": "/Error"
+ },
+ {
+  "id": "status-404",
+  "family": "account_shell",
+  "label": "Status 404",
+  "live": "/status/404"
+ },
+ {
+  "id": "status-403",
+  "family": "account_shell",
+  "label": "Status 403",
+  "live": "/status/403"
+ },
+ {
+  "id": "status-429",
+  "family": "account_shell",
+  "label": "Status 429",
+  "live": "/status/429"
+ }
+]

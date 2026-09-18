@@ -7,18 +7,22 @@ by operator instruction in the final Stage 2 PR, if a Stage 2 round is ever
 run from this capture.
 
 **Purpose: as-is capture only.** Unlike v24-v27, this round proposes nothing.
-It is a faithful static baseline of the whole application shell as it is
-live on `origin/dev` (commit `6c02a8608`) on 18 September 2026: every routed
-page, its live labels (via `OperatorLabels`), states and mechanics —
-including the awkward or inconsistent ones, captured as they are rather than
-smoothed over. See [`current/v28-notes.md`](current/v28-notes.md) for the
-sign-off list, which is expected to hold only genuine capture ambiguities
-(never design decisions) for this round.
+It is a baseline of the whole application shell as it runs on `origin/dev`
+(commit `904903fd1`) on 18 September 2026.
 
-- [`current/`](current/README.md) — the v28 baseline mockup files, one per
-  page family, their self-check, screenshots and notes.
-- [`pages/`](pages/README.md) — one folder per page, each with
-  `how-it-works.md` read from the live source on 18 September 2026.
+**Rebuilt on 18 September 2026.** The first build of this round was
+transcribed by hand from the Razor source and was rejected on review: it
+invented vocabulary, showed edit-only controls in read mode, dropped page
+wrappers and was stale against Administration. The rebuild transcribes
+nothing. Every state is the running application's own server-rendered HTML,
+saved with the live CSS and JS, and checked element for element against the
+running application. See [`current/v28-notes.md`](current/v28-notes.md).
+
+- [`current/`](current/README.md): the nine family files, the captured state
+  pages, their assets, the self-check, screenshots and notes.
+- [`pages/`](pages/README.md): one folder per page, each listing its captured
+  states and what could not be captured, with `how-it-works.md` read from the
+  live source.
 
 The previous round is [`../v27_planning/`](../v27_planning/README.md), a
 proposal round for the Case record scoped narrower than this one.

@@ -1,47 +1,23 @@
 # Inbox
 
-- **Mockup route:** `pegasus_mail_upload_v28.html` (`mu-area=mail`) in [`../../current/`](../../current/README.md)
-- **Live source:** `src/Pegasus.Web/Pages/Mail/Index.cshtml`, `Message.cshtml`, `Compose.cshtml`, `Shared/_ComposeForm.cshtml`
-
+- **Live source:** `src/Pegasus.Web/Pages/Mail/Index.cshtml`, `src/Pegasus.Web/Pages/Mail/Message.cshtml`, `src/Pegasus.Web/Pages/Mail/Compose.cshtml`, `src/Pegasus.Web/Pages/Mail/Shared/_ComposeForm.cshtml`, `src/Pegasus.Web/wwwroot/css/inbox.css`
 - [**How it works**](how-it-works.md)
 
-## Screenshots
+## Captured states
 
-- [s31-mail-inbox-1580.png](../../current/v28-shots/s31-mail-inbox-1580.png) · [1440](../../current/v28-shots/s31-mail-inbox-1440.png) · [760](../../current/v28-shots/s31-mail-inbox-760.png)
-- [s32-mail-message-1580.png](../../current/v28-shots/s32-mail-message-1580.png) · [1440](../../current/v28-shots/s32-mail-message-1440.png) · [760](../../current/v28-shots/s32-mail-message-760.png)
-- [s33-mail-compose-1580.png](../../current/v28-shots/s33-mail-compose-1580.png) · [1440](../../current/v28-shots/s33-mail-compose-1440.png) · [760](../../current/v28-shots/s33-mail-compose-760.png)
+Each state is the running application's own HTML for the route shown, saved with the live CSS and JS. Nothing in it is transcribed.
 
-## Notes
+| State | Live route | Open | Screenshots |
+| --- | --- | --- | --- |
+| Inbox, all incoming | `/Inbox` | [frame](../../current/pegasus_mail_upload_v28.html#inbox) · [page](../../current/states/inbox.html) | [1580](../../current/v28-shots/s33-inbox-1580.png) · [1440](../../current/v28-shots/s33-inbox-1440.png) · [760](../../current/v28-shots/s33-inbox-760.png) |
+| Inbox, message selected | `/Inbox?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728&selected=5e78329b-3ec5-4d89-9c6a-41c8ef1b2401` | [frame](../../current/pegasus_mail_upload_v28.html#inbox-selected) · [page](../../current/states/inbox-selected.html) | [1580](../../current/v28-shots/s34-inbox-selected-1580.png) · [1440](../../current/v28-shots/s34-inbox-selected-1440.png) · [760](../../current/v28-shots/s34-inbox-selected-760.png) |
+| Inbox, Receiving work | `/Inbox?queue=receiving-work` | [frame](../../current/pegasus_mail_upload_v28.html#inbox-receiving-work) · [page](../../current/states/inbox-receiving-work.html) | [1580](../../current/v28-shots/s35-inbox-receiving-work-1580.png) · [1440](../../current/v28-shots/s35-inbox-receiving-work-1440.png) · [760](../../current/v28-shots/s35-inbox-receiving-work-760.png) |
+| Inbox, oldest first | `/Inbox?sort=oldest` | [frame](../../current/pegasus_mail_upload_v28.html#inbox-oldest) · [page](../../current/states/inbox-oldest.html) | [1580](../../current/v28-shots/s36-inbox-oldest-1580.png) · [1440](../../current/v28-shots/s36-inbox-oldest-1440.png) · [760](../../current/v28-shots/s36-inbox-oldest-760.png) |
+| Message record | `/Inbox/5e78329b-3ec5-4d89-9c6a-41c8ef1b2401?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728` | [frame](../../current/pegasus_mail_upload_v28.html#mail-message) · [page](../../current/states/mail-message.html) | [1580](../../current/v28-shots/s37-mail-message-1580.png) · [1440](../../current/v28-shots/s37-mail-message-1440.png) · [760](../../current/v28-shots/s37-mail-message-760.png) |
+| Compose | `/Inbox/Compose` | [frame](../../current/pegasus_mail_upload_v28.html#mail-compose) · [page](../../current/states/mail-compose.html) | [1580](../../current/v28-shots/s38-mail-compose-1580.png) · [1440](../../current/v28-shots/s38-mail-compose-1440.png) · [760](../../current/v28-shots/s38-mail-compose-760.png) |
+| Compose for a Case | `/Inbox/Compose?caseReference=QDOS31001` | [frame](../../current/pegasus_mail_upload_v28.html#mail-compose-for-case) · [page](../../current/states/mail-compose-for-case.html) | [1580](../../current/v28-shots/s39-mail-compose-for-case-1580.png) · [1440](../../current/v28-shots/s39-mail-compose-for-case-1440.png) · [760](../../current/v28-shots/s39-mail-compose-for-case-760.png) |
 
-- The scope rail (`All incoming`, `Receiving work`, `Case updates`,
-  `Pre-instructions`, `Unidentified`, `Sent Items`, `Dismissed`) is
-  transcribed once with `All incoming` pressed. The live rail's
-  `aria-pressed` state tracks the actual Folder/Category/Dismissed
-  combination in the URL; reproducing every scope's pressed state would mean
-  duplicating the rail seven times for no additional content, so this capture
-  shows only the default and documents the mechanism in prose instead.
-- Deleted Items is reached live only through the Folder filter, and its
-  three notice states (unavailable, truncated-at-100, no match) only ever
-  render once a search term has been submitted — the folder has no
-  un-searched "browse" state. The mockup's `mu-list-scope=deleted` branch
-  always shows the already-searched state for this reason.
-- The mail Category filter's "Categories" optgroup enumerates
-  `MailClassificationSelection`'s confirmed subtypes live, filtered to the
-  ones whose destination is `DetailedClassification`; that destination
-  partition was not independently re-derived from
-  `MailOperationalDestinationPolicy` for this capture, so the mockup shows a
-  representative subset (General, Billing, Not client related, Internal CC)
-  rather than the exact policy-filtered list.
-- The attachments-tab table shows two representative outcome rows (`Case
-  created`, `Could not be read`) rather than all five outcome words the
-  source comment names (`Case created`, `Unidentified`, `Vehicle images`,
-  `Could not be read`, `Processing failed`) — the row shape is identical for
-  each, so the other three are text-only variants, not additional markup.
-- `Reply`/`Reply all`/`Forward` open an inline panel on the Message record
-  itself (`Message.cshtml`'s own `Reply`/`ReplyAll`/`Forward` handlers) — a
-  distinct mechanism from the separate `/Mail/Compose` dialog reached from
-  the Inbox list's Compose button. Both are captured, as two different
-  `mu-*` states, because they are two different live forms.
-- No public/external upload link exists on any of these three pages, live —
-  see [`../upload/how-it-works.md`](../upload/how-it-works.md) for the
-  PR #789 removal this confirms.
+## Not captured
+
+- A processed message with a classification, a linked Case, attachments with outcomes, a thread, and the move-folder, link and unlink dialogs. The fixture holds one unprocessed message.
+- Sent Items, Dismissed and Deleted Items with content, and the Submitted and Unknown send states.

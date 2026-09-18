@@ -3,61 +3,78 @@
 A temporary design review artifact created at operator request on
 18 September 2026, under the [documentation index](../../../../docs/index.md)
 carve-out. Not application code, not design authority, and not implementation
-evidence — a screenshot or a rendered mockup state proves only that this
-static file renders as shown, not that any behaviour is deployed or accepted.
+evidence. A captured page proves what the application rendered for synthetic
+fixture data on a local host, not that any behaviour is deployed or accepted.
 
-**This round proposes nothing.** Every file below is a faithful, as-is
-capture of the live application on `origin/dev` (`6c02a8608`, 18 September
-2026): real labels (via `OperatorLabels`), real CSS (`site.css` plus each
-page's own live stylesheet), real Lucide glyphs, synthetic fixture data.
-Where the live UX itself is awkward or internally inconsistent, that is
-captured as found — see `v28-notes.md` §6 (deliberate departures) and §7
-(the sign-off list, which is expected to hold only genuine *capture*
-ambiguities, never design opinions, for this round).
+**This round proposes nothing.** It is an as-is capture of `origin/dev`
+(`904903fd1`, 18 September 2026).
+
+## How it is made
+
+Nothing here is transcribed. `v28-build/capture.mjs` drives a locally running
+Pegasus.Web, seeded with synthetic data, and saves the server's own HTML for
+each state into `states/`. The live stylesheets, scripts, fonts and images are
+copied into `assets/` and referenced relatively, so everything works offline
+from the file system. The application's own JavaScript runs in every page:
+dialogs, menus, the rail, the open-records strip, section navigation, the
+Tabs layout and the damage plan behave as they do live.
+
+The one addition to each page is `assets/mock/shim.js`. There is no server
+behind the files, so the shim turns navigation to a live route into
+navigation to the captured state for that route, and says so plainly when a
+route or a post was not captured. It changes nothing on the page.
 
 ## How to open
 
-Open any `pegasus_*_v28.html` file directly in a browser — no server, build
-step or network access required. The "Mockup controls" strip at the bottom
-left is demo control, not product UI: it drives every state via
-`<select>`/checkbox controls, each mirrored as a query-string preset (see
-`v28-notes.md` §4 for the frame numbers and `v28-build/pages/*.strip.html`
-for the exact per-page keys).
+Open any `pegasus_*_v28.html` file directly in a browser. Each is a frame:
+the bar at the top is demo control, not product UI. It picks the area, the
+state and a width (Fit, 1580, 1440, 760), shows the live route the state came
+from, and can open the state page on its own. Indented entries under a state
+are presets, such as a dialog opened or a section brought into view.
+
+Links and GET forms inside a state move between captured states. A control
+that posts to the server shows a short note naming the route instead.
 
 ## Files
 
-| File | Live pages captured |
-| --- | --- |
-| `pegasus_work_centre_v28.html` | `Pages/Index.cshtml` (Work Centre) |
-| `pegasus_cases_index_v28.html` | `Pages/Cases/Index.cshtml`, `Cases/Create.cshtml` |
-| `pegasus_case_record_v28.html` | `Pages/Cases/Details.cshtml` + every `Shared/_Case*.cshtml` partial, `Cases/Eva/Send.cshtml`, and the `Cases/Vehicle.cshtml`/`Workflow.cshtml`/`Tasks.cshtml`/`Closure.cshtml`/`Custody.cshtml`/`Assessment/*` family |
-| `pegasus_triage_unidentified_v28.html` | `Pages/Triage/Index.cshtml`, `Triage/Details.cshtml`, `Unidentified/Index.cshtml`, `Unidentified/Details.cshtml` |
-| `pegasus_image_intake_v28.html` | `Pages/ImageIntake/Details.cshtml`, `PreCaseImages/Index.cshtml`, `Intake/Source.cshtml`, `Intake/Asset.cshtml`, `Intake/Image.cshtml` |
-| `pegasus_mail_upload_v28.html` | `Pages/Mail/Index.cshtml`, `Mail/Message.cshtml`, `Mail/Compose.cshtml`, `Upload.cshtml`, `UploadStatus.cshtml`, `UploadGroupStatus.cshtml` |
-| `pegasus_search_operations_v28.html` | `Pages/Search/Index.cshtml`, `Operations/Index.cshtml` |
-| `pegasus_administration_v28.html` | `Pages/Administration/**` (13 sub-areas) |
-| `pegasus_account_shell_v28.html` | `Pages/Account/*`, `Connect/Authorize.cshtml`, `Error.cshtml`, `StatusCode.cshtml` — the navless `_LayoutAuth` family |
+| File | Area | States |
+| --- | --- | --- |
+| `pegasus_work_centre_v28.html` | Work Centre and the shell | 7 |
+| `pegasus_cases_index_v28.html` | Cases and Create Case | 9 |
+| `pegasus_case_record_v28.html` | Case record, edit session, new estimate, EVA send | 4, with 23 presets |
+| `pegasus_triage_unidentified_v28.html` | Triage and Unidentified | 9 |
+| `pegasus_image_intake_v28.html` | Image intake | 3 |
+| `pegasus_mail_upload_v28.html` | Inbox, Message, Compose, Upload | 9 |
+| `pegasus_search_operations_v28.html` | Search and Operations | 5 |
+| `pegasus_administration_v28.html` | Administration | 16 |
+| `pegasus_account_shell_v28.html` | Sign in, account, errors | 11 |
 
-`v28-build/` holds the source this round is built from (`build.py`,
-`shell-chrome.html`, `navless-chrome.html`, `mock-engine.js`,
-`pages/*.body.html` / `*.js` / `*.strip.html`, `smoke.mjs`, `shoot.mjs`,
-`selfcheck-runner.mjs`) — not itself part of the mockup, kept so the round is
-reproducible and reviewable.
+- `states/`: one offline page per captured state (73).
+- `assets/`: the live CSS, JS, fonts and images as served, plus `mock/shim.js`
+  and the generated `mock/routes.js`.
+- `v28-build/`: the tooling, kept so the round is reproducible. `manifest.json`
+  lists the states, `enrich.mjs` works the seeded Case through the live edit
+  session, `capture.mjs` saves the pages, `frames.mjs` writes the family files,
+  `shoot.mjs` takes the screenshots, `pagedocs.mjs` writes the page READMEs and
+  `selfcheck.mjs` checks the result. `v28-notes.md` section 8 gives the
+  commands.
+- `v28-shots/`: every state and preset at 1580x1000, 1440x900 and 760x1000.
 
 ## Evidence
 
-- `v28-selfcheck.html`, driven by `v28-build/selfcheck-runner.mjs`, loads
-  every file above through its query-string presets and asserts each loads,
-  exposes `window.MOCK`, opens its shell dialogs, and raises zero console
-  errors. Result recorded in `v28-notes.md` §7.
-- `v28-shots/` holds the 1580×1000 / 1440×900 / 760×1000 screenshots cited
-  in each page's README and in `v28-notes.md` §2's file table.
-- Neither is application evidence — see the evidence-discipline paragraph
-  above.
+`v28-build/selfcheck.mjs` has two parts. Offline, every state page must load
+with no console error, carry the banner and the shim, reference no
+server-absolute asset and hold no fixture credential; every preset must find
+its target; every family file must name only captured states. With the local
+host running, every state that is addressable by URL alone is compared with
+the running application: each element's tag and classes with its two
+ancestors, and every heading, label, column header, term, option and button
+text, must be equal in both directions. The result is in `v28-notes.md`
+section 7.
+
+Neither part is application evidence.
 
 ## Status
 
-240/240 self-check assertions pass; 144 screenshots taken clean. See
-`v28-notes.md` §7 for the full sign-off list (A-K, eleven genuine capture
-ambiguities, zero design decisions) and its current state — nothing is
-approved yet; this Stage 1 round awaits operator review.
+Stage 1 complete and awaiting operator review. The sign-off list is in
+`v28-notes.md` section 6.

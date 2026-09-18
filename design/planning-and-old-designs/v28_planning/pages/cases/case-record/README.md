@@ -1,68 +1,32 @@
 # Case record
 
-- **Mockup route:** `pegasus_case_record_v28.html` in [`../../../current/`](../../../current/README.md)
-- **Live source:** `src/Pegasus.Web/Pages/Cases/Details.cshtml` and `Shared/_Case*.cshtml`
-
-- **Dialogs:** [`dialogs/`](dialogs/README.md) · **States:** [`states/`](states/README.md) · **Panels:** [`panels/`](panels/README.md)
+- **Parent:** [Cases](../index/README.md)
+- **Live source:** `src/Pegasus.Web/Pages/Cases/Details.cshtml`, `src/Pegasus.Web/Pages/Cases/Details*.cs`, `src/Pegasus.Web/Pages/Cases/Shared/*.cshtml`, `src/Pegasus.Web/wwwroot/js/case-workspace.js`, `src/Pegasus.Web/wwwroot/css/case-workspace.css`
 - [**How it works**](how-it-works.md)
-- Child: [**Create audit**](../create-audit/README.md) · [**EVA handoff**](eva-handoff/README.md)
+- [States](states/README.md)
+- [Panels (sections)](panels/README.md)
+- [Dialogs](dialogs/README.md)
+- [EVA handoff](eva-handoff/README.md)
+- [Create audit](../create-audit/README.md)
 
-## Screenshots
+The record is one Case worked through the application's own edit session by `v28-build/enrich.mjs`: overview notes, repairer and storage, vehicle details, tyres and belts, two recorded damage zones, one Glass's guide entered by hand, one hand-entered estimate, a repairable outcome and an Engineer's comment. Sections that load as the reader approaches them live are mounted in the saved page the same way `case-workspace.js` mounts them.
 
-- [s19-case-record-review-1580.png](../../../current/v28-shots/s19-case-record-review-1580.png) · [1440](../../../current/v28-shots/s19-case-record-review-1440.png) · [760](../../../current/v28-shots/s19-case-record-review-760.png)
-- [s20-case-record-edit-1580.png](../../../current/v28-shots/s20-case-record-edit-1580.png) · [1440](../../../current/v28-shots/s20-case-record-edit-1440.png) · [760](../../../current/v28-shots/s20-case-record-edit-760.png)
-- [s21-case-record-held-1580.png](../../../current/v28-shots/s21-case-record-held-1580.png) · [1440](../../../current/v28-shots/s21-case-record-held-1440.png) · [760](../../../current/v28-shots/s21-case-record-held-760.png)
-- [s23-case-record-audit-1580.png](../../../current/v28-shots/s23-case-record-audit-1580.png) · [1440](../../../current/v28-shots/s23-case-record-audit-1440.png) · [760](../../../current/v28-shots/s23-case-record-audit-760.png)
-- [s24-case-record-tabs-1580.png](../../../current/v28-shots/s24-case-record-tabs-1580.png) · [1440](../../../current/v28-shots/s24-case-record-tabs-1440.png) · [760](../../../current/v28-shots/s24-case-record-tabs-760.png)
-- EVA handoff: [s22-case-record-evasend-1580.png](../../../current/v28-shots/s22-case-record-evasend-1580.png) · [1440](../../../current/v28-shots/s22-case-record-evasend-1440.png) · [760](../../../current/v28-shots/s22-case-record-evasend-760.png)
+## Captured states
 
-## Notes
+Each state is the running application's own HTML for the route shown, saved with the live CSS and JS. Nothing in it is transcribed.
 
-- This is the largest lane of the baseline capture: one page models all ten
-  sections, the aside, the full-screen viewer, every frame- and
-  section-owned dialog, and the standalone EVA handoff fallback page, driven
-  by thirteen `cr*`-prefixed mockup-strip controls (see `states/README.md`).
-- **Damage Plan clicker geometry.** The live diagram is drawn from
-  `DamagePlanGeometry`'s own body/glass/zone SVG paths (a stylised outline
-  with ~19 named panels plus 4 wheels). This capture approximates the same
-  top-down silhouette and interaction (click a zone, cycle through Light →
-  Light to moderate → Moderate → Moderate to heavy → Heavy → none; a
-  numbered recorded-zones list; the same severity legend and colour ramp
-  via the live `.is-damaged[data-sev="…"]` CSS) with a simplified rectangle
-  grid rather than reproducing that exact path geometry. The severity codes,
-  labels and colour mechanism are the real ones
-  (`AssessmentVocabulary.DamageSeverities`, `case-workspace.css`).
-- **AssessmentCanOpen / AssessmentIsReadOnly are not modelled fact-for-fact.**
-  These two flags gate whether the Engineer sections (Damage, Valuation,
-  Estimate, Settlement, Report) are assessable at all; the source they are
-  read from (`assessmentAccess`) is outside `Details.cshtml.cs` and was not
-  traced further. This capture treats the Engineer sections as assessable
-  once the Case has reached Review or a later/closed state, and never
-  assessable in Not ready or Held — a reasonable, clearly-labelled
-  simplification, not a traced fact. See `states/README.md`.
-- **Closure outcomes are not individually re-derived.** `AvailableClosureOutcomes`
-  puts every `CaseClosureOutcome` through `CaseLifecycleRules.ValidateClose` /
-  `RequireClosureIsAllowed`, which live in Core and were not opened. The
-  capture offers "Close case" (with all four named adverse outcomes in its
-  chooser) whenever the page-wide edit session is open and the Case is not
-  already in one of the four closed states — not a traced per-outcome gate.
-- **Create audit's full precondition set is simplified to one strip toggle**
-  (`crhasreport`): the live gate also requires no existing Audit Case and no
-  existing Original Case link (`CanCreateAudit`), which this single-fixture
-  capture does not model since it never shows a second, already-linked Case.
-- The ribbon identity (Case/PO, registration) switches between the fixture
-  sheet's two named Cases when the strip's Case type is set to Audit
-  (`a.QDOS26150` / `BN65 UUY`) versus Inspection or Inspection + Audit
-  (`QDOS26214` / `MA59 BDY`) — a deliberate two-fixture convenience, not a
-  literal re-identification the live page performs (a real Case's identity
-  never changes under an operator's feet).
-- The full-screen viewer's crop tool is captured as the tool-switch state
-  (view tools hide, crop tools with Aspect/Rotate/Full frame/Reset/Save/Cancel
-  show) per the skill's stub rule, not the drag-and-resize geometry itself;
-  Save crop and the per-image Rotate/Reset controls route to a toast rather
-  than silently mutating a stored rectangle.
-- Estimate, Valuation and Settlement show one representative fixture
-  (one current estimate, one recorded Glass's card, one AI-proposal set)
-  rather than re-deriving totals live from edited inputs; the printed
-  rollup, VAT bar and worklists are a fixed fixture snapshot, consistent
-  with every other v28 lane's stated scope.
+| State | Live route | Open | Screenshots |
+| --- | --- | --- | --- |
+| Read | `/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f` | [frame](../../../current/pegasus_case_record_v28.html#case-record) · [page](../../../current/states/case-record.html) | [1580](../../../current/v28-shots/s17-case-record-1580.png) · [1440](../../../current/v28-shots/s17-case-record-1440.png) · [760](../../../current/v28-shots/s17-case-record-760.png) |
+| Page-wide edit session | `/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f` | [frame](../../../current/pegasus_case_record_v28.html#case-record-editing) · [page](../../../current/states/case-record-editing.html) | [1580](../../../current/v28-shots/s18-case-record-editing-1580.png) · [1440](../../../current/v28-shots/s18-case-record-editing-1440.png) · [760](../../../current/v28-shots/s18-case-record-editing-760.png) |
+| Edit session, new estimate being entered | `/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=estimate&estimate=new` | [frame](../../../current/pegasus_case_record_v28.html#case-record-new-estimate) · [page](../../../current/states/case-record-new-estimate.html) | [1580](../../../current/v28-shots/s19-case-record-new-estimate-1580.png) · [1440](../../../current/v28-shots/s19-case-record-new-estimate-1440.png) · [760](../../../current/v28-shots/s19-case-record-new-estimate-760.png) |
+| EVA send | `/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f/Eva/Send` | [frame](../../../current/pegasus_case_record_v28.html#case-record-eva-send) · [page](../../../current/states/case-record-eva-send.html) | [1580](../../../current/v28-shots/s20-case-record-eva-send-1580.png) · [1440](../../../current/v28-shots/s20-case-record-eva-send-1440.png) · [760](../../../current/v28-shots/s20-case-record-eva-send-760.png) |
+| Tabs layout (on "Read") | `/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f` | [frame](../../../current/pegasus_case_record_v28.html#case-record?click=%5Bdata-case-layout%3D%22tabs%22%5D) | [1580](../../../current/v28-shots/s77-case-record-tabs-layout-1580.png) · [1440](../../../current/v28-shots/s77-case-record-tabs-layout-1440.png) · [760](../../../current/v28-shots/s77-case-record-tabs-layout-760.png) |
+
+## Not captured
+
+- Review, Not ready, Held, Query and closed Cases; the fixture Case is With Engineer.
+- A colleague holding the edit session, Take over, and the refused-save panel ("Your change was not applied").
+- An applied Engineer's Value, a generated report or fee note, prepared delivery, and Case documents. Report generation needs sign-off data the fixture lacks.
+- An imported or Glass's-sourced estimate, Send to AI, and estimate comparison.
+- The save-before-finishing dialog, which the live script raises only when the form is dirty. Edit a field in the edit-session state and press Cancel to see it.

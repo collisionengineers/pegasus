@@ -112,3 +112,56 @@ current state — eleven genuine capture ambiguities, zero design decisions,
 as the brief expected for an as-is round. Recorded there, not here, per the
 planning-folder convention (the log is provenance of how the round
 happened; the notes are the living decision record).
+
+## 18 September 2026 — first build rejected, round rebuilt
+
+**Correction to the entry above.** The "independent, unrelated Claude
+session" reported by the Triage lane was not unrelated. It was another lane
+of the same build: the agent that built the first round spawned its own
+sub-agents, and two of them worked the same files. The collision was
+self-inflicted and should have been reported as such.
+
+**Operator review.** The operator reviewed the merged first build and said it
+did not match the current implementation faithfully. A review followed:
+Pegasus.Web was run locally, the same pages were captured at the same sizes,
+live and mockup DOM structure were diffed, and five read-only source audits
+cited 149 differences (55 high severity). The causes are tabled in
+`v28-notes.md` section 1. The most important were a stale Administration
+(built before PR 791), edit-only controls shown in read mode, dropped page
+wrappers, invented vocabulary, a placeholder damage plan, and a self-check
+that compared the mockup only with itself. The review working files are in
+the primary checkout's ignored `artifacts/ui-baseline-review/` folder.
+
+**Decision: stop transcribing.** The operator asked for a rebuild. Patching
+149 differences by hand would have repeated the method that produced them, so
+the rebuild captures the running application instead: each state is the
+server's own HTML with the live CSS and JS, framed by nine family files that
+hold no Pegasus markup of their own. Considered and rejected: fixing the
+hand-written bodies (same failure mode); saving the rendered DOM for every
+state (the live scripts would then run twice over already-initialised markup;
+kept only for the two states that are responses to a post); inlining every
+asset into each state (about 1 MB per state across 73 states).
+
+**Data.** The synthetic fixture host from the 10 September visual pass was
+brought up to date with `dev` (public upload links are gone; one test helper
+gained a parameter) and run from the ignored `artifacts/` folder. Its one
+Case was then worked through the live edit session by `enrich.mjs`.
+
+**Found while doing so.** Saving many changed Case fields in one save is
+refused because the history reason overflows its column (sign-off item C).
+
+**Process faults in the rebuild, for the record.** The browser driver at first
+closed Chromium by killing the launcher, which on Windows leaves the browser
+process tree running; 240 headless browsers accumulated, starved the machine
+and made the live Inbox time out during one parity run, which the parity
+check reported as a failure. The driver now closes the browser through the
+DevTools protocol and the run was repeated clean. A Python edit also wrote an
+invisible backspace byte into two scripts; both were byte-audited and cleaned.
+
+**Self-check.** 18 September 2026, with both fixture hosts running:
+`LIVE=1 node v28-build/selfcheck.mjs` gave
+`RESULT {"fail":[],"okCount":611}`: 73 states, 35 presets, 65 states
+compared with the running application, no linked page route left uncaptured.
+108 shots were taken at three widths with no page errors.
+
+**Sign-off list.** `v28-notes.md` section 6, items A to H. None is settled.
