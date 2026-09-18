@@ -57,7 +57,7 @@ public sealed class AxInstructionExtractionPolicy
         definition => definition.Name,
         definition => new InstructionFieldRole(definition.PartyRole, definition.ReferenceRole), StringComparer.Ordinal);
 
-    public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, DateTimeOffset processedAtUtc,
+    public InstructionExtractionResult Extract(IntakeSourceReadResult readResult, InstructionExtractionTiming timing,
         EstablishedPrincipalContext principalContext)
     {
         ArgumentNullException.ThrowIfNull(readResult);
@@ -72,7 +72,7 @@ public sealed class AxInstructionExtractionPolicy
             scoped,
             Definitions,
             Cache,
-            processedAtUtc);
+            timing);
         var fields = extractedFields.Select(RestoreNarrativeHyphens).ToArray();
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(SupportedPrincipalCode,

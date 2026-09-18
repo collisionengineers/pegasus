@@ -1,10 +1,14 @@
 using System.Net;
 using System.Security.Claims;
+using System.Globalization;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.EntityFrameworkCore;
+using Pegasus.Core;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -265,6 +269,66 @@ public sealed class QdosIntakeWebTests
         Assert.Contains(caseReference, html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task InterleavedClientDetailsReachTheAcceptedCaseWithProvenanceAndReceivedDateDueBy()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var document = IntakeTestEvidence.CreateDefinitiveQdosInstructionDocument(
+            claimantName: "Mr Mark Audsley-Smith",
+            claimNumber: "QDOS26010",
+            registration: "SO03SOL",
+            vehicle: "FIAT DUCATO 30 100 M-JET SWB",
+            additionalLines: ["Accident Date: 16/09/2026"],
+            interleavedClientDetailsLines:
+            [
+                "CLIENT DETAILS",
+                "Vehicle Details",
+                "Client’s Vehicle: FIAT DUCATO 30 100",
+                "M-JET SWB",
+                "Vehicle Registration: SO03SOL",
+                "Accident Date: 16/09/2026",
+                "Mr Mark Audsley-Smith",
+                "9 Walsingham Gardens",
+                "Southampton",
+                "SO18 2QD",
+                "Home Tel: 07932062507",
+                "Work Tel:",
+                "Mobile: 07932062507",
+                "REPAIRER DETAILS",
+                "Tel:",
+                "Fax:",
+                "Email:",
+                "Engineer to Estimate Unknown"
+            ]);
+        var email = IntakeTestEvidence.CreateEmail(
+            "qdos26010.eml",
+            "Please see the attached instruction.",
+            subject: "QDOS engineer notification",
+            attachments: [("qdos26010.pdf", "application/pdf", document)]);
+
+        var receiptId = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var receipt = Assert.IsType<IntakeReceipt>(await scope.ServiceProvider
+            .GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None));
+        var caseId = Assert.IsType<Guid>(receipt.CurrentCaseId);
+        var context = scope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        var snapshot = await context.CaseDataSnapshots
+            .Include(item => item.Fields)
+            .SingleAsync(item => item.CaseId == caseId);
+
+        AssertCaseField(snapshot.Fields, CaseDataFieldNames.ClaimantAddress,
+            "9 Walsingham Gardens, Southampton, SO18 2QD", "PdfContent:");
+        AssertCaseField(snapshot.Fields, CaseDataFieldNames.ClaimantContactNumber,
+            "07932062507", "PdfContent:");
+        AssertCaseField(snapshot.Fields, CaseDataFieldNames.InspectionDate,
+            LondonCalendar.DateAt(receipt.ReceivedAtUtc).ToString(
+                "yyyy-MM-dd", CultureInfo.InvariantCulture),
+            "SystemDefault:Receipt date");
+        Assert.Equal(LondonCalendar.DateAt(receipt.ReceivedAtUtc),
+            (await context.CaseDueWork.SingleAsync(item => item.CaseId == caseId)).DueBy);
+    }
+
     [GenuineQdosCorpusFact(LowTextNonScanPdfHash)]
     [Trait("Category", "Corpus")]
     public async Task LowTextPdfWithoutDominantRasterStaysUnidentifiedWithoutOcrOrCaseReference()
@@ -441,6 +505,18 @@ public sealed class QdosIntakeWebTests
         await ProcessMailboxAsync(
             factory,
             await ReceiveMailboxAsync(factory, sample, $"qdos-genuine-{sample.Hash[..12]}"));
+
+    private static void AssertCaseField(
+        IReadOnlyList<CaseDataFieldEntity> fields,
+        string fieldName,
+        string expectedValue,
+        string expectedSourceLabelPrefix)
+    {
+        var field = Assert.Single(fields, item => item.FieldName == fieldName);
+        Assert.Equal(expectedValue, field.Value);
+        Assert.Equal(CaseDataCodes.IntakeEvidence, field.SourceKind);
+        Assert.StartsWith(expectedSourceLabelPrefix, field.SourceLabel, StringComparison.Ordinal);
+    }
 
     private static async Task<Guid> ReceiveMailboxAsync(
         IntakeWebApplicationFactory factory,

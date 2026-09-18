@@ -36,11 +36,14 @@ internal static partial class InstructionFieldEngine
     /// numbers printed on one instruction are two roles, never two spellings
     /// of one field.
     /// </param>
-    /// <param name="DefaultsToProcessedDate">
-    /// Whether an absent value is filled from the injected clock. Only a field
-    /// a profile has explicitly opted in carries this: today's date is not an
-    /// extracted fact, so a profile that does not ask for the default records
-    /// the absence instead.
+    /// <param name="DefaultsTo">
+    /// The clock source used when an absent value is defaulted. Only a field a
+    /// profile has explicitly opted in carries this: a date from the clock is
+    /// not an extracted fact, so a profile that does not ask for it records the
+    /// absence instead.
+    /// </param>
+    /// <param name="DefaultEvidenceKey">The evidence key for the default.</param>
+    /// <param name="DefaultSourceLabel">The source label for the default.</param>
     /// </param>
     /// <param name="AllowsSoleUnlabelledRegistration">
     /// Whether the document's single unlabelled registration-shaped value may
@@ -61,8 +64,16 @@ internal static partial class InstructionFieldEngine
         string? ColumnHeader = null,
         string? PartyRole = null,
         string? ReferenceRole = null,
-        bool DefaultsToProcessedDate = false,
+        FieldDefaultSource? DefaultsTo = null,
+        string? DefaultEvidenceKey = null,
+        string? DefaultSourceLabel = null,
         bool AllowsSoleUnlabelledRegistration = false);
+
+    internal enum FieldDefaultSource
+    {
+        ProcessedDate,
+        ReceivedDate
+    }
 
     /// <summary>
     /// Regexes whose patterns depend on a field definition's labels. The QDOS
@@ -422,7 +433,7 @@ internal static partial class InstructionFieldEngine
             IReadOnlyList<IntakeContentFragment> fragments,
             IReadOnlyList<FieldDefinition> definitions,
             LabelRegexCache regexCache,
-            DateTimeOffset processedAtUtc)
+            InstructionExtractionTiming timing)
     {
         var fields = new List<InstructionReviewField>();
         var missing = new List<string>();
@@ -454,21 +465,29 @@ internal static partial class InstructionFieldEngine
                 .Select(entry => entry.Candidate)
                 .ToArray();
 
-            if (candidates.Length == 0 && definition.DefaultsToProcessedDate)
+            if (candidates.Length == 0 && definition.DefaultsTo is { } defaultSource)
             {
-                var defaultValue = DateOnly.FromDateTime(processedAtUtc.UtcDateTime)
+                var defaultDate = defaultSource switch
+                {
+                    FieldDefaultSource.ProcessedDate => LondonCalendar.DateAt(timing.ProcessedAtUtc),
+                    FieldDefaultSource.ReceivedDate => LondonCalendar.DateAt(timing.ReceivedAtUtc),
+                    _ => throw new ArgumentOutOfRangeException(nameof(timing))
+                };
+                var defaultValue = defaultDate
                     .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
                 var defaultCandidate = new InstructionFieldCandidate(
                     defaultValue,
                     IntakeEvidenceSource.SystemDefault,
-                    "Receipt date");
+                    definition.DefaultSourceLabel ?? throw new InvalidOperationException(
+                        $"The defaulted field '{definition.Name}' has no source label."));
                 fields.Add(new(definition.Name, defaultValue, [defaultCandidate], true, false));
                 evidence.Add(new(
                     IntakeEvidenceSource.SystemDefault,
                     IntakeEvidenceStrength.Strong,
                     IntakeEvidenceFinding.ExtractedField,
-                    "instruction-date-defaulted",
-                    "Instruction date was absent and was defaulted from the injected clock."));
+                    definition.DefaultEvidenceKey ?? throw new InvalidOperationException(
+                        $"The defaulted field '{definition.Name}' has no evidence key."),
+                    $"{definition.Name} was absent and was defaulted from {defaultCandidate.SourceLabel}."));
                 continue;
             }
 
@@ -650,7 +669,7 @@ internal static partial class InstructionFieldEngine
     /// base. A definition may set <see cref="FieldDefinition.PrefersLatestFragment"/>
     /// to reverse that for itself — the inspection date does, because an appended
     /// engineer's report states when the vehicle was actually seen and overrides
-    /// whatever the instruction proposed. The reversal is per field, not
+    /// whatever the instruction proposed (ENG-015). The reversal is per field, not
     /// global.
     /// </summary>
     private static InstructionFieldCandidate? ResolveConflictingCandidates(

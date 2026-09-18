@@ -818,6 +818,7 @@ internal static partial class CaseWebTestSupport
 
         public List<SaveCaseWorkspaceRequest> Saves { get; } = [];
         public CaseDataProjection? DataOverride { get; set; }
+        public CaseWorkspaceClaimSource? ClaimSource { get; set; }
         public List<ManualChaseRecord> ManualChases { get; } = [];
         public List<PutCaseOnHoldRequest> Holds { get; } = [];
         public List<CaseMutationRequest> Releases { get; } = [];
@@ -1036,6 +1037,9 @@ internal static partial class CaseWebTestSupport
                     Confirmed(CaseInspectionMode.PhysicalAddress),
                     Confirmed("14 Storage Lane"),
                     Empty<string>()),
+                Workspace: ClaimSource is null
+                    ? null
+                    : new(ClaimSource, null, null, null, null, null, null, null, null, null, null),
                 StandaloneAuditEvidenceId: StandaloneAuditEvidenceId);
 
         /// <summary>

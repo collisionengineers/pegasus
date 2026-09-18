@@ -61,6 +61,8 @@
     var claimant = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.Name)?.Value ?? (data is null ? summary.Claimant : null);
     var claimNumber = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claim.Number)?.Value ?? (data is null ? summary.ClaimNumber : null);
     var incidentDate = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Accident.IncidentDate)?.Value;
+    var dueBy = workflow.DueWork?.DueBy
+        ?? Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Inspection.Deadline)?.Value;
     var circumstances = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Accident.Circumstances)?.Value;
     var claimantContact = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.ContactNumber)?.Value;
     var claimantAddress = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.Address)?.Value;
@@ -70,6 +72,10 @@
     var vatStatus = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Instruction.VatStatus)?.Value;
     var claimSource = caseNotes?.ClaimSource;
     var claimSourceContact = claimSource is null
+        ? null
+        : string.Join(" · ", new[] { claimSource.EffectiveContactName, claimSource.EffectiveContactTelephone, claimSource.EffectiveContactEmailAddress }
+            .Where(part => !string.IsNullOrWhiteSpace(part)));
+    var claimSourceSnapshotContact = claimSource is null
         ? null
         : string.Join(" · ", new[] { claimSource.ContactName, claimSource.ContactTelephone, claimSource.ContactEmailAddress }
             .Where(part => !string.IsNullOrWhiteSpace(part)));
@@ -235,7 +241,7 @@
                     <div class="fc">@{ Lbl("f-claim-reference", Frame.ClaimReference); }<div class="@ValueClass(claimNumber) mono">@Value(claimNumber)</div>@if (mayEdit){<input id="f-claim-reference" class="fi mono" name="claimNumber" form="case-edit-form" maxlength="200" value="@claimNumber" />}</div>
                     <div class="fc">@{ Lbl("f-incident-date", Frame.IncidentDate); }<div class="@ValueClass(incidentDate?.ToString("d MMM yyyy"))">@Value(incidentDate?.ToString("d MMM yyyy"))</div>@if (mayEdit){<input id="f-incident-date" class="fi" name="incidentDate" form="case-edit-form" type="date" value="@incidentDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
                     <div class="fc ro idn"><span class="lbl">@Frame.Received<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</div></div>
-                    <div class="fc ro"><span class="lbl">@Frame.Due</span><div class="@ValueClass(workflow.DueWork?.DueBy?.ToString("d MMM yyyy"))">@Value(workflow.DueWork?.DueBy?.ToString("d MMM yyyy"))</div></div>
+                    <div class="fc">@{ Lbl("f-due-by", Frame.Due); }<div class="@ValueClass(dueBy?.ToString("d MMM yyyy"))">@Value(dueBy?.ToString("d MMM yyyy"))</div>@if (mayEdit){<input id="f-due-by" class="fi" name="dueBy" form="case-edit-form" type="date" value="@dueBy?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
                 </div>
             </div>
             <div class="sub-panel"><h3>Principal</h3>
@@ -251,7 +257,7 @@
                                 <option value="" data-notes="" data-contact="" selected="@(claimSource?.ClaimSourceId is null)">@Frame.NoClaimSource</option>
                                 @if (claimSource?.ClaimSourceId is { } recordedSourceId && Model.ClaimSourceChoices.All(choice => choice.OrganizationId != recordedSourceId))
                                 {
-                                    <option value="@recordedSourceId" data-notes="@notes.ClaimSourceNotes" data-contact="@claimSourceContact" selected>@claimSource.Name</option>
+                                    <option value="@recordedSourceId" data-notes="@notes.ClaimSourceNotes" data-contact="@claimSourceSnapshotContact" selected>@claimSource.Name</option>
                                 }
                                 @foreach (var choice in Model.ClaimSourceChoices)
                                 {
@@ -261,6 +267,12 @@
                             </select>
                         }</div>
                     <div class="fc ro"><span class="lbl">@Frame.ClaimSourceContact</span><div class="@ValueClass(claimSourceContact)" data-claim-source-contact>@Value(claimSourceContact)</div></div>
+                    @if (mayEdit)
+                    {
+                        <div class="fc">@{ Lbl("f-claim-source-contact-name", Frame.ContactName); }<div class="@ValueClass(claimSource?.OverrideContactName)">@Value(claimSource?.OverrideContactName)</div><input id="f-claim-source-contact-name" class="fi" name="claimSourceContactName" form="case-edit-form" maxlength="300" value="@claimSource?.OverrideContactName" data-claim-source-contact-override /></div>
+                        <div class="fc">@{ Lbl("f-claim-source-contact-phone", Frame.ContactPhone); }<div class="@ValueClass(claimSource?.OverrideContactTelephone)">@Value(claimSource?.OverrideContactTelephone)</div><input id="f-claim-source-contact-phone" class="fi" name="claimSourceContactTelephone" form="case-edit-form" maxlength="100" value="@claimSource?.OverrideContactTelephone" data-claim-source-contact-override /></div>
+                        <div class="fc">@{ Lbl("f-claim-source-contact-email", Frame.ContactEmail); }<div class="@ValueClass(claimSource?.OverrideContactEmailAddress)">@Value(claimSource?.OverrideContactEmailAddress)</div><input id="f-claim-source-contact-email" class="fi" name="claimSourceContactEmail" form="case-edit-form" type="email" maxlength="300" value="@claimSource?.OverrideContactEmailAddress" data-claim-source-contact-override /></div>
+                    }
                 </div>
             </div>
             <div class="sub-panel"><h3>Claimant</h3>
@@ -275,9 +287,9 @@
         @* The Case's own contact: who to speak to, distinct from the claimant. *@
         <div class="sub-panel"><h3>Case contact</h3>
             <div class="fg g3">
-                <div class="fc">@{ Lbl("f-contact-name", "Contact name"); }<div class="@ValueClass(contactName)">@Value(contactName)</div>@if (mayEdit){<input id="f-contact-name" class="fi" name="contactName" form="case-edit-form" maxlength="300" value="@contactName" />}</div>
-                <div class="fc">@{ Lbl("f-contact-email", "Contact e-mail"); }<div class="@ValueClass(contactEmail)">@Value(contactEmail)</div>@if (mayEdit){<input id="f-contact-email" class="fi" name="contactEmailAddress" form="case-edit-form" type="email" maxlength="300" value="@contactEmail" />}</div>
-                <div class="fc">@{ Lbl("f-contact-phone", "Contact phone"); }<div class="@ValueClass(contactPhone)">@Value(contactPhone)</div>@if (mayEdit){<input id="f-contact-phone" class="fi" name="contactPhoneNumber" form="case-edit-form" maxlength="100" value="@contactPhone" />}</div>
+                <div class="fc">@{ Lbl("f-contact-name", Frame.ContactName); }<div class="@ValueClass(contactName)">@Value(contactName)</div>@if (mayEdit){<input id="f-contact-name" class="fi" name="contactName" form="case-edit-form" maxlength="300" value="@contactName" />}</div>
+                <div class="fc">@{ Lbl("f-contact-email", Frame.ContactEmail); }<div class="@ValueClass(contactEmail)">@Value(contactEmail)</div>@if (mayEdit){<input id="f-contact-email" class="fi" name="contactEmailAddress" form="case-edit-form" type="email" maxlength="300" value="@contactEmail" />}</div>
+                <div class="fc">@{ Lbl("f-contact-phone", Frame.ContactPhone); }<div class="@ValueClass(contactPhone)">@Value(contactPhone)</div>@if (mayEdit){<input id="f-contact-phone" class="fi" name="contactPhoneNumber" form="case-edit-form" maxlength="100" value="@contactPhone" />}</div>
             </div>
         </div>
 

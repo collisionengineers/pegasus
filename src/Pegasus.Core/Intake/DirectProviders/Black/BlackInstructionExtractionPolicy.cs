@@ -67,7 +67,7 @@ public sealed partial class BlackInstructionExtractionPolicy
 
     public InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
-        DateTimeOffset processedAtUtc,
+        InstructionExtractionTiming timing,
         EstablishedPrincipalContext principalContext)
     {
         ArgumentNullException.ThrowIfNull(readResult);
@@ -79,7 +79,7 @@ public sealed partial class BlackInstructionExtractionPolicy
 
         var scoped = readResult.Content.SelectMany(InstructionFields).ToArray();
         var (fields, missing, fieldEvidence) = InstructionFieldEngine.ExtractFields(
-            scoped, Definitions, Cache, processedAtUtc);
+            scoped, Definitions, Cache, timing);
         var values = fields.ToDictionary(field => field.Name, field => field.SuggestedValue, StringComparer.Ordinal);
         var draft = new InstructionDraft(
             SupportedPrincipalCode,

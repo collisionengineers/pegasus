@@ -1666,7 +1666,7 @@ public sealed class ProcessIntakeTests
 
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
+            InstructionExtractionTiming timing,
             EstablishedPrincipalContext principalContext) => result;
     }
 
@@ -1686,7 +1686,7 @@ public sealed class ProcessIntakeTests
 
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
+            InstructionExtractionTiming timing,
             EstablishedPrincipalContext principalContext) =>
             throw new InvalidOperationException("A conflicting profile must not extract an instruction.");
     }
@@ -1697,7 +1697,7 @@ public sealed class ProcessIntakeTests
 
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
+            InstructionExtractionTiming timing,
             EstablishedPrincipalContext principalContext) =>
             throw new InvalidOperationException(
                 "The extraction policy must not run for an incomplete reader result.");

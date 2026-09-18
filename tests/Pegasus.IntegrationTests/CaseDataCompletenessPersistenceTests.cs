@@ -96,14 +96,20 @@ public sealed class CaseDataCompletenessPersistenceTests
     }
 
     [Fact]
-    public void TypedPhoneSourceStillRejectsTwoEqualSourceBindings()
+    public void TypedPhoneSourceUsesTheFirstEqualSourceBinding()
     {
-        Assert.Throws<InvalidOperationException>(() => PhoneSnapshot([
+        var snapshot = PhoneSnapshot([
             new("Claimant mobile telephone", "selected",
                 [new("selected", IntakeEvidenceSource.PdfContent, "mobile")], false, false),
             new("Claimant home telephone", "selected",
                 [new("selected", IntakeEvidenceSource.PdfContent, "home")], false, false)
-        ]));
+        ]);
+
+        var field = Assert.Single(snapshot.Fields);
+        Assert.Equal(CaseDataFieldNames.ClaimantContactNumber, field.FieldName);
+        Assert.Equal("selected", field.Value);
+        Assert.Equal("PdfContent:mobile", field.SourceLabel);
+        Assert.Equal(CaseDataCodes.IntakeEvidence, field.SourceKind);
     }
 
     [Fact]
