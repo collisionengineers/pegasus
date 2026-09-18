@@ -59,19 +59,6 @@
                                 <td class="right">
                                     <span class="cluster">
                                         <a class="btn btn--small" asp-page="Index" asp-route-editStaffId="@account.Id" asp-route-expectedVersion="@account.Version">Settings</a>
-                                        @* Offered only to the operator whose own other window still
-                                           holds this account; taking over rotates the token so that
-                                           window can no longer save. *@
-                                        @if (account.Id == Model.TakeOverStaffId)
-                                        {
-                                            <form method="post" asp-page-handler="Edit">
-                                                <input type="hidden" name="staffId" value="@account.Id" />
-                                                <input type="hidden" name="expectedVersion" value="@account.Version" />
-                                                <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                                <input type="hidden" name="takeOver" value="true" />
-                                                <button type="submit" class="btn btn--small btn--primary">Take over</button>
-                                            </form>
-                                        }
                                     </span>
                                 </td>
                             </tr>
@@ -112,11 +99,9 @@
     var signatoryAllowed = Model.SettingsPostRole is StaffRole.Administrator or StaffRole.Engineer;
     <div class="dialog-backdrop" data-dialog="@settingsId" data-dialog-open-on-load="true">
         <section class="dialog dialog--wide account-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="@settingsId-title">
-            <div class="dialog-head"><h2 id="@settingsId-title" tabindex="-1" data-dialog-initial-focus>@account.UserName</h2><form method="post" asp-page-handler="CancelSettings"><input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="editLeaseToken" value="@Model.SettingsLeaseToken" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" /><button type="submit" class="dialog-close" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></form></div>
-            @* The renewal interval is the one Core value, rendered like the
-               workflow configuration editor's; the script keeps no copy. *@
-            <form method="post" asp-page-handler="Settings" enctype="multipart/form-data" data-account-settings data-account-staff-id="@staffId" data-heartbeat-ms="@Pegasus.Core.Workflow.EditScopeAuthority.HeartbeatInterval.TotalMilliseconds">
-                <input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="expectedVersion" value="@Model.SettingsPostVersion" /><input type="hidden" name="editLeaseToken" value="@Model.SettingsLeaseToken" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+            <div class="dialog-head"><h2 id="@settingsId-title" tabindex="-1" data-dialog-initial-focus>@account.UserName</h2><button type="button" class="dialog-close" data-dialog-close data-account-settings-cancel aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+            <form method="post" asp-page-handler="Settings" enctype="multipart/form-data" data-account-settings>
+                <input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="expectedVersion" value="@Model.SettingsPostVersion" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
                 <div class="dialog-body stack">
                     <partial name="Shared/_ErrorSummary" />
                     <dl class="fact-grid account-settings-facts"><div class="fact"><dt>Username</dt><dd class="mono">@account.UserName</dd></div><div class="fact"><dt>State</dt><dd>@OperatorLabels.StaffAccounts.State(account.IsEnabled)</dd></div></dl>
@@ -126,11 +111,11 @@
                         <div class="field" data-account-signoff-field><label for="@settingsId-name">Printed name</label><input id="@settingsId-name" name="printedName" value="@Model.SettingsPostPrintedName" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffPrintedNameLength" /></div>
                         <div class="field" data-account-signoff-field><label for="@settingsId-qualifications">Qualifications</label><input id="@settingsId-qualifications" name="qualifications" value="@Model.SettingsPostQualifications" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffQualificationsLength" /></div>
                     </div>
-                    <section class="account-settings-section" aria-labelledby="@settingsId-glass-title"><div class="settings-line"><div><strong id="@settingsId-glass-title">Glass's repair estimates</strong><span class="meta">Manage this account's login.</span></div><a class="btn" asp-page="/Administration/Glass/Index" asp-route-staffId="@account.Id" data-account-glass-login>Manage login</a></div><p class="notice notice--error" data-account-glass-login-error role="alert" hidden></p></section>
+                    <section class="account-settings-section" aria-labelledby="@settingsId-glass-title"><div class="settings-line"><div><strong id="@settingsId-glass-title">Glass's repair estimates</strong><span class="meta">Manage this account's login.</span></div><a class="btn" asp-page="/Administration/Glass/Index" asp-route-staffId="@account.Id" data-account-glass-login>Manage login</a></div></section>
                     <div class="field" data-account-signoff-field><label for="@settingsId-signature">@(account.SignOff.HasSignature ? "Replace signature" : "Signature image")</label><input id="@settingsId-signature" name="signature" type="file" accept="@SignOffSignaturePolicy.MediaType" /></div>
                     <label class="choice" for="@settingsId-default" data-account-signoff-field><input id="@settingsId-default" name="isDefaultSignOffEngineer" type="checkbox" value="true" checked="@Model.SettingsPostIsDefault" data-account-default disabled="@(!signatoryAllowed)" /><span>Default sign-off Engineer</span></label>
                 </div>
-                <div class="dialog-foot"><button type="submit" formaction="?handler=CancelSettings" formnovalidate class="btn">Cancel</button><button type="submit" class="btn btn--primary">Save settings</button></div>
+                <div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-account-settings-cancel>Cancel</button><button type="submit" class="btn btn--primary">Save settings</button></div>
             </form>
             @if (!row.IsCurrentOperator)
             {
@@ -142,13 +127,13 @@
                     <div class="left">
                         @foreach (var (handler, buttonClass) in adverse)
                         {
-                            <form method="post" asp-page-handler="@handler"><input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="expectedVersion" value="@Model.SettingsPostVersion" /><input type="hidden" name="editLeaseToken" value="@Model.SettingsLeaseToken" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" /><button type="submit" class="@buttonClass">@handler</button></form>
+                            <form method="post" asp-page-handler="@handler"><input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="expectedVersion" value="@Model.SettingsPostVersion" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" /><button type="submit" class="@buttonClass">@handler</button></form>
                         }
                         <button type="button" class="btn btn--danger" data-dialog-open="@settingsId-delete">Delete</button>
                     </div>
                     @foreach (var (handler, label) in routine)
                     {
-                        <form method="post" asp-page-handler="@handler"><input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="expectedVersion" value="@Model.SettingsPostVersion" /><input type="hidden" name="editLeaseToken" value="@Model.SettingsLeaseToken" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" /><button type="submit" class="btn">@label</button></form>
+                        <form method="post" asp-page-handler="@handler"><input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="expectedVersion" value="@Model.SettingsPostVersion" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" /><button type="submit" class="btn">@label</button></form>
                     }
                 </div>
             }
@@ -159,18 +144,12 @@
         <dialog id="@settingsId-delete" aria-labelledby="@settingsId-delete-title">
             <form method="post" asp-page-handler="Delete" class="stack">
                 <h2 id="@settingsId-delete-title" tabindex="-1" data-dialog-initial-focus>Delete @account.UserName</h2>
-                <input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="expectedVersion" value="@Model.SettingsPostVersion" /><input type="hidden" name="editLeaseToken" value="@Model.SettingsLeaseToken" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                <input type="hidden" name="staffId" value="@staffId" /><input type="hidden" name="expectedVersion" value="@Model.SettingsPostVersion" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
                 <div class="button-row"><button class="btn" type="button" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger">Delete</button></div>
             </form>
         </dialog>
     }
 
-    @* Beaconed as the page unloads so an operator who navigates away is not
-       refused by their own lease when they come back. *@
-    <form method="post" asp-page-handler="ReleaseScopeBeacon" data-edit-scope-release hidden>
-        <input type="hidden" name="staffId" value="@staffId" />
-        <input type="hidden" name="editLeaseToken" value="@Model.SettingsLeaseToken" />
-    </form>
 }
 
 @section Scripts {

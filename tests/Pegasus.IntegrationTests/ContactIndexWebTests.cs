@@ -119,7 +119,7 @@ public sealed partial class ContactIndexWebTests
     }
 
     [Fact]
-    public async Task ExistingMatchClaimsTheContactAndAddsOnlyTheSelectedType()
+    public async Task ExistingMatchSelectsTheContactAndAddsOnlyTheSelectedType()
     {
         using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
@@ -140,8 +140,7 @@ public sealed partial class ContactIndexWebTests
             null,
             CaseInspectionMode.PhysicalAddress,
             [],
-            "contact-index:seed",
-            string.Empty), default);
+            "contact-index:seed"), default);
 
         using var client = IntakeWebDriver.CreateClient(factory);
         using var start = await client.GetAsync("/Administration/Contacts?createType=ThirdPartyEngineer");
@@ -184,7 +183,6 @@ public sealed partial class ContactIndexWebTests
             ["ContactId"] = InputValue(chosenHtml, "ContactId"),
             ["ExistingContactId"] = InputValue(chosenHtml, "ExistingContactId"),
             ["ExpectedVersion"] = InputValue(chosenHtml, "ExpectedVersion"),
-            ["LeaseToken"] = InputValue(chosenHtml, "LeaseToken"),
             ["OperationKey"] = InputValue(chosenHtml, "OperationKey"),
             ["Name"] = "Match Contact",
             ["ContactPerson"] = "Existing person",
@@ -196,8 +194,6 @@ public sealed partial class ContactIndexWebTests
         Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
         Assert.Equal(2, await factory.Database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ContactRoles WHERE OrganizationId = '{existingId:D}' AND Role IN ('claim_source', 'third_party_engineer');"));
-        Assert.Equal(0, await factory.Database.ScalarAsync<int>(
-            $"SELECT COUNT(*) FROM EditScopes WHERE ScopeKind = 'Contact' AND RecordId = '{existingId:D}';"));
     }
 
     private static string InputValue(string html, string name)

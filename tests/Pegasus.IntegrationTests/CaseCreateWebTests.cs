@@ -977,7 +977,6 @@ public sealed partial class CaseCreateWebTests
                 CaseInspectionMode.PhysicalAddress,
                 [],
                 "seed-manual-claim-source",
-                string.Empty,
                 "Call the Claim Source before finalising the report."),
             CancellationToken.None);
         return claimSourceId;

@@ -1,5 +1,5 @@
-// Account-settings interaction remains local to the page: the server owns
-// validation and every mutation, while this script maintains the edit scope.
+// Keep account-signoff controls eligible and protect unsaved settings when
+// navigating to the account's Glass's login.
 (function () {
     'use strict';
 
@@ -11,15 +11,7 @@
         var signOff = form.querySelector('[data-account-signoff]');
         var defaultSignOff = form.querySelector('[data-account-default]');
         var dialog = form.closest('[data-dialog]');
-        var antiForgery = form.querySelector('input[name="__RequestVerificationToken"]');
-        var leaseToken = form.querySelector('input[name="editLeaseToken"]');
-        var operationKey = form.querySelector('input[name="operationKey"]');
         var glassLogin = form.querySelector('[data-account-glass-login]');
-        var glassLoginError = form.querySelector('[data-account-glass-login-error]');
-        var active = dialog && !dialog.hidden;
-        var released = false;
-        var heartbeat = null;
-        var initialFormState;
 
         function formState() {
             return Array.prototype.map.call(
@@ -37,12 +29,6 @@
                 }).join('|');
         }
 
-        function showGlassLoginError(message) {
-            if (!glassLoginError) { return; }
-            glassLoginError.textContent = message;
-            glassLoginError.hidden = false;
-        }
-
         function syncSignOffEligibility() {
             if (!role || !signOff || !defaultSignOff) { return; }
             var allowed = role.value === 'Administrator' || role.value === 'Engineer';
@@ -55,84 +41,28 @@
             if (!allowed) { signOff.value = 'false'; defaultSignOff.checked = false; }
         }
 
-        function post(handler) {
-            if (!antiForgery || !leaseToken || !operationKey) { return Promise.resolve(); }
-            var body = new URLSearchParams();
-            body.set('__RequestVerificationToken', antiForgery.value);
-            body.set('staffId', form.dataset.accountStaffId || '');
-            body.set('editLeaseToken', leaseToken.value);
-            body.set('operationKey', operationKey.value);
-            return fetch('?handler=' + handler, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: body.toString(),
-                credentials: 'same-origin'
-            });
-        }
-
-        function stopHeartbeat() {
-            if (heartbeat !== null) { window.clearInterval(heartbeat); heartbeat = null; }
-        }
-
-        function release() {
-            if (released || !active) { return; }
-            released = true;
-            active = false;
-            stopHeartbeat();
-            post('CancelSettings');
-        }
-
-        function startHeartbeat() {
-            stopHeartbeat();
-            if (!active || released || !leaseToken) { return; }
-            // The interval is the server's own renewal interval, rendered on
-            // the form. A local copy at twice that value would let a live
-            // editing session lapse between renewals; an unrendered value
-            // stops the renewal rather than being replaced by a guess.
-            var interval = Number(form.dataset.heartbeatMs);
-            if (!(interval > 0)) { return; }
-            heartbeat = window.setInterval(function () { post('HeartbeatSettings'); }, interval);
+        function resetSettings() {
+            form.reset();
+            syncSignOffEligibility();
         }
 
         if (role) { role.addEventListener('change', syncSignOffEligibility); }
-        if (glassLogin) {
-            glassLogin.addEventListener('click', function (event) {
-                if (!active || released) { return; }
-                event.preventDefault();
-                if (formState() !== initialFormState
-                    && !window.confirm('Discard unsaved account settings and manage the Glass login?')) {
-                    return;
-                }
-                released = true;
-                active = false;
-                stopHeartbeat();
-                if (glassLoginError) { glassLoginError.hidden = true; }
-                post('CancelSettings').then(function (response) {
-                    if (!response || !response.ok) {
-                        throw new Error('The account edit could not be released.');
-                    }
-                    window.location.assign(glassLogin.href);
-                }).catch(function () {
-                    released = false;
-                    active = true;
-                    startHeartbeat();
-                    showGlassLoginError('The account edit could not be released. Keep editing or try again.');
-                });
+        if (dialog) {
+            dialog.querySelectorAll('[data-account-settings-cancel]').forEach(function (button) {
+                button.addEventListener('click', resetSettings);
             });
         }
-        syncSignOffEligibility();
-        initialFormState = formState();
-        startHeartbeat();
+        if (glassLogin) {
+            var initialFormState = formState();
+            glassLogin.addEventListener('click', function (event) {
+                if (formState() !== initialFormState
+                    && !window.confirm('Discard unsaved account settings and manage the Glass login?')) {
+                    event.preventDefault();
+                }
+            });
+        }
 
-        if (!dialog) { return; }
-        dialog.addEventListener('pegasus:dialog-open', function () {
-            active = true;
-            released = false;
-            startHeartbeat();
-        });
-        new MutationObserver(function () {
-            if (dialog.hidden) { release(); }
-        }).observe(dialog, { attributes: true, attributeFilter: ['hidden'] });
+        syncSignOffEligibility();
     }
 
     document.querySelectorAll('[data-account-settings]').forEach(bindAccountSettings);

@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -126,7 +125,6 @@ public sealed class EfPerUserExternalCredentialStore(
         ExternalCredentialProvider provider,
         long expectedCredentialVersion,
         long expectedStaffAccountVersion,
-        string editLeaseToken,
         string username,
         string password,
         bool enabled,
@@ -146,16 +144,7 @@ public sealed class EfPerUserExternalCredentialStore(
             System.Data.IsolationLevel.Serializable,
             cancellationToken);
         var user = await RequireUserAsync(pegasusUserId, requireEnabled: true, cancellationToken);
-        await EfEditScopeStore.RequireAsync(
-            context,
-            EditScopeKind.StaffAccount,
-            user.Id,
-            user.Version,
-            expectedStaffAccountVersion,
-            actor,
-            editLeaseToken,
-            timeProvider.GetUtcNow(),
-            cancellationToken);
+        EnsureVersion(user.Version, expectedStaffAccountVersion);
 
         var entity = await context.Set<UserExternalCredentialEntity>()
             .SingleOrDefaultAsync(
@@ -204,7 +193,6 @@ public sealed class EfPerUserExternalCredentialStore(
             .Protect(JsonSerializer.Serialize(new CredentialPayload(username, password)));
         user.Version++;
         AddHistory(actor, entity, "external_credential_replaced");
-        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Status(entity, username);
@@ -216,7 +204,6 @@ public sealed class EfPerUserExternalCredentialStore(
         ExternalCredentialProvider provider,
         long expectedCredentialVersion,
         long expectedStaffAccountVersion,
-        string editLeaseToken,
         CancellationToken cancellationToken)
     {
         RequireAdministrator(actor, pegasusUserId);
@@ -224,16 +211,7 @@ public sealed class EfPerUserExternalCredentialStore(
             System.Data.IsolationLevel.Serializable,
             cancellationToken);
         var user = await RequireUserAsync(pegasusUserId, requireEnabled: false, cancellationToken);
-        await EfEditScopeStore.RequireAsync(
-            context,
-            EditScopeKind.StaffAccount,
-            user.Id,
-            user.Version,
-            expectedStaffAccountVersion,
-            actor,
-            editLeaseToken,
-            timeProvider.GetUtcNow(),
-            cancellationToken);
+        EnsureVersion(user.Version, expectedStaffAccountVersion);
         var entity = await context.Set<UserExternalCredentialEntity>()
             .SingleOrDefaultAsync(
                 item => item.UserId == pegasusUserId
@@ -246,7 +224,6 @@ public sealed class EfPerUserExternalCredentialStore(
                 throw new DbUpdateConcurrencyException();
             }
 
-            EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
             await context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return;
@@ -263,7 +240,6 @@ public sealed class EfPerUserExternalCredentialStore(
         entity.UpdatedAtUtc = timeProvider.GetUtcNow();
         user.Version++;
         AddHistory(actor, entity, "external_credential_cleared");
-        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }

@@ -1108,7 +1108,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var rateCards = new EfLabourRateCardStore(harness.Factory, harness.Clock);
         var rateCard = await rateCards.SaveAsync(
             new(Guid.NewGuid(), "Panel and paint", 52.50m, true, 0, rateCardAdministrator,
-                "Create rate", "estimate-canonical-rate-create", ""),
+                "Create rate", "estimate-canonical-rate-create"),
             CancellationToken.None);
         var documentVersionId = Guid.NewGuid();
         var documentSha = new string('c', 64);
@@ -1174,14 +1174,9 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 ExistingLineIds: read.Lines.Select(line => (Guid?)line.Id).ToArray()),
             CancellationToken.None));
 
-        var rateScopes = new EfEditScopeStore(harness.Factory, harness.Clock);
-        var rateLease = await rateScopes.ClaimAsync(
-            new(EditScopeKind.LabourRateCard, rateCard.Id, rateCard.Version,
-                rateCardAdministrator, "estimate-canonical-rate-retire"),
-            CancellationToken.None);
         var retiredRateCard = await rateCards.SaveAsync(
             new(rateCard.Id, rateCard.Name, 80m, false, rateCard.Version, rateCardAdministrator,
-                "Retire and revise rate", "estimate-canonical-rate-retire", rateLease.Token),
+                "Retire and revise rate", "estimate-canonical-rate-retire"),
             CancellationToken.None);
         Assert.False(retiredRateCard.Enabled);
         Assert.Equal(80m, retiredRateCard.HourlyRate);

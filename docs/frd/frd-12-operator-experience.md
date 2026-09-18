@@ -228,9 +228,10 @@ only where its Core use case permits it for the current state and account.
 
 ## Edge cases and fail-closed behaviour
 
-Record edit ownership for Triage, vehicle-images, Contact, account, preset,
-mailbox, category, labour-rate and configuration records is owned by
-[FRD-14](frd-14-record-edit-leases.md#record-edit-scopes).
+Record edit ownership for Triage and Image Intake is owned by
+[FRD-14](frd-14-record-edit-leases.md#record-edit-scopes). Administration
+settings use expected-version checks as defined in
+[FRD-17](frd-17-administration-workspace.md#administration).
 
 - A count whose query has not run renders nothing. A failed query renders
   its failure, never `0`.

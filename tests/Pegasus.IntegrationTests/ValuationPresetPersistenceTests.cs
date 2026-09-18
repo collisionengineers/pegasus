@@ -76,11 +76,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 Active: true,
                 ExpectedVersion: 1,
                 administrator,
-                "valuation-preset-edit")
-            {
-                EditLeaseToken = await ClaimPresetEditAsync(
-                    harness, TowBarPresetId, 1, administrator, "valuation-preset-edit-lease")
-            },
+                "valuation-preset-edit"),
             CancellationToken.None);
         Assert.Equal(2, edited.Version);
         Assert.Equal(350m, edited.SuggestedAmount);
@@ -94,11 +90,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 Active: false,
                 ExpectedVersion: 1,
                 administrator,
-                "valuation-preset-disable")
-            {
-                EditLeaseToken = await ClaimPresetEditAsync(
-                    harness, DecalsPresetId, 1, administrator, "valuation-preset-disable-lease")
-            },
+                "valuation-preset-disable"),
             CancellationToken.None);
         Assert.False(disabled.Active);
         Assert.Equal(2, disabled.Version);
@@ -181,11 +173,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             ExpectedVersion: 1,
             administrator,
             "valuation-preset-remove",
-            "The addition is no longer offered.")
-        {
-            EditLeaseToken = await ClaimPresetEditAsync(
-                harness, DecalsPresetId, 1, administrator, "valuation-preset-remove-lease")
-        };
+            "The addition is no longer offered.");
 
         var removed = await remove.ExecuteAsync(request, CancellationToken.None);
         Assert.Equal(2, removed.Version);
@@ -349,15 +337,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 Active: true,
                 ExpectedVersion: 1,
                 presetAdministrator,
-                "valuation-apply-preset-edit")
-            {
-                EditLeaseToken = await ClaimPresetEditAsync(
-                    harness,
-                    TowBarPresetId,
-                    1,
-                    presetAdministrator,
-                    "valuation-apply-preset-edit-lease")
-            },
+                "valuation-apply-preset-edit"),
             CancellationToken.None);
         var applyLease = await LeaseAsync("valuation-apply-lease");
         var stale = await Assert.ThrowsAsync<ValuationPresetException>(() =>
@@ -470,117 +450,4 @@ public sealed partial class AssessmentPersistenceIntegrationTests
             guideStamp);
     }
 
-    /// <summary>
-    /// A holder is never blocked by their own record lease. Leaving a page
-    /// releases it, but that release is best effort, so a re-entry that finds an
-    /// unbeaten lease of its own replaces it silently. The replacement rotates
-    /// the token, because persistence keeps only its digest and cannot hand the
-    /// original back: the abandoned window's next save is refused.
-    /// </summary>
-    [Fact]
-    public async Task AHolderReclaimsTheirOwnUnbeatenPresetScopeAndTheOldTokenStops()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var scopes = new EfEditScopeStore(harness.Factory, harness.Clock);
-        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
-
-        var abandoned = await scopes.ClaimAsync(
-            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, administrator, "preset-first-window"),
-            CancellationToken.None);
-        harness.Advance(EditScopeAuthority.StaleAfter + TimeSpan.FromSeconds(1));
-
-        var resumed = await scopes.ClaimAsync(
-            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, administrator, "preset-second-window"),
-            CancellationToken.None);
-
-        Assert.NotEqual(abandoned.Token, resumed.Token);
-        Assert.Equal(abandoned.Generation + 1, resumed.Generation);
-        Assert.Equal(administrator.SubjectId, resumed.Holder);
-        await Assert.ThrowsAsync<EditScopeConflictException>(() => scopes.HeartbeatAsync(
-            new(EditScopeKind.ValuationPreset, TowBarPresetId, administrator, abandoned.Token),
-            CancellationToken.None));
-        await scopes.HeartbeatAsync(
-            new(EditScopeKind.ValuationPreset, TowBarPresetId, administrator, resumed.Token),
-            CancellationToken.None);
-    }
-
-    /// <summary>
-    /// While the other window is still renewing, the holder is told so and
-    /// decides: a take-over rotates the token deliberately rather than two
-    /// windows both believing they may save.
-    /// </summary>
-    [Fact]
-    public async Task ALivePresetScopeRefusesItsOwnHolderUntilTheyTakeItOver()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var scopes = new EfEditScopeStore(harness.Factory, harness.Clock);
-        var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
-
-        var beating = await scopes.ClaimAsync(
-            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, administrator, "preset-live-window"),
-            CancellationToken.None);
-        harness.Advance(EditScopeAuthority.HeartbeatInterval);
-
-        await Assert.ThrowsAsync<EditScopeHeldElsewhereException>(() => scopes.ClaimAsync(
-            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, administrator, "preset-second-window"),
-            CancellationToken.None));
-
-        var takenOver = await scopes.ClaimAsync(
-            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, administrator, "preset-take-over")
-            {
-                TakeOver = true
-            },
-            CancellationToken.None);
-
-        Assert.NotEqual(beating.Token, takenOver.Token);
-        Assert.Equal(beating.Generation + 1, takenOver.Generation);
-        await Assert.ThrowsAsync<EditScopeConflictException>(() => scopes.HeartbeatAsync(
-            new(EditScopeKind.ValuationPreset, TowBarPresetId, administrator, beating.Token),
-            CancellationToken.None));
-    }
-
-    /// <summary>
-    /// The same-holder rule is exactly that. A colleague is still refused while
-    /// the lease is held, however long it has gone unbeaten, and take-over is
-    /// not a control they have.
-    /// </summary>
-    [Fact]
-    public async Task AnotherHolderIsStillRefusedAPresetScopeAndCannotTakeItOver()
-    {
-        await using var harness = await Harness.CreateAsync();
-        var scopes = new EfEditScopeStore(harness.Factory, harness.Clock);
-        var holder = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
-        var colleague = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
-
-        await scopes.ClaimAsync(
-            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, holder, "preset-holder"),
-            CancellationToken.None);
-        harness.Advance(EditScopeAuthority.StaleAfter + TimeSpan.FromSeconds(1));
-
-        await Assert.ThrowsAsync<EditScopeConflictException>(() => scopes.ClaimAsync(
-            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, colleague, "preset-colleague"),
-            CancellationToken.None));
-        await Assert.ThrowsAsync<EditScopeConflictException>(() => scopes.ClaimAsync(
-            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, colleague, "preset-colleague-force")
-            {
-                TakeOver = true
-            },
-            CancellationToken.None));
-
-        harness.Advance(EditScopeAuthority.Duration);
-        var afterExpiry = await scopes.ClaimAsync(
-            new(EditScopeKind.ValuationPreset, TowBarPresetId, 1, colleague, "preset-colleague-after-expiry"),
-            CancellationToken.None);
-        Assert.Equal(colleague.SubjectId, afterExpiry.Holder);
-    }
-
-    private static async Task<string> ClaimPresetEditAsync(
-        Harness harness,
-        Guid presetId,
-        long expectedVersion,
-        ActionActor actor,
-        string operationKey) =>
-        (await new EfEditScopeStore(harness.Factory, harness.Clock).ClaimAsync(
-            new(EditScopeKind.ValuationPreset, presetId, expectedVersion, actor, operationKey),
-            CancellationToken.None)).Token;
 }

@@ -300,7 +300,6 @@ public sealed record UpdatePrincipalReportSettingsRequest(
     PrincipalReportGenerationPolicy ReportGenerationPolicy,
     PrincipalReportRecipientSettings ReportRecipients,
     long ExpectedContactVersion,
-    string EditLeaseToken,
     string? NotesOnEveryCase = null);
 
 public sealed record ReplacePrincipalRequest(
@@ -310,8 +309,7 @@ public sealed record ReplacePrincipalRequest(
     ActionActor Actor,
     string OperationKey,
     string? Reason,
-    long ExpectedContactVersion,
-    string EditLeaseToken);
+    long ExpectedContactVersion);
 
 public sealed record RecordEngineerFindingRequest(
     Guid CaseId,

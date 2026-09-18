@@ -78,9 +78,6 @@ public sealed class EfWorkflowConfigurationStore(
         }
 
         var before = Snapshot(entity);
-        await EfEditScopeStore.RequireAsync(context, EditScopeKind.NamedConfiguration,
-            GetWorkflowConfiguration.RecordId, entity.Version, request.ExpectedVersion,
-            request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow(), cancellationToken);
         entity.RequireInstructions = request.RequireInstructions;
         entity.RequireImages = request.RequireImages;
         entity.ChaseIntervalDays = request.ChaseIntervalDays;
@@ -111,7 +108,6 @@ public sealed class EfWorkflowConfigurationStore(
             PolicyVersion = $"{entity.Id}/v{entity.Version}"
         });
 
-        EfEditScopeStore.Complete(context, EditScopeKind.NamedConfiguration, GetWorkflowConfiguration.RecordId);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);

@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Workflow;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
 
@@ -19,7 +18,6 @@ public sealed class IndexModel(
     IForceStaffLogout forceStaffLogout,
     IResetStaffPassword resetStaffPassword,
     IDeleteStaffAccount deleteStaffAccount,
-    IEditScopeLeases editScopes,
     IPerUserExternalCredentialAdministration externalCredentials) : AdministrationPageModel
 {
     public IReadOnlyList<StaffAccountRow> Rows { get; private set; } = [];
@@ -35,25 +33,7 @@ public sealed class IndexModel(
     public string SettingsPostQualifications { get; private set; } = string.Empty;
     public bool SettingsPostIsDefault { get; private set; }
     public long SettingsPostVersion { get; private set; }
-    public string SettingsLeaseToken { get; private set; } = string.Empty;
     public string? ResetTemporaryPassword { get; private set; }
-
-    /// <summary>
-    /// The account this operator is already editing in another window, offered
-    /// with the take-over that ends the other window's claim.
-    /// </summary>
-    public Guid TakeOverStaffId { get; private set; }
-
-    /// <summary>The record as the operator reading an ownership sentence names it.</summary>
-    private const string RecordName = "account";
-
-    /// <summary>
-    /// Another colleague's claim. This area never resolves the holder's name,
-    /// so the shared wording is used with an unnamed holder rather than a
-    /// second sentence of its own.
-    /// </summary>
-    private static readonly string HeldByAnother =
-        EditModeDisplay.HeldBy(RecordName, CaseEditAuthorityHolder.Unnamed, isSelf: false);
 
     public async Task<IActionResult> OnGetAsync(
         Guid? editStaffId,
@@ -72,126 +52,14 @@ public sealed class IndexModel(
             return Page();
         }
 
-        try
-        {
-            // A plain GET never takes over another window's claim; that is a
-            // mutating act and stays behind the posted Edit handler below.
-            var lease = await editScopes.ClaimAsync(
-                new(EditScopeKind.StaffAccount, staffId, account.Version, actor, NewOperationKey())
-                {
-                    TakeOver = false
-                },
-                cancellationToken);
-            SettingsPostStaffId = staffId;
-            SettingsPostRole = account.Role;
-            SettingsPostIsSignOffEngineer = account.SignOff.IsSignOffEngineer;
-            SettingsPostPrintedName = account.SignOff.PrintedName ?? string.Empty;
-            SettingsPostQualifications = account.SignOff.Qualifications ?? string.Empty;
-            SettingsPostIsDefault = account.SignOff.IsDefault;
-            SettingsPostVersion = account.Version;
-            SettingsLeaseToken = lease.Token;
-        }
-        catch (EditScopeHeldElsewhereException)
-        {
-            TakeOverStaffId = staffId;
-            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
-        }
-        catch (EditScopeConflictException)
-        {
-            ModelState.AddModelError(string.Empty, HeldByAnother);
-        }
-        catch (EditScopeVersionConflictException)
-        {
-            ModelState.AddModelError(string.Empty, "The account changed. Reload and try again.");
-        }
-
+        SettingsPostStaffId = staffId;
+        SettingsPostRole = account.Role;
+        SettingsPostIsSignOffEngineer = account.SignOff.IsSignOffEngineer;
+        SettingsPostPrintedName = account.SignOff.PrintedName ?? string.Empty;
+        SettingsPostQualifications = account.SignOff.Qualifications ?? string.Empty;
+        SettingsPostIsDefault = account.SignOff.IsDefault;
+        SettingsPostVersion = account.Version;
         return Page();
-    }
-
-    /// <summary>
-    /// The take-over claim: the same edit-scope acquisition the Settings link
-    /// performs, but posted rather than followed as a plain link, because
-    /// taking over ends another window's claim and a GET must never do that.
-    /// </summary>
-    public async Task<IActionResult> OnPostEditAsync(
-        Guid staffId,
-        long expectedVersion,
-        string? operationKey,
-        bool takeOver,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (staffId == Guid.Empty || !IsOperationKeyValid(operationKey)) return BadRequest();
-        await LoadAsync(actor, cancellationToken);
-
-        var account = Rows.SingleOrDefault(item => item.Account.Id == staffId)?.Account;
-        if (account is null) return NotFound();
-        if (expectedVersion != account.Version)
-        {
-            ModelState.AddModelError(string.Empty, "The account changed. Reload and try again.");
-            return Page();
-        }
-
-        try
-        {
-            var lease = await editScopes.ClaimAsync(
-                new(EditScopeKind.StaffAccount, staffId, account.Version, actor, operationKey!)
-                {
-                    TakeOver = takeOver
-                },
-                cancellationToken);
-            SettingsPostStaffId = staffId;
-            SettingsPostRole = account.Role;
-            SettingsPostIsSignOffEngineer = account.SignOff.IsSignOffEngineer;
-            SettingsPostPrintedName = account.SignOff.PrintedName ?? string.Empty;
-            SettingsPostQualifications = account.SignOff.Qualifications ?? string.Empty;
-            SettingsPostIsDefault = account.SignOff.IsDefault;
-            SettingsPostVersion = account.Version;
-            SettingsLeaseToken = lease.Token;
-        }
-        catch (EditScopeHeldElsewhereException)
-        {
-            TakeOverStaffId = staffId;
-            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
-        }
-        catch (EditScopeConflictException)
-        {
-            ModelState.AddModelError(string.Empty, HeldByAnother);
-        }
-        catch (EditScopeVersionConflictException)
-        {
-            ModelState.AddModelError(string.Empty, "The account changed. Reload and try again.");
-        }
-
-        return Page();
-    }
-
-    /// <summary>
-    /// The release a leaving page beacons. It is not an operator action: it
-    /// answers 204 whether or not a scope was still there to release, so a
-    /// duplicate beacon and a beacon that lost a race with Cancel are both
-    /// ordinary outcomes. Antiforgery is validated as it is for every post.
-    /// </summary>
-    public async Task<IActionResult> OnPostReleaseScopeBeaconAsync(
-        Guid staffId,
-        string? editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (staffId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken)) return new NoContentResult();
-        try
-        {
-            await editScopes.ReleaseAsync(
-                new(EditScopeKind.StaffAccount, staffId, actor, NewOperationKey(), editLeaseToken),
-                cancellationToken);
-        }
-        catch (Exception exception)
-            when (exception is EditScopeExpiredException or EditScopeConflictException)
-        {
-            // The scope has already gone or has already been re-claimed by a
-            // newer window of this operator's own session.
-        }
-        return new NoContentResult();
     }
 
     public Task<IActionResult> OnPostCreateAsync(
@@ -222,7 +90,6 @@ public sealed class IndexModel(
         bool isDefaultSignOffEngineer,
         IFormFile? signature,
         long expectedVersion,
-        string? editLeaseToken,
         string? reason,
         string? operationKey,
         CancellationToken cancellationToken)
@@ -233,7 +100,6 @@ public sealed class IndexModel(
         SettingsPostQualifications = qualifications ?? string.Empty;
         SettingsPostIsDefault = isDefaultSignOffEngineer;
         SettingsPostVersion = expectedVersion;
-        SettingsLeaseToken = editLeaseToken ?? string.Empty;
         return RunAsync(async actor =>
         {
             if (!RequireStaffId(staffId) || !ValidateOperationKey(operationKey))
@@ -263,80 +129,28 @@ public sealed class IndexModel(
                 new(
                     actor, staffId, selectedRole, isSignOffEngineer, printedName, qualifications,
                     signatureBytes, isDefaultSignOffEngineer, operationKey!, expectedVersion,
-                    editLeaseToken ?? string.Empty, reason),
+                    reason),
                 cancellationToken);
             return "Account settings saved.";
         }, cancellationToken);
     }
 
-    public async Task<IActionResult> OnPostCancelSettingsAsync(
-        Guid staffId,
-        string? editLeaseToken,
-        string? operationKey,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (staffId == Guid.Empty || !IsOperationKeyValid(operationKey) || string.IsNullOrWhiteSpace(editLeaseToken))
-        {
-            return RedirectToPage();
-        }
-        try
-        {
-            await editScopes.ReleaseAsync(
-                new(EditScopeKind.StaffAccount, staffId, actor, operationKey!, editLeaseToken),
-                cancellationToken);
-        }
-        catch (EditScopeExpiredException)
-        {
-            // Cancel remains a no-op when the scope has already expired.
-        }
-        return RedirectToPage();
-    }
-
-    public async Task<IActionResult> OnPostHeartbeatSettingsAsync(
-        Guid staffId,
-        string? editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (staffId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
-        {
-            return new ConflictObjectResult("Editing this staff account has ended. Reload it before making further changes.");
-        }
-
-        try
-        {
-            await editScopes.HeartbeatAsync(
-                new(EditScopeKind.StaffAccount, staffId, actor, editLeaseToken),
-                cancellationToken);
-            return new OkResult();
-        }
-        catch (EditScopeConflictException)
-        {
-            return new ConflictObjectResult("Editing this staff account has ended. Reload it before making further changes.");
-        }
-        catch (EditScopeExpiredException)
-        {
-            return new ConflictObjectResult("Editing this staff account has ended. Reload it before making further changes.");
-        }
-    }
-
-    public Task<IActionResult> OnPostDisableAsync(Guid staffId, long expectedVersion, string? editLeaseToken, string? reason, string? operationKey,
+    public Task<IActionResult> OnPostDisableAsync(Guid staffId, long expectedVersion, string? reason, string? operationKey,
         CancellationToken cancellationToken) => RunAdministrativeActionAsync(staffId, reason, operationKey,
-        (actor, validReason, validKey) => disableStaffAccount.ExecuteAsync(new(actor, staffId, validReason, validKey, expectedVersion, editLeaseToken ?? string.Empty), cancellationToken),
+        (actor, validReason, validKey) => disableStaffAccount.ExecuteAsync(new(actor, staffId, validReason, validKey, expectedVersion), cancellationToken),
         "The account was disabled. Existing browser sessions were revoked.", cancellationToken);
 
-    public Task<IActionResult> OnPostEnableAsync(Guid staffId, long expectedVersion, string? editLeaseToken, string? reason, string? operationKey,
+    public Task<IActionResult> OnPostEnableAsync(Guid staffId, long expectedVersion, string? reason, string? operationKey,
         CancellationToken cancellationToken) => RunAdministrativeActionAsync(staffId, reason, operationKey,
-        (actor, validReason, validKey) => enableStaffAccount.ExecuteAsync(new(actor, staffId, validReason, validKey, expectedVersion, editLeaseToken ?? string.Empty), cancellationToken),
+        (actor, validReason, validKey) => enableStaffAccount.ExecuteAsync(new(actor, staffId, validReason, validKey, expectedVersion), cancellationToken),
         "The account was enabled.", cancellationToken);
 
-    public Task<IActionResult> OnPostForceLogoutAsync(Guid staffId, long expectedVersion, string? editLeaseToken, string? reason, string? operationKey,
+    public Task<IActionResult> OnPostForceLogoutAsync(Guid staffId, long expectedVersion, string? reason, string? operationKey,
         CancellationToken cancellationToken) => RunAdministrativeActionAsync(staffId, reason, operationKey,
-        (actor, validReason, validKey) => forceStaffLogout.ExecuteAsync(new(actor, staffId, validReason, validKey, expectedVersion, editLeaseToken ?? string.Empty), cancellationToken),
+        (actor, validReason, validKey) => forceStaffLogout.ExecuteAsync(new(actor, staffId, validReason, validKey, expectedVersion), cancellationToken),
         "Existing browser sessions were revoked.", cancellationToken);
 
-    public async Task<IActionResult> OnPostResetPasswordAsync(Guid staffId, long expectedVersion, string? editLeaseToken, string? reason, string? operationKey,
+    public async Task<IActionResult> OnPostResetPasswordAsync(Guid staffId, long expectedVersion, string? reason, string? operationKey,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
@@ -348,22 +162,19 @@ public sealed class IndexModel(
         try
         {
             ResetTemporaryPassword = (await resetStaffPassword.ExecuteAsync(
-                new(actor, staffId, reason, operationKey!, expectedVersion, editLeaseToken ?? string.Empty), cancellationToken)).TemporaryPassword;
+                new(actor, staffId, reason, operationKey!, expectedVersion), cancellationToken)).TemporaryPassword;
             Response.Headers.CacheControl = "no-store, no-cache";
             Response.Headers.Pragma = "no-cache";
         }
         catch (StaffAccountAdministrationException exception) { ModelState.AddModelError(string.Empty, MutationErrorMessage(exception.Error)); }
-        catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, HeldByAnother); }
-        catch (EditScopeExpiredException) { ModelState.AddModelError(string.Empty, "Your account edit session expired. Reopen account settings and try again."); }
-        catch (EditScopeVersionConflictException) { ModelState.AddModelError(string.Empty, "The account changed. Reload and try again."); }
         catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The change was not accepted."); }
         await LoadAsync(actor, cancellationToken);
         return Page();
     }
 
-    public Task<IActionResult> OnPostDeleteAsync(Guid staffId, long expectedVersion, string? editLeaseToken, string? reason, string? operationKey,
+    public Task<IActionResult> OnPostDeleteAsync(Guid staffId, long expectedVersion, string? reason, string? operationKey,
         CancellationToken cancellationToken) => RunAdministrativeActionAsync(staffId, reason, operationKey,
-        (actor, validReason, validKey) => deleteStaffAccount.ExecuteAsync(new(actor, staffId, validReason, validKey, expectedVersion, editLeaseToken ?? string.Empty), cancellationToken),
+        (actor, validReason, validKey) => deleteStaffAccount.ExecuteAsync(new(actor, staffId, validReason, validKey, expectedVersion), cancellationToken),
         "The account was deleted.", cancellationToken);
 
     private async Task<byte[]?> ReadSignatureAsync(IFormFile? signature, CancellationToken cancellationToken)
@@ -393,9 +204,6 @@ public sealed class IndexModel(
         if (!TryGetActor(out var actor)) return Forbid();
         string? confirmation = null;
         try { confirmation = await operation(actor); }
-        catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, HeldByAnother); }
-        catch (EditScopeExpiredException) { ModelState.AddModelError(string.Empty, "Your account edit session expired. Reopen account settings and try again."); }
-        catch (EditScopeVersionConflictException) { ModelState.AddModelError(string.Empty, "The account changed. Reload and try again."); }
         catch (StaffAccountAdministrationException exception) { ModelState.AddModelError(string.Empty, MutationErrorMessage(exception.Error)); }
         catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The change was not accepted."); }
         if (confirmation is not null)
@@ -432,6 +240,7 @@ public sealed class IndexModel(
     private static string MutationErrorMessage(StaffAccountAdministrationError error) => error switch
     {
         StaffAccountAdministrationError.StaffAccountNotFound => "The staff account no longer exists.",
+        StaffAccountAdministrationError.StaleVersion => "The staff account changed. Reload and try again.",
         StaffAccountAdministrationError.DuplicateUserName => "That username is already assigned.",
         StaffAccountAdministrationError.LastAdministrator => "The change was denied because at least one enabled Administrator must remain.",
         StaffAccountAdministrationError.AssignedToOpenCases => "The account is the Engineer or Sign-off Engineer on open cases. Reassign those cases first.",

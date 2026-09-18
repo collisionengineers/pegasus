@@ -41,6 +41,13 @@ automation stop or start) enters permanent history with an optional reason.
 Administration pages perform Save, Enable, Disable, Delete, Remove, Clear and
 Stop on the click, with no confirmation dialog.
 
+Contact, staff-account and mailbox Settings load their current values and
+expected version with editing available immediately. Glass's credentials,
+workflow configuration, labour-rate cards, approved categories and valuation
+presets are also immediately editable. Each independent change sends its
+rendered expected version. A stale change is refused without overwriting the
+newer value and asks the Administrator to reload.
+
 Where Automation is composed, each of its scopes (`automation.cases`,
 `automation.intake`, `automation.documents`, `automation.assessment`,
 `automation.mail`, `automation.jobs`) renders as a plain label (Cases,
@@ -84,18 +91,19 @@ the field and the server. The directory rules are owned by
   selects from. Disabling a card blocks future selection without changing
   history ([FRD-25](frd-25-repair-estimates-imports-and-glasss-sessions.md#canonical-repair-specifications)).
 
-The read view lists the six settings as "Chase interval · 7 days" and so on.
-The edit form names each range when a value is refused. There are no staff
-instruction-review or image-review settings. The default view shows current
-values. Edit claims the configuration, Save applies it on the click, and
-Cancel discards changes. Labour-rate cards stay inside this area; there is no
-tenth area.
+The six settings and labour-rate-card rows are editable on load. Validation
+names the setting and allowed range when a value is refused. There are no
+staff instruction-review or image-review settings. Save submits the workflow
+settings or one card with its rendered expected version; a stale save is
+refused and asks the Administrator to reload. Labour-rate cards stay inside
+this area; there is no tenth area.
 
 ### Valuation presets
 
-**Valuation presets** adds and edits inline: a compact add row and in-row
-editing, with no separate creation or edit dialog. An in-progress edit holds
-the record edit scope ([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)).
+**Valuation presets** adds and edits inline: a compact add row and all existing
+rows editable immediately, with no separate creation or edit dialog. Save and
+Remove use each row's rendered expected version. A stale change is refused
+and asks the Administrator to reload.
 **Remove** is a soft removal that acts on the click. The preset drops out of
 the list and out of new selection. A valuation already recorded against it
 keeps its own snapshot
@@ -138,8 +146,8 @@ false zero.
 
 Every area renders one of: loading, empty, current, stale (with the
 last-good time), partial, unavailable, failed, validation, conflict, or
-access denied. An existing record opens read-only until Edit claims its scope
-([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)).
+access denied. Existing settings are editable immediately and each change
+checks the expected version inside its mutation transaction.
 
 ## Edge cases and fail-closed behaviour
 

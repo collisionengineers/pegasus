@@ -61,7 +61,6 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
                 ["CategoryForm.OperationKey"] = Value(OperationKeyRegex().Matches(page)[^1].Value),
                 ["CategoryForm.DisplayName"] = "Awaiting engineer",
                 ["CategoryForm.SelectedState"] = "Active",
-                ["CategoryForm.Reason"] = "Approve the display name for exact-message actions",
                 ["__RequestVerificationToken"] = Value(AntiforgeryRegex().Match(page).Value)
             }));
 
@@ -86,8 +85,7 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
             "0",
             Value(OperationKeyRegex().Matches(page)[^1].Value),
             "Awaiting engineer",
-            "Active",
-            "Approve the exact display name");
+            "Active");
 
         using (var created = await PostAsync(client, add))
             Assert.Equal(HttpStatusCode.Found, created.StatusCode);
@@ -96,25 +94,21 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
 
         page = await GetPageAsync(client);
         var categoryId = Value(CategoryIdRegex().Match(page).Value);
-        var originalVersion = Value(ExpectedVersionRegex().Match(page).Value);
-        var editing = await OpenCategoryEditAsync(
-            client, categoryId, int.Parse(originalVersion, System.Globalization.CultureInfo.InvariantCulture), page);
-        var disableOperation = Value(OperationKeyRegex().Match(editing).Value);
-        var disable = Form(
-            editing, categoryId, originalVersion, disableOperation,
-            "Awaiting engineer", "Disabled", "Retire the exact display name");
+        var originalVersion = "1";
+        var disableOperation = Guid.NewGuid().ToString("N");
+        var disable = Form(page, categoryId, originalVersion, disableOperation, "Awaiting engineer", "Disabled");
         using (var disabled = await PostAsync(client, disable))
             Assert.Equal(HttpStatusCode.Found, disabled.StatusCode);
 
-        var stale = Form(
-            await GetPageAsync(client), categoryId, originalVersion,
-            Guid.NewGuid().ToString("N"),
-            "Awaiting engineer", "Active", "Attempt a stale update");
+        page = await GetPageAsync(client);
+        Assert.Contains("name=\"CategoryForm.DisplayName\"", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"CategoryForm.ExpectedVersion\" value=\"2\"", page, StringComparison.Ordinal);
+        var stale = Form(page, categoryId, originalVersion, Guid.NewGuid().ToString("N"), "Awaiting engineer", "Active");
         using (var response = await PostAsync(client, stale))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Contains(
-                "The category policy changed. Review it and retry.",
+                "The category policy changed. Your change was not applied; reload and review the current row before retrying.",
                 await response.Content.ReadAsStringAsync(),
                 StringComparison.Ordinal);
         }
@@ -145,8 +139,7 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
             "0",
             Value(OperationKeyRegex().Matches(page)[^1].Value),
             "",
-            "Unsupported",
-            "");
+            "Unsupported");
 
         using var response = await PostAsync(client, invalid);
 
@@ -171,13 +164,12 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
     }
 
     private static Dictionary<string, string> Form(
-        string page,
-        string categoryId,
-        string expectedVersion,
-        string operationKey,
-        string displayName,
-        string state,
-        string reason)
+            string page,
+            string categoryId,
+            string expectedVersion,
+            string operationKey,
+            string displayName,
+            string state)
     {
         var form = new Dictionary<string, string>
         {
@@ -186,17 +178,8 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
         ["CategoryForm.OperationKey"] = operationKey,
         ["CategoryForm.DisplayName"] = displayName,
         ["CategoryForm.SelectedState"] = state,
-        ["CategoryForm.Reason"] = reason,
         ["__RequestVerificationToken"] = Value(AntiforgeryRegex().Match(page).Value)
         };
-        var token = CategoryEditLeaseTokenRegex().Matches(page)
-            .Select(match => Value(match.Value))
-            .SingleOrDefault(value => !string.IsNullOrWhiteSpace(value));
-        if (!string.IsNullOrWhiteSpace(token))
-        {
-            form["CategoryForm.EditLeaseToken"] = token;
-        }
-
         return form;
     }
 
@@ -207,28 +190,9 @@ public sealed partial class ApprovedOutlookCategoryAdministrationWebTests
             "/Administration/Mailboxes?handler=SaveCategory",
             new FormUrlEncodedContent(form));
 
-    private static async Task<string> OpenCategoryEditAsync(
-        HttpClient client,
-        string categoryId,
-        int expectedVersion,
-        string page)
-    {
-        using var response = await client.PostAsync(
-            "/Administration/Mailboxes?handler=EditCategory",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["categoryId"] = categoryId,
-                ["expectedVersion"] = expectedVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["__RequestVerificationToken"] = Value(AntiforgeryRegex().Match(page).Value)
-            }));
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
-    }
-
     [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.CategoryId\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex CategoryIdRegex();
     [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.OperationKey\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex OperationKeyRegex();
     [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.ExpectedVersion\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex ExpectedVersionRegex();
-    [GeneratedRegex("<input[^>]*name=\"CategoryForm\\.EditLeaseToken\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex CategoryEditLeaseTokenRegex();
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex AntiforgeryRegex();
     [GeneratedRegex("value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase)] private static partial Regex ValueRegex();
 }

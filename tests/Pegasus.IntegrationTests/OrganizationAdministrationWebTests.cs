@@ -106,7 +106,6 @@ public sealed partial class OrganizationAdministrationWebTests
             ["ReportSettingsOperationKey"] = InputValue(evaSubmissionHtml, "ReportSettingsOperationKey"),
             ["PrincipalExpectedVersion"] = InputValue(evaSubmissionHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(evaSubmissionHtml, "ExpectedVersion"),
-            ["LeaseToken"] = InputValue(evaSubmissionHtml, "LeaseToken"),
             ["ReportGenerationPolicy"] = "EvaManualApi"
         };
         using var evaSubmissionPost = await client.PostAsync(
@@ -131,7 +130,6 @@ public sealed partial class OrganizationAdministrationWebTests
                 ["LocationOperationKey"] = InputValue(locationHtml, "LocationOperationKey"),
                 ["PrincipalExpectedVersion"] = InputValue(locationHtml, "PrincipalExpectedVersion"),
                 ["ExpectedVersion"] = InputValue(locationHtml, "ExpectedVersion"),
-                ["LeaseToken"] = InputValue(locationHtml, "LeaseToken"),
                 ["LocationIsImageBasedAssessment"] = bool.TrueString
             }));
         Assert.Equal(HttpStatusCode.Redirect, locationPost.StatusCode);
@@ -153,7 +151,6 @@ public sealed partial class OrganizationAdministrationWebTests
             ["ReplacementOperationKey"] = replacementOperationKey,
             ["ReplacementExpectedVersion"] = InputValue(replaceHtml, "ReplacementExpectedVersion"),
             ["ExpectedVersion"] = InputValue(replaceHtml, "ExpectedVersion"),
-            ["LeaseToken"] = InputValue(replaceHtml, "LeaseToken"),
             ["SuccessorCode"] = "WEBN"
         };
         using var replacePost = await client.PostAsync(
@@ -299,30 +296,77 @@ public sealed partial class OrganizationAdministrationWebTests
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateId = '{principalId:D}' AND EventKind LIKE 'principal_credential_%';"));
     }
 
+    [Theory]
+    [InlineData("IssueCredential", false)]
+    [InlineData("IssueCredential", true)]
+    [InlineData("PauseCredential", true)]
+    [InlineData("ResumeCredential", true)]
+    [InlineData("RevokeCredential", true)]
+    public async Task StaleContactCredentialActionsShowConflictAndPreserveCredential(
+        string handler, bool credentialExists)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var principalId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT Id FROM Principals WHERE Code = 'QDOS';");
+        var contactId = await factory.Database.ScalarAsync<Guid>(
+            $"SELECT OrganizationId FROM Principals WHERE Id = '{principalId:D}';");
+        var path = $"/Administration/Contacts/Edit/{contactId:D}";
+        var settings = await EditContactAsync(client, path);
+        if (credentialExists)
+        {
+            using var issued = await client.PostAsync(
+                $"{path}?handler=IssueCredential", new FormUrlEncodedContent(CredentialForm(settings)));
+            Assert.Equal(HttpStatusCode.OK, issued.StatusCode);
+            settings = await EditContactAsync(client, path);
+        }
+        if (handler == "ResumeCredential")
+        {
+            using var paused = await client.PostAsync(
+                $"{path}?handler=PauseCredential", new FormUrlEncodedContent(CredentialForm(settings)));
+            Assert.Equal(HttpStatusCode.Redirect, paused.StatusCode);
+            settings = await EditContactAsync(client, path);
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var getCredential = scope.ServiceProvider.GetRequiredService<IGetPrincipalCredential>();
+        var actor = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+        var before = await getCredential.ExecuteAsync(actor, principalId, default);
+        var historyBefore = await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateId = '{principalId:D}' AND EventKind LIKE 'principal_credential_%';");
+        await factory.Database.ExecuteAsync(
+            $"UPDATE Organizations SET Version = Version + 1 WHERE Id = '{contactId:D}';");
+
+        using var refused = await client.PostAsync(
+            $"{path}?handler={handler}", new FormUrlEncodedContent(CredentialForm(settings)));
+
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        var refusedHtml = await refused.Content.ReadAsStringAsync();
+        Assert.Contains("This contact changed. Reload it before making further changes.", refusedHtml, StringComparison.Ordinal);
+        Assert.Equal(InputValue(settings, "ExpectedVersion"), InputValue(refusedHtml, "ExpectedVersion"));
+        Assert.DoesNotContain("id=\"issued-api-key\"", refusedHtml, StringComparison.Ordinal);
+        Assert.Equal(before, await getCredential.ExecuteAsync(actor, principalId, default));
+        Assert.Equal(historyBefore, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateId = '{principalId:D}' AND EventKind LIKE 'principal_credential_%';"));
+
+        var reloaded = await EditContactAsync(client, path);
+        using var retried = await client.PostAsync(
+            $"{path}?handler={handler}", new FormUrlEncodedContent(CredentialForm(reloaded)));
+        Assert.Equal(handler == "IssueCredential" ? HttpStatusCode.OK : HttpStatusCode.Redirect, retried.StatusCode);
+        Assert.Equal((before?.Version ?? 0) + 1,
+            (await getCredential.ExecuteAsync(actor, principalId, default))!.Version);
+    }
+
     private static Dictionary<string, string> CredentialForm(string html) => new()
     {
         ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
         ["ExpectedVersion"] = InputValue(html, "ExpectedVersion"),
-        ["LeaseToken"] = InputValue(html, "LeaseToken"),
         ["CredentialOperationKey"] = InputValue(html, "CredentialOperationKey"),
         ["CredentialVersion"] = InputValue(html, "CredentialVersion")
     };
 
-    private static async Task<string> EditContactAsync(HttpClient client, string path)
-    {
-        var readOnlyHtml = await IntakeWebDriver.GetHtmlAsync(client, path);
-        using var response = await client.PostAsync(
-            $"{path}?handler=Edit",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(readOnlyHtml, "__RequestVerificationToken"),
-                ["ContactId"] = InputValue(readOnlyHtml, "ContactId"),
-                ["ExpectedVersion"] = InputValue(readOnlyHtml, "ExpectedVersion"),
-                ["OperationKey"] = InputValue(readOnlyHtml, "OperationKey")
-            }));
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync();
-    }
+    private static Task<string> EditContactAsync(HttpClient client, string path) =>
+        IntakeWebDriver.GetHtmlAsync(client, path);
 
     private static string InputValue(string html, string name)
     {

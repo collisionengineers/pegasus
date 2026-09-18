@@ -10,7 +10,7 @@ public sealed partial class WorkflowConfigurationWebTests
     private const string Route = "/Administration/Configuration";
 
     [Fact]
-    public async Task AdministratorSeesActualWorkflowValuesAndExplicitEdit()
+    public async Task AdministratorSeesEditableWorkflowAndRateCardForms()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -18,114 +18,66 @@ public sealed partial class WorkflowConfigurationWebTests
         Assert.Contains("Case workflow", html, StringComparison.Ordinal);
         Assert.Contains("Chase interval", html, StringComparison.Ordinal);
         Assert.Contains("Labour-rate cards", html, StringComparison.Ordinal);
-        Assert.Contains("handler=Edit", html, StringComparison.Ordinal);
         Assert.DoesNotContain("There are no editable settings", html, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"LeaseToken\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"WorkflowExpectedVersion\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"ChaseIntervalDays\"", html, StringComparison.Ordinal);
+        Assert.Contains("handler=SaveWorkflow", html, StringComparison.Ordinal);
+        Assert.Contains("handler=NewCard", html, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task SaveRequiresLeaseAndCancelDiscardsConfiguredValues()
+    public async Task WorkflowSettingsSaveDirectlyAndKeepRangeValidation()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var html = await GetPageAsync(client);
-        var id = Pegasus.Core.Workflow.GetWorkflowConfiguration.RecordId.ToString("D");
-        using var edit = await client.PostAsync(Route + "?handler=Edit", new FormUrlEncodedContent(new Dictionary<string,string>
-        {
-            ["recordId"] = id, ["__RequestVerificationToken"] = Field(html, "__RequestVerificationToken")
-        }));
-        Assert.Equal(HttpStatusCode.OK, edit.StatusCode);
-        var editor = await edit.Content.ReadAsStringAsync();
-        var fields = new Dictionary<string,string>
-        {
-            ["EditingId"] = id, ["ExpectedVersion"] = Field(editor, "ExpectedVersion"),
-            ["LeaseToken"] = Field(editor, "LeaseToken"), ["OperationKey"] = Field(editor, "OperationKey"),
-            ["__RequestVerificationToken"] = Field(editor, "__RequestVerificationToken"),
-            ["RequireInstructions"] = "true", ["RequireImages"] = "false", ["ChaseIntervalDays"] = "12"
-        };
-        var forged = new Dictionary<string,string>(fields) { ["LeaseToken"] = new string('a', 64) };
-        using var refused = await client.PostAsync(Route + "?handler=Save", new FormUrlEncodedContent(forged));
-        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
-        Assert.Contains("could not be saved", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        using var cancel = await client.PostAsync(Route + "?handler=Cancel", new FormUrlEncodedContent(fields));
-        Assert.Equal(HttpStatusCode.Redirect, cancel.StatusCode);
-        Assert.Contains("7 days", await GetPageAsync(client), StringComparison.Ordinal);
-        using var again = await client.PostAsync(Route + "?handler=Edit", new FormUrlEncodedContent(new Dictionary<string,string>
-        {
-            ["recordId"] = id, ["__RequestVerificationToken"] = fields["__RequestVerificationToken"]
-        }));
-        editor = await again.Content.ReadAsStringAsync();
-        fields["LeaseToken"] = Field(editor, "LeaseToken");
-        fields["OperationKey"] = Field(editor, "OperationKey");
-        using var saved = await client.PostAsync(Route + "?handler=Save", new FormUrlEncodedContent(fields));
-        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
-        Assert.Contains("12 days", await GetPageAsync(client), StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// Configuration (13 September): the read view lists the six workflow settings
-    /// as "Chase interval · 7 days" and the five due targets; the edit form has six
-    /// number inputs with their ranges, and a value outside a range is refused
-    /// against its own input with the range named.
-    /// </summary>
-    [Fact]
-    public async Task TheSixWorkflowSettingsReadEditAndNameTheirRanges()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var html = await GetPageAsync(client);
-        foreach (var (field, label, days) in new[]
-                 {
-                     ("ChaseIntervalDays", "Chase interval", "7 days"),
-                     ("UnidentifiedTargetDays", "Unidentified target", "0 days"),
-                     ("TriageTargetDays", "Triage target", "1 day"),
-                     ("HeldTargetDays", "Held decision target", "7 days"),
-                     ("ReviewTargetDays", "Review target", "1 day"),
-                     ("AiDraftTargetDays", "AI draft target", "1 day")
-                 })
-        {
-            Assert.Matches(
-                $"data-workflow-setting=\"{field}\"><dt>{Regex.Escape(label)}</dt><dd>{days}</dd>",
-                html);
-        }
-
-        var id = Pegasus.Core.Workflow.GetWorkflowConfiguration.RecordId.ToString("D");
-        using var edit = await client.PostAsync(Route + "?handler=Edit", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["recordId"] = id, ["__RequestVerificationToken"] = Field(html, "__RequestVerificationToken")
-        }));
-        var editor = await edit.Content.ReadAsStringAsync();
-        Assert.Matches("name=\"ChaseIntervalDays\"[^>]*min=\"1\"[^>]*max=\"365\"", editor);
+        Assert.Matches("name=\"ChaseIntervalDays\"[^>]*min=\"1\"[^>]*max=\"365\"", html);
         foreach (var field in new[] { "UnidentifiedTargetDays", "TriageTargetDays", "HeldTargetDays", "ReviewTargetDays", "AiDraftTargetDays" })
         {
-            Assert.Matches($"name=\"{field}\"[^>]*min=\"0\"[^>]*max=\"365\"", editor);
+            Assert.Matches($"name=\"{field}\"[^>]*min=\"0\"[^>]*max=\"365\"", html);
         }
 
-        using var refused = await client.PostAsync(Route + "?handler=Save", new FormUrlEncodedContent(new Dictionary<string, string>
+        var fields = new Dictionary<string, string>
         {
-            ["EditingId"] = id, ["ExpectedVersion"] = Field(editor, "ExpectedVersion"),
-            ["LeaseToken"] = Field(editor, "LeaseToken"), ["OperationKey"] = Field(editor, "OperationKey"),
-            ["__RequestVerificationToken"] = Field(editor, "__RequestVerificationToken"),
-            ["RequireInstructions"] = "true", ["ChaseIntervalDays"] = "7",
-            ["UnidentifiedTargetDays"] = "0", ["TriageTargetDays"] = "400", ["HeldTargetDays"] = "7",
+            ["WorkflowExpectedVersion"] = Field(html, "WorkflowExpectedVersion"),
+            ["WorkflowOperationKey"] = Field(html, "WorkflowOperationKey"),
+            ["__RequestVerificationToken"] = Field(html, "__RequestVerificationToken"),
+            ["RequireInstructions"] = "true", ["RequireImages"] = "false",
+            ["ChaseIntervalDays"] = "7", ["UnidentifiedTargetDays"] = "0",
+            ["TriageTargetDays"] = "400", ["HeldTargetDays"] = "7",
             ["ReviewTargetDays"] = "1", ["AiDraftTargetDays"] = "1"
-        }));
+        };
+        using var refused = await client.PostAsync(Route + "?handler=SaveWorkflow", new FormUrlEncodedContent(fields));
         Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
         Assert.Contains("Triage target must be between 0 and 365 days.", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
 
-        using var saved = await client.PostAsync(Route + "?handler=Save", new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["EditingId"] = id, ["ExpectedVersion"] = Field(editor, "ExpectedVersion"),
-            ["LeaseToken"] = Field(editor, "LeaseToken"), ["OperationKey"] = Field(editor, "OperationKey"),
-            ["__RequestVerificationToken"] = Field(editor, "__RequestVerificationToken"),
-            ["RequireInstructions"] = "true", ["ChaseIntervalDays"] = "7",
-            ["UnidentifiedTargetDays"] = "2", ["TriageTargetDays"] = "3", ["HeldTargetDays"] = "4",
-            ["ReviewTargetDays"] = "5", ["AiDraftTargetDays"] = "6"
-        }));
-        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+        fields["TriageTargetDays"] = "3";
+        fields["UnidentifiedTargetDays"] = "2";
+        fields["HeldTargetDays"] = "4";
+        fields["ReviewTargetDays"] = "5";
+        fields["AiDraftTargetDays"] = "6";
+        using var saved = await client.PostAsync(Route + "?handler=SaveWorkflow", new FormUrlEncodedContent(fields));
+        Assert.True(
+            saved.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {saved.StatusCode}. {await ValidationMessagesAsync(saved)}");
         var after = await GetPageAsync(client);
-        Assert.Contains("data-workflow-setting=\"TriageTargetDays\"><dt>Triage target</dt><dd>3 days</dd>", after, StringComparison.Ordinal);
-        Assert.Contains("data-workflow-setting=\"AiDraftTargetDays\"><dt>AI draft target</dt><dd>6 days</dd>", after, StringComparison.Ordinal);
+        Assert.Matches("name=\"TriageTargetDays\"[^>]*value=\"3\"", after);
+        Assert.Matches("name=\"AiDraftTargetDays\"[^>]*value=\"6\"", after);
+    }
+
+    /// <summary>
+    /// Configuration (13 September): the page renders the workflow's six
+    /// editable settings and carries versioned form metadata directly on load.
+    /// </summary>
+    [Fact]
+    public async Task WorkflowSettingsCarryVersionedFormMetadataOnLoad()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var html = await GetPageAsync(client);
+        Assert.Contains("name=\"WorkflowExpectedVersion\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"WorkflowOperationKey\"", html, StringComparison.Ordinal);
     }
 
     private static string Field(string html, string name)
@@ -133,6 +85,48 @@ public sealed partial class WorkflowConfigurationWebTests
         var tag = Regex.Match(html, "<input[^>]*name=\"" + Regex.Escape(name) + "\"[^>]*>");
         Assert.True(tag.Success, "Missing field " + name);
         return WebUtility.HtmlDecode(Regex.Match(tag.Value, "value=\"([^\"]*)\"").Groups[1].Value);
+    }
+
+    [Fact]
+    public async Task RateCardCanBeAddedAndSavedWithoutOpeningAnEditScope()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var html = await GetPageAsync(client);
+        using var opened = await client.PostAsync(Route + "?handler=NewCard", new FormUrlEncodedContent(
+            new Dictionary<string, string> { ["__RequestVerificationToken"] = Field(html, "__RequestVerificationToken") }));
+        Assert.Equal(HttpStatusCode.OK, opened.StatusCode);
+        var openedHtml = await opened.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("WorkflowOperationKey field is required", openedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("CardOperationKey field is required", openedHtml, StringComparison.Ordinal);
+        var addForm = Regex.Match(openedHtml, "<form id=\"rate-card-add\"[^>]*>[\\s\\S]*?</form>").Value;
+        Assert.NotEmpty(addForm);
+        var fields = new Dictionary<string, string>
+        {
+            ["CardId"] = Field(addForm, "CardId"),
+            ["CardExpectedVersion"] = Field(addForm, "CardExpectedVersion"),
+            ["CardOperationKey"] = Field(addForm, "CardOperationKey"),
+            ["__RequestVerificationToken"] = Field(addForm, "__RequestVerificationToken"),
+            ["CardName"] = "New integration rate",
+            ["HourlyRate"] = "92.50",
+            ["Enabled"] = "true"
+        };
+        using var saved = await client.PostAsync(Route + "?handler=SaveCard", new FormUrlEncodedContent(fields));
+        Assert.True(
+            saved.StatusCode == HttpStatusCode.Redirect,
+            $"Expected a redirect but got {saved.StatusCode}. {await ValidationMessagesAsync(saved)}");
+        Assert.Contains("New integration rate", await GetPageAsync(client), StringComparison.Ordinal);
+    }
+
+    private static async Task<string> ValidationMessagesAsync(HttpResponseMessage response)
+    {
+        var html = await response.Content.ReadAsStringAsync();
+        var messages = Regex.Matches(html, "<li>(?<message>[\\s\\S]*?)</li>")
+            .Cast<Match>()
+            .Select(match => WebUtility.HtmlDecode(Regex.Replace(match.Groups["message"].Value, "<[^>]+>", string.Empty)).Trim())
+            .Where(message => message.Length > 0);
+        var summary = string.Join(" | ", messages);
+        return summary.Length == 0 ? "No validation messages were rendered." : summary;
     }
     [Fact]
     public async Task ComposedAutomationIsListedInThisPageAdministrationRail()

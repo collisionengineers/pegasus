@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Administration.Contacts;
 
@@ -11,7 +10,6 @@ namespace Pegasus.Web.Pages.Administration.Contacts;
 public sealed class IndexModel(
     IContactDirectoryQueries contacts,
     IContactDirectoryAdministration administration,
-    IEditScopeLeases editScopes,
     IGetPrincipal getPrincipal) : AdministrationPageModel
 {
     public IReadOnlyList<ContactDirectoryRecord> Contacts { get; private set; } = [];
@@ -27,7 +25,6 @@ public sealed class IndexModel(
     [BindProperty] public Guid ContactId { get; set; }
     [BindProperty] public Guid? ExistingContactId { get; set; }
     [BindProperty] public long ExpectedVersion { get; set; }
-    [BindProperty] public string? LeaseToken { get; set; }
     [BindProperty] public string OperationKey { get; set; } = NewOperationKey();
     [BindProperty, Required, StringLength(ContactDirectoryPolicy.MaximumNameLength)]
     public string Name { get; set; } = string.Empty;
@@ -46,33 +43,9 @@ public sealed class IndexModel(
     [BindProperty] public CaseInspectionMode PrincipalInspectionMode { get; set; } = CaseInspectionMode.PhysicalAddress;
     [BindProperty] public Guid[] AssociatedPrincipalIds { get; set; } = [];
 
-    /// <summary>
-    /// Posted by the take-over control the page offers when this operator is
-    /// already editing the chosen contact in another window.
-    /// </summary>
-    [BindProperty] public bool TakeOver { get; set; }
-
     public bool CreateDialogOpen => CreateType is not null;
-    public bool EditingExisting => ExistingContactId is not null && !string.IsNullOrWhiteSpace(LeaseToken);
+    public bool EditingExisting => ExistingContactId is not null;
     public bool CanAssociateSelectedType => CreateType is { } role && role != ContactRole.Principal;
-
-    /// <summary>
-    /// Set when the chosen contact is already being edited by this operator in
-    /// another window, so the page offers the take-over that ends the other
-    /// window's claim instead of a choice that would be refused again.
-    /// </summary>
-    public bool CanTakeOverEdit { get; private set; }
-
-    /// <summary>The record as the operator reading an ownership sentence names it.</summary>
-    private const string RecordName = "contact";
-
-    /// <summary>
-    /// Another colleague's claim. This area never resolves the holder's name,
-    /// so the shared wording is used with an unnamed holder rather than a
-    /// second sentence of its own.
-    /// </summary>
-    private static readonly string HeldByAnother =
-        EditModeDisplay.HeldBy(RecordName, CaseEditAuthorityHolder.Unnamed, isSelf: false);
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -113,33 +86,10 @@ public sealed class IndexModel(
             return await ReturnWizardAsync(actor, cancellationToken);
         }
 
-        try
-        {
-            var lease = await editScopes.ClaimAsync(
-                new(EditScopeKind.Contact, contact.OrganizationId, contact.Version, actor, OperationKey)
-                {
-                    TakeOver = TakeOver
-                },
-                cancellationToken);
-            ExistingContact = contact;
-            ContactId = contact.OrganizationId;
-            ExpectedVersion = contact.Version;
-            LeaseToken = lease.Token;
-            CopyFrom(contact);
-        }
-        catch (EditScopeHeldElsewhereException)
-        {
-            CanTakeOverEdit = true;
-            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
-        }
-        catch (EditScopeConflictException)
-        {
-            ModelState.AddModelError(string.Empty, HeldByAnother);
-        }
-        catch (EditScopeVersionConflictException)
-        {
-            ModelState.AddModelError(string.Empty, "This contact changed. Choose it again.");
-        }
+        ExistingContact = contact;
+        ContactId = contact.OrganizationId;
+        ExpectedVersion = contact.Version;
+        CopyFrom(contact);
 
         return await ReturnWizardAsync(actor, cancellationToken);
     }
@@ -170,18 +120,6 @@ public sealed class IndexModel(
             {
                 ModelState.AddModelError(string.Empty, ContactErrorMessage(exception.Error));
             }
-            catch (EditScopeConflictException)
-            {
-                ModelState.AddModelError(string.Empty, HeldByAnother);
-            }
-            catch (EditScopeExpiredException)
-            {
-                ModelState.AddModelError(string.Empty, "Your edit session expired. Choose the contact again.");
-            }
-            catch (EditScopeVersionConflictException)
-            {
-                ModelState.AddModelError(string.Empty, "This contact changed. Choose it again.");
-            }
             catch (ArgumentException exception)
             {
                 // A named field error is shown against its own control; every
@@ -198,53 +136,6 @@ public sealed class IndexModel(
         }
 
         return await ReturnWizardAsync(actor, cancellationToken);
-    }
-
-    public async Task<IActionResult> OnPostCancelAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (ExistingContactId is { } contactId && !string.IsNullOrWhiteSpace(LeaseToken))
-        {
-            try
-            {
-                await editScopes.ReleaseAsync(
-                    new(EditScopeKind.Contact, contactId, actor, NewOperationKey(), LeaseToken),
-                    cancellationToken);
-            }
-            catch (Exception exception) when (exception is EditScopeExpiredException or EditScopeConflictException)
-            {
-            }
-        }
-        return RedirectToPage(new { Search, Type, Sort });
-    }
-
-    /// <summary>
-    /// The release a leaving page beacons. It is not an operator action: it
-    /// answers 204 whether or not a scope was still there to release, so a
-    /// duplicate beacon and a beacon that lost a race with Cancel are both
-    /// ordinary outcomes. Antiforgery is validated as it is for every post.
-    /// </summary>
-    public async Task<IActionResult> OnPostReleaseScopeBeaconAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (ExistingContactId is not { } contactId || string.IsNullOrWhiteSpace(LeaseToken))
-        {
-            return new NoContentResult();
-        }
-
-        try
-        {
-            await editScopes.ReleaseAsync(
-                new(EditScopeKind.Contact, contactId, actor, NewOperationKey(), LeaseToken),
-                cancellationToken);
-        }
-        catch (Exception exception)
-            when (exception is EditScopeExpiredException or EditScopeConflictException)
-        {
-            // The scope has already gone or has already been re-claimed by a
-            // newer window of this operator's own session.
-        }
-        return new NoContentResult();
     }
 
     private async Task<SaveContactRequest> BuildSaveRequestAsync(
@@ -270,8 +161,7 @@ public sealed class IndexModel(
                 selectedRole == ContactRole.Principal ? PrincipalCode : null,
                 PrincipalInspectionMode,
                 newContactAssociations,
-                OperationKey,
-                string.Empty);
+                OperationKey);
         }
 
         var existing = await contacts.GetAsync(actor, existingId, cancellationToken)
@@ -317,7 +207,6 @@ public sealed class IndexModel(
             principalInspectionMode,
             mergedAssociations,
             OperationKey,
-            LeaseToken ?? string.Empty,
             existing.GuidanceTemplate,
             existing.GuidanceTemplateVersion);
     }

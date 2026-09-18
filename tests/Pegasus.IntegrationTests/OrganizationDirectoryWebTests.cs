@@ -22,7 +22,7 @@ public sealed partial class OrganizationDirectoryWebTests
             client, factory, "Directory Web Caller Provider", "DIRW");
 
         var settingsPath = $"/Administration/Contacts/Edit/{contactId:D}";
-        var settingsHtml = await EditContactAsync(client, settingsPath);
+        var settingsHtml = await GetContactSettingsAsync(client, settingsPath);
         Assert.Contains("Pegasus", settingsHtml, StringComparison.Ordinal);
         Assert.Contains(">EVA</option>", settingsHtml, StringComparison.Ordinal);
         Assert.Contains("ZIP export", settingsHtml, StringComparison.Ordinal);
@@ -35,7 +35,6 @@ public sealed partial class OrganizationDirectoryWebTests
             ["LocationOperationKey"] = InputValue(settingsHtml, "LocationOperationKey"),
             ["PrincipalExpectedVersion"] = InputValue(settingsHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(settingsHtml, "ExpectedVersion"),
-            ["LeaseToken"] = InputValue(settingsHtml, "LeaseToken"),
             ["LocationIsImageBasedAssessment"] = bool.FalseString,
             ["LocationLabel"] = "Directory Web Caller Yard",
             ["LocationAddress"] = "1 Directory Way, DW1 2EF",
@@ -53,14 +52,13 @@ public sealed partial class OrganizationDirectoryWebTests
             await factory.Database.ScalarAsync<int>(
                 $"SELECT COUNT(*) FROM Principals WHERE Id = '{principalId:D}' AND DefaultInspectionAddress = '1 Directory Way, DW1 2EF' AND DefaultInspectionLocationLabel = 'Directory Web Caller Yard';"));
 
-        var settingsAfterLocationHtml = await EditContactAsync(client, settingsPath);
+        var settingsAfterLocationHtml = await GetContactSettingsAsync(client, settingsPath);
         var reportSettingsForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(settingsAfterLocationHtml, "__RequestVerificationToken"),
             ["ReportSettingsOperationKey"] = InputValue(settingsAfterLocationHtml, "ReportSettingsOperationKey"),
             ["PrincipalExpectedVersion"] = InputValue(settingsAfterLocationHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(settingsAfterLocationHtml, "ExpectedVersion"),
-            ["LeaseToken"] = InputValue(settingsAfterLocationHtml, "LeaseToken"),
             ["ReportGenerationPolicy"] = "EvaManualApi",
             ["IncludeOriginalInstructionSender"] = bool.TrueString,
             ["AdditionalReportRecipients"] = "reports@example.test"
@@ -94,7 +92,7 @@ public sealed partial class OrganizationDirectoryWebTests
         var (principalId, contactId) = await CreatePrincipalContactAsync(
             client, factory, "Stale contact version provider", "STALEW");
         var settingsPath = $"/Administration/Contacts/Edit/{contactId:D}";
-        var settingsHtml = await EditContactAsync(client, settingsPath);
+        var settingsHtml = await GetContactSettingsAsync(client, settingsPath);
         var policyBefore = await factory.Database.ScalarAsync<string>(
             $"SELECT ReportGenerationPolicy FROM Principals WHERE Id = '{principalId:D}';");
 
@@ -106,7 +104,6 @@ public sealed partial class OrganizationDirectoryWebTests
             ["ReportSettingsOperationKey"] = InputValue(settingsHtml, "ReportSettingsOperationKey"),
             ["PrincipalExpectedVersion"] = InputValue(settingsHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(settingsHtml, "ExpectedVersion"),
-            ["LeaseToken"] = InputValue(settingsHtml, "LeaseToken"),
             ["ReportGenerationPolicy"] = "EvaManualApi"
         };
 
@@ -171,7 +168,7 @@ public sealed partial class OrganizationDirectoryWebTests
             "SELECT OrganizationId FROM Principals WHERE Id = '" + principalId + "';");
         var path = $"/Administration/Contacts/Edit/{contactId:D}";
 
-        var editor = await EditContactAsync(client, path);
+        var editor = await GetContactSettingsAsync(client, path);
 
         Assert.Matches(
             """<div class="field" data-notes-on-every-case><label for="NotesOnEveryCase">Notes on every Case</label><textarea[^>]*name="NotesOnEveryCase"[^>]*>""",
@@ -195,21 +192,8 @@ public sealed partial class OrganizationDirectoryWebTests
         Assert.DoesNotContain("Accepted e-mail domains", html, StringComparison.Ordinal);
     }
 
-    private static async Task<string> EditContactAsync(HttpClient client, string path)
-    {
-        var readOnlyHtml = await IntakeWebDriver.GetHtmlAsync(client, path);
-        using var response = await client.PostAsync(
-            $"{path}?handler=Edit",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(readOnlyHtml, "__RequestVerificationToken"),
-                ["ContactId"] = InputValue(readOnlyHtml, "ContactId"),
-                ["ExpectedVersion"] = InputValue(readOnlyHtml, "ExpectedVersion"),
-                ["OperationKey"] = InputValue(readOnlyHtml, "OperationKey")
-            }));
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync();
-    }
+    private static Task<string> GetContactSettingsAsync(HttpClient client, string path) =>
+        IntakeWebDriver.GetHtmlAsync(client, path);
 
     private static async Task<(Guid PrincipalId, Guid ContactId)> CreatePrincipalContactAsync(
         HttpClient client,

@@ -35,14 +35,12 @@ public sealed class ExternalCredentialIsolationTests
                     context,
                     protection,
                     TimeProvider.System);
-                var lease = await ClaimStaffAccountAsync(database, engineerId, administrator);
                 var status = await store.ReplaceAsync(
                     administrator,
                     engineerId,
                     ExternalCredentialProvider.GlassRepairEstimate,
                     expectedCredentialVersion: 0,
-                    expectedStaffAccountVersion: lease.RecordVersion,
-                    editLeaseToken: lease.Token,
+                    expectedStaffAccountVersion: await StaffAccountVersionAsync(database, engineerId),
                     username: "alex.glass",
                     password: "provider-password",
                     enabled: true,
@@ -105,27 +103,22 @@ public sealed class ExternalCredentialIsolationTests
             TimeProvider.System);
         var administrator = ActionActor.Staff(administratorId, [StaffRole.Administrator]);
         var engineer = ActionActor.Staff(engineerId, [StaffRole.Engineer]);
-        var firstLease = await ClaimStaffAccountAsync(database, engineerId, administrator);
-
         var first = await store.ReplaceAsync(
             administrator,
             engineerId,
             ExternalCredentialProvider.GlassRepairEstimate,
             0,
-            firstLease.RecordVersion,
-            firstLease.Token,
+            await StaffAccountVersionAsync(database, engineerId),
             "alex.glass",
             "first-password",
             true,
             default);
-        var secondLease = await ClaimStaffAccountAsync(database, engineerId, administrator);
         var second = await store.ReplaceAsync(
             administrator,
             engineerId,
             ExternalCredentialProvider.GlassRepairEstimate,
             first.Version,
-            secondLease.RecordVersion,
-            secondLease.Token,
+            await StaffAccountVersionAsync(database, engineerId),
             "alex.glass",
             "second-password",
             true,
@@ -139,14 +132,12 @@ public sealed class ExternalCredentialIsolationTests
         Assert.NotNull(replaced);
         Assert.True(SecretEquals("second-password", replaced.Password));
 
-        var clearLease = await ClaimStaffAccountAsync(database, engineerId, administrator);
         await store.ClearAsync(
             administrator,
             engineerId,
             ExternalCredentialProvider.GlassRepairEstimate,
             second.Version,
-            clearLease.RecordVersion,
-            clearLease.Token,
+            await StaffAccountVersionAsync(database, engineerId),
             default);
         Assert.Null(await store.GetEnabledAsync(
             engineer,
@@ -185,50 +176,42 @@ public sealed class ExternalCredentialIsolationTests
             TimeProvider.System);
         var administrator = ActionActor.Staff(administratorId, [StaffRole.Administrator]);
 
-        var configuredLease = await ClaimStaffAccountAsync(database, configuredId, administrator);
         var configured = await store.ReplaceAsync(
             administrator,
             configuredId,
             ExternalCredentialProvider.GlassRepairEstimate,
             0,
-            configuredLease.RecordVersion,
-            configuredLease.Token,
+            await StaffAccountVersionAsync(database, configuredId),
             "configured-user",
             "configured-secret",
             true,
             default);
-        var replacedFirstLease = await ClaimStaffAccountAsync(database, replacedId, administrator);
         var replacedFirst = await store.ReplaceAsync(
             administrator,
             replacedId,
             ExternalCredentialProvider.GlassRepairEstimate,
             0,
-            replacedFirstLease.RecordVersion,
-            replacedFirstLease.Token,
+            await StaffAccountVersionAsync(database, replacedId),
             "replaced-user",
             "replaced-first-secret",
             true,
             default);
-        var replacedSecondLease = await ClaimStaffAccountAsync(database, replacedId, administrator);
         var replaced = await store.ReplaceAsync(
             administrator,
             replacedId,
             ExternalCredentialProvider.GlassRepairEstimate,
             replacedFirst.Version,
-            replacedSecondLease.RecordVersion,
-            replacedSecondLease.Token,
+            await StaffAccountVersionAsync(database, replacedId),
             "replaced-user",
             "replaced-second-secret",
             true,
             default);
-        var disabledLease = await ClaimStaffAccountAsync(database, disabledId, administrator);
         var disabled = await store.ReplaceAsync(
             administrator,
             disabledId,
             ExternalCredentialProvider.GlassRepairEstimate,
             0,
-            disabledLease.RecordVersion,
-            disabledLease.Token,
+            await StaffAccountVersionAsync(database, disabledId),
             "disabled-user",
             "disabled-secret",
             false,
@@ -310,20 +293,15 @@ public sealed class ExternalCredentialIsolationTests
         }
     }
 
-    private static async Task<EditScopeLease> ClaimStaffAccountAsync(
+    private static async Task<long> StaffAccountVersionAsync(
         LocalDbTestDatabase database,
-        Guid staffId,
-        ActionActor actor)
+        Guid staffId)
     {
         await using var context = await database.CreateContextAsync();
-        var version = await context.Users
+        return await context.Users
             .Where(item => item.Id == staffId)
             .Select(item => item.Version)
             .SingleAsync();
-        await using var scope = database.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(EditScopeKind.StaffAccount, staffId, version, actor, Guid.NewGuid().ToString("N")),
-            default);
     }
 
     private static bool SecretEquals(string expected, string actual) =>

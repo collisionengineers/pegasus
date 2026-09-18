@@ -41,9 +41,9 @@ public interface IPerUserExternalCredentialAdministration
     Task<PerUserExternalCredentialStatus> ReplaceAsync(
         ActionActor actor, Guid pegasusUserId, ExternalCredentialProvider provider,
         long expectedCredentialVersion, long expectedStaffAccountVersion,
-        string editLeaseToken, string username, string password, bool enabled,
+        string username, string password, bool enabled,
         CancellationToken cancellationToken);
     Task ClearAsync(ActionActor actor, Guid pegasusUserId, ExternalCredentialProvider provider,
         long expectedCredentialVersion, long expectedStaffAccountVersion,
-        string editLeaseToken, CancellationToken cancellationToken);
+        CancellationToken cancellationToken);
 }

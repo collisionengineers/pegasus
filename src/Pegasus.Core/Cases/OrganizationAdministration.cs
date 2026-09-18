@@ -123,8 +123,7 @@ public sealed record UpdatePrincipalDefaultInspectionLocationRequest(
     string? SourceKind,
     Guid? SourceRecordId,
     long? SourceVersion,
-    long ExpectedContactVersion,
-    string EditLeaseToken);
+    long ExpectedContactVersion);
 
 public interface IUpdatePrincipalDefaultInspectionLocation
 {
@@ -362,8 +361,7 @@ public static class OrganizationAdministrationPolicy
             Reason = NormalizeOptionalText(
                 request.Reason,
                 MaximumReasonLength,
-                nameof(request.Reason)),
-            EditLeaseToken = NormalizeEditLeaseToken(request.EditLeaseToken)
+                nameof(request.Reason))
         };
     }
 
@@ -391,8 +389,7 @@ public static class OrganizationAdministrationPolicy
             OperationKey = NormalizeRequiredText(
                 request.OperationKey,
                 MaximumOperationKeyLength,
-                nameof(request.OperationKey)),
-            EditLeaseToken = NormalizeEditLeaseToken(request.EditLeaseToken)
+                nameof(request.OperationKey))
         };
 
         if (normalized.Kind == InspectionAddressEvidenceKind.ImageBasedAssessment)
@@ -513,8 +510,7 @@ public static class OrganizationAdministrationPolicy
             Reason = NormalizeOptionalText(
                 request.Reason,
                 MaximumReasonLength,
-                nameof(request.Reason)),
-            EditLeaseToken = NormalizeEditLeaseToken(request.EditLeaseToken)
+                nameof(request.Reason))
         };
     }
 
@@ -622,6 +618,4 @@ public static class OrganizationAdministrationPolicy
         return NormalizeRequiredText(value, maximumLength, parameterName);
     }
 
-    private static string NormalizeEditLeaseToken(string? value) =>
-        NormalizeRequiredText(value ?? string.Empty, 200, nameof(value));
 }
