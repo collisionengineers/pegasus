@@ -23,19 +23,9 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
         CancellationToken cancellationToken)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        var engineerEligibleRoleNames = new[]
-        {
-            StaffRoleNames.Administrator.ToUpperInvariant(),
-            StaffRoleNames.Engineer.ToUpperInvariant()
-        };
         return await context.Users.AsNoTracking()
             .Where(user => user.IsEnabled
-                && user.UserName != null
-                && context.UserRoles
-                .Join(context.Roles, userRole => userRole.RoleId, role => role.Id,
-                    (userRole, role) => new { userRole.UserId, role.NormalizedName })
-                .Any(role => role.UserId == user.Id
-                    && engineerEligibleRoleNames.Contains(role.NormalizedName!)))
+                && user.UserName != null)
             .OrderBy(user => user.UserName)
             .ThenBy(user => user.Id)
             .Select(user => new CaseEngineerChoice(user.Id, user.UserName!))
@@ -165,30 +155,21 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
     public async Task<IReadOnlyList<SignOffEngineerProfile>> ListSignOffEngineersAsync(
         CancellationToken cancellationToken)
     {
-        var eligibleRoleNames = new[]
-        {
-            StaffRoleNames.Administrator.ToUpperInvariant(),
-            StaffRoleNames.Engineer.ToUpperInvariant()
-        };
         var candidates = await (
             from user in context.Users.AsNoTracking()
-            join userRole in context.UserRoles.AsNoTracking() on user.Id equals userRole.UserId
-            join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
             where user.IsEnabled
                 && user.IsSignOffEngineer
                 && user.SignOffSignature != null
-                && eligibleRoleNames.Contains(role.NormalizedName!)
             orderby user.SignOffPrintedName, user.Id
-            select new { User = user, RoleName = role.Name! })
+            select user)
             .ToListAsync(cancellationToken);
 
         return candidates
-            .Where(candidate => SignOffEngineerEligibility.IsEligible(
-                candidate.User.IsEnabled,
-                ParseRole(candidate.RoleName),
-                candidate.User.IsSignOffEngineer,
-                candidate.User.SignOffSignature))
-            .Select(candidate => Profile(candidate.User))
+            .Where(user => SignOffEngineerEligibility.IsEligible(
+                user.IsEnabled,
+                user.IsSignOffEngineer,
+                user.SignOffSignature))
+            .Select(Profile)
             .ToArray();
     }
 
@@ -204,16 +185,8 @@ public sealed class EfStaffAccountQueries(PegasusDbContext context)
             return null;
         }
 
-        var roleNames = await (
-            from userRole in context.UserRoles.AsNoTracking()
-            join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
-            where userRole.UserId == staffId
-            select role.Name!)
-            .ToListAsync(cancellationToken);
-        var staffRole = ParseSingleRole(roleNames);
         return SignOffEngineerEligibility.IsEligible(
             user.IsEnabled,
-            staffRole,
             user.IsSignOffEngineer,
             user.SignOffSignature)
             ? Profile(user)

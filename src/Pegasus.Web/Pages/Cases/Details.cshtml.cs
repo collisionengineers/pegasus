@@ -378,26 +378,21 @@ public sealed partial class DetailsModel(
 
     public IReadOnlyList<EstimateEditorLine> EditorLines { get; private set; } = [];
 
-    public bool ActorIsEngineer { get; private set; }
-
     public bool CaseIsArchived => Case?.Workflow.Archive is not null;
 
     public bool SelectedEstimateIsEditable =>
         !AssessmentIsReadOnly
         && AssessmentCanOpen
-        && ActorIsEngineer
         && (EditingNewEstimate || SelectedEstimate?.State == RepairSpecificationState.Draft);
 
     public bool SelectedEstimateCanBeDuplicated =>
         !AssessmentIsReadOnly
         && AssessmentCanOpen
-        && ActorIsEngineer
         && SelectedEstimate is { State: not RepairSpecificationState.Discarded };
 
     public bool SelectedEstimateCanBeCurrent =>
         !AssessmentIsReadOnly
         && AssessmentCanOpen
-        && ActorIsEngineer
         && SelectedEstimate is { IsCurrent: false }
         && (SelectedEstimate.State == RepairSpecificationState.Draft
             || SelectedEstimate.State == RepairSpecificationState.Accepted);
@@ -497,8 +492,7 @@ public sealed partial class DetailsModel(
 
     public bool CanEditEngineering => CanEditCaseData && AssessmentCanOpen && !AssessmentIsReadOnly;
 
-    public bool CanEditAssessmentField(string path) => CanEditEngineering
-        && (!AssessmentVocabulary.Definitions[path].IsFinding || ActorIsEngineer);
+    public bool CanEditAssessmentField(string path) => CanEditEngineering;
 
     public string? AssessmentEditorValue(string path) =>
         Assessment?.Field(path) is { IsConfirmed: true } field ? field.Value : null;
@@ -515,9 +509,7 @@ public sealed partial class DetailsModel(
             ? Labels.CaseWorkspace.EngineerSections.NotAvailableForCase
             : AssessmentIsReadOnly
                 ? Labels.CaseWorkspace.EngineerSections.ReadOnlyOnceComplete
-                : !ActorIsEngineer
-                    ? Labels.CaseWorkspace.EngineerSections.EngineerOnlyImport
-                    : null;
+                : null;
 
     public string? SendToClaudeCondition { get; private set; }
 
@@ -575,35 +567,35 @@ public sealed partial class DetailsModel(
     public string ResumeGlassOperationKey { get; private set; } = NewOperationKey();
 
     /// <summary>
-    /// Whether this Engineer holds an enabled Glass's account. Only the answer
+    /// Whether this staff member holds an enabled Glass's account. Only the answer
     /// is kept: the reader hands back the account's secret material, and
     /// nothing but this boolean survives the call.
     /// </summary>
     public bool GlassAccountEnabled { get; private set; }
 
     /// <summary>
-    /// This Engineer's own Glass's session for this Case, when they have one.
-    /// Another Engineer's session runs inside another external account and is
-    /// never read here.
+    /// This staff member's own Glass's session for this Case, when they have
+    /// one. Another staff member's session runs inside another external
+    /// account and is never read here.
     /// </summary>
     public GlassRepairEstimateSession? GlassSession { get; private set; }
 
     /// <summary>
-    /// This Engineer's session that holds their Glass's account on another
+    /// This staff member's session that holds their Glass's account on another
     /// Case. The account has one live slot, so while this is set no launch is
     /// offered here; the section says which Case holds it instead.
     /// </summary>
     public GlassSessionElsewhere? GlassSessionElsewhere { get; private set; }
 
     /// <summary>
-    /// Whether the Estimate section offers the Glass's control at all: an
-    /// Engineer, on a writable open assessment, holding an enabled account
+    /// Whether the Estimate section offers the Glass's control at all: a staff
+    /// member on a writable open assessment, holding an enabled account
     /// that no other Case is using. Without the account the control is absent
     /// rather than disabled — the capability belongs to the operator's own
     /// credential, not to this deployment.
     /// </summary>
     public bool CanLaunchGlass =>
-        ActorIsEngineer && AssessmentCanOpen && !AssessmentIsReadOnly && GlassAccountEnabled
+        AssessmentCanOpen && !AssessmentIsReadOnly && GlassAccountEnabled
         && GlassSessionElsewhere is null;
 
     /// <summary>
@@ -620,7 +612,7 @@ public sealed partial class DetailsModel(
     /// Whether the session on the screen can be closed by its owner: any one
     /// that still holds the account except one mid-import, per the policy.
     /// </summary>
-    public bool CanCloseGlass => ActorIsEngineer && AssessmentCanOpen
+    public bool CanCloseGlass => AssessmentCanOpen
         && GlassSession is { } session
         && GlassRepairEstimateSessionPolicy.CanClose(session.State);
 
@@ -858,7 +850,6 @@ public sealed partial class DetailsModel(
         string? dialog,
         CancellationToken cancellationToken)
     {
-        ActorIsEngineer = actor.IsInRole(StaffRole.Engineer);
         if (workspace is null)
         {
             await EvaluateEngineerSectionConditionsAsync(cancellationToken);
@@ -902,18 +893,17 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// The Estimate section's Glass's surface: whether this Engineer holds an
-    /// enabled account, and the session they already have for this Case. Both
-    /// are read only for an Engineer — nobody else can launch or resume one —
-    /// and the session is read only once the account is known to exist, so a
-    /// Case page for an Engineer without Glass's makes no session query at all.
+    /// The Estimate section's Glass's surface: whether this staff member holds
+    /// an enabled account, and the session they already have for this Case.
+    /// The session belongs to that account, so a Case page without Glass's
+    /// makes no session query at all.
     /// </summary>
     private async Task LoadGlassSessionAsync(
         Guid id,
         ActionActor actor,
         CancellationToken cancellationToken)
     {
-        if (!ActorIsEngineer || !Guid.TryParse(actor.SubjectId, out var staffId))
+        if (actor.Kind != ActorKind.Staff || !Guid.TryParse(actor.SubjectId, out var staffId))
         {
             return;
         }
@@ -1086,7 +1076,6 @@ public sealed partial class DetailsModel(
                 var assessmentAccess = await getAssessmentAccess.ExecuteAsync(new(id, actor), cancellationToken);
                 AssessmentIsReadOnly = assessmentAccess?.IsReadOnly ?? true;
                 AssessmentCanOpen = assessmentAccess?.CanOpen ?? false;
-                ActorIsEngineer = actor.IsInRole(StaffRole.Engineer);
             }
             // A mounted body is an asynchronous GET. It must not read or write
             // cookie-backed TempData: its response can otherwise race a Claim,
@@ -2036,7 +2025,7 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// The Report-section mutation guard: the estimate guard's rules
-    /// (Engineer, writable case, valid form and live lease) with the Report
+    /// (writable case, valid form and live lease) with the Report
     /// section's redirect target. The command store compares the posted Case
     /// version with current persisted state.
     /// </summary>
@@ -2049,23 +2038,20 @@ public sealed partial class DetailsModel(
             id,
             operationKey,
             editLeaseToken,
-            "Only an Engineer can generate or deliver reports.",
             () => RedirectToReport(id),
             cancellationToken);
 
     /// <summary>
     /// What every section command on the record requires before it touches
-    /// the case: an authorized actor, an assessment this command may open, an
-    /// Engineer, a case that is not read-only, a live form, and an edit
-    /// lease. Only the role refusal and the section the
-    /// refusal lands on differ between the Report, Valuation and Files
-    /// commands, so the checks themselves are written once.
+    /// the case: an authorized actor, an assessment this command may open, a
+    /// case that is not read-only, a live form, and an edit lease. Only the
+    /// section the refusal lands on differs between the Report, Valuation and
+    /// Files commands, so the checks themselves are written once.
     /// </summary>
     private async Task<IActionResult?> GuardSectionCommandAsync(
         Guid id,
         string operationKey,
         string? editLeaseToken,
-        string engineerOnlyRefusal,
         Func<IActionResult> redirect,
         CancellationToken cancellationToken)
     {
@@ -2078,11 +2064,6 @@ public sealed partial class DetailsModel(
         if (access is null || !access.CanOpen)
         {
             return NotFound();
-        }
-        if (!actor.IsInRole(StaffRole.Engineer))
-        {
-            TempData["CaseError"] = engineerOnlyRefusal;
-            return redirect();
         }
         if (access.IsReadOnly)
         {
@@ -2138,7 +2119,6 @@ public sealed partial class DetailsModel(
             id,
             operationKey,
             editLeaseToken,
-            "Only an Engineer can record a valuation.",
             () => RedirectToValuation(id),
             cancellationToken);
 
@@ -2472,8 +2452,8 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// Starts a Glass's Repair Estimate for this Case and sends
-    /// the Engineer's own browser to the provider's estimator.
+    /// Starts a Glass's Repair Estimate for this Case and sends the staff
+    /// member's own browser to the provider's estimator.
     /// </summary>
     /// <remarks>
     /// The launch stands on exactly the authority a Case write stands on — the
@@ -2481,7 +2461,7 @@ public sealed partial class DetailsModel(
     /// operation key are the ones every other Estimate command presents — and
     /// the gateway re-proves them against the Case before it reaches Glass's.
     /// The address the operator is sent to is never a form value: it is read
-    /// back from the session's protected state by the Engineer who created it,
+    /// back from the session's protected state by the staff member who created it,
     /// because it carries the one-use token the provider will return with.
     ///
     /// The gateway is a handler service rather than a page dependency: it is
@@ -2535,7 +2515,7 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// Picks this Engineer's Glass's session back up: an open calculation is
+    /// Picks this staff member's Glass's session back up: an open calculation is
     /// re-opened at the provider, and a held result is imported now that the
     /// Case's edit authority has been regained.
     /// </summary>
@@ -2544,7 +2524,7 @@ public sealed partial class DetailsModel(
     /// lease: finishing it writes the Draft, and the shared contract's resume
     /// has nowhere to put the authority that write stands on, so the
     /// Infrastructure request that does is used. The session named by the form
-    /// must be the one this Engineer holds for this Case — the gateway proves
+    /// must be the one this staff member holds for this Case — the gateway proves
     /// the owner, and this proves the Case.
     /// </remarks>
     public async Task<IActionResult> OnPostResumeGlassAsync(
@@ -2575,7 +2555,7 @@ public sealed partial class DetailsModel(
 
         try
         {
-            // Finishing a held result needs the Case authority this Engineer
+            // Finishing a held result needs the Case authority this staff member
             // has just regained; a live session needs only itself.
             var session = await glassEstimates.ResumeAsync(
                 new GlassRepairEstimateResumeRequest(
@@ -2678,7 +2658,7 @@ public sealed partial class DetailsModel(
         Guid id, Guid sessionId, long expectedSessionVersion, bool externalSessionClosed,
         string? reason, [FromServices] IGlassRepairEstimateGateway glassEstimates, CancellationToken cancellationToken)
     {
-        if (!TryGetActor(out var actor) || !actor.IsInRole(StaffRole.Engineer)
+        if (!TryGetActor(out var actor) || actor.Kind != ActorKind.Staff
             || !Guid.TryParse(actor.SubjectId, out var staffId))
         {
             return Forbid();
@@ -2736,7 +2716,7 @@ public sealed partial class DetailsModel(
         {
             Conflict: not GlassRepairEstimateSessionConflict.ActiveAccount
         }
-            // A stale session version, a spent callback or another Engineer's
+            // A stale session version, a spent callback or another staff member's
             // session says nothing an operator can act on beyond the refusal.
             ? refusal
             : MutationRefusalMessage(exception, refusal);
@@ -2766,11 +2746,6 @@ public sealed partial class DetailsModel(
         if (access?.CanOpen != true)
         {
             return NotFound();
-        }
-        if (!actor.IsInRole(StaffRole.Engineer))
-        {
-            TempData["CaseError"] = "Only an Engineer can change an estimate.";
-            return RedirectToEstimate(id);
         }
         if (access.IsReadOnly)
         {
@@ -3256,8 +3231,7 @@ public sealed partial class DetailsModel(
         {
             var accounts = await staffAccountQueries.ListAsync(0, 100, cancellationToken);
             engineerOptions = accounts.Accounts
-                .Where(account => account.IsEnabled
-                    && StaffRoleCapabilities.MeetsRequirement(account.Role, StaffRole.Engineer))
+                .Where(account => account.IsEnabled)
                 .Select(account => new EvaHandoffEngineerOption(account.Id, account.UserName))
                 .ToArray();
         }

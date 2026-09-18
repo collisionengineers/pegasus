@@ -51,5 +51,5 @@ fallback. Infrastructure readback alone does not prove accepted extraction.
 
 Use managed identity and scoped RBAC. General application secrets retain their approved vault owner. The scoped
 [ADR-0043](../adr/0043-per-engineer-vendor-credential-protection.md) exception
-protects per-Engineer vendor credentials and session material with Data
+protects per-staff-account vendor credentials and session material with Data
 Protection in existing SQL, with the matching key-ring recovery contract. Never commit secret values, connection strings, readable passwords, generated credentials, or data not approved for public source control.

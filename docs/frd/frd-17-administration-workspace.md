@@ -60,6 +60,9 @@ The **Staff accounts & roles** area carries **Reset password** beside the
 other account actions. Pegasus generates a temporary password and reveals it
 once, on the redisplayed page, to the Administrator. The rule is owned by
 [FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts).
+Administrators may configure sign-off flags, qualifications and signature
+images for any staff role; these controls do not make Administration available
+to that account.
 
 ### Contacts
 

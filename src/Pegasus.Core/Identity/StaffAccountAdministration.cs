@@ -544,11 +544,9 @@ public static class SignOffEngineerEligibility
 {
     public static bool IsEligible(
         bool isEnabled,
-        StaffRole role,
         bool isSignOffEngineer,
         byte[]? signature) =>
         isEnabled
-        && StaffRoleCapabilities.MeetsRequirement(role, StaffRole.Engineer)
         && isSignOffEngineer
         && signature is { Length: > 0 };
 }
@@ -621,11 +619,7 @@ public static class StaffAccountAdministrationPolicy
                 "The account version cannot be negative.");
         }
 
-        // Selecting the ordinary User role is authoritative: it clears every
-        // sign-off setting in the same command rather than leaving an invalid
-        // partial configuration behind.
-        var isSignOffEngineer = request.Role != StaffRole.User
-            && request.IsSignOffEngineer;
+        var isSignOffEngineer = request.IsSignOffEngineer;
         var isDefaultSignOffEngineer = isSignOffEngineer
             && request.IsDefaultSignOffEngineer;
         var printedName = isSignOffEngineer
@@ -851,7 +845,6 @@ public enum StaffAccountAdministrationError
     SelfAction,
     OperationConflict,
     StaleVersion,
-    SignOffEngineerRequiresEngineerRole,
     SignOffPrintedNameRequired,
     IneligibleSignOffEngineer
 }

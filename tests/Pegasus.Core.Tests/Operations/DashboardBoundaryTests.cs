@@ -303,13 +303,15 @@ public sealed class DashboardBoundaryTests
         Assert.Equal(137, await badge.ExecuteAsync(ActionActor.Staff(Guid.NewGuid(), [StaffRole.User])));
     }
 
-    [Fact]
-    public async Task MineShowsMyRowsAndTheUnownedRowsAnEngineerCanTake()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public async Task MineShowsMyRowsAndTheUnownedRowsEveryStaffRoleCanTake(StaffRole role)
     {
-        var engineerId = Guid.NewGuid();
-        var engineer = ActionActor.Staff(engineerId, [StaffRole.Engineer]);
-        var user = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
-        var mine = NewHeldCase(Guid.NewGuid(), "H-MINE") with { EngineerId = engineerId };
+        var staffId = Guid.NewGuid();
+        var actor = ActionActor.Staff(staffId, [role]);
+        var mine = NewHeldCase(Guid.NewGuid(), "H-MINE") with { EngineerId = staffId };
         var theirs = NewHeldCase(Guid.NewGuid(), "H-THEIRS") with { EngineerId = Guid.NewGuid() };
         var snapshotFor = (ActionActor actor) => new GetOperationsSnapshot(
             new StubIntakeReceiptQueries(),
@@ -322,16 +324,14 @@ public sealed class DashboardBoundaryTests
             new FixedWorkflowConfiguration(new("case-workflow", 1)),
             new FixedTimeProvider(NowUtc)).ExecuteAsync(new NeedsAttentionQuery(actor, NeedsAttentionScope.Mine));
 
-        var engineerView = await snapshotFor(engineer);
-        var userView = await snapshotFor(user);
+        var view = await snapshotFor(actor);
 
         Assert.Equal(
             [NeedsAttentionKind.Triage, NeedsAttentionKind.HeldDecision],
-            engineerView.NeedsAttention.Select(item => item.Kind).ToArray());
-        Assert.Equal("H-MINE", engineerView.NeedsAttention[1].Reference);
-        Assert.Equal(NeedsAttentionScope.Mine, engineerView.Scope);
-        Assert.Empty(userView.NeedsAttention);
-        Assert.Equal(2, engineerView.Attention.TotalCount);
+            view.NeedsAttention.Select(item => item.Kind).ToArray());
+        Assert.Equal("H-MINE", view.NeedsAttention[1].Reference);
+        Assert.Equal(NeedsAttentionScope.Mine, view.Scope);
+        Assert.Equal(2, view.Attention.TotalCount);
     }
 
     [Fact]
