@@ -80,7 +80,7 @@ public sealed class ListTriagePageTests
         var useCase = new ListTriagePage(queries, new FakeCursorProtector());
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            useCase.ExecuteAsync(new(ActionActor.RequestLink(Guid.NewGuid()), null, null, 10)));
+            useCase.ExecuteAsync(new(ActionActor.Provider(Guid.NewGuid()), null, null, 10)));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             useCase.ExecuteAsync(new(StaffActor(), null, null, 0)));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>

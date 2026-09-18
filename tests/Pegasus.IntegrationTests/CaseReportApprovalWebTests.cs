@@ -326,7 +326,6 @@ public sealed class CaseReportApprovalWebTests
                 null,
                 CaseCustodyState.Pending,
                 [],
-                [],
                 [])
             {
                 Data = AssessmentWorkspaceTestData.Create(Assessment(workflow)).Data,
@@ -404,7 +403,7 @@ public sealed class CaseReportApprovalWebTests
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CaseFilesSection?>(query.CaseId == CaseId
-                ? new(Frame(), query.Documents ?? [], null, CaseCustodyState.Pending, [], [])
+                ? new(Frame(), query.Documents ?? [], null, CaseCustodyState.Pending, [])
                 : null);
 
         Task<CaseEditLease> IAcquireCaseEditLease.ExecuteAsync(

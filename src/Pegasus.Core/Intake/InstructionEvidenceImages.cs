@@ -287,9 +287,9 @@ public sealed class DownloadIntakeAsset(
         }
 
         // Staff casework, or the Automation Actor, which ADR-0011 grants
-        // exactly the ordinary operational casework surface. A request-link,
-        // provider or system-worker actor fails closed here rather than at a
-        // surface that might forget to ask.
+        // exactly the ordinary operational casework surface. A provider or
+        // system-worker actor fails closed here rather than at a surface that
+        // might forget to ask.
         StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
         var receipt = await receiptQueries.GetAsync(query.ReceiptId, cancellationToken);
         var asset = receipt?.AssetRecords

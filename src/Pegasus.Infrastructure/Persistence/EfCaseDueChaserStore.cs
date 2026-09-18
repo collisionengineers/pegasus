@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
@@ -46,18 +45,7 @@ public sealed class EfCaseDueChaserStore(
                 item.Version,
                 item.Workflow.Case.Reference,
                 item.MissingMaterialReason,
-                item.NextChaseAtUtc!.Value,
-                context.Set<RequestUploadLinkEntity>()
-                    .Where(link =>
-                        link.CaseId == item.CaseId
-                        && link.Status == RequestUploadStatus.Active
-                        && link.RevokedAtUtc == null
-                        && link.CreatedAtUtc <= asOfUtc
-                        && link.ExpiresAtUtc > asOfUtc)
-                    .OrderByDescending(link => link.CreatedAtUtc)
-                    .ThenByDescending(link => link.Id)
-                    .Select(link => (Guid?)link.Id)
-                    .FirstOrDefault()) { ChaseIntervalDays = configuration.ChaseIntervalDays })
+                item.NextChaseAtUtc!.Value) { ChaseIntervalDays = configuration.ChaseIntervalDays })
             .Take(maximumResults)
             .ToArrayAsync(cancellationToken);
     }
@@ -118,24 +106,6 @@ public sealed class EfCaseDueChaserStore(
             return new(DueChaserClaimOutcome.Superseded, null);
         }
 
-        RequestUploadLinkEntity? requestLink = null;
-        if (transition.RequestLinkReference is { } requestLinkReference)
-        {
-            requestLink = await context.Set<RequestUploadLinkEntity>()
-                .SingleOrDefaultAsync(
-                    item => item.Id == requestLinkReference
-                        && item.CaseId == transition.CaseId
-                        && item.Status == RequestUploadStatus.Active
-                        && item.RevokedAtUtc == null
-                        && item.CreatedAtUtc <= transition.GeneratedAtUtc
-                        && item.ExpiresAtUtc > transition.GeneratedAtUtc,
-                    cancellationToken);
-            if (requestLink is null)
-            {
-                return new(DueChaserClaimOutcome.Superseded, null);
-            }
-        }
-
         var beforeVersion = dueWork.Version;
         var beforeJson = JsonSerializer.Serialize(
             DueWorkHistoryValue.Before(dueWork),
@@ -152,9 +122,6 @@ public sealed class EfCaseDueChaserStore(
             GeneratedAtUtc = transition.GeneratedAtUtc,
             NextChaseAtUtc = transition.NextChaseAtUtc,
             CopyableText = transition.CopyableText,
-            RequestLinkReference = transition.RequestLinkReference,
-            RequestLink = requestLink,
-            RequestLinkPurpose = transition.RequestLinkPurpose,
             OperationKey = transition.OperationKey,
             RequestHash = requestHash,
             BeforeDueWorkVersion = beforeVersion,
@@ -279,15 +246,6 @@ public sealed class EfCaseDueChaserStore(
                 "The due-chaser operation key must identify the exact scheduled occurrence.",
                 nameof(transition));
         }
-        if (transition.RequestLinkReference == Guid.Empty
-            || (transition.RequestLinkReference is null) != (transition.RequestLinkPurpose is null)
-            || (transition.RequestLinkPurpose is not null
-                && transition.RequestLinkPurpose != RunDueChasers.MissingMaterialRequestLinkPurpose))
-        {
-            throw new ArgumentException(
-                "A request-link reference must use the missing-material purpose.",
-                nameof(transition));
-        }
         if (transition.Actor.Kind != ActorKind.SystemWorker
             || transition.Actor.SubjectId != RunDueChasers.WorkerSubjectId)
         {
@@ -302,8 +260,6 @@ public sealed class EfCaseDueChaserStore(
         entity.GeneratedAtUtc,
         entity.NextChaseAtUtc,
         entity.CopyableText,
-        entity.RequestLinkReference,
-        entity.RequestLinkPurpose,
         entity.AfterDueWorkVersion);
 
     private static string RequestHash(DueChaserTransition transition) => Hash(
@@ -314,8 +270,6 @@ public sealed class EfCaseDueChaserStore(
                 transition.ScheduledAtUtc,
                 transition.NextChaseAtUtc,
                 transition.CopyableText,
-                transition.RequestLinkReference,
-                transition.RequestLinkPurpose,
                 transition.OperationKey,
                 transition.Actor.Kind.ToString(),
                 transition.Actor.SubjectId),
@@ -336,8 +290,6 @@ public sealed class EfCaseDueChaserStore(
         DateTimeOffset ScheduledAtUtc,
         DateTimeOffset NextChaseAtUtc,
         string CopyableText,
-        Guid? RequestLinkReference,
-        string? RequestLinkPurpose,
         string OperationKey,
         string ActorKind,
         string ActorSubjectId);
@@ -347,16 +299,12 @@ public sealed class EfCaseDueChaserStore(
         DateTimeOffset? NextChaseAtUtc,
         long DueWorkVersion,
         Guid? ChaserId,
-        DateTimeOffset? ScheduledAtUtc,
-        Guid? RequestLinkReference,
-        string? RequestLinkPurpose)
+        DateTimeOffset? ScheduledAtUtc)
     {
         public static DueWorkHistoryValue Before(CaseDueWorkEntity dueWork) => new(
             dueWork.State,
             dueWork.NextChaseAtUtc,
             dueWork.Version,
-            null,
-            null,
             null,
             null);
 
@@ -367,8 +315,6 @@ public sealed class EfCaseDueChaserStore(
                 dueWork.NextChaseAtUtc,
                 dueWork.Version,
                 chaser.Id,
-                chaser.ScheduledAtUtc,
-                chaser.RequestLinkReference,
-                chaser.RequestLinkPurpose);
+                chaser.ScheduledAtUtc);
     }
 }

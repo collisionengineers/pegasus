@@ -7,7 +7,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// The Assessment screen's bounded relational projection. Six commands load
 /// only what that screen and report generation share; general Case documents,
-/// history, tasks, upload links and custody preparation stay on the Case screen.
+/// history, tasks and custody preparation stay on the Case screen.
 /// </summary>
 internal sealed class EfAssessmentWorkspaceSource(
     IDbContextFactory<PegasusDbContext> contextFactory) : IAssessmentWorkspaceSource

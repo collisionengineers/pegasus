@@ -22,7 +22,6 @@ public static class ActorDisplayNames
     public const string FormerStaff = "Former staff";
     public const string SystemWorker = "System";
     public const string Automation = "Automation";
-    public const string RequestLink = "Request link";
     public const string Provider = "Provider API";
 
     /// <summary>
@@ -70,7 +69,6 @@ public static class ActorDisplayNames
                     : FormerStaff,
             ActorKind.SystemWorker => SystemWorker,
             ActorKind.Automation => Automation,
-            ActorKind.RequestLink => RequestLink,
             ActorKind.Provider => Provider,
             _ => UnknownStaff
         };
