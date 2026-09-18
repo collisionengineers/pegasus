@@ -4,7 +4,7 @@ namespace Pegasus.Core.Tests.Intake;
 
 /// <summary>
 /// The intake size bounds are separate facts and must not converge, and the
-/// four channel limits C07 item 5 (residual INTK-052) set are exact values
+/// four channel limits C07 item 5 set are exact values
 /// rather than arithmetic anyone may re-derive.
 /// </summary>
 public sealed class IntakeEnvelopeLimitsTests

@@ -11,7 +11,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         private const string WebRole = "pegasus_web_runtime_role";
         private const string WorkerRole = "pegasus_worker_runtime_role";
 
-        // TICK-058: ProviderSubmissions is new in
+        // ProviderSubmissions is new in
         // 20260828111707_ProviderSubmissions and the least-privilege runtime
         // roles grant nothing on a table they have never heard of. Web hosts
         // the Provider API (API-01): it inserts one row per accepted

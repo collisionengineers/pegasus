@@ -13,7 +13,7 @@ namespace Pegasus.IntegrationTests;
 /// The operator's Stage 0 rule, end to end through the real intake pipeline —
 /// no stub extraction policy, no injected evidence. A QDOS Triage request opens
 /// a Triage when a vehicle registration is known and waits in Unidentified when
-/// it is not; neither outcome allocates a formal Case/PO (INTK-033).
+/// it is not; neither outcome allocates a formal Case/PO.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class TriageFromIntakeIntegrationTests
@@ -126,7 +126,7 @@ public sealed class TriageFromIntakeIntegrationTests
         // reply detection only recognised a leading "RE:", this subject read as
         // a brand-new request and opened a duplicate Triage for ordinary thread
         // correspondence -- the exact duplicate the reply-context gate exists
-        // to prevent (INTK-033 review).
+        // to prevent.
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEmail(
@@ -223,7 +223,7 @@ public sealed class TriageFromIntakeIntegrationTests
         // The rest of the operator's sentence: a Triage request that never
         // carried a readable registration waits in Unidentified "until a
         // vehicle registration is known, then open the Triage" — and the only
-        // thing that can know it here is a member of staff (INTK-035).
+        // thing that can know it here is a member of staff.
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEmail(

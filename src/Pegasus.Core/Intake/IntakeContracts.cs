@@ -50,7 +50,7 @@ public static class IntakeEnvelopeLimits
     /// carries (see <see cref="MaximumMailboxContentLength"/>), so a staff
     /// member reproducing that job manually is not capped below it.
     ///
-    /// C07 item 5 (residual INTK-052) retained 20 unchanged while the per-file
+    /// C07 item 5 retained 20 unchanged while the per-file
     /// cap rose, so the file count and the byte budget are now independent
     /// facts rather than two halves of one multiplication.
     /// </summary>
@@ -64,7 +64,7 @@ public static class IntakeEnvelopeLimits
     /// is not the manual per-file bound either, because a real instruction
     /// carries the documents and photographs of a job: the mailbox note above
     /// records a genuine 16.69 MB QDOS instruction, so this is set comfortably
-    /// above that. C07 item 5 (residual INTK-052) left it unchanged.
+    /// above that. C07 item 5 left it unchanged.
     /// </summary>
     public const int MaximumProviderApiEnvelopeLength = 30 * 1024 * 1024;
 
@@ -77,7 +77,7 @@ public static class IntakeEnvelopeLimits
     /// is stated separately, and used separately, so that the Provider API can
     /// never inherit the manual channel's larger
     /// <see cref="MaximumContentLength"/> the next time that cap moves
-    /// (C07 item 5, residual INTK-052).
+    /// (C07 item 5).
     /// </remarks>
     public const int MaximumProviderApiFileLength = MaximumProviderApiEnvelopeLength;
 
@@ -644,7 +644,7 @@ public sealed record InstructionReviewField(
         "Contact email" => CaseDataFieldNames.ContactEmailAddress,
         "Contact phone" => CaseDataFieldNames.ContactPhoneNumber,
         "VAT status" => CaseDataFieldNames.VatStatus,
-        // INTK-058: the repairer the instruction names. The profiles print
+        // The repairer the instruction names. The profiles print
         // these two labels; the Case keeps the name and the address as its
         // own facts, and a directory link is a separate staff decision.
         "Repairer name" => CaseDataFieldNames.RepairerName,
@@ -739,8 +739,7 @@ public sealed record IntakeReceipt(
     /// created: unlinking then takes the case's only source away. A receipt
     /// since relinked to some other case is not that case's source, so
     /// unlinking it leaves that case alone. Derived here beside the rest of the
-    /// association rules so no surface works it out again from raw fields
-    /// (INTK-029).
+    /// association rules so no surface works it out again from raw fields.
     /// </summary>
     public bool UnlinkCancelsCase =>
         AcceptedCaseId is not null && AcceptedCaseId == CurrentCaseId;
@@ -851,13 +850,35 @@ public sealed record EstablishedPrincipalContext(
     string PolicyKey,
     int PolicyVersion);
 
+public sealed record InstructionExtractionTiming(
+    DateTimeOffset ProcessedAtUtc,
+    DateTimeOffset ReceivedAtUtc)
+{
+    public InstructionExtractionTiming(
+        int year,
+        int month,
+        int day,
+        int hour,
+        int minute,
+        int second,
+        TimeSpan offset)
+        : this(
+            new DateTimeOffset(year, month, day, hour, minute, second, offset),
+            new DateTimeOffset(year, month, day, hour, minute, second, offset))
+    {
+    }
+
+    public static implicit operator InstructionExtractionTiming(DateTimeOffset processedAtUtc) =>
+        new(processedAtUtc, processedAtUtc);
+}
+
 public interface IInstructionExtractionPolicy
 {
     string PrincipalCode { get; }
 
     InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
-        DateTimeOffset processedAtUtc,
+        InstructionExtractionTiming timing,
         EstablishedPrincipalContext principalContext);
 }
 public interface IIntakeSourceReader

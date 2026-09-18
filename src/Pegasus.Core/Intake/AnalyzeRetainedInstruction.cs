@@ -239,9 +239,9 @@ public sealed class AnalyzeRetainedInstruction(
         ArgumentNullException.ThrowIfNull(request);
         // Core authorization on a typed actor, never an actor-id string.
         // PerformCasework is the right that admits exactly Staff and the
-        // Automation Actor (ADR-0011): a request-link, provider or
-        // system-worker actor has no business reading a provider's
-        // instruction, and each of those fails closed here.
+        // Automation Actor (ADR-0011): a provider or system-worker actor has
+        // no business reading a provider's instruction, and each of those
+        // fails closed here.
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         if (request.ReceiptId == Guid.Empty)
         {
@@ -525,7 +525,7 @@ public sealed class AnalyzeRetainedInstruction(
         var profile = (IInstructionDocumentProfile)policy;
         var extraction = policy.Extract(
             readResult,
-            completedAtUtc,
+            new(completedAtUtc, receipt.ReceivedAtUtc),
             // The principal is recorded as PROPOSED BY THE DOCUMENT: the policy
             // key and version carried here are the selector's document-profile
             // identity, not a mail route's, so nothing downstream can mistake

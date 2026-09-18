@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// ENG-013's backfill. The code fills a case's empty vehicle fields when a
+/// The vehicle-lookup gap-fill backfill. The code fills a case's empty vehicle fields when a
 /// lookup runs, which only ever helps cases whose lookup is still to come.
 /// Every case already in the estate had its lookup first, so its findings sat
 /// on the observation and nowhere else — QDOS26011 read "Not recorded" for
@@ -95,7 +95,7 @@ public sealed class VehicleLookupBackfillTests
     /// Runs the estate's own migration, not a paraphrase of it. The database
     /// is brought up to the migration immediately before this one, seeded with
     /// a case whose lookup has already happened - the exact shape of every case
-    /// in production when ENG-013 shipped - and only then migrated to head.
+    /// in production when the gap-fill shipped - and only then migrated to head.
     /// </summary>
     private static async Task ApplyBackfillAsync(LocalDbTestDatabase database)
     {

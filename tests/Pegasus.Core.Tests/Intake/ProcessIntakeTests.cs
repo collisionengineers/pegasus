@@ -973,7 +973,7 @@ public sealed class ProcessIntakeTests
         //
         // Triage is pre-case work by definition and has its own test below.
         // This one is driven by an automatic reply, which is classified and
-        // changes nothing (INTK-033).
+        // changes nothing.
         IntakeSourceReadResult ReadResult() => Readable(
             transportEvidence:
             [
@@ -1025,7 +1025,7 @@ public sealed class ProcessIntakeTests
         // The operator's rule: a Triage request is pre-case work. Left as
         // CaseCreated it went to automatic allocation, which failed closed for
         // want of a case type it correctly does not carry, and the message
-        // ended in no queue at all (INTK-033).
+        // ended in no queue at all.
         var receipt = await CreateSut(
                 new StubReader(Readable(
                     content:
@@ -1392,7 +1392,7 @@ public sealed class ProcessIntakeTests
     {
         // The selector picks the letter alone: the QDOS signature treats an
         // "Exclusive Vehicle Assessors" report as a negative signal, and
-        // INTK-060 then handed the policy only the selected document, so
+        // narrowing the policy's input to the selected document alone meant
         // every report-sourced mileage was silently lost. The submission's
         // other documents travel alongside as companion content.
         var letter = new IntakeContentFragment(
@@ -1666,7 +1666,7 @@ public sealed class ProcessIntakeTests
 
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
+            InstructionExtractionTiming timing,
             EstablishedPrincipalContext principalContext) => result;
     }
 
@@ -1686,7 +1686,7 @@ public sealed class ProcessIntakeTests
 
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
+            InstructionExtractionTiming timing,
             EstablishedPrincipalContext principalContext) =>
             throw new InvalidOperationException("A conflicting profile must not extract an instruction.");
     }
@@ -1697,7 +1697,7 @@ public sealed class ProcessIntakeTests
 
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
+            InstructionExtractionTiming timing,
             EstablishedPrincipalContext principalContext) =>
             throw new InvalidOperationException(
                 "The extraction policy must not run for an incomplete reader result.");

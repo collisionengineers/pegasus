@@ -503,7 +503,7 @@ internal static partial class CaseWebTestSupport
     }
 
     /// <summary>
-    /// The original CASE-027 regression dropped claimant contact/address.
+    /// The original Case-contact regression dropped claimant contact/address.
     /// Keep its actual caller assertion when moving the single Save to the
     /// workspace command, whose submitted sections replace all their members.
     /// </summary>
@@ -818,6 +818,7 @@ internal static partial class CaseWebTestSupport
 
         public List<SaveCaseWorkspaceRequest> Saves { get; } = [];
         public CaseDataProjection? DataOverride { get; set; }
+        public CaseWorkspaceClaimSource? ClaimSource { get; set; }
         public List<ManualChaseRecord> ManualChases { get; } = [];
         public List<PutCaseOnHoldRequest> Holds { get; } = [];
         public List<CaseMutationRequest> Releases { get; } = [];
@@ -1034,6 +1035,9 @@ internal static partial class CaseWebTestSupport
                     Confirmed(CaseInspectionMode.PhysicalAddress),
                     Confirmed("14 Storage Lane"),
                     Empty<string>()),
+                Workspace: ClaimSource is null
+                    ? null
+                    : new(ClaimSource, null, null, null, null, null, null, null, null, null, null),
                 StandaloneAuditEvidenceId: StandaloneAuditEvidenceId);
 
         /// <summary>

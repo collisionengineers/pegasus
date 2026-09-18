@@ -21,10 +21,10 @@ using Pegasus.Web.Authentication;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// CASE-025: the Cases page's workflow rail, Principal/Missing filters,
+/// The Cases page's workflow rail, Principal/Missing filters,
 /// per-kind rows and the D14 rule that Blocked intake rows are listed in the
-/// Unidentified scope but never counted. Unidentified-as-a-scope (INTK-009)
-/// and the Not ready merge across both origins (INTK-013) stay covered here.
+/// Unidentified scope but never counted. Unidentified-as-a-scope
+/// and the Not ready merge across both origins stay covered here.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class TriageQueuesWebTests
@@ -101,7 +101,7 @@ public sealed class TriageQueuesWebTests
     }
 
     /// <summary>
-    /// INTK-013: Not ready and Awaiting instruction are separate row lists.
+    /// Not ready and Awaiting instruction are separate row lists.
     /// Each rail count must equal its own row count, and the Work Centre's
     /// Not ready metric must equal the Not ready row count.
     /// </summary>
@@ -346,7 +346,7 @@ public sealed class TriageQueuesWebTests
 
     /// <summary>
     /// An image-initiated row carries its retained-image count and its
-    /// derived chase state (<c>ImageIntakeChaseSchedule</c>, TICK-065): a
+    /// derived chase state (<c>ImageIntakeChaseSchedule</c>): a
     /// record registered moments ago is well inside the seven-day window, so
     /// it must read "Not yet due" rather than "Chase due" — the boundary
     /// itself is covered at the Core level
@@ -400,7 +400,7 @@ public sealed class TriageQueuesWebTests
             IntakeEvidenceFinding.AcceptedTriageMatch,
             registration,
             "Accepted Triage match for the queue-row test.",
-            MatcherKey: "case-032-test",
+            MatcherKey: "queue-filter-test",
             MatcherVersion: 1);
         var receiptId = await StoreMinimalReceiptAsync(
             services,
@@ -605,7 +605,7 @@ public sealed class TriageQueuesWebTests
     }
 
     /// <summary>
-    /// INTK-022: Not ready is one row list across both case origins, with
+    /// Not ready is one row list across both case origins, with
     /// dropdown filters rather than pills, and the rail replaces the old tab
     /// strip.
     /// </summary>
@@ -693,7 +693,7 @@ public sealed class TriageQueuesWebTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
-            factory, client, "XY34ZZZ", "CASE-042-ATTACH");
+            factory, client, "XY34ZZZ", "ATTACH-REF-01");
         var reference = await CaseReferenceAsync(services, caseId);
         var imageIntake = await RegisterImageIntakeAsync(factory, client, services, "ST12UVW");
 
@@ -745,7 +745,7 @@ public sealed class TriageQueuesWebTests
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO IntakeManualAssociations (IntakeReceiptId, CaseId, IsActive, Version, LinkedAtUtc, ActorKind, ActorSubjectId, ActorRolesJson, Reason, LastOperationKey) VALUES ({imageIntake.Origin.ReceiptId}, {caseId}, {true}, {0L}, {DateTimeOffset.UtcNow}, {"Staff"}, {Guid.NewGuid().ToString("D")}, {"[]"}, {"Linked before image merge synchronisation"}, {$"case-042-linked:{Guid.NewGuid():N}"})");
+                $"INSERT INTO IntakeManualAssociations (IntakeReceiptId, CaseId, IsActive, Version, LinkedAtUtc, ActorKind, ActorSubjectId, ActorRolesJson, Reason, LastOperationKey) VALUES ({imageIntake.Origin.ReceiptId}, {caseId}, {true}, {0L}, {DateTimeOffset.UtcNow}, {"Staff"}, {Guid.NewGuid().ToString("D")}, {"[]"}, {"Linked before image merge synchronisation"}, {$"attach-linked:{Guid.NewGuid():N}"})");
         }
 
         using var response = await client.GetAsync("/Cases?tab=awaiting");
@@ -759,8 +759,8 @@ public sealed class TriageQueuesWebTests
     }
 
     /// <summary>
-    /// The row list renders newest received first (INTK-022's default order,
-    /// kept by CASE-025's single order).
+    /// The row list renders newest received first (the queue filters' default order,
+    /// kept by the workflow rail's single order).
     /// </summary>
     [Fact]
     public async Task NotReadyRowsRenderNewestReceivedFirst()

@@ -8,7 +8,7 @@ using Pegasus.Web.Mcp;
 namespace Pegasus.Web.Pages.Administration.Automation;
 
 /// <summary>
-/// The Automation &amp; AI administration area (EPIC-011 §1.12): the
+/// The Automation &amp; AI administration area: the
 /// Automation panel — its state, the registered client, the ledger's active
 /// and failed job counts and the kill switch — and the AI settings panel.
 /// </summary>

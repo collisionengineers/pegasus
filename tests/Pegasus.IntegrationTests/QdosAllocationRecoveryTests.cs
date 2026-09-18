@@ -518,8 +518,8 @@ public sealed class QdosAllocationRecoveryTests
             // and the operation key conflicts.
             //
             // The instruction half is asserted by the route's own precondition
-            // (CASE-013). The images half is observed from the receipt, and this
-            // receipt is seeded with no assets, so it is false (CASE-021). It
+            // itself. The images half is observed from the receipt, and this
+            // receipt is seeded with no assets, so it is false. It
             // was a hardcoded true here because it was a hardcoded true in the
             // production path.
             new(true, false),
@@ -713,7 +713,22 @@ public sealed class QdosAllocationRecoveryTests
             "IntakeAllocationAttempts"));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
 
-        await AllocationTestData.SeedPrincipalAsync(factory.Services, "RECOVER");
+        var sequenceLineageId = await AllocationTestData.SeedPrincipalAsync(
+            factory.Services,
+            "RECOVER");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            context.CaseSequences.Add(new CaseSequenceEntity
+            {
+                SequenceLineageId = sequenceLineageId,
+                Year = 2031,
+                LastAllocatedSequence = 9999
+            });
+            await context.SaveChangesAsync();
+        }
         await AllocationTestData.ChangePersistedClassificationCaseTypeAsync(
             factory.Services,
             receipt.Id,
@@ -748,8 +763,18 @@ public sealed class QdosAllocationRecoveryTests
         }
 
         Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, succeeded.State.Status);
+        Assert.Equal("RECOVER3110000", succeeded.State.CaseReference);
         Assert.Equal(succeeded.State.CaseId, replay.State.CaseId);
         Assert.True(replay.IsReplay);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            await using var context = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+                .CreateDbContextAsync();
+            var recoveredCase = await context.Cases.SingleAsync();
+            Assert.Equal(10000, recoveredCase.Sequence);
+            Assert.Equal("RECOVER3110000", recoveredCase.Reference);
+        }
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal("inspection", await AllocationTestData.CaseTypeAsync(factory.Services));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
@@ -1305,7 +1330,7 @@ public sealed class QdosAllocationRecoveryTests
     }
 
     [Fact]
-    public async Task MissingTypeDisabledPrincipalAndExhaustedSequenceUseExactTaxonomy()
+    public async Task MissingTypeAndDisabledPrincipalUseExactTaxonomy()
     {
         using var factory = new IntakeWebApplicationFactory();
         var missingType = await AllocationTestData.StoreDefinitiveReceiptAsync(
@@ -1318,26 +1343,15 @@ public sealed class QdosAllocationRecoveryTests
             factory.Services,
             CaseType.Inspection,
             disabledCode);
-        var exhaustedCode = "EXHAUSTED";
-        var lineage = await AllocationTestData.SeedPrincipalAsync(factory.Services, exhaustedCode);
-        await AllocationTestData.ExhaustSequenceAsync(factory.Services, lineage);
-        var exhausted = await AllocationTestData.StoreDefinitiveReceiptAsync(
-            factory.Services,
-            CaseType.Inspection,
-            exhaustedCode);
-
         await using var scope = factory.Services.CreateAsyncScope();
         var allocate = scope.ServiceProvider.GetRequiredService<IAllocateIntake>();
         var missingTypeResult = await allocate.AttemptAutomaticAsync(missingType.Id, Guid.NewGuid());
         var disabledResult = await allocate.AttemptAutomaticAsync(disabled.Id, Guid.NewGuid());
-        var exhaustedResult = await allocate.AttemptAutomaticAsync(exhausted.Id, Guid.NewGuid());
 
         Assert.Equal(IntakeAllocationFailureKind.CaseTypeUnavailable, missingTypeResult?.State.FailureKind);
         Assert.Equal(IntakeAllocationRecoveryDisposition.ManualReview, missingTypeResult?.State.RecoveryDisposition);
         Assert.Equal(IntakeAllocationFailureKind.PrincipalUnavailable, disabledResult?.State.FailureKind);
         Assert.Equal(IntakeAllocationRecoveryDisposition.RetryAfterCorrection, disabledResult?.State.RecoveryDisposition);
-        Assert.Equal(IntakeAllocationFailureKind.SequenceExhausted, exhaustedResult?.State.FailureKind);
-        Assert.Equal(IntakeAllocationRecoveryDisposition.Blocked, exhaustedResult?.State.RecoveryDisposition);
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
     }
 
@@ -1398,7 +1412,7 @@ public sealed class QdosAllocationRecoveryTests
     [Fact]
     public async Task ConcurrentAutomaticAuditAndInspectionAllocationsForOnePrincipalBothSucceed()
     {
-        // INTK-044: the live shape of 2026-08-27 — two automatic acceptances
+        // The live shape of 2026-08-27 — two automatic acceptances
         // for one principal overlapping under Serializable, one of them a
         // standalone Audit — must converge on two cases. Any allocation
         // failure is reported with the exception the store logged, which is
@@ -1462,7 +1476,7 @@ public sealed class QdosAllocationRecoveryTests
     public async Task DistinctParallelRetriesResolveToOneCaseAggregate()
     {
         // Convergence under contention, repeatedly — not merely no-throw once
-        // (CASE-005). The per-receipt allocation lock makes the previously
+        // in isolation. The per-receipt allocation lock makes the previously
         // deadlocking interleaving queue instead, so no round may fail or
         // fork a second aggregate.
         using var factory = new IntakeWebApplicationFactory();
@@ -2071,15 +2085,6 @@ internal static class AllocationTestData
         });
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)))
             .ToLowerInvariant();
-    }
-
-    public static async Task ExhaustSequenceAsync(IServiceProvider services, Guid lineageId)
-    {
-        await using var scope = services.CreateAsyncScope();
-        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var context = await factory.CreateDbContextAsync();
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO CaseSequences (SequenceLineageId, Year, LastAllocatedSequence) VALUES ({lineageId}, {2031}, {999})");
     }
 
     public static async Task ChangePersistedClassificationCaseTypeAsync(

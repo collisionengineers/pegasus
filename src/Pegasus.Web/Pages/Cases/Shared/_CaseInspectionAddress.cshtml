@@ -5,9 +5,9 @@
     Repairer and Storage sub-panels. Storage per day and the recovery charge
     live here (v25 decision E); Settlement keeps only the derived charge.
 
-    CASE-038: every control joins the record's one Save form, #case-edit-form,
+    Every control joins the record's one Save form, #case-edit-form,
     so this section never posts a second whole-record form. The address input
-    is the one entry for `inspectionAddress`; site.js's CASE-041 block fills it
+    is the one entry for `inspectionAddress`; site.js's Inspect-at block fills it
     from the Inspect-at choice and drives the Overview form's hidden
     `inspectionMode`.
 *@
@@ -153,7 +153,7 @@
                            maxlength="1000" value="@recorded?.Value" data-inspection-address-input />
                 }
             </div>
-            @* Rendered whenever the Principal has a default; shown by the CASE-041
+            @* Rendered whenever the Principal has a default; shown by the Inspect-at
                block only while the choice is image based, and by the read view
                only where the recorded address differs from it. *@
             <div class="fc ro" data-inspection-provider-default hidden="@(showProviderDefault ? null : "hidden")">

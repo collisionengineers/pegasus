@@ -76,32 +76,24 @@ public sealed class AllocateDefinitiveIntakeTests
     }
 
     [Fact]
-    public async Task SequenceExhaustionIsBlockedAndUnexpectedFailureIsSafe()
+    public async Task UnexpectedFailureIsSafeAndRecoverable()
     {
         var receipt = Receipt(CaseType.Inspection, "QDOS");
-        var sequenceSut = new AllocateIntake(
-            new ReceiptQueries(receipt),
-            new RecordingAllocationStore(),
-            new RecordingAcceptance(new CaseIdentitySequenceExhaustedException("QDOS", 2031)),
-            TimeProvider.System);
         var unexpectedSut = new AllocateIntake(
             new ReceiptQueries(receipt),
             new RecordingAllocationStore(),
             new RecordingAcceptance(new InvalidDataException("private failure detail")),
             TimeProvider.System);
 
-        var sequence = await sequenceSut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
         var unexpected = await unexpectedSut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
 
-        Assert.Equal(IntakeAllocationFailureKind.SequenceExhausted, sequence?.State.FailureKind);
-        Assert.Equal(IntakeAllocationRecoveryDisposition.Blocked, sequence?.State.RecoveryDisposition);
         Assert.Equal(IntakeAllocationFailureKind.Unexpected, unexpected?.State.FailureKind);
         Assert.Equal(IntakeAllocationRecoveryDisposition.ReloadThenRetry, unexpected?.State.RecoveryDisposition);
         Assert.Equal("The case could not be created. No reference was allocated.", unexpected?.State.SafeReason);
         Assert.DoesNotContain("private", unexpected?.State.SafeReason, StringComparison.OrdinalIgnoreCase);
     }
 
-    // INTK-044. A standalone Audit that failed automatic allocation for an
+    // A standalone Audit that failed automatic allocation for an
     // unclassified reason has no manual creation route, so the failure must
     // be staff-retryable, and the retry must hand acceptance the identical
     // command — same receipt version, same retained evidence — rather than
@@ -130,7 +122,7 @@ public sealed class AllocateDefinitiveIntakeTests
             receipt.Version,
             failed!.State.AttemptId,
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
-            "retry:intk-044",
+            "retry:unclassified-fault",
             "Retry after the fault cleared."));
 
         Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, retried.State.Status);
@@ -196,7 +188,7 @@ public sealed class AllocateDefinitiveIntakeTests
         Assert.Contains("does not match", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    // CASE-021. Automatic allocation used to assert ImagesComplete: true as a
+    // Automatic allocation used to assert ImagesComplete: true as a
     // constant, so an audit with an instruction, a report and no photographs
     // was born Review-ready while the EVA export refused the same case for
     // having no images. These drive AttemptAutomaticAsync and assert on what
@@ -240,7 +232,7 @@ public sealed class AllocateDefinitiveIntakeTests
     [Fact]
     public async Task ALetterheadBannerIsNotAPhotograph()
     {
-        // The corpus shape from INTK-030: 1990x437, comfortably over any byte
+        // The corpus letterhead shape: 1990x437, comfortably over any byte
         // floor, with a JPEG sibling at 2214x248. Only the side ratio catches
         // them, and this pins the readiness gate to the same definition of an
         // image the gallery and custody already use.

@@ -10,12 +10,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
     {
         private const string WebRole = "pegasus_web_runtime_role";
 
-        // TICK-061: PrincipalApiCredentials is new in
+        // PrincipalApiCredentials is new in
         // 20260828104130_PrincipalApiCredentials and the least-privilege
         // runtime roles grant nothing on a table they have never heard of.
         // Only the Web runtime touches it — Administrators issue, reset,
         // pause, resume and revoke from the application, and the Provider API
-        // (TICK-058) verifies a presented secret inside the same Web process.
+        // verifies a presented secret inside the same Web process.
         // The Worker never authenticates a provider, so it gets no grant.
         //
         // SELECT, INSERT and UPDATE: one row per Principal is created once and

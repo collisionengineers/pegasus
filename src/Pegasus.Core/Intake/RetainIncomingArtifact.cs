@@ -138,7 +138,8 @@ public interface IIncomingArtifactRetentionStore
     /// reads as <see cref="IncomingArtifactCustodyState.Unknown"/>, because
     /// that is exactly what is known about it. Reporting it as no record at
     /// all is what let two callers of one operation key both reach custody.
-    /// Null therefore means only that this store holds nothing under the key.
+    /// Null therefore means only that this store holds nothing under the key;
+    /// a key of another shape is a caller error, never an absence.
     /// </remarks>
     Task<RetainedIncomingArtifact?> FindAsync(
         string operationKey,

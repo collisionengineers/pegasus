@@ -9,9 +9,8 @@ using GlassLabels = Pegasus.Web.Presentation.CaseWorkspaceLabels.GlassSession;
 namespace Pegasus.Web.Pages.Integrations.Glass;
 
 /// <summary>
-/// Where the operator's own browser lands after Save &amp; Exit in Glass's
-/// (CASE-047 B04), carrying the provider's message on the address it was
-/// launched with.
+/// Where the operator's own browser lands after Save &amp; Exit in Glass's,
+/// carrying the provider's message on the address it was launched with.
 /// </summary>
 /// <remarks>
 /// <para>

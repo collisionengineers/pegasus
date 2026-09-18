@@ -9,7 +9,7 @@ namespace Pegasus.Web.ProviderApi;
 
 /// <summary>
 /// Authenticates <c>Authorization: Bearer pgs_&lt;key id&gt;_&lt;secret&gt;</c>
-/// through <see cref="IAuthenticatePrincipalCredential"/> (TICK-061). No
+/// through <see cref="IAuthenticatePrincipalCredential"/>. No
 /// cookie, no session, no antiforgery: a staff browser cookie is never
 /// accepted here and a provider secret is never accepted anywhere else.
 /// Every refused presentation is a security event that names the key id

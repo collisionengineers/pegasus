@@ -3,7 +3,7 @@ using Pegasus.Infrastructure.Custody;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// PLAT-039. The provider used to ask the Box SDK for a header, and the SDK
+/// The provider used to ask the Box SDK for a header, and the SDK
 /// answers from a token cache it never expires — it re-mints only when the
 /// cache is empty. Pegasus calls Box with its own <see cref="HttpClient"/>,
 /// so the SDK's 401-and-refresh path never ran: a Web replica minted one

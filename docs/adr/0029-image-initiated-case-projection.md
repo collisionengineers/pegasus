@@ -49,7 +49,7 @@ the separate image-origin identity/projection remains accepted.
 - Search and Case history show both origins without changing either identity.
 - Lifecycle state and event history require additive SQL projection data and
   replay/CAS handling.
-- Conflicting or unreadable image groups remain INTK-007 Unidentified work and
+- Conflicting or unreadable image groups remain Unidentified work and
   never receive a fabricated Image-initiated reference.
 
 ## Links

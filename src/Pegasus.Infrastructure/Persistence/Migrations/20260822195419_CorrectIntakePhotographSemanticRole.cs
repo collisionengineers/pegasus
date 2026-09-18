@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    // DOCS-009: every accepted intake attachment was recorded as Instruction
+    // Every accepted intake attachment was recorded as Instruction
     // whatever it was, so a case's own damage photographs were filed as
     // instruction documents. Both the evidence gallery's eligibility column
     // and EVA image selection ask "is this an image?" by semantic role, so on

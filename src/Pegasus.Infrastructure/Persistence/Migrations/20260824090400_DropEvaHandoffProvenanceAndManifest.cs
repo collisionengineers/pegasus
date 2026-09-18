@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     /// <inheritdoc />
-    // ENG-014: manifest.sha256 and provenance.json were never an operator
+    // manifest.sha256 and provenance.json were never an operator
     // requirement -- they entered the governing docs through internal doc
     // restructuring, and the word "manifest" appears nowhere in the whole
     // operator-supplied reference corpus. In the database they were pure
@@ -15,7 +15,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
     // thirteen-key JSON and Images/ only, so nothing produces them.
     //
     // Not additive, unlike the usual release rule: an application built
-    // before ENG-014 lists these three columns in its EvaHandoffRevisions
+    // before this change lists these three columns in its EvaHandoffRevisions
     // insert, so rolling the app back behind this migration fails EVA
     // hand-off GENERATION until it is rolled forward again. Nothing is
     // lost and nothing else is touched -- existing revisions keep their

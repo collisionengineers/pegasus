@@ -283,8 +283,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         IntakeOcrOperations
         IntakeSourceCandidates
         LabourRateCards
-        PublicUploadOccurrences
-        PublicUploadSessions
         RetainedInstructionAnalyses
         StaffMailSendOperations
         TriageSequences
@@ -307,8 +305,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         IntakeOcrOperations:SELECT,INSERT
         IntakeSourceCandidates:SELECT
         LabourRateCards:SELECT,INSERT,UPDATE
-        PublicUploadOccurrences:SELECT,INSERT,UPDATE
-        PublicUploadSessions:SELECT,INSERT,UPDATE
         RetainedInstructionAnalyses:SELECT
         StaffMailSendOperations:SELECT,INSERT,UPDATE
         TriageSequences:SELECT,INSERT,UPDATE
@@ -857,7 +853,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         Assert.Contains("VehicleLookupRequests", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
     }
 
-    // DOCS-008: DOCS-007 moved case-document registration into the Worker's
+    // Case-document registration moved into the Worker's
     // custody processor while these three tables were granted to Web only, so
     // every deployed case uploaded its evidence to Box and was then refused the
     // record write. Nothing here caught it because the tests run
@@ -987,7 +983,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 """));
     }
 
-    // PLAT-035: catalog-grant checks alone run as the LocalDB administrator and
+    // Catalog-grant checks alone run as the LocalDB administrator and
     // therefore cannot detect a real runtime save denied by SQL Server. These
     // loginless users have only their corresponding Pegasus runtime role.
     [Fact]

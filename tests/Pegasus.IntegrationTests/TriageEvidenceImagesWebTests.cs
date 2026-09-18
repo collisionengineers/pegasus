@@ -6,7 +6,7 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// A Triage request's photographs are the whole subject of the assessment the
-/// engineer is being asked to make. Until INTK-034 they were viewable nowhere:
+/// engineer is being asked to make. Until the Triage page showed them they were viewable nowhere:
 /// the Triage page's "View e-mail" link lands on a receipt page that lists
 /// attachments by name and renders none of them.
 /// </summary>

@@ -10,7 +10,7 @@ public sealed class CaseWorkflowMigrationTests
 {
     private const string PreviousMigration = "20260729152105_WorkflowTriageEmailEvidence";
     private const string WorkflowMigration = "20260729160000_CaseWorkflowRuntime";
-    private const string PrePublicUploadRemovalMigration = "20260917014000_EstimateDocumentPreviewEvents";
+    private const string PrePublicUploadRemovalMigration = "20260917153000_CaseClaimSourceContactOverride";
     private const string ReviewCaseId = "60000000-0000-0000-0000-000000000001";
     private const string NotReadyCaseId = "60000000-0000-0000-0000-000000000002";
 
@@ -200,7 +200,7 @@ public sealed class CaseWorkflowMigrationTests
             $"SELECT Ordinal FROM CaseDocuments WHERE Id = '{documentId}'"));
         Assert.Equal(2, await database.ScalarAsync<int>(
             $"SELECT Ordinal FROM DocumentOccurrences WHERE Id = '{occurrenceId}'"));
-        // ENG-016 dropped the hand-off's three tables. This case still
+        // The hand-off's three tables were dropped. This case still
         // proves the migration chain runs to completion over pre-existing
         // rows; the table it used to look for is the evidence that it did.
         Assert.Equal(0, await database.ScalarAsync<int>(
@@ -254,6 +254,10 @@ public sealed class CaseWorkflowMigrationTests
                 "20260914150656_UploadedCorrespondenceMailbox",
                 "20260916090000_VehicleLookupTypeSignals",
                 "20260917014000_EstimateDocumentPreviewEvents",
+                "20260917140000_GrantWorkerCaseAssessmentFields",
+                "20260917150000_RemoveCaseSequenceCeiling",
+                "20260917152000_CaseDueByStaffOverride",
+                "20260917153000_CaseClaimSourceContactOverride",
                 "20260917161519_RemovePublicUploadLinks"
             ],
             await context.Database.GetPendingMigrationsAsync());

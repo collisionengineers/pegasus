@@ -1,184 +1,286 @@
 # FRD-05: Documents, extraction, and custody
-> Owner capabilities: DOC · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
-## Documents, extraction, and custody
+> Owner capabilities: AI-04, DOC-01 to DOC-05, DOC-07, DOC-08, EXT-14, INT-10 to INT-12, INT-14 to INT-16 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
-### Supported source boundary
+## Short version
 
-The intended intake boundary covers PDF, DOC, DOCX, EML, and MSG source material, attached images, and MP4/MOV video evidence plus route metadata. Current support is proved only by the actual application caller and current architecture/evidence, not by an imported workspace or plan. One engine owns each readable document format: PDF stays on the PdfPig path (ADR-0001/ADR-0003 — the only live PDF implementation), DOCX on OpenXml, EML on MimeKit, and DOC/MSG on the CollisionDocNet-derived compound-file readers integrated by ADR-0025 and scoped to those two formats. Video is retained and labelled for review, never treated as readable document text.
+- Pegasus reads PDF, DOC, DOCX, EML and MSG files, keeps attached images,
+  and keeps MP4 and MOV video without reading it.
+- Original bytes are saved before anything is extracted from them. Macros and
+  active content are never run.
+- Scanned pages go to Azure Document Intelligence OCR. Corrupt, encrypted or
+  readable pages never do.
+- Box is where a Case's files live for good. Staging areas and caches are
+  temporary and never prove custody.
+- A gallery never hides an image whose custody is still in progress; it shows
+  a placeholder with the custody state.
+
+## Purpose
+
+This document says which files Pegasus accepts, how it extracts text and
+images from them, where the files are kept, and how images are read back and
+tagged. Upload limits are in
+[FRD-18](frd-18-manual-upload.md#upload-limits).
+The Provider API envelope is owned by
+[FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary).
+
+## Behaviour
+
+### Documents, extraction, and custody
+
+#### Supported source boundary
+
+The intake boundary covers PDF, DOC, DOCX, EML and MSG source files, attached
+images, MP4 and MOV video evidence, and route metadata. Support is proved
+only by the actual application caller and current evidence, never by an
+imported workspace or plan.
+
+One engine owns each readable format. PDF uses PdfPig, the only live PDF
+implementation (ADR-0001, ADR-0003). DOCX uses OpenXml. EML uses MimeKit.
+DOC and MSG use the CollisionDocNet-derived compound-file readers brought in
+by ADR-0025, and those readers handle only those two formats. Video is kept
+and labelled for review; it is never treated as readable text.
 
 Pegasus must:
 
-- preserve source bytes before deriving content;
-- isolate parsing and enforce depth, count, size, decompression, relationship,
-  and cancellation limits — source upload is bounded by the accepted 100 MiB
-  per-file, 20-file and 200 MiB aggregate limits in
-  [FRD-02](frd-02-intake-and-source-identity.md#manual-staff-upload-limits), while
-  the Provider API envelope stays at 30 MB and is owned by
-  [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary);
-- return structured text/images/provenance and explicit partial/unsupported/technical-failure outcomes;
-- retain extraction engine/package/version and policy provenance;
-- never execute macros, active content, external relationships, or embedded instructions;
-- distinguish scan-like material from corrupt, blank, unsupported, or encrypted material.
-- retain accepted MP4/MOV evidence without submitting it to document OCR or image cropping; offer safe preview only for a browser-supported encoding and retain download in every case.
+- keep the source bytes before deriving anything from them;
+- parse in isolation and enforce limits on depth, count, size,
+  decompression, relationships and cancellation;
+- return structured text, images and provenance, with explicit partial,
+  unsupported or technical-failure outcomes;
+- keep the extraction engine, package, version and policy provenance;
+- never run macros, active content, external relationships or embedded
+  instructions;
+- tell scan-like material apart from corrupt, blank, unsupported or encrypted
+  material;
+- keep accepted MP4 and MOV evidence without sending it to OCR or image
+  cropping, offer a safe preview only for a browser-supported encoding, and
+  always offer download.
 
-### Qualified OCR
+#### Qualified OCR
 
-Eligible scan-like pages from incoming instructions use the approved Azure
-Document Intelligence `prebuilt-layout` boundary
-([ADR-0047](../adr/0047-scanned-instruction-ocr-only.md)). Corrupt,
-encrypted and non-renderable inputs must never be submitted to OCR. Readable
-embedded-text pages remain on the ordinary PDF path and are not submitted or
-replaced. Estimate imports use their readable deterministic parsers only; a
-scan-like, ambiguous, or otherwise unsupported estimate is refused without
-an OCR fallback.
+Scan-like pages from incoming instructions go to the approved Azure Document
+Intelligence `prebuilt-layout` boundary
+([ADR-0047](../adr/0047-scanned-instruction-ocr-only.md)). Corrupt, encrypted
+and non-renderable inputs are never sent to OCR. Pages with readable embedded
+text stay on the ordinary PDF path and are neither sent nor replaced.
+Estimate imports use their deterministic parsers only. A scan-like,
+ambiguous or unsupported estimate is refused; there is no OCR fallback.
 
-Each operation binds exactly one authorized incoming intake asset, its content
-hash, length and selected page numbers. Retain the provider operation, pinned
-API/model, response hash, page coordinates and confidence. Deterministic
-instruction validation remains necessary; low confidence or missing structure
-cannot silently produce accepted fields. Unknown submissions with no provider
-identity remain visible and are not blindly repeated.
+Each OCR operation is tied to exactly one authorised intake asset, its
+content hash, its length and the selected page numbers. Pegasus keeps the
+provider operation, the pinned API and model, the response hash, page
+coordinates and confidence. Instruction validation still runs afterwards.
+Low confidence or missing structure never silently becomes an accepted
+field. A submission with no provider identity stays visible and is not
+blindly repeated.
 
-An instruction with scan-like pages from more than one retained source requires
-staff review; Pegasus does not combine OCR outputs from separate sources.
+An instruction with scan-like pages from more than one retained source needs
+staff review. Pegasus does not combine OCR output from separate sources.
 
-The provider operation identity and page output are retained before
-instruction analysis. Provider completion alone does not complete the durable
-work: analysis failures or receipt-version conflicts retry against the retained
-output, without resubmitting pages. Completion is acknowledged only after an
-analyzed, no-profile, or ambiguous analysis outcome has been recorded. A bounded
-exhausted retry remains visibly failed, with its original output retained.
+The provider operation identity and page output are kept before instruction
+analysis runs. The provider finishing is not the same as the work finishing.
+If analysis fails or the receipt version conflicts, Pegasus retries against
+the kept output without resubmitting pages. Completion is acknowledged only
+after an analysed, no-profile or ambiguous outcome has been recorded. When
+bounded retries run out, the failure stays visible and the original output
+stays kept.
 
-### Staging and custody
+#### Staging and custody
 
-Receipt/staging and accepted case custody are different states.
+Receipt and staging are one state. Accepted Case custody is another.
 
-An automatically associated follow-up containing photographs has a separate
-Case-filing step. Its original message, attached documents and selected
-photographs become Case document occurrences with intake provenance and the
-appropriate source, correspondence or image role. Holding-folder confirmation
-does not prove this step: Case promotion has stable Case/receipt/asset operation
-identities distinct from the holding hand-over. Partial writes retain their
-pending document identities and resume through existing custody reconciliation;
-confirmed replays neither duplicate files nor repeat the readiness transition.
-The current association, Case eligibility and edit authority are checked again
-when completing delayed custody. Failures remain visible for normal recovery.
+A follow-up message with photographs that was matched to a Case
+automatically has a separate Case-filing step. Its original message,
+attached documents and selected photographs become Case document occurrences
+with intake provenance and the right source, correspondence or image role.
+Confirmation in the holding folder does not prove this step. Case promotion
+has its own stable Case, receipt and asset operation identities. A partial
+write keeps its pending document identities and resumes through the normal
+custody reconciliation. A confirmed replay neither duplicates files nor
+repeats the readiness transition. The current association, Case eligibility
+and edit authority are checked again when delayed custody completes. Failures
+stay visible for normal recovery.
 
-- Network, local, or Azure staging is temporary processing storage and is never accepted Case custody proof.
-- Box is the required accepted case-file custody system for the day-one alpha. Every allocated Case/PO uses its immutable reference for its Box case folder, then retains its source emails, instruction documents, images, correspondence, and reports there.
-- A Box failure after Case/PO allocation retains the Case as `Not ready` with explicit failure and staff-initiated retry/recovery evidence. It does not roll back, reuse, or reallocate the reference, and no background or automatic business retry is permitted.
-- Staff may add manually received WhatsApp evidence with its source/channel provenance; this does not activate a WhatsApp integration.
-- Case/file mutations use normal role, lease and version guards. Completed
-  status does not permanently lock correspondence or files; query receipt or
-  attachment follows FRD-01. Box offers no bypass of application authorization.
-- Default local alpha work must not mutate any Outlook mailbox or Box location. The separately approved Box integration-test profile and explicitly approved non-production test deployments may create and update controlled non-corpus artifacts only in the approved disposable test subtree recorded in [operations](../operations.md#approved-box-integration-test-target); they must not delete, move, copy, or share Box content. Outlook tests use immutable local copies or an explicitly approved test mailbox and operation.
-- A custody transition records source identity, content hash, target identity/version, actor/caller, time, and failure/retry state without deleting the source proof prematurely.
+- Network, local or Azure staging is temporary processing storage. It never
+  proves Case custody.
+- Box is the required custody system for accepted Case files. Every Case uses
+  its permanent reference for its Box folder, and keeps its source emails,
+  instruction documents, images, correspondence and reports there.
+- If Box fails after the reference is allocated, the Case stays `Not ready`
+  with the failure shown and staff-started retry or recovery recorded. The
+  reference is not rolled back, reused or reallocated. No background or
+  automatic business retry is allowed.
+- Staff may add manually received WhatsApp evidence with its source and
+  channel provenance. That does not switch on a WhatsApp integration.
+- Case and file changes use the normal role, lease and version guards.
+  Completed does not lock correspondence or files; a query on a Completed
+  Case follows
+  [FRD-13](frd-13-case-lifecycle-and-workflow.md#completed-and-query). Box
+  offers no way around application authorisation.
+- Default local development must not change any Outlook mailbox or Box
+  location. The separately approved Box integration-test profile, and
+  explicitly approved non-production test deployments, may create and update
+  controlled non-corpus files only in the approved disposable test subtree
+  recorded in
+  [operations](../operations.md#approved-box-integration-test-target). They
+  must not delete, move, copy or share Box content. Outlook tests use
+  immutable local copies or an explicitly approved test mailbox and
+  operation.
+- A custody transition records the source identity, content hash, target
+  identity and version, actor or caller, time, and failure or retry state.
+  It never deletes the source proof early.
 
-Incoming custody claims use the occurrence's operation identity to select its
-own source record. Intake claims update the matching receipt/asset pair directly;
-they do not probe unrelated source records or require broader Worker permissions.
-The receipt and asset GUIDs are typed identities, not filename, source-label
-or formatted-GUID string matches. Before a destination is established, the
-original source and selected photographs are retained in the designated Box
-holding folder, each with verified content and confirmed file/version IDs.
-Unknown or pending holding custody is incomplete work, not success: existing
-bounded processing retries reuse the same asset and operation identities.
-Exhausted failures remain visible for staff recovery. Re-evaluation repairs
-unconfirmed holding custody from integrity-verified retained staging bytes
-before reading the Box-backed source; missing or corrupt bytes fail closed.
+An incoming custody claim uses the occurrence's operation identity to find
+its own source record. Intake claims update the matching receipt and asset
+pair directly; they do not probe unrelated source records or need wider
+Worker permissions. Receipt and asset GUIDs are typed identities, never matched by
+filename, source label or formatted string. Before a destination is settled,
+the original source and selected photographs are kept in the designated Box
+holding folder, each with verified content and confirmed file and version
+IDs. Unknown or pending holding custody is unfinished work, not success. The
+existing bounded retries reuse the same asset and operation identities.
+Exhausted failures stay visible for staff recovery. Re-evaluation repairs
+unconfirmed holding custody from integrity-checked staging bytes before it
+reads the Box-backed source. Missing or corrupt bytes fail closed.
 
-An Image-initiated Case also has its own Box folder from registration
-(INTK-014): the folder is named for the permanent Image Intake Reference,
-sits directly under the approved custody root, and retains every registered
-photograph and its source PDF in stored order. Each file is identified by its
-retained asset, so several photographs from one PDF cannot collide. The storage is queued work
-behind the registration — a Box failure never blocks or rolls back a
-registration or a merge, the images remain authoritative in intake
-source-artifact retention throughout, and the queued work re-arms itself
-with bounded backoff for dependency failures before recording a terminal
-failure honestly on the record. When the Image-initiated Case merges into a
-formal Case, its folder's contents move into that Case's Box custody (the
-case root's image evidence location) and the emptied folder is removed; the
-removal is non-recursive, so unexpected content fails the fold closed
-instead of being destroyed. The Image-initiated lifecycle state and
-merge/closure history remain in SQL regardless of custody.
+A Vehicle images record has its own Box folder from registration. The folder
+is named for the record's permanent Image reference, sits directly under the
+approved custody root, and keeps every registered photograph and its source
+PDF in stored order. Each file is identified by its asset, so several
+photographs from one PDF cannot collide. The storage is queued work behind
+the registration. A Box failure never blocks or rolls back a registration or
+a merge. The images stay authoritative in intake source retention
+throughout, and the queued work re-arms itself with bounded backoff on
+dependency failures before it records a terminal failure honestly on the
+record. When the record merges into a formal Case
+([FRD-19](frd-19-image-led-intake-and-pairing.md#pairing-and-merge)), the
+folder's contents move into that Case's Box custody, at the Case root's
+image evidence location, and the emptied folder is removed. The removal is
+non-recursive, so unexpected content makes the fold fail closed instead of
+being destroyed. The record's lifecycle state and merge or closure history
+stay in SQL whatever happens to custody.
 
-## Custody and staging distinctions
+### Custody and staging distinctions
 
-Box is durable file custody. Azure processing bytes and the 24-hour idle cache
-are temporary; SQL retains arrival, idempotency and provenance identities.
-Receipt, logical access and definitive association are separate claims. A
-temporary file or cache hit does not establish an accepted Case association.
+Box is durable file custody. Azure processing bytes and the 24-hour idle
+cache are temporary. SQL keeps the arrival, idempotency and provenance
+identities. Receipt, logical access and definitive association are three
+separate claims. A temporary file or a cache hit never establishes an
+accepted Case association.
 
 A secondary Audit folder nests under its original Inspection folder. It is
-not a sibling of that Inspection folder. Image-origin references remain
-distinct from formal Case/PO identity while their custody is resolved.
+never a sibling of that folder. Image-origin references stay distinct from
+formal Case identity while their custody is resolved.
 
+### Custody and derived reads
 
-## Custody and derived reads
-
-Box owns durable Case-document custody. Existing intake staging retains original
-bytes until verified custody handoff; SQL retains identity, version and
-provenance. A derived image/cache copy serves processing or presentation and
-can be rebuilt from retained source evidence; it is not a second custody owner.
-Read through the logical occurrence/version interface so current authorization
-and exact version checks apply regardless of physical source. Do not erase
-staging before verified handoff or invent a new store for this separation
-(ADR-0045).
+Box owns durable Case-document custody. Intake staging keeps the original
+bytes until the handover to custody is verified. SQL keeps identity, version
+and provenance. A derived image or cache copy serves processing or
+presentation and can be rebuilt from the kept source; it is never a second
+custody owner. Reads go through the logical occurrence and version interface,
+so the current authorisation and exact version checks apply whatever the
+physical source. Staging is not erased before verified handover, and no new
+store is invented for this separation (ADR-0045).
 
 A linked Audit Case created from an Inspection + Audit Case shares the
-original's documents by reference to the same stored bytes; nothing is copied.
-Its custody root is the `a.` subfolder Pegasus creates under the original
-Case's Box folder when the Audit Case is created, resolved afterwards through
-the persisted relationship, never from the reference prefix
+original's documents by reference to the same stored bytes; nothing is
+copied. Its custody root is the `a.` subfolder Pegasus creates under the
+original Case's Box folder when the Audit Case is created. Afterwards it is
+found through the stored relationship, never from the reference prefix
 ([ADR-0051](../adr/0051-linked-audit-case-identity-and-custody.md),
 [FRD-01](frd-01-case-identity-and-lifecycle.md)).
 
 An inline image preview is served through this same cached content path,
-never as an audited download: every read re-verifies the source content hash
-and serves only confirmed custody. A cache entry is content-hash addressed,
-so it is immutable and safely shared, and a smaller thumbnail variant is
-served to gallery and tile surfaces while the full image serves the viewer
-and crop. No gallery omits an image whose custody is still in flight (not yet
-confirmed) or has failed; it renders as a placeholder naming the file and
-stating its custody state until custody resolves. The Case's own Images tab
-draws the same placeholder: it is built from `CaseFiles.Current`, every
-current, not logically removed image occurrence whatever its custody has
-reached, and offers the thumbnail, viewer link, tags and Crop only on the
-Confirmed ones. The Documents tab lists the same set, each row stating its
-custody, and offers Preview and Save as only where the bytes are held.
+never as an audited download. Every read re-verifies the source content hash
+and serves only confirmed custody. A cache entry is addressed by content
+hash, so it is immutable and safe to share. A smaller thumbnail serves
+galleries and tiles; the full image serves the viewer and crop. No gallery
+omits an image whose custody is still in flight or has failed. It shows a
+placeholder naming the file and stating its custody state until custody
+resolves. The Case's own Images tab draws the same placeholder. It is built
+from `CaseFiles.Current`, every current image occurrence that has not been
+logically removed, whatever its custody state, and offers the thumbnail,
+viewer link, tags and Crop only on Confirmed ones. The Documents tab lists
+the same set, each row stating its custody, and offers Preview and Save as
+only where the bytes are held.
 
-Unidentified and Image Intake likewise show selected photographs independently
-of the source file's media type: photo count, thumbnails or custody
-placeholders, VRM outcome and the original PDF as a separate file. Known
-files whose custody is unconfirmed return an explanatory availability response
-on direct access, not a generic page-not-found. No download bypasses confirmed
-custody by serving staging bytes; missing identities still return not-found.
+Unidentified and Vehicle images records likewise show selected photographs
+whatever the source file's media type: the photo count, thumbnails or
+custody placeholders, the VRM outcome, and the original PDF as a separate
+file. A known file whose custody is unconfirmed returns an explanatory
+availability response on direct access, not a generic not-found page. No
+download bypasses confirmed custody by serving staging bytes. An unknown
+identity still returns not-found.
 
-## Image tags
+### Image tags
 
-Image tags are a Case-document classification, distinct from Box/SQL file
-custody: a shared vocabulary (`Name`, `Colour`, `IsBuiltIn`) and a join
-recording which tag sits on which image occurrence (`AppliedBy`,
-`AppliedAtUtc`, its operation key). The seeded, non-deletable vocabulary is
-Overview, Close-up, Third party and Reflection; an authorised staff member
-may add a custom entry (up to 40 characters, case-insensitive unique against
-every existing name) with one of six fixed design tints. An occurrence may
+Image tags classify Case images. They are separate from Box and SQL file
+custody. The shared vocabulary has `Name`, `Colour` and `IsBuiltIn`. A join
+records which tag sits on which image occurrence, with `AppliedBy`,
+`AppliedAtUtc` and the operation key. The seeded, non-deletable tags are
+Overview, Close-up, Third party and Reflection. An authorised staff member
+may add a custom tag of up to 40 characters, unique against every existing
+name ignoring case, with one of six fixed design tints. An occurrence may
 carry any number of tags.
 
-Applying or removing a tag on a Case image carries the same guards as every
-other Case mutation: the current Case edit lease, the expected Case version
-and an operation key for replay, and it bumps the Case version — the tag is
-on the record's timeline, not beside it. Adding to the shared vocabulary
-takes no lease or Case version (it is not a Case fact); it requires the
-casework right and an operation key, and a duplicate name (by the
-case-insensitive key) is refused rather than creating a second entry.
+Applying or removing a tag on a Case image has the same guards as any other
+Case change: the current Case edit lease, the expected Case version and an
+operation key for replay. It bumps the Case version, so the tag is on the
+record's timeline. Adding to the shared vocabulary takes no lease and no Case
+version, because it is not a Case fact. It needs the casework right and an
+operation key. A duplicate name, compared ignoring case, is refused rather
+than creating a second entry.
 
 Third party replaces the former one-way `ThirdPartyVehicleConfirmedAtUtc`
 flag and keeps its EVA-exclusion behaviour
 ([FRD-07](frd-07-eva-and-external-engineering-handoff.md#eva-handoff-routes)).
-The migration that introduced tags converted every recorded confirmation
-into a Third party tag on the same occurrence, preserving its original
-moment, actor and operation key, then dropped the three flag columns and
-their index; there is no way back from a tag to the flag.
+The migration that introduced tags turned every recorded confirmation into a
+Third party tag on the same occurrence, keeping its original moment, actor
+and operation key, then dropped the three flag columns and their index.
+There is no way back from a tag to the flag.
+
+## States and transitions
+
+| Thing | States | Notes |
+| --- | --- | --- |
+| Source file | Received and staged → holding custody → Case custody | Staging is never proof of custody |
+| OCR operation | Submitted → output kept → analysed, no-profile or ambiguous; or visibly failed | Retries reuse the kept output |
+| Custody of one file | Pending → Confirmed; or Failed | Galleries show the state until Confirmed |
+| Vehicle images folder | Queued → written; folded into a Case on merge | A Box failure never blocks the record |
+
+## Edge cases and fail-closed behaviour
+
+- Corrupt, encrypted or non-renderable input is never sent to OCR.
+- A scan-like or ambiguous estimate is refused with no OCR fallback.
+- A Box failure after allocation leaves the Case Not ready; staff retry it.
+- Missing or corrupt staging bytes fail closed during re-evaluation.
+- Unexpected content in a Vehicle images folder makes the fold fail closed.
+- Unconfirmed custody returns an availability response, never staging bytes.
+- A duplicate tag name is refused.
+
+## Acceptance evidence
+
+Core tests cover the format boundary, limits, OCR binding and tag rules.
+Integration tests cover custody claims, holding-folder retention, thumbnails
+and placeholders, and the Box integration-test profile against the approved
+test subtree. Deployment and live acceptance are separate evidence tiers
+([engineering](../engineering.md#required-evidence-tiers)).
+
+## Links
+
+- Capabilities: `AI-04`, `DOC-01`–`DOC-05`, `DOC-07`, `DOC-08`, `EXT-14`,
+  `INT-10`–`INT-12`, `INT-14`–`INT-16` in [capabilities](../capabilities.md).
+- Related FRDs: [FRD-01](frd-01-case-identity-and-lifecycle.md),
+  [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
+  [FRD-09](frd-09-provider-and-intermediary-routes.md),
+  [FRD-13](frd-13-case-lifecycle-and-workflow.md),
+  [FRD-18](frd-18-manual-upload.md),
+  [FRD-19](frd-19-image-led-intake-and-pairing.md).
+- Technical constraints: [ADR-0001](../adr/0001-hybrid-pdf-extraction.md),
+  [ADR-0003](../adr/0003-pdfpig-for-first-qdos-slice.md),
+  [ADR-0025](../adr/0025-integrate-renderer-and-extractor-into-the-application.md),
+  [ADR-0045](../adr/0045-document-custody-and-derived-caches.md),
+  [ADR-0047](../adr/0047-scanned-instruction-ocr-only.md),
+  [ADR-0051](../adr/0051-linked-audit-case-identity-and-custody.md).

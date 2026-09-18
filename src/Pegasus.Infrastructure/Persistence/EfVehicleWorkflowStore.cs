@@ -401,7 +401,7 @@ internal sealed class EfVehicleWorkflowStore(
     }
 
     /// <summary>
-    /// One automatic-lookup sweep pass (CASE-008): every active case whose
+    /// One automatic-lookup sweep pass: every active case whose
     /// current registration (confirmed, else fact) has no lookup request yet
     /// gets one pending work item under the Automation actor. Leaseless and
     /// without a case-version bump — evidence gathering, not a staff mutation.

@@ -377,7 +377,7 @@ public sealed partial class QdosTriageIntegrationTests
             "is editing the case",
             unavailableCaseHtml,
             StringComparison.Ordinal);
-        // CASE-024: an open editor keeps its own lease alive, so this names no time.
+        // An open editor keeps its own lease alive, so this names no time.
         Assert.DoesNotContain(
             "Editing becomes available",
             unavailableCaseHtml,
@@ -474,7 +474,7 @@ public sealed partial class QdosTriageIntegrationTests
     }
 
     /// <summary>
-    /// INTK-059: Triage gets the same optional-Principal correction Image
+    /// Triage gets the same optional-Principal correction Image
     /// Intake already has (<c>ImageIntakeStore.SetPrincipalAsync</c>) — a
     /// compact dialog, no reason, set/replace/clear through
     /// <c>ISetTriagePrincipal</c> — with one deliberate difference: Triage's

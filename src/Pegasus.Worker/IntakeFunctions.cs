@@ -58,12 +58,13 @@ public sealed partial class AutomaticEvaReviewSubmissionFunction(
     private static partial void LogProcessed(ILogger logger, int count);
 }
 
-public sealed class UnifiedWorkFunction(
+public sealed partial class UnifiedWorkFunction(
     IProcessQueuedIntake processQueuedIntake,
     IProcessQueuedExternalWork processQueuedExternalWork,
     PollApprovedInbox pollApprovedInbox,
     IApprovedMailboxSubscriptionStore mailboxSubscriptions,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILogger<UnifiedWorkFunction> logger)
 {
     private static readonly ActionActor MailboxWakeActor =
         ActionActor.SystemWorker("approved-inbox-notification");
@@ -130,12 +131,28 @@ public sealed class UnifiedWorkFunction(
                 await processQueuedIntake.ExecuteAsync(identifier, cancellationToken);
                 return;
             case UnifiedWorkQueueKind.External:
-                await processQueuedExternalWork.ExecuteAsync(identifier, cancellationToken);
+                try
+                {
+                    await processQueuedExternalWork.ExecuteAsync(identifier, cancellationToken);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    // The queue's own retry and poison handling is unchanged; the failure
+                    // is named here because a store-level throw otherwise leaves only a
+                    // poisoned work item and no line saying why.
+                    LogExternalWorkFailed(logger, exception, identifier);
+                    throw;
+                }
                 return;
             default:
                 throw new InvalidDataException("The unified work message has an unsupported kind.");
         }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "External work item {WorkItemId} failed; the queue retry policy decides the next attempt.")]
+    private static partial void LogExternalWorkFailed(ILogger logger, Exception exception, Guid workItemId);
 
     private static ApprovedMailboxSubscriptionLifecycleState LifecycleState(
         MailboxWakeKind wakeKind) => wakeKind switch
@@ -244,7 +261,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
                 pendingArtifacts.Candidates);
         }
 
-        // INTK-011: recovers a grouped-image straggler that never got a
+        // Recovers a grouped-image straggler that never got a
         // registered Image intake or an Unidentified reference — re-drives
         // its already-completed work item's safe replay branch, and
         // registers Unidentified directly once it has been pending long
@@ -264,7 +281,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
         LogTriageCasePairing(logger, triagePairing.Candidates, triagePairing.Linked,
             triagePairing.Failures, triagePairing.FirstFailure);
 
-        // INTK-018: resolves an open Unidentified item whose origin receipt
+        // Resolves an open Unidentified item whose origin receipt
         // was promoted outside its own processing pass (a sibling group
         // member's registration, a staff action, or a historic stale row) —
         // the product's own reconciliation, never manual SQL. Same existing
@@ -276,14 +293,14 @@ public sealed partial class StagedArtifactReconciliationFunction(
             unidentifiedResult.Resolved,
             unidentifiedResult.Failures);
 
-        // CASE-008: any active case whose current registration has never been
+        // Any active case whose current registration has never been
         // looked up gets one automatic vehicle lookup enqueued; the existing
         // dispatch timer and unified work queue carry it from there. Same
         // existing timer trigger deliberately; this is not a new schedule.
         var vehicleLookups = await reconcileAutomaticVehicleLookups.ExecuteAsync(50, cancellationToken);
         LogAutomaticVehicleLookups(logger, vehicleLookups);
 
-        // AUTO-012: repairs the staged-receipt back-reference and the missing
+        // Repairs the staged-receipt back-reference and the missing
         // first Accepted history row after a process loss between the
         // Provider API's separate writes. Same existing timer trigger
         // deliberately; this is not a new schedule.

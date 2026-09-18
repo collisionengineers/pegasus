@@ -441,7 +441,8 @@ public sealed class AutomaticImageIntakeTests
     [Fact]
     public async Task GroupRegistrationFailureReportsGroupPendingInsteadOfFallingBack()
     {
-        // INTK-011 contract, kept under the group-as-registration-unit shape:
+        // The grouped-image straggler contract, kept under the
+        // group-as-registration-unit shape:
         // the group's one registration attempt loses a transient concurrency
         // race (simulated here as a recoverable exception from the register
         // port). The trigger member must be reported back as GroupPending,

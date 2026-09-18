@@ -44,13 +44,13 @@ public sealed class IndexModel(
 
     /// <summary>
     /// How far back the list reaches for the terminal jobs of the current day
-    /// (FRD-11 &#167; AI Job List). Non-terminal jobs never depend on this
+    /// (FRD-27 &#167; AI Job List). Non-terminal jobs never depend on this
     /// bound: they come from the unbounded <see cref="IAiJobQueries.ListOpenAsync"/>.
     /// </summary>
     private const int RecentJobWindow = 200;
 
     /// <summary>
-    /// What one Unidentified-resolution job is asked to do. FRD-11 gives this
+    /// What one Unidentified-resolution job is asked to do. FRD-27 gives this
     /// kind "the U reference only" as its input, so the direction is fixed
     /// rather than typed: it is the pointer's payload, never operator copy.
     /// </summary>
@@ -91,7 +91,7 @@ public sealed class IndexModel(
         LimitReached: false);
 
     /// <summary>
-    /// The AI Job List (FRD-11): every non-terminal job, plus the jobs that
+    /// The AI Job List (FRD-27): every non-terminal job, plus the jobs that
     /// reached a terminal state today, newest first.
     /// </summary>
     public IReadOnlyList<AiJobRecord> AiJobs { get; private set; } = [];
@@ -336,7 +336,7 @@ public sealed class IndexModel(
 
     /// <summary>
     /// Who started one job: a staff username, the connector client name, or
-    /// Pegasus itself &#8212; never the stored subject identifier (FRD-11
+    /// Pegasus itself &#8212; never the stored subject identifier (FRD-27
     /// &#167; AI Job List).
     /// </summary>
     public string StartedBy(AiJobRecord job) => AiJobActions.StartedBy(
@@ -348,10 +348,10 @@ public sealed class IndexModel(
     /// The review action a Draft ready job offers, as (label, page), or
     /// <see langword="null"/> where no route exists. Estimate opens the
     /// Assessment estimate tab and Unidentified resolution opens the item, as
-    /// FRD-11 requires.
+    /// FRD-27 requires.
     /// </summary>
     /// <remarks>
-    /// Query response is the one compromise: FRD-11 asks it to open the
+    /// Query response is the one compromise: FRD-27 asks it to open the
     /// message, but Core gives the job a Case subject and no message identity
     /// (<c>AiJobPolicy.SubjectKindFor</c>), so the link opens the Case the job
     /// actually names rather than rendering an unresolvable control.
@@ -377,7 +377,7 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// Whether staff close this job by hand. FRD-11 gives Complete job to a
+    /// Whether staff close this job by hand. FRD-27 gives Complete job to a
     /// Draft ready Query response, Unidentified-queue pass or Market research;
     /// an Estimate and an Unidentified resolution are completed by the record's
     /// own act (Use estimate, Resolve destination), never from this table.
@@ -392,7 +392,7 @@ public sealed class IndexModel(
     }
 
     /// <summary>
-    /// FRD-11's AI Job List membership: every non-terminal job, plus the jobs
+    /// FRD-27's AI Job List membership: every non-terminal job, plus the jobs
     /// that reached a terminal state today, newest first.
     /// </summary>
     /// <remarks>

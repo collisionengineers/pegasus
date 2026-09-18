@@ -84,7 +84,7 @@ internal sealed class CaseRepairSpecificationEntity
     public Guid? SupersedesSpecificationId { get; set; }
     public string? SupersessionReason { get; set; }
 
-    // Named estimate header (ENG-026). Exactly one row per case carries
+    // Named estimate header. Exactly one row per case carries
     // IsCurrent; the Current estimate is the one the report costs from.
     public required string Name { get; set; }
     public int? RepairDays { get; set; }

@@ -52,7 +52,7 @@ public sealed class CaseEditModeWebTests
     public async Task WorkspaceSaveUsesCoreFindingAndEligibleSignOffAuthority(
         string role, bool forgeSignOffAccount, bool reachesStore)
     {
-        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.ReportPreparation };
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
         {
@@ -202,8 +202,6 @@ public sealed class CaseEditModeWebTests
     }
 
     [Theory]
-    [InlineData(CaseLifecycleState.NotReady)]
-    [InlineData(CaseLifecycleState.Review)]
     [InlineData(CaseLifecycleState.Held)]
     [InlineData(CaseLifecycleState.PostReportComplete)]
     public async Task CraftedEngineeringSaveIsRefusedOutsideTheCoreEditStates(CaseLifecycleState state)
@@ -218,6 +216,54 @@ public sealed class CaseEditModeWebTests
         AssertPrg(response, store.CaseId);
         Assert.Empty(store.Saves);
         Assert.Contains("Excess", ProposedValuesPanel(await workspace.GetWorkspaceAsync()), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ReviewStateOrdinaryEngineeringSaveByNonEngineerReachesTheStore()
+    {
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            Substitute<IGetCase>(services, store);
+            Substitute<IGetCasePageFrame>(services, store);
+            Substitute<IGetCaseVehicleSection>(services, store);
+            Substitute<IGetCaseValuationSection>(services, store);
+            Substitute<IGetCaseNotesSection>(services, store);
+            Substitute<IGetCaseFilesSection>(services, store);
+            Substitute<IAcquireCaseEditLease>(services, store);
+            Substitute<IGetAssessmentAccess>(services, store);
+            Substitute<IGetAssessmentWorkspace>(services, store);
+            Substitute<ICaseReportSnapshotSource>(services, store);
+            services.RemoveAll<ISaveCaseWorkspace>();
+            services.AddScoped<ISaveCaseWorkspace>(provider => new SaveCaseWorkspace(store,
+                provider.GetRequiredService<IStaffAccountQueries>()));
+        }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false, BaseAddress = new Uri("https://localhost")
+        });
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
+        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var claim = await client.PostAsync($"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(AntiforgeryValue(initial),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", InputValue(initial, "operationKey"))));
+        AssertPrg(claim, store.CaseId);
+        var editing = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var excessName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.SettlementExcess);
+        Assert.Contains($"name=\"{excessName}\"", editing, StringComparison.Ordinal);
+
+        using var response = await client.PostAsync($"/Cases/{store.CaseId:D}?handler=Save",
+            Form(AntiforgeryValue(editing),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", DetailsModelOperationKey),
+                ("editLeaseToken", store.LeaseToken),
+                (excessName, "250")));
+
+        AssertPrg(response, store.CaseId);
+        var saved = Assert.Single(store.Saves);
+        Assert.Equal("250", saved.Settlement!.AssessmentFields![AssessmentVocabulary.SettlementExcess]);
     }
 
     [Fact]
@@ -337,7 +383,7 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
-    /// CASE-024: the workspace renders a heartbeat form so an open editor is never timed out
+    /// The workspace renders a heartbeat form so an open editor is never timed out
     /// mid-edit, and answers it without a redirect, a status message, or - crucially - any
     /// TempData write. TempData here is cookie-backed, so a beat that re-issued that cookie could
     /// race a form post the operator did make and lose them the token they are editing under.
@@ -425,7 +471,7 @@ public sealed class CaseEditModeWebTests
 
     /// <summary>The value of one hidden input inside the form that posts to the named handler.</summary>
     /// <summary>
-    /// INTK-058/CASE-041: the Case's repairer is an Inspect-at option that
+    /// The Case's repairer is an Inspect-at option that
     /// names the repairer it came from, and the Save carries the repairer the
     /// operator confirmed into the one Case edit.
     /// </summary>
@@ -488,7 +534,7 @@ public sealed class CaseEditModeWebTests
     [Fact]
     public async Task EditModeReplacesTheReadPanelsRatherThanRenderingBothOfThem()
     {
-        var store = new RecordingCaseDetailsStore();
+        var store = new RecordingCaseDetailsStore { State = CaseLifecycleState.Review };
         using var workspace = await EnterEditModeAsync(store, _ => { });
 
         var editing = await workspace.GetWorkspaceAsync();
@@ -921,7 +967,7 @@ public sealed class CaseEditModeWebTests
         var note = EditAuthorityNote(html);
 
         Assert.Contains("r.hughes is editing", note, StringComparison.Ordinal);
-        // CASE-024: an open editor keeps its own lease alive, so no moment when editing
+        // An open editor keeps its own lease alive, so no moment when editing
         // becomes available is knowable here, and naming one would be a broken promise.
         Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
@@ -959,7 +1005,7 @@ public sealed class CaseEditModeWebTests
             "Another member of staff is editing",
             note,
             StringComparison.Ordinal);
-        // CASE-024: an open editor keeps its own lease alive, so no moment when editing
+        // An open editor keeps its own lease alive, so no moment when editing
         // becomes available is knowable here, and naming one would be a broken promise.
         Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
         Assert.DoesNotContain(holderId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
@@ -1000,7 +1046,7 @@ public sealed class CaseEditModeWebTests
         var note = EditAuthorityNote(html);
 
         Assert.Contains("AI is editing", note, StringComparison.Ordinal);
-        // CASE-024: an open editor keeps its own lease alive, so no moment when editing
+        // An open editor keeps its own lease alive, so no moment when editing
         // becomes available is knowable here, and naming one would be a broken promise.
         Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
         Assert.DoesNotContain("member of staff", note, StringComparison.OrdinalIgnoreCase);
@@ -1202,7 +1248,7 @@ public sealed class CaseEditModeWebTests
     /// <summary>The Files section's upload-requests sub-panel (v26): the table of links.</summary>
 
     /// <summary>
-    /// KANMER-005: while the Automation Actor holds the lease, the workspace is read-only to
+    /// While the Automation Actor holds the lease, the workspace is read-only to
     /// staff — the holder is disclosed from its retained kind through the real descriptor, no
     /// claim control is rendered, and a claim posted anyway is refused without the page
     /// pretending edit mode was entered. The refusal is the shared owner's own conflict.

@@ -10,12 +10,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
     {
         private const string WebRole = "pegasus_web_runtime_role";
 
-        // AUTO-011: AiJobs is new in 20260828084601_AiJobs and the
+        // AiJobs is new in 20260828084601_AiJobs and the
         // least-privilege runtime roles grant nothing on a table they have
         // never heard of. Only the Web runtime touches the ledger — staff
         // create, cancel and confirm from the application and external AI
         // clients work it through the /mcp ingress hosted by Web. The Worker
-        // runs no AI timer (ADR-0035, EPIC-011 D5), so it gets no grant.
+        // runs no AI timer (ADR-0035), so it gets no grant.
         //
         // SELECT, INSERT and UPDATE: rows are created once and then move
         // through their states in place, exactly as AiWorkRequests does

@@ -12,7 +12,7 @@ using Pegasus.Web.Authentication;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// INTK-018: the production U7 shape — an Unidentified item whose origin
+/// The production U7 shape — an Unidentified item whose origin
 /// receipt is later promoted to a real destination must be resolved by the
 /// product's own reconciliation, never manual SQL — and the terminal-only
 /// creation contract: a group member whose group is still pending never
@@ -93,7 +93,7 @@ public sealed class UnidentifiedReconciliationTests
     }
 
     /// <summary>
-    /// Statements 13 and 14 of the INTK-048 preservation table, against the
+    /// Statements 13 and 14 of the reconciliation preservation table, against the
     /// real query and the real association writer: an automation resolution
     /// follows the receipt's effective destination through link, unlink and
     /// relink, and the sweep returns to all-zero steady state afterwards.

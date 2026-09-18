@@ -1,5 +1,5 @@
 @page "/Cases/{id:guid}"
-@* CASE-038: the record answers on `/Cases/{id}` and its section
+@* The record answers on `/Cases/{id}` and its section
    fragment on `/Cases/{id}/Section` (the added route in Program.cs), so a
    fragment response is never a candidate for the record's own snapshot
    states and every other handler keeps the query-string form. *@
@@ -113,14 +113,6 @@
         <span>@caseError</span>
         <button type="button" class="dismiss" data-dismiss aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
     </div>
-}
-@if (TempData["CaseRequestSecret"] is string requestSecret)
-{
-    <section class="panel form-panel mb-2" aria-labelledby="case-request-secret-title">
-        <h2 id="case-request-secret-title" class="section-label">Copy this secret now</h2>
-        <p>It is shown once and is not available from case history.</p>
-        <input value="@requestSecret" readonly aria-label="One-time request secret" />
-    </section>
 }
 </div>
 

@@ -11,9 +11,9 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// The Vehicle page — the DVLA and MOT lookup — and the Case workspace's
-/// Vehicle section that calls it (EPIC-011 §1.8).
+/// Vehicle section that calls it.
 ///
-/// ENG-016 removed the EVA half of this file with the act it covered: the
+/// Collapsing the hand-off into the export removed the EVA half of this file with the act it covered: the
 /// GenerateEvaHandoff handler and the Eva/Download page are gone, and the
 /// export that replaced them is covered where it now lives — the Details
 /// action bar (<c>CaseDetailsWebTests</c>) and the store
@@ -158,7 +158,7 @@ public sealed class CaseVehicleWebTests
     }
 
     /// <summary>
-    /// EPIC-011 §1.8 Vehicle checks: the two refresh controls post the one
+    /// Vehicle checks: the two refresh controls post the one
     /// lookup handler the case already has, because a single lookup returns
     /// both the vehicle record and the MOT observations. The recorded checks
     /// are the case's own lookup observations.
@@ -347,19 +347,19 @@ public sealed class CaseVehicleWebTests
         Assert.Contains("<h3>Vehicle history", readOnly, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"edit-vehicle-history\"", readOnly, StringComparison.Ordinal);
 
-        using var workspace = await EnterEditModeAsync(store, _ => { });
+        using var workspace = await EnterEditModeAsync(store, services =>
+            Substitute<IGetAssessmentAccess>(services, store));
         var editing = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=vehicle");
 
         Assert.Contains("data-vehicle-history>", editing, StringComparison.Ordinal);
         Assert.Contains("<h3>Vehicle history", editing, StringComparison.Ordinal);
-        // The history check is an Engineer's field: on this Not ready Case the area
-        // still reads inside the session, and its control joins only With Engineer
-        // (EngineeringEditorsShareTheCaseSave… covers the textarea there).
-        Assert.DoesNotContain("id=\"edit-vehicle-history\"", editing, StringComparison.Ordinal);
+        // The Engineer fields on Vehicle join the edit session in Not ready.
+        Assert.Contains("id=\"edit-vehicle-condition\"", editing, StringComparison.Ordinal);
+        Assert.Contains("id=\"edit-vehicle-history\"", editing, StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// EPIC-011 D7/D22 and ENG-001: Experian is not connected, so the seam is
+    /// Operator decisions D7/D22: Experian is not connected, so the seam is
     /// named where its control would sit — a <c>.gated</c> pill carrying the
     /// reason in its text — with no button, no handler and (v26) no
     /// <c>data-condition</c> tooltip behind it. It is drawn, never claimed.
@@ -460,7 +460,7 @@ public sealed class CaseVehicleWebTests
     }
 
     /// <summary>
-    /// PLAT-061: `.gated::after` renders `attr(data-condition)` with no
+    /// `.gated::after` renders `attr(data-condition)` with no
     /// `[data-condition]` guard, so a gate whose condition is absent paints an
     /// empty pill. No state of the workspace may render one — including the
     /// state where the gated control is enabled and there is no condition left

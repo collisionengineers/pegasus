@@ -4,8 +4,7 @@ using System.Text;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The scripted Glass's provider, and the one script both Glass's suites drive
-/// (CASE-047 B04).
+/// The scripted Glass's provider, and the one script both Glass's suites drive.
 /// </summary>
 /// <remarks>
 /// <para>

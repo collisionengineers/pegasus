@@ -16,7 +16,7 @@ using static Pegasus.IntegrationTests.GlassProviderFixture;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// CASE-047 B04: the Glass's repair-estimate gateway against a scripted
+/// The Glass's repair-estimate gateway against a scripted
 /// transport. Every stage the provider answers is played back from the shapes
 /// the supplied captures record — the byte-order marked JSON, the login
 /// redirect, the candidate fragment, the <c>start-ere</c> launch URL and the

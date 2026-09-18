@@ -258,7 +258,7 @@ public sealed class InstructionExtractionPolicySelectorTests
     {
         // Current-message identity comes from the reader's existing locator.
         // History remains retained, but cannot turn a current instruction into
-        // another principal's report (TICK-035, current-message requirement).
+        // another principal's report (current-message requirement).
         var selector = new InstructionExtractionPolicySelector(
             [Profile("QUOTED", ["Assessment Instruction"], ["Third Party Engineer"])]);
         var readResult = new IntakeSourceReadResult(
@@ -480,7 +480,7 @@ public sealed class InstructionExtractionPolicySelectorTests
 
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
+            InstructionExtractionTiming timing,
             EstablishedPrincipalContext principalContext)
         {
             ObservedPrincipalContext = principalContext;
@@ -503,7 +503,7 @@ public sealed class InstructionExtractionPolicySelectorTests
 
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc,
+            InstructionExtractionTiming timing,
             EstablishedPrincipalContext principalContext) =>
             throw new NotSupportedException("Not used by these tests.");
     }

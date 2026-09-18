@@ -108,10 +108,6 @@ public sealed partial class DetailsModel
         {
             return CaseWorkspaceLabels.Frame.ReturnToEngineerToEdit;
         }
-        if (EngineerSectionKeys.Contains(key))
-        {
-            return CaseWorkspaceLabels.Frame.AvailableWithEngineer;
-        }
         return null;
     }
 

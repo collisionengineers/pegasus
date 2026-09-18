@@ -57,7 +57,7 @@ public static class ThirdPartyFindingCodes
 
 /// <summary>
 /// Independent arithmetic and cross-field reconciliation over a third-party
-/// report candidate (INTK-056). Every result is a separate finding: a source
+/// report candidate. Every result is a separate finding: a source
 /// value is never silently repaired, and a contradiction is preserved beside
 /// the figures that do reconcile.
 /// </summary>

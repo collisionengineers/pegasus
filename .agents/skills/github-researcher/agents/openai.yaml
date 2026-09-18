@@ -1,0 +1,6 @@
+interface:
+  display_name: "GitHub Researcher"
+  short_description: "Research public repos for project fit"
+  default_prompt: "Use $github-researcher to find and assess public GitHub repositories that could help this project."
+policy:
+  allow_implicit_invocation: true

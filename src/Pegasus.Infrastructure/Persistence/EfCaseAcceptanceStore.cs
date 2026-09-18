@@ -213,13 +213,13 @@ public sealed class EfCaseAcceptanceStore(
         var acceptedAtUtc = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
         var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
             context, principal, acceptedAtUtc, cancellationToken);
-        // CASE-014: an Audit prefix belongs on the Case's own reference. The
+        // An Audit prefix belongs on the Case's own reference. The
         // assessment is a recorded fact and is not part of identity.
         var allocated = allocatedIdentity.Reference;
         var reference = request.CaseType == CaseType.Audit
             ? AuditIdentity.Create(allocated)
             : allocated;
-        // No second identity is allocated for an audit any more (CASE-014).
+        // No second identity is allocated for an audit any more.
         string? auditReference = null;
         var caseId = Guid.NewGuid();
         var custodyWorkId = Guid.NewGuid();
@@ -392,7 +392,7 @@ public sealed class EfCaseAcceptanceStore(
             AttemptCount = 0,
             DueAtUtc = acceptedAtUtc,
             CaseRootCreationToken = CustodyCreationOwner.Create(),
-            // CASE-014: an audit no longer has a second folder to create.
+            // An audit no longer has a second folder to create.
             AuditFolderCreationToken = null
         });
         receipt.Version++;
@@ -651,7 +651,7 @@ public sealed class EfCaseAcceptanceStore(
                 .ToArray());
 
     // EF's non-retrying strategy wraps a deadlock two layers deep, so unwrap
-    // every layer, as EfIntakeReceiptStore does (INTK-044).
+    // every layer, as EfIntakeReceiptStore does.
     private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
     {
         DbUpdateConcurrencyException => true,

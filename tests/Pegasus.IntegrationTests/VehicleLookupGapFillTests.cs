@@ -12,7 +12,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// ENG-013: the DVLA and DVSA lookup is enrichment. What it learns fills the
+/// The DVLA and DVSA lookup is enrichment. What it learns fills the
 /// case's own empty vehicle fields as working values, and never displaces what
 /// the documents already said — which is what stops one case showing two
 /// rival mileages.
@@ -381,6 +381,53 @@ public sealed class VehicleLookupGapFillTests
         database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateType = 'case' AND AggregateId = '{caseId:D}' AND EventKind = 'case_report_generation_stale'");
 
+    /// <summary>
+    /// The fill runs on the Worker, whose least-privilege role must be able to
+    /// read the confirmed mileage source (report freshness) and write the derived
+    /// Vehicle type. LocalDB tests otherwise run as dbo and never see a missing
+    /// grant; Release 54 shipped exactly that gap.
+    /// </summary>
+    [Fact]
+    public async Task TheWorkerRuntimeRoleCanRecordALookupAndWriteTheVehicleType()
+    {
+        await using var database = await CreateDatabaseAsync();
+        var caseId = await SeedCaseAsync(database);
+        await database.ExecuteAsync("""
+            CREATE USER [pegasus_test_lookup_worker] WITHOUT LOGIN;
+            ALTER ROLE [pegasus_worker_runtime_role] ADD MEMBER [pegasus_test_lookup_worker];
+            """);
+        await using var connection = database.CreateConnection();
+        await connection.OpenAsync();
+        await using var impersonation = connection.CreateCommand();
+        impersonation.CommandText = "EXECUTE AS USER = N'pegasus_test_lookup_worker';";
+        await impersonation.ExecuteNonQueryAsync();
+        try
+        {
+            var options = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
+            await RecordLookupAsync(
+                database,
+                caseId,
+                typeApproval: "N1",
+                store: new EfVehicleLookupWorkStore(new ConnectedContextFactory(options)));
+        }
+        finally
+        {
+            impersonation.CommandText = "REVERT;";
+            await impersonation.ExecuteNonQueryAsync();
+        }
+
+        Assert.Equal("RENAULT", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseDataFields WHERE CaseId = '{caseId:D}' AND FieldName = 'vehicle_make' AND ValueKind = 'fact'"));
+        Assert.Equal("van", await database.ScalarAsync<string>(
+            $"SELECT Value FROM CaseAssessmentFields WHERE CaseId = '{caseId:D}' AND FieldPath = '{AssessmentVocabulary.VehicleType}'"));
+    }
+
+    private sealed class ConnectedContextFactory(DbContextOptions<PegasusDbContext> options)
+        : IDbContextFactory<PegasusDbContext>
+    {
+        public PegasusDbContext CreateDbContext() => new(options);
+    }
+
     private static async Task RecordLookupAsync(
         LocalDbTestDatabase database,
         Guid caseId,
@@ -388,7 +435,8 @@ public sealed class VehicleLookupGapFillTests
         string? typeApproval = "M1",
         string? wheelplan = "2 AXLE RIGID BODY",
         int? revenueWeightKg = 1_800,
-        DateTimeOffset? recordedAtUtc = null)
+        DateTimeOffset? recordedAtUtc = null,
+        IVehicleLookupWorkStore? store = null)
     {
         var now = recordedAtUtc ?? FixedUtcNow;
         var workItemId = Guid.NewGuid();
@@ -401,7 +449,7 @@ public sealed class VehicleLookupGapFillTests
         }
 
         await using var scope = database.CreateAsyncScope();
-        var workStore = scope.ServiceProvider.GetRequiredService<IVehicleLookupWorkStore>();
+        var workStore = store ?? scope.ServiceProvider.GetRequiredService<IVehicleLookupWorkStore>();
         var claimed = Assert.IsType<VehicleLookupWorkItem>(
             await workStore.ClaimProcessingAsync(
                 workItemId,

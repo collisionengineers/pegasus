@@ -20,7 +20,7 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// ENG-028: the assessment page's named-estimate import and editor, end to end
+/// The assessment page's named-estimate import and editor, end to end
 /// through the web with the real Audatex parser and the synthetic fixture —
 /// a dropped PDF is retained through the case-document custody path, then
 /// parsed through the canonical Core import with the retained version's
@@ -313,7 +313,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
-    /// CASE-024: a save submitted from a page that was never in edit mode is refused here rather
+    /// A save submitted from a page that was never in edit mode is refused here rather
     /// than in Core, so nothing is retained and the operator is told what to do.
     /// </summary>
     [Fact]
@@ -920,7 +920,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     }
 
     /// <summary>
-    /// CASE-047 B04 review defect 2, through the real editor: the save used to
+    /// A Glass's estimate review defect, through the real editor: the save used to
     /// carry every existing line's amendment attribution forward
     /// unconditionally, so a line the operator had just changed stayed
     /// credited to whoever last touched it. Posting the real editor form with
@@ -1172,7 +1172,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         });
 
     /// <summary>
-    /// CASE-024: the import runs under edit mode the operator entered, so the form carries the
+    /// The import runs under edit mode the operator entered, so the form carries the
     /// lease token the page was rendered with. Pass null for the token to submit as a page that
     /// was never in edit mode.
     /// </summary>

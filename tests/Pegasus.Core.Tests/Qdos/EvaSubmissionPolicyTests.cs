@@ -63,7 +63,7 @@ public sealed class EvaSubmissionPolicyTests
 
     private static CaseDataValue<string> AddressValue(string value, CaseDataValueKind kind) =>
         new(value, kind, new(CaseDataSourceKind.IntakeEvidence,
-            "eva-request-model", "supplied EVA address example", "case-031-fixture", 1));
+            "eva-request-model", "supplied EVA address example", "supplied-address-fixture", 1));
 
     [Fact]
     public void FirstManualSendMovesReviewToReportPreparation() =>

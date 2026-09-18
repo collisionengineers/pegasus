@@ -802,44 +802,6 @@ public sealed class CaseArtifactCustodyRecoveryTests
         public Task DeleteAsync(Guid caseId, string caseReference, Guid versionId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class BlockingContentStore : IDocumentContentStore
-    {
-        public int WriteCount { get; private set; }
-        public TaskCompletionSource WriteEntered { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource ReleaseWrite { get; } =
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public async Task<DocumentContentWriteResult> StoreVersionAsync(
-            ManagedDocumentContentAddress address, ReadOnlyMemory<byte> content,
-            string expectedSha256, CancellationToken cancellationToken)
-        {
-            WriteCount++;
-            WriteEntered.SetResult();
-            await ReleaseWrite.Task.WaitAsync(cancellationToken);
-            return new(DocumentContentWriteDisposition.Created, "box-file", "box-version");
-        }
-
-        public async Task<DocumentContentWriteResult> StoreVersionAsync(
-            ManagedDocumentContentAddress address, Stream content, long contentLength,
-            string expectedSha256, CancellationToken cancellationToken)
-        {
-            WriteCount++;
-            WriteEntered.SetResult();
-            await ReleaseWrite.Task.WaitAsync(cancellationToken);
-            return new(DocumentContentWriteDisposition.Created, "box-file", "box-version");
-        }
-
-        public Task StoreAsync(Guid caseId, string caseReference, Guid versionId,
-            ReadOnlyMemory<byte> content, string expectedSha256,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task<Stream> OpenReadAsync(Guid caseId, string caseReference, Guid versionId,
-            string expectedSha256, long expectedLength,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task DeleteAsync(Guid caseId, string caseReference, Guid versionId,
-            CancellationToken cancellationToken) => Task.CompletedTask;
-    }
-
     private sealed class MemoryArtifactStore : IIntakeArtifactStore, IIntakeQuarantineArtifactStore
     {
         private readonly Dictionary<string, ReadOnlyMemory<byte>> values = [];

@@ -237,7 +237,7 @@ public static class MailClassificationActor
     /// The kind prefixes as the rest of the codebase already writes them
     /// (<c>"staff:"</c> in <c>Pages/Upload.cshtml.cs</c>, <c>"automation:"</c> in
     /// <c>Mcp/IntakeMcpTools.cs</c>, <c>"system-worker:"</c> throughout Intake and
-    /// Triage — including the pre-PLAT-011 rows this migrates,
+    /// Triage — including the rows written before actor names were resolved,
     /// e.g. <c>"system-worker:legacy-intake"</c>). <see cref="ActorKind"/>'s own
     /// <c>ToString()</c> does not hyphenate <c>SystemWorker</c>, so this map, not
     /// the enum name, is the source of truth for the prefix.

@@ -5,7 +5,7 @@ namespace Pegasus.Core.Tests.Intake;
 /// <summary>
 /// Whether an unlink cancels the case is decided once, on the receipt, so the
 /// Mail surface never works it out again from raw fields — the warning it shows
-/// and the cancellation the store performs read the same rule (INTK-029).
+/// and the cancellation the store performs read the same rule.
 /// </summary>
 public sealed class UnlinkCancelsCaseTests
 {

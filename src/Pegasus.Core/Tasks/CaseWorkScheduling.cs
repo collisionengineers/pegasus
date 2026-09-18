@@ -67,6 +67,16 @@ public interface IRecordManualCaseChase
 }
 
 /// <summary>
+/// Resolves the Case's displayed due date. A staff value takes precedence over
+/// the accepted inspection deadline; clearing it restores that projection.
+/// </summary>
+public static class CaseDuePolicy
+{
+    public static DateOnly? Resolve(DateOnly? manualDueBy, DateOnly? acceptedDeadline) =>
+        manualDueBy ?? acceptedDeadline;
+}
+
+/// <summary>
 /// Calculates the local-calendar schedule required for missing material. Persistence owns
 /// atomic coupling to the lifecycle transition and permanent action history.
 /// </summary>

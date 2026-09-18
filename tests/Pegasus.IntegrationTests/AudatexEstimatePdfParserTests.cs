@@ -8,7 +8,7 @@ using UglyToad.PdfPig.Writer;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// ENG-002: the Audatex estimate parser against synthetic PDFs that
+/// The Audatex estimate parser against synthetic PDFs that
 /// reproduce the format's real geometry — a numeric column printed on its
 /// own baseline one point below the description row, stable per-section
 /// column positions, and the document's own printed section totals. The
