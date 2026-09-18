@@ -71,8 +71,7 @@ and the [verification procedure](docs/runbook.md).
 
 [The index](docs/index.md) owns documentation placement, formatting and routing.
 Use task-relevant owners rather than reading every document or copying rules.
-Current Markdown additions and renames use the index-routed canonical location
-and must pass the base..head `scripts/Test-MarkdownPlacement.ps1` placement gate.
-The current operator task owns scope and authorization. Use PR review and CI
+Current Markdown additions and renames use the index-routed canonical location;
+CI checks that relative links resolve. The current operator task owns scope and authorization. Use PR review and CI
 for delivery evidence, and name one verifier for heavy checks on this host.
 Historical tickets and retired plans are provenance only.

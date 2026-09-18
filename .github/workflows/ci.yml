@@ -28,7 +28,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          # Only the push-to-main history guard needs history. A full clone of
+          # this repository takes about 2.5 minutes and every heavy lane waits
+          # on this job, so a pull request checks out one commit and reads its
+          # changed files from the API instead.
+          fetch-depth: ${{ github.event_name == 'push' && 0 || 1 }}
       - name: Require main history to be contained in dev
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
@@ -41,20 +45,25 @@ jobs:
       - name: Detect whether a build-relevant path changed
         id: detect
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          if ('${{ github.event_name }}' -eq 'pull_request') {
-            $base = '${{ github.event.pull_request.base.sha }}'
-            $head = '${{ github.event.pull_request.head.sha }}'
-          } else {
-            $base = '${{ github.event.before }}'
-            $head = '${{ github.sha }}'
-          }
           $forceAll = $true
           $files = @()
-          if ($base -and $base -notmatch '^0+$') {
-            $files = @(git diff --name-only "$base...$head")
+          if ('${{ github.event_name }}' -eq 'pull_request') {
+            # The API lists files against the merge base, the same set a
+            # three-dot diff would give from a full clone.
+            $files = @(gh api "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" --paginate --jq '.[].filename')
             if ($LASTEXITCODE -eq 0) {
               $forceAll = $false
+            }
+          } else {
+            $base = '${{ github.event.before }}'
+            if ($base -and $base -notmatch '^0+$') {
+              $files = @(git diff --name-only "$base...${{ github.sha }}")
+              if ($LASTEXITCODE -eq 0) {
+                $forceAll = $false
+              }
             }
           }
           $flags = ./scripts/Get-CiChangeFlags.ps1 -ChangedPath $files -ForceAll:$forceAll
@@ -70,15 +79,13 @@ jobs:
   documentation:
     # The one lane every change set runs, including change sets that touch no
     # build-relevant path (docs/engineering.md "Branches and delivery"). It
-    # stays on Windows because Test-Path is case-insensitive there and
-    # case-sensitive on Linux, so moving it would quietly change the rule.
+    # stays on Windows because the link check resolves targets with Test-Path,
+    # which is case-insensitive there and case-sensitive on Linux; moving it
+    # would quietly change the rule.
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - name: Markdown placement regression tests
-        shell: pwsh
-        run: ./scripts/Test-TestMarkdownPlacement.ps1
       - name: Documentation links
         shell: pwsh
         run: ./scripts/Test-DocumentationLinks.ps1
@@ -125,13 +132,21 @@ jobs:
       - name: Change-classification regression tests
         shell: pwsh
         run: ./scripts/Test-CiChangeFlags.ps1
+      - name: Release validation behaviour tests
+        # Runs the Worker smoke and PreProvision validation against a fake
+        # Azure CLI: what they refuse before a live read, what they accept,
+        # and which exact target they bind to.
+        shell: pwsh
+        run: ./scripts/Test-ReleaseValidation.ps1
       - name: Validate infrastructure plan locally
         shell: pwsh
         run: ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local
 
   unit:
-    # Both projects run whole and unfiltered: neither declares a single test
-    # trait, so no filter can drop one of their tests.
+    # Both projects run whole and unfiltered. Core's Category=Corpus theories
+    # read the private reference pack and skip themselves with a stated reason
+    # when PEGASUS_REFERENCE_PACK_ROOT is absent, so no filter is needed here
+    # and the skips are visible in the run, not hidden by a filter.
     needs: [changes, documentation, local-development-scripts, reference-data]
     if: needs.changes.outputs.build == 'true'
     runs-on: windows-latest

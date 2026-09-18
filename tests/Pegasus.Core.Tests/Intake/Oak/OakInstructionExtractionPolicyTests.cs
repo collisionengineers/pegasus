@@ -1,12 +1,13 @@
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.Oak;
 
 public sealed partial class OakInstructionExtractionPolicyTests
 {
-    [OakReferencePackTheory]
+    [ReferencePackTheory]
     [Trait("Category", "Corpus")]
     [InlineData("1a271f062d95-OAK_01.DOC.txt", "OAK 01.DOC", "2253a09ce674ef3e52548694f14d9b00e989789212acb210f4766ecd35979da7", "TJD/GRAHAM/S486562.001", "2026-05-05", "Mr Sam Graham", "B24SRG", null, "17 Powdermill Brae, Gorebridge, EH23 4HX", "CL in the left lane of a roundabout then TP moved into CL's lane and hit CL's vehicle..", "O'malley Recovery")]
     [InlineData("e06eeacbd66a-OAK_02.DOC.txt", "OAK 02.DOC", "22395559092263e89dd7440e61e26521a0f693e87355ccdaf5f64bae77b06d4e", "TJD/PACHLA/S486035.001", "2026-05-05", "Ms Anna Pachla", "EN18KEJ", null, "19 J Annandale Street, Edinburgh, EH21 7AH", "Client was driving her Taxi in the left lane. TP was going in same direction in right hand lane. Suddenly TP changed into the clients lane and collided with the clients vehicle. She thinks his intention was to turn left..", "Hfdrz Ltd Taxi")]
@@ -26,7 +27,7 @@ public sealed partial class OakInstructionExtractionPolicyTests
         string circumstances,
         string source)
     {
-        var root = ReferencePackRoot();
+        var root = ReferencePack.Root();
         var text = File.ReadAllText(Path.Combine(root, "astra_output", "extractions", "text", extractedFile));
         var original = File.ReadAllBytes(Path.Combine(
             root, "principal-docs", "original-mapper-instruction-corpus", originalFile));
@@ -156,20 +157,6 @@ public sealed partial class OakInstructionExtractionPolicyTests
     private static InstructionReviewField Field(InstructionExtractionResult result, string name) =>
         Assert.Single(result.Fields, field => field.Name == name);
 
-    private static string ReferencePackRoot() =>
-        Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT")
-        ?? throw new InvalidOperationException("The reference-pack test should have been skipped.");
-
     [GeneratedRegex(@"(?ms)^\|\s*Our Ref:\s*Your Ref:\s*Date:\s*\|\s*(?<values>.+?)\s*\|\s*^URGENT VEHICLE", RegexOptions.CultureInvariant, 100)]
     private static partial Regex HeaderTableRegex();
-}
-
-internal sealed class OakReferencePackTheoryAttribute : TheoryAttribute
-{
-    public OakReferencePackTheoryAttribute()
-    {
-        var root = Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT");
-        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
-            Skip = "PEGASUS_REFERENCE_PACK_ROOT is absent; the immutable reference pack differs per machine.";
-    }
 }
