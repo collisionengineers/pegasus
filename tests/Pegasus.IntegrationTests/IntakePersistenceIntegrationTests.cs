@@ -171,7 +171,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260917140000_GrantWorkerCaseAssessmentFields",
                 "20260917150000_RemoveCaseSequenceCeiling",
                 "20260917152000_CaseDueByStaffOverride",
-                "20260917153000_CaseClaimSourceContactOverride"
+                "20260917153000_CaseClaimSourceContactOverride",
+                "20260918090000_RemoveAdministrationEditScopes"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
