@@ -24,6 +24,8 @@ Assert-Flags -Case 'Bicep module' -ChangedPath 'infra/modules/platform.bicep' -B
 Assert-Flags -Case 'azd configuration' -ChangedPath 'azure.yaml' -Build $false -Infrastructure $true
 Assert-Flags -Case 'local validator dependency' -ChangedPath 'scripts/Invoke-ProductionSmoke.ps1' -Build $false -Infrastructure $true
 Assert-Flags -Case 'migration validator dependency' -ChangedPath 'scripts/Test-MigrationGrants.ps1' -Build $false -Infrastructure $true
+Assert-Flags -Case 'release validation behaviour tests' -ChangedPath 'scripts/Test-ReleaseValidation.ps1' -Build $false -Infrastructure $true
+Assert-Flags -Case 'shared platform script (manifest validator, Worker census)' -ChangedPath 'scripts/PegasusPlatform.ps1' -Build $false -Infrastructure $true
 Assert-Flags -Case 'deployment validator release-artifact dependency' -ChangedPath 'scripts/Build-ReleaseArtifacts.ps1' -Build $false -Infrastructure $true
 Assert-Flags -Case 'migration source' -ChangedPath 'src/Pegasus.Infrastructure/Persistence/Migrations/20260906_Example.cs' -Build $true -Infrastructure $true
 Assert-Flags -Case 'classification code' -ChangedPath 'scripts/Get-CiChangeFlags.ps1' -Build $true -Infrastructure $true
