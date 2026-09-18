@@ -4,13 +4,13 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Guards against the class of defect fixed by DELIV-012: a migration that
+# Guards against a class of defect seen in production: a migration that
 # creates a table but never grants the runtime roles access to it, so the
 # first real save fails in production with a SQL permission error. A table
 # is satisfied when ANY migration file in this folder contains a GRANT
 # statement naming it (the grant does not have to live in the same file as
-# the CreateTable( -- a follow-up grant-only migration is exactly how
-# DELIV-012 itself closed one of these), or when the file that creates it
+# the CreateTable( -- a follow-up grant-only migration is exactly how the
+# first such defect was closed), or when the file that creates it
 # carries an explicit "// no-runtime-grant: <Table>" opt-out with a reason
 # (for a table a runtime role legitimately never touches).
 

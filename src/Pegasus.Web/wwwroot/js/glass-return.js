@@ -1,4 +1,4 @@
-// Handing a Glass's outcome back to the Case window (CASE-047 B04).
+// Handing a Glass's outcome back to the Case window.
 //
 // The estimator runs in a window the Case record opened, so when the provider
 // returns, or a launch or resume stops short of the estimator, this window

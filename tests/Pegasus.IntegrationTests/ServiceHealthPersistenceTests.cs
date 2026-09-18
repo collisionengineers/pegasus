@@ -7,7 +7,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// PLAT-048. The Service health rows that read tables no other port exposes
+/// The Service health rows that read tables no other port exposes
 /// — the Sent-items poll cursors, the intake dispatcher by state, and the
 /// EVA failure and pending-work reads — resolved through the registered
 /// adapters against a real database.

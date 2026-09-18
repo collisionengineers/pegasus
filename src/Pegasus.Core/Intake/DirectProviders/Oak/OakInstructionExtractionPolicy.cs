@@ -66,7 +66,7 @@ public sealed partial class OakInstructionExtractionPolicy
 
     public InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
-        DateTimeOffset processedAtUtc,
+        InstructionExtractionTiming timing,
         EstablishedPrincipalContext principalContext)
     {
         ArgumentNullException.ThrowIfNull(readResult);
@@ -81,7 +81,7 @@ public sealed partial class OakInstructionExtractionPolicy
             scoped,
             Definitions,
             Cache,
-            processedAtUtc);
+            timing);
         var header = AssertAlignedHeader(readResult.Content);
         var fields = extracted.Where(field => field.Name != HeaderAlignmentField).Select(RestoreApostrophe).ToList();
         fields.Add(HeaderField("Claim reference", header.Reference, header.Candidate));

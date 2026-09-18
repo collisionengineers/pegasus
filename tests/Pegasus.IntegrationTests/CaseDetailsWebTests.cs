@@ -67,7 +67,7 @@ public sealed class CaseDetailsWebTests
     }
 
     /// <summary>
-    /// EPIC-011 §1.8 and FRD-07: the EVA handoff is a Review act. Outside
+    /// FRD-07: the EVA handoff is a Review act. Outside
     /// Review the workspace offers no EVA control and draws no handoff, rather
     /// than drawing a disabled one.
     /// </summary>
@@ -265,6 +265,10 @@ public sealed class CaseDetailsWebTests
             "vehicleMileageUnit",
             "accidentCircumstances",
             "incidentDate",
+            "dueBy",
+            "claimSourceContactName",
+            "claimSourceContactTelephone",
+            "claimSourceContactEmail",
             "contactName",
             "contactEmailAddress",
             "contactPhoneNumber",
@@ -279,6 +283,10 @@ public sealed class CaseDetailsWebTests
         {
             Assert.Equal(1, Occurrences(html, $"name=\"{field}\""));
         }
+        Assert.Contains(
+            "<select id=\"edit-mileage-unit\" class=\"fi\" name=\"vehicleMileageUnit\" form=\"case-edit-form\">",
+            html,
+            StringComparison.Ordinal);
         // The Inspection section's control is the record form's entry for the
         // address, wherever it renders on the page.
         Assert.Contains(
@@ -299,6 +307,32 @@ public sealed class CaseDetailsWebTests
                 html.IndexOf("id=\"section-vehicle\"", StringComparison.Ordinal),
                 html.IndexOf("id=\"section-damage\"", StringComparison.Ordinal));
         }
+    }
+
+    [Fact]
+    public async Task TheClaimSourceContactShowsEachCaseOverrideAheadOfTheSnapshot()
+    {
+        var store = new RecordingCaseDetailsStore
+        {
+            ClaimSource = new(
+                Guid.NewGuid(),
+                4,
+                "Acme Claims",
+                "Directory Handler",
+                "0113 000 0000",
+                "directory@acme.example",
+                "Case Handler",
+                null,
+                "case@acme.example")
+        };
+
+        var reading = WebUtility.HtmlDecode(OverviewPanel(await ReadCaseAsync(store)));
+
+        Assert.Contains(
+            "data-claim-source-contact>Case Handler · 0113 000 0000 · case@acme.example</div>",
+            reading,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"claimSourceContactName\"", reading, StringComparison.Ordinal);
     }
 
     /// <summary>

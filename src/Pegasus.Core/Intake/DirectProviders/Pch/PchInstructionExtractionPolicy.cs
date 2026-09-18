@@ -326,7 +326,7 @@ public sealed partial class PchInstructionExtractionPolicy
 
     public InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
-        DateTimeOffset processedAtUtc,
+        InstructionExtractionTiming timing,
         EstablishedPrincipalContext principalContext)
     {
         ArgumentNullException.ThrowIfNull(readResult);
@@ -360,7 +360,7 @@ public sealed partial class PchInstructionExtractionPolicy
             WithSynthesizedBlocks(readResult.Content),
             FieldDefinitions,
             FieldRegexCache,
-            processedAtUtc);
+            timing);
         evidence.AddRange(fieldEvidence);
         if (readResult.RequiresOcr)
         {

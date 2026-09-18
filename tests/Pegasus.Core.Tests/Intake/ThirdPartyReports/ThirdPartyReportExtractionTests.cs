@@ -6,7 +6,7 @@ using Pegasus.Core.Intake.ThirdPartyReports;
 namespace Pegasus.Core.Tests.Intake.ThirdPartyReports;
 
 /// <summary>
-/// Reading a third-party engineer report as source evidence (INTK-031).
+/// Reading a third-party engineer report as source evidence.
 ///
 /// Two kinds of test live here. The bounded ones use inline excerpts of the
 /// printed layout and run everywhere, so the rules are provable on any machine.
@@ -827,7 +827,7 @@ public sealed partial class ThirdPartyReportExtractionTests
     }
 
     /// <summary>
-    /// The read-back half of the reading (INTK-060 C05). Everything the typed
+    /// The read-back half of the reading. Everything the typed
     /// candidate projects — the issuer, both printed reference roles, the
     /// dates, the vehicle, every amount under its own initial/agreed/revised
     /// role, the valuation, the supplement's base link and each field's

@@ -13,7 +13,7 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.IntegrationTests;
 
-/// <summary>ENG-034: the Engineer workbench is part of every Case render.</summary>
+/// <summary>The Engineer workbench is part of every Case render.</summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseEngineerSectionsWebTests
 {
@@ -67,7 +67,7 @@ public sealed class CaseEngineerSectionsWebTests
         Assert.DoesNotContain("staff-reviewed", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("reviewed by staff", html, StringComparison.OrdinalIgnoreCase);
 
-        if (state is not (CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport))
+        if (!AssessmentPolicy.IsWritableState(state))
         {
             Assert.DoesNotContain("New estimate", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Import estimate", html, StringComparison.Ordinal);
@@ -78,13 +78,13 @@ public sealed class CaseEngineerSectionsWebTests
     }
 
     /// <summary>
-    /// ENG-034 review R1: GET ?estimate=new must not depend on either the
+    /// GET ?estimate=new must not depend on either the
     /// actor being an Engineer or the assessment being open to render the
     /// (read-only) editor panel.
     /// </summary>
     [Theory]
     [InlineData("User", CaseLifecycleState.ReportPreparation)]
-    [InlineData("Engineer", CaseLifecycleState.Review)]
+    [InlineData("Engineer", CaseLifecycleState.Held)]
     public async Task NewEstimateGetRendersReadOnlyEditorWhenNotEditable(string role, CaseLifecycleState state)
     {
         var source = new EngineerSectionSource(state);

@@ -88,7 +88,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         // GroupedIntakeMemberToken owns the token convention; this lookup
         // just tries each parent candidate it names. The bare-token
         // candidate is what lets an ordinal-0 member — which carries the
-        // parent token verbatim — find its own group (INTK-012).
+        // parent token verbatim — find its own group.
         foreach (var parentToken in GroupedIntakeMemberToken.ParentTokenCandidates(
             sourceIdentity.ExternalReceiptToken))
         {

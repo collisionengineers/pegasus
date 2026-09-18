@@ -33,12 +33,12 @@ internal sealed partial class EfIntakeAllocationStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         // Two parallel Begins for one receipt are the textbook
-        // check-then-insert race (CASE-005). The exclusive per-receipt
+        // check-then-insert race. The exclusive per-receipt
         // application lock below makes them queue, so the second sees the
         // first's committed attempt and converges through replay/suppression.
         // That lock plus the unique indexes are the whole guard; Serializable
         // only added range locks that deadlocked Begins for different receipts
-        // in one mailbox batch (INTK-044).
+        // in one mailbox batch.
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.ReadCommitted,
             cancellationToken);
@@ -355,7 +355,6 @@ internal sealed partial class EfIntakeAllocationStore(
     {
         IntakeAllocationFailureKind.PrincipalUnavailable => "principal_unavailable",
         IntakeAllocationFailureKind.ConcurrencyConflict => "concurrency_conflict",
-        IntakeAllocationFailureKind.SequenceExhausted => "sequence_exhausted",
         IntakeAllocationFailureKind.CaseTypeUnavailable => "case_type_unavailable",
         IntakeAllocationFailureKind.Unexpected => "unexpected",
         _ => throw new ArgumentOutOfRangeException(nameof(value))
@@ -365,7 +364,6 @@ internal sealed partial class EfIntakeAllocationStore(
     {
         "principal_unavailable" => IntakeAllocationFailureKind.PrincipalUnavailable,
         "concurrency_conflict" => IntakeAllocationFailureKind.ConcurrencyConflict,
-        "sequence_exhausted" => IntakeAllocationFailureKind.SequenceExhausted,
         "case_type_unavailable" => IntakeAllocationFailureKind.CaseTypeUnavailable,
         "unexpected" => IntakeAllocationFailureKind.Unexpected,
         _ => throw new InvalidDataException($"Unknown allocation failure kind '{value}'.")
@@ -375,7 +373,6 @@ internal sealed partial class EfIntakeAllocationStore(
     {
         IntakeAllocationRecoveryDisposition.RetryAfterCorrection => "retry_after_correction",
         IntakeAllocationRecoveryDisposition.ReloadThenRetry => "reload_then_retry",
-        IntakeAllocationRecoveryDisposition.Blocked => "blocked",
         IntakeAllocationRecoveryDisposition.ManualReview => "manual_review",
         _ => throw new ArgumentOutOfRangeException(nameof(value))
     };
@@ -384,7 +381,6 @@ internal sealed partial class EfIntakeAllocationStore(
     {
         "retry_after_correction" => IntakeAllocationRecoveryDisposition.RetryAfterCorrection,
         "reload_then_retry" => IntakeAllocationRecoveryDisposition.ReloadThenRetry,
-        "blocked" => IntakeAllocationRecoveryDisposition.Blocked,
         "manual_review" => IntakeAllocationRecoveryDisposition.ManualReview,
         _ => throw new InvalidDataException($"Unknown allocation recovery disposition '{value}'.")
     };

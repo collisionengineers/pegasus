@@ -16,7 +16,7 @@ public sealed partial class ExportModel(
     private const long MaximumArchiveBytes = 100L * 1024 * 1024;
 
     /// <summary>
-    /// ENG-016: Export answered a GET with the archive until this ticket, so a
+    /// Export answered a GET with the archive until it became a POST, so a
     /// bookmark, a browser history entry or a stale link can still point here.
     /// Without a handler Razor Pages renders the (contentless) page and returns
     /// a blank 200, which reads as a broken route; this sends them to the case
@@ -26,11 +26,11 @@ public sealed partial class ExportModel(
         caseId == Guid.Empty ? NotFound() : RedirectToDetails(caseId);
 
     /// <summary>
-    /// CASE-019 / ENG-016: the case's own export — the EVA-format archive of
-    /// its photographs and the thirteen mapped fields, and since ENG-016 the
-    /// only act that produces one.
+    /// The case's own export — the EVA-format archive of
+    /// its photographs and the thirteen mapped fields, and since the hand-off
+    /// was folded into the export the only act that produces one.
     ///
-    /// A POST, and it was a GET until ENG-016. The export now records the
+    /// A POST, and it was a GET until then. The export now records the
     /// once-per-case `First sent to Engineer` proxy, and a GET that records a
     /// business event is a hazard: a browser prefetch or an ordinary refresh
     /// would both fire it, and it carried no antiforgery token. There is no
@@ -85,12 +85,12 @@ public sealed partial class ExportModel(
         {
             return Forbid();
         }
-        // PLAT-039: an export reads every photograph out of Box, so a custody
+        // An export reads every photograph out of Box, so a custody
         // transport failure is an ordinary way for it to fail. Without
         // HttpRequestException here the operator got the generic error page
         // instead of their case with a reason on it.
         //
-        // ENG-016: this route now writes the First sent to Engineer proxy, and
+        // This route now writes the First sent to Engineer proxy, and
         // as a GET it never wrote anything at all. A failed write arrives here
         // as InvalidOperationException — EvaHandoffStore translates it, so no
         // page has to know what EF throws.

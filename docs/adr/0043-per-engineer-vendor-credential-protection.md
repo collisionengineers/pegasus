@@ -5,7 +5,7 @@ date: 2026-09-08
 supersedes: [ADR-0002]
 superseded_by: []
 related_capabilities: []
-related_frd: [FRD-04, FRD-06]
+related_frd: [FRD-04, FRD-25]
 tags: [security, credentials]
 ---
 # ADR-0043: Per-Engineer vendor credential protection
@@ -20,7 +20,7 @@ Automation OAuth certificates retain their existing owners.
 
 FRD-04 requires per-Engineer/provider/generation credential protection, no stored
 password reveal, invalidation on replacement/removal, and denial for disabled
-staff. FRD-06 requires resumable attributed Glass’s sessions and explicit handling
+staff. FRD-25 requires resumable attributed Glass’s sessions and explicit handling
 of an unknown external write. Source uses Data Protection for persisted credential
 and session material; ADR-0002 instead describes vendor secrets in Key Vault.
 
@@ -51,4 +51,4 @@ reset workflow is governed by FRD-04.
 
 - [Existing secret rule](0002-dotnet-modular-monolith-on-azure.md)
 - [Functional credential contract](../frd/frd-04-parties-accounts-and-access.md)
-- [Glass’s session behavior](../frd/frd-06-vehicle-and-engineering-evidence.md)
+- [Glass’s session behavior](../frd/frd-25-repair-estimates-imports-and-glasss-sessions.md#glasss-interrupted-sessions)

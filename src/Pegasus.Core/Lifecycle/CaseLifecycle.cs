@@ -571,7 +571,7 @@ public static class CaseLifecycleRules
     /// boundary. Derived from <see cref="IsTerminal"/> rather than restated, so
     /// the two cannot drift: a state that is terminal here but missing from a
     /// hand-written copy elsewhere is silently non-terminal for whatever that
-    /// copy guards (INTK-029).
+    /// copy guards.
     /// </summary>
     public static string[] TerminalStateNames() =>
     [
@@ -611,7 +611,7 @@ public static class CaseLifecycleRules
 
 
     /// <summary>
-    /// CASE-046: entry to Review is gated on the persisted completeness facts,
+    /// Entry to Review is gated on the persisted completeness facts,
     /// re-read by the transition store inside its own transaction. Nothing a
     /// client posts is evidence of readiness, so there is nothing to validate
     /// here beyond the ordinary mutation envelope.
@@ -800,7 +800,7 @@ public static class CaseLifecycleRules
     }
 
     /// <summary>
-    /// CASE-046: the one Review readiness rule, applied to the persisted
+    /// The one Review readiness rule, applied to the persisted
     /// completeness facts a transition store reads inside its own transaction.
     /// A caller cannot reach it with a claim of its own.
     /// </summary>

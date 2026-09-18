@@ -5,7 +5,7 @@ date: 2026-08-28
 supersedes: []
 superseded_by: []
 related_capabilities: [AI-10, AI-09, MCP-06, MCP-01]
-related_frd: [frd-10, frd-11]
+related_frd: [frd-10, frd-27]
 tags: [ai, mcp, automation, ledger]
 ---
 
@@ -16,13 +16,13 @@ tags: [ai, mcp, automation, ledger]
 Accepted, 2026-08-28. Refines ADR-0011/ADR-0031 by adding one scope and one
 store to the Automation Actor boundary; it changes neither the actor identity
 nor the existing tool contract. It supersedes the "shared AI usage ledger"
-earlier exclusion of a shared AI usage ledger. FRD-11 owns the current job
+earlier exclusion of a shared AI usage ledger. FRD-27 owns the current job
 behavior, including MarketResearch completion by the Automation Actor after
 its research files are attached. Completion does not adopt an Engineer value.
 
 ## Context
 
-The operator has directed (EPIC-011 decisions D5 and D6) that AI work is a
+The operator has directed (operator decisions D5 and D6) that AI work is a
 catalogue of named jobs — an estimate drafted to a target, an Unidentified
 item's proposed destination, a drafted query reply, a scheduled pass over the
 Unidentified queue — visible to staff as one list on Operations and worked by
@@ -58,14 +58,14 @@ owned by `Pegasus.Core`.
    scopes are unchanged; a token without `automation.jobs` cannot see the
    ledger.
 3. **Kinds are a Core catalogue.** The permitted job kinds are a closed
-   `Pegasus.Core` list (FRD-11 owns the catalogue). An unknown kind is refused
+   `Pegasus.Core` list (FRD-27 owns the catalogue). An unknown kind is refused
    at creation, not persisted and poisoned later.
 4. **Creation has two callers.** Staff create jobs from the Web application;
    external schedulers create jobs through the Actor's `create` tool. Pegasus
    runs no timer for AI work (D5).
 5. **Results retain evidence without silently adopting professional findings.**
    MarketResearch points to the retained Case files and completes through the
-   Automation Actor under FRD-11. A reviewed-proposal job points
+   Automation Actor under FRD-27. A reviewed-proposal job points
    at a draft the client wrote through the existing attributed Actor tools,
    or carries a proposal for staff to confirm through the existing staff
    action. The ledger never mutates case, Unidentified, or correspondence
@@ -115,7 +115,7 @@ withdrew the earlier exclusion for exactly that reason.
 
 ## Links
 
-- [FRD-11 — AI Job List](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md#ai-job-list)
+- [FRD-27 — AI Job List](../frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)
 - [FRD-10 — AI job and estimate tools](../frd/frd-10-mcp-automation-and-actor-boundary.md#ai-job-and-estimate-tools)
 - [ADR-0011](0011-restrict-mcp-to-automation-actor.md)
 - [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md)

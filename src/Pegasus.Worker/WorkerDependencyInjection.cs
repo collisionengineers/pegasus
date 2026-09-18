@@ -75,7 +75,7 @@ public static class WorkerDependencyInjection
                         .AllowLocalCreateIfNotExists,
                     // Deferred to first Box use: parsing this at host build aborted
                     // the whole worker process whenever the platform handed over an
-                    // unresolved Key Vault reference (PLAT-013).
+                    // unresolved Key Vault reference.
                     _ => CreateBoxCustodyOptions(configuration)));
         // Automatic Review intents use the same validated EVA API owner as
         // the manual case action. The options are still parsed on first use,

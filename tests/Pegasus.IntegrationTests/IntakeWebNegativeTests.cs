@@ -141,7 +141,7 @@ public sealed class IntakeWebNegativeTests
 
     /// <summary>
     /// The manual channel's per-file cap, read from the constant that owns it
-    /// rather than restated here: C07 item 5 (residual INTK-052) set it to
+    /// rather than restated here: C07 item 5 set it to
     /// 100 MiB and these boundary tests must move with it.
     /// </summary>
     private const int PerFileLimit = IntakeEnvelopeLimits.MaximumContentLength;

@@ -529,7 +529,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 table.HasCheckConstraint("CK_CaseSequences_Year", "[Year] >= 2000 AND [Year] <= 9999");
                 table.HasCheckConstraint(
                     "CK_CaseSequences_LastAllocatedSequence",
-                    "[LastAllocatedSequence] >= 0 AND [LastAllocatedSequence] <= 999");
+                    "[LastAllocatedSequence] >= 0");
             });
             entity.HasKey(item => new { item.SequenceLineageId, item.Year });
             entity.HasOne(item => item.SequenceLineage)
@@ -542,7 +542,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         {
             entity.ToTable("Cases", table =>
             {
-                table.HasCheckConstraint("CK_Cases_Sequence", "[Sequence] >= 1 AND [Sequence] <= 999");
+                table.HasCheckConstraint("CK_Cases_Sequence", "[Sequence] >= 1");
                 table.HasCheckConstraint("CK_Cases_Version", "[Version] >= 0");
             });
             entity.HasKey(item => item.Id);
@@ -751,7 +751,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.PrincipalId);
             entity.HasIndex(item => item.CreationOperationKey).IsUnique();
             entity.HasIndex(item => new { item.NormalizedVehicleRegistration, item.CreatedAtUtc });
-            // One ImageIntake per submission group (INTK-015); single-receipt
+            // One ImageIntake per submission group; single-receipt
             // registrations carry no group and are exempt via the filter.
             entity.HasIndex(item => item.SubmissionGroupId)
                 .IsUnique()

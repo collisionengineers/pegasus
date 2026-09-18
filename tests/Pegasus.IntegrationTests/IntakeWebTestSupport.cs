@@ -275,7 +275,7 @@ internal sealed class IntegrationTestAuthenticationHandler(
         };
         if (Request.Headers.TryGetValue("X-Test-Roles", out var requestedRoles))
         {
-            // ENG-002: a test that needs a specific staff role (e.g. Engineer)
+            // A test that needs a specific staff role (e.g. Engineer)
             // names it; the default identity stays Administrator-only.
             foreach (var role in requestedRoles.ToString().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             {
@@ -840,7 +840,8 @@ internal static class IntakeTestEvidence
         string? vehicle = null,
         string notificationTitle = "ENGINEER NOTIFICATION",
         IEnumerable<string>? additionalLines = null,
-        bool addSignatureLines = true)
+        bool addSignatureLines = true,
+        IEnumerable<string>? interleavedClientDetailsLines = null)
     {
         var builder = new PdfDocumentBuilder();
         var font = builder.AddStandard14Font(Standard14Font.Helvetica);
@@ -868,6 +869,11 @@ internal static class IntakeTestEvidence
                 .SelectMany(line => line.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)));
         }
 
+        if (interleavedClientDetailsLines is not null)
+        {
+            lines.AddRange(interleavedClientDetailsLines);
+        }
+
         foreach (var (line, index) in lines.Select((line, index) => (line, index)))
         {
             page.AddText(line, 10, new PdfPoint(36, 780 - (index * 16)), font);
@@ -878,7 +884,7 @@ internal static class IntakeTestEvidence
 
     // The retained QDOS Engineer Triage request shape. It is classified by the
     // real mail-classification policy, which is the sole owner of Triage
-    // eligibility (INTK-033).
+    // eligibility.
     public static TestEmail CreateEngineerTriageRequest(
         string fileName,
         IReadOnlyList<(string FileName, string MediaType, byte[] Content)>? attachments = null) =>

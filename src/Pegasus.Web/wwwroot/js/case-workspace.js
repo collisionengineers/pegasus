@@ -924,7 +924,7 @@
         });
     }
 
-    // CASE-047 B04: Glass's runs in its own window, opened here inside the
+    // Glass's runs in its own window, opened here inside the
     // submit so no popup rule refuses it, and the Case record stays open with
     // its edit lease alive. The form's own target="_blank" stands when the
     // window is refused, and is the no-script path.
@@ -955,7 +955,7 @@
 // --- vehicle -----------------------------------------------------------------
 // --- Inspection details and Vehicle (lane A) -------------------------------
 // The Inspect-at choice filling the address input, and the hidden
-// `inspectionMode` it drives, are site.js's CASE-041 block, bound per root
+// `inspectionMode` it drives, are site.js's Inspect-at block, bound per root
 // through window.pegasusMountBinders, so an in-place swap re-binds them. The
 // lookup and the Save are plain forms the frame posts in place. Nothing here
 // adds behaviour: the Vehicle and Inspection sections read and edit with the
@@ -1650,6 +1650,9 @@
                 var option = select.options[select.selectedIndex];
                 var notes = option ? option.getAttribute('data-notes') || '' : '';
                 var contact = option ? option.getAttribute('data-contact') || '' : '';
+                section.querySelectorAll('[data-claim-source-contact-override]').forEach(function (input) {
+                    input.value = '';
+                });
                 var contactCell = section.querySelector('[data-claim-source-contact]');
                 if (contactCell) {
                     contactCell.textContent = contact || '—';

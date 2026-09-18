@@ -99,7 +99,6 @@ try {
     $initial = Add-TestCommit -Message 'initial grandfathered content'
 
     $allowed = @(
-        'SESSION_PLAN.md',
         'docs/prd/new.md',
         'docs/frd/new.md',
         'docs/adr/new.md',
@@ -108,12 +107,10 @@ try {
         '.agents/skills/pegasus-release/references/example.md',
         'docs/engineering/configuration.md',
         'docs/external-component-documents/vendor/contract.md',
-        'docs/docs-review-temp/review.md',
         'docs/principal-profiles/README.md',
         '.stitch/DESIGN.md',
         'design/planning-and-old-designs/new.md',
-        'workspaces/document-extraction/docs/new.md',
-        '1609sprint/new.md'
+        'workspaces/document-extraction/docs/new.md'
     )
     foreach ($path in $allowed) {
         $fullPath = Join-Path $testRoot $path

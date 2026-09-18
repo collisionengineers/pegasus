@@ -6,7 +6,7 @@ namespace Pegasus.Core.Cases;
 /// A note an operator writes on a case. It joins the same timeline as what
 /// Pegasus itself did — the vehicle lookup, custody, allocation, lifecycle
 /// changes — because an operator reading a case wants one account of it, not
-/// two lists to reconcile (CASE-017).
+/// two lists to reconcile.
 ///
 /// A note is a material action and is recorded as one: append-only, attributed,
 /// and never editable afterwards. It is not a way to revise the record.
@@ -51,7 +51,7 @@ public sealed class AddCaseNote(ICaseNoteStore store, TimeProvider timeProvider)
         // put machine text where a colleague's words are expected.
         //
         // One kind is admitted beside Staff: the instructing Principal
-        // (operator decision, 2026-08-28, TICK-058). A provider's note is not
+        // (operator decision, 2026-08-28). A provider's note is not
         // machine text — it is the instruction's own words about this job, and
         // withholding it loses what the provider actually said. It is admitted
         // on its own right, so no other Provider API permission follows from it.

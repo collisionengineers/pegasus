@@ -5,7 +5,7 @@ date: 2026-08-26
 supersedes: [ADR-0032]
 superseded_by: []
 related_capabilities: [INT-33]
-related_frd: [FRD-02, FRD-08]
+related_frd: [FRD-02, FRD-26]
 tags: [intake, queues, latency, functions]
 ---
 # ADR-0033: Warm unified work queue for five-second intake
@@ -61,5 +61,5 @@ share the normal critical path and are not a warm-capacity substitute.
 ## Links
 
 - [FRD-02](../frd/frd-02-intake-and-source-identity.md)
-- [FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md)
+- [FRD-26](../frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md)
 - [ADR-0032](0032-near-real-time-durable-intake-triggering.md)

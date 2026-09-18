@@ -12,7 +12,7 @@ public sealed record ReconcileUnidentifiedDestinationsResult(
     int Failures);
 
 /// <summary>
-/// The one owner of INTK-007's supersession rule: an open Unidentified item
+/// The one owner of the Unidentified supersession rule: an open Unidentified item
 /// whose origin receipt has since reached a real destination (a formal Case,
 /// a registered Image intake, or an opened Triage) is resolved to that
 /// destination, which the
@@ -144,8 +144,8 @@ public sealed class ReconcileUnidentifiedDestinations(
                 // else, so recording the association version it was examined
                 // against is what completes it. Without that the row would be
                 // re-selected every pass and, being among the oldest, crowd
-                // every later stale resolution out of the bounded page
-                // (INTK-048). The version recorded is the one this pass read,
+                // every later stale resolution out of the bounded page.
+                // The version recorded is the one this pass read,
                 // so an association that moves mid-pass is picked up next time
                 // rather than marked reconciled unseen.
                 if (receipt.ManualAssociationVersion is { } associationVersion)
@@ -238,7 +238,7 @@ public sealed class ReconcileUnidentifiedDestinations(
     /// written. An open item is resolved when the receipt now has a real
     /// destination — including a receipt still carrying an unidentified-eligible
     /// decision that a member of staff has manually linked to a Case, which is
-    /// the whole of INTK-048. A resolved item is reopened when the destination
+    /// the whole point of this pass. A resolved item is reopened when the destination
     /// this reconciliation recorded has been withdrawn, and reopened then
     /// re-resolved when it has changed — only for a resolution this
     /// reconciliation itself wrote; an item resolved by staff or any other
@@ -384,7 +384,7 @@ public sealed class ReconcileUnidentifiedDestinations(
         // vehicle registration is known, then open the Triage" transition,
         // which a staff re-evaluation reaches. It has a real destination now,
         // so its open item is stale; without this the item stays open beside
-        // the Triage and the same material sits in two queues (INTK-033).
+        // the Triage and the same material sits in two queues.
         if (ProcessIntake.IsTriageRequest(receipt)
             && await triageQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken) is { } triage)
         {
@@ -479,7 +479,7 @@ public sealed class ReconcileUnidentifiedDestinations(
     /// receipt-keyed re-resolve rebuilt the key its own first resolution had
     /// taken, was rejected as a conflicting replay, and left the item open
     /// beside its live destination with every later sweep failing on the same
-    /// taken key (INTK-048).
+    /// taken key.
     ///
     /// The item's version is also what makes a genuine retry idempotent: it is
     /// the expected version the transition is applied at, so a retry of the

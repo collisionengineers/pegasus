@@ -178,7 +178,7 @@ internal sealed record ThirdPartySourcePage(
 
 /// <summary>
 /// The Core-owned issuer and document-role selector for third-party engineer
-/// reports (INTK-031). Selection reads the document's own printed evidence:
+/// reports. Selection reads the document's own printed evidence:
 /// never the folder, the file name, the retained principal, or the position of
 /// a value on a page.
 /// </summary>
@@ -508,7 +508,7 @@ public static class ThirdPartyReportProfiles
 
 /// <summary>
 /// Every regular expression this profile family uses carries the repository's
-/// 100 ms match timeout (DELIV-036) and is culture-invariant.
+/// 100 ms match timeout and is culture-invariant.
 /// </summary>
 internal static class ThirdPartyRegex
 {

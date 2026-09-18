@@ -55,7 +55,7 @@ public sealed record SearchCasesQuery(
 /// One case as a list row. <see cref="VehicleMake"/>, <see cref="VehicleModel"/>
 /// and <see cref="AccidentCircumstances"/> ride the same projection so the
 /// Search page can draw its vehicle column and selected-case preview from the
-/// search read alone (CASE-026); they are display facts, not filters.
+/// search read alone; they are display facts, not filters.
 /// </summary>
 public sealed record CaseSearchItem(
     Guid CaseId,
@@ -141,7 +141,7 @@ public sealed record CaseHistoryEntry(
     public string ActorDisplayName { get; init; } = ActorDisplayNames.UnknownStaff;
 
     /// <summary>
-    /// The persisted event's own stable identifier (CASE-047), appended so
+    /// The persisted event's own stable identifier, appended so
     /// existing positional construction keeps compiling. Populated by the
     /// store from the row it read the entry from; a history entry built any
     /// other way (e.g. in a test fake) never had one and stays
@@ -201,7 +201,7 @@ public sealed record CaseRecordNotes(string? PrincipalNotes, string? ClaimSource
 public sealed record GetCaseQuery(Guid CaseId, ActionActor Actor);
 
 /// <summary>
-/// A bounded read of a case (CASE-047, Stream A review): everything
+/// A bounded read of a case: everything
 /// <see cref="GetCaseQuery"/> reads except the document, history and task
 /// lists, which collapse to their counts so a host that only needs to know
 /// how much a case carries never pays to read it all.
@@ -321,8 +321,7 @@ public interface ICaseQueryStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// The bounded sibling of <see cref="GetAsync"/> (CASE-047, Stream A
-    /// review): the same summary/workflow/edit-lease facts, with the case's
+    /// The bounded sibling of <see cref="GetAsync"/>: the same summary/workflow/edit-lease facts, with the case's
     /// document, history and open-task lists reduced to their counts instead
     /// of materializing every row.
     /// </summary>
@@ -371,7 +370,7 @@ public interface ICaseQueryStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// The keyset-paged sibling of <see cref="SearchAsync"/> (CASE-047). The
+    /// The keyset-paged sibling of <see cref="SearchAsync"/>. The
     /// after-values are the decoded cursor's sort position: <paramref
     /// name="afterReceivedAtUtc"/> for the two received-date orders,
     /// <paramref name="afterSortText"/> for every text-column order; both
@@ -389,7 +388,7 @@ public interface ICaseQueryStore
 
     /// <summary>
     /// A case's document occurrences, newest recorded first then occurrence
-    /// id (CASE-047, Stream A MCP review). The row unit is the occurrence —
+    /// id. The row unit is the occurrence —
     /// not the document — so a document carrying more occurrences than the
     /// caller's limit still enumerates every one of them across consecutive
     /// pages; a document-unit page cannot split one document's occurrences.
@@ -404,7 +403,7 @@ public interface ICaseQueryStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// A case's history, newest event first then entry id (CASE-047).
+    /// A case's history, newest event first then entry id.
     /// <paramref name="afterOccurredAtUtc"/>/<paramref name="afterId"/> are
     /// the decoded cursor's sort position, both null on the first page.
     /// </summary>
@@ -712,7 +711,7 @@ internal static class CaseSectionQueries
 }
 
 /// <summary>
-/// The bounded sibling of <see cref="GetCase"/> (CASE-047, Stream A review):
+/// The bounded sibling of <see cref="GetCase"/>:
 /// the same actor boundary and case-identifier validation, delegated
 /// straight to the store's counted read.
 /// </summary>
@@ -750,7 +749,7 @@ public static class CaseRegistration
 
 /// <summary>
 /// The filter/order validation and normalization <see cref="SearchCases"/>
-/// and <see cref="SearchCasesByCursor"/> (CASE-047) share, so the two search
+/// and <see cref="SearchCasesByCursor"/> share, so the two search
 /// entry points can never drift into two rules for what a valid filter is.
 /// </summary>
 internal static class CaseSearchQueryValidation
@@ -940,14 +939,14 @@ public sealed class GetCase(
     }
 }
 
-// --- CASE-047: stable cursor continuations ------------------------------
+// --- Stable cursor continuations ----------------------------------------
 
 // Cursor page, limit and rejection primitives are the shared Pegasus.Core
 // CursorPage<T>, CursorPaging and CursorRejectedException (G9); this file adds the Case queries.
 
 
 /// <summary>
-/// The one page-assembly rule every CASE-047 cursor query shares: a store is
+/// The one page-assembly rule every Case cursor query shares: a store is
 /// asked for one row more than the limit, and that extra row is what says
 /// another page follows. It is dropped from the returned items, and the last
 /// kept row mints the next cursor through the shared <see
@@ -976,8 +975,8 @@ internal static class CursorPageBuilder
 }
 
 /// <summary>
-/// A stable-cursor sibling of <see cref="SearchCasesQuery"/> (CASE-047,
-/// requested by Stream A's MCP adapters). <see cref="Cursor"/> null starts
+/// A stable-cursor sibling of <see cref="SearchCasesQuery"/> (requested
+/// by the MCP adapters). <see cref="Cursor"/> null starts
 /// from the first page; <see cref="Limit"/> null takes
 /// <see cref="CursorPaging.DefaultLimit"/>.
 /// </summary>
@@ -1081,15 +1080,14 @@ public sealed class SearchCasesByCursor(ICaseQueryStore store, ICursorProtector 
 }
 
 /// <summary>
-/// One case's cursor-paged sub-list request (CASE-047): documents, history,
+/// One case's cursor-paged sub-list request: documents, history,
 /// and (Estimates.cs) estimates all share this shape, so a caller only
 /// learns one query record for every per-case list.
 /// </summary>
 public sealed record CaseListCursorQuery(ActionActor Actor, Guid CaseId, string? Cursor = null, int? Limit = null);
 
 /// <summary>
-/// One row of the cursor-paged case document list (CASE-047, Stream A MCP
-/// review): a single occurrence paired with exactly the version it names.
+/// One row of the cursor-paged case document list: a single occurrence paired with exactly the version it names.
 /// A host that flattens a page item-for-item can never lose occurrences the
 /// way a document-unit page does when one document carries more occurrences
 /// than the limit — the occurrence is the page unit, so the version a host

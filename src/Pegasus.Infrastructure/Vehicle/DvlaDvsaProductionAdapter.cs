@@ -242,7 +242,7 @@ internal sealed class DvlaDvsaProductionAdapter(
             // produce no mileage. They are not the same thing, and treating
             // them as the same is how a provider-side format change stayed
             // invisible in production. Reading none of what was offered is
-            // a failure and says so (ENG-010).
+            // a failure and says so.
             if (rawTests.Length > 0 && tests.Length == 0)
             {
                 return new(
@@ -325,7 +325,7 @@ internal sealed class DvlaDvsaProductionAdapter(
     /// DateTimeStyles, out DateOnly)"/> rejects outright. Reading it as a
     /// date only meant every MOT test failed to parse and was dropped, for
     /// every vehicle, with no failure recorded anywhere: the mileage was
-    /// always there and never once reached a case (ENG-010).
+    /// always there and never once reached a case.
     /// </summary>
     private static DateOnly? ParseProviderDate(string? value)
     {

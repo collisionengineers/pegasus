@@ -165,7 +165,7 @@ public static class EvaSubmissionPolicy
     /// preconditions need checking at all — can still ask "what state would
     /// this leave the case in if it succeeds?" without knowing the outcome
     /// yet. The actual post-transport commit
-    /// (<see cref="EvaSubmissionResult.IsDelivered"/>, CASE-040 review) must
+    /// (<see cref="EvaSubmissionResult.IsDelivered"/>) must
     /// pass the real outcome: a Rejected or Unknown manual send never reached
     /// EVA, so it is not a handoff and the case stays exactly where it was.
     /// </summary>

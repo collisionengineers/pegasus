@@ -3,7 +3,7 @@ using Pegasus.Infrastructure.Custody;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// DOCS-010. Box does not return <c>content_type</c> for a file, so every
+/// Box does not return <c>content_type</c> for a file, so every
 /// managed read compared a null against the recorded media type and refused a
 /// file that was otherwise exactly right. The Evidence gallery, the
 /// case-document download and the case export all failed identically, each

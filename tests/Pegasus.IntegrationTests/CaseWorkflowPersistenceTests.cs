@@ -191,7 +191,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ReviewGatedTransitionsRefuseOnIncompletePersistedFacts()
     {
-        // CASE-046: the gate reads the case's own Instruction complete and
+        // The gate reads the case's own Instruction complete and
         // Images complete columns inside the transition's transaction. The
         // request still carries the old readiness envelope claiming both are
         // true, and it changes nothing.
@@ -1845,7 +1845,7 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
-    /// CASE-024: a heartbeat extends the lease and records nothing. It is issued once a minute for
+    /// A heartbeat extends the lease and records nothing. It is issued once a minute for
     /// as long as an editor is open, so a replay row per beat would grow a table nothing prunes,
     /// and rewriting the operation key would destroy the claim key the workspace reads back to
     /// recover edit mode.
@@ -1970,7 +1970,7 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
-    /// KANMER-005, Automation holds and staff competes: the staff claim, a write presenting the
+    /// Automation holds and staff competes: the staff claim, a write presenting the
     /// holder's own token, renew, heartbeat, and release are all refused; the retained lease is
     /// untouched by every refusal; and the holder then heartbeats, saves, and finds its lease
     /// consumed by that save exactly as before.
@@ -2018,7 +2018,7 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
-    /// KANMER-005, staff holds and Automation competes: the mirror of the case above, ending
+    /// Staff holds and Automation competes: the mirror of the case above, ending
     /// with the holder releasing without saving and the competitor then claiming the free lease.
     /// </summary>
     [Fact]
@@ -2065,7 +2065,7 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
-    /// The identity gap KANMER-005 closes: a holder is kind and subject together, so an
+    /// The identity gap this closes: a holder is kind and subject together, so an
     /// Automation Actor given the staff holder's own subject text, presenting the live token, is
     /// still a competitor — and its refused attempts leave the row byte-for-byte as it was.
     /// </summary>
@@ -2250,6 +2250,12 @@ public sealed class CaseWorkflowPersistenceTests
                 .SingleAsync(item => item.Code == "QDOS");
             principal.Organization.GuidanceTemplate = "Contact the repairer before finalising.";
             principal.Organization.GuidanceTemplateVersion = 1;
+            context.CaseSequences.Add(new CaseSequenceEntity
+            {
+                SequenceLineageId = principal.SequenceLineageId,
+                Year = 2026,
+                LastAllocatedSequence = 9999
+            });
             await context.SaveChangesAsync();
         }
         var standaloneAuditEvidenceId =
@@ -2298,7 +2304,8 @@ public sealed class CaseWorkflowPersistenceTests
         Assert.True(replay.IsDuplicate);
         Assert.Equal(allocated.Identity, replay.Identity);
         Assert.Equal("QDOS", allocated.Identity.PrincipalCode);
-        Assert.StartsWith("a.QDOS26", allocated.Identity.Reference);
+        Assert.Equal(10000, allocated.Identity.Sequence);
+        Assert.Equal("a.QDOS2610000", allocated.Identity.Reference);
         Assert.Equal(
             allocated.Identity.Reference,
             await harness.ReadCaseReferenceAsync(allocated.Identity.CaseId));
@@ -2380,6 +2387,110 @@ public sealed class CaseWorkflowPersistenceTests
         var originalHistory = await harness.QueryStore.ListHistoryByCursorAsync(
             harness.CaseId, null, null, 20, default);
         Assert.Empty(originalHistory.SelectMany(entry => entry.Guidance));
+    }
+
+    [Fact]
+    public async Task WrongPrincipalReplacementRetainsClaimSourceOverridesAndStaffDueBy()
+    {
+        await using var harness = await WorkflowHarness.CreateAsync();
+        var manualDueBy = new DateOnly(2031, 5, 18);
+        var replacementDeadline = new DateOnly(2031, 6, 2);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var originalCase = await context.Cases.SingleAsync(item => item.Id == harness.CaseId);
+            originalCase.InitialState = "not_ready";
+            originalCase.AcceptedInspectionDeadline = new DateOnly(2031, 5, 20);
+            var originalWorkflow = await context.CaseWorkflows.SingleAsync(
+                item => item.CaseId == harness.CaseId);
+            originalWorkflow.State = nameof(CaseLifecycleState.NotReady);
+            var snapshot = await context.CaseDataSnapshots.SingleAsync(
+                item => item.CaseId == harness.CaseId);
+            snapshot.ClaimSourceOverrideContactName = "Replacement contact";
+            snapshot.ClaimSourceOverrideContactTelephone = "0113 999 0028";
+            snapshot.ClaimSourceOverrideContactEmailAddress = "replacement-contact@example.test";
+            context.CaseDueWork.Add(new CaseDueWorkEntity
+            {
+                CaseId = harness.CaseId,
+                Workflow = originalWorkflow,
+                MissingMaterialReason = "Waiting for images",
+                DueBy = manualDueBy,
+                DueBySetByStaff = true,
+                State = nameof(CaseDueWorkState.Scheduled),
+                NextChaseAtUtc = harness.TimeProvider.GetUtcNow().AddDays(3),
+                Version = 0
+            });
+            await context.SaveChangesAsync();
+        }
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var lease = await harness.Store.ClaimAsync(
+            new(harness.CaseId, 0, actor, "replacement-local-state-lease"),
+            default);
+        var replacement = await new CreateLinkedReplacement(
+            harness.ReplacementStore,
+            new CommittedWorkPublisherDouble()).ExecuteAsync(
+            new(
+                harness.CaseId,
+                0,
+                actor,
+                "replacement-local-state-save",
+                "Original case was allocated to the wrong principal",
+                lease.Token,
+                "QDOS"),
+            default);
+
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var snapshot = await context.CaseDataSnapshots.SingleAsync(
+                item => item.CaseId == replacement.Identity.CaseId);
+            var dueWork = await context.CaseDueWork.SingleAsync(
+                item => item.CaseId == replacement.Identity.CaseId);
+            Assert.Equal("Replacement contact", snapshot.ClaimSourceOverrideContactName);
+            Assert.Equal("0113 999 0028", snapshot.ClaimSourceOverrideContactTelephone);
+            Assert.Equal("replacement-contact@example.test", snapshot.ClaimSourceOverrideContactEmailAddress);
+            Assert.Equal(manualDueBy, dueWork.DueBy);
+            Assert.True(dueWork.DueBySetByStaff);
+        }
+
+        var replacementLease = await harness.Store.ClaimAsync(
+            new(replacement.Identity.CaseId, 0, actor, "replacement-deadline-lease"),
+            default);
+        await new EfCaseWorkspaceStore(harness.Factory, harness.TimeProvider).SaveAsync(
+            new(
+                replacement.Identity.CaseId,
+                0,
+                actor,
+                "replacement-deadline-save",
+                "Recorded the replacement inspection deadline",
+                replacementLease.Token)
+            {
+                Inspection = new(
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    replacementDeadline,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null)
+            },
+            default);
+
+        await using var verification = await harness.Factory.CreateDbContextAsync();
+        var replacementCase = await verification.Cases.SingleAsync(
+            item => item.Id == replacement.Identity.CaseId);
+        var reprojected = await verification.CaseDueWork.SingleAsync(
+            item => item.CaseId == replacement.Identity.CaseId);
+        Assert.Equal(replacementDeadline, replacementCase.AcceptedInspectionDeadline);
+        Assert.Equal(manualDueBy, reprojected.DueBy);
+        Assert.True(reprojected.DueBySetByStaff);
     }
 
     [Fact]

@@ -39,7 +39,6 @@ public static class CaseWorkspaceLabels
         public const string TakeOver = "Take over";
         public const string Editing = "Editing";
         public const string Archived = "Archived";
-        public const string AvailableWithEngineer = "Available With Engineer";
         public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
         public const string Figures = "Figures";
         public const string NextAction = "Next action";
@@ -77,6 +76,9 @@ public static class CaseWorkspaceLabels
         public const string ClaimSource = "Claim source";
         public const string ClaimSourceContact = "Claim source contact";
         public const string Contact = "Contact";
+        public const string ContactName = "Contact name";
+        public const string ContactEmail = "Contact e-mail";
+        public const string ContactPhone = "Contact phone";
         public const string Address = "Address";
         public const string VatStatus = "VAT status";
         public const string Notes = "Notes";
@@ -734,7 +736,7 @@ public static class CaseWorkspaceLabels
         public const string SendCancelled = "The send was cancelled.";
         /// <summary>
         /// One consequence sentence, no retry advice: an Unknown outcome must
-        /// never be blindly repeated (ENG-024), so the copy cannot invite a
+        /// never be blindly repeated, so the copy cannot invite a
         /// retry.
         /// </summary>
         public const string SendUnknown = "The send result is not yet known.";
@@ -772,7 +774,7 @@ public static class CaseWorkspaceLabels
 
         /// <summary>
         /// An uncertain provider outcome states what is known and invites no
-        /// retry, the same rule the report send follows (ENG-024).
+        /// retry, the same rule the report send follows.
         /// </summary>
         public const string OutcomeUnknown = "The Glass's session result is not yet known.";
 

@@ -31,7 +31,7 @@ public sealed class TasksModel(
     /// <summary>
     /// A note takes no edit lease and no expected version: it adds to the case's
     /// record rather than changing the case, so it must not contend with an
-    /// engineer editing the same case (CASE-017).
+    /// engineer editing the same case.
     /// </summary>
     public async Task<IActionResult> OnPostAddNoteAsync(
         Guid id,

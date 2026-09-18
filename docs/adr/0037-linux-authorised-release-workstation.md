@@ -15,7 +15,7 @@ tags: [deployment, linux, release]
 
 Superseded 2026-09-07 by [ADR-0039](0039-windows-and-linux-release-workstations.md)
 on the operator's explicit Windows and Linux requirement. The decision below
-records the historical Linux-only choice, accepted 2026-09-04 through DELIV-047.
+records the historical Linux-only choice, accepted 2026-09-04.
 Production promotion and Azure or database writes remain separately approved
 operations.
 

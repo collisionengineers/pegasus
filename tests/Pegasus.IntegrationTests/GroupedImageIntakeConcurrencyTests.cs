@@ -9,7 +9,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// INTK-011: reproduces the production race directly against LocalDB — two
+/// Reproduces the production race directly against LocalDB — two
 /// members of one image group processed by independent, concurrent durable
 /// work items must never split (one registered, the sibling stranded at
 /// <c>needs_sorting</c> through the instruction fallback). Also covers the
@@ -170,7 +170,7 @@ public sealed class GroupedImageIntakeConcurrencyTests
                 intakeIds.Add(detail.Record.Id);
             }
 
-            // INTK-015: the group is the registration unit — every member
+            // The group is the registration unit — every member
             // resolves to the SAME single ImageIntake (one reference, one
             // row), never one registration per member.
             Assert.Single(references);
@@ -270,11 +270,27 @@ public sealed class GroupedImageIntakeConcurrencyTests
             strandedReceiptId = completed!.ProcessedReceiptId;
         }
 
-        // Force the second member back to the stranded shape: its decision
-        // reverted to needs_sorting carrying the generic instruction-fallback
-        // reason while the group's single registration stands -- the
-        // straggler is reachable only by its receipt, like the production
-        // evidence.
+        // The ordinary sequential group path settles every member before the
+        // recovery fixture below removes the late member's registration history.
+        await using (var lateMemberScope = factory.Services.CreateAsyncScope())
+        {
+            var receiptQueries = lateMemberScope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+            var imageIntakeQueries = lateMemberScope.ServiceProvider.GetRequiredService<IImageIntakeQueries>();
+            var lateMember = await receiptQueries.GetAsync(strandedReceiptId, CancellationToken.None);
+            Assert.NotNull(lateMember);
+            Assert.Equal(IntakeDecision.ImageIntakeRegistered, lateMember!.Decision);
+            var lateMemberDetail = await imageIntakeQueries.GetByOriginReceiptAsync(
+                strandedReceiptId,
+                CancellationToken.None);
+            Assert.NotNull(lateMemberDetail);
+            Assert.Equal(groupId, lateMemberDetail!.Record.SubmissionGroupId);
+        }
+
+        // Construct the deterministic late-member state: its evaluation and
+        // the group's one registration exist, but no registration history was
+        // written for this receipt because that evaluation arrived after the
+        // winner's group transaction. Before the fix, replay could not find
+        // the group registration and left this needs_sorting decision behind.
         await using (var contextFactoryScope = factory.Services.CreateAsyncScope())
         {
             var contextFactory = contextFactoryScope.ServiceProvider
@@ -287,14 +303,36 @@ public sealed class GroupedImageIntakeConcurrencyTests
             receipt.FailureCode = null;
             receipt.FailureReason = null;
             receipt.Version++;
+            var registrationHistory = await context.IntakeMutationHistory
+                .Where(item => item.IntakeReceiptId == strandedReceiptId
+                    && (item.EventType == "image_intake_registered"
+                        || item.EventType == "image_intake_registration_reasserted"))
+                .ToArrayAsync();
+            context.IntakeMutationHistory.RemoveRange(registrationHistory);
             await context.SaveChangesAsync();
         }
 
         await using (var strandedScope = factory.Services.CreateAsyncScope())
         {
             var receiptQueries = strandedScope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+            var workStore = strandedScope.ServiceProvider.GetRequiredService<IIntakeWorkStore>();
+            var imageIntakeQueries = strandedScope.ServiceProvider.GetRequiredService<IImageIntakeQueries>();
             var strandedReceipt = await receiptQueries.GetAsync(strandedReceiptId, CancellationToken.None);
             Assert.Equal(IntakeDecision.NeedsSorting, strandedReceipt!.Decision);
+            Assert.NotNull(await workStore.GetCompletedEvaluationAsync(
+                stagedReceiptIds[1],
+                CancellationToken.None));
+            Assert.NotNull(await imageIntakeQueries.GetBySubmissionGroupAsync(
+                groupId,
+                CancellationToken.None));
+            var contextFactory = strandedScope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            Assert.Empty(await context.IntakeMutationHistory
+                .Where(item => item.IntakeReceiptId == strandedReceiptId
+                    && (item.EventType == "image_intake_registered"
+                        || item.EventType == "image_intake_registration_reasserted"))
+                .ToArrayAsync());
         }
 
         // Reconcile: this is the product's own mechanism recovering the

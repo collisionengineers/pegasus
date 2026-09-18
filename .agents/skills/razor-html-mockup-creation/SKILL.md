@@ -28,7 +28,10 @@ the procedure.
 
 ## Inputs before drawing
 
-- [Design authority](../../../docs/design/README.md) binds; [FRD-12](../../../docs/frd/frd-12-operator-experience.md)
+- [Design authority](../../../docs/design/README.md) binds; [FRD-12](../../../docs/frd/frd-12-operator-experience.md),
+  [FRD-15](../../../docs/frd/frd-15-work-centre-queues-and-search.md),
+  [FRD-16](../../../docs/frd/frd-16-case-record-workspace.md),
+  [FRD-17](../../../docs/frd/frd-17-administration-workspace.md)
   and the owning FRDs settle behaviour; [CONTEXT.md](../../../CONTEXT.md) owns
   reserved terms.
 - The live Razor sources (`src/Pegasus.Web/Pages/**/*.cshtml`, the

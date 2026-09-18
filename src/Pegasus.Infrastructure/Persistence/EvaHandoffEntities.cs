@@ -2,7 +2,7 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The once-per-case `First sent to Engineer` proxy (CASE-21). One row per
-/// case, keyed by the case, written by the first successful export (ENG-016).
+/// case, keyed by the case, written by the first successful export.
 /// Later successes update only the latest exported workflow version used by
 /// the Assessment access gate.
 ///

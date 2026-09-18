@@ -5,7 +5,7 @@ date: 2026-08-10
 supersedes: [ADR-0022]
 superseded_by: [ADR-0044]
 related_capabilities: []
-related_frd: [frd-08]
+related_frd: [frd-26]
 tags: [mailbox, identity]
 ---
 # ADR-0024: Stable approved-mailbox identity and per-mailbox fresh start
@@ -74,7 +74,7 @@ that one mailbox and requires the same explicit fresh-start cycle; one failing
 mailbox never activates itself silently or makes another valid mailbox process
 its mail. The activation cycle's data model and message-by-message handling are
 specified in
-[FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md).
+[FRD-26](../frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md).
 
 ### 3. Receipt occurrence identity (partially superseded)
 
@@ -108,7 +108,7 @@ malformed, or unapproved Worker configuration fails closed. A global Worker stop
 leaves all per-mailbox settings and activation times intact; starting it again
 does not create a backlog. Which functions an inbound activation enables, and
 the dependency set implementation must inventory and test, are specified in
-[FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md);
+[FRD-26](../frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md);
 `SentEvidencePollFunction` stays disabled unless a separately reviewed and
 explicitly approved Sent-evidence activation enables it.
 
@@ -145,7 +145,7 @@ follows from this decision.
   migration, deployment, activation, and live verification proceed under later
   tickets and their own approvals.
 
-Functional behaviour: see [FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md).
+Functional behaviour: see [FRD-26](../frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md).
 
 ## Scope of this decision
 

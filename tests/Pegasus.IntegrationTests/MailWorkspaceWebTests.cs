@@ -229,7 +229,7 @@ public sealed class MailWorkspaceWebTests
     }
 
     /// <summary>
-    /// INTK-029's operator-facing half. The unlink dialog warns, naming the
+    /// The unlink-cancels-case rule's operator-facing half. The unlink dialog warns, naming the
     /// case, only when unlinking actually cancels it — that is, when the
     /// receipt's current link is the case its own acceptance created. A receipt
     /// merely associated with some other case gets no warning, because
@@ -237,7 +237,7 @@ public sealed class MailWorkspaceWebTests
     ///
     /// The flag is proved in CaseAcceptanceReplayTests. What is proved here is
     /// the rendering, which is the half an operator actually reads and the half
-    /// nothing else covered — the same one-line-wiring gap that let CASE-017
+    /// nothing else covered — the same one-line-wiring gap that let case notes
     /// ship a note nobody could see.
     /// </summary>
     [Fact]
@@ -1411,7 +1411,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains(">Save correction</button>", html, StringComparison.Ordinal);
         Assert.Contains("name=\"ExpectedClassificationVersion\"", html, StringComparison.Ordinal);
         Assert.Contains("value=\"1\"", html, StringComparison.Ordinal);
-        // PLAT-011: the persisted "system-worker:..." actor resolves to the
+        // The persisted "system-worker:..." actor resolves to the
         // operator-facing provenance word, never the raw stored value.
         Assert.Contains("data-word=\"Automatic\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("system-worker:approved-inbox-poller", html, StringComparison.Ordinal);
@@ -2223,8 +2223,7 @@ public sealed class MailWorkspaceWebTests
 
     /// <summary>
     /// QDOS is one of the shared foundation migration's seeded principals, so
-    /// this resolves the seed rather than inserting a second one of its own
-    /// (INTK-060).
+    /// this resolves the seed rather than inserting a second one of its own.
     /// </summary>
     private static async Task SeedPrincipalAsync(IServiceProvider services) =>
         await SeededPrincipals.QdosAsync(services);

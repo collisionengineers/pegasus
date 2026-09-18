@@ -188,6 +188,7 @@ public static class CaseDataPolicy
         ValidateDate(data.InstructionDate, nameof(data.InstructionDate));
         ValidateDate(data.InspectionDate, nameof(data.InspectionDate));
         ValidateDate(data.InspectionDeadline, nameof(data.InspectionDeadline));
+        ValidateDate(data.DueBy, nameof(data.DueBy));
 
         var normalized = data with
         {
@@ -225,8 +226,21 @@ public static class CaseDataPolicy
             InspectionNotes = Paragraphs(data.InspectionNotes, 2000, nameof(data.InspectionNotes)),
             PrincipalNotes = Paragraphs(data.PrincipalNotes, 2000, nameof(data.PrincipalNotes)),
             ClaimSourceNotes = Paragraphs(data.ClaimSourceNotes, 2000, nameof(data.ClaimSourceNotes)),
-            ClientNotes = Paragraphs(data.ClientNotes, 4000, nameof(data.ClientNotes))
+            ClientNotes = Paragraphs(data.ClientNotes, 4000, nameof(data.ClientNotes)),
+            ClaimSourceOverrideContactName = Text(data.ClaimSourceOverrideContactName, 300, nameof(data.ClaimSourceOverrideContactName)),
+            ClaimSourceOverrideContactTelephone = Text(data.ClaimSourceOverrideContactTelephone, 100, nameof(data.ClaimSourceOverrideContactTelephone)),
+            ClaimSourceOverrideContactEmailAddress = Text(data.ClaimSourceOverrideContactEmailAddress, 300, nameof(data.ClaimSourceOverrideContactEmailAddress))
         };
+
+        if (normalized.ClaimSourceId is null)
+        {
+            normalized = normalized with
+            {
+                ClaimSourceOverrideContactName = null,
+                ClaimSourceOverrideContactTelephone = null,
+                ClaimSourceOverrideContactEmailAddress = null
+            };
+        }
 
         if (normalized.VehicleMileage.HasValue != (normalized.VehicleMileageUnit is not null))
         {
@@ -357,7 +371,7 @@ public static class CaseDataPolicy
     /// line structure. Every other field is a single line, so <see cref="Text"/>
     /// flattens it; the circumstances carry a labelled damage-area block below
     /// the prose, separated by a blank line, and EVA is sent that shape
-    /// verbatim (ENG-015). Within a line whitespace still collapses, and runs
+    /// verbatim. Within a line whitespace still collapses, and runs
     /// of blank lines collapse to one, so the value cannot carry the reader's
     /// layout noise.
     /// </summary>

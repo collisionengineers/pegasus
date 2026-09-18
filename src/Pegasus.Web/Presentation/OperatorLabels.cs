@@ -146,7 +146,7 @@ public static class OperatorLabels
         };
 
     /// <summary>
-    /// The case lifecycle stage as the operator reads it (EPIC-011 D3): a
+    /// The case lifecycle stage as the operator reads it (operator decision D3): a
     /// display mapping only. <see cref="CaseLifecycleState.ReportPreparation"/>
     /// and <see cref="CaseLifecycleState.PostReport"/> both read "With
     /// Engineer", <see cref="CaseLifecycleState.PostReportComplete"/> reads
@@ -183,7 +183,7 @@ public static class OperatorLabels
         _ => Humanise(outcome.ToString())
     };
 
-    /// <summary>The Triage record's own lifecycle words (moved here from the Cases page by CASE-025).</summary>
+    /// <summary>The Triage record's own lifecycle words (moved here from the Cases page).</summary>
     public static string TriageState(Pegasus.Core.Triage.TriageState state) => state switch
     {
         Pegasus.Core.Triage.TriageState.Open => "Open",
@@ -782,7 +782,7 @@ public static class OperatorLabels
     };
 
     /// <summary>
-    /// Where a repair specification's lines came from (ENG-002). The
+    /// Where a repair specification's lines came from. The
     /// unresolved legacy route is the fallback: rows recorded before the
     /// product tracked a source at all.
     /// </summary>
@@ -874,7 +874,7 @@ public static class OperatorLabels
         _ => Humanise(status.ToString())
     };
 
-    // CASE-032 start
+    /// <summary>An image's custody state, in the operator's words.</summary>
     public static string ImageCustodyState(ImageCustodyState state) => state switch
     {
         Pegasus.Core.ImageIntake.ImageCustodyState.Pending => "Storing",
@@ -883,7 +883,6 @@ public static class OperatorLabels
         Pegasus.Core.ImageIntake.ImageCustodyState.Failed => "Storage failed",
         _ => Humanise(state.ToString())
     };
-    // CASE-032 end
 
     /// <summary>
     /// The case's Box folder state, in the operator's words, for the cases
@@ -1245,9 +1244,9 @@ public static class OperatorLabels
     /// The Action logs Actor type filter. One option per actor class an
     /// operator distinguishes, each carrying the recorded
     /// <see cref="ActorKind"/> name as its value so the filter needs no second
-    /// vocabulary. Request-link and Provider actors are deliberately absent:
-    /// they are attributions on an external caller, not a class of work an
-    /// operator reviews here.
+    /// vocabulary. The Provider actor is deliberately absent: it is an
+    /// attribution on an external caller, not a class of work an operator
+    /// reviews here.
     /// </summary>
     public static IReadOnlyList<(string Value, string Label)> ActionLogActorTypes { get; } =
     [
@@ -1384,7 +1383,7 @@ public static class OperatorLabels
 
     /// <summary>
     /// The resolve dialog's destination words. The four contract wordings
-    /// (EPIC-011 §1.6) cover the kinds a staff resolution completes directly;
+    /// cover the kinds a staff resolution completes directly;
     /// Triage and Blocked intake remain real Core destinations and keep their
     /// settled names. The prototype's "Create Case from accepted instruction"
     /// has no destination kind behind it — creating the case is the origin
@@ -1407,10 +1406,10 @@ public static class OperatorLabels
     };
 
     /// <summary>
-    /// The AI job ledger's words on the Operations AI Job List (PLAT-049).
+    /// The AI job ledger's words on the Operations AI Job List.
     /// </summary>
     /// <remarks>
-    /// The kind and state wordings are FRD-11 &#167; AI Job List's own; the Core
+    /// The kind and state wordings are FRD-27 &#167; AI Job List's own; the Core
     /// enum names are the writer's spelling of them. This is the only map of
     /// either in the Web layer &#8212; nothing named these states before.
     ///
@@ -1474,14 +1473,14 @@ public static class OperatorLabels
             : string.Create(CultureInfo.InvariantCulture, $"{jobs} jobs");
     }
 
-    // PLAT-069: Operations partial-data notices.
+    // Operations partial-data notices.
     public static class OperationsNotices
     {
         public const string PartialData = "Partial data";
     }
 
     /// <summary>
-    /// The recorded EVA facts available to the Operations panel (PLAT-049).
+    /// The recorded EVA facts available to the Operations panel.
     /// </summary>
     public static class EvaHandoffs
     {
@@ -1664,8 +1663,8 @@ public static class OperatorLabels
     }
 
     /// <summary>
-    /// The consolidated "Staff accounts &amp; roles" administration area
-    /// (EPIC-011 §1.12) — one list. The area's own name lives in
+    /// The consolidated "Staff accounts &amp; roles" administration area —
+    /// one list. The area's own name lives in
     /// <see cref="Admin.Accounts"/>; the three <see cref="StaffRole"/> names
     /// are already the settled operator words and go through
     /// <see cref="Humanise(string?)"/> rather than being spelled a second
@@ -1756,7 +1755,7 @@ public static class OperatorLabels
     }
 
     /// <summary>
-    /// The Automation &amp; AI administration area's words (EPIC-011 §1.12) —
+    /// The Automation &amp; AI administration area's words —
     /// one list. <see cref="Admin.Automation"/> above is the area's name in the
     /// rail; these are the two panels inside it.
     /// </summary>
@@ -1815,7 +1814,7 @@ public static class OperatorLabels
         };
     }
 
-    /// <summary>The retained post-report query's AI job words (AUTO-014).</summary>
+    /// <summary>The retained post-report query's AI job words.</summary>
     public static class QueryResponseJobs
     {
         public const string Source = "Post-report";
@@ -1837,12 +1836,12 @@ public static class OperatorLabels
 
     /// <summary>
     /// The Case workspace's Vehicle, Inspection address and Case Files
-    /// sections (EPIC-011 §1.8) — one list. Appended by CASE-027 inside its
-    /// own nested class; no member above is reordered or edited.
+    /// sections — one list. Appended inside its own nested class; no member
+    /// above is reordered or edited.
     /// </summary>
     public static class CaseWorkspace
     {
-        // CASE-009: read-only query correspondence table.
+        // Read-only query correspondence table.
         public const string Received = "Received";
         public const string Sender = "Sender";
         public const string Subject = "Subject";
@@ -1856,10 +1855,10 @@ public static class OperatorLabels
         public const string RunExperianCheck = "Run Experian check";
 
         /// <summary>
-        /// Why the Experian control is drawn disabled (EPIC-011 D7/D22,
-        /// ENG-001). Always supplied: <c>.gated::after</c> renders
+        /// Why the Experian control is drawn disabled (operator decisions
+        /// D7/D22). Always supplied: <c>.gated::after</c> renders
         /// <c>attr(data-condition)</c> unguarded, so a <c>.gated</c> span
-        /// without one paints an empty pill (PLAT-061).
+        /// without one paints an empty pill.
         /// </summary>
         public const string ExperianSeamCondition = "Experian is not connected";
 
@@ -1874,7 +1873,7 @@ public static class OperatorLabels
         /// else, so the row is never a second printing of the same address.
         /// </summary>
         public const string PrincipalDefaultInspectionAddress = "Principal default";
-        // CASE-041: Inspect-at choices and storage-location labels.
+        // Inspect-at choices and storage-location labels.
         public const string InspectAt = "Inspect at";
         public const string Source = "Source";
         public const string ImageBasedAssessment = "Image Based Assessment";
@@ -1885,11 +1884,11 @@ public static class OperatorLabels
         public const string ManualEntry = "Manual entry";
         public const string NotRecorded = "Not recorded";
         public const string NotRecordedSuffix = " · not recorded";
-        // INTK-058: the Case's repairer.
+        // The Case's repairer.
         public const string Repairer = "Repairer";
         public const string RepairerDirectory = "Repairer contact";
         public const string NotLinked = "Not linked";
-        // End CASE-041.
+        // End of the Inspect-at and repairer labels.
         public const string FilesPanel = "Files";
         public const string AddEvidence = "Add evidence";
         public const string OpenOperations = "Open Operations";
@@ -1944,7 +1943,7 @@ public static class OperatorLabels
         /// </summary>
         public const string AbsentValue = "Not recorded";
 
-        // CASE-040: Sign-off Engineer / Send to EVA labels
+        // Sign-off Engineer / Send to EVA labels
         public const string SignOffEngineer = "Sign-off Engineer";
         public const string Unassigned = "Unassigned";
         public const string ReasonForAction = "Reason for action";
@@ -1956,7 +1955,7 @@ public static class OperatorLabels
         public const string SendViaApi = "Send via API";
         public const string EvaApiNotEnabled =
             "EVA API submission is not enabled for this principal.";
-        // end CASE-040
+        // End of the Sign-off Engineer / Send to EVA labels.
 
         // Review point 12: the adverse disposition, named apart from the
         // progression actions it must never sit among.
@@ -1965,14 +1964,14 @@ public static class OperatorLabels
         public const string AdverseActions = "Adverse actions";
         // end review point 12
 
-        // C08 labels batch: Stream B's documents/chase port (INTK-060 C08).
+        // C08 labels batch: Stream B's documents/chase port.
         public const string Recipient = "Recipient";
         public const string Reason = "Reason";
         public const string Content = "Content";
         public const string RecordChase = "Record chase";
         // end C08 labels batch
 
-        // ENG-034: the Engineer sections moved from the retired Assessment
+        // The Engineer sections moved from the retired Assessment
         // page. Keep this block together so the parallel Case lanes can merge
         // their own vocabulary without interleaving it.
         public static class EngineerSections
@@ -2099,7 +2098,7 @@ public static class OperatorLabels
             public static string SpecificationLinesCaption(string kind) =>
                 $"The {kind} specification's ordered lines, exactly as recorded.";
         }
-        // ENG-034 end.
+        // End of the Engineer sections' labels.
     }
 
     /// Labels for the staff manual-upload surface.

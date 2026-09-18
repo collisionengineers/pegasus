@@ -81,7 +81,7 @@ the classification decision is written to the receipt as the accepted
 Triage-match evidence, carrying this policy's key and version. A known vehicle
 registration then opens the Triage; no known registration registers the material
 as Unidentified instead. There is no separate triage matcher — that abstraction
-had only a null implementation and was retired (INTK-033); one owner answers the
+had only a null implementation and was retired; one owner answers the
 question, and it is this policy.
 
 Display labels for the taxonomy (family · subtype) are owned by
@@ -149,7 +149,7 @@ Owner: `src/Pegasus.Core/Intake/CaseMatching/PrincipalCaseMatchPolicy.cs`
 Owners: `src/Pegasus.Core/Intake/InstructionFieldExtraction.cs` (the
 provider-neutral `InstructionFieldEngine`) and
 `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs`
-(the QDOS grammar, `Version 7`). The engine carries no QDOS knowledge; every
+(the QDOS grammar, `Version 10`). The engine carries no QDOS knowledge; every
 QDOS-specific label, guard, and synthesis rule is supplied by the policy.
 
 Mechanics (engine):
@@ -197,7 +197,17 @@ QDOS grammar (policy):
   value as a UK registration; the vehicle-description rule is held off that
   label, which it used to read as the description `Registration : VO75DFJ`. The
   Triage subject template states its registration nowhere else, so without this
-  rule every one of those requests fell to Unidentified (INTK-033).
+  rule every one of those requests fell to Unidentified.
+- **Party blocks**: a flattened `Vehicle Details` column heading and rows
+  labelled for other definitions are skipped rather than ending the claimant
+  or repairer block. When a titled personal-name row appears, only the rows
+  after it form the address.
+- **Claimant contact**: the draft takes Mobile first, then Home when Mobile is
+  absent. Equal values printed in both rows retain the first matching source
+  provenance.
+- **Inspection date**: when the letter states no inspection date, the draft
+  defaults it to the Europe/London calendar date the instruction was received.
+  This SystemDefault candidate records `inspection-date-defaulted` evidence.
 
 Corpus tests: `tests/Pegasus.IntegrationTests/QdosMappingExtractionTests.cs`
 (per-file expectation table over the real local corpus, skip-if-absent —

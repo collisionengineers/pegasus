@@ -585,7 +585,7 @@ internal sealed class EfIntakeMutationStore(
                 association.Reason = request.Reason.Trim();
                 association.LastOperationKey = request.OperationKey.Trim();
 
-                // INTK-029: unlinking the email whose own acceptance created
+                // Unlinking the email whose own acceptance created
                 // this case takes the case's only source away, so the case is
                 // cancelled with it. A receipt since relinked to some other
                 // case is not that case's source, and unlinking it leaves that
@@ -605,7 +605,7 @@ internal sealed class EfIntakeMutationStore(
     /// nothing is deleted. The case reaches its terminal state here rather than
     /// through <c>CloseCase</c>, which refuses this outcome: it belongs to the
     /// unlink action and to the unlink's own transaction, exactly as
-    /// <c>Created in error</c> belongs to the replacement action (INTK-029).
+    /// <c>Created in error</c> belongs to the replacement action.
     /// </summary>
     private static async Task CancelOnSourceUnlinkAsync(
         PegasusDbContext context,

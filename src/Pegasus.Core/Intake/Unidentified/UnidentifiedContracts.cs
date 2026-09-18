@@ -94,7 +94,7 @@ public static class UnidentifiedMediaKindPolicy
     /// <summary>
     /// As <see cref="Classify(IntakeSourceChannel, string)"/>, for material
     /// with no origin receipt to read a channel or content type from.
-    /// INTK-007's grouped-VRM-conflict Unidentified item is the only current
+    /// The grouped-VRM-conflict Unidentified item is the only current
     /// producer of that shape, and it is image material — the fallback lives
     /// here, once, rather than being re-decided at each caller that has no
     /// receipt to classify.

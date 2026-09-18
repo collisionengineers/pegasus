@@ -6,7 +6,7 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Web.Pages.Cases.Assessment;
 
 /// <summary>
-/// The Engineer workbench moved into the Case record (D30, ENG-034). The old
+/// The Engineer workbench moved into the Case record (D30). The old
 /// route remains as a permanent redirect so retained links land on Estimate.
 /// </summary>
 [Authorize(

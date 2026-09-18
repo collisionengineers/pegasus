@@ -8,7 +8,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// replacement store and the intake mutation store — each an identical five-line
 /// reset. Every route that makes a case terminal has to stop the chase, so the
 /// copies would have gone on multiplying, and a chase left running on a closed
-/// case is exactly the sort of thing one stale copy produces (INTK-029).
+/// case is exactly the sort of thing one stale copy produces.
 /// </summary>
 internal static class CaseChaseState
 {

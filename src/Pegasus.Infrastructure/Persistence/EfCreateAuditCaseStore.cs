@@ -221,7 +221,10 @@ public sealed class EfCreateAuditCaseStore(
             CompletenessPolicyKey = source?.CompletenessPolicyKey ?? "case-completeness",
             CompletenessPolicyVersion = source?.CompletenessPolicyVersion ?? 1,
             CompletenessPolicySatisfied = true,
-            AcceptedAtUtc = now
+            AcceptedAtUtc = now,
+            ClaimSourceOverrideContactName = source?.ClaimSourceOverrideContactName,
+            ClaimSourceOverrideContactTelephone = source?.ClaimSourceOverrideContactTelephone,
+            ClaimSourceOverrideContactEmailAddress = source?.ClaimSourceOverrideContactEmailAddress
         };
         foreach (var field in source?.Fields ?? [])
         {

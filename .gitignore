@@ -24,7 +24,6 @@ appsettings.*.local.json
 # Tool and editor working state
 /.mcp.json
 /opencode.json
-/.claude/
 /.vs/
 /.obsidian/workspace.json
 /.obsidian/workspace-mobile.json
@@ -67,7 +66,6 @@ Thumbs.db
 /workspaces/ai-centre/services/collision-brain/obj/
 /workspaces/ai-centre/services/collision-brain/publish/
 /workspaces/ai-centre/skills/tools/__pycache__/
-.kanmer/
 /.worktrees/
 
 # design-sync (Claude Design converter): staged scripts, build output, machine state

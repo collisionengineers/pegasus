@@ -274,12 +274,10 @@ public sealed class CaseAssetPreparationWebTests
     /// <summary>
     /// D4/FRD-12: an image preparation is not an engineering field. Crop is
     /// offered wherever the Case edit lease is held, so the Save that carries
-    /// one is accepted in Review — where the engineering fields are read-only
-    /// and this edit was refused along with them, which made the offered Crop
-    /// fail on Save.
+    /// one is accepted in Review along with the editable Engineer sections.
     /// </summary>
     [Fact]
-    public async Task ACropIsSavedOnAReviewStateCaseWhoseEngineeringFieldsAreReadOnly()
+    public async Task ACropIsSavedOnAReviewStateCase()
     {
         var fixture = new PreparedImages();
         var store = fixture.Store(CaseLifecycleState.Review);
@@ -633,7 +631,7 @@ public sealed class CaseAssetPreparationWebTests
     }
 
     /// <summary>
-    /// PLAT-011: the case history table shows the resolved actor name, never the
+    /// The case history table shows the resolved actor name, never the
     /// raw actor subject id (docs/design/README.md:168) — a Staff row shows its
     /// username and an Automation row shows the client label, not either GUID.
     /// </summary>

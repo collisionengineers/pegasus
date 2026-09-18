@@ -12,7 +12,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// ENG-034: the Engineer sections carry no explanatory copy, render without
+/// The Engineer sections carry no explanatory copy, render without
 /// the retired Assessment availability gate, the old route redirects, and
 /// D11's CanOpen mutation gate still refuses a POST on the Case handler host
 /// when the workspace can't open.

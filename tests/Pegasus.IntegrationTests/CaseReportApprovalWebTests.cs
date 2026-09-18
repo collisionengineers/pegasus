@@ -174,7 +174,7 @@ public sealed class CaseReportApprovalWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
-        // CASE-012: the workspace no longer renders the typed-SHA approval
+        // The workspace no longer renders the typed-SHA approval
         // form (inherited scope bans typed SHA inputs; the approval act moves
         // to the Assessment report-draft lane). The handler's contract — the
         // server actor, the stable artifact identity, replay by operation

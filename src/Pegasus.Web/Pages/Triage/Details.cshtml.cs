@@ -114,7 +114,7 @@ public sealed class DetailsModel(
     /// has no evidence of its own in the domain — these are the origin
     /// receipt's own retained assets, read through the one selection owner and
     /// served by the one authorised asset route. Nothing is copied or retained
-    /// a second time (INTK-034).
+    /// a second time.
     /// </summary>
     public IReadOnlyList<IntakeAssetRecord> EvidenceImages { get; private set; } = [];
 

@@ -12,7 +12,7 @@ using Pegasus.Web.Mcp;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// CASE-047: the four B-owned cursor queries against a real SQL Server
+/// The four B-owned cursor queries against a real SQL Server
 /// engine and A's real <see cref="DataProtectionCursorProtector"/> (G9) —
 /// keyset pagination that stays disjoint and complete across a page
 /// boundary (including when several rows tie on the sort column),
@@ -251,7 +251,7 @@ public sealed class CaseCursorQueryPersistenceTests
     }
 
     /// <summary>
-    /// CASE-047, Stream A MCP review: the regression behind the occurrence
+    /// Stream A MCP review: the regression behind the occurrence
     /// page unit — one document carrying more occurrences than the caller's
     /// limit. A document-unit page would return that document once with a
     /// single occurrence and lose the rest; the occurrence-unit page
@@ -440,7 +440,7 @@ public sealed class CaseCursorQueryPersistenceTests
     }
 
     /// <summary>
-    /// CASE-047, Stream A review: <see cref="ICaseQueryStore.GetHeaderAsync"/>
+    /// Stream A review: <see cref="ICaseQueryStore.GetHeaderAsync"/>
     /// returns the same summary/workflow facts <see cref="GetCase"/> would,
     /// with the document, history and open-task lists reduced to counts.
     /// </summary>

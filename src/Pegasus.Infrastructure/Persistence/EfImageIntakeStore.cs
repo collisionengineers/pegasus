@@ -453,7 +453,8 @@ public sealed class EfImageIntakeStore(
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
-        var registration = await FindForReceiptAsync(context, intakeReceiptId, cancellationToken);
+        var registration = await FindForReceiptAsync(context, intakeReceiptId, cancellationToken)
+            ?? await FindRegisteredGroupForMemberAsync(context, intakeReceiptId, cancellationToken);
         if (registration is null)
         {
             return;
@@ -784,7 +785,7 @@ public sealed class EfImageIntakeStore(
             // Fold the image-case Box folder into the paired case through the
             // same durable outbox that created it: the transition commits here
             // regardless of Box availability, and the queued work moves the
-            // contents and removes the emptied folder (INTK-014).
+            // contents and removes the emptied folder.
             mergeWorkId = Guid.NewGuid();
             context.ExternalWorkItems.Add(new ExternalWorkItemEntity
             {
@@ -975,7 +976,8 @@ public sealed class EfImageIntakeStore(
             where evaluation.ProcessedReceiptId == intakeReceiptId
                 && context.IntakeMutationHistory.Any(history =>
                     history.IntakeReceiptId == intakeReceiptId
-                    && history.EventType == "image_intake_registered")
+                    && (history.EventType == "image_intake_registered"
+                        || history.EventType == "image_intake_registration_reasserted"))
             join member in context.IntakeSubmissionGroupMembers.AsNoTracking()
                 on evaluation.StagedReceiptId equals member.StagedReceiptId
             join intake in context.ImageIntakes.AsNoTracking().Include(item => item.Principal)
@@ -983,6 +985,27 @@ public sealed class EfImageIntakeStore(
             select intake)
             .FirstOrDefaultAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Finds the registration a late group member must join. The initial group
+    /// registration can commit while this member's evaluation is not yet
+    /// recorded, so it cannot have an <c>image_intake_registered</c> history
+    /// row of its own yet. This helper is deliberately used only while
+    /// re-asserting an automation-eligible member's registered decision.
+    /// </summary>
+    private static Task<ImageIntakeEntity?> FindRegisteredGroupForMemberAsync(
+        PegasusDbContext context,
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken) =>
+        (
+            from evaluation in context.IntakeEvaluations.AsNoTracking()
+            where evaluation.ProcessedReceiptId == intakeReceiptId
+            join member in context.IntakeSubmissionGroupMembers.AsNoTracking()
+                on evaluation.StagedReceiptId equals member.StagedReceiptId
+            join intake in context.ImageIntakes.AsNoTracking().Include(item => item.Principal)
+                on (Guid?)member.GroupId equals intake.SubmissionGroupId
+            select intake)
+        .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
         IReadOnlyCollection<Guid> intakeReceiptIds,
