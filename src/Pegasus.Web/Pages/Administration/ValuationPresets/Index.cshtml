@@ -79,7 +79,7 @@
                                 </form>
                                 <form id="@removeFormId" method="post" asp-page-handler="Remove">
                                     <input type="hidden" name="presetId" value="@presetId" />
-                                    <input type="hidden" name="expectedVersion" value="@preset.Version" />
+                                    <input type="hidden" name="expectedVersion" value="@rowVersion" />
                                     <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
                                     <button type="submit" class="btn btn--small btn--danger">@ValuationPresetLabels.Remove</button>
                                 </form>

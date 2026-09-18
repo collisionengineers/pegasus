@@ -204,6 +204,42 @@ public sealed partial class ValuationPresetAdministrationWebTests
         Assert.Contains("checked=\"checked\"", ActiveInput(page, TowBarPresetId), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task RemoveAfterAStaleSaveKeepsTheRejectedVersionUntilReload()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var original = await GetPageAsync(client);
+        var attempted = RowForm(original, TowBarPresetId, "Proposed tow bar", "350.00", "true");
+        using var otherSave = await PostSaveAsync(
+            client, RowForm(original, TowBarPresetId, "Current tow bar", "400.00", "true"));
+        Assert.Equal(HttpStatusCode.Redirect, otherSave.StatusCode);
+        attempted["operationKey"] = Guid.NewGuid().ToString("N");
+
+        using var staleSave = await PostSaveAsync(client, attempted);
+        Assert.Equal(HttpStatusCode.OK, staleSave.StatusCode);
+        var rejectedPage = await staleSave.Content.ReadAsStringAsync();
+        Assert.Contains("The preset changed after this page was loaded.", rejectedPage, StringComparison.Ordinal);
+        Assert.Contains("value=\"Proposed tow bar\"", rejectedPage, StringComparison.Ordinal);
+        var remove = RemoveForm(rejectedPage, TowBarPresetId);
+        Assert.Equal(attempted["expectedVersion"], remove["expectedVersion"]);
+
+        using var refusedRemove = await client.PostAsync(
+            $"{Page}?handler=Remove", new FormUrlEncodedContent(remove));
+        Assert.Equal(HttpStatusCode.OK, refusedRemove.StatusCode);
+        Assert.Contains("The preset changed after this page was loaded.",
+            await refusedRemove.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        var current = await GetPageAsync(client);
+        Assert.Contains("value=\"Current tow bar\"", current, StringComparison.Ordinal);
+        Assert.Contains("value=\"400.00\"", current, StringComparison.Ordinal);
+        Assert.Equal("2", RemoveForm(current, TowBarPresetId)["expectedVersion"]);
+
+        using var removed = await client.PostAsync(
+            $"{Page}?handler=Remove", new FormUrlEncodedContent(RemoveForm(current, TowBarPresetId)));
+        Assert.Equal(HttpStatusCode.Redirect, removed.StatusCode);
+        Assert.DoesNotContain($"preset-remove-{TowBarPresetId:N}", await GetPageAsync(client), StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// A refused post comes back with its own operation key replaced, so a
     /// corrected retry cannot replay the key the server already saw.

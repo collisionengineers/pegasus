@@ -286,6 +286,7 @@ public sealed class EditModel(
                     _ => "The API key change was not accepted."
                 });
             }
+            catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The API key change was not accepted."); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }

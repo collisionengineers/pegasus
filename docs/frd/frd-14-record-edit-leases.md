@@ -4,8 +4,8 @@
 
 ## Short version
 
-- To change a Case, Triage item or Image Intake record, staff press **Edit** and
-  gets a lease. Everyone else sees who is editing and can only read.
+- To change a Case, Triage item or Image Intake record, staff press **Edit**
+  and get a lease. Everyone else sees who is editing and can only read.
 - A lease lasts five minutes. The browser renews it every minute while the
   editing screen is open, so editing lasts as long as the session. Leave, and
   it expires by server time.
@@ -62,10 +62,9 @@ only.
 ### Record edit scopes
 
 An existing Triage item or Image Intake record opens read-only. Its Edit
-action claims a scope
-for that one record, with the same five-minute lease and one-minute
-heartbeat as a Case. The scope covers the record only, not its queue or a
-linked Case.
+action claims a scope for that one record, with the same five-minute lease
+and one-minute heartbeat as a Case. The scope covers the record only, not its
+queue or a linked Case.
 
 - Save checks the holder token and the expected version inside the change
   transaction, applies the change, and releases the scope in the same
