@@ -21,7 +21,7 @@ public sealed class CaseWorkflowMigrationTests
         await using var context = await database.CreateContextAsync();
 
         await context.Database.MigrateAsync(PreviousMigration);
-        await database.ExecuteAsync(ExistingCasesSql);
+        await database.ExecuteAsync(ExistingCasesSql(withStaffConfirmationColumns: true));
         await context.Database.MigrateAsync(WorkflowMigration);
 
         Assert.Equal(2, await database.ScalarAsync<int>("SELECT COUNT(*) FROM CaseWorkflows"));
@@ -66,7 +66,7 @@ public sealed class CaseWorkflowMigrationTests
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
         await using var context = await database.CreateContextAsync();
         await context.Database.MigrateAsync(PrePublicUploadRemovalMigration);
-        await database.ExecuteAsync(ExistingCasesSql);
+        await database.ExecuteAsync(ExistingCasesSql(withStaffConfirmationColumns: false));
         await database.ExecuteAsync(
             $"""
             INSERT INTO CaseWorkflows
@@ -168,7 +168,7 @@ public sealed class CaseWorkflowMigrationTests
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
         await using var context = await database.CreateContextAsync();
         await context.Database.MigrateAsync(previous);
-        await database.ExecuteAsync(ExistingCasesSql);
+        await database.ExecuteAsync(ExistingCasesSql(withStaffConfirmationColumns: true));
         await database.ExecuteAsync(
             $"""
             INSERT INTO CaseDocuments (Id, CaseId, SourceOccurrenceIdentity)
@@ -263,8 +263,20 @@ public sealed class CaseWorkflowMigrationTests
             await context.Database.GetPendingMigrationsAsync());
     }
 
-    private const string ExistingCasesSql =
-        """
+    /// <summary>
+    /// Seed rows for an upgrade test. The two staff-confirmation columns exist
+    /// only in schemas before 20260907221500_RemoveCaseStaffConfirmation, so a
+    /// test that starts from a later schema omits them.
+    /// </summary>
+    private static string ExistingCasesSql(bool withStaffConfirmationColumns)
+    {
+        var staffConfirmationColumns = withStaffConfirmationColumns
+            ? "InstructionConfirmedByStaff, ImagesConfirmedByStaff, "
+            : string.Empty;
+        var staffConfirmationValues = withStaffConfirmationColumns
+            ? "1, 1, "
+            : string.Empty;
+        return $$"""
         INSERT INTO IntakeReceipts
             (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel,
              ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey,
@@ -305,7 +317,7 @@ public sealed class CaseWorkflowMigrationTests
         INSERT INTO Cases
             (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState,
              CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete,
-             CreatedAtUtc, Version,
+             {{staffConfirmationColumns}}CreatedAtUtc, Version,
              ConcurrencyToken)
         VALUES
             ('60000000-0000-0000-0000-000000000001',
@@ -320,7 +332,7 @@ public sealed class CaseWorkflowMigrationTests
              '50000000-0000-0000-0000-000000000001',
              1,
              1,
-             '2031-05-06T10:30:00+00:00',
+             {{staffConfirmationValues}}'2031-05-06T10:30:00+00:00',
              0,
              '70000000-0000-0000-0000-000000000001'),
             ('60000000-0000-0000-0000-000000000002',
@@ -335,10 +347,11 @@ public sealed class CaseWorkflowMigrationTests
              '50000000-0000-0000-0000-000000000002',
              1,
              0,
-             '2031-05-06T10:31:00+00:00',
+             {{staffConfirmationValues}}'2031-05-06T10:31:00+00:00',
              0,
              '70000000-0000-0000-0000-000000000002');
         """;
+    }
 
     private static void AssertNonEmptyGuid(Guid value)
     {
