@@ -354,6 +354,9 @@ try {
     Assert-True (-not $result.AzureArguments.Contains('functionapp config appsettings list')) $case 'reached the Worker smoke.' $result.Diagnostic
 
     Write-Output "Release validation behaviour tests passed ($script:caseIndex isolated runs)."
+    # The last isolated run is an expected failure; its exit code must not
+    # become this script's verdict under a `pwsh -command` step wrapper.
+    $global:LASTEXITCODE = 0
 }
 finally {
     if (Test-Path -LiteralPath $root) {
