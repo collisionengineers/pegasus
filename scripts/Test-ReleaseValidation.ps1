@@ -53,7 +53,7 @@ function New-ExactSettings {
 
     $settings = [System.Collections.Generic.List[hashtable]]::new()
     foreach ($name in $expectedSettingNames) {
-        $settings.Add(@{ name = $name; value = $Value })
+        $settings.Add([ordered]@{ name = $name; value = $Value })
     }
     # The comma keeps the list whole instead of unrolling it into an array.
     return , $settings
@@ -64,19 +64,21 @@ function New-QuotaDocument {
 
     return @{
         value = @($Rows | ForEach-Object {
-            @{ name = $_[0]; properties = @{ limit = @{ value = $_[1] }; name = @{ value = $_[0] }; unit = 'Instances' } }
+            [ordered]@{ name = $_[0]; properties = [ordered]@{ limit = @{ value = $_[1] }; name = @{ value = $_[0] }; unit = 'Instances' } }
         })
     } | ConvertTo-Json -Depth 6 -Compress
 }
 
 function New-CompiledWorkerTemplate {
     $resources = @($expectedSettingNames | ForEach-Object {
-        @{ name = $_; value = "[if(variables('workerActivationApproved'), 'false', 'true')]" }
+        [ordered]@{ name = $_; value = "[if(variables('workerActivationApproved'), 'false', 'true')]" }
     })
-    return @{
+    # Ordered: the validator's regexes read name before value and type before
+    # defaultValue, and a plain hashtable serialises in hash order.
+    return [ordered]@{
         resources = $resources
         variables = @{ workerActivationApproved = "[equals(parameters('workerActivation'), 'approved-live-worker')]" }
-        parameters = @{ workerActivation = @{ type = 'string'; defaultValue = 'disabled' } }
+        parameters = @{ workerActivation = [ordered]@{ type = 'string'; defaultValue = 'disabled' } }
     } | ConvertTo-Json -Depth 6 -Compress
 }
 
@@ -107,38 +109,23 @@ function Write-FakeCli {
     #>
     param([Parameter(Mandatory)][string] $Directory)
 
-    if ($IsWindows) {
-        Set-Content -LiteralPath (Join-Path $Directory 'az.cmd') -Value @(
-            '@echo off',
-            '>> "%PEGASUS_TEST_AZ_ARGUMENTS_PATH%" echo %*',
-            'echo %* | findstr /c:"bicep build" >nul && (type "%PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH%" & exit /b 0)',
-            'echo %* | findstr /c:"Microsoft.Quota" >nul && (type "%PEGASUS_TEST_AZ_QUOTA_PATH%" & exit /b 0)',
-            'echo %* | findstr /c:"PendingWorkRecoverySchedule" >nul && (echo 0 * * * * * & exit /b 0)',
-            'type "%PEGASUS_TEST_AZ_SETTINGS_PATH%"',
-            'exit /b 0'
-        ) -Encoding ascii
-        Set-Content -LiteralPath (Join-Path $Directory 'azd.cmd') -Value @(
-            '@echo off',
-            'type "%PEGASUS_TEST_AZD_VALUES_PATH%"'
-        ) -Encoding ascii
-        return
-    }
-
-    $az = Join-Path $Directory 'az'
-    Set-Content -LiteralPath $az -Value @(
-        '#!/bin/sh',
-        'printf ''%s\n'' "$*" >> "$PEGASUS_TEST_AZ_ARGUMENTS_PATH"',
-        'case "$*" in',
-        '  *"bicep build"*) cat "$PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH";;',
-        '  *Microsoft.Quota*) cat "$PEGASUS_TEST_AZ_QUOTA_PATH";;',
-        '  *PendingWorkRecoverySchedule*) printf ''%s\n'' ''0 * * * * *'';;',
-        '  *) cat "$PEGASUS_TEST_AZ_SETTINGS_PATH";;',
-        'esac'
-    ) -Encoding ascii
-    [IO.File]::SetUnixFileMode($az, [IO.UnixFileMode]::UserRead -bor [IO.UnixFileMode]::UserWrite -bor [IO.UnixFileMode]::UserExecute)
-    $azd = Join-Path $Directory 'azd'
-    Set-Content -LiteralPath $azd -Value @('#!/bin/sh', 'cat "$PEGASUS_TEST_AZD_VALUES_PATH"') -Encoding ascii
-    [IO.File]::SetUnixFileMode($azd, [IO.UnixFileMode]::UserRead -bor [IO.UnixFileMode]::UserWrite -bor [IO.UnixFileMode]::UserExecute)
+    # PowerShell resolves a bare `az` to az.ps1 on PATH on Windows and Linux
+    # alike, so one fake serves both platforms and no cmd or sh quoting is
+    # involved. The scripts under test call `& az ...` from pwsh.
+    Set-Content -LiteralPath (Join-Path $Directory 'az.ps1') -Value @'
+param([Parameter(ValueFromRemainingArguments)][string[]] $Arguments)
+$joined = $Arguments -join ' '
+Add-Content -LiteralPath $env:PEGASUS_TEST_AZ_ARGUMENTS_PATH -Value $joined
+if ($joined.Contains('bicep build')) { Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_AZ_COMPILED_TEMPLATE_PATH; exit 0 }
+if ($joined.Contains('Microsoft.Quota')) { Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_AZ_QUOTA_PATH; exit 0 }
+if ($joined.Contains('PendingWorkRecoverySchedule')) { '0 * * * * *'; exit 0 }
+Get-Content -Raw -LiteralPath $env:PEGASUS_TEST_AZ_SETTINGS_PATH
+exit 0
+'@ -Encoding ascii
+    Set-Content -LiteralPath (Join-Path $Directory 'azd.ps1') -Value @'
+Get-Content -LiteralPath $env:PEGASUS_TEST_AZD_VALUES_PATH
+exit 0
+'@ -Encoding ascii
 }
 
 $script:caseIndex = 0
@@ -198,10 +185,12 @@ function Invoke-Isolated {
         }
     }
 
+    $azureArguments = if (Test-Path -LiteralPath $argumentsPath) { Get-Content -Raw -LiteralPath $argumentsPath } else { '' }
     return [pscustomobject]@{
         ExitCode = $exitCode
         Output = ConvertTo-SingleLine ($output -join "`n")
-        AzureArguments = if (Test-Path -LiteralPath $argumentsPath) { Get-Content -Raw -LiteralPath $argumentsPath } else { '' }
+        AzureArguments = $azureArguments
+        Diagnostic = "$($output -join "`n")`nRecorded az calls:`n$azureArguments"
     }
 }
 
@@ -241,11 +230,11 @@ function Assert-CensusRejected {
     )
 
     $result = Invoke-WorkerSmoke -Settings $Settings -ExpectedActivation 'disabled'
-    Assert-True ($result.ExitCode -ne 0) $Case 'should fail.' $result.Output
-    Assert-True ($result.Output.Contains('census differs from the exact seven-function release contract')) $Case 'did not report the census.' $result.Output
+    Assert-True ($result.ExitCode -ne 0) $Case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('census differs from the exact seven-function release contract')) $Case 'did not report the census.' $result.Diagnostic
     # The rejection names no live setting: the diagnostic must not echo what
     # the production Worker carries.
-    Assert-True (-not $result.Output.Contains($ProtectedSettingName)) $Case 'echoed a live setting name.' $result.Output
+    Assert-True (-not $result.Output.Contains($ProtectedSettingName)) $Case 'echoed a live setting name.' $result.Diagnostic
 }
 
 New-Item -ItemType Directory -Path $root | Out-Null
@@ -254,34 +243,34 @@ try {
 
     $result = Invoke-WorkerSmoke -Settings (New-ExactSettings 'true') -ExpectedActivation 'disabled'
     $case = 'Exact disabled census'
-    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Output
-    Assert-True ($result.Output.Contains('Production Worker activation smoke passed (disabled).')) $case 'did not report success.' $result.Output
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Production Worker activation smoke passed (disabled).')) $case 'did not report success.' $result.Diagnostic
     foreach ($binding in "--subscription $approvedSubscription", '--name pegasus-prod-worker-252ow37gij', '--resource-group rg-pegasus-prod') {
-        Assert-True ($result.AzureArguments.Contains($binding)) $case "did not bind $binding." $result.AzureArguments
+        Assert-True ($result.AzureArguments.Contains($binding)) $case "did not bind $binding." $result.Diagnostic
     }
 
     $result = Invoke-WorkerSmoke -Settings (New-ExactSettings 'false') -ExpectedActivation 'approved-live-worker'
     $case = 'Exact approved census'
-    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Output
-    Assert-True ($result.Output.Contains('Production Worker activation smoke passed (approved-live-worker).')) $case 'did not report success.' $result.Output
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Production Worker activation smoke passed (approved-live-worker).')) $case 'did not report success.' $result.Diagnostic
 
     $result = Invoke-WorkerSmoke -Settings (New-ExactSettings 'true') -ExpectedActivation 'disabled' -SubscriptionId '00000000-0000-0000-0000-000000000000'
     $case = 'Unapproved subscription'
-    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Output
-    Assert-True ($result.Output.Contains('does not belong to the set')) $case 'was not refused by parameter validation.' $result.Output
-    Assert-True ([string]::IsNullOrEmpty($result.AzureArguments)) $case 'reached Azure before refusing.' $result.AzureArguments
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('does not belong to the set')) $case 'was not refused by parameter validation.' $result.Diagnostic
+    Assert-True ([string]::IsNullOrEmpty($result.AzureArguments)) $case 'reached Azure before refusing.' $result.Diagnostic
 
     $settings = New-ExactSettings 'true'
-    $settings.Add(@{ name = 'AzureWebJobs.UnexpectedFunction.Disabled'; value = 'true' })
+    $settings.Add([ordered]@{ name = 'AzureWebJobs.UnexpectedFunction.Disabled'; value = 'true' })
     Assert-CensusRejected -Case 'Extra disabled setting' -Settings $settings -ProtectedSettingName 'AzureWebJobs.UnexpectedFunction.Disabled'
 
     $settings = New-ExactSettings 'true'
-    $settings.Add(@{ name = 'AzureWebJobs.Extra-Function.Disabled'; value = 'true' })
+    $settings.Add([ordered]@{ name = 'AzureWebJobs.Extra-Function.Disabled'; value = 'true' })
     Assert-CensusRejected -Case 'Malformed disabled setting' -Settings $settings -ProtectedSettingName 'AzureWebJobs.Extra-Function.Disabled'
 
     $settings = New-ExactSettings 'true'
     $settings.RemoveAll({ param($s) $s.name -eq 'AzureWebJobs.InboxRecoveryFunction.Disabled' }) | Out-Null
-    $settings.Add(@{ name = 'AzureWebJobs.inboxpollfunction.Disabled'; value = 'true' })
+    $settings.Add([ordered]@{ name = 'AzureWebJobs.inboxpollfunction.Disabled'; value = 'true' })
     Assert-CensusRejected -Case 'Case-variant disabled setting' -Settings $settings -ProtectedSettingName 'AzureWebJobs.inboxpollfunction.Disabled'
 
     $settings = New-ExactSettings 'true'
@@ -289,16 +278,16 @@ try {
     Assert-CensusRejected -Case 'Missing disabled setting' -Settings $settings -ProtectedSettingName 'AzureWebJobs.InboxRecoveryFunction.Disabled'
 
     $settings = New-ExactSettings 'true'
-    $settings.Add(@{ name = 'AzureWebJobs.InboxRecoveryFunction.Disabled'; value = 'true' })
+    $settings.Add([ordered]@{ name = 'AzureWebJobs.InboxRecoveryFunction.Disabled'; value = 'true' })
     Assert-CensusRejected -Case 'Duplicate disabled setting' -Settings $settings -ProtectedSettingName 'AzureWebJobs.InboxRecoveryFunction.Disabled'
 
     $settings = New-ExactSettings 'true'
     ($settings | Where-Object { $_.name -eq 'AzureWebJobs.InboxRecoveryFunction.Disabled' }).value = 'false'
     $result = Invoke-WorkerSmoke -Settings $settings -ExpectedActivation 'disabled'
     $case = 'Mixed disabled values'
-    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Output
-    Assert-True ($result.Output.Contains("do not match the intended 'disabled' activation value")) $case 'did not report the value mismatch.' $result.Output
-    Assert-True (-not $result.Output.Contains('InboxRecoveryFunction') -and -not $result.Output.Contains('false')) $case 'echoed a live setting.' $result.Output
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains("do not match the intended 'disabled' activation value")) $case 'did not report the value mismatch.' $result.Diagnostic
+    Assert-True (-not $result.Output.Contains('InboxRecoveryFunction') -and -not $result.Output.Contains('false')) $case 'echoed a live setting.' $result.Diagnostic
 
     # --- Test-AzureDeploymentPlan.ps1 -Mode PreProvision ---------------------
 
@@ -308,9 +297,9 @@ try {
             if ($null -eq $value) { $environment.Remove($key) } else { $environment[$key] = $value }
             $result = Invoke-PreProvision -Environment $environment
             $case = "Missing or empty $key ('$value')"
-            Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Output
-            Assert-True ($result.Output.Contains("missing $key")) $case 'did not name the missing key.' $result.Output
-            Assert-True (-not $result.AzureArguments.Contains('functionapp config appsettings list')) $case 'reached the Worker smoke.' $result.AzureArguments
+            Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+            Assert-True ($result.Output.Contains("missing $key")) $case 'did not name the missing key.' $result.Diagnostic
+            Assert-True (-not $result.AzureArguments.Contains('functionapp config appsettings list')) $case 'reached the Worker smoke.' $result.Diagnostic
         }
     }
 
@@ -325,44 +314,44 @@ try {
         $environment['AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS'] = $value
         $result = Invoke-PreProvision -Environment $environment
         $case = "Malformed certificate URI $value"
-        Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Output
-        Assert-True ($result.Output.Contains('AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS must contain')) $case 'did not name the rule.' $result.Output
-        Assert-True (-not $result.AzureArguments.Contains('functionapp config appsettings list')) $case 'reached the Worker smoke.' $result.AzureArguments
+        Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+        Assert-True ($result.Output.Contains('AUTOMATION_MCP_SIGNING_CERTIFICATE_SECRET_URIS must contain')) $case 'did not name the rule.' $result.Diagnostic
+        Assert-True (-not $result.AzureArguments.Contains('functionapp config appsettings list')) $case 'reached the Worker smoke.' $result.Diagnostic
     }
 
     $environment = New-ValidPreProvisionEnvironment
     $environment['AUTOMATION_MCP_ENCRYPTION_CERTIFICATE_SECRET_URIS'] = 'https://another-vault.vault.azure.net/secrets/encryption/version'
     $result = Invoke-PreProvision -Environment $environment
     $case = 'Cross-vault certificates'
-    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Output
-    Assert-True ($result.Output.Contains('same Azure Key Vault')) $case 'did not name the rule.' $result.Output
-    Assert-True (-not $result.AzureArguments.Contains('functionapp config appsettings list')) $case 'reached the Worker smoke.' $result.AzureArguments
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('same Azure Key Vault')) $case 'did not name the rule.' $result.Diagnostic
+    Assert-True (-not $result.AzureArguments.Contains('functionapp config appsettings list')) $case 'reached the Worker smoke.' $result.Diagnostic
 
     $result = Invoke-PreProvision -Environment (New-ValidPreProvisionEnvironment)
     $case = 'Valid pre-provision environment'
-    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Output
-    Assert-True ($result.Output.Contains('App Service quota pre-flight passed: B1 in uksouth has limit 1')) $case 'did not pass the quota pre-flight.' $result.Output
-    Assert-True ($result.Output.Contains('Azure deployment plan validation passed (PreProvision')) $case 'did not report success.' $result.Output
-    Assert-True ($result.AzureArguments.Contains('Microsoft.Web/locations/uksouth/providers/Microsoft.Quota/quotas')) $case 'did not read the platform-region quota.' $result.AzureArguments
-    Assert-True ($result.AzureArguments.Contains('functionapp config appsettings list')) $case 'did not reach the Worker smoke.' $result.AzureArguments
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('App Service quota pre-flight passed: B1 in uksouth has limit 1')) $case 'did not pass the quota pre-flight.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('Azure deployment plan validation passed (PreProvision')) $case 'did not report success.' $result.Diagnostic
+    Assert-True ($result.AzureArguments.Contains('Microsoft.Web/locations/uksouth/providers/Microsoft.Quota/quotas')) $case 'did not read the platform-region quota.' $result.Diagnostic
+    Assert-True ($result.AzureArguments.Contains('functionapp config appsettings list')) $case 'did not reach the Worker smoke.' $result.Diagnostic
 
     $environment = New-ValidPreProvisionEnvironment
     $environment['PEGASUS_WEB_LOCATION'] = 'ukwest'
     $result = Invoke-PreProvision -Environment $environment -QuotaDocument (New-QuotaDocument -Rows @(, @('*', 30)))
     $case = 'Chosen Web region quota'
-    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Output
-    Assert-True ($result.Output.Contains('App Service quota pre-flight passed: B1 in ukwest has limit 30 (* row)')) $case 'did not use the aggregate row.' $result.Output
-    Assert-True ($result.AzureArguments.Contains('Microsoft.Web/locations/ukwest/providers/Microsoft.Quota/quotas')) $case 'did not read the chosen region.' $result.AzureArguments
+    Assert-True ($result.ExitCode -eq 0) $case 'should pass.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('App Service quota pre-flight passed: B1 in ukwest has limit 30 (* row)')) $case 'did not use the aggregate row.' $result.Diagnostic
+    Assert-True ($result.AzureArguments.Contains('Microsoft.Web/locations/ukwest/providers/Microsoft.Quota/quotas')) $case 'did not read the chosen region.' $result.Diagnostic
 
     # ADR-0049: the 2026-09-13 read of the platform region showed every SKU at
     # 0; a B1 row at 0 must stop provision even when v4 rows have quota, and the
     # aggregate row must not rescue a present SKU row.
     $result = Invoke-PreProvision -Environment (New-ValidPreProvisionEnvironment) -QuotaDocument (New-QuotaDocument -Rows @(@('B1', 0), @('P0v4', 30), @('*', 0)))
     $case = 'Zero App Service quota'
-    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Output
-    Assert-True ($result.Output.Contains('App Service B1 quota in uksouth is 0 (B1 row)')) $case 'did not name the zero row.' $result.Output
-    Assert-True ($result.Output.Contains('P0v4=30')) $case 'did not list the rows with quota.' $result.Output
-    Assert-True (-not $result.AzureArguments.Contains('functionapp config appsettings list')) $case 'reached the Worker smoke.' $result.AzureArguments
+    Assert-True ($result.ExitCode -ne 0) $case 'should fail.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('App Service B1 quota in uksouth is 0 (B1 row)')) $case 'did not name the zero row.' $result.Diagnostic
+    Assert-True ($result.Output.Contains('P0v4=30')) $case 'did not list the rows with quota.' $result.Diagnostic
+    Assert-True (-not $result.AzureArguments.Contains('functionapp config appsettings list')) $case 'reached the Worker smoke.' $result.Diagnostic
 
     Write-Output "Release validation behaviour tests passed ($script:caseIndex isolated runs)."
 }
