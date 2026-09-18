@@ -1,0 +1,59 @@
+<fieldset>
+  <legend>Triage &amp; Unidentified</legend>
+  <label>Area
+    <select data-mock-input="tu-area">
+      <option value="triage" selected>Triage</option>
+      <option value="unidentified">Unidentified</option>
+    </select>
+  </label>
+  <label>Queue data
+    <select data-mock-input="tu-queue">
+      <option value="available" selected>Available</option>
+      <option value="unavailable">Cases are unavailable</option>
+    </select>
+  </label>
+</fieldset>
+<fieldset>
+  <legend>Triage</legend>
+  <label>View
+    <select data-mock-input="tu-triage-view">
+      <option value="list" selected>List (Cases tab=triage)</option>
+      <option value="detail">Record (Triage/Details)</option>
+    </select>
+  </label>
+  <label>Record state
+    <select data-mock-input="tu-triage-state">
+      <option value="open" selected>Open, no finding</option>
+      <option value="awaiting_information">Awaiting information</option>
+      <option value="finding_recorded">Finding recorded</option>
+      <option value="completed">Completed (post-send correction)</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+  </label>
+</fieldset>
+<fieldset>
+  <legend>Unidentified</legend>
+  <label>View
+    <select data-mock-input="tu-unident-view">
+      <option value="list" selected>List (Cases tab=unidentified)</option>
+      <option value="detail">Record (Unidentified/Details)</option>
+    </select>
+  </label>
+  <label>Record state
+    <select data-mock-input="tu-unident-state">
+      <option value="open" selected>Open</option>
+      <option value="closed">Closed with a reason</option>
+      <option value="resolved">Resolved (linked/registered/triaged)</option>
+    </select>
+  </label>
+  <label>Reason
+    <select data-mock-input="tu-unident-reason">
+      <option value="no_id" selected>No usable identification</option>
+      <option value="could_not_be_read">Could not be read (with file kind)</option>
+      <option value="unsupported">Unsupported content</option>
+      <option value="conflicting">Conflicting identification</option>
+      <option value="ambiguous_ownership">Ambiguous ownership or destination</option>
+      <option value="technical">Technical processing failure</option>
+    </select>
+  </label>
+</fieldset>

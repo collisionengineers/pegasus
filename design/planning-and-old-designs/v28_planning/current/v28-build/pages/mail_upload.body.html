@@ -1,0 +1,939 @@
+<!-- v28 baseline as-is capture. Six live pages, one file, switched by mu-area /
+     mu-mail-view / mu-upload-view. See page-folder how-it-works.md for the
+     source table. Fixture: Sam Whitlock (Administrator) / Priya Anand
+     (Engineer) via the shared role toggle. Hero Case QDOS26214 · MA59 BDY ·
+     David Okafor · Wingrove Insurance; cross-refs QDOS26198 (LM17 GVX),
+     QDOS26177 (YD21 PPK). -->
+
+<!-- ===================== Mail (src/Pegasus.Web/Pages/Mail/Index.cshtml, Message.cshtml, Compose.cshtml, Shared/_ComposeForm.cshtml) ===================== -->
+<div data-mock-show="mu-area:mail">
+
+<!-- ---- Inbox list (Mail/Index.cshtml) ---- -->
+<div data-mock-show="mu-mail-view:list">
+<header class="page-header">
+  <div class="page-title"><p class="eyebrow">Emails</p><h1>Inbox</h1></div>
+  <div class="page-actions">
+    <div class="page-action-group">
+      <a class="btn" href="#compose" data-mail-compose-open aria-controls="mail-compose-host" aria-expanded="false">
+        <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+        <span>Compose</span>
+      </a>
+      <div class="freshness freshness--actions-first" data-mock-show="fresh:current" role="status">
+        <span class="freshness-status"><span class="health-dot"></span><span>Current · 09:41</span></span>
+        <form onsubmit="return false"><button type="submit" class="btn btn--small" title="Refresh"><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Refresh</span></button></form>
+      </div>
+      <div class="freshness freshness--actions-first" data-mock-show="fresh:stale|partial" role="status">
+        <span class="freshness-status"><span class="health-dot partial"></span><span>Stale · 09:41</span> <span class="status status--amber">Stale</span></span>
+        <form onsubmit="return false"><button type="submit" class="btn btn--small" title="Refresh"><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Refresh</span></button></form>
+      </div>
+      <div class="freshness freshness--actions-first" data-mock-show="fresh:unavailable" role="status">
+        <span class="freshness-status"><span class="health-dot failed"></span><span>Unavailable</span> <span class="status status--red">Unavailable</span></span>
+        <form onsubmit="return false"><button type="submit" class="btn btn--small" title="Refresh"><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Refresh</span></button></form>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div id="mail-compose-host" class="mail-compose-backdrop" hidden></div>
+
+<!-- Inbox / Sent / Dismissed scope -->
+<section class="pane-layout pane-layout--3 inbox-layout" data-mail-preview-workspace data-mock-show="mu-list-scope:inbox" aria-label="Emails">
+  <aside class="pane">
+    <div class="pane-body pane-scroll">
+      <div class="scope-list">
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="true"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg></span><span>All incoming</span><span class="tabular">7</span></button></form>
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="false"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg></span><span>Receiving work</span><span class="tabular">2</span></button></form>
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="false"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg></span><span>Case updates</span><span class="tabular">3</span></button></form>
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="false"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg></span><span>Pre-instructions</span><span class="tabular">1</span></button></form>
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="false"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg></span><span>Unidentified</span><span class="tabular">1</span></button></form>
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="false"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg></span><span>Sent Items</span><span class="tabular">4</span></button></form>
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="false"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></span><span>Dismissed</span><span class="tabular">2</span></button></form>
+      </div>
+    </div>
+  </aside>
+
+  <div class="pane">
+    <form method="get" class="inbox-filter" aria-label="Mail view" onsubmit="return false">
+      <div class="field">
+        <label for="mailbox-filter">Mailbox</label>
+        <select id="mailbox-filter" name="mailbox">
+          <option value="" selected>All Mailboxes</option>
+          <option value="claims-mailbox">claims-intake@collisionengineers.example</option>
+          <option value="engineering-mailbox">engineering@collisionengineers.example</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="folder-filter">Folder</label>
+        <select id="folder-filter" name="folder">
+          <option value="" selected>Inbox</option>
+          <option value="sent">Sent Items</option>
+          <option value="deleted">Deleted Items</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="queue-filter">Category</label>
+        <select id="queue-filter" name="queue">
+          <option value="" selected>All categories</option>
+          <optgroup label="Destinations">
+            <option value="receiving-work">Receiving work</option>
+            <option value="queries">Queries</option>
+            <option value="other">Other</option>
+            <option value="triage">Triage</option>
+            <option value="unidentified">Unidentified</option>
+          </optgroup>
+          <optgroup label="Categories">
+            <option value="classification:received:General">General</option>
+            <option value="classification:received:Billing">Billing</option>
+            <option value="classification:received:NonClientRelated">Not client related</option>
+            <option value="classification:received:InternalCc">Internal CC</option>
+          </optgroup>
+        </select>
+      </div>
+      <div class="field inbox-filter__search">
+        <label for="mail-search">Search</label>
+        <input id="mail-search" type="search" name="search" maxlength="200" placeholder="Subject, sender, reference" value="brake" />
+      </div>
+      <button class="btn btn--dark" type="submit">Search</button>
+    </form>
+
+    <div class="pane-head inbox-messages-head">
+      <div class="inbox-message-title"><h2>Messages</h2></div>
+      <span class="meta">7 messages</span>
+      <a class="btn btn--small sort-toggle" href="#" onclick="return false" aria-label="Received order: newest first; activate for oldest first">Received ↓</a>
+    </div>
+
+    <div class="pane-body pane-scroll" tabindex="0">
+      <div class="notice notice--warning" role="alert" data-mock-show="mu-list-state:search-invalid">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>Search must be 200 characters or fewer.</span>
+      </div>
+
+      <div class="empty" data-mock-show="mu-list-state:empty-search"><p>No emails in this mailbox matched &ldquo;brake noise&rdquo;.</p></div>
+      <div class="empty" data-mock-show="mu-list-state:empty-dismissed"><p>No dismissed messages.</p></div>
+      <div class="empty" data-mock-show="mu-list-state:empty-folder"><p>Sent Items messages are not kept in Pegasus yet. Only received mail is retained.</p></div>
+      <div class="empty" data-mock-show="mu-list-state:empty-unretained"><p>Nothing here yet. Messages are kept from the point this screen started keeping them; anything received before that was processed but is not shown here.</p></div>
+      <div class="empty" data-mock-show="mu-list-state:empty-none"><p>No mail has been received.</p></div>
+
+      <div data-mock-show="mu-list-state:populated">
+        <div class="row-button inbox-row unread" data-mail-preview-row>
+          <span class="row-top">
+            <span class="row-title"><span class="unread-indicator" aria-hidden="true"></span><span class="sr-only">Unread</span>Claims — Wingrove Insurance &lt;claims@wingroveinsurance.example&gt;</span>
+            <span class="row-time"><time>18 Sep 2026</time><time>08:41</time></span>
+          </span>
+          <a class="row-title" href="#message" data-mock-action="open-message" aria-current="true" title="RE: Instruction — MA59 BDY">RE: Instruction — MA59 BDY</a>
+          <span class="row-excerpt">Please find attached our instruction for the above vehicle following a rear-end collision. Claimant contact details are…</span>
+          <span class="row-top">
+            <span class="cluster"><span class="status status--green">Case created</span><span class="row-meta">New instruction</span></span>
+            <span class="row-meta"><a href="pegasus_case_record_v28.html">QDOS26214</a> · 2 attachments</span>
+          </span>
+          <span class="row-meta">Forwarded by Dana Ilford &lt;dana.ilford@wingroveinsurance.example&gt;</span>
+          <span class="row-meta">Matched in: Message body</span>
+          <span class="row-top">&nbsp;</span>
+          <form method="post" class="inbox-row-action" onsubmit="return false">
+            <button type="submit" class="icon-button" title="Dismiss" aria-label="Dismiss RE: Instruction — MA59 BDY"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+          </form>
+        </div>
+        <div class="row-button inbox-row">
+          <span class="row-top">
+            <span class="row-title">grace.bellamy@example.com</span>
+            <span class="row-time"><time>17 Sep 2026</time><time>16:05</time></span>
+          </span>
+          <a class="row-title" href="#message" data-mock-action="open-message">Photos of the damage — LM17 GVX</a>
+          <span class="row-excerpt">Hi, here are the photos you asked for from the side of the road, sorry for the delay.</span>
+          <span class="row-top">
+            <span class="cluster"><span class="status status--amber">Unidentified</span></span>
+            <span class="row-meta">3 attachments</span>
+          </span>
+        </div>
+        <div class="row-button inbox-row">
+          <span class="row-top">
+            <span class="row-title">postmaster@collisionengineers.example</span>
+            <span class="row-time"><time>17 Sep 2026</time><time>11:22</time></span>
+          </span>
+          <a class="row-title" href="#message" data-mock-action="open-message">Undeliverable: Report — QDOS26150</a>
+          <span class="row-top">
+            <span class="cluster"><span class="status status--neutral">Not yet processed</span></span>
+          </span>
+          <span class="row-top"><span class="status status--neutral">No longer polled</span></span>
+        </div>
+        <div class="row-button inbox-row unread">
+          <span class="row-top">
+            <span class="row-title"><span class="unread-indicator" aria-hidden="true"></span><span class="sr-only">Unread</span>Grace Bellamy &lt;grace.bellamy@example.com&gt;</span>
+            <span class="row-time"><time>16 Sep 2026</time><time>09:14</time></span>
+          </span>
+          <a class="row-title" href="#message" data-mock-action="open-message">Could you look at this before we instruct?</a>
+          <span class="row-excerpt">We'd like a quick opinion before this becomes a formal instruction — is that something you can do?</span>
+          <span class="row-top">
+            <span class="cluster"><span class="status status--navy">Triage</span></span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pagination" data-mock-show="mu-list-state:populated">
+      <span>Page 1 of 2</span>
+      <div class="button-row"><a class="btn btn--small" href="#" onclick="return false">Next</a></div>
+    </div>
+  </div>
+
+  <div class="pane" data-mock-show="mu-preview:open">
+    <div class="pane-head"><h2>Message preview</h2></div>
+    <div class="pane-body pane-scroll" tabindex="0">
+      <aside id="mail-quick-preview" class="mail-preview" aria-label="RE: Instruction — MA59 BDY">
+        <div>
+          <div class="mail-header">
+            <div class="cluster cluster--between">
+              <div>
+                <div class="mail-subject">RE: Instruction — MA59 BDY</div>
+                <div class="mail-route">From Claims — Wingrove Insurance &lt;claims@wingroveinsurance.example&gt; · <time>18 Sep 2026 08:41</time> · claims-intake@collisionengineers.example</div>
+              </div>
+              <span class="status status--green">Case created</span>
+            </div>
+          </div>
+          <div class="mail-body"><p>Please find attached our instruction for the above vehicle following a rear-end collision. Claimant contact details are included in the attached instruction form.</p></div>
+          <div class="section-gap">
+            <ul class="accepted-list">
+              <li>Instruction_MA59BDY.pdf</li>
+              <li>Photos.zip</li>
+            </ul>
+          </div>
+          <div class="section-gap fact-grid">
+            <dl class="fact"><dt>Classification</dt><dd>New instruction</dd></dl>
+            <dl class="fact"><dt>Case association</dt><dd>QDOS26214</dd></dl>
+            <dl class="fact"><dt>Folder</dt><dd>Inbox</dd></dl>
+            <dl class="fact"><dt>Search match</dt><dd>Message body</dd></dl>
+          </div>
+          <div class="button-row section-gap">
+            <a class="btn btn--dark" href="#message" data-mock-action="open-message"><svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg><span>Open full message</span></a>
+            <a class="btn" href="pegasus_case_record_v28.html"><svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg><span>Open linked Case</span></a>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- Deleted Items scope: read-only, only ever reached with a search term live -->
+<section class="pane-layout pane-layout--2 inbox-layout" data-mock-show="mu-list-scope:deleted" aria-label="Emails">
+  <aside class="pane">
+    <div class="pane-body pane-scroll">
+      <div class="scope-list">
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="false"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg></span><span>All incoming</span><span class="tabular">7</span></button></form>
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="false"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg></span><span>Receiving work</span><span class="tabular">2</span></button></form>
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="false"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg></span><span>Case updates</span><span class="tabular">3</span></button></form>
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="false"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg></span><span>Pre-instructions</span><span class="tabular">1</span></button></form>
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="false"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg></span><span>Unidentified</span><span class="tabular">1</span></button></form>
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="false"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg></span><span>Sent Items</span><span class="tabular">4</span></button></form>
+        <form onsubmit="return false"><button type="submit" class="scope-button" aria-pressed="false"><span class="scope-visual-icon"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></span><span>Dismissed</span><span class="tabular">2</span></button></form>
+      </div>
+    </div>
+  </aside>
+  <div class="pane">
+    <form method="get" class="inbox-filter" aria-label="Mail view" onsubmit="return false">
+      <input type="hidden" name="folder" value="dismissed" />
+      <div class="field"><label for="mailbox-filter-deleted">Mailbox</label>
+        <select id="mailbox-filter-deleted" name="mailbox"><option value="" selected>All Mailboxes</option></select>
+      </div>
+      <div class="field">
+        <label for="queue-filter-deleted">Category</label>
+        <select id="queue-filter-deleted" name="queue" disabled><option value="" selected>All categories</option></select>
+      </div>
+      <div class="field inbox-filter__search">
+        <label for="mail-search-deleted">Search</label>
+        <input id="mail-search-deleted" type="search" name="search" maxlength="200" placeholder="Subject, sender, reference" value="brake" />
+      </div>
+      <button class="btn btn--dark" type="submit">Search</button>
+    </form>
+    <div class="pane-head inbox-messages-head"><div class="inbox-message-title"><h2>Messages</h2></div><span class="meta">Deleted Items</span></div>
+    <div class="pane-body pane-scroll" tabindex="0">
+      <div class="notice" role="status" data-mock-show="mu-deleted-state:unavailable">
+        <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+        <span>Deleted Items search is unavailable. Retained Inbox mail remains available.</span>
+      </div>
+      <div data-mock-show="mu-deleted-state:results|truncated">
+        <div class="notice" role="status" data-mock-show="mu-deleted-state:truncated">
+          <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+          <span>This read-only search checked the 100 newest Deleted Items in the approved scope. Older items were not scanned.</span>
+        </div>
+        <div class="row-button">
+          <span class="row-top">
+            <span class="row-title">claims@wingroveinsurance.example</span>
+            <span class="row-time"><time>2 Sep 2026</time><time>10:02</time></span>
+          </span>
+          <span class="row-title">Duplicate instruction — please ignore</span>
+          <span class="row-meta">Matched in: Attachment name: brake_report.pdf (attachment 1)</span>
+          <span class="row-top"><span class="row-meta">claims-intake@collisionengineers.example</span><span class="row-meta">1 attachment</span></span>
+        </div>
+      </div>
+      <div class="empty" data-mock-show="mu-deleted-state:empty"><p>No Deleted Items matched &ldquo;brake noise&rdquo;.</p></div>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- ---- Message record (Mail/Message.cshtml) ---- -->
+<div data-mock-show="mu-mail-view:message">
+<header class="page-header">
+  <div class="page-title"><p class="eyebrow">Inbox message</p><h1 class="wrap">RE: Instruction — MA59 BDY</h1></div>
+  <div class="page-actions">
+    <div data-mock-show="mu-msg-correspond:available">
+      <a class="btn" href="#" onclick="window.MOCK.setState('mu-msg-compose','reply');return false">Reply</a>
+      <a class="btn" href="#" onclick="window.MOCK.setState('mu-msg-compose','reply-all');return false">Reply all</a>
+      <a class="btn" href="#" onclick="window.MOCK.setState('mu-msg-compose','forward');return false">Forward</a>
+    </div>
+    <form method="post" onsubmit="return false">
+      <button class="btn" type="submit" data-mock-show="mu-msg-dismissed:0">
+        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg><span>Dismiss</span>
+      </button>
+      <button class="btn" type="submit" data-mock-show="mu-msg-dismissed:1">
+        <svg class="icon" aria-hidden="true"><use href="#icon-undo" /></svg><span>Restore</span>
+      </button>
+    </form>
+    <a class="btn" href="#list" data-mock-action="back-to-inbox" onclick="window.MOCK.setState('mu-mail-view','list');return false">
+      <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg><span>Back to Inbox</span>
+    </a>
+  </div>
+</header>
+
+<div class="notice notice--warning" role="status" data-mock-show="mu-msg-outside:1">
+  <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+  <span>This message is no longer in the view you opened it from. It is still here, in claims-intake@collisionengineers.example.</span>
+</div>
+
+<article class="record">
+  <header class="record-head">
+    <h2 class="wrap">RE: Instruction — MA59 BDY</h2>
+    <span class="record-identity">
+      <span>Claims — Wingrove Insurance &lt;claims@wingroveinsurance.example&gt;</span>
+      <span>claims-intake@collisionengineers.example</span>
+      <span><time>18 Sep 2026, 08:41</time></span>
+    </span>
+    <span class="record-head-end">
+      <span class="status status--neutral" data-mock-show="mu-msg-state:classified">Classified</span>
+      <span class="status status--amber" data-mock-show="mu-msg-state:unclassified">Ambiguous</span>
+    </span>
+  </header>
+  <div class="record-accent"></div>
+
+  <div class="record-bar" data-mock-show="mu-msg-queryresponse:enabled|gated-case-unavailable|gated-not-post-report|gated-automation-stopped">
+    <span class="eyebrow">Post-report</span>
+    <span class="record-bar-end">
+      <form method="post" onsubmit="return false" data-mock-show="mu-msg-queryresponse:enabled">
+        <button class="btn btn--dark" type="submit"><svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg><span>Draft reply with AI</span></button>
+      </form>
+      <span class="gated" data-condition="Case unavailable" data-mock-show="mu-msg-queryresponse:gated-case-unavailable">
+        <button class="btn btn--dark" type="button" disabled aria-disabled="true"><svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg><span>Draft reply with AI</span></button>
+      </span>
+      <span class="gated" data-condition="Available in post-report work" data-mock-show="mu-msg-queryresponse:gated-not-post-report">
+        <button class="btn btn--dark" type="button" disabled aria-disabled="true"><svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg><span>Draft reply with AI</span></button>
+      </span>
+      <span class="gated" data-condition="Automation stopped" data-mock-show="mu-msg-queryresponse:gated-automation-stopped">
+        <button class="btn btn--dark" type="button" disabled aria-disabled="true"><svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg><span>Draft reply with AI</span></button>
+      </span>
+    </span>
+  </div>
+
+  <nav class="tabs" aria-label="Sections">
+    <a class="tab" href="#" onclick="window.MOCK.setState('mu-msg-tab','message');return false" aria-current="page">Message</a>
+    <a class="tab" href="#" onclick="window.MOCK.setState('mu-msg-tab','attachments');return false">Attachments <span class="tab-count">2</span></a>
+    <a class="tab" href="#" onclick="window.MOCK.setState('mu-msg-tab','thread');return false">Thread</a>
+    <a class="tab" href="#" onclick="window.MOCK.setState('mu-msg-tab','case');return false">Case</a>
+  </nav>
+
+  <div class="record-body">
+    <div class="notice notice--success" role="status" data-mock-show="mu-msg-notice:classification"><svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg><span>The classification was corrected.</span></div>
+    <div class="notice" role="status" data-mock-show="mu-msg-notice:folder"><svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg><span>The message was moved to New instruction.</span></div>
+    <div class="notice notice--success" role="status" data-mock-show="mu-msg-notice:association"><svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg><span>This was added to case QDOS26214.</span></div>
+    <div class="notice notice--success" role="status" data-mock-show="mu-msg-notice:queryresponse"><svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg><span>AI reply job created.</span></div>
+    <div class="notice notice--success" role="status" data-mock-show="mu-msg-notice:correspondence"><svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg><span>The reply was sent.</span></div>
+    <div class="validation-summary" hidden></div>
+
+    <section class="panel" data-mock-show="mu-msg-sendstatus:preparing|submitted|sent|failed">
+      <div class="panel-head"><h2>Send status</h2></div>
+      <div class="panel-body fact-grid">
+        <dl class="fact"><dt>State</dt>
+          <dd data-mock-show="mu-msg-sendstatus:preparing">Preparing</dd>
+          <dd data-mock-show="mu-msg-sendstatus:submitted">Submitted</dd>
+          <dd data-mock-show="mu-msg-sendstatus:sent">Sent</dd>
+          <dd data-mock-show="mu-msg-sendstatus:failed">Failed</dd>
+        </dl>
+        <form method="post" onsubmit="return false" data-mock-show="mu-msg-sendstatus:submitted">
+          <button type="submit" class="btn"><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Reconcile</span></button>
+        </form>
+      </div>
+    </section>
+
+    <form method="post" class="panel section-gap" onsubmit="return false" data-mock-show="mu-msg-correspond:available,mu-msg-compose:reply|reply-all|forward">
+      <div class="panel-head"><h2 data-mock-show="mu-msg-compose:forward">Forward</h2><h2 data-mock-show="mu-msg-compose:reply-all">Reply all</h2><h2 data-mock-show="mu-msg-compose:reply">Reply</h2></div>
+      <div class="panel-body stack">
+        <div class="definition-list"><dl class="definition"><dt>From</dt><dd>claims-intake@collisionengineers.example</dd></dl></div>
+        <div class="field">
+          <label for="corr-case-query">Find a Case</label>
+          <input id="corr-case-query" type="search" maxlength="300" />
+          <span class="field-hint">Search by Case / PO, registration, claimant, claim number, or Principal.</span>
+        </div>
+        <button type="submit" class="btn">Search Cases</button>
+        <div class="field"><label for="corr-case-ref">Case / PO</label><input id="corr-case-ref" type="text" maxlength="100" value="QDOS26214" /></div>
+        <div data-mock-show="mu-msg-compose:forward">
+          <div class="field"><label for="corr-to">To</label><input id="corr-to" type="text" /></div>
+          <div class="field"><label for="corr-cc">Cc</label><input id="corr-cc" type="text" /></div>
+        </div>
+        <div class="definition-list" data-mock-show="mu-msg-compose:reply|reply-all">
+          <dl class="definition"><dt>To</dt><dd>claims@wingroveinsurance.example</dd></dl>
+          <dl class="definition" data-mock-show="mu-msg-compose:reply-all"><dt>Cc</dt><dd>dana.ilford@wingroveinsurance.example</dd></dl>
+        </div>
+        <div class="field"><label for="corr-subject">Subject</label><input id="corr-subject" type="text" value="RE: RE: Instruction — MA59 BDY" /></div>
+        <div class="field"><label for="corr-body">Message</label><textarea id="corr-body" rows="8"></textarea></div>
+        <fieldset class="field"><legend>Attachments</legend>
+          <label><input type="checkbox" /> Instruction_MA59BDY.pdf</label>
+          <label><input type="checkbox" /> Photos.zip</label>
+        </fieldset>
+        <div class="button-row"><button type="submit" class="btn btn--dark"><svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg><span>Send</span></button></div>
+      </div>
+    </form>
+
+    <div data-mock-show="mu-msg-tab:message">
+      <div class="split">
+        <div>
+          <div class="mail-header">
+            <div class="mail-subject">RE: Instruction — MA59 BDY</div>
+            <div class="mail-route">Forwarded by Dana Ilford &lt;dana.ilford@wingroveinsurance.example&gt; · To claims-intake@collisionengineers.example</div>
+          </div>
+          <div class="mail-body">
+            <p>Please find attached our instruction for the above vehicle following a rear-end collision.</p>
+            <p>Claimant contact details are included in the attached instruction form. Let us know if anything else is needed.</p>
+          </div>
+        </div>
+        <aside class="stack">
+          <section class="decision-card">
+            <h2 class="decision-head">Decision</h2>
+            <div class="decision-body">
+              <div class="decision-facts">
+                <div class="decision-row"><span>Classification</span><strong data-mock-show="mu-msg-state:classified">New instruction</strong><strong data-mock-show="mu-msg-state:unclassified">Ambiguous</strong></div>
+                <div class="decision-row"><span>Destination</span><strong><a href="pegasus_case_record_v28.html">QDOS26214</a></strong></div>
+                <div class="decision-row"><span>Filed to</span><strong><a href="pegasus_case_record_v28.html">QDOS26214</a></strong></div>
+                <div class="decision-row" data-mock-show="mu-msg-folder:unconfirmed"><span>Folder</span><strong><span class="status status--amber">Unconfirmed</span></strong></div>
+                <div class="decision-row" data-mock-show="mu-msg-folder:moved"><span>Folder</span><strong>New instruction</strong></div>
+                <div class="decision-row" data-mock-show="mu-msg-folder:recommended"><span>Folder</span><strong class="quiet">New instruction — not moved</strong></div>
+                <div class="decision-row">
+                  <span>Decided</span>
+                  <strong><time>08:43</time>
+                    <span class="provenance" data-word="Automatic" tabindex="0" role="img" aria-label="Automatic" data-mock-show="mu-msg-state:classified"><svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg></span>
+                  </strong>
+                </div>
+              </div>
+              <div class="button-row section-gap" data-mock-show="mu-msg-state:classified">
+                <button class="btn btn--dark" type="button" data-dialog-open="correctClassificationDialog">Correct classification</button>
+                <form method="post" onsubmit="return false" data-mock-show="mu-msg-folder:unconfirmed"><button class="btn" type="submit">Check move status</button></form>
+                <button class="btn" type="button" data-dialog-open="moveFolderDialog" data-mock-show="mu-msg-folder:recommended">Move to New instruction</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="decision-card" data-mock-show="mu-msg-corrections:1">
+            <h2 class="decision-head">Corrections</h2>
+            <div class="decision-body">
+              <div class="timeline">
+                <div class="timeline-item">
+                  <div class="timeline-title">Ambiguous → New instruction</div>
+                  <div class="timeline-meta"><time>08:50</time> · Sam Whitlock</div>
+                  <div class="timeline-text">The automatic read missed the attached instruction form; this is a new instruction.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </div>
+    </div>
+
+    <div data-mock-show="mu-msg-tab:attachments">
+      <div class="table-wrap message-attachments">
+        <table class="table table--compact">
+          <thead><tr><th scope="col">File</th><th scope="col">Type</th><th scope="col">Size</th><th scope="col">Outcome</th><th scope="col"><span class="sr-only">Open</span></th></tr></thead>
+          <tbody>
+            <tr>
+              <td><strong>Instruction_MA59BDY.pdf</strong></td><td>application/pdf</td><td class="tabular">1.2 MB</td>
+              <td><span class="attachment-outcome"><span class="status status--green">Case created</span></span></td>
+              <td class="row-actions"><a class="btn btn--small" href="#" onclick="return false">Open file</a></td>
+            </tr>
+            <tr>
+              <td><strong>Photos.zip</strong></td><td>application/zip</td><td class="tabular">4.6 MB</td>
+              <td><span class="attachment-outcome"><span class="status status--red">Could not be read</span><span class="attachment-reason">The retained file did not match what was received</span></span></td>
+              <td class="row-actions"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div data-mock-show="mu-msg-tab:thread">
+      <div class="empty" data-mock-show="mu-msg-thread:empty"><p>No other message in this conversation is kept here.</p></div>
+      <div data-mock-show="mu-msg-thread:populated">
+        <a class="row-button" href="#" aria-current="page">
+          <span class="row-top"><span class="row-title">Claims — Wingrove Insurance</span><span class="row-time"><time>18 Sep 2026, 08:41</time></span></span>
+          <span class="row-title">RE: Instruction — MA59 BDY</span>
+        </a>
+        <a class="row-button" href="#">
+          <span class="row-top"><span class="row-title">Sam Whitlock</span><span class="row-time"><time>18 Sep 2026, 09:05</time></span></span>
+          <span class="row-title">RE: RE: Instruction — MA59 BDY</span>
+        </a>
+      </div>
+    </div>
+
+    <div data-mock-show="mu-msg-tab:case">
+      <div class="stack" data-mock-show="mu-msg-case:linked">
+        <section class="decision-card">
+          <h2 class="decision-head">Linked case</h2>
+          <div class="decision-body">
+            <div class="definition-list">
+              <dl class="definition"><dt>Case/PO</dt><dd><a href="pegasus_case_record_v28.html">QDOS26214</a></dd></dl>
+              <dl class="definition"><dt>Principal</dt><dd>Wingrove Insurance</dd></dl>
+              <dl class="definition"><dt>Registration</dt><dd>MA59 BDY</dd></dl>
+              <dl class="definition"><dt>Claimant</dt><dd>David Okafor</dd></dl>
+              <dl class="definition"><dt>Claim number</dt><dd>WI-88213</dd></dl>
+              <dl class="definition"><dt>State</dt><dd>Review</dd></dl>
+            </div>
+            <div class="button-row section-gap">
+              <a class="btn btn--dark" href="pegasus_case_record_v28.html"><svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg><span>Open Case</span></a>
+              <button class="btn" type="button" data-dialog-open="unlinkCaseDialog">Unlink</button>
+            </div>
+          </div>
+        </section>
+        <section class="panel" aria-labelledby="case-ai-jobs-title">
+          <div class="panel-head"><h2 id="case-ai-jobs-title">AI Job List</h2></div>
+          <div class="table-wrap">
+            <table>
+              <caption class="sr-only">AI Job List</caption>
+              <thead><tr><th scope="col">Job</th><th scope="col">Created</th><th scope="col">State</th></tr></thead>
+              <tbody>
+                <tr><td>Estimate</td><td><time>17 Sep 2026, 09:12</time></td><td><span class="status status--navy">Draft ready</span></td></tr>
+                <tr><td>Query response</td><td><time>16 Sep 2026, 14:20</time></td><td><span class="status status--neutral">Completed</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+      <div data-mock-show="mu-msg-case:unlinked">
+        <form method="get" class="filter-bar" onsubmit="return false">
+          <div class="field"><label for="assoc-case-query">Case/PO, registration, claimant or claim number</label><input id="assoc-case-query" required /></div>
+          <button class="btn" type="submit">Search</button>
+        </form>
+        <div class="section-gap">
+          <a class="row-button" href="#" aria-current="page">
+            <span class="row-top"><span class="row-title"><strong>QDOS26198</strong></span><span class="row-meta">Review</span></span>
+            <span class="row-excerpt">LM17 GVX · Grace Bellamy</span>
+          </a>
+        </div>
+        <section class="decision-card section-gap">
+          <h2 class="decision-head">Confirm target</h2>
+          <div class="decision-body">
+            <div class="definition-list">
+              <dl class="definition"><dt>Case/PO</dt><dd>QDOS26198</dd></dl>
+              <dl class="definition"><dt>Principal</dt><dd>Wingrove Insurance</dd></dl>
+              <dl class="definition"><dt>Registration</dt><dd>LM17 GVX</dd></dl>
+              <dl class="definition"><dt>Claimant</dt><dd>Grace Bellamy</dd></dl>
+              <dl class="definition"><dt>Claim number</dt><dd>Not recorded</dd></dl>
+              <dl class="definition"><dt>State</dt><dd>Review</dd></dl>
+            </div>
+            <div class="button-row section-gap">
+              <button class="btn btn--dark" type="button" data-dialog-open="linkCaseDialog">Link to this case</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</article>
+
+<div id="correctClassificationDialog" class="dialog-backdrop" data-dialog="correctClassificationDialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="correctClassificationDialog_title">
+    <div class="dialog-head"><h2 id="correctClassificationDialog_title" tabindex="-1">Correct classification</h2></div>
+    <form method="post" onsubmit="return false">
+      <div class="dialog-body stack">
+        <div class="field">
+          <label for="classification-key">Classification</label>
+          <select id="classification-key" data-other-toggle>
+            <option value="">Choose classification</option>
+            <option value="received:General">General</option>
+            <option value="received:Billing">Billing</option>
+            <option value="received:NewInstructionReceived">New instruction</option>
+            <option value="received:NonClientRelated">Not client related</option>
+            <option value="received:InProgressCases">In-progress case</option>
+            <option value="received:PostReportEmails">Post-report</option>
+            <option value="received:PreInstructionEmails">Pre-instruction</option>
+            <option value="received:InternalCc">Internal CC</option>
+            <option value="sent:ReportSent">Sent · Report sent</option>
+            <option value="sent:CaseRejected">Sent · Case rejected</option>
+            <option value="sent:QuerySent">Sent · Query sent</option>
+            <option value="sent:AdditionalImageRequest">Sent · Additional image request</option>
+            <option value="other-received">Other received classification</option>
+            <option value="other-sent">Other sent classification</option>
+          </select>
+        </div>
+        <div class="field" data-other-field hidden><label for="other-name">New category name</label><input id="other-name" maxlength="200" /></div>
+        <div class="field" data-other-field hidden><label for="other-reasoning">Why no existing category fits</label><textarea id="other-reasoning" rows="2" maxlength="1000"></textarea></div>
+        <div class="field"><label class="req" for="correction-reason">Reason for correction</label><textarea id="correction-reason" rows="3" maxlength="500" required></textarea></div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn" data-dialog-close>Cancel</button>
+        <button type="submit" class="btn btn--dark">Save correction</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<div id="moveFolderDialog" class="dialog-backdrop" data-dialog="moveFolderDialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="moveFolderDialog_title">
+    <div class="dialog-head"><h2 id="moveFolderDialog_title" tabindex="-1">Move to New instruction</h2></div>
+    <form method="post" onsubmit="return false">
+      <div class="dialog-body">
+        <div class="definition-list">
+          <dl class="definition"><dt>From</dt><dd>Inbox</dd></dl>
+          <dl class="definition"><dt>To</dt><dd>New instruction</dd></dl>
+        </div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn" data-dialog-close>Cancel</button>
+        <button type="submit" class="btn btn--dark">Move</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<div id="unlinkCaseDialog" class="dialog-backdrop" data-dialog="unlinkCaseDialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="unlinkCaseDialog_title">
+    <div class="dialog-head"><h2 id="unlinkCaseDialog_title" tabindex="-1">Unlink from QDOS26214</h2>
+      <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+    <form method="post" onsubmit="return false">
+      <div class="dialog-body stack">
+        <div class="notice notice--warning"><svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg><span>Unlinking this email cancels case QDOS26214.</span></div>
+        <div class="field"><label class="req" for="unlink-reason">Reason for action</label><textarea id="unlink-reason" rows="3" required maxlength="500"></textarea></div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn" data-dialog-close>Cancel</button>
+        <button type="submit" class="btn btn--primary">Confirm Action</button>
+      </div>
+    </form>
+  </section>
+</div>
+
+<div id="linkCaseDialog" class="dialog-backdrop" data-dialog="linkCaseDialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="linkCaseDialog_title">
+    <div class="dialog-head"><h2 id="linkCaseDialog_title" tabindex="-1">Link to QDOS26198</h2>
+      <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+    <form method="post" onsubmit="return false">
+      <div class="dialog-body stack">
+        <div class="field"><label class="req" for="link-reason">Reason for action</label><textarea id="link-reason" rows="3" required maxlength="500"></textarea></div>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn" data-dialog-close>Cancel</button>
+        <button type="submit" class="btn btn--primary">Confirm Action</button>
+      </div>
+    </form>
+  </section>
+</div>
+</div>
+
+<!-- ---- Compose (Mail/Compose.cshtml via Shared/_ComposeForm.cshtml) ---- -->
+<div data-mock-show="mu-mail-view:compose">
+<div class="mail-compose-standalone">
+  <section class="mail-compose-dialog dialog" role="dialog" aria-modal="true" aria-labelledby="mail-compose-title" tabindex="-1">
+    <header class="dialog-head">
+      <div><p class="eyebrow">Inbox</p><h1 id="mail-compose-title">Compose</h1></div>
+      <a class="dialog-close" href="#list" aria-label="Close composer" onclick="window.MOCK.setState('mu-mail-view','list');return false"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></a>
+    </header>
+    <div class="dialog-body mail-compose-body">
+      <div class="notice notice--success" role="status" data-mock-show="mu-compose-notice:1"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span>The message was sent.</span></div>
+      <div class="validation-summary" hidden></div>
+
+      <section class="mail-compose-status" aria-labelledby="mail-compose-status-title" data-mock-show="mu-compose-status:resolved|unresolved">
+        <h2 id="mail-compose-status-title">Send status</h2>
+        <p data-mock-show="mu-compose-status:resolved">Sent</p>
+        <p data-mock-show="mu-compose-status:unresolved">Submitted</p>
+        <div data-mock-show="mu-compose-status:unresolved">
+          <p class="field-hint">Confirm the provider outcome before starting another message.</p>
+          <form method="post" onsubmit="return false"><button type="submit" class="btn"><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Reconcile</span></button></form>
+        </div>
+      </section>
+
+      <div data-mock-show="mu-compose-state:form">
+        <form method="post" class="mail-compose-form" onsubmit="return false" data-mock-show="mu-compose-status:none|resolved">
+          <div class="mail-compose-form-fields">
+            <div class="mail-compose-case-search">
+              <div class="field"><label for="compose-case-query">Find a Case</label><input id="compose-case-query" type="search" maxlength="300" /></div>
+              <button type="submit" class="btn">Search</button>
+            </div>
+            <ul class="search-results" data-mock-show="mu-compose-results:1">
+              <li><button type="submit" class="btn">QDOS26214 · MA59 BDY · David Okafor</button></li>
+              <li><button type="submit" class="btn">QDOS26198 · LM17 GVX · Grace Bellamy</button></li>
+            </ul>
+            <div class="field mail-compose-case-reference"><label for="compose-case-ref">Case / PO</label><input id="compose-case-ref" type="text" maxlength="100" /></div>
+            <div class="mail-compose-addresses">
+              <div class="field mail-compose-from"><label>From</label><input value="claims-intake@collisionengineers.example" readonly aria-label="From" /></div>
+              <div class="field mail-compose-to"><label for="compose-to">To</label><input id="compose-to" type="text" /></div>
+              <div class="field mail-compose-cc"><label for="compose-cc">Cc</label><input id="compose-cc" type="text" /></div>
+            </div>
+            <div class="field mail-compose-subject"><label for="compose-subject">Subject</label><input id="compose-subject" type="text" /></div>
+            <div class="field mail-compose-message"><label for="compose-body">Message</label><textarea id="compose-body" rows="6"></textarea></div>
+            <fieldset class="field mail-compose-attachments" data-mock-show="mu-compose-attachments:1">
+              <legend>Attachments</legend>
+              <label><input type="checkbox" /> Instruction_MA59BDY.pdf</label>
+            </fieldset>
+          </div>
+          <footer class="mail-compose-footer" data-mock-show="mu-compose-status:none|resolved">
+            <button type="submit" class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg><span>Send</span></button>
+          </footer>
+        </form>
+      </div>
+      <div class="notice" role="status" data-mock-show="mu-compose-state:unavailable">Correspondence is not available from this workstation.</div>
+      <div class="notice" role="status" data-mock-show="mu-compose-state:no-default-mailbox">No default approved mailbox is configured for correspondence.</div>
+    </div>
+  </section>
+</div>
+</div>
+</div>
+
+<!-- ===================== Upload (src/Pegasus.Web/Pages/Upload.cshtml, UploadStatus.cshtml, UploadGroupStatus.cshtml, Shared/_UploadOutcome.cshtml) ===================== -->
+<div data-mock-show="mu-area:upload">
+
+<!-- ---- Upload form (Upload.cshtml) ---- -->
+<div data-mock-show="mu-upload-view:idle">
+<header class="page-header"><div class="page-title"><h1>Upload</h1></div></header>
+<section class="panel">
+  <div class="panel-body">
+    <form method="post" enctype="multipart/form-data" onsubmit="return false">
+      <div class="validation-summary" role="alert" data-mock-show="mu-upload-error:1">
+        <h2 class="validation-summary__heading"><svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg><span>Please correct the following errors:</span></h2>
+        <ul class="validation-summary__list"><li>You selected 6 files. Submit 5 or fewer at a time.</li></ul>
+      </div>
+      <div class="dropzone">
+        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+        <div>
+          <h2><label for="upload-input">Drag files here or choose files</label></h2>
+          <p>EML, MSG, PDF, DOC, DOCX, JPG, PNG, MP4 or MOV · up to 25.0 MB each · 5 files</p>
+          <button type="button" class="btn btn--dark" data-mock-show="mu-upload-idle:empty">Choose files</button>
+          <input id="upload-input" type="file" multiple />
+        </div>
+      </div>
+      <div class="file-list section-gap" role="status" aria-live="polite" data-mock-show="mu-upload-idle:chosen">
+        <div class="file-row"><span><svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg></span><span>Instruction_MA59BDY.pdf<span class="muted"> · 1.2 MB</span></span></div>
+        <div class="file-row"><span><svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg></span><span>Photos.zip<span class="muted"> · 4.6 MB</span></span></div>
+      </div>
+      <span class="field-error" data-mock-show="mu-upload-error:1">That file is empty.</span>
+      <div class="button-row section-gap">
+        <button type="submit" class="btn btn--primary">Upload</button>
+        <button type="reset" class="btn">Clear</button>
+      </div>
+    </form>
+  </div>
+</section>
+</div>
+
+<!-- ---- One file's status (UploadStatus.cshtml) ---- -->
+<div data-mock-show="mu-upload-view:status">
+<header class="page-header">
+  <div class="page-title"><p class="eyebrow">Upload status</p>
+    <h1 data-mock-show="mu-status-state:received">Received</h1>
+    <h1 data-mock-show="mu-status-state:processing">Processing</h1>
+    <h1 data-mock-show="mu-status-state:complete-attached|complete-imagecase-awaiting|complete-imagecase-final|complete-needsreview|complete-resolved|complete-possiblematch|complete-readytocreate|complete-cannotbecomecase">Complete</h1>
+    <h1 data-mock-show="mu-status-state:failed">Failed</h1>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="#"><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Refresh</span></a>
+    <a class="btn btn--primary" href="#upload" onclick="window.MOCK.setState('mu-upload-view','idle');return false"><svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg><span>Upload another file</span></a>
+  </div>
+</header>
+<section class="panel" aria-labelledby="upload-file-heading">
+  <div class="panel-head"><h2 id="upload-file-heading">Instruction_MA59BDY.pdf</h2></div>
+  <div class="panel-body">
+    <dl class="definition-list">
+      <div class="definition"><dt>Received</dt><dd>18 Sep 2026, 09:02</dd></div>
+      <div class="definition" data-mock-show="mu-status-duplicate:1"><dt>Duplicate</dt><dd>Already received</dd></div>
+      <div class="definition" data-mock-show="mu-status-state:failed"><dt>Reason</dt><dd>Processing failed for a technical reason</dd></div>
+    </dl>
+
+    <div class="upload-outcome section-gap" data-mock-show="mu-status-state:complete-attached">
+      <span class="status status--green">Success</span>
+      <p>This was automatically associated with case QDOS26214.</p>
+      <div class="button-row"><a class="btn btn--primary btn--small" href="pegasus_case_record_v28.html">Open case</a></div>
+    </div>
+
+    <a class="upload-thumb section-gap" href="#" data-mock-show="mu-status-state:complete-imagecase-awaiting|complete-imagecase-final">
+      <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBTAA7" alt="MA59BDY-01" />
+    </a>
+    <div class="upload-outcome section-gap" data-mock-show="mu-status-state:complete-imagecase-awaiting">
+      <span class="status status--green">Success</span>
+      <p>This was registered as a new vehicle-image case, MA59BDY-01. A staff member can explicitly add it to an existing case.</p>
+      <div class="button-row"><a class="btn btn--primary btn--small" href="#">View</a></div>
+      <details class="upload-attach" data-refresh-hold open>
+        <summary class="btn btn--small">Add to an existing case</summary>
+        <form method="post" onsubmit="return false" class="upload-attach__form">
+          <div class="field"><span class="field-label">Possible existing case</span><div class="button-row"><button type="button" class="btn btn--small">QDOS26198</button></div></div>
+          <div class="field"><label for="attach-case-input">Case</label><input id="attach-case-input" type="text" maxlength="60" /></div>
+          <div class="button-row"><button type="submit" class="btn btn--primary btn--small">Add to this case</button></div>
+        </form>
+      </details>
+    </div>
+    <div class="upload-outcome section-gap" data-mock-show="mu-status-state:complete-imagecase-final">
+      <span class="status status--green">Success</span>
+      <p>This was registered as a new vehicle-image case, MA59BDY-01.</p>
+    </div>
+
+    <div class="upload-outcome section-gap" data-mock-show="mu-status-state:complete-needsreview">
+      <span class="status status--amber">Unidentified</span>
+      <p>This could not be matched automatically and needs a staff decision.</p>
+      <div class="button-row"><a class="btn btn--primary btn--small" href="#">Review</a></div>
+    </div>
+
+    <div class="upload-outcome section-gap" data-mock-show="mu-status-state:complete-resolved">
+      <span class="status status--neutral">Resolved Unidentified</span>
+      <p>This was resolved to QDOS26177.</p>
+      <div class="button-row"><a class="btn btn--primary btn--small" href="#">View</a></div>
+    </div>
+
+    <div class="upload-outcome section-gap" data-mock-show="mu-status-state:complete-possiblematch">
+      <span class="status status--amber">Pending</span>
+      <p>Choose a case destination. Select a viable existing case and confirm it, or search for a different existing case.</p>
+      <details class="upload-attach" data-refresh-hold>
+        <summary class="btn btn--small">Add to an existing case</summary>
+        <form method="post" onsubmit="return false" class="upload-attach__form">
+          <div class="field"><label for="pm-case-input">Case</label><input id="pm-case-input" type="text" maxlength="60" /></div>
+          <div class="button-row"><button type="submit" class="btn btn--primary btn--small">Add to this case</button></div>
+        </form>
+      </details>
+    </div>
+
+    <div class="upload-outcome section-gap" data-mock-show="mu-status-state:complete-readytocreate">
+      <span class="status status--amber">Pending</span>
+      <p>Choose a case destination. No viable existing case was found, so you can create a new case from the extracted details.</p>
+      <div class="button-row"><a class="btn btn--primary btn--small" href="pegasus_case_record_v28.html">Create a case</a></div>
+      <details class="upload-attach" data-refresh-hold>
+        <summary class="btn btn--small">Add to an existing case</summary>
+        <form method="post" onsubmit="return false" class="upload-attach__form">
+          <div class="field"><label for="rtc-case-input">Case</label><input id="rtc-case-input" type="text" maxlength="60" /></div>
+          <div class="button-row"><button type="submit" class="btn btn--primary btn--small">Add to this case</button></div>
+        </form>
+      </details>
+    </div>
+
+    <div class="upload-outcome section-gap" data-mock-show="mu-status-state:complete-cannotbecomecase">
+      <span class="status status--red">Failed</span>
+      <p>This item was blocked, with the reason recorded. It cannot become a case until it is corrected on the received item.</p>
+      <div class="button-row"><a class="btn btn--primary btn--small" href="#">Open file</a></div>
+    </div>
+
+    <div class="upload-outcome section-gap" data-mock-show="mu-status-state:failed">
+      <span class="status status--red">Failed</span>
+      <p>Processing failed for a technical reason.</p>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- ---- Batch status (UploadGroupStatus.cshtml) ---- -->
+<div data-mock-show="mu-upload-view:group-status">
+<header class="page-header">
+  <div class="page-title"><p class="eyebrow">Upload status</p><h1>Upload received</h1></div>
+  <div class="page-actions"><a class="btn btn--primary" href="#upload" onclick="window.MOCK.setState('mu-upload-view','idle');return false"><svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg><span>Upload another file</span></a></div>
+</header>
+<div class="stack">
+  <section class="panel" aria-labelledby="upload-decision-title" data-mock-show="mu-group-state:decided-attached|decided-vehicleimages|decided-unidentified">
+    <div class="panel-head"><h2 id="upload-decision-title">This upload</h2><span class="meta">One group</span></div>
+    <div class="panel-body stack">
+      <div class="notice notice--success" role="status" data-mock-show="mu-group-state:decided-attached">
+        <span><strong>Attached to a Case</strong> · This was automatically associated with case QDOS26214.</span>
+      </div>
+      <div class="notice notice--success" role="status" data-mock-show="mu-group-state:decided-vehicleimages">
+        <span><strong>Registered as vehicle images</strong> · This was registered as a new vehicle-image case, MA59BDY-01.</span>
+      </div>
+      <div class="notice notice--warning" role="status" data-mock-show="mu-group-state:decided-unidentified">
+        <span><strong>Unidentified</strong> · This could not be matched automatically and needs a staff decision.</span>
+      </div>
+      <dl class="definition-list definition-list--compact">
+        <div class="definition"><dt>Files</dt><dd>3</dd></div>
+        <div class="definition" data-mock-show="mu-group-state:decided-unidentified"><dt>Could not be read</dt><dd>1 of 3</dd></div>
+      </dl>
+      <div class="button-row">
+        <a class="btn btn--dark" href="pegasus_case_record_v28.html" data-mock-show="mu-group-state:decided-attached">Open case</a>
+        <a class="btn btn--dark" href="#" data-mock-show="mu-group-state:decided-vehicleimages">View</a>
+        <a class="btn btn--dark" href="#" data-mock-show="mu-group-state:decided-unidentified">Review</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="group-discarded-title" data-mock-show="mu-group-state:discarded">
+    <div class="panel-head"><h2 id="group-discarded-title">Submission discarded</h2></div>
+    <div class="panel-body"><p>This submission was discarded. Its retained source and processing record remain available.</p></div>
+  </section>
+
+  <section class="panel" aria-labelledby="group-discard-title" data-refresh-hold data-mock-show="mu-group-state:can-discard">
+    <div class="panel-head"><h2 id="group-discard-title">Discard this submission</h2></div>
+    <div class="panel-body stack">
+      <p>Discard every file in this upload. The retained source and processing record are kept.</p>
+      <form method="post" onsubmit="return false" class="stack">
+        <div class="field"><input id="group-discard-confirmation" type="checkbox" required /><label for="group-discard-confirmation">I understand that this discards every file in the submission while retaining its source and processing record.</label></div>
+        <div class="button-row"><button type="submit" class="btn btn--ghost">Discard submission</button></div>
+      </form>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="group-decision-title" data-refresh-hold data-mock-show="mu-group-state:open-decision-registration|open-decision-attach">
+    <div class="panel-head"><h2 id="group-decision-title">This submission</h2></div>
+    <div class="panel-body stack">
+      <form method="post" onsubmit="return false" class="stack" data-mock-show="mu-group-state:open-decision-registration">
+        <div class="field"><label for="group-registration">Vehicle registration</label><input id="group-registration" type="text" maxlength="20" required autocomplete="off" spellcheck="false" /></div>
+        <div class="field"><label for="group-registration-reason">Reason</label><input id="group-registration-reason" maxlength="500" required /></div>
+        <div class="button-row"><button type="submit" class="btn btn--primary">Create a vehicle-image case</button></div>
+      </form>
+      <details class="upload-attach" data-refresh-hold open>
+        <summary class="btn">Add to an existing case</summary>
+        <form method="post" onsubmit="return false" class="upload-attach__form">
+          <div class="field" data-mock-show="mu-group-state:open-decision-attach">
+            <span class="field-label">Possible existing cases</span>
+            <div class="button-row"><button type="button" class="btn btn--small">QDOS26214</button><button type="button" class="btn btn--small">QDOS26198</button></div>
+          </div>
+          <div class="field"><label for="group-attach-input">Case</label><input id="group-attach-input" type="text" maxlength="60" required autocomplete="off" spellcheck="false" /></div>
+          <div class="button-row"><button type="submit" class="btn">Add the submission to this case</button></div>
+        </form>
+      </details>
+      <div class="button-row"><a class="btn btn--ghost" href="#upload" onclick="window.MOCK.setState('mu-upload-view','idle');return false">Cancel</a></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="group-status-title">
+    <div class="panel-head"><h2 id="group-status-title">Files in this submission</h2></div>
+    <div class="panel-body">
+      <div class="upload-outcome section-gap" data-mock-show="mu-group-state:decided-vehicleimages">
+        <span class="status status--green">Success</span>
+        <p>This was registered as a new vehicle-image case, MA59BDY-01.</p>
+      </div>
+      <div class="file-list section-gap">
+        <div class="file-row">
+          <span><svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg></span>
+          <span data-mock-show="mu-group-state:decided-attached|decided-vehicleimages|decided-unidentified|discarded|can-discard"><strong>Instruction_MA59BDY.pdf</strong></span>
+          <span data-mock-show="mu-group-state:open-decision-registration|open-decision-attach"><strong><a href="#">Instruction_MA59BDY.pdf</a></strong></span>
+          <span data-mock-show="mu-group-state:decided-attached">
+            <div class="button-row"><a class="btn btn--small" href="pegasus_case_record_v28.html">Open case</a></div>
+          </span>
+          <span></span>
+        </div>
+        <div class="file-row">
+          <span><svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg></span>
+          <span><strong>Photo_front.jpg</strong></span>
+          <span></span>
+          <span data-mock-show="mu-group-state:open-decision-registration|open-decision-attach"><span class="status status--neutral">Processing</span></span>
+        </div>
+        <div class="file-row">
+          <span><svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg></span>
+          <span><strong>Photo_side.jpg</strong></span>
+          <span></span>
+          <span><span class="status status--red">Could not be read</span></span>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</div>
+</div>
