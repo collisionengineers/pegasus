@@ -191,11 +191,10 @@ Cases, references and routes by typing and opens the selection.
 
 A shortcut never bypasses a reason, confirmation or gate.
 
-One accepted exception to keyboard parity exists: the Case record's
-whole-page raw-estimate drop is pointer-only
-([FRD-16](frd-16-case-record-workspace.md#assessment)). It is a real gap: a
-keyboard-only operator cannot import a raw estimate file. Every other staff
-action on the Case record is keyboard-reachable.
+Estimate import follows keyboard parity: the Estimate section provides a
+keyboard-accessible **Import** action that opens the native file picker. File
+drag and drop is also scoped to that section and uses the same import path
+([FRD-16](frd-16-case-record-workspace.md#assessment)).
 
 ### Breakpoints
 

@@ -70,10 +70,16 @@ public sealed class CaseEngineerSectionsWebTests
         if (!AssessmentPolicy.IsWritableState(state))
         {
             Assert.DoesNotContain("New estimate", html, StringComparison.Ordinal);
-            Assert.DoesNotContain("Import estimate", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("id=\"case-estimate-import-form\"", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Save estimate", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Send to Claude", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Generate report draft", html, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.Contains("id=\"case-estimate-import-form\"", html, StringComparison.Ordinal);
+            Assert.Contains("Import estimate", html, StringComparison.Ordinal);
+            Assert.Contains("handler=ImportEstimate", html, StringComparison.Ordinal);
         }
     }
 
@@ -119,6 +125,7 @@ public sealed class CaseEngineerSectionsWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("id=\"section-estimate\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"case-estimate-import-form\"", html, StringComparison.Ordinal);
     }
 
     private sealed class EngineerSectionSource :

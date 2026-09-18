@@ -79,6 +79,24 @@
 /* An empty value reads as the absent word, never in the figure face. */
 .case-record .fc .fv.empty.mono{font-family:var(--font)}
 
+/* Estimate import: the panel itself is the generous drop surface. The
+   temporary layer echoes the shared upload zone and stays out of layout. */
+#section-estimate[data-estimate-drop-target]{position:relative}
+#section-estimate .estimate-import-drop-overlay{position:absolute;inset:0;z-index:5;display:grid;place-items:center;padding:18px;pointer-events:none;background:rgba(248,249,249,.88)}
+#section-estimate .estimate-import-drop-overlay[hidden]{display:none}
+#section-estimate .estimate-import-drop-card{display:grid;justify-items:center;gap:6px;width:min(100%,520px);padding:24px;border:2px dashed #aeb8bd;border-radius:8px;background:var(--surface);box-shadow:0 8px 22px rgba(20,30,35,.08);text-align:center}
+#section-estimate .estimate-import-drop-card>.icon{width:45px;height:45px;padding:10px;color:var(--red);border:1px solid #e2c0c2;border-radius:12px;background:rgba(255,244,244,.92)}
+#section-estimate .estimate-import-drop-card strong{font-size:17px}
+#section-estimate .estimate-import-drop-card span{max-width:470px;color:var(--muted);font-size:11px}
+#section-estimate.is-dragover .estimate-import-drop-card{border-color:var(--red);background:#fff5f3}
+#section-estimate.is-import-unavailable .estimate-import-drop-card{border-style:solid;border-color:var(--line-strong);background:var(--surface-2);color:var(--muted)}
+#section-estimate .estimate-import-control{display:flex;align-items:center;gap:6px}
+#section-estimate .estimate-import-fallback{display:grid;gap:4px}
+#section-estimate .estimate-import-picker[hidden],#section-estimate .estimate-import-fallback[hidden]{display:none}
+#section-estimate .estimate-import-status{font-size:11px;color:var(--muted)}
+#section-estimate[data-estimate-importing="true"] .estimate-import-picker{opacity:.65}
+#section-estimate[data-estimate-importing="true"] .estimate-import-drop-card{border-style:solid;border-color:var(--line-strong);background:var(--surface-2);color:var(--muted)}
+
 
 /* ==== vehicle ==== */
 /* ---- Inspection details and Vehicle (lane A) ---- */

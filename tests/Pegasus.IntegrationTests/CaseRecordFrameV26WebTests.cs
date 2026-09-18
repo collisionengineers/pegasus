@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
@@ -326,6 +327,15 @@ public sealed class CaseRecordFrameV26WebTests
         Assert.Equal(store.LeaseToken, saved.EditLeaseToken);
         Assert.Equal("Handler prefers e-mail.", saved.Overview!.PrincipalNotes);
         Assert.Equal("Quote the claim source's reference.", saved.Overview.ClaimSourceNotes);
+        var savedHtml = await GetHtmlAsync(workspace.Client, response.Headers.Location!.OriginalString);
+        var commitAttribute = Regex.Match(savedHtml,
+            "data-editor-commit=\"(?<value>[^\"]*)\"", RegexOptions.CultureInvariant);
+        Assert.True(commitAttribute.Success, "The Case frame should return its confirmed Save acknowledgement.");
+        using var commit = JsonDocument.Parse(WebUtility.HtmlDecode(commitAttribute.Groups["value"].Value));
+        Assert.Equal("case-edit-form", commit.RootElement.GetProperty("editor").GetString());
+        Assert.Equal(DetailsModelOperationKey, commit.RootElement.GetProperty("operationKey").GetString());
+        Assert.Equal(store.CaseVersion, commit.RootElement.GetProperty("expectedVersion").GetInt64());
+        Assert.Equal(store.CaseVersion + 1, commit.RootElement.GetProperty("version").GetInt64());
     }
 
     /// <summary>
