@@ -31,9 +31,8 @@ internal sealed class EfCaseArtifactCustody(
         CancellationToken cancellationToken)
     {
         Validate(request);
-        await RequireRetainAuthorizationAsync(request, cancellationToken);
+        RequireRetainAuthorization(request);
         await using var staged = await StageVerifiedAsync(request, cancellationToken);
-        await RequireRetainAuthorizationAsync(request, cancellationToken);
         staged.Position = 0;
         var retained = await quarantineArtifactStore.StoreStreamAsync(
             staged, request.ContentLength, cancellationToken);
@@ -48,54 +47,14 @@ internal sealed class EfCaseArtifactCustody(
             : await RetainHoldingAsync(request, staged, cancellationToken);
     }
 
-    private async Task RequireRetainAuthorizationAsync(
-        CaseArtifactCustodyRequest request,
-        CancellationToken cancellationToken)
+    private static void RequireRetainAuthorization(CaseArtifactCustodyRequest request)
     {
-        switch (request.Actor.Kind)
+        if (request.Actor.Kind == ActorKind.SystemWorker)
         {
-            case ActorKind.Staff:
-            case ActorKind.Automation:
-                StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
-                return;
-            case ActorKind.SystemWorker:
-                StaffAuthorization.Require(request.Actor, StaffAccessRight.ExecuteSystemWork);
-                return;
-            case ActorKind.RequestLink:
-                StaffAuthorization.Require(request.Actor, StaffAccessRight.SubmitRequestUpload);
-                if (request.CaseId is not { } caseId
-                    || !Guid.TryParse(request.Actor.SubjectId, out var requestLinkId)
-                    || requestLinkId == Guid.Empty)
-                {
-                    throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
-                }
-                await using (var db = await dbContextFactory.CreateDbContextAsync(cancellationToken))
-                {
-                    await RequireRequestLinkAuthorityAsync(
-                        db, requestLinkId, caseId, cancellationToken);
-                }
-                return;
-            default:
-                throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
+            StaffAuthorization.Require(request.Actor, StaffAccessRight.ExecuteSystemWork);
+            return;
         }
-    }
-
-    private async Task RequireRequestLinkAuthorityAsync(
-        PegasusDbContext db,
-        Guid requestLinkId,
-        Guid caseId,
-        CancellationToken cancellationToken)
-    {
-        var nowUtc = timeProvider.GetUtcNow();
-        var authorized = await db.Set<RequestUploadLinkEntity>().AsNoTracking()
-            .AnyAsync(value => value.Id == requestLinkId
-                && value.CaseId == caseId
-                && value.Status == RequestUploadStatus.Active
-                && value.RevokedAtUtc == null
-                && value.ExpiresAtUtc > nowUtc,
-                cancellationToken);
-        if (!authorized)
-            throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
     }
 
     public async Task<CaseArtifactCustodyResult> GetAsync(
@@ -112,11 +71,7 @@ internal sealed class EfCaseArtifactCustody(
             throw new ArgumentException("Complete Case artifact identities are required.");
         }
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var requestLinkId = RequireStatusActor(actor);
-        var requestLinkCreator = requestLinkId is { } linkId
-            ? $"{ActorKind.RequestLink}:{linkId:D}"
-            : null;
-        var nowUtc = timeProvider.GetUtcNow();
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         var version = await (
             from document in db.Set<CaseDocumentEntity>().AsNoTracking()
             join item in db.Set<DocumentVersionEntity>().AsNoTracking()
@@ -130,25 +85,10 @@ internal sealed class EfCaseArtifactCustody(
                 && occurrence.CaseId == caseId
                 && occurrence.DocumentId == documentId
                 && !item.IsLogicallyRemoved
-                && (requestLinkCreator == null
-                    || item.CreatedBy == requestLinkCreator
-                    && db.Set<RequestUploadLinkEntity>().Any(link =>
-                        link.Id == requestLinkId
-                        && link.CaseId == caseId
-                        && link.Status == RequestUploadStatus.Active
-                        && link.RevokedAtUtc == null
-                        && link.ExpiresAtUtc > nowUtc))
             select new { Version = item, OccurrenceId = occurrence.Id })
             .SingleOrDefaultAsync(cancellationToken);
         if (version is null)
         {
-            if (requestLinkId is { } missingRequestLinkId)
-            {
-                // This query classifies a miss only. Successful disclosure above
-                // is authorized atomically in the statement that returns the row.
-                await RequireRequestLinkAuthorityAsync(
-                    db, missingRequestLinkId, caseId, cancellationToken);
-            }
             throw new FileNotFoundException("The authorized Case artifact version is unavailable.");
         }
         return Status(version.Version, version.OccurrenceId);
@@ -165,11 +105,7 @@ internal sealed class EfCaseArtifactCustody(
             throw new ArgumentException("A Case and custody operation key are required.");
         }
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var requestLinkId = RequireStatusActor(actor);
-        var requestLinkCreator = requestLinkId is { } linkId
-            ? $"{ActorKind.RequestLink}:{linkId:D}"
-            : null;
-        var nowUtc = timeProvider.GetUtcNow();
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         var version = await (
             from occurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
             join document in db.Set<CaseDocumentEntity>().AsNoTracking()
@@ -181,41 +117,13 @@ internal sealed class EfCaseArtifactCustody(
                 && document.CaseId == caseId
                 && item.DocumentId == document.Id
                 && !item.IsLogicallyRemoved
-                && (requestLinkCreator == null
-                    || item.CreatedBy == requestLinkCreator
-                    && db.Set<RequestUploadLinkEntity>().Any(link =>
-                        link.Id == requestLinkId
-                        && link.CaseId == caseId
-                        && link.Status == RequestUploadStatus.Active
-                        && link.RevokedAtUtc == null
-                        && link.ExpiresAtUtc > nowUtc))
             select new { Version = item, OccurrenceId = occurrence.Id })
             .SingleOrDefaultAsync(cancellationToken);
         if (version is not null)
         {
             return Status(version.Version, version.OccurrenceId);
         }
-        if (requestLinkId is { } missingRequestLinkId)
-        {
-            await RequireRequestLinkAuthorityAsync(
-                db, missingRequestLinkId, caseId, cancellationToken);
-        }
         return null;
-    }
-
-    private static Guid? RequireStatusActor(ActionActor actor)
-    {
-        if (actor.Kind != ActorKind.RequestLink)
-        {
-            StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-            return null;
-        }
-        StaffAuthorization.Require(actor, StaffAccessRight.SubmitRequestUpload);
-        if (!Guid.TryParse(actor.SubjectId, out var requestLinkId) || requestLinkId == Guid.Empty)
-        {
-            throw new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload);
-        }
-        return requestLinkId;
     }
 
     private static CaseArtifactCustodyResult Status(DocumentVersionEntity version, Guid occurrenceId) =>
@@ -235,16 +143,10 @@ internal sealed class EfCaseArtifactCustody(
         CancellationToken cancellationToken)
     {
         await using var db = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        await using var initialWriteTransaction = request.Actor.Kind == ActorKind.RequestLink
-            || request.IsAutomaticIntakeEvidencePromotion
+        await using var initialWriteTransaction = request.IsAutomaticIntakeEvidencePromotion
             ? await db.Database.BeginTransactionAsync(
                 System.Data.IsolationLevel.Serializable, cancellationToken)
             : null;
-        if (request.Actor.Kind == ActorKind.RequestLink)
-        {
-            await RequireRequestLinkAuthorityAsync(
-                db, Guid.Parse(request.Actor.SubjectId), caseId, cancellationToken);
-        }
         var existing = await (
             from persistedOccurrence in db.Set<DocumentOccurrenceEntity>().AsNoTracking()
             join persistedVersion in db.Set<DocumentVersionEntity>().AsNoTracking()

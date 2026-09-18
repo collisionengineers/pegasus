@@ -13,7 +13,7 @@ using Pegasus.Core.Workflow;
 
 namespace Pegasus.IntegrationTests;
 
-/// <summary>ENG-034: the Engineer workbench is part of every Case render.</summary>
+/// <summary>The Engineer workbench is part of every Case render.</summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseEngineerSectionsWebTests
 {
@@ -78,7 +78,7 @@ public sealed class CaseEngineerSectionsWebTests
     }
 
     /// <summary>
-    /// ENG-034 review R1: GET ?estimate=new must not depend on either the
+    /// GET ?estimate=new must not depend on either the
     /// actor being an Engineer or the assessment being open to render the
     /// (read-only) editor panel.
     /// </summary>
@@ -180,7 +180,6 @@ public sealed class CaseEngineerSectionsWebTests
                 [],
                 null,
                 CaseCustodyState.Pending,
-                [],
                 [],
                 [])
             {

@@ -16,7 +16,7 @@ public sealed class CaseWorkspaceTests
     [Fact]
     public void PostedReadinessIsNotPartOfTheWorkspacePayload()
     {
-        // CASE-046: the Case save carries the two factual controls and nothing
+        // The Case save carries the two factual controls and nothing
         // that claims what they mean. There is no member on the request, on the
         // completeness section, or anywhere it composes, that a client could
         // use to assert the case is ready for Review.
@@ -83,7 +83,7 @@ public sealed class CaseWorkspaceTests
     [Fact]
     public void TheWorkspaceRefusesTheAcceptedEngineerValuePath()
     {
-        // AUTO-015: adopting the Engineer's value is the valuation Apply
+        // Adopting the Engineer's value is the valuation Apply
         // command's act, which records the suggested and the chosen amount
         // together. A Case save can neither record nor clear it.
         var record = Assert.Throws<InvalidOperationException>(() =>
@@ -180,7 +180,7 @@ public sealed class CaseWorkspaceTests
     [Fact]
     public void RepeatedDisplayUnitTogglesNeverReconvertTheStoredOdometer()
     {
-        // INTK-026: the recorded reading and its unit are the original, and a
+        // The recorded reading and its unit are the original, and a
         // display in the other unit is computed from that original every time.
         // Toggling the display is therefore idempotent — it can never feed a
         // rounded display back in as a new reading.

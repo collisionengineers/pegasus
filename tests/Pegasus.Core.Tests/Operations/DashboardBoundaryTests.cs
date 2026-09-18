@@ -512,28 +512,16 @@ public sealed class DashboardBoundaryTests
 
     private static RequestOperationProjection NewExternalWork(bool canRetry) => new(
         Guid.NewGuid(),
-        RequestOperationKind.ExternalWork,
         RequestOperationState.Failed,
         Guid.NewGuid(),
         "C/2026/009",
         "QDOS",
         NowUtc,
-        ExpiresAtUtc: null,
-        Version: 1,
-        AcceptedFileCount: null,
-        AcceptedByteCount: null,
-        MaximumFileCount: null,
-        MaximumByteCount: null,
-        LimitsVersion: null,
         ExternalKind: "document_custody",
         AttemptCount: 2,
         FailureCode: "custody_failed",
         FailureReason: "The document could not be placed in accepted Case custody.",
-        canRetry,
-        CanRevoke: false,
-        CaseVersion: 1,
-        RequestCaseEditLeaseState.Available,
-        CaseEditLeaseExpiresAtUtc: null);
+        canRetry);
 
     private sealed class RecordingDashboardQueries : IDashboardQueries
     {

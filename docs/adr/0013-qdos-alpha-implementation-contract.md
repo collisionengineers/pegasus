@@ -5,7 +5,7 @@ date: 2026-07-30
 supersedes: []
 superseded_by: [ADR-0029]
 related_capabilities: []
-related_frd: [frd-01, frd-02, frd-06, frd-07, frd-08, frd-12]
+related_frd: [frd-01, frd-02, frd-23, frd-06, frd-07, frd-08, frd-12]
 tags: [qdos, contract]
 ---
 # ADR-0013: QDOS alpha implementation contract
@@ -87,10 +87,12 @@ removed clause maps to its owner:
   three-digit-minimum Case/PO sequence that expands without a fixed ceiling and
   never wraps or reuses a value (clause 7).
 - [FRD-02 — Intake and source identity](../frd/frd-02-intake-and-source-identity.md):
-  image-led material remaining a pre-Case Image intake (clause 1); the global
-  vehicle identity/specification, vehicle-history/risk, and market-valuation
-  progression gates (clause 2); and staff-initiated Box custody recovery with no
-  automatic business retry (clause 5).
+  image-led material remaining a pre-Case Image intake (clause 1); and
+  staff-initiated Box custody recovery with no automatic business retry
+  (clause 5).
+- [FRD-23 — Case draft fields, provenance and global checks](../frd/frd-23-case-draft-fields-provenance-and-global-checks.md#global-vehicle-and-value-checks):
+  the global vehicle identity/specification, vehicle-history/risk, and
+  market-valuation progression gates (clause 2).
 - [FRD-06 — Vehicle and engineering evidence](../frd/frd-06-vehicle-and-engineering-evidence.md):
   the deferred `AI-05` advisory image-readiness assessment that neither changes
   Case state nor creates an AI Proposal (clause 9).

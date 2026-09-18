@@ -17,7 +17,7 @@ using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// AUTO-006 / EPIC-011 §1.12: the Automation &amp; AI administration area.
+/// The Automation &amp; AI administration area.
 /// The Automation panel states the registered client, the AI job ledger's own
 /// Active and Failed counters (ADR-0035) and the kill switch; the AI settings
 /// panel carries one Save. Where neither capability is composed, the direct
@@ -121,7 +121,7 @@ public sealed partial class AutomationAdministrationWebTests
             builder.UseSetting("SendToAi:ChannelBaseUrl", "http://127.0.0.1:8629");
             builder.UseSetting(
                 "SendToAi:ChannelToken",
-                "auto-006-redisplay-channel-token-0123456789");
+                "automation-admin-redisplay-channel-token-0123456789");
             builder.UseSetting("SendToAi:TimeoutSeconds", "5");
         });
         await using (var scope = factory.Services.CreateAsyncScope())
@@ -131,8 +131,8 @@ public sealed partial class AutomationAdministrationWebTests
                     new(
                         Administrator,
                         "Exercise both redisplay paths.",
-                        "auto-006-redisplay-token",
-                        "auto-006-administration-channel-token-0123456789"),
+                        "automation-admin-redisplay-token",
+                        "automation-admin-administration-channel-token-0123456789"),
                     CancellationToken.None);
         }
         using var client = CreateClient(factory);
@@ -325,7 +325,7 @@ public sealed partial class AutomationAdministrationWebTests
                         AutomationClient,
                         now,
                         "Succeeded",
-                        "auto-006-activity-reference",
+                        "automation-admin-activity-reference",
                         null),
                     CancellationToken.None);
             await history.AppendAsync(
@@ -393,7 +393,7 @@ public sealed partial class AutomationAdministrationWebTests
                     null,
                     null,
                     Administrator,
-                    $"auto-006-seed-{ordinal}",
+                    $"automation-admin-seed-{ordinal}",
                     AiJobPolicy.DefaultExpiry),
                 CancellationToken.None);
             if (index < liveJobs)
@@ -402,14 +402,14 @@ public sealed partial class AutomationAdministrationWebTests
             }
 
             var taken = await work.TakeAsync(
-                new(created.JobId, created.Version, AutomationClient, $"auto-006-take-{ordinal}"),
+                new(created.JobId, created.Version, AutomationClient, $"automation-admin-take-{ordinal}"),
                 CancellationToken.None);
             await work.FailAsync(
                 new(
                     taken.JobId,
                     taken.Version,
                     AutomationClient,
-                    $"auto-006-fail-{ordinal}",
+                    $"automation-admin-fail-{ordinal}",
                     "The channel refused the request."),
                 CancellationToken.None);
         }

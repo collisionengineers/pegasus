@@ -1426,7 +1426,7 @@ public sealed class StaffCorrespondenceWebTests
                 // StaffSend + a positive Generation before a mailbox is
                 // offered. EfApprovedMailboxStore.Map/Routes (A-owned) does
                 // not map those columns on this standalone C branch yet
-                // (ASSUMPTION 2 CLOSED, scratch/c08-notes on INTK-060), so
+                // (ASSUMPTION 2 CLOSED, scratch/c08-notes), so
                 // this shim promotes a SentEvidence-scoped test mailbox the
                 // same way the real store will once that mapping lands —
                 // proving ComposeModel's own filter, not standing in for the

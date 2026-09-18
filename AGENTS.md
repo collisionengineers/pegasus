@@ -47,7 +47,7 @@ and the [verification procedure](docs/runbook.md).
   modify it. Use supplied domain evidence; generated evaluations go in artifacts.
 - Read-only cloud inventory is permitted. External writes require authorization
   covering the actual operation and targets; tool availability is not a grant.
-- Local alpha work does not mutate Outlook or Box except an explicitly approved
+- Local work does not mutate Outlook or Box except an explicitly approved
   test mailbox or disposable Box subtree.
 - Use PowerShell 7 on Windows or Linux, one platform per evidence run. Paths and
   commands are repository-relative. Follow the existing [release skill](.agents/skills/pegasus-release/SKILL.md)
@@ -71,9 +71,7 @@ and the [verification procedure](docs/runbook.md).
 
 [The index](docs/index.md) owns documentation placement, formatting and routing.
 Use task-relevant owners rather than reading every document or copying rules.
-Current Markdown additions and renames use the index-routed canonical location
-and must pass the base..head `scripts/Test-MarkdownPlacement.ps1` placement gate.
-The current operator task owns scope and authorization. Use PR review and CI
+Current Markdown additions and renames use the index-routed canonical location;
+CI checks that relative links resolve. The current operator task owns scope and authorization. Use PR review and CI
 for delivery evidence, and name one verifier for heavy checks on this host.
-Kanmer is removed from the Codex workflow; do not require its board, claims,
-skills or gates. Historical tickets and retired plans are provenance only.
+Historical tickets and retired plans are provenance only.

@@ -372,8 +372,8 @@ public interface ICaseReportGenerationStore
     Task<int> MarkStaleAsync(Guid caseId, string reasonCode, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Records that a staff member viewed the working draft preview inline
-    /// (DOCS-014). Idempotent per Case, artifact kind, staff member and
+    /// Records that a staff member viewed the working draft preview inline.
+    /// Idempotent per Case, artifact kind, staff member and
     /// London calendar day: a repeat preview the same day is a silent no-op,
     /// never a second Case-history row.
     /// </summary>
@@ -445,7 +445,7 @@ public static class CaseReportStaleReasons
 
 /// <summary>
 /// The Case-history event types a report artifact's <em>presentation</em>
-/// records — distinct from generation itself (DOCS-014). A preview only ever
+/// records — distinct from generation itself. A preview only ever
 /// renders the unretained working draft; a download only ever reopens a
 /// confirmed, immutable generation artifact. Neither is a Case mutation: both
 /// are recorded at most once per Case (or artifact), staff member and London

@@ -1,10 +1,11 @@
 using Pegasus.Core.Intake;
+using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.Ax;
 
 public sealed class AxInstructionExtractionPolicyTests
 {
-    [AxReferencePackTheory]
+    [ReferencePackTheory]
     [Trait("Category", "Corpus")]
     [InlineData("4fa79c00fd18-AX_01.pdf.txt", "1063856", "Ms Stephanie Scouller", "S90LLR", "BMW 220D M SPORT AUTO", "2026-05-05", "2026-05-06", "2026-05-11", "Client was stationary on Station road giving way to the vehicles waiting to join the roundabout when the third party failed to stop and collided with clients rear end. The third party was apologetic and accepted liability at the scene, details exchanged at the scene", "G A Mann", "10-16 Glenfarg Street, Glasgow, G20 7QF", "01415768865")]
     [InlineData("63c08984c1f7-AX_02.pdf.txt", "1061903", "Mr Muhammad A Qadri", "SG75CEU", "JAECOO 7 LUXURY PHEV AUTO", "2026-04-21", "2026-05-05", "2026-05-08", "Our client was Parked Attended and was returning back to his vehicle - Third Party has reversed and collided into the Offside of our clients vehicle. Our client witnessed the accident and Details were Exchanged.", "RTA Storage & Recovery", "365 Aikenhead Rd, Glasgow, G42 0GG", "07724 541096")]
@@ -17,7 +18,7 @@ public sealed class AxInstructionExtractionPolicyTests
         string repairer, string repairerAddress, string repairerTelephone)
     {
         var text = File.ReadAllText(Path.Combine(
-            ReferencePackRoot(), "astra_output", "extractions", "text", sourceFile));
+            ReferencePack.Root(), "astra_output", "extractions", "text", sourceFile));
 
         var result = Extract(text);
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
@@ -66,18 +67,4 @@ public sealed class AxInstructionExtractionPolicyTests
 
     private static string? Field(InstructionExtractionResult result, string name) =>
         Assert.Single(result.Fields, field => field.Name == name).SuggestedValue;
-
-    private static string ReferencePackRoot() =>
-        Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT")
-        ?? throw new InvalidOperationException("The reference-pack test should have been skipped.");
-}
-
-internal sealed class AxReferencePackTheoryAttribute : TheoryAttribute
-{
-    public AxReferencePackTheoryAttribute()
-    {
-        var root = Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT");
-        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
-            Skip = "PEGASUS_REFERENCE_PACK_ROOT is absent; the immutable reference pack differs per machine.";
-    }
 }

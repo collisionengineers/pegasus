@@ -334,7 +334,7 @@ public sealed class ReceiveIntake(
         // the form takes one file, a mailbox message carries the whole job, and
         // a Provider API submission is bounded by the request body that carries
         // it inline. One switch, one constant per channel, all of them owned by
-        // IntakeEnvelopeLimits (C07 item 5, residual INTK-052).
+        // IntakeEnvelopeLimits (C07 item 5).
         var maximumContentLength = source.SourceIdentity.Channel switch
         {
             IntakeSourceChannel.ManualUpload => IntakeEnvelopeLimits.MaximumContentLength,

@@ -11,7 +11,6 @@ using Pegasus.Worker;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Web.Pages.Cases;
-using Pegasus.Web.Pages.Uploads;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
@@ -209,8 +208,8 @@ public sealed class DependencyDirectionTests
             [typeof(IEnumerable<IInstructionExtractionPolicy>)],
             selectorConstructor.GetParameters().Select(parameter => parameter.ParameterType));
 
-        // One policy per instruction profile, so the SET is not frozen - INTK-060
-        // C03 adds fourteen more beside QDOS. What must hold is where they live
+        // One policy per instruction profile, so the SET is not frozen - the
+        // profile catalogue adds fourteen more beside QDOS. What must hold is where they live
         // and what reaches them: every implementation is Core's, none is
         // duplicated in Infrastructure, while the selector owns their
         // collection boundary.
@@ -411,17 +410,14 @@ public sealed class DependencyDirectionTests
     }
 
     [Fact]
-    public void WebCustodialPagesHaveNoDormantTransportPath()
+    public void WebCustodialPagesHaveOnlySurvivingDependencies()
     {
         var casePageDependencies = TypeInspection.OnlyConstructorParameterTypes(typeof(DetailsModel));
         var custodyPageDependencies = TypeInspection.OnlyConstructorParameterTypes(typeof(CustodyModel));
-        var requestPageDependencies = TypeInspection.OnlyConstructorParameterTypes(typeof(RequestModel));
 
         Assert.Contains(typeof(IGetCase), casePageDependencies);
-        Assert.Contains(typeof(ICreateRequestUploadLink), custodyPageDependencies);
-        Assert.Contains(typeof(IRevokeRequestUploadLink), custodyPageDependencies);
-        Assert.Contains(typeof(IGetRequestUpload), requestPageDependencies);
-        Assert.Contains(typeof(IUploadToRequest), requestPageDependencies);
+        Assert.Contains(typeof(IRetryCaseCustody), custodyPageDependencies);
+        Assert.Contains(typeof(ILogicallyRemoveDocument), custodyPageDependencies);
     }
 
     [Fact]
@@ -452,15 +448,12 @@ public sealed class DependencyDirectionTests
                     .Matches(source.Content, "Guid\\.NewGuid\\(\\)\\.ToString\\(\"N\"\\)")
                     .Select(_ => source.Path))
                 .Order(StringComparer.Ordinal));
-        Assert.NotNull(typeof(RequestModel).GetCustomAttribute<
-            Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute>());
-        Assert.False(typeof(StaffPageModel).IsAssignableFrom(typeof(RequestModel)));
     }
 
     [Fact]
     public void CustodyAndEvaPoliciesHaveOneCoreOwnerAndAdaptersRemainAtBoundaries()
     {
-        // ENG-016: the EVA hand-off use cases and the policy-authority
+        // The EVA hand-off use cases and the policy-authority
         // capability they carried into persistence are gone with the act.
         // The export reaches Core policy directly, so what has to hold now is
         // that the port and the policy are Core's and the store is not.
@@ -538,7 +531,7 @@ public sealed class DependencyDirectionTests
         Assert.DoesNotContain("EVA hand-off is not switched on", evaMapping, StringComparison.Ordinal);
         Assert.DoesNotContain("Eva:AcceptedMapping", webComposition, StringComparison.Ordinal);
         Assert.DoesNotContain("Eva__AcceptedMapping", platform, StringComparison.Ordinal);
-        // PLAT-041: a case's photographs are read in one batch, not one call
+        // A case's photographs are read in one batch, not one call
         // per image, because a remote store resolves the case folder per call.
         // The read moved into the shared reader with EXT-04; the rule is the
         // same and now covers both EVA routes at once.

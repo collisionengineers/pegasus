@@ -124,7 +124,7 @@ public sealed class TransitionCase(
     }
 
     /// <summary>
-    /// CASE-046: the transition carries no readiness claim. The store re-reads
+    /// The transition carries no readiness claim. The store re-reads
     /// the case's persisted completeness facts inside its own transaction and
     /// decides there, so this seam neither demands nor forwards evidence.
     /// </summary>

@@ -312,7 +312,7 @@ public static class AssessmentVocabulary
 
     /// <summary>
     /// Findings a generic assessment save never writes or clears, because a
-    /// named command owns the act of adopting them (AUTO-015). The accepted
+    /// named command owns the act of adopting them. The accepted
     /// Engineer's value is adopted only by the valuation Apply command, which
     /// records the suggested and chosen amounts together; a Web or MCP field
     /// save that touched it would silently rewrite a professional finding

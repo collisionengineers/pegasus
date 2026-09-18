@@ -11,9 +11,8 @@ tags: [architecture, workspaces, renderer, extraction]
 # ADR-0025: Integrate the report renderer and document extractor into the application, not into standalone packages
 
 - Date: 2026-08-17
-- Status: accepted 2026-08-14 by Collision Engineers product owner (operator
-  direction recorded on historical Kanmer ticket SIMPLI-015); assessment reconfirmed
-  2026-08-17
+- Status: accepted 2026-08-14 by Collision Engineers product owner;
+  assessment reconfirmed 2026-08-17
 - Owners: Collision Engineers product owner and Pegasus development team
 - Relation: refines [ADR-0009](0009-adopt-pegasus-monorepo-workspaces.md),
   which admitted the two source workspaces and anticipated their later
@@ -46,7 +45,7 @@ The facts that decide it:
   add feed infrastructure and a release-and-bump cycle for every change, and —
   for the renderer — would either split the design authority across
   repositories or duplicate brand assets.
-- The AI Centre precedent (extracted to its own repository, SIMPLI-001) is not
+- The AI Centre precedent (extracted to its own repository) is not
   comparable: it is not an application dependency.
 
 ## Decision
@@ -68,8 +67,8 @@ and operator acceptance. Until then both remain non-caller source under
 
 ## Consequences
 
-- SIMPLI-013 and SIMPLI-014 are re-scoped from "make standalone" to
-  "integrate behind the Core port" and scheduled with their capabilities
+- The renderer and extractor work items are re-scoped from "make standalone"
+  to "integrate behind the Core port" and scheduled with their capabilities
   (`Later`); neither is alpha-cutover work.
 - The extractor's activation must resolve its overlap with ADR-0001 ("do not
   implement the PDF file format in Pegasus code") and ADR-0003 (PdfPig): either

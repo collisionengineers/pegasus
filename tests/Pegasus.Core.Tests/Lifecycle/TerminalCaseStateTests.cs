@@ -9,7 +9,7 @@ namespace Pegasus.Core.Tests.Lifecycle;
 /// <see cref="CaseLifecycleRules.IsTerminal"/>, in the EVA hand-off store and
 /// in the vehicle-work sweep — so a state added to one was silently
 /// non-terminal for the others. These guard the single owner and the one
-/// derived view of it (INTK-029).
+/// derived view of it.
 /// </summary>
 public sealed class TerminalCaseStateTests
 {

@@ -9,7 +9,7 @@ namespace Pegasus.Core.AiWork;
 /// named AI jobs that external clients claim through the Automation Actor
 /// under a bounded lease. Pegasus never runs a job and never applies a
 /// job's result; a completed job points at a draft or carries a proposal
-/// that a staff act confirms through the record's own action (FRD-11
+/// that a staff act confirms through the record's own action (FRD-27
 /// § AI Job List).
 /// </summary>
 public enum AiJobKind

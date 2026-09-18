@@ -29,7 +29,6 @@ using Pegasus.Core.Operations;
 using Pegasus.Web.AiWork;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.ProviderApi;
-using Pegasus.Web.Pages.Uploads;
 using Pegasus.Web;
 using Azure.Core;
 using Azure.Identity;
@@ -167,7 +166,7 @@ if (productionProfile)
         "Eva:RequestFrom",
         "Eva:InspectionType",
         "Eva:InstructionEmail",
-        // CASE-047 B04. The Glass's gateway is built from these on first use;
+        // The Glass's gateway is built from these on first use;
         // listed here so a deployment without them fails at startup naming the
         // key, rather than at the Engineer's Launch on a Case record.
         "Glass:MarketValueAssessorBaseUri",
@@ -228,7 +227,7 @@ if (productionProfile)
     // the Worker-only pollers that go with AddProductionExternalAdapters).
     builder.Services.AddSingleton<TokenCredential>(credential);
     builder.Services.AddProductionApprovedMailboxResolver(builder.Configuration["Graph:BaseUri"]);
-    // PLAT-034: the deployed container has carried
+    // The deployed container has carried
     // APPLICATIONINSIGHTS_CONNECTION_STRING since the estate was built, but
     // nothing in this application ever read it — the Web host was never
     // instrumented at all, so thirty days of production produced no traces,
@@ -240,7 +239,7 @@ if (productionProfile)
             builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
     {
         builder.Services.AddApplicationInsightsTelemetry();
-        builder.Services.AddSingleton<ITelemetryInitializer, PublicUploadTelemetryInitializer>();
+        builder.Services.AddSingleton<ITelemetryInitializer, GlassCallbackTelemetryInitializer>();
         builder.Services.AddSingleton<DocumentReadTelemetryBridge>();
         builder.Services.Configure<TelemetryConfiguration>(
             telemetry => telemetry.SetAzureTokenCredential(credential));
@@ -258,45 +257,6 @@ else
 builder.Services.AddSingleton<ICursorProtector, DataProtectionCursorProtector>();
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
-Func<IServiceProvider, RequestUploadLimits>? requestUploadLimitsFactory = null;
-var acceptedRequestLimitsVersion =
-    builder.Configuration["DocumentRequests:AcceptedLimitsVersion"];
-// INT-31 upload links stay inactive until their limits are accepted
-// (docs/open-decisions.md). Production composes document custody but sets no
-// accepted limits version, so the upload-link services stay unavailable there.
-if ((localDocumentCustodyConfigured || productionProfile)
-    && !string.IsNullOrWhiteSpace(acceptedRequestLimitsVersion))
-{
-    requestUploadLimitsFactory = serviceProvider =>
-    {
-        var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-        var section = configuration.GetRequiredSection("DocumentRequests");
-        var limitsVersion = section["LimitsVersion"]
-            ?? throw new InvalidOperationException("DocumentRequests:LimitsVersion is required.");
-        if (!string.Equals(
-                limitsVersion,
-                acceptedRequestLimitsVersion,
-                StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException(
-                "DocumentRequests:LimitsVersion must exactly match DocumentRequests:AcceptedLimitsVersion.");
-        }
-
-        var allowedMediaTypes = section.GetSection("AllowedMediaTypes").Get<string[]>()
-            ?? throw new InvalidOperationException(
-                "DocumentRequests:AllowedMediaTypes is required when accepted request limits are enabled.");
-        return new(
-            limitsVersion,
-            TimeSpan.FromHours(section.GetValue<double>("LifetimeHours")),
-            section.GetValue<int>("MaximumFileCount"),
-            section.GetValue<long>("MaximumFileBytes"),
-            section.GetValue<long>("MaximumRequestBytes"),
-            allowedMediaTypes,
-            section.GetValue<int>("RateLimit"),
-            TimeSpan.FromMinutes(section.GetValue<double>("RateLimitWindowMinutes")));
-    };
-}
-
 
 // The Automation MCP ingress is composition-gated off by default: when the
 // flag is absent nothing below registers and no /mcp or /connect/token route
@@ -315,7 +275,7 @@ var sendToAiOptions = SendToAiOptions.TryCreate(
     developmentOfflineProfile);
 
 // RailCountsPageFilter supplies ViewData["RailCounts"] on authenticated full
-// page results (PLAT-003) — the rail (PLAT-001) shipped with the badge
+// page results — the rail shipped with the badge
 // mechanism but nothing populated it until now. RazorPagesOptions has no
 // Filters collection of its own, so the global filter is added through the
 // underlying MvcOptions instead.
@@ -325,21 +285,13 @@ builder.Services.AddRazorPages()
         options.Filters.Add<Pegasus.Web.Presentation.RailCountsPageFilter>();
         options.Filters.Add<Pegasus.Web.Presentation.WorkspaceRequestTimingFilter>();
     })
-    // The anonymous upload link is the only Razor page reachable without a
-    // session, so it is the only one that carries a transport-level bound.
-    // Applying it here rather than on MapRazorPages() keeps every
-    // authenticated page off the limiter.
     .AddRazorPagesOptions(options =>
     {
-        options.Conventions.AddPageApplicationModelConvention(
-            "/Uploads/Request",
-            model => model.EndpointMetadata.Add(
-                new EnableRateLimitingAttribute(PublicUploadLink.RateLimitPolicy)));
         options.Conventions.AddPageApplicationModelConvention(
             "/Integrations/Glass/Callback",
             model => model.EndpointMetadata.Add(
                 new EnableRateLimitingAttribute(GlassCallbackRateLimitPolicy)));
-        // CASE-038: the Case record's section fragment answers on its own
+        // The Case record's section fragment answers on its own
         // path, `/Cases/{id}/Section`, rather than on the record's own URL, so
         // a fragment response is never mistaken for the page itself. The
         // constraint admits that one handler, and the route only matches — it
@@ -389,9 +341,7 @@ builder.Services.AddRateLimiter(options =>
                     ? "provider_api_rate_limited"
                     : rejectedPath.StartsWithSegments("/Integrations/Glass/Callback")
                         ? "glass_callback_rate_limited"
-                    : rejectedPath.StartsWithSegments("/Uploads")
-                        ? "upload_link_rate_limited"
-                        : "authentication_rate_limited";
+                    : "authentication_rate_limited";
         return new ValueTask(AppendRateLimitedSecurityEventAsync(
             context.HttpContext,
             reasonCode,
@@ -426,21 +376,6 @@ builder.Services.AddRateLimiter(options =>
     // the caller a fresh budget each time and bound nothing at all. The
     // partition is the calling address, as it already is for staff sign-in and
     // the MCP ingress.
-    // The anonymous upload link holds no credential and presents no identity,
-    // and its per-token limiter cannot bound a caller who has no token, so the
-    // partition is the calling address as it is for every other pre-auth
-    // surface here.
-    options.AddPolicy(
-        PublicUploadLink.RateLimitPolicy,
-        context => RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                AutoReplenishment = true,
-                PermitLimit = PublicUploadLink.RequestsPerClientPerMinute,
-                QueueLimit = 0,
-                Window = TimeSpan.FromMinutes(1)
-            }));
     options.AddPolicy(
         GlassCallbackRateLimitPolicy,
         context => RateLimitPartition.GetFixedWindowLimiter(
@@ -719,7 +654,7 @@ builder.Services.AddPegasusInfrastructure((serviceProvider, options) =>
         .GetConnectionString("Pegasus")
         ?? throw new InvalidOperationException("Connection string 'Pegasus' is required.");
     PegasusSqlServer.Configure(options, connectionString);
-}, localArtifactRootFactory, requestUploadLimitsFactory: requestUploadLimitsFactory,
+}, localArtifactRootFactory,
 documentStorage: !productionProfile
     ? null
     : (Action<IServiceCollection>)(registrations => registrations.AddProductionDocumentStorage(
@@ -728,7 +663,7 @@ documentStorage: !productionProfile
         static _ => false,
         // Deferred to first Box use: parsing this at host build aborted the
         // process whenever the platform handed over an unresolved Key Vault
-        // reference (PLAT-013).
+        // reference.
         _ => BoxCustodyOptions.Create(
             builder.Configuration["Box:BaseUri"],
             builder.Configuration["Box:UploadUri"],
@@ -738,7 +673,7 @@ documentStorage: !productionProfile
             builder.Configuration["Box:HoldingFolderId"]))));
 // EXT-04: the manual Send to EVA route. Production only — the offline
 // profile reaches no vendor — and the options are read lazily for the same
-// PLAT-013 reason as Box's.
+// unresolved-Key-Vault-reference reason as Box's.
 if (productionProfile)
 {
     builder.Services.AddEvaApiSubmission(
@@ -773,10 +708,6 @@ builder.Services.AddScoped<IActionHistoryWriter>(serviceProvider =>
 builder.Services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
 builder.Services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
 builder.Services.AddScoped<IInspectionAddressResolutionStore, InspectionAddressResolutionStore>();
-if (requestUploadLimitsFactory is not null)
-{
-    builder.Services.AddSingleton<RequestUploadAttemptLimiter>();
-}
 builder.Services.AddScoped<EfIntakeWorkStore>();
 builder.Services.AddScoped<IIntakeWorkStore>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIntakeWorkStore>());
@@ -958,9 +889,8 @@ if (productionProfile)
 }
 
 // Every status code that reaches a browser gets the designed page. Before this,
-// an unknown record URL, a dead public upload link, an oversized upload and a
-// rate-limited sign-in all rendered the browser's own error page — including on
-// the one screen whose audience is outside Collision Engineers.
+// an unknown record URL, an oversized staff upload and a rate-limited sign-in
+// all rendered the browser's own error page.
 //
 // Scoped away from the machine surfaces: health probes, the version endpoint
 // and the automation ingress answer callers that want a status code and a body
@@ -981,7 +911,7 @@ if (!app.Environment.IsDevelopment())
         // previews. The clickjacking protection this header exists for is
         // unchanged, because frame-ancestors still refuses every other origin.
         // Development does not set the header at all, so this policy is tested
-        // through the Production profile (DOCS-011).
+        // through the Production profile.
         context.Response.Headers.ContentSecurityPolicy =
             "default-src 'self'; object-src 'none'; base-uri 'self'; " +
             "frame-src 'self' blob:; frame-ancestors 'self'";
@@ -1162,10 +1092,8 @@ if (!documentCustodyEnabled)
     app.Use(async (context, next) =>
     {
         var path = context.Request.Path;
-        var isDocumentUi = path.StartsWithSegments("/uploads")
-            || path.StartsWithSegments("/requests")
-            || (path.StartsWithSegments("/cases")
-                && path.Value?.EndsWith("/documents", StringComparison.OrdinalIgnoreCase) == true);
+        var isDocumentUi = path.StartsWithSegments("/cases")
+            && path.Value?.EndsWith("/documents", StringComparison.OrdinalIgnoreCase) == true;
         if (isDocumentUi)
         {
             context.Response.StatusCode = StatusCodes.Status404NotFound;
@@ -1175,26 +1103,6 @@ if (!documentCustodyEnabled)
         await next(context);
     });
 }
-else if (requestUploadLimitsFactory is null)
-{
-    // Without accepted limits the upload-link services are the unavailable store,
-    // whose staff commands throw. INT-31 is off the alpha path, so keep the whole
-    // request surface absent in Production rather than offering a failing action.
-    // DevelopmentOffline keeps its existing narrower gate.
-    app.Use(async (context, next) =>
-    {
-        var path = context.Request.Path;
-        if (path.StartsWithSegments("/uploads")
-            || (productionProfile && path.StartsWithSegments("/requests")))
-        {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
-            return;
-        }
-
-        await next(context);
-    });
-}
-
 app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = _ => false

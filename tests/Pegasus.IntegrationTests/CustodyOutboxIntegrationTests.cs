@@ -749,71 +749,6 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RequestUploadPortsRemainRegisteredAndFailClosedWithoutAcceptedLimits(
-        bool localCustodyConfigured)
-    {
-        var services = new ServiceCollection();
-        services.AddPegasusInfrastructure(
-            (_, options) => options.UseSqlServer(
-                "Server=(localdb)\\MSSQLLocalDB;Database=unused;Integrated Security=true"),
-            localCustodyConfigured ? _ => Path.GetTempPath() : null);
-        await using var provider = services.BuildServiceProvider(validateScopes: true);
-        await using var scope = provider.CreateAsyncScope();
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>()
-                .ExecuteAsync(
-                    new(
-                        Guid.NewGuid(),
-                        ActionActor.SystemWorker("unauthorized-request-create"),
-                        $"unauthorized-create:{Guid.NewGuid():N}",
-                        0,
-                        "lease"),
-                    CancellationToken.None));
-
-        await Assert.ThrowsAsync<DocumentRequestUnavailableException>(() =>
-            scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>()
-                .ExecuteAsync(
-                    new(
-                        Guid.NewGuid(),
-                        actor,
-                        $"unavailable-create:{Guid.NewGuid():N}",
-                        0,
-                        "lease"),
-                    CancellationToken.None));
-        await Assert.ThrowsAsync<DocumentRequestUnavailableException>(() =>
-            scope.ServiceProvider.GetRequiredService<IRevokeRequestUploadLink>()
-                .ExecuteAsync(
-                    new(
-                        Guid.NewGuid(),
-                        Guid.NewGuid(),
-                        actor,
-                        "Unavailable.",
-                        $"unavailable-revoke:{Guid.NewGuid():N}",
-                        0,
-                        0,
-                        "lease"),
-                    CancellationToken.None));
-        Assert.Equal(
-            RequestUploadDecision.Unavailable,
-            (await scope.ServiceProvider.GetRequiredService<IUploadToRequest>()
-                .ExecuteAsync(
-                    new(
-                        "invalid",
-                        new(
-                            "evidence.txt",
-                            "text/plain",
-                            "evidence"u8.ToArray(),
-                            $"unavailable-upload:{Guid.NewGuid():N}"),
-                        0),
-                    CancellationToken.None)).Decision);
-        Assert.Null(await scope.ServiceProvider.GetRequiredService<IGetRequestUpload>()
-            .ExecuteAsync("invalid", CancellationToken.None));
-    }
-
-    [Theory]
     [InlineData(CaseLifecycleState.SourceEmailUnlinked)]
     [InlineData(CaseLifecycleState.ProviderCancelled)]
     [InlineData(CaseLifecycleState.CollisionEngineersRejected)]
@@ -821,10 +756,7 @@ public sealed class CustodyOutboxIntegrationTests
     public async Task EveryTerminalCaseStateRejectsNewCustodyMutationsButPreservesExactReplay(
         CaseLifecycleState terminalState)
     {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        // The accepted request upload below is a real submission, so this host
-        // needs the custody adapter Stream A will register in production.
-        using var factory = PublicUploadRetentionWebTests.WithRetention(baseFactory);
+        using var factory = new IntakeWebApplicationFactory();
         await using var scope = factory.Services.CreateAsyncScope();
         var accepted = await AcceptDirectSourceAsync(scope.ServiceProvider);
         var caseId = accepted.CaseId;
@@ -833,25 +765,6 @@ public sealed class CustodyOutboxIntegrationTests
         var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
         var workflow = Assert.IsType<CaseWorkflowRecord>(
             await queries.GetAsync(caseId, CancellationToken.None));
-
-        var requestLease = await leases.ClaimAsync(
-            new(
-                caseId,
-                workflow.Version,
-                actor,
-                $"terminal-request-lease:{Guid.NewGuid():N}"),
-            CancellationToken.None);
-        var createRequest = new CreateRequestUploadLinkCommand(
-            caseId,
-            actor,
-            $"terminal-request-create:{Guid.NewGuid():N}",
-            requestLease.Version,
-            requestLease.Token);
-        var createUploadLink =
-            scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>();
-        var requestLink = await createUploadLink.ExecuteAsync(
-            createRequest,
-            CancellationToken.None);
 
         workflow = Assert.IsType<CaseWorkflowRecord>(
             await queries.GetAsync(caseId, CancellationToken.None));
@@ -877,19 +790,6 @@ public sealed class CustodyOutboxIntegrationTests
         var addDocument = scope.ServiceProvider.GetRequiredService<IAddCaseDocument>();
         var added = await addDocument.ExecuteAsync(addCommand, CancellationToken.None);
 
-        var uploadCommand = new UploadToRequestCommand(
-            requestLink.Secret!.Token,
-            new(
-                "request-evidence.txt",
-                "text/plain",
-                "request evidence"u8.ToArray(),
-                $"terminal-request-file:{Guid.NewGuid():N}"),
-            AttemptsInCurrentRateWindow: 0);
-        var upload = scope.ServiceProvider.GetRequiredService<IUploadToRequest>();
-        Assert.Equal(
-            RequestUploadDecision.Accepted,
-            (await upload.ExecuteAsync(uploadCommand, CancellationToken.None)).Decision);
-
         workflow = Assert.IsType<CaseWorkflowRecord>(
             await queries.GetAsync(caseId, CancellationToken.None));
         var terminalLease = await leases.ClaimAsync(
@@ -909,18 +809,9 @@ public sealed class CustodyOutboxIntegrationTests
             await context.SaveChangesAsync();
         }
 
-        var requestReplay = await createUploadLink.ExecuteAsync(
-            createRequest,
-            CancellationToken.None);
-        Assert.True(requestReplay.IsReplay);
-        Assert.Null(requestReplay.Secret);
-        Assert.Equal(requestLink.Link, requestReplay.Link);
         Assert.True((await addDocument.ExecuteAsync(
             addCommand,
             CancellationToken.None)).IsReplay);
-        Assert.Equal(
-            RequestUploadDecision.Replay,
-            (await upload.ExecuteAsync(uploadCommand, CancellationToken.None)).Decision);
 
         await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
             addDocument.ExecuteAsync(
@@ -944,147 +835,6 @@ public sealed class CustodyOutboxIntegrationTests
                         terminalLease.Version,
                         terminalLease.Token),
                     CancellationToken.None));
-        await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
-            createUploadLink.ExecuteAsync(
-                createRequest with
-                {
-                    OperationKey = $"terminal-request-new:{Guid.NewGuid():N}",
-                    ExpectedCaseVersion = terminalLease.Version,
-                    EditLeaseToken = terminalLease.Token
-                },
-                CancellationToken.None));
-        await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
-            scope.ServiceProvider.GetRequiredService<IRevokeRequestUploadLink>()
-                .ExecuteAsync(
-                    new(
-                        caseId,
-                        requestLink.Link.Id,
-                        actor,
-                        "Terminal cases are read-only.",
-                        $"terminal-request-revoke:{Guid.NewGuid():N}",
-                        requestLink.Link.Version,
-                        terminalLease.Version,
-                        terminalLease.Token),
-                    CancellationToken.None));
-        Assert.Equal(
-            RequestUploadDecision.Unavailable,
-            (await upload.ExecuteAsync(
-                uploadCommand with
-                {
-                    File = new RequestUploadFile(
-                        uploadCommand.File.FileName,
-                        uploadCommand.File.MediaType,
-                        uploadCommand.File.ContentLength,
-                        uploadCommand.File.OpenContentAsync,
-                        $"terminal-request-file-new:{Guid.NewGuid():N}")
-                },
-                CancellationToken.None)).Decision);
-    }
-
-    [Fact]
-    public async Task RequestCreateAndRevokeRecordExactIdempotentStaffActionHistory()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        await using var scope = factory.Services.CreateAsyncScope();
-        var accepted = await AcceptDirectSourceAsync(scope.ServiceProvider);
-        var staffId = Guid.NewGuid();
-        var actor = ActionActor.Staff(staffId, [StaffRole.Engineer]);
-        var workflow = Assert.IsType<CaseWorkflowRecord>(
-            await scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>()
-                .GetAsync(accepted.CaseId, CancellationToken.None));
-        var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
-        var createLease = await leases.ClaimAsync(
-            new(
-                accepted.CaseId,
-                workflow.Version,
-                actor,
-                $"request-create-lease:{Guid.NewGuid():N}"),
-            CancellationToken.None);
-        var createOperationKey = $"request-create:{Guid.NewGuid():N}";
-        var createRequest = new CreateRequestUploadLinkCommand(
-            accepted.CaseId,
-            actor,
-            createOperationKey,
-            createLease.Version,
-            createLease.Token);
-        var create = scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>();
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            create.ExecuteAsync(
-                createRequest with
-                {
-                    Actor = ActionActor.SystemWorker("custody-test"),
-                    OperationKey = $"request-create-unauthorized:{Guid.NewGuid():N}"
-                },
-                CancellationToken.None));
-
-        var created = await create.ExecuteAsync(createRequest, CancellationToken.None);
-        var createReplay = await create.ExecuteAsync(createRequest, CancellationToken.None);
-
-        Assert.False(created.IsReplay);
-        Assert.NotNull(created.Secret);
-        Assert.True(createReplay.IsReplay);
-        Assert.Null(createReplay.Secret);
-        Assert.Equal(created.Link, createReplay.Link);
-        var changedActor = ActionActor.Staff(staffId, [StaffRole.Administrator]);
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            create.ExecuteAsync(
-                createRequest with { Actor = changedActor },
-                CancellationToken.None));
-
-        var revokeLease = await leases.ClaimAsync(
-            new(
-                accepted.CaseId,
-                checked(createLease.Version + 1),
-                actor,
-                $"request-revoke-lease:{Guid.NewGuid():N}"),
-            CancellationToken.None);
-        var revokeOperationKey = $"request-revoke:{Guid.NewGuid():N}";
-        var revokeRequest = new RevokeRequestUploadLinkCommand(
-            accepted.CaseId,
-            created.Link.Id,
-            actor,
-            "The intended recipient no longer requires access.",
-            revokeOperationKey,
-            created.Link.Version,
-            revokeLease.Version,
-            revokeLease.Token);
-        var revoke = scope.ServiceProvider.GetRequiredService<IRevokeRequestUploadLink>();
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            revoke.ExecuteAsync(
-                revokeRequest with { CaseId = Guid.NewGuid() },
-                CancellationToken.None));
-
-        await revoke.ExecuteAsync(revokeRequest, CancellationToken.None);
-        await revoke.ExecuteAsync(revokeRequest, CancellationToken.None);
-
-        var contextFactory = scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var context = await contextFactory.CreateDbContextAsync();
-        var history = await context.ActionHistory
-            .Where(value => value.AggregateType == "request_upload_link"
-                && (value.CorrelationId == createOperationKey
-                    || value.CorrelationId == revokeOperationKey))
-            .ToArrayAsync();
-        Assert.Equal(2, history.Length);
-        Assert.All(history, entry =>
-        {
-            Assert.Equal(actor.Kind.ToString(), entry.ActorKind);
-            Assert.Equal(actor.SubjectId, entry.ActorSubjectId);
-            Assert.Equal("[\"Engineer\"]", entry.ActorRolesJson);
-            Assert.Equal("Succeeded", entry.Outcome);
-            Assert.False(string.IsNullOrWhiteSpace(entry.AfterJson));
-        });
-        var createHistory = Assert.Single(
-            history,
-            entry => entry.CorrelationId == createOperationKey);
-        Assert.Equal("request_upload_created", createHistory.EventKind);
-        Assert.Null(createHistory.BeforeJson);
-        var revokeHistory = Assert.Single(
-            history,
-            entry => entry.CorrelationId == revokeOperationKey);
-        Assert.Equal("request_upload_revoked", revokeHistory.EventKind);
-        Assert.NotNull(revokeHistory.BeforeJson);
-        Assert.Equal(revokeRequest.Reason, revokeHistory.Reason);
     }
 
     [Fact]
@@ -1351,7 +1101,7 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     /// <summary>
-    /// DOCS-005: an accepted instruction's attachments land beside the retained
+    /// An accepted instruction's attachments land beside the retained
     /// source as their own custody files, and no binding JSON accompanies them.
     /// </summary>
     [Fact]
@@ -1415,7 +1165,7 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     /// <summary>
-    /// DOCS-008: the production shape is more than one attachment. QDOS26009
+    /// The production shape is more than one attachment. QDOS26009
     /// arrived with two PDFs and failed custody with an unclassified exception
     /// after its files had already reached Box, so the fault is in the records
     /// written inside the completing transaction rather than in the upload.
@@ -1471,7 +1221,7 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     /// <summary>
-    /// CASE-019: the operator's own export of a case, end to end — a real
+    /// The operator's own export of a case, end to end — a real
     /// instruction accepted through the pipeline, its custody completed, then
     /// the archive built and opened. The Core tests cover the field mapping;
     /// this is the only thing that proves an archive comes out at all, which
@@ -1545,7 +1295,7 @@ public sealed class CustodyOutboxIntegrationTests
         // full occurrence address, which is where Box already holds the file
         // custody uploaded. Putting the bytes where this store expects them is
         // the local stand-in for that, and is the only way to exercise the
-        // export end to end off Box. The gap itself is [[PLAT-038]].
+        // export end to end off Box. The gap itself is a known Box-bound one.
         await using (var seed = await services
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync())
@@ -1777,7 +1527,7 @@ public sealed class CustodyOutboxIntegrationTests
         var entries = archive.Entries.Select(entry => entry.FullName).ToArray();
 
         // The shape the operator asked for: a zip of the images and a JSON,
-        // and since ENG-014 nothing else -- no manifest.sha256, no
+        // and nothing else -- no manifest.sha256, no
         // provenance.json, neither of which was ever an operator requirement.
         Assert.Contains($"EVA-{reference}.json", entries);
         Assert.Equal(2, entries.Count(name => name.StartsWith("Images/", StringComparison.Ordinal)));
@@ -1798,7 +1548,7 @@ public sealed class CustodyOutboxIntegrationTests
             fields.Select(field => field.Name));
         // Every key is a string, present whether or not the case knows it.
         Assert.All(fields, field => Assert.Equal(JsonValueKind.String, field.Value.ValueKind));
-        // ENG-015: Reference is the work provider's own reference -- the claim
+        // Reference is the work provider's own reference -- the claim
         // number the letter carried -- not the Pegasus case reference. The
         // archive is still named by the case, asserted above.
         Assert.Equal("AMA/47857/1", eva.RootElement.GetProperty("Reference").GetString());
@@ -1815,7 +1565,7 @@ public sealed class CustodyOutboxIntegrationTests
             Encoding.UTF8.GetString(bundle.JsonContent),
             StringComparison.Ordinal);
 
-        // ENG-016: an export is the act that records the once-per-case
+        // An export is the act that records the once-per-case
         // First sent to Engineer proxy. It used to record nothing -- the
         // gated hand-off did -- and this assertion is the inverse of the one
         // it replaces.
@@ -1903,7 +1653,7 @@ public sealed class CustodyOutboxIntegrationTests
         var apiFirstVersion = (await services.GetRequiredService<ICaseWorkflowQueries>()
             .GetAsync(outcome.Identity.CaseId, CancellationToken.None))!.Version;
 
-        // CASE-031: only the address field is varied. The existing accepted
+        // Only the address field is varied. The existing accepted
         // Case and retained photographs still exercise the production caller.
         // The positive addresses are from the supplied EVA model and existing
         // mapping fixture; malformed variants below are structural probes.
@@ -1938,8 +1688,8 @@ public sealed class CustodyOutboxIntegrationTests
                     Value = value,
                     SourceKind = CaseDataCodes.StaffCorrection,
                     SourceIdentity = firstActor.SubjectId,
-                    SourceLabel = "CASE-031 supplied address boundary fixture",
-                    PolicyKey = "case-031-fixture",
+                    SourceLabel = "Supplied address boundary fixture",
+                    PolicyKey = "supplied-address-fixture",
                     PolicyVersion = 1,
                     ConfirmedByActor = kind == CaseDataCodes.Confirmed ? firstActor.SubjectId : null,
                     ConfirmedAtUtc = kind == CaseDataCodes.Confirmed ? FixedUtcNow : null
@@ -2119,7 +1869,7 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.True(versionRaceReplay?.IsSubmitted);
         Assert.Equal("eva-1", versionRaceReplay!.Submission!.EvaId);
         Assert.Equal(1, versionRaceTransport.CallCount);
-        // CASE-040 review, blocker 1: a Rejected or Unknown manual send never
+        // Blocker 1: a Rejected or Unknown manual send never
         // reached EVA, so it is not a handoff. The case must stay in Review,
         // at its current version, with an in-progress edit lease untouched --
         // while the attempt and its outcome are still durably recorded.
@@ -2333,7 +2083,7 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     /// <summary>
-    /// CASE-040 review, blocker 1: every other store-level test drives
+    /// Blocker 1: every other store-level test drives
     /// <see cref="RecordingEvaTransport"/>, which always returns Succeeded --
     /// this is the one fake that lets a test prove what happens when EVA
     /// does not deliver the instruction.
@@ -2352,13 +2102,13 @@ public sealed class CustodyOutboxIntegrationTests
                 null,
                 null,
                 "eva-refused",
-                "synthetic refusal for CASE-040 review coverage",
+                "synthetic refusal for manual-send review coverage",
                 0));
         }
     }
 
     /// <summary>
-    /// DOCS-009: the production shape is a PDF instruction plus photographs.
+    /// The production shape is a PDF instruction plus photographs.
     /// Every attachment used to be filed as an instruction document whatever
     /// its media type, so a case's own damage photographs were invisible to
     /// both the evidence gallery's image test and EVA image selection — an
@@ -2429,7 +2179,7 @@ public sealed class CustodyOutboxIntegrationTests
             DocumentSemanticRole.Instruction,
             roles["53364_1_LtrtoEngineerIn.pdf"]);
 
-        // DOCS-010: the gallery's own id is what the case-document download
+        // The gallery's own id is what the case-document download
         // route resolves. It was the document id, not the occurrence id, so
         // every photograph on the Evidence tab 404d before Box was reached —
         // built positionally into two adjacent Guid slots, and nothing
@@ -2467,7 +2217,7 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     /// <summary>
-    /// DOCS-008: no custody test has ever run an audit case — every other
+    /// No custody test has ever run an audit case — every other
     /// fixture accepts with CaseType.Inspection — and both audits that reached
     /// production failed custody with an unclassified exception after their
     /// files had already reached Box. This is that shape.
@@ -2632,14 +2382,14 @@ public sealed class CustodyOutboxIntegrationTests
     /// The three things an operator reported about QDOS26009 that only appear
     /// once custody has actually completed, asserted on one case at the
     /// production shape: it reaches Review rather than sitting at Not ready
-    /// (CASE-013), it carries one prefixed reference and no second audit
-    /// identity (CASE-014), and its retained files are registered as case
-    /// documents (DOCS-007).
+    /// unconfirmed, it carries one prefixed reference and no second audit
+    /// identity, and its retained files are registered as case
+    /// documents.
     ///
     /// Each was verifiable only by a live case until this existed, because the
     /// promotion, the identity and the document rows are all written inside
     /// CompleteCaseCustodyAsync's single transaction. Custody failing in
-    /// production (DOCS-008) meant none of them ever ran.
+    /// production meant none of them ever ran.
     ///
     /// The completeness is the automatic shape — instruction and images
     /// complete, neither confirmed by staff — because that is what the
@@ -2712,7 +2462,7 @@ public sealed class CustodyOutboxIntegrationTests
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
 
-        // CASE-013 — the case moves off Not ready without staff confirmation
+        // The case moves off Not ready without staff confirmation
         // the automatic route was never going to receive.
         var state = await context.CaseWorkflows
             .AsNoTracking()
@@ -2721,7 +2471,7 @@ public sealed class CustodyOutboxIntegrationTests
             .SingleAsync();
         Assert.Equal(nameof(CaseLifecycleState.Review), state);
 
-        // CASE-014 — one identity. The reference itself carries the audit
+        // One identity. The reference itself carries the audit
         // prefix and nothing allocates a second one beside it.
         var identity = await context.Set<CaseEntity>()
             .AsNoTracking()
@@ -2731,7 +2481,7 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.StartsWith("a.", identity.Reference, StringComparison.Ordinal);
         Assert.Null(identity.AuditReference);
 
-        // DOCS-007 — the retained files are case documents, not just bytes in
+        // The retained files are case documents, not just bytes in
         // custody storage, so the Evidence tab can serve them.
         var documents = await context.Set<CaseDocumentEntity>()
             .AsNoTracking()
@@ -2743,7 +2493,7 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     /// <summary>
-    /// DOCS-006: an instruction's evidence photographs — embedded in its PDF
+    /// An instruction's evidence photographs — embedded in its PDF
     /// documents — land beside the source as their own custody files after
     /// the attachments, while letterhead art stays out. Runs against the
     /// operator-supplied mapping corpus (local, git-ignored).

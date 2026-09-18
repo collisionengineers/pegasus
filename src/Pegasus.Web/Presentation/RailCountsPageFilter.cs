@@ -19,8 +19,8 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 /// <remarks>
 /// The dictionary keys are the rail routes that can carry a count —
-/// <c>Inbox</c>, <c>Cases</c>, <c>Operations</c>. <c>Cases</c> is the EPIC-011
-/// §1.1 contract sum, not_ready + review + with_engineer + query + held + triage +
+/// <c>Inbox</c>, <c>Cases</c>, <c>Operations</c>. <c>Cases</c> is the workspace
+/// contract sum, not_ready + review + with_engineer + query + held + triage +
 /// unidentified, read from the same queries the Cases page itself runs:
 /// <see cref="IDashboardQueries.GetCaseStageCountsAsync"/> (one grouped
 /// aggregate), <see cref="IListTriage"/> (the open-Triage total; the rows are

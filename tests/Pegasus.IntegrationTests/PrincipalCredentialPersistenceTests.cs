@@ -63,7 +63,7 @@ public sealed class PrincipalCredentialPersistenceTests
         Assert.NotNull(authenticated);
         Assert.Equal(principalId, authenticated.PrincipalId);
         Assert.True(authenticated.MaySubmit);
-        // Flip the last character to one it is not (DELIV-034): appending a
+        // Flip the last character to one it is not: appending a
         // fixed "A" silently reproduced the *same* secret whenever the issued
         // one already ended in "A", so authentication correctly succeeded and
         // this assertion failed for no reason a reader could see. The secret's

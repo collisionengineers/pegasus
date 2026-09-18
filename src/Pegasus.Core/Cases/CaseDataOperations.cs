@@ -371,7 +371,7 @@ public static class CaseDataPolicy
     /// line structure. Every other field is a single line, so <see cref="Text"/>
     /// flattens it; the circumstances carry a labelled damage-area block below
     /// the prose, separated by a blank line, and EVA is sent that shape
-    /// verbatim (ENG-015). Within a line whitespace still collapses, and runs
+    /// verbatim. Within a line whitespace still collapses, and runs
     /// of blank lines collapse to one, so the value cannot carry the reader's
     /// layout noise.
     /// </summary>

@@ -213,7 +213,7 @@ public sealed class ValuationTests
                 CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             save.ExecuteAsync(
-                SaveRequest(ActionActor.RequestLink(Guid.NewGuid()), "valuation-request-link"),
+                SaveRequest(ActionActor.Provider(Guid.NewGuid()), "valuation-request-provider"),
                 CancellationToken.None));
 
         var engineers = await save.ExecuteAsync(

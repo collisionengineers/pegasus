@@ -1,11 +1,12 @@
 using System.Security.Cryptography;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.Sbl;
 
 public sealed class SblInstructionExtractionPolicyTests
 {
-    [SblReferencePackTheory]
+    [ReferencePackTheory]
     [Trait("Category", "Corpus")]
     [InlineData("e34f948c31ef-SBL_01.pdf.txt", "SBL 01.pdf", "fa2d7e6abe04830ac29bd5faa7b9452212a6bc91d636cfddf10510c821780fc8", "Mr Craig Motorhome Escapes", "SBL-B0470099", "SK24KYF", "FORD SWIFT VOYAGER 494 AUTO", "2026-04-06", "2026-05-06", "Hit whilst parked occupied", "Not VAT Registered", "Royston Lodge, Bathgate, EH48 1JX", "Home address", "C.A.R.S Collision Accident Recovery Service Ltd", "Mr Craig Motorhome Escapes", "Level Up Bodyshop", "Block 1 Whiteside Industrial Estate, Bathgate EH48 2RX", "07720315785", "levelupautobody60@gmail.com")]
     [InlineData("4da6b68702ad-SBL_02.pdf.txt", "SBL 02.pdf", "7cd71550bb2d0d782885928036c23818b6db877cac97db30d55e76ca47d62866", "Mr EDSB Ltd EDSB Ltd", "SBL-B0558371", "DA75JCU", "VOLKSWAGEN ID4 PRO MATCH", "2026-04-26", "2026-05-06", "Our client was driving down the road when a driver came out of their driveway into the side of my vehicle at low speed. The driveway was on the left of our vehicle and hit the rear nearside. The third-party accepted fault. There was no emergency services", "VAT Registered", "E D S B Ltd Unit 2 Meadow Court 124 Millshaw Leeds, LS11 8LZ", "In use", "MAGNA ACCIDENT SERVICES LIMITED", "Mr EDSB Ltd EDSB Ltd", "Paynes Of Hinkley Arc", "Watling St Hinckley", null, "arc@paynesgarages.co.uk")]
@@ -19,7 +20,7 @@ public sealed class SblInstructionExtractionPolicyTests
         string introducer, string driver, string repairer, string repairerAddress,
         string? repairerTelephone, string repairerEmail)
     {
-        var root = ReferencePackRoot();
+        var root = ReferencePack.Root();
         var text = File.ReadAllText(Path.Combine(root, "astra_output", "extractions", "text", extractedFile));
         var original = File.ReadAllBytes(Path.Combine(
             root, "principal-docs", "original-mapper-instruction-corpus", originalFile));
@@ -206,18 +207,4 @@ public sealed class SblInstructionExtractionPolicyTests
 
     private static string? Date(DateOnly? value) => value?.ToString(
         "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-
-    private static string ReferencePackRoot() =>
-        Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT")
-        ?? throw new InvalidOperationException("The reference-pack test should have been skipped.");
-}
-
-internal sealed class SblReferencePackTheoryAttribute : TheoryAttribute
-{
-    public SblReferencePackTheoryAttribute()
-    {
-        var root = Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT");
-        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
-            Skip = "PEGASUS_REFERENCE_PACK_ROOT is absent; the immutable reference pack differs per machine.";
-    }
 }

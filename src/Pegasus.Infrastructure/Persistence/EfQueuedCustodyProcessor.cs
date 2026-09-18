@@ -231,7 +231,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 };
                 retainedFiles.AddRange(await RetainInstructionAttachmentsAsync(
                     root, casePayload, leaseGuard, cancellationToken));
-                // CASE-014: an audit's files live in its own case folder, so
+                // An audit's files live in its own case folder, so
                 // there is no separate audit folder to create for one. A later
                 // Audit reference on a non-audit case still gets its folder.
                 var auditFolderRemoteId = string.IsNullOrWhiteSpace(casePayload.AuditReference)
@@ -279,7 +279,7 @@ internal sealed class EfQueuedCustodyProcessor(
     }
 
     /// <summary>
-    /// DOCS-005: each attachment of the accepted instruction lands beside the
+    /// Each attachment of the accepted instruction lands beside the
     /// retained source as its own file. The assets were retained at intake
     /// (attachment kind); ordinals follow the source at 002 onward, in stable
     /// file-name order, and replay verifies rather than re-uploads.
@@ -327,7 +327,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 attachment.MediaType,
                 attachment.ContentLength,
                 attachment.ContentHash,
-                // DOCS-009: a photograph attached to the instruction is a
+                // A photograph attached to the instruction is a
                 // photograph. Filing every attachment as Instruction hid the
                 // case's own damage images from the evidence gallery's image
                 // test and from EVA image selection, which both ask this
@@ -341,7 +341,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 attachment.Id));
         }
 
-        // DOCS-006: photographs embedded in the instruction's documents land
+        // Photographs embedded in the instruction's documents land
         // as their own files after the attachments, resolved through the one
         // evidence-image selection (which also drops letterhead art and any
         // photo already retained as an attached file).
@@ -390,7 +390,7 @@ internal sealed class EfQueuedCustodyProcessor(
     /// this writes records only — it never sends the content a second time.
     /// The occurrence ordinal is the ordinal the upload used, and the flat
     /// Box name is derived from that ordinal at both ends, so a download
-    /// resolves exactly the file that was uploaded (DOCS-007).
+    /// resolves exactly the file that was uploaded.
     ///
     /// Idempotent by operation key: custody work can be retried, and a
     /// replay must not produce a second copy of a document that is already
@@ -817,7 +817,7 @@ internal sealed class EfQueuedCustodyProcessor(
     /// anything unclassified — the exception's own type name appended to the
     /// fallback.
     ///
-    /// DOCS-008: two production audits failed custody with
+    /// Two production audits failed custody with
     /// <c>custody_unexpected_failure</c> and nothing anywhere retained what
     /// actually threw, so diagnosis meant reading source and writing
     /// reproductions instead of reading a type. A type name carries no case

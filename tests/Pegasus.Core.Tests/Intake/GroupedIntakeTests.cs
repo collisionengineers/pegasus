@@ -85,7 +85,7 @@ public sealed class GroupedIntakeTests
     // colon-digit tail in a parent token.
     [InlineData("batch:1", new[] { "batch", "batch:1" })]
     [InlineData("batch:12", new[] { "batch", "batch:12" })]
-    // An ordinal-0 member carries the parent token verbatim (INTK-005), so
+    // An ordinal-0 member carries the parent token verbatim, so
     // the bare token IS the parent candidate.
     [InlineData("batch", new[] { "batch" })]
     // Shapes Create never emits are not member suffixes: ':0', a signed or

@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// UIIMP-008, v26 (Work Centre D7): the Work Centre's four metrics are
+/// V26 (Work Centre D7): the Work Centre's four metrics are
 /// page-queried figures, each an exact link to the Cases tab behind it. Blocked
 /// is no longer an operator concept, so no Blocked metric is drawn.
 /// </summary>
@@ -31,7 +31,7 @@ public sealed class DashboardCountersWebTests
     }
 
     /// <summary>
-    /// UIIMP-008: a link whose `asp-page` names a page that does not exist
+    /// A link whose `asp-page` names a page that does not exist
     /// renders `href=""`. Whatever the Work Centre draws, no anchor may carry
     /// an empty href.
     /// </summary>

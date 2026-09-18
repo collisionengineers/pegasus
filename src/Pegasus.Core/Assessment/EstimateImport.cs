@@ -74,7 +74,7 @@ public sealed record ParsedEstimate(
 public sealed class EstimateParseRejectedException(string reason) : Exception(reason);
 
 /// <summary>
-/// Port for one external estimate document format (ENG-002). The document
+/// Port for one external estimate document format. The document
 /// reader (PDF text extraction) is an external boundary, so the format
 /// parsers live in Infrastructure behind this port — the same split as
 /// <c>IIntakeSourceReader</c>. The PDF container detects its provider from

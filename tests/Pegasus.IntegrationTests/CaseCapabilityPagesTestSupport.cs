@@ -503,7 +503,7 @@ internal static partial class CaseWebTestSupport
     }
 
     /// <summary>
-    /// The original CASE-027 regression dropped claimant contact/address.
+    /// The original Case-contact regression dropped claimant contact/address.
     /// Keep its actual caller assertion when moving the single Save to the
     /// workspace command, whose submitted sections replace all their members.
     /// </summary>
@@ -845,7 +845,6 @@ internal static partial class CaseWebTestSupport
                 CaseDocuments,
                 null,
                 CaseCustodyState.Pending,
-                RequestUploadLinks,
                 AvailableReportSentEvidence,
                 HistoryEntries)
             {
@@ -934,7 +933,6 @@ internal static partial class CaseWebTestSupport
                     query.Documents ?? CaseDocuments,
                     null,
                     CaseCustodyState.Pending,
-                    RequestUploadLinks,
                     QueryEmails,
                     StandaloneAuditEvidenceId,
                     AuditOfCaseId)

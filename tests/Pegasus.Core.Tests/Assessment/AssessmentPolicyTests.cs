@@ -304,7 +304,7 @@ public sealed class AssessmentPolicyTests
     [Fact]
     public void AGenericFieldSaveNeverWritesOrClearsTheAdoptedEngineerValue()
     {
-        // AUTO-015: the accepted Engineer's value is adopted only by the
+        // The accepted Engineer's value is adopted only by the
         // valuation Apply command, which records the suggested and the chosen
         // amounts together. A Web or MCP field save that touched it would
         // rewrite a professional finding with no such evidence, so both a
@@ -381,7 +381,7 @@ public sealed class AssessmentPolicyTests
     [Fact]
     public void PostReviewReadinessNoLongerAsksForTheRetiredEngineerIdentityFields()
     {
-        // ENG-038 / D18: the signing Engineer is the selected sign-off
+        // Operator decision D18: the signing Engineer is the selected sign-off
         // account, so typed copies of that account's name, qualifications and
         // signature are no longer readiness items.
         var readiness = AssessmentPolicy.EvaluatePostReviewReadiness(Projection([]));

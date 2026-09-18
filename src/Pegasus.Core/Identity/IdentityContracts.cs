@@ -33,7 +33,6 @@ public enum ActorKind
 {
     Staff,
     SystemWorker,
-    RequestLink,
     Automation,
     Provider
 }
@@ -108,16 +107,6 @@ public sealed class ActionActor
         }
 
         return new ActionActor(ActorKind.Provider, principalId.ToString("D"), NoRoles);
-    }
-
-    public static ActionActor RequestLink(Guid requestId)
-    {
-        if (requestId == Guid.Empty)
-        {
-            throw new ArgumentException("A request-link actor requires a non-empty request identifier.", nameof(requestId));
-        }
-
-        return new ActionActor(ActorKind.RequestLink, requestId.ToString("D"), NoRoles);
     }
 
     private static ActionActor CreateNonStaff(ActorKind kind, string subjectId, string parameterName)

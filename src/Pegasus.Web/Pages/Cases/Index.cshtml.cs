@@ -16,7 +16,7 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// Cases (EPIC-011 §1.4, v26): the workflow rail with queried counts, the open
+/// Cases (v26): the workflow rail with queried counts, the open
 /// scope as a table (decision L) and a fixed-width quick detail of the selected
 /// row.
 /// </summary>
@@ -27,7 +27,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// behind its Show filter (received file D5); nothing here lists a Blocked
 /// receipt or links to a received item (received file D1, D2).
 ///
-/// The group is <c>?tab=</c>; the pre-EPIC-011 <c>?queue=</c> is accepted as
+/// The group is <c>?tab=</c>; the earlier <c>?queue=</c> is accepted as
 /// an alias and hyphenated spellings normalise to the same keys. A request
 /// carrying a search-only parameter belongs to <c>/Search</c> and is
 /// redirected there permanently with its values intact.
@@ -121,7 +121,7 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "tab")]
     public string? TabFilter { get; set; }
 
-    /// <summary>The pre-EPIC-011 name of <see cref="TabFilter"/>, accepted as an alias.</summary>
+    /// <summary>The earlier name of <see cref="TabFilter"/>, accepted as an alias.</summary>
     [BindProperty(SupportsGet = true, Name = "queue")]
     public string? QueueFilter { get; set; }
 

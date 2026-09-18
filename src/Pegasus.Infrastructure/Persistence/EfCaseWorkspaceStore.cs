@@ -212,7 +212,7 @@ public sealed class EfCaseWorkspaceStore(
                 completeness.ImagesComplete ?? snapshot.Case.ImagesComplete;
         }
 
-        // CASE-046: readiness is evaluated from the row that was just written,
+        // Readiness is evaluated from the row that was just written,
         // never from anything the caller claimed, and never forced to false as
         // a side effect of editing an unrelated fact.
         var afterCompleteness = Completeness(snapshot);

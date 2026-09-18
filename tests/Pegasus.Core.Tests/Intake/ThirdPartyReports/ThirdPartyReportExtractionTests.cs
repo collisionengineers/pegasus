@@ -1,12 +1,13 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.ThirdPartyReports;
+using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.ThirdPartyReports;
 
 /// <summary>
-/// Reading a third-party engineer report as source evidence (INTK-031).
+/// Reading a third-party engineer report as source evidence.
 ///
 /// Two kinds of test live here. The bounded ones use inline excerpts of the
 /// printed layout and run everywhere, so the rules are provable on any machine.
@@ -827,7 +828,7 @@ public sealed partial class ThirdPartyReportExtractionTests
     }
 
     /// <summary>
-    /// The read-back half of the reading (INTK-060 C05). Everything the typed
+    /// The read-back half of the reading. Everything the typed
     /// candidate projects — the issuer, both printed reference roles, the
     /// dates, the vehicle, every amount under its own initial/agreed/revised
     /// role, the valuation, the supplement's base link and each field's
@@ -1135,8 +1136,7 @@ public sealed partial class ThirdPartyReportExtractionTests
     /// </summary>
     private static IEnumerable<(string Name, List<(int Page, string Text)> Pages)> CorpusText()
     {
-        var root = ConfiguredPackRoot()
-            ?? throw new InvalidOperationException("This test should have been skipped.");
+        var root = ReferencePack.Root();
         var astra = Path.Combine(root, "astra_output");
         var inventory = Path.Combine(astra, "reports", "third-party-source-inventory.json");
         using var document = System.Text.Json.JsonDocument.Parse(File.ReadAllText(inventory));
@@ -1174,41 +1174,9 @@ public sealed partial class ThirdPartyReportExtractionTests
         return pages;
     }
 
-    internal static string? ConfiguredPackRoot()
-    {
-        // The same variable the integration corpus tests resolve the pack from.
-        // The locator itself lives in each project because the pack is read by
-        // two assemblies and neither is a dependency of the other.
-        var root = Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT");
-        return string.IsNullOrWhiteSpace(root) ? null : root;
-    }
-
     [GeneratedRegex(@"[ \t]+", RegexOptions.CultureInvariant, 100)]
     private static partial Regex Runs();
 
     [GeneratedRegex(@"=== PAGE (?<n>\d+) ===\r?\n", RegexOptions.CultureInvariant, 100)]
     private static partial Regex PageMarker();
-}
-
-/// <summary>
-/// A fact that needs the local, git-ignored reference pack. It skips with a
-/// stated reason when the pack is not on this machine — never silently, and
-/// never reported as a pass.
-/// </summary>
-internal sealed class ReferencePackFactAttribute : FactAttribute
-{
-    public ReferencePackFactAttribute()
-    {
-        var root = ThirdPartyReportExtractionTests.ConfiguredPackRoot();
-        if (root is null)
-        {
-            Skip = "PEGASUS_REFERENCE_PACK_ROOT is not set; the reference pack is a local, "
-                + "git-ignored collection that differs per machine. INCONCLUSIVE, not passed.";
-        }
-        else if (!Directory.Exists(root))
-        {
-            Skip = "PEGASUS_REFERENCE_PACK_ROOT names a directory that does not exist on this "
-                + "machine. INCONCLUSIVE, not passed.";
-        }
-    }
 }

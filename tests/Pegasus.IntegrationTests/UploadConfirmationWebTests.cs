@@ -16,7 +16,7 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// INTK-016: the confirmation surface's own staff decision — the case-search
+/// The confirmation surface's own staff decision — the case-search
 /// suggestions behind the autocomplete, and adding uploaded material to a
 /// case found there — exercised through the real Web host end to end. The
 /// per-branch decision table itself is covered in

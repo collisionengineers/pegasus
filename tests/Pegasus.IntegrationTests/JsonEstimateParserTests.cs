@@ -5,7 +5,7 @@ using Pegasus.Infrastructure.Assessment;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// ENG-026: the Pegasus-owned JSON estimate document beside the Audatex
+/// The Pegasus-owned JSON estimate document beside the Audatex
 /// parser. Money and hours are read exactly; anything ambiguous rejects the
 /// whole import.
 /// </summary>

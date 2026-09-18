@@ -63,7 +63,7 @@ public sealed class ProductionBoxCustodyTests
     [Fact]
     public void ConfigurationNamesAnUnresolvedKeyVaultReferenceDirectly()
     {
-        // PLAT-013: during provisioning App Service can pass the literal
+        // During provisioning App Service can pass the literal
         // @Microsoft.KeyVault(...) placeholder. That state must be named, not
         // reported as a malformed Box JWT configuration.
         var unresolvedConfig = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
@@ -206,7 +206,7 @@ public sealed class ProductionBoxCustodyTests
     }
 
     /// <summary>
-    /// DOCS-008: the production shape. An audit root named from the audit
+    /// The production shape. An audit root named from the audit
     /// reference, the source, then the eight attachments QDOS26010 actually
     /// carried. Both production audits failed custody with an unclassified
     /// exception after their files had reached Box, and nothing exercises
@@ -221,7 +221,7 @@ public sealed class ProductionBoxCustodyTests
         var caseId = Guid.NewGuid();
         var receiptId = Guid.NewGuid();
 
-        // An audit's Box root was named from the audit reference before CASE-014.
+        // An audit's Box root was named from the audit reference before audits kept one identity.
         var root = await custody.CreateCaseRootAsync(
             caseId, "a.QDOS26010", "0123456789ABCDEFGHJKMNPQRS", "case-create", default);
         await custody.RetainAcceptedIntakeSourceAsync(
@@ -427,7 +427,7 @@ public sealed class ProductionBoxCustodyTests
         Assert.Equal(2, box.RenameCount);
         Assert.Equal(0, box.DeleteCount);
 
-        // DOCS-005: a same-name folder is the case's — the durable identity
+        // A same-name folder is the case's — the durable identity
         // lives in the database, not in a marker file.
         var preExisting = new StatefulBox();
         preExisting.SeedEmptyCase("QDOS31001");
@@ -470,7 +470,7 @@ public sealed class ProductionBoxCustodyTests
             CreateClient(expiresAfterPromotion));
         // The unbound create spends two guarded effects (staging create,
         // promotion); the budget ends exactly there so the follow-on retain is
-        // refused before it can create Evidence (DOCS-005 kept this boundary).
+        // refused before it can create Evidence (the custody design kept this boundary).
         var promotionGuard = new CustodyEffectLeaseGuard(_ =>
             Task.FromResult(Interlocked.Increment(ref promotionChecks) <= 2));
         var promotedRoot = await guardedCustody.CreateCaseRootAsync(

@@ -232,7 +232,7 @@ internal sealed class DocumentContentCacheEntryEntity : IApplicationManagedConcu
 
     /// <summary>
     /// Which kind of cached object this row names: the empty string for the
-    /// durable content itself, or a derived rendering's key (DOCS-015).
+    /// durable content itself, or a derived rendering's key.
     /// </summary>
     /// <remarks>
     /// The cache was one entry per source identity, so a derived thumbnail had
@@ -250,31 +250,4 @@ internal sealed class DocumentContentCacheEntryEntity : IApplicationManagedConcu
     public string? LastCleanupOutcome { get; set; }
     public long Version { get; set; }
     public Guid ConcurrencyToken { get; set; }
-}
-
-internal sealed class PublicUploadSessionEntity : IApplicationManagedConcurrencyToken
-{
-    public Guid Id { get; set; }
-    public Guid RequestUploadLinkId { get; set; }
-    public required string LimitsVersion { get; set; }
-    public DateTimeOffset? StartedAtUtc { get; set; }
-    public DateTimeOffset? FinalizedAtUtc { get; set; }
-    public DateTimeOffset? ExpiresAtUtc { get; set; }
-    public long Version { get; set; }
-    public Guid ConcurrencyToken { get; set; }
-}
-
-internal sealed class PublicUploadOccurrenceEntity
-{
-    public Guid Id { get; set; }
-    public Guid SessionId { get; set; }
-    public Guid? ReplacesOccurrenceId { get; set; }
-    public required string OperationKey { get; set; }
-    public required string ProposedName { get; set; }
-    public required string MediaType { get; set; }
-    public long Size { get; set; }
-    public required string Sha256 { get; set; }
-    public required string CustodyState { get; set; }
-    public Guid? DocumentId { get; set; }
-    public Guid? DocumentVersionId { get; set; }
 }

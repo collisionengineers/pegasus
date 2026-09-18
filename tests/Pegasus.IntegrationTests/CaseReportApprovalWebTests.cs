@@ -174,7 +174,7 @@ public sealed class CaseReportApprovalWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
-        // CASE-012: the workspace no longer renders the typed-SHA approval
+        // The workspace no longer renders the typed-SHA approval
         // form (inherited scope bans typed SHA inputs; the approval act moves
         // to the Assessment report-draft lane). The handler's contract — the
         // server actor, the stable artifact identity, replay by operation
@@ -326,7 +326,6 @@ public sealed class CaseReportApprovalWebTests
                 null,
                 CaseCustodyState.Pending,
                 [],
-                [],
                 [])
             {
                 Data = AssessmentWorkspaceTestData.Create(Assessment(workflow)).Data,
@@ -404,7 +403,7 @@ public sealed class CaseReportApprovalWebTests
             GetCaseSectionQuery query,
             CancellationToken cancellationToken) =>
             Task.FromResult<CaseFilesSection?>(query.CaseId == CaseId
-                ? new(Frame(), query.Documents ?? [], null, CaseCustodyState.Pending, [], [])
+                ? new(Frame(), query.Documents ?? [], null, CaseCustodyState.Pending, [])
                 : null);
 
         Task<CaseEditLease> IAcquireCaseEditLease.ExecuteAsync(

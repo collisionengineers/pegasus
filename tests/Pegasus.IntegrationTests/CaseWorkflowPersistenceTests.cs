@@ -191,7 +191,7 @@ public sealed class CaseWorkflowPersistenceTests
     [Fact]
     public async Task ReviewGatedTransitionsRefuseOnIncompletePersistedFacts()
     {
-        // CASE-046: the gate reads the case's own Instruction complete and
+        // The gate reads the case's own Instruction complete and
         // Images complete columns inside the transition's transaction. The
         // request still carries the old readiness envelope claiming both are
         // true, and it changes nothing.
@@ -1845,7 +1845,7 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
-    /// CASE-024: a heartbeat extends the lease and records nothing. It is issued once a minute for
+    /// A heartbeat extends the lease and records nothing. It is issued once a minute for
     /// as long as an editor is open, so a replay row per beat would grow a table nothing prunes,
     /// and rewriting the operation key would destroy the claim key the workspace reads back to
     /// recover edit mode.
@@ -1970,7 +1970,7 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
-    /// KANMER-005, Automation holds and staff competes: the staff claim, a write presenting the
+    /// Automation holds and staff competes: the staff claim, a write presenting the
     /// holder's own token, renew, heartbeat, and release are all refused; the retained lease is
     /// untouched by every refusal; and the holder then heartbeats, saves, and finds its lease
     /// consumed by that save exactly as before.
@@ -2018,7 +2018,7 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
-    /// KANMER-005, staff holds and Automation competes: the mirror of the case above, ending
+    /// Staff holds and Automation competes: the mirror of the case above, ending
     /// with the holder releasing without saving and the competitor then claiming the free lease.
     /// </summary>
     [Fact]
@@ -2065,7 +2065,7 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     /// <summary>
-    /// The identity gap KANMER-005 closes: a holder is kind and subject together, so an
+    /// The identity gap this closes: a holder is kind and subject together, so an
     /// Automation Actor given the staff holder's own subject text, presenting the live token, is
     /// still a competitor — and its refused attempts leave the row byte-for-byte as it was.
     /// </summary>

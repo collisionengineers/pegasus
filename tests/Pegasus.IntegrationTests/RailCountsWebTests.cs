@@ -12,7 +12,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// PLAT-003 / PLAT-029: the operator rail's Cases count must show the real
+/// The operator rail's Cases count must show the real
 /// Not ready + Review + Held total (the already-deployed stage aggregate),
 /// a route with no established figure (Inbox) must render no count at all
 /// rather than a stale zero, and Operations (v26, 13 September) carries the

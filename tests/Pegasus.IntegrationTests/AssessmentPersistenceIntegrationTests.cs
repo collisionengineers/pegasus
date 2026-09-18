@@ -123,7 +123,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         var ready = AssessmentReportProjection.Project(
             input with { ReportDate = new DateOnly(2026, 8, 19) });
         Assert.True(ready.IsReady, string.Join("; ", ready.Reasons.Select(reason => reason.Requirement)));
-        var pdf = "%PDF-1.4 CASE-040"u8.ToArray();
+        var pdf = "%PDF-1.4 report-ready"u8.ToArray();
         var draft = await new GenerateAssessmentReportDraft(new TestReportRenderer(pdf))
             .ExecuteAsync(ready.Snapshot!, CaseReportArtifactKind.AssessmentReport);
         Assert.Equal(pdf, draft.Pdf);
@@ -180,7 +180,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     {
         await using var context = await factory.CreateDbContextAsync();
         var recordedAt = StartUtc;
-        const string engineer = "case-040-engineer";
+        const string engineer = "report-ready-engineer";
         var caseData = new (string Name, string Type, string Value)[]
         {
             (CaseDataFieldNames.ClaimantName, CaseDataCodes.Text, "Mrs Jane Example"),
@@ -213,7 +213,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 Value = field.Value,
                 SourceKind = CaseDataCodes.StaffCorrection,
                 SourceIdentity = engineer,
-                SourceLabel = "CASE-040 report-ready fixture",
+                SourceLabel = "Report-ready fixture",
                 PolicyKey = CaseDataPolicy.EditPolicyKey,
                 PolicyVersion = CaseDataPolicy.EditPolicyVersion,
                 ConfirmedByActor = engineer,
@@ -296,7 +296,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                 recordedBreakdown,
                 EfRepairSpecificationStore.JsonOptions),
             CreatedBy = engineer,
-            CreationOperationKey = "case-040-report-ready-estimate",
+            CreationOperationKey = "report-ready-estimate",
             CreatedAtUtc = recordedAt,
             AcceptedBy = engineer,
             AcceptedAtUtc = recordedAt,
@@ -312,7 +312,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
 
     private sealed class TestReportRenderer(byte[] pdf) : IAssessmentReportRenderer
     {
-        public string EngineVersion => "case-040-test";
+        public string EngineVersion => "report-ready-test";
 
         public Task<RenderedReportArtifact> RenderAsync(
             AssessmentReportSnapshot snapshot,
@@ -405,7 +405,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
                     ["assessment.values.trade"] = "10500"
                     // assessment.values.engineer is deliberately absent: the
                     // Engineer's Value is adopted only by the valuation Apply
-                    // command (B03/AUTO-015), and a field save that posted it
+                    // command (B03), and a field save that posted it
                     // is now refused rather than recorded.
                 },
                 [
@@ -1659,7 +1659,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         async Task<CaseEditLease> LeaseAsync(string key) =>
             await harness.AcquireLeaseAsync(caseId, version, engineer, key);
 
-        // The same production assessment read owner ENG-028 consumes.
+        // The same production assessment read owner the estimate editor consumes.
         async Task<AssessmentFieldValue> EngineersValueFieldAsync() =>
             Assert.IsType<AssessmentFieldValue>(
                 await ReadEngineersValueAsync(harness, caseId));
@@ -2639,7 +2639,7 @@ public sealed partial class AssessmentPersistenceIntegrationTests
     }
 
     /// <summary>
-    /// The assessment's own opening state under D11 (FRD-11, ENG-025):
+    /// The assessment's own opening state under D11 (FRD-11):
     /// Report preparation ("With Engineer") or later. Review no longer
     /// opens the workspace, so these cases start where it does; the
     /// export-cycle assertions the tests make are unchanged by that.

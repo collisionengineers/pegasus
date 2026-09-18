@@ -15,7 +15,7 @@ public sealed record ReconcileGroupedImageIntakeResult(
 /// resolved (a sibling already registered), or whose own registration
 /// attempt lost a transient concurrency race and was deferred by
 /// <c>ProcessQueuedIntake</c> without a U-reference. This is the product's
-/// own reconciliation mechanism for INTK-011: a member is never recovered by
+/// own reconciliation mechanism for that race: a member is never recovered by
 /// manual SQL, only by re-driving its already-completed durable work item
 /// through the ordinary pipeline (<see cref="IProcessQueuedIntake"/> →
 /// <see cref="IImageIntakeAutomation"/>), which is safe to call repeatedly

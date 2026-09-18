@@ -287,7 +287,6 @@ public sealed class CaseDamageAndViewerWebTests
                 null,
                 CaseCustodyState.Pending,
                 [],
-                [],
                 [])
             {
                 Data = workspace.Data

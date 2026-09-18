@@ -268,7 +268,7 @@ public sealed class EvaSubmissionStore(
         Exception? transitionFailure = null;
         try
         {
-            // Gated on delivery (CASE-040 review), not on state alone: a
+            // Gated on delivery, not on state alone: a
             // Rejected or Unknown outcome never reached EVA, so it
             // is not a handoff and must not move the case out of Review.
             resultingState = EvaSubmissionPolicy.StateAfterSend(
@@ -298,8 +298,7 @@ public sealed class EvaSubmissionStore(
         }
         // EvaHandoffStateException, EvaSignOffEngineerRequiredException and
         // CaseVersionConflictException are all InvalidOperationException
-        // (CASE-040 review NIT); this filter is deliberately just the base
-        // type because the block above is a fixed, closed set of local
+        // subtypes; this filter is deliberately just the base type because the block above is a fixed, closed set of local
         // re-checks and every failure it can raise already derives from it.
         catch (InvalidOperationException exception)
         {

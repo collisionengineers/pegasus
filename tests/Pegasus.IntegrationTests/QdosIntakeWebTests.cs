@@ -63,7 +63,7 @@ public sealed class QdosIntakeWebTests
         Assert.Contains("ordinary-correspondence.eml", html, StringComparison.Ordinal);
         Assert.Contains("data-auto-refresh=\"2000\"", html, StringComparison.Ordinal);
         // The state is the heading and the values are the panel: nothing
-        // beneath the heading narrates either of them back (PLAT-015).
+        // beneath the heading narrates either of them back.
         Assert.DoesNotContain("class=\"lede\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain(
             "safely received and waiting for background processing",

@@ -508,7 +508,7 @@ public sealed class ProviderApiSubmissionTests
         Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM Cases"));
         // The Triage is the destination. Without this the same material also
         // sits in the Unidentified queue, which is the two-queues defect
-        // INTK-033 closed for the mail route.
+        // already closed for the mail route.
         Assert.Equal(0, await factory.Database.ScalarAsync<int>("SELECT COUNT(*) FROM UnidentifiedItems"));
     }
 

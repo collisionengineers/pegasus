@@ -26,7 +26,7 @@ public static class EvaCaseEvidenceReader
     /// comment called "the whole difference between the hand-off and an
     /// operator export". With one act left there is one answer: a suggested
     /// value counts, and travels with its real suggested status — which is how
-    /// the lookup-derived mileage ENG-013 writes reaches the archive.
+    /// the lookup-derived mileage the vehicle lookup writes reaches the archive.
     /// </summary>
     public static EvaAcceptedCaseEvidence Build(
         CaseDataProjection caseData,
@@ -140,7 +140,7 @@ public static class EvaCaseEvidenceReader
     }
 
     /// <summary>
-    /// EVA's own two words for the mileage unit (ENG-015). The original
+    /// EVA's own two words for the mileage unit. The original
     /// extractor resolves this field to exactly "Miles" or "Km", so those are
     /// the only two values a bundle may carry — written once here so the
     /// confirmed-record branch and the case-field branch cannot drift.
@@ -166,7 +166,7 @@ public static class EvaCaseEvidenceReader
     /// <summary>
     /// The vehicle fields have their own confirmed record. The export falls
     /// back to the case's own field when that record has nothing — which is
-    /// where ENG-013 writes what the DVLA and DVSA lookup found, so an export
+    /// where the vehicle lookup writes what DVLA and DVSA found, so an export
     /// carries a mileage the documents never supplied. It never overrides a
     /// confirmed value.
     /// </summary>

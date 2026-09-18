@@ -9,7 +9,7 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The confirmation-step decision table (INTK-010 research.md/plan.md, step
+/// The confirmation-step decision table (upload confirmation research.md/plan.md, step
 /// 5) exercised directly against <see cref="UploadOutcomeQueries"/> with
 /// hand-built fakes for its three read ports — fast and precise, since every
 /// branch is a pure function of what those ports return. The Web-hosted
@@ -207,7 +207,7 @@ public sealed class UploadOutcomeQueriesTests
 
         // Nothing registered against the receipt itself (a split/grouped
         // image case) — only the group-level origin, which is exactly
-        // INTK-006/007's "kept intact as one group" routing. The builder
+        // the grouped-upload "kept intact as one group" routing. The builder
         // must fall back to it rather than reporting this member as if
         // nothing happened.
         var suggestedCaseId = Guid.NewGuid();

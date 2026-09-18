@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Pegasus.Infrastructure.Persistence.Migrations;
 
 /// <summary>
-/// DOCS-015: the document content cache held one entry per source identity, so
+/// The document content cache held one entry per source identity, so
 /// a derived gallery thumbnail had nowhere to live — its row was refused by the
 /// same unique index the content entry occupies, and would have been read back
 /// as the content itself. <c>Variant</c> names the kind of object a row

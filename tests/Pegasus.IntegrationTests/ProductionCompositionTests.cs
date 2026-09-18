@@ -276,7 +276,7 @@ public sealed class ProductionCompositionTests
         // and ADR-0008 put them: the route's own classification policy. This
         // test keeps the same protection pointed at the real mechanism — one
         // named, versioned owner, activated deliberately and not as a side
-        // effect of composition (INTK-033).
+        // effect of composition.
         using var provider = BuildProduction();
 
         var classifiers = provider.GetServices<IMailClassificationPolicy>().ToArray();
@@ -318,32 +318,11 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
-    public void ProductionProfileKeepsUploadLinksUnavailableWithoutAcceptedLimits()
-    {
-        // INT-31 is not on the alpha path and its limits are an open decision, so
-        // composing document custody must not activate anonymous upload links.
-        using var provider = BuildProduction();
-        using var scope = provider.CreateScope();
-
-        Assert.IsType<UnavailableDocumentRequestStore>(
-            scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>());
-    }
-
-    [Fact]
-    public void ProductionProfileComposesRequestUploadsWhenLimitsAreAccepted()
+    public void ProductionProfileComposesIncomingArtifactRetention()
     {
         var services = NewServices();
         services.AddPegasusInfrastructure(
             ConfigureDatabase,
-            requestUploadLimitsFactory: _ => new RequestUploadLimits(
-                "accepted-v1",
-                TimeSpan.FromHours(1),
-                5,
-                1024,
-                5120,
-                ["text/plain"],
-                10,
-                TimeSpan.FromMinutes(1)),
             documentStorage: registrations => registrations.AddProductionDocumentStorage(
                 static _ => new BlobContainerClient(
                     new Uri("https://pegasuscomposition.blob.core.windows.net/transient-intake")),
@@ -352,9 +331,7 @@ public sealed class ProductionCompositionTests
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
 
-        Assert.IsType<EfDocumentRequestStore>(
-            scope.ServiceProvider.GetRequiredService<IUploadToRequest>());
-        Assert.IsType<EfPublicUploadRetentionStore>(
+        Assert.IsType<EfIncomingArtifactRetentionStore>(
             scope.ServiceProvider.GetRequiredService<IIncomingArtifactRetentionStore>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<RetainIncomingArtifact>());
         Assert.IsType<BoxDocumentContentStore>(
@@ -362,7 +339,7 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
-    public void ProductionWebTelemetryIncludesPublicUploadUrlSanitization()
+    public void ProductionWebTelemetryIncludesGlassCallbackUrlSanitization()
     {
         using var factory = new ConfiguredWebApplicationFactory(
             "Production",
@@ -374,7 +351,7 @@ public sealed class ProductionCompositionTests
 
         Assert.Contains(
             factory.Services.GetServices<ITelemetryInitializer>(),
-            initializer => initializer is PublicUploadTelemetryInitializer);
+            initializer => initializer is GlassCallbackTelemetryInitializer);
     }
 
     [Fact]
@@ -444,8 +421,6 @@ public sealed class ProductionCompositionTests
 
         Assert.IsType<UnavailableCaseCustody>(
             scope.ServiceProvider.GetRequiredService<ICaseCustody>());
-        Assert.IsType<UnavailableDocumentRequestStore>(
-            scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>());
         Assert.Null(scope.ServiceProvider.GetService<IDocumentContentStore>());
         Assert.Null(scope.ServiceProvider.GetService<IAddCaseDocument>());
         Assert.IsType<UnavailableDeletedMailSearchSource>(
@@ -484,7 +459,7 @@ public sealed class ProductionCompositionTests
     [Fact]
     public void AnUnresolvedBoxSecretFailsTheFirstBoxUseNotHostBuild()
     {
-        // PLAT-013: parsing the Box secret during host build aborted the whole
+        // Parsing the Box secret during host build aborted the whole
         // worker process (exit 134) whenever the platform handed over an
         // unresolved Key Vault reference. Composition must succeed and non-Box
         // services must resolve; only the first Box resolution fails closed.
