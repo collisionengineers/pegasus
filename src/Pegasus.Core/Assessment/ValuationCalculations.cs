@@ -45,23 +45,18 @@ public sealed record SaveValuationPresetRequest(
     string OperationKey)
 {
     /// <summary>Required for an update; a newly minted preset has no existing scope.</summary>
-    public string EditLeaseToken { get; init; } = string.Empty;
 }
 
 /// <summary>
-/// Removes one preset from the maintained list. The removal is a soft one, so
-/// it takes the same expected version, edit lease and operation key an edit
-/// does, and it carries the reason it was removed for.
+/// Removes one preset from the maintained list. The removal is a soft one and
+/// carries the expected version, operation key and reason.
 /// </summary>
 public sealed record RemoveValuationPresetRequest(
     Guid PresetId,
     long ExpectedVersion,
     ActionActor Actor,
     string OperationKey,
-    string? Reason)
-{
-    public string EditLeaseToken { get; init; } = string.Empty;
-}
+    string? Reason);
 
 public enum ValuationPresetError
 {

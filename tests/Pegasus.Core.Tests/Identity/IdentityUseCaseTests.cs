@@ -1,5 +1,4 @@
 using Pegasus.Core.Identity;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Identity;
 
@@ -99,10 +98,10 @@ public sealed class IdentityUseCaseTests
         var store = new RecordingStore();
         await Assert.ThrowsAsync<StaffAccountAdministrationException>(() =>
             new DisableStaffAccount(store).ExecuteAsync(
-                new(actor, staffId, "Disable self", "disable-self", 2, LeaseToken), default));
+                new(actor, staffId, "Disable self", "disable-self", 2), default));
         await Assert.ThrowsAsync<StaffAccountAdministrationException>(() =>
             new ForceStaffLogout(store).ExecuteAsync(
-                new(actor, staffId, "Logout self", "logout-self", 2, LeaseToken), default));
+                new(actor, staffId, "Logout self", "logout-self", 2), default));
 
         Assert.Null(store.DisableRequest);
         Assert.Null(store.LogoutRequest);
@@ -115,12 +114,9 @@ public sealed class IdentityUseCaseTests
         Assert.Equal(nameof(ResetStaffPasswordResult), result.ToString());
     }
 
-    private static readonly string LeaseToken =
-        new('a', CaseEditAuthority.LeaseTokenLength);
-
     private static UpdateStaffAccountSettingsRequest SettingsRequest(Guid staffId) =>
         new(Administrator, staffId, StaffRole.Engineer, true, "A Engineer", null, Png(), true,
-            "settings-operation", 2, LeaseToken);
+            "settings-operation", 2);
 
     private static byte[] Png() => [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 

@@ -1436,19 +1436,16 @@ public sealed class CaseReportGenerationPersistenceTests
             var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
             var account = await context.Users.SingleAsync(
                 item => item.Id == FakeSnapshotSource.SignatoryId);
-            var lease = await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-                new(EditScopeKind.StaffAccount, account.Id, account.Version, actor, "change-signatory"),
-                default);
             if (change == "disabled")
             {
                 await store.DisableAsync(new(
-                    actor, account.Id, "Unavailable", "change-signatory", account.Version, lease.Token), default);
+                    actor, account.Id, "Unavailable", "change-signatory", account.Version), default);
             }
             else if (change == "role")
             {
                 await store.UpdateAsync(new(
                     actor, account.Id, StaffRole.User, false, null, null, null, false,
-                    "change-signatory", account.Version, lease.Token), default);
+                    "change-signatory", account.Version), default);
             }
             else
             {
@@ -1458,7 +1455,7 @@ public sealed class CaseReportGenerationPersistenceTests
                     change == "qualifications" ? "ATA VDA" : "ATA VDA AQP",
                     change == "signature" ? EvidenceBytesOf(7) : SignatureBytes,
                     change != "eligibility", "change-signatory",
-                    account.Version, lease.Token), default);
+                    account.Version), default);
             }
         }
 

@@ -19,14 +19,7 @@
             <div class="dialog-head">
                 <h2 id="glass-credential-title">Glass's login</h2>
                 <partial name="Shared/_StatusChip" model="@Model.StateName" />
-                @if (Model.IsEditing)
-                {
-                    <form id="glass-close-form" method="post" asp-page-handler="CancelEdit"><input type="hidden" name="staffId" value="@account.Id" /><input type="hidden" name="editLeaseToken" value="@Model.EditLeaseToken" /><input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" /></form>
-                }
-                else
-                {
-                    <form id="glass-close-form" method="get" asp-page="/Administration/Accounts/Index"><input type="hidden" name="editStaffId" value="@account.Id" /><input type="hidden" name="expectedVersion" value="@account.Version" /></form>
-                }
+                <form id="glass-close-form" method="get" asp-page="/Administration/Accounts/Index"><input type="hidden" name="editStaffId" value="@account.Id" /><input type="hidden" name="expectedVersion" value="@account.Version" /></form>
                 <button type="submit" form="glass-close-form" class="dialog-close" aria-label="Back to account"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
             </div>
             <div class="dialog-body stack">
@@ -65,12 +58,9 @@
                     }
                 </dl>
                 <form id="glass-save-form" method="post" asp-page-handler="Save" class="stack">
-                    @* Plain, not asp-for: a redisplay must carry the version the
-                       store holds now, never the stale one the refused post sent. *@
-                    <input type="hidden" name="ExpectedVersion" value="@status.Version" />
-                    <input type="hidden" name="ExpectedStaffAccountVersion" value="@account.Version" />
-                    <input type="hidden" name="EditLeaseToken" value="@Model.EditLeaseToken" />
-                    <fieldset class="stack" disabled="@(!Model.IsEditing)">
+                    <input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" />
+                    <input type="hidden" name="ExpectedStaffAccountVersion" value="@Model.ExpectedStaffAccountVersion" />
+                    <fieldset class="stack">
                     <div class="field">
                         <label class="req" for="glass-username">@CaseWorkspaceLabels.GlassCredential.Username</label>
                         <input id="glass-username" name="username" required maxlength="256"
@@ -89,54 +79,11 @@
             <div class="dialog-foot">
                 @if (status.Configured)
                 {
-                    <div class="left"><form method="post" asp-page-handler="Clear"><input type="hidden" name="ExpectedVersion" value="@status.Version" /><input type="hidden" name="ExpectedStaffAccountVersion" value="@account.Version" /><input type="hidden" name="EditLeaseToken" value="@Model.EditLeaseToken" /><button type="submit" class="btn btn--danger" disabled="@(!Model.IsEditing)">@CaseWorkspaceLabels.GlassCredential.Clear</button></form></div>
+                    <div class="left"><form method="post" asp-page-handler="Clear"><input type="hidden" name="ExpectedVersion" value="@Model.ExpectedVersion" /><input type="hidden" name="ExpectedStaffAccountVersion" value="@Model.ExpectedStaffAccountVersion" /><button type="submit" class="btn btn--danger">@CaseWorkspaceLabels.GlassCredential.Clear</button></form></div>
                 }
-                @if (Model.IsEditing)
-                {
-                    <button type="submit" form="glass-close-form" class="btn">Cancel</button>
-                    <button type="submit" form="glass-save-form" class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg><span>@CaseWorkspaceLabels.GlassCredential.Save</span></button>
-                }
-                else
-                {
-                    @* Offered only to the operator whose own other window still
-                       holds this staff account's scope; taking over rotates the
-                       token so that window can no longer save. *@
-                    if (Model.CanTakeOverEdit)
-                    {
-                        <form method="post" asp-page-handler="Edit">
-                            <input type="hidden" name="staffId" value="@account.Id" />
-                            <input type="hidden" name="expectedStaffAccountVersion" value="@account.Version" />
-                            <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                            <input type="hidden" name="takeOver" value="true" />
-                            <button type="submit" class="btn btn--primary">Take over</button>
-                        </form>
-                    }
-                    else
-                    {
-                        <form method="post" asp-page-handler="Edit">
-                            <input type="hidden" name="staffId" value="@account.Id" />
-                            <input type="hidden" name="expectedStaffAccountVersion" value="@account.Version" />
-                            <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                            <button type="submit" class="btn btn--primary">Edit credential</button>
-                        </form>
-                    }
-                    <button type="submit" form="glass-close-form" class="btn">Back to account</button>
-                }
+                <button type="submit" form="glass-close-form" class="btn">Back to account</button>
+                <button type="submit" form="glass-save-form" class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg><span>@CaseWorkspaceLabels.GlassCredential.Save</span></button>
             </div>
-            @if (Model.IsEditing)
-            {
-                <form method="post" asp-page-handler="HeartbeatEdit" data-edit-heartbeat data-edit-heartbeat-status="glass-credential-edit-heartbeat-status" hidden>
-                    <input type="hidden" name="staffId" value="@account.Id" />
-                    <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseToken" />
-                </form>
-                <p id="glass-credential-edit-heartbeat-status" class="notice notice--error" role="alert" hidden></p>
-                @* Beaconed as the page unloads so an operator who navigates away
-                   is not refused by their own lease when they come back. *@
-                <form method="post" asp-page-handler="ReleaseScopeBeacon" data-edit-scope-release hidden>
-                    <input type="hidden" name="staffId" value="@account.Id" />
-                    <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseToken" />
-                </form>
-            }
         </section>
     </div>
 }

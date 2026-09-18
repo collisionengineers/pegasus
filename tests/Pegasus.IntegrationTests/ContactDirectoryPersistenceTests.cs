@@ -40,8 +40,7 @@ public sealed class ContactDirectoryPersistenceTests
                 new(contactId, ContactRole.ClaimSource, firstPrincipal.OwnPrincipalIds!.Single()),
                 new(contactId, ContactRole.Repairer, secondPrincipal.OwnPrincipalIds!.Single())
             ],
-            Guid.NewGuid().ToString("N"),
-            string.Empty));
+            Guid.NewGuid().ToString("N")));
 
         Assert.Equal("AB1 2CD", saved.Postcode);
         Assert.Equal(
@@ -71,7 +70,7 @@ public sealed class ContactDirectoryPersistenceTests
     }
 
     [Fact]
-    public async Task ExistingVersionZeroContactStillRequiresItsEditScope()
+    public async Task ExistingVersionZeroContactCanSaveDirectlyAndRejectsStaleVersion()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var contactId = Guid.NewGuid();
@@ -102,15 +101,12 @@ public sealed class ContactDirectoryPersistenceTests
         {
             Name = "Migrated contact renamed"
         };
-        await Assert.ThrowsAsync<EditScopeExpiredException>(() => SaveAsync(database, request));
-
-        await using var editScope = database.CreateAsyncScope();
-        var token = (await editScope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(EditScopeKind.Contact, contactId, 0, Administrator, Guid.NewGuid().ToString("N")),
-            CancellationToken.None)).Token;
-        var saved = await SaveAsync(database, request with { EditLeaseToken = token });
+        var saved = await SaveAsync(database, request);
         Assert.Equal(1, saved.Version);
         Assert.Equal("Migrated contact renamed", saved.Name);
+        var stale = await Assert.ThrowsAsync<ContactDirectoryException>(() =>
+            SaveAsync(database, request with { OperationKey = Guid.NewGuid().ToString("N") }));
+        Assert.Equal(ContactDirectoryError.StaleVersion, stale.Error);
     }
 
     [Fact]
@@ -121,15 +117,10 @@ public sealed class ContactDirectoryPersistenceTests
         var created = await SaveAsync(database, request);
 
         await using var scope = database.CreateAsyncScope();
-        var token = (await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(EditScopeKind.Contact, request.OrganizationId, created.Version, Administrator,
-                Guid.NewGuid().ToString("N")),
-            CancellationToken.None)).Token;
         _ = await SaveAsync(database, request with
         {
             ExpectedVersion = created.Version,
             Active = false,
-            EditLeaseToken = token,
             OperationKey = Guid.NewGuid().ToString("N")
         });
 
@@ -151,16 +142,11 @@ public sealed class ContactDirectoryPersistenceTests
         Assert.Equal(1, saved.GuidanceTemplateVersion);
         foreach (var template in new string?[] { null, "Replacement guidance" })
         {
-            await using var scope = database.CreateAsyncScope();
-            var lease = await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-                new(EditScopeKind.Contact, saved.OrganizationId, saved.Version, Administrator,
-                    Guid.NewGuid().ToString("N")), CancellationToken.None);
             var previousVersion = saved.GuidanceTemplateVersion;
             saved = await SaveAsync(database, request with
             {
                 ExpectedVersion = saved.Version,
                 GuidanceTemplate = template,
-                EditLeaseToken = lease.Token,
                 OperationKey = Guid.NewGuid().ToString("N")
             });
             Assert.Equal(previousVersion + 1, saved.GuidanceTemplateVersion);
@@ -256,8 +242,7 @@ public sealed class ContactDirectoryPersistenceTests
         code,
         CaseInspectionMode.PhysicalAddress,
         [],
-        Guid.NewGuid().ToString("N"),
-        string.Empty);
+        Guid.NewGuid().ToString("N"));
 
     private static CaseEntity Case(
         PrincipalEntity principal,

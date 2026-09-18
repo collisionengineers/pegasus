@@ -67,7 +67,6 @@ public sealed record SaveContactRequest(
     CaseInspectionMode PrincipalInspectionMode,
     IReadOnlyList<ContactPrincipalAssociation> PrincipalAssociations,
     string OperationKey,
-    string EditLeaseToken,
     string? GuidanceTemplate = null,
     long GuidanceTemplateVersion = 0,
     string? NotesOnEveryCase = null);
@@ -185,10 +184,7 @@ public static partial class ContactDirectoryPolicy
             PrincipalAssociations = associations,
             PrincipalCode = string.IsNullOrWhiteSpace(request.PrincipalCode)
                 ? null : OrganizationAdministrationPolicy.NormalizePrincipalCode(request.PrincipalCode),
-            OperationKey = Required(request.OperationKey, MaximumOperationKeyLength, nameof(request.OperationKey)),
-            EditLeaseToken = string.IsNullOrWhiteSpace(request.EditLeaseToken)
-                ? string.Empty
-                : Required(request.EditLeaseToken, 200, nameof(request.EditLeaseToken))
+            OperationKey = Required(request.OperationKey, MaximumOperationKeyLength, nameof(request.OperationKey))
         };
     }
 

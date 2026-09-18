@@ -22,7 +22,7 @@ public sealed class OrganizationAdministrationPersistenceTests
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task ExistingPrincipalSettingsRequireAndCompleteTheOwningContactScope()
+    public async Task ExistingPrincipalSettingsAdvanceAndCheckTheOwningContactVersion()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         await using var scope = factory.Services.CreateAsyncScope();
@@ -31,44 +31,40 @@ public sealed class OrganizationAdministrationPersistenceTests
         await using var context = await contextFactory.CreateDbContextAsync();
         var principal = await context.Principals.AsNoTracking()
             .Where(item => item.Code == QdosPrincipal.Code)
-            .Select(item => new { item.Id, item.Version, item.OrganizationId, ContactVersion = item.Organization.Version })
+            .Select(item => new { item.Id, item.Version, item.OrganizationId, item.ReportGenerationPolicy, ContactVersion = item.Organization.Version })
             .SingleAsync();
         var update = services.GetRequiredService<IUpdatePrincipalReportSettings>();
+        var changedPolicy = principal.ReportGenerationPolicy == PrincipalReportGenerationPolicy.Pegasus.ToString()
+            ? PrincipalReportGenerationPolicy.EvaManualApi
+            : PrincipalReportGenerationPolicy.Pegasus;
 
-        UpdatePrincipalReportSettingsRequest Request(string token) => new(
+        UpdatePrincipalReportSettingsRequest Request(long principalVersion, long contactVersion, string operationKey) => new(
             principal.Id,
-            principal.Version,
+            principalVersion,
             Administrator,
-            "principal:report-settings:scope",
+            operationKey,
             "Confirm contact-owned report settings",
-            PrincipalReportGenerationPolicy.Pegasus,
+            changedPolicy,
             PrincipalReportRecipientSettings.None,
-            principal.ContactVersion,
-            token);
+            contactVersion);
 
-        await Assert.ThrowsAsync<EditScopeExpiredException>(() =>
-            update.ExecuteAsync(Request("missing"), default));
-
-        var leases = services.GetRequiredService<IEditScopeLeases>();
-        var lease = await leases.ClaimAsync(
-            new(
-                EditScopeKind.Contact,
-                principal.OrganizationId,
-                principal.ContactVersion,
-                Administrator,
-                "principal:report-settings:scope-claim"),
-            default);
-        await update.ExecuteAsync(Request(lease.Token), default);
-
-        Assert.Null(await leases.GetActiveAsync(
-            EditScopeKind.Contact,
-            principal.OrganizationId,
-            Administrator,
-            default));
+        var updated = await update.ExecuteAsync(
+            Request(principal.Version, principal.ContactVersion, "principal:report-settings:direct"), default);
+        Assert.Equal(principal.Version + 1, updated.Version);
         Assert.Equal(
             principal.ContactVersion + 1,
             await factory.Database.ScalarAsync<long>(
                 $"SELECT Version FROM Organizations WHERE Id = '{principal.OrganizationId:D}';"));
+
+        var staleContact = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
+            update.ExecuteAsync(
+                Request(updated.Version, principal.ContactVersion, "principal:report-settings:stale-contact"), default));
+        Assert.Equal(OrganizationAdministrationError.StaleVersion, staleContact.Error);
+
+        var stalePrincipal = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
+            update.ExecuteAsync(
+                Request(principal.Version, principal.ContactVersion + 1, "principal:report-settings:stale-principal"), default));
+        Assert.Equal(OrganizationAdministrationError.StaleVersion, stalePrincipal.Error);
     }
 
     [Fact]
@@ -199,14 +195,6 @@ public sealed class OrganizationAdministrationPersistenceTests
             .Where(item => item.Id == predecessor.OrganizationId)
             .Select(item => item.Version)
             .SingleAsync();
-        var locationLease = await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(
-                EditScopeKind.Contact,
-                predecessor.OrganizationId,
-                initialContactVersion,
-                Administrator,
-                "principal:default-location:replacement:scope"),
-            default);
         var configuredLocation = await scope.ServiceProvider
             .GetRequiredService<IUpdatePrincipalDefaultInspectionLocation>()
             .ExecuteAsync(new(
@@ -215,8 +203,7 @@ public sealed class OrganizationAdministrationPersistenceTests
                 InspectionAddressEvidenceKind.PhysicalAddress,
                 "Directory Web Caller Yard", "1 Directory Way, DW1 2EF", "DW1 2EF",
                 "manual", null, null,
-                initialContactVersion,
-                locationLease.Token), default);
+                initialContactVersion), default);
         var receipt = await CreateReadyReceiptAsync(factory.Services);
         var receiptVersion = await factory.Database.ScalarAsync<long>(
             $"SELECT Version FROM IntakeReceipts WHERE Id = '{receipt.Id:D}';");
@@ -233,14 +220,6 @@ public sealed class OrganizationAdministrationPersistenceTests
         var originalReference = accepted.Identity.Reference;
         var replacementContactVersion = await factory.Database.ScalarAsync<long>(
             $"SELECT Version FROM Organizations WHERE Id = '{predecessor.OrganizationId:D}';");
-        var replacementLease = await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(
-                EditScopeKind.Contact,
-                predecessor.OrganizationId,
-                replacementContactVersion,
-                Administrator,
-                "principal:replace:qdos:scope"),
-            default);
         var replacementRequest = new ReplacePrincipalRequest(
             predecessor.Id,
             configuredLocation.Version,
@@ -248,8 +227,7 @@ public sealed class OrganizationAdministrationPersistenceTests
             Administrator,
             "principal:replace:qdos",
             "Provider issued a successor code",
-            replacementContactVersion,
-            replacementLease.Token);
+            replacementContactVersion);
 
         var successor = await replacePrincipal.ExecuteAsync(replacementRequest, default);
         var replay = await replacePrincipal.ExecuteAsync(replacementRequest, default);
@@ -311,24 +289,15 @@ public sealed class OrganizationAdministrationPersistenceTests
                 replacementRequest with { SuccessorCode = "CHANGED" },
                 default));
         Assert.Equal(OrganizationAdministrationError.OperationConflict, conflict.Error);
-        var staleContactVersion = await factory.Database.ScalarAsync<long>(
-            $"SELECT Version FROM Organizations WHERE Id = '{predecessor.OrganizationId:D}';");
-        var staleLease = await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(
-                EditScopeKind.Contact,
-                predecessor.OrganizationId,
-                staleContactVersion,
-                Administrator,
-                "principal:replace:stale:scope"),
-            default);
+        var currentPrincipalVersion = await factory.Database.ScalarAsync<long>(
+            $"SELECT Version FROM Principals WHERE Id = '{predecessor.Id:D}';");
         var stale = await Assert.ThrowsAsync<OrganizationAdministrationException>(() =>
             replacePrincipal.ExecuteAsync(
                 replacementRequest with
                 {
                     OperationKey = "principal:replace:stale",
                     SuccessorCode = "ANOTHER",
-                    ExpectedContactVersion = staleContactVersion,
-                    EditLeaseToken = staleLease.Token
+                    ExpectedVersion = currentPrincipalVersion
                 },
                 default));
         Assert.Equal(OrganizationAdministrationError.StaleVersion, stale.Error);

@@ -146,9 +146,10 @@ tokens; the next request must observe current staff authority. Delete removes
 active access, role and credential material while retaining the minimal actor
 identity needed by immutable business history and printed reports. It never
 deletes a Case. Disable and Delete act immediately from the selected account's
-Settings dialog, with no confirmation step. Force logout clears the account's non-Case edit scopes with its
-session revocation, so an old token cannot later mutate Triage, Image Intake
-or an administration record. Case edit authority retains its existing
+Settings dialog, with no confirmation step. Force logout clears the account's
+Triage and Image Intake edit scopes with its session revocation, so an old
+token cannot later mutate either record type. Administration saves use
+expected-version checks. Case edit authority retains its existing
 Case-workflow owner and targeted clearance rules.
 
 Glass's credentials are protected per Engineer, provider and generation.

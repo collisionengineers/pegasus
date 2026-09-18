@@ -106,7 +106,6 @@ public sealed partial class OrganizationAdministrationWebTests
             ["ReportSettingsOperationKey"] = InputValue(evaSubmissionHtml, "ReportSettingsOperationKey"),
             ["PrincipalExpectedVersion"] = InputValue(evaSubmissionHtml, "PrincipalExpectedVersion"),
             ["ExpectedVersion"] = InputValue(evaSubmissionHtml, "ExpectedVersion"),
-            ["LeaseToken"] = InputValue(evaSubmissionHtml, "LeaseToken"),
             ["ReportGenerationPolicy"] = "EvaManualApi"
         };
         using var evaSubmissionPost = await client.PostAsync(
@@ -131,7 +130,6 @@ public sealed partial class OrganizationAdministrationWebTests
                 ["LocationOperationKey"] = InputValue(locationHtml, "LocationOperationKey"),
                 ["PrincipalExpectedVersion"] = InputValue(locationHtml, "PrincipalExpectedVersion"),
                 ["ExpectedVersion"] = InputValue(locationHtml, "ExpectedVersion"),
-                ["LeaseToken"] = InputValue(locationHtml, "LeaseToken"),
                 ["LocationIsImageBasedAssessment"] = bool.TrueString
             }));
         Assert.Equal(HttpStatusCode.Redirect, locationPost.StatusCode);
@@ -153,7 +151,6 @@ public sealed partial class OrganizationAdministrationWebTests
             ["ReplacementOperationKey"] = replacementOperationKey,
             ["ReplacementExpectedVersion"] = InputValue(replaceHtml, "ReplacementExpectedVersion"),
             ["ExpectedVersion"] = InputValue(replaceHtml, "ExpectedVersion"),
-            ["LeaseToken"] = InputValue(replaceHtml, "LeaseToken"),
             ["SuccessorCode"] = "WEBN"
         };
         using var replacePost = await client.PostAsync(
@@ -303,26 +300,12 @@ public sealed partial class OrganizationAdministrationWebTests
     {
         ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
         ["ExpectedVersion"] = InputValue(html, "ExpectedVersion"),
-        ["LeaseToken"] = InputValue(html, "LeaseToken"),
         ["CredentialOperationKey"] = InputValue(html, "CredentialOperationKey"),
         ["CredentialVersion"] = InputValue(html, "CredentialVersion")
     };
 
-    private static async Task<string> EditContactAsync(HttpClient client, string path)
-    {
-        var readOnlyHtml = await IntakeWebDriver.GetHtmlAsync(client, path);
-        using var response = await client.PostAsync(
-            $"{path}?handler=Edit",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["__RequestVerificationToken"] = InputValue(readOnlyHtml, "__RequestVerificationToken"),
-                ["ContactId"] = InputValue(readOnlyHtml, "ContactId"),
-                ["ExpectedVersion"] = InputValue(readOnlyHtml, "ExpectedVersion"),
-                ["OperationKey"] = InputValue(readOnlyHtml, "OperationKey")
-            }));
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync();
-    }
+    private static Task<string> EditContactAsync(HttpClient client, string path) =>
+        IntakeWebDriver.GetHtmlAsync(client, path);
 
     private static string InputValue(string html, string name)
     {

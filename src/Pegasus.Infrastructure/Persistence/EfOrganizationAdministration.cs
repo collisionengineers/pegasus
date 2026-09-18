@@ -221,14 +221,8 @@ public sealed class EfOrganizationAdministration(
             .Include(item => item.Organization)
             .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
             ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
-        var contact = await RequirePrincipalContactScopeAsync(
-            context,
-            entity,
-            request.ExpectedContactVersion,
-            request.Actor,
-            request.EditLeaseToken,
-            _timeProvider.GetUtcNow(),
-            cancellationToken);
+        var contact = await RequirePrincipalContactVersionAsync(
+            context, entity, request.ExpectedContactVersion, cancellationToken);
         var before = ToPrincipal(entity);
         var result = OrganizationAdministrationPolicy.PlanPrincipalReportSettingsUpdate(
             before,
@@ -262,7 +256,7 @@ public sealed class EfOrganizationAdministration(
             request.Reason,
             before,
             result);
-        CompletePrincipalContactScope(context, contact);
+        AdvancePrincipalContactVersion(contact);
         await SaveChangesAsync(context, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
@@ -313,14 +307,8 @@ public sealed class EfOrganizationAdministration(
         var entity = await context.Principals
             .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
             ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
-        var contact = await RequirePrincipalContactScopeAsync(
-            context,
-            entity,
-            request.ExpectedContactVersion,
-            request.Actor,
-            request.EditLeaseToken,
-            _timeProvider.GetUtcNow(),
-            cancellationToken);
+        var contact = await RequirePrincipalContactVersionAsync(
+            context, entity, request.ExpectedContactVersion, cancellationToken);
         if (entity.Version != request.ExpectedVersion)
         {
             throw Error(OrganizationAdministrationError.StaleVersion);
@@ -374,7 +362,7 @@ public sealed class EfOrganizationAdministration(
             null,
             before,
             result);
-        CompletePrincipalContactScope(context, contact);
+        AdvancePrincipalContactVersion(contact);
         await SaveChangesAsync(context, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
@@ -411,14 +399,8 @@ public sealed class EfOrganizationAdministration(
         var predecessor = await context.Principals
             .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
             ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
-        var contact = await RequirePrincipalContactScopeAsync(
-            context,
-            predecessor,
-            request.ExpectedContactVersion,
-            request.Actor,
-            request.EditLeaseToken,
-            _timeProvider.GetUtcNow(),
-            cancellationToken);
+        var contact = await RequirePrincipalContactVersionAsync(
+            context, predecessor, request.ExpectedContactVersion, cancellationToken);
         var before = ToPrincipal(predecessor);
         var codeAlreadyExists = await context.Principals
             .AsNoTracking()
@@ -488,7 +470,7 @@ public sealed class EfOrganizationAdministration(
             request.Reason,
             before: null,
             after: result);
-        CompletePrincipalContactScope(context, contact);
+        AdvancePrincipalContactVersion(contact);
         await SaveChangesAsync(context, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
@@ -584,37 +566,25 @@ public sealed class EfOrganizationAdministration(
             entity.IncludeOriginalInstructionSender,
             JsonSerializer.Deserialize<string[]>(entity.ReportRecipientAddressesJson, SerializerOptions));
 
-    internal static async Task<OrganizationEntity> RequirePrincipalContactScopeAsync(
+    internal static async Task<OrganizationEntity> RequirePrincipalContactVersionAsync(
         PegasusDbContext context,
         PrincipalEntity principal,
         long expectedContactVersion,
-        ActionActor actor,
-        string editLeaseToken,
-        DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var contact = await context.Organizations.SingleAsync(
             item => item.Id == principal.OrganizationId,
             cancellationToken);
-        await EfEditScopeStore.RequireAsync(
-            context,
-            EditScopeKind.Contact,
-            contact.Id,
-            contact.Version,
-            expectedContactVersion,
-            actor,
-            editLeaseToken,
-            now,
-            cancellationToken);
+        if (contact.Version != expectedContactVersion)
+        {
+            throw Error(OrganizationAdministrationError.StaleVersion);
+        }
         return contact;
     }
 
-    internal static void CompletePrincipalContactScope(
-        PegasusDbContext context,
-        OrganizationEntity contact)
+    internal static void AdvancePrincipalContactVersion(OrganizationEntity contact)
     {
         contact.Version = checked(contact.Version + 1);
-        EfEditScopeStore.Complete(context, EditScopeKind.Contact, contact.Id);
     }
 
     private static OrganizationRole ParseRole(string role) => role switch

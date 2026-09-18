@@ -29,8 +29,7 @@ public sealed class OrganizationAdministrationTests
                 Administrator,
                 " replace-principal ",
                 " successor required ",
-                4,
-                "edit-token"),
+                4),
             default);
 
         Assert.Equal("QDOS2", Assert.Single(store.PrincipalCreates).Code);
@@ -39,7 +38,7 @@ public sealed class OrganizationAdministrationTests
         Assert.Equal("QDOS3", replacement.SuccessorCode);
         Assert.Equal("successor required", replacement.Reason);
         Assert.Equal(4, replacement.ExpectedContactVersion);
-        Assert.Equal("edit-token", replacement.EditLeaseToken);
+        Assert.Equal("replace-principal", replacement.OperationKey);
     }
 
     [Fact]
@@ -106,8 +105,7 @@ public sealed class OrganizationAdministrationTests
             Administrator,
             "replace",
             "reason",
-            0,
-            "edit-token");
+            0);
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             () => command.ExecuteAsync(request, default));
@@ -132,8 +130,7 @@ public sealed class OrganizationAdministrationTests
             SourceKind: "directory",
             SourceRecordId: Guid.NewGuid(),
             SourceVersion: 5,
-            ExpectedContactVersion: 3,
-            EditLeaseToken: "edit-token");
+            ExpectedContactVersion: 3);
 
         var normalized = OrganizationAdministrationPolicy.Normalize(request);
 
@@ -161,8 +158,7 @@ public sealed class OrganizationAdministrationTests
             SourceKind: "manual",
             SourceRecordId: null,
             SourceVersion: null,
-            ExpectedContactVersion: 0,
-            EditLeaseToken: "edit-token");
+            ExpectedContactVersion: 0);
 
         var normalized = OrganizationAdministrationPolicy.Normalize(request);
 
@@ -185,8 +181,7 @@ public sealed class OrganizationAdministrationTests
             SourceKind: null,
             SourceRecordId: null,
             SourceVersion: null,
-            ExpectedContactVersion: 0,
-            EditLeaseToken: "edit-token");
+            ExpectedContactVersion: 0);
 
         Assert.Throws<ArgumentException>(() => OrganizationAdministrationPolicy.Normalize(request));
     }
@@ -201,7 +196,7 @@ public sealed class OrganizationAdministrationTests
             "op-key",
             (InspectionAddressEvidenceKind)99,
             null, null, null, null, null, null,
-            0, "edit-token");
+            0);
 
         Assert.Throws<ArgumentOutOfRangeException>(() => OrganizationAdministrationPolicy.Normalize(request));
     }
@@ -222,7 +217,7 @@ public sealed class OrganizationAdministrationTests
                     "op-key",
                     InspectionAddressEvidenceKind.ImageBasedAssessment,
                     null, null, null, null, null, null,
-                    0, "edit-token"),
+                    0),
                 default));
 
         Assert.Empty(store.DefaultInspectionLocationUpdates);
@@ -248,8 +243,7 @@ public sealed class OrganizationAdministrationTests
                 "manual",
                 null,
                 null,
-                2,
-                "edit-token"),
+                2),
             default);
 
         var request = Assert.Single(store.DefaultInspectionLocationUpdates);
@@ -365,7 +359,7 @@ public sealed class OrganizationAdministrationTests
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var request = new UpdatePrincipalReportSettingsRequest(
             Guid.NewGuid(), 1, actor, "notes-op", null, PrincipalReportGenerationPolicy.Pegasus,
-            PrincipalReportRecipientSettings.None, 1, "lease", "  Always copy the fleet manager.  ");
+            PrincipalReportRecipientSettings.None, 1, "  Always copy the fleet manager.  ");
 
         Assert.Equal("Always copy the fleet manager.", OrganizationAdministrationPolicy.Normalize(request).NotesOnEveryCase);
         Assert.Null(OrganizationAdministrationPolicy.Normalize(request with { NotesOnEveryCase = "   " }).NotesOnEveryCase);

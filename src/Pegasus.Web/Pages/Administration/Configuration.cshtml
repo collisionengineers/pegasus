@@ -1,129 +1,92 @@
 @page
-@using Pegasus.Core.Workflow
 @model Pegasus.Web.Pages.Administration.ConfigurationModel
 @{
     ViewData["Title"] = OperatorLabels.Admin.Configuration;
     ViewData["AdminArea"] = "configuration";
     ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
-    var workflowEditing = Model.EditingId == GetWorkflowConfiguration.RecordId;
 }
 <partial name="Shared/_PageHeader" />
 <div class="admin-layout">
     <partial name="Shared/_AdminNav" />
     <div class="stack">
         <partial name="Shared/_ErrorSummary" />
+        @if (TempData["Confirmation"] is string confirmation)
+        {
+            <div class="notice notice--success" role="status">@confirmation</div>
+        }
         <section class="panel" aria-labelledby="workflow-title">
-            <div class="panel-head">
-                <h2 id="workflow-title">Case workflow</h2>
-                @if (!Model.IsEditing)
-                {
-                    <form method="post" asp-page-handler="Edit">
-                        <input type="hidden" name="recordId" value="@GetWorkflowConfiguration.RecordId" />
-                        @* Offered only to the operator whose own other window still holds this
-                           record; taking over rotates the token so that window can no longer
-                           save. *@
-                        @if (Model.TakeOverRecordId == GetWorkflowConfiguration.RecordId)
-                        {
-                            <input type="hidden" name="takeOver" value="true" />
-                            <button class="btn btn--primary" type="submit">Take over</button>
-                        }
-                        else
-                        {
-                            <button class="btn" type="submit">Edit</button>
-                        }
-                    </form>
-                }
-            </div>
-            <div class="panel-body">
-                @if (!workflowEditing)
-                {
-                    <dl class="definition-list definition-list--compact" data-workflow-settings>
-                        <div class="definition"><dt>Instructions</dt><dd>@(Model.Configuration.RequireInstructions ? "Required" : "Not required")</dd></div>
-                        <div class="definition"><dt>Images</dt><dd>@(Model.Configuration.RequireImages ? "Required" : "Not required")</dd></div>
+            <div class="panel-head"><h2 id="workflow-title">Case workflow</h2></div>
+            <form method="post" asp-page-handler="SaveWorkflow" class="panel-body stack">
+                <input type="hidden" name="WorkflowExpectedVersion" value="@Model.WorkflowExpectedVersion" />
+                <input type="hidden" name="WorkflowOperationKey" value="@Model.WorkflowOperationKey" />
+                <fieldset class="stack">
+                    <legend>Required before Review</legend>
+                    <div class="form-grid form-grid--2">
+                        <label class="choice"><input type="checkbox" name="RequireInstructions" value="true" checked="@Model.RequireInstructions" /> Instructions</label>
+                        <label class="choice"><input type="checkbox" name="RequireImages" value="true" checked="@Model.RequireImages" /> Images</label>
+                    </div>
+                    <div class="form-grid form-grid--3" data-workflow-settings-edit>
                         @foreach (var setting in Model.WorkflowSettings)
                         {
-                            <div class="definition" data-workflow-setting="@setting.Field"><dt>@setting.Label</dt><dd>@ConfigurationModel.Days(setting.Current)</dd></div>
+                            var inputId = $"setting-{setting.Field}";
+                            <div class="field">
+                                <label for="@inputId">@setting.Label (days)</label>
+                                <input id="@inputId" name="@setting.Field" type="number" min="@setting.Minimum" max="@setting.Maximum" step="1" value="@Model.WorkflowInputValue(setting.Field, setting.Posted)" required class="@(setting.Field == nameof(ConfigurationModel.ChaseIntervalDays) ? "chase-interval-input" : null)" />
+                                <span class="field-hint">@setting.Minimum to @setting.Maximum</span>
+                                <span asp-validation-for="@setting.Field" class="field-error"></span>
+                            </div>
                         }
-                    </dl>
-                }
-                else
-                {
-                    <fieldset form="configuration-edit" class="stack">
-                        <legend>Required before Review</legend>
-                        <div class="form-grid form-grid--2">
-                            <label class="choice"><input form="configuration-edit" type="checkbox" name="RequireInstructions" value="true" checked="@Model.RequireInstructions" /> Instructions</label>
-                            <label class="choice"><input form="configuration-edit" type="checkbox" name="RequireImages" value="true" checked="@Model.RequireImages" /> Images</label>
-                        </div>
-                        <div class="form-grid form-grid--3" data-workflow-settings-edit>
-                            @foreach (var setting in Model.WorkflowSettings)
-                            {
-                                var inputId = $"setting-{setting.Field}";
-                                <div class="field">
-                                    <label for="@inputId">@setting.Label (days)</label>
-                                    <input form="configuration-edit" id="@inputId" name="@setting.Field" type="number" min="@setting.Minimum" max="@setting.Maximum" step="1" value="@setting.Posted" required class="@(setting.Field == nameof(ConfigurationModel.ChaseIntervalDays) ? "chase-interval-input" : null)" />
-                                    <span class="field-hint">@setting.Minimum to @setting.Maximum</span>
-                                    <span asp-validation-for="@setting.Field" class="field-error"></span>
-                                </div>
-                            }
-                        </div>
-                    </fieldset>
-                }
-            </div>
+                    </div>
+                </fieldset>
+                <div class="button-row"><button type="reset" class="btn">Reset</button><button type="submit" class="btn btn--primary">Save workflow settings</button></div>
+            </form>
         </section>
         <section class="panel" aria-labelledby="rates-title">
-            <div class="panel-head"><h2 id="rates-title">Labour-rate cards</h2>
-                @if (!Model.IsEditing)
-                {
-                    <form method="post" asp-page-handler="NewCard"><button class="btn" type="submit">Add rate card</button></form>
-                }
+            <div class="panel-head">
+                <h2 id="rates-title">Labour-rate cards</h2>
+                <form method="post" asp-page-handler="NewCard"><button class="btn" type="submit">Add rate card</button></form>
             </div>
             <div class="table-wrap no-border"><table>
-                <thead><tr><th>Name</th><th>Panel and paint (£/hour)</th><th>Enabled</th><th></th></tr></thead>
+                <caption class="sr-only">Labour-rate cards</caption>
+                <thead><tr><th scope="col">Name</th><th scope="col">Panel and paint (£/hour)</th><th scope="col">Enabled</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
                 <tbody>
-                @foreach (var card in Model.RateCards.Where(x => x.Id != Model.EditingId))
+                @foreach (var card in Model.RateCards)
                 {
-                    <tr><td>@card.Name</td><td>@card.HourlyRate.ToString("N2")</td><td>@(card.Enabled ? "Yes" : "No")</td><td>
-                    @if (!Model.IsEditing)
-                    {
-                        <form method="post" asp-page-handler="Edit"><input type="hidden" name="recordId" value="@card.Id" />@if (Model.TakeOverRecordId == card.Id) { <input type="hidden" name="takeOver" value="true" /><button class="btn btn--small btn--primary" type="submit">Take over</button> } else { <button class="btn btn--small" type="submit">Edit</button> }</form>
-                    }
-                    </td></tr>
+                    var formId = "rate-card-" + card.Id.ToString("N");
+                    var showingPostedValues = Model.CardPostFailed && Model.CardId == card.Id;
+                    var rowName = showingPostedValues ? Model.CardName : card.Name;
+                    var rowHourlyRate = showingPostedValues ? Model.HourlyRateInput : card.HourlyRate.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    var rowEnabled = showingPostedValues ? Model.Enabled : card.Enabled;
+                    var rowVersion = showingPostedValues ? Model.CardExpectedVersion : card.Version;
+                    var rowOperationKey = showingPostedValues ? Model.CardOperationKey : ConfigurationModel.NewOperationKey();
+                    <tr>
+                        <td><input form="@formId" name="CardName" value="@rowName" aria-label="Rate card name" maxlength="200" required /></td>
+                        <td><input form="@formId" name="HourlyRate" type="number" min="0" max="999999" step="0.01" value="@rowHourlyRate" aria-label="Panel and paint hourly rate" required /></td>
+                        <td><select form="@formId" name="Enabled" aria-label="Rate card enabled"><option value="true" selected="@rowEnabled">Yes</option><option value="false" selected="@(!rowEnabled)">No</option></select></td>
+                        <td><form id="@formId" method="post" asp-page-handler="SaveCard">
+                            <input type="hidden" name="CardId" value="@card.Id" />
+                            <input type="hidden" name="CardExpectedVersion" value="@rowVersion" />
+                            <input type="hidden" name="CardOperationKey" value="@rowOperationKey" />
+                            <div class="button-row"><button type="reset" class="btn btn--small">Reset</button><button type="submit" class="btn btn--small btn--primary">Save</button></div>
+                        </form></td>
+                    </tr>
                 }
-                @if (Model.IsEditing && !workflowEditing)
+                @if (Model.AddCardOpen || (Model.CardPostFailed && !Model.RateCards.Any(card => card.Id == Model.CardId)))
                 {
                     <tr>
-                        <td><input form="configuration-edit" aria-label="Name" name="CardName" value="@Model.CardName" maxlength="200" required /></td>
-                        <td><input form="configuration-edit" aria-label="Hourly rate" name="HourlyRate" type="number" min="0" max="999999" step="0.01" value="@Model.HourlyRate.ToString(System.Globalization.CultureInfo.InvariantCulture)" required /></td>
-                        <td><select form="configuration-edit" aria-label="Enabled" name="Enabled"><option value="true" selected="@Model.Enabled">Yes</option><option value="false" selected="@(!Model.Enabled)">No</option></select></td><td></td>
+                        <td><input form="rate-card-add" name="CardName" value="@Model.CardName" aria-label="Rate card name" maxlength="200" required /></td>
+                        <td><input form="rate-card-add" name="HourlyRate" type="number" min="0" max="999999" step="0.01" value="@Model.HourlyRateInput" aria-label="Panel and paint hourly rate" required /></td>
+                        <td><select form="rate-card-add" name="Enabled" aria-label="Rate card enabled"><option value="true" selected="@Model.Enabled">Yes</option><option value="false" selected="@(!Model.Enabled)">No</option></select></td>
+                        <td><form id="rate-card-add" method="post" asp-page-handler="SaveCard">
+                            <input type="hidden" name="CardId" value="@Model.CardId" />
+                            <input type="hidden" name="CardExpectedVersion" value="@Model.CardExpectedVersion" />
+                            <input type="hidden" name="CardOperationKey" value="@Model.CardOperationKey" />
+                            <div class="button-row"><button type="reset" class="btn btn--small">Reset</button><button type="submit" class="btn btn--small btn--primary">Save</button><a class="btn btn--small" asp-page="/Administration/Configuration">Cancel</a></div>
+                        </form></td>
                     </tr>
                 }
                 </tbody>
             </table></div>
         </section>
-        @if (Model.IsEditing)
-        {
-            <form id="configuration-edit" method="post" asp-page-handler="Save" data-config-editor data-heartbeat-ms="@EditScopeAuthority.HeartbeatInterval.TotalMilliseconds" data-existing="@(Model.ExpectedVersion > 0 ? "true" : "false")">
-                <input type="hidden" asp-for="EditingId" /><input type="hidden" asp-for="ExpectedVersion" />
-                <input type="hidden" asp-for="LeaseToken" /><input type="hidden" asp-for="OperationKey" />
-                <div class="button-row">
-                    <button type="submit" class="btn" asp-page-handler="Cancel" formnovalidate>Cancel</button>
-                    <button type="submit" class="btn btn--primary">Save</button>
-                </div>
-                <p data-config-lease-message class="muted" role="status"></p>
-            </form>
-            @* Beaconed as the page unloads so an operator who navigates away is
-               not refused by their own lease when they come back. A new rate
-               card has no scope to release. *@
-            if (Model.ExpectedVersion > 0)
-            {
-                <form method="post" asp-page-handler="ReleaseScopeBeacon" data-edit-scope-release hidden>
-                    <input type="hidden" asp-for="EditingId" />
-                    <input type="hidden" asp-for="LeaseToken" />
-                </form>
-            }
-        }
     </div>
 </div>
-@section Scripts {
-    <script src="~/js/workflow-configuration.js" asp-append-version="true"></script>
-}

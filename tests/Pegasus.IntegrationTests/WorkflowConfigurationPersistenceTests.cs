@@ -19,13 +19,10 @@ public sealed class WorkflowConfigurationPersistenceTests
         var factory = new PooledDbContextFactory<PegasusDbContext>(new DbContextOptionsBuilder<PegasusDbContext>()
             .UseSqlServer(database.ConnectionString).Options);
         var store = new EfWorkflowConfigurationStore(factory, TimeProvider.System);
-        var scopes = new EfEditScopeStore(factory, TimeProvider.System);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var before = await store.GetCurrentAsync(default);
-        var lease = await scopes.ClaimAsync(new(EditScopeKind.NamedConfiguration, GetWorkflowConfiguration.RecordId,
-            before.PolicyVersion, actor, "edit-config"), default);
         var request = new UpdateWorkflowConfigurationRequest(before.PolicyVersion, actor, "save-config")
-        { RequireImages = false, ChaseIntervalDays = 12, EditLeaseToken = lease.Token };
+        { RequireImages = false, ChaseIntervalDays = 12 };
         var saved = await store.UpdateAsync(request, default);
         Assert.True(CaseCompletenessPolicy.Evaluate(new(true, false), saved).SatisfiesPolicy);
         Assert.Equal(12, (await store.GetCurrentAsync(default)).ChaseIntervalDays);
@@ -36,24 +33,23 @@ public sealed class WorkflowConfigurationPersistenceTests
     }
 
     [Fact]
-    public async Task RateCardEditsRequireLeaseAndPersistVersionedDisabledState()
+    public async Task RateCardEditsPersistVersionedDisabledStateAndRejectStaleSaves()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var factory = new PooledDbContextFactory<PegasusDbContext>(new DbContextOptionsBuilder<PegasusDbContext>()
             .UseSqlServer(database.ConnectionString).Options);
         var store = new EfLabourRateCardStore(factory, TimeProvider.System);
-        var scopes = new EfEditScopeStore(factory, TimeProvider.System);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var card = await store.SaveAsync(new(Guid.NewGuid(), "Panel and paint", 65m, true, 0, actor,
-            "Create rate", "new-rate", ""), default);
+            "Create rate", "new-rate"), default);
         var change = new SaveLabourRateCardRequest(card.Id, card.Name, 80m, false, card.Version, actor,
-            "Retire rate", "edit-rate", "");
-        await Assert.ThrowsAsync<EditScopeExpiredException>(() => store.SaveAsync(change, default));
-        var lease = await scopes.ClaimAsync(new(EditScopeKind.LabourRateCard, card.Id, card.Version, actor, "claim-rate"), default);
-        var saved = await store.SaveAsync(change with { EditLeaseToken = lease.Token }, default);
+            "Retire rate", "edit-rate");
+        var saved = await store.SaveAsync(change, default);
         Assert.False(saved.Enabled);
         Assert.Equal(2, saved.Version);
         Assert.Equal(80m, Assert.Single(await store.ListAsync(default)).HourlyRate);
+        await Assert.ThrowsAsync<LabourRateCardConflictException>(() =>
+            store.SaveAsync(change with { OperationKey = "stale-rate" }, default));
     }
 
     [Fact]

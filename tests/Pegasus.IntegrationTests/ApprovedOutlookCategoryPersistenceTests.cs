@@ -43,8 +43,7 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
         var disabled = await update.ExecuteAsync(request with
         {
             State = ApprovedOutlookCategoryState.Disabled, ExpectedVersion = created.Version,
-            OperationKey = Guid.NewGuid().ToString("N"),
-            EditLeaseToken = await ClaimEditAsync(scope.ServiceProvider, id, created.Version, actor)
+            OperationKey = Guid.NewGuid().ToString("N")
         }, default);
         Assert.Equal(ApprovedOutlookCategoryState.Disabled, disabled.State);
         Assert.Null(await resolver.ResolveActiveAsync(id, default));
@@ -96,8 +95,7 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
         var first = create with
         {
             DisplayName = "Awaiting allocation", ExpectedVersion = 1,
-            OperationKey = Guid.NewGuid().ToString("N"),
-            EditLeaseToken = await ClaimEditAsync(database, id, 1, actor)
+            OperationKey = Guid.NewGuid().ToString("N")
         };
         var second = create with
         {
@@ -126,23 +124,4 @@ public sealed class ApprovedOutlookCategoryPersistenceTests
             .ExecuteAsync(request, default);
     }
 
-    private static async Task<string> ClaimEditAsync(
-        LocalDbTestDatabase database,
-        Guid categoryId,
-        int expectedVersion,
-        ActionActor actor)
-    {
-        await using var scope = database.CreateAsyncScope();
-        return await ClaimEditAsync(scope.ServiceProvider, categoryId, expectedVersion, actor);
-    }
-
-    private static async Task<string> ClaimEditAsync(
-        IServiceProvider services,
-        Guid categoryId,
-        int expectedVersion,
-        ActionActor actor) =>
-        (await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(EditScopeKind.ApprovedOutlookCategory, categoryId, expectedVersion, actor,
-                Guid.NewGuid().ToString("N")),
-            CancellationToken.None)).Token;
 }

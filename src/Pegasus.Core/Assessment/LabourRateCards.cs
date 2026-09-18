@@ -8,7 +8,7 @@ public sealed class LabourRateCardConflictException(string message) : InvalidOpe
 
 public sealed record SaveLabourRateCardRequest(
     Guid Id, string Name, decimal HourlyRate, bool Enabled, long ExpectedVersion,
-    ActionActor Actor, string? Reason, string OperationKey, string EditLeaseToken);
+    ActionActor Actor, string? Reason, string OperationKey);
 
 public interface ILabourRateCardStore
 {

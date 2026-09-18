@@ -155,14 +155,11 @@ public sealed class StaffAccountAdministrationPersistenceTests
         });
         await context.SaveChangesAsync();
         var version = (await context.Users.AsNoTracking().SingleAsync(item => item.Id == engineer.Id)).Version;
-        var lease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(EditScopeKind.StaffAccount, engineer.Id, version, actor, "delete-claim"),
-            default);
         var delete = services.GetRequiredService<IDeleteStaffAccount>();
 
         // Open case: refused, and the account is still there.
         var refused = await Assert.ThrowsAsync<StaffAccountAdministrationException>(() =>
-            delete.ExecuteAsync(new(actor, engineer.Id, null, "delete-open", version, lease.Token), default));
+            delete.ExecuteAsync(new(actor, engineer.Id, null, "delete-open", version), default));
         Assert.Equal(StaffAccountAdministrationError.AssignedToOpenCases, refused.Error);
         Assert.NotNull(await context.Users.AsNoTracking().SingleOrDefaultAsync(item => item.Id == engineer.Id));
 
@@ -171,7 +168,7 @@ public sealed class StaffAccountAdministrationPersistenceTests
         await context.SaveChangesAsync();
 
         var result = await delete.ExecuteAsync(
-            new(actor, engineer.Id, null, "delete-closed", version, lease.Token), default);
+            new(actor, engineer.Id, null, "delete-closed", version), default);
 
         Assert.False(result.WasReplay);
         Assert.Null(await context.Users.AsNoTracking().SingleOrDefaultAsync(item => item.Id == engineer.Id));
@@ -186,7 +183,7 @@ public sealed class StaffAccountAdministrationPersistenceTests
 
         // The same operation key is the same deletion, answered without a row to act on.
         var replay = await delete.ExecuteAsync(
-            new(actor, engineer.Id, null, "delete-closed", version, lease.Token), default);
+            new(actor, engineer.Id, null, "delete-closed", version), default);
         Assert.True(replay.WasReplay);
     }
 

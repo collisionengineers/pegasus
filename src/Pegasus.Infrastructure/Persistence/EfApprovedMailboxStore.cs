@@ -3,7 +3,6 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -214,17 +213,6 @@ public sealed class EfApprovedMailboxStore(
                     entity.Version);
             }
 
-            await EfEditScopeStore.RequireAsync(
-                context,
-                EditScopeKind.ApprovedMailbox,
-                entity.Id,
-                entity.Version,
-                request.ExpectedVersion,
-                request.Actor,
-                request.EditLeaseToken,
-                timeProvider.GetUtcNow(),
-                cancellationToken);
-
             before = Snapshot(entity);
             if (before.State == ApprovedMailboxState.Approved
                 && request.State == ApprovedMailboxState.Disabled)
@@ -368,11 +356,6 @@ public sealed class EfApprovedMailboxStore(
             PolicyVersion = $"approved-mailbox/{entity.Id:D}/v{entity.Version}"
         });
 
-        if (request.ExpectedVersion > 0)
-        {
-            EfEditScopeStore.Complete(context, EditScopeKind.ApprovedMailbox, entity.Id);
-        }
-
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
@@ -410,17 +393,6 @@ public sealed class EfApprovedMailboxStore(
             throw new ApprovedMailboxUpdateException(
                 ApprovedMailboxUpdateError.VersionConflict, target.Version);
         }
-
-        await EfEditScopeStore.RequireAsync(
-            context,
-            EditScopeKind.ApprovedMailbox,
-            target.Id,
-            target.Version,
-            request.ExpectedVersion,
-            request.Actor,
-            request.EditLeaseToken,
-            timeProvider.GetUtcNow(),
-            cancellationToken);
 
         var previousDefault = await context.Set<ApprovedMailboxEntity>()
             .Include(item => item.FolderBindings)
@@ -477,8 +449,6 @@ public sealed class EfApprovedMailboxStore(
             AfterJson = JsonSerializer.Serialize(after),
             PolicyVersion = $"approved-mailbox/{target.Id:D}/v{target.Version}"
         });
-
-        EfEditScopeStore.Complete(context, EditScopeKind.ApprovedMailbox, target.Id);
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);

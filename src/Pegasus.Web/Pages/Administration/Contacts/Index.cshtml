@@ -57,23 +57,15 @@
 {
     var role = Model.CreateType!.Value;
     var title = Model.EditingExisting ? $"Add {IndexModel.RoleLabel(role)}" : $"New {IndexModel.RoleLabel(role)}";
-    <div class="dialog-backdrop" data-dialog="contact-create-dialog" data-dialog-open-on-load="true" data-dialog-cancel-form="@(Model.EditingExisting ? "contact-cancel-form" : null)" hidden>
+    <div class="dialog-backdrop" data-dialog="contact-create-dialog" data-dialog-open-on-load="true" hidden>
     <section class="dialog dialog--wide dialog--contact" role="dialog" aria-modal="true" aria-labelledby="contact-create-title">
-        <div class="dialog-head"><h2 id="contact-create-title" tabindex="-1" data-dialog-initial-focus>@title</h2>@if (Model.EditingExisting) { <button class="dialog-close" type="submit" form="contact-cancel-form" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button> } else { <button class="dialog-close" type="button" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button> }</div>
+        <div class="dialog-head"><h2 id="contact-create-title" tabindex="-1" data-dialog-initial-focus>@title</h2><a class="dialog-close" asp-page="Index" asp-route-search="@Model.Search" asp-route-type="@Model.Type" asp-route-sort="@Model.Sort" aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></a></div>
         <form id="contact-create-form" method="post" asp-page-handler="Create">
             <input asp-for="Search" type="hidden" /><input asp-for="Type" type="hidden" /><input asp-for="Sort" type="hidden" />
             <input asp-for="CreateType" type="hidden" /><input asp-for="ContactId" type="hidden" /><input asp-for="ExistingContactId" type="hidden" />
-            <input asp-for="ExpectedVersion" type="hidden" /><input asp-for="LeaseToken" type="hidden" /><input asp-for="OperationKey" type="hidden" />
+            <input asp-for="ExpectedVersion" type="hidden" /><input asp-for="OperationKey" type="hidden" />
             <div class="dialog-body stack">
                 <partial name="Shared/_ErrorSummary" />
-                @* Offered only to the operator whose own other window still holds
-                   this contact; taking over rotates the token so that window can
-                   no longer save. It submits the out-of-band form below, because
-                   a form cannot nest inside this one. *@
-                @if (Model.CanTakeOverEdit)
-                {
-                    <div class="button-row"><button class="btn btn--primary btn--small" type="submit" form="contact-take-over-form" formnovalidate>Take over</button></div>
-                }
                 @if (Model.EditingExisting)
                 {
                     <p class="panel-title-meta">Adding <strong>@IndexModel.RoleLabel(role)</strong> to @Model.ExistingContact!.Name. Existing types, linked principals and settings are retained.</p>
@@ -108,23 +100,12 @@
                     }
                 }
             </div>
-            <div class="dialog-foot"><button class="btn" type="submit" form="contact-cancel-form" formnovalidate>Cancel</button><button class="btn btn--primary" type="submit">Save @IndexModel.RoleLabel(role)</button></div>
+            <div class="dialog-foot"><a class="btn" asp-page="Index" asp-route-search="@Model.Search" asp-route-type="@Model.Type" asp-route-sort="@Model.Sort">Cancel</a><button class="btn btn--primary" type="submit">Save @IndexModel.RoleLabel(role)</button></div>
         </form>
         @foreach (var contact in Model.PossibleMatches)
         {
             var formId = "choose-contact-" + contact.OrganizationId.ToString("N");
             <form id="@formId" method="post" asp-page-handler="ChooseExisting"><input asp-for="Search" type="hidden" /><input asp-for="Type" type="hidden" /><input asp-for="Sort" type="hidden" /><input asp-for="CreateType" type="hidden" /><input name="ExistingContactId" type="hidden" value="@contact.OrganizationId" /><input name="OperationKey" type="hidden" value="@IndexModel.NewOperationKey()" /></form>
-        }
-        <form id="contact-cancel-form" method="post" asp-page-handler="Cancel"><input asp-for="Search" type="hidden" /><input asp-for="Type" type="hidden" /><input asp-for="Sort" type="hidden" /><input asp-for="ExistingContactId" type="hidden" /><input asp-for="LeaseToken" type="hidden" /></form>
-        @if (Model.CanTakeOverEdit)
-        {
-            <form id="contact-take-over-form" method="post" asp-page-handler="ChooseExisting"><input asp-for="Search" type="hidden" /><input asp-for="Type" type="hidden" /><input asp-for="Sort" type="hidden" /><input asp-for="CreateType" type="hidden" /><input asp-for="Name" type="hidden" /><input asp-for="ExistingContactId" type="hidden" /><input name="TakeOver" type="hidden" value="true" /><input name="OperationKey" type="hidden" value="@IndexModel.NewOperationKey()" /></form>
-        }
-        @if (Model.EditingExisting)
-        {
-            @* Beaconed as the page unloads so an operator who navigates away is
-               not refused by their own lease when they come back. *@
-            <form method="post" asp-page-handler="ReleaseScopeBeacon" data-edit-scope-release hidden><input asp-for="ExistingContactId" type="hidden" /><input asp-for="LeaseToken" type="hidden" /></form>
         }
     </section>
     </div>

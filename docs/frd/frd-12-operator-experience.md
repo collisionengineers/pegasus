@@ -650,6 +650,13 @@ The existing policy and non-reversible hashing apply and forced change is set
 for the next sign-in. The stored secret cannot subsequently be retrieved (D15,
 [FRD-04](frd-04-parties-accounts-and-access.md#staff-accounts)).
 
+Contact, staff-account and mailbox Settings load the current values and
+expected version with editing available immediately. Workflow configuration,
+labour-rate-card, approved-category and valuation-preset rows are also
+immediately editable. Each independent save sends its rendered expected
+version; a stale save is refused without overwriting the newer value and asks
+the Administrator to reload.
+
 **Logs** (`/Administration/Logs`) has two tabs. **Action logs** names who
 acted rather than a raw identifier: a staff subject
 resolves to their username, an unresolvable staff id (a deleted account)
@@ -696,25 +703,26 @@ default 7, Europe/London), where `Held` preserves the remaining time (D23).
 Beside it sit the Work Centre due targets, each whole calendar days from 0 to
 365: Unidentified target (default 0, due by the midnight after receipt),
 Triage target (1), Held decision target (7), Review target (1) and AI draft
-target (1). The read view lists the six settings as "Chase interval · 7 days"
-and so on; the edit form names each range when a value is refused.
-It has no staff instruction-review or image-review settings. The default view
-shows current values; Edit claims the configuration, Save applies it on the
-click, and Cancel discards changes. It also holds labour-rate-card administration: the
-global versioned cards (name, panel-and-paint hourly rate, enabled state) that
-every estimate version selects from, with disabling blocking future selection
-without changing history (D17). It stays inside that area; no ninth area is
-added.
+target (1). The six values are editable on load, and validation identifies
+the setting and allowed range when a value is refused.
+It has no staff instruction-review or image-review settings. Its existing
+values and labour-rate-card rows are immediately editable. Save submits the
+workflow settings or one card with its rendered expected version; a stale save
+is refused and asks the Administrator to reload. The global versioned cards
+(name, panel-and-paint hourly rate, enabled state) are what every estimate
+version selects from, with disabling blocking future selection without
+changing history (D17). Rate-card administration stays inside that area; no
+ninth area is added.
 
-**Valuation presets** adds and edits inline: a compact add row and in-row
-editing, with no separate creation or edit dialog. Its existing five-minute
-record-scoped edit lease still applies to an in-progress edit. **Remove** is
-a soft removal that acts on the click: the preset drops out of the list and out of new
-selection, but a valuation already recorded against it keeps its own
-snapshot, and that recorded addition is immune to any later removal, version
-change or disabling of the preset it was recorded against — the calculation
-basis carries the Case's recorded additions forward rather than
-re-resolving them.
+**Valuation presets** adds and edits inline: a compact add row and all existing
+rows editable immediately, with no separate creation or edit dialog. Save and
+Remove use each row's rendered expected version. A stale change is refused and
+asks the Administrator to reload. **Remove** is a soft removal that acts on the
+click: the preset drops out of the list and out of new selection, but a
+valuation already recorded against it keeps its own snapshot, and that
+recorded addition is immune to any later removal, version change or disabling
+of the preset it was recorded against — the calculation basis carries the
+Case's recorded additions forward rather than re-resolving them.
 
 Review-gated transitions calculate completeness from persisted facts inside
 the transaction. A submitted readiness claim or staff-confirmation checkbox is
@@ -848,40 +856,39 @@ current state and account.
 
 ### Record edit ownership
 
-An existing mutable Triage item, Image Intake record, Contact, staff account,
-valuation preset, approved mailbox, approved Outlook category, labour-rate card, or named configuration
-opens read-only. Its explicit Edit action claims a five-minute, record-scoped
-staff edit scope. The holder is named through the staff account where it can
-be resolved, never by its internal subject identifier. Cancel releases the
-scope without saving; Save checks the holder token and expected version inside
-the mutation transaction, applies the requested change and removes the scope
-in that same transaction. A stale, expired, revoked or other-holder request
-does not change the record. New unsaved records have no persistent scope.
+An existing mutable Triage item or Image Intake record opens read-only. Its
+explicit Edit action claims a five-minute, record-scoped staff edit scope. The
+holder is named through the staff account where it can be resolved, never by
+its internal subject identifier. Cancel releases the scope without saving;
+Save checks the holder token and expected version inside the mutation
+transaction, applies the requested change and removes the scope in that same
+transaction. A stale, expired, revoked or other-holder request does not change
+the record. New unsaved records have no persistent scope.
 
-A holder is never blocked by their own record's scope. Leaving a page
-releases its scope through a `pagehide` beacon; when that release was lost, a
-re-entry from the same holder that finds their own scope has gone unbeaten
-into its final heartbeat interval — four minutes of the five-minute scope,
-with the 60-second heartbeat interval left — claims it again silently, without
-a conflict. A hidden tab keeps beating and has its timers throttled, so a
-shorter window rotated the token of a window that was still open. While that
-scope is still being
-renewed elsewhere — a live second window — the page instead shows "You are
-editing this `<record>` in another window" and offers a **Take over** action:
-a POST that reclaims the scope and rotates its token, so the other window's
-next heartbeat finds its own token refused and disables its Save. A
-colleague's live scope still shows only who holds it, with no take-over
-control. The Case record's own edit lease uses its existing replay path
-instead of this same-holder staleness rule: a return to a Case the operator
-already holds simply resumes editing through the ordinary **Edit Case**
-control, which replays the retained lease token for the same claim
-operation; there is no separate "Recover editing" control.
+A Triage or Image Intake holder is never blocked by their own record's scope.
+Leaving a page releases its scope through a `pagehide` beacon; when that
+release was lost, re-entry from the same holder that finds their own scope has
+gone unbeaten into its final heartbeat interval — four minutes of the
+five-minute scope, with the 60-second heartbeat interval left — claims it
+again silently, without a conflict. A hidden tab keeps beating and has its
+timers throttled, so a shorter window rotated the token of a window that was
+still open. While that scope is still being renewed elsewhere — a live second
+window — the page instead shows "You are editing this Triage item or Image
+Intake record in another window" and offers a **Take over** action: a POST
+that reclaims the scope and rotates its token, so the other window's next
+heartbeat finds its own token refused and disables its Save. A colleague's
+live scope still shows only who holds it, with no take-over control. The Case
+record's own edit lease uses its existing replay path instead of this
+same-holder staleness rule: a return to a Case the operator already holds
+simply resumes editing through the ordinary **Edit Case** control, which
+replays the retained lease token for the same claim operation; there is no
+separate "Recover editing" control.
 
-Disabling an account or revoking its sessions clears that account's non-Case
-edit scopes, so a token from the revoked session cannot later save an existing
-record. The Case edit authority remains owned by its existing Case workflow;
-commands that affect both a Triage item and a Case validate both scoped
-authorities.
+Disabling an account or revoking its sessions clears that account's Triage and
+Image Intake edit scopes, so a token from the revoked session cannot later
+save either record type. The Case edit authority remains owned by its
+existing Case workflow; commands that affect both a Triage item and a Case
+validate both scoped authorities.
 
 - A count whose query has not run renders nothing; a failed query renders
   its failure, never `0`.
@@ -889,8 +896,8 @@ authorities.
   control.
 - An integration without a composed caller shows its named disabled seam
   and nothing else; when the seam has no ticket the control is absent.
-- A lost or expired edit lease surfaces the holder and disables
-  Save; a stale version is a non-destructive conflict.
+- A lost or expired Triage/Image Intake scope or Case edit lease surfaces the
+  holder and disables Save; a stale version is a non-destructive conflict.
 - A working set or palette history that cannot be read is treated as empty;
   the page renders correctly with none.
 - A redirect from a removed route keeps the query it was given.
