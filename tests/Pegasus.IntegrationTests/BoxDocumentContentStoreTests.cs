@@ -51,22 +51,22 @@ public sealed class BoxDocumentContentStoreTests
     }
 
     [Fact]
-    public async Task RequestUploadAddressUsesThePersistedCaseRootAndManagedOrdinal()
+    public async Task OtherRoleAddressUsesThePersistedCaseRootAndManagedOrdinal()
     {
         var box = new InMemoryBox();
         box.BindCaseRoot();
         var store = CreateStore(box);
-        var content = Encoding.UTF8.GetBytes("request upload evidence");
+        var content = Encoding.UTF8.GetBytes("other evidence");
         var address = Address() with
         {
             SemanticRole = DocumentSemanticRole.Other,
-            FileName = "request upload evidence.txt",
+            FileName = "other evidence.txt",
             MediaType = "text/plain"
         };
 
         await store.StoreVersionAsync(address, content, Sha256(content), CancellationToken.None);
 
-        Assert.True(box.PathExists($"{CaseReference}/002 request upload evidence.txt"));
+        Assert.True(box.PathExists($"{CaseReference}/002 other evidence.txt"));
     }
 
     [Fact]
