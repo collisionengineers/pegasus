@@ -32,7 +32,7 @@ jobs:
           # this repository takes about 2.5 minutes and every heavy lane waits
           # on this job, so a pull request checks out one commit and reads its
           # changed files from the API instead.
-          fetch-depth: ${{ github.event_name == 'push' && 0 || 1 }}
+          fetch-depth: ${{ github.event_name == 'push' && '0' || '1' }}
       - name: Require main history to be contained in dev
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
