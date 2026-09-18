@@ -334,7 +334,7 @@ internal static class CaseDataSnapshotFactory
                     : "physical_address");
         }
 
-        // INTK-058: the repairer the instruction named. No typed draft member
+        // The repairer the instruction named. No typed draft member
         // carries it, so the review field itself is the source — the same
         // route the vehicle description takes above. Unambiguous extracted
         // text becomes the Case's working repairer facts; linking it to a
@@ -519,7 +519,7 @@ internal static class CaseDataSnapshotFactory
             CaseId = snapshot.CaseId,
             Snapshot = snapshot,
             FieldName = fieldName,
-            // Operator direction 2026-08-20 (INTK-021): an unambiguous,
+            // Operator direction 2026-08-20: an unambiguous,
             // singly-provenanced extracted value is auto-added as the working
             // value (Fact), not parked as a suggestion awaiting confirmation.
             // Conflicted or ambiguous candidates never reach this method.
@@ -533,7 +533,7 @@ internal static class CaseDataSnapshotFactory
             SourceKind = candidate.Source switch
             {
                 IntakeEvidenceSource.StaffCorrection => CaseDataCodes.StaffCorrection,
-                // FRD-02 names the provider API as a provenance in its own
+                // FRD-23 names the provider API as a provenance in its own
                 // right. A value the instructing Principal stated is neither
                 // something a document said nor something a person here keyed.
                 IntakeEvidenceSource.ProviderDeclaration => CaseDataCodes.ProviderApi,

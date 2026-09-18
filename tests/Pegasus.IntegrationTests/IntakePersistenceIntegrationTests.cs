@@ -183,7 +183,7 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.indexes WHERE object_id = OBJECT_ID(N'IntakeOcrOperations') AND name = N'IX_IntakeOcrOperations_IntakeAssetId'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'DocumentContentCacheEntries') AND name = N'DocumentVersionId'"));
-        // AUTO-012's accept-recovery joins compare SQL Server's uniqueidentifier
+        // The accept-recovery joins compare SQL Server's uniqueidentifier
         // conversion, which is UPPERCASE, against tokens .NET wrote lowercase
         // (Guid.ToString("N") for ExternalReceiptToken, "D" for AggregateId).
         // They therefore match only under a case-insensitive collation, and
@@ -582,7 +582,7 @@ public sealed class IntakePersistenceIntegrationTests
     }
 
     /// <summary>
-    /// DOCS-015: a Case's gallery lists the image that is still reaching Box as
+    /// A Case's gallery lists the image that is still reaching Box as
     /// well as the ones that arrived. Listing confirmed versions only meant a
     /// Case opened while custody was in flight showed a partial set that grew
     /// on reload, which reads to an operator as files that went missing. The
@@ -806,7 +806,7 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
             // one LocalDB instance, so an ordinary open queues behind it: CI
             // measured 13999-14014 ms against the previous 15s budget. 60s
             // clears that and still fails a wedged instance inside the
-            // 20-minute job timeout (DELIV-031).
+            // 20-minute job timeout.
             ConnectTimeout = 60,
             MultipleActiveResultSets = true
         };
@@ -1036,7 +1036,7 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
             // CI hit 5061 here -- "a lock could not be placed ... Try again
             // later" -- with a parallel collection holding the instance.
             // Retry is the documented remedy; 10s of backoff, then the fifth
-            // attempt rethrows (DELIV-031).
+            // attempt rethrows.
             const int lockNotPlacedErrorNumber = 5061;
             const int maximumAttempts = 5;
             for (var attempt = 1; ; attempt++)

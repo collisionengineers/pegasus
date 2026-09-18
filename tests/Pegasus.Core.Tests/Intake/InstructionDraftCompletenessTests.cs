@@ -75,7 +75,7 @@ public sealed class InstructionDraftCompletenessTests
 
     /// <summary>
     /// The allocation gate is narrower than the completeness rule on purpose:
-    /// FRD-02 (intake and source identity) fails closed on identity-critical
+    /// FRD-22 (pre-Case gates) fails closed on identity-critical
     /// route facts, then requires allocation with thin ordinary detail retained
     /// as `Not ready`.
     /// </summary>

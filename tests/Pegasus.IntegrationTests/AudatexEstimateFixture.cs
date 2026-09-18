@@ -6,7 +6,7 @@ using UglyToad.PdfPig.Writer;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// ENG-002: the one synthetic Audatex-shaped fixture, shared by the parser
+/// The one synthetic Audatex-shaped fixture, shared by the parser
 /// tests and the assessment-page import tests. Built in-test with PdfPig's
 /// writer; no real estimate is committed.
 /// </summary>

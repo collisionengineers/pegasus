@@ -879,7 +879,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 var allocationState = receipt is null
                     ? null
                     : allocationStates.GetValueOrDefault(receipt.Id);
-                // INTK-029: once the association has been reversed the
+                // Once the association has been reversed the
                 // allocation's record of the case it created no longer
                 // stands in for it, or unlinking would visibly do nothing.
                 var allocationCase = receipt is not null

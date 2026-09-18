@@ -11,7 +11,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// The one act that produces the EVA package (ENG-016). It reads a case,
+/// The one act that produces the EVA package. It reads a case,
 /// maps the thirteen fields, loads every eligible retained photograph, writes
 /// the archive, records each successful export in action history, creates the
 /// <c>First sent to Engineer</c> proxy on the first success, and updates its
@@ -34,8 +34,8 @@ public sealed class EvaHandoffStore(
     TimeProvider timeProvider) : IExportCaseBundle
 {
     /// <summary>
-    /// CASE-019 / ENG-016: the operator's export of a case as the EVA-format
-    /// archive, and since ENG-016 the only way to produce one.
+    /// The operator's export of a case as the EVA-format archive, and since
+    /// the hand-off was folded into the export the only way to produce one.
     ///
     /// It takes no edit lease. The first export from Review atomically starts
     /// case work and increments the version; a re-send from With Engineer

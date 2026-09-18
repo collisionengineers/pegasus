@@ -8,7 +8,7 @@ using Pegasus.Core.Eva;
 namespace Pegasus.Core.Tests.Qdos;
 
 /// <summary>
-/// CASE-019 / ENG-016: the operator export is the one act over the EVA
+/// The operator export is the one act over the EVA
 /// archive. These tests hold what that bar admits — a case the deleted
 /// hand-off would have refused still exports, with its gaps named rather
 /// than blocking.
@@ -80,7 +80,7 @@ public sealed class CaseOperatorExportTests
         Assert.Equal(string.Empty, properties[10].Value.GetString());
         Assert.Equal("EVA-QDOS26011.zip", bundle.FileName);
 
-        // ENG-014: the export and the hand-off are one packaging, not two.
+        // The export and the hand-off are one packaging, not two.
         // Whatever the hand-off ships, this ships -- the indented JSON and
         // Images/, with no companion file on either path.
         using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);

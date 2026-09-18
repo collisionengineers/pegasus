@@ -10,7 +10,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
     {
         private const string WorkerRole = "pegasus_worker_runtime_role";
 
-        // AUTO-012: the Provider API accept path writes the submission row in
+        // The Provider API accept path writes the submission row in
         // Web, retains its source through the shared durable-intake path, and
         // then records the staged-receipt back-reference. The existing Worker
         // reconciliation timer repairs that back-reference after a process

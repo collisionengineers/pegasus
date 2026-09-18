@@ -875,7 +875,7 @@ public sealed class EfCaseReportGenerationStore(
             cancellationToken).ConfigureAwait(false);
 
         // Recorded only once the confirmed artifact's bytes are actually
-        // reopened (DOCS-014) — a completed download, never a regeneration
+        // reopened — a completed download, never a regeneration
         // attempt or a failed read.
         var occurredAtUtc = timeProvider.GetUtcNow();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken)
@@ -917,7 +917,7 @@ public sealed class EfCaseReportGenerationStore(
             LondonCalendar.DateAt(occurredAtUtc).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)));
 
     /// <summary>
-    /// The shared write behind both presentation events (DOCS-014): a
+    /// The shared write behind both presentation events: a
     /// Case-history row that never mutates the Case, so before and after
     /// version stay equal — the same shape <c>operator_note</c> already
     /// uses, and exempted from the per-version uniqueness index the same

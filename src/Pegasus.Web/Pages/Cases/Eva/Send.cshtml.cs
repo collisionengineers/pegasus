@@ -22,7 +22,7 @@ namespace Pegasus.Web.Pages.Cases.Eva;
 /// itself is the EVA handoff.
 ///
 /// The handoff has two surfaces and one set of routes. The workspace draws it
-/// as a dialog (EPIC-011 §1.8), which needs script; this page is the same
+/// as a dialog, which needs script; this page is the same
 /// handoff as a route, and is the one that still works with script off. The
 /// submission handler below is the POST target of both.
 ///
@@ -191,7 +191,7 @@ public sealed partial class SendModel(
         // EVA, so a custody transport failure is an ordinary way for it to
         // fail; without HttpRequestException here the operator would get the
         // generic error page instead of their case with a reason on it, the
-        // same way PLAT-039 found for the export.
+        // same way the export was found to fail.
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException
             or InvalidDataException

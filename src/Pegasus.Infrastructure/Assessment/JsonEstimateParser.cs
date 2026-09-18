@@ -5,8 +5,8 @@ using Pegasus.Core.Assessment;
 namespace Pegasus.Infrastructure.Assessment;
 
 /// <summary>
-/// Deterministic parser for the Pegasus-owned JSON estimate document (ENG-026,
-/// route <see cref="RepairSpecificationSourceRoute.Json"/>), the import
+/// Deterministic parser for the Pegasus-owned JSON estimate document (route
+/// <see cref="RepairSpecificationSourceRoute.Json"/>), the import
 /// format beside the Audatex PDF for estimates produced outside Pegasus.
 ///
 /// Schema <c>pegasus-estimate/1</c> (UTF-8 JSON object):

@@ -72,5 +72,3 @@ upload limits nor supported document formats.
 - [Engineering handoff](../frd/frd-07-eva-and-external-engineering-handoff.md)
 - [Microsoft layout model](https://learn.microsoft.com/azure/ai-services/document-intelligence/prebuilt/layout?view=doc-intel-4.0.0)
 - [Microsoft API and authentication](https://learn.microsoft.com/azure/ai-services/document-intelligence/quickstarts/get-started-sdks-rest-api?view=doc-intel-4.0.0)
-- Historical Kanmer records: TICK-041 (OCR), TICK-085 (Glass's PDF import),
-  PLAT-065 (activation). These are provenance, not current workflow dependencies.

@@ -167,7 +167,7 @@ public sealed class QdosBoundaryContractTests
     /// <summary>
     /// The Provider API per-file bound at the limit and one byte past it. The
     /// manual channel's 100 MiB cap does not reach this channel: a file that
-    /// the staff form would accept is refused here (C07 item 5, INTK-052).
+    /// the staff form would accept is refused here (C07 item 5).
     /// </summary>
     [Fact]
     public void TheProviderApiPerFileBoundAcceptsItsLimitAndRefusesOneByteMore()
@@ -248,7 +248,7 @@ public sealed class QdosBoundaryContractTests
     [Fact]
     public void ARealInspectionAddressPutsItsPostcodeOnTheSixthLine()
     {
-        // ENG-015: the system EVA imports into requires six lines — five body
+        // The system EVA imports into requires six lines — five body
         // lines then the postcode — and rejects a bare string. The case stores
         // the address as one collapsed line, so commas separate lines here.
         var accepted = AcceptedEvaEvidence();
@@ -305,7 +305,7 @@ public sealed class QdosBoundaryContractTests
     [Fact]
     public void VatStatusStaysBlankForQdosRatherThanBeingDefaulted()
     {
-        // ENG-015, pinned deliberately: QDOS's presence-check config in the
+        // Pinned deliberately: QDOS's presence-check config in the
         // original extractor is empty, so this field is blank by design and
         // not by failure. Nothing should "fix" it with a default or a prompt.
         var accepted = AcceptedEvaEvidence();
@@ -324,8 +324,8 @@ public sealed class QdosBoundaryContractTests
     [Fact]
     public void ASuggestedMileageStillReachesAnOperatorExport()
     {
-        // ENG-015, pinned deliberately: Pegasus fills mileage from the DVLA and
-        // DVSA lookup (ENG-013) where the original extractor emitted "". That
+        // Pinned deliberately: Pegasus fills mileage from the DVLA and
+        // DVSA lookup where the original extractor emitted "". That
         // divergence is what the operator asked for; nobody should "restore
         // parity" by dropping it.
         var accepted = AcceptedEvaEvidence();

@@ -131,7 +131,7 @@ public sealed partial class DetailsModel(
 
     /// <summary>
     /// The Contacts directory's Repairer organisations, offered so a member of
-    /// staff can link this Case's repairer to a maintained record (INTK-058).
+    /// staff can link this Case's repairer to a maintained record.
     /// Loaded only while the record is being edited.
     /// </summary>
     public IReadOnlyList<ContactDirectoryRecord> RepairerChoices { get; private set; } = [];
@@ -1489,7 +1489,7 @@ public sealed partial class DetailsModel(
                             claimSource.OverrideContactEmailAddress)
                     };
                 }
-                // INTK-058: a linked directory organisation is copied onto the
+                // A linked directory organisation is copied onto the
                 // Case — its identity, its version and its own name and
                 // address — so a later directory edit never rewrites this
                 // Case. Without a link the Case keeps the extracted or keyed
@@ -2479,7 +2479,7 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// CASE-047 B04: starts a Glass's Repair Estimate for this Case and sends
+    /// Starts a Glass's Repair Estimate for this Case and sends
     /// the Engineer's own browser to the provider's estimator.
     /// </summary>
     /// <remarks>

@@ -200,7 +200,7 @@ public sealed class ThirdPartyReportProvenanceWebTests
     /// no longer has, so it failed with <c>staged_artifact_integrity_failure</c>
     /// before intake ran at all, and only one pass ever tagged a third-party
     /// outcome (recorded on the ticket as ASSUMPTION 8). Stream A closed that
-    /// gap in the durable intake path (INTK-027): a queued re-evaluation now
+    /// gap in the durable intake path: a queued re-evaluation now
     /// re-reads the exact retained source through
     /// <see cref="IReadLogicalDocumentVersion"/>, by identity, against the
     /// recorded hash and length. So the pass completes, reads the report again,

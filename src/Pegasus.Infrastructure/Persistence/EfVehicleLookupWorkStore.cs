@@ -316,7 +316,7 @@ internal sealed class EfVehicleLookupWorkStore(
     }
 
     /// <summary>
-    /// ENG-013: the lookup is enrichment, so what it learns fills the case's
+    /// The lookup is enrichment, so what it learns fills the case's
     /// own empty vehicle fields instead of sitting beside them as a rival
     /// reading. A filled value is the case's working value from the moment it
     /// lands, carrying Lookup provenance so the report can still say where the
@@ -409,7 +409,7 @@ internal sealed class EfVehicleLookupWorkStore(
         {
             // The mileage carries the calculation's own key and version, not
             // this rule's, because that is what classifies it as a derived
-            // estimate everywhere it is later shown (ENG-010).
+            // estimate everywhere it is later shown.
             Fill(
                 CaseDataFieldNames.VehicleMileage,
                 CaseDataCodes.Integer,

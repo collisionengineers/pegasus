@@ -785,7 +785,7 @@ public sealed class EfImageIntakeStore(
             // Fold the image-case Box folder into the paired case through the
             // same durable outbox that created it: the transition commits here
             // regardless of Box availability, and the queued work moves the
-            // contents and removes the emptied folder (INTK-014).
+            // contents and removes the emptied folder.
             mergeWorkId = Guid.NewGuid();
             context.ExternalWorkItems.Add(new ExternalWorkItemEntity
             {

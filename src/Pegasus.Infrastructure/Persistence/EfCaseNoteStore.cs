@@ -9,7 +9,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// An operator note is a case workflow event like any other, so it lands on the
 /// same timeline as the system's own entries and inherits their ordering,
 /// attribution and append-only guarantees without a second store to keep in
-/// step (CASE-017).
+/// step.
 ///
 /// It must be <see cref="CaseWorkflowEventEntity"/> specifically: the Notes tab
 /// reads `CaseWorkflowEvents` (`EfCaseQueryStore`), and the first version of

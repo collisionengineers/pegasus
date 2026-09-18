@@ -151,14 +151,14 @@ public sealed class CaseCustodyWebTests
 
         // The staff upload handler and its refusal path went with the "Retain
         // document" control: the file is already stored, so there was nothing
-        // for a person to retain (DOCS-012).
+        // for a person to retain.
     }
 
     /// <summary>
-    /// EPIC-011 §1.8 Case Files: each live file is a row carrying its name, its
+    /// Case Files: each live file is a row carrying its name, its
     /// type, size and source, and the two things an operator does with it —
     /// View, which is the viewer's trigger, and Save as, which is the same
-    /// authorised route asked to save instead of display (DOCS-011). v26: the
+    /// authorised route asked to save instead of display. v26: the
     /// Case's custody is the head chip; a stored file wears no custody badge
     /// of its own.
     /// </summary>
@@ -796,7 +796,7 @@ public sealed class CaseCustodyWebTests
         Assert.Contains("name=\"reason\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain(store.CaseId.ToString("D"), VisibleText(html), StringComparison.OrdinalIgnoreCase);
 
-        // ENG-016: the export must post, because it records the once-per-case
+        // The export must post, because it records the once-per-case
         // First sent to Engineer proxy and a prefetched or refreshed GET must
         // not be able to fire it.
         //

@@ -24,7 +24,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// export's download time while keeping the burst close to what the
     /// sequential version already asked of Box.
     ///
-    /// DOCS-015: this was the batch's degree of parallelism only, so sixty
+    /// This was the batch's degree of parallelism only, so sixty
     /// gallery tiles opened sixty single reads at once and nothing bounded
     /// them. <see cref="ReadGate"/> is the bound itself, shared by both read
     /// paths, and it is process-wide because Box's limit is.
@@ -147,8 +147,8 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             // The write path keeps the metadata GET. It decides replay against
             // conflict before any content is committed, it costs one Box call
             // per document at intake rather than one per image on the export
-            // that PLAT-041 is about, and the fields it compares are the ones
-            // DOCS-010 proved must come from the file object itself.
+            // the batched read exists to avoid, and the fields it compares are
+            // the ones production proved must come from the file object itself.
             await VerifyFileMetadataAsync(
                 existing, caseFolder, address.MediaType, contentLength, cancellationToken);
             await using var retained = await client.OpenVersionReadAsync(
@@ -186,7 +186,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// One managed version's content, gated and retried.
     /// </summary>
     /// <remarks>
-    /// DOCS-015: this path is what a gallery tile, a preview and a report
+    /// This path is what a gallery tile, a preview and a report
     /// input all reach, so a Box 429 arrived here as a failed page element
     /// rather than as a wait. The read now enters <see cref="ReadGate"/> and a
     /// throttled or unavailable response is retried within
@@ -277,7 +277,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         TimeSpan.FromMilliseconds(250 * Math.Pow(2, attempt - 2));
 
     /// <summary>
-    /// PLAT-041: every eligible photograph of one case, read with the case
+    /// Every eligible photograph of one case, read with the case
     /// folder resolved once for the whole set instead of once per file. What
     /// remains per image is the download itself, and those run together rather
     /// than one after another.
@@ -330,7 +330,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                 RequirePersistedBoxIdentity(read.Address);
                 // The same gate and the same retry as a single read, so a
                 // batch running beside gallery traffic cannot double the burst
-                // Box sees (DOCS-015).
+                // Box sees.
                 var content = await ReadGatedWithRetryAsync(
                     async attemptToken =>
                     {
@@ -402,7 +402,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     /// <summary>
     /// Whether a Box file is the revision it is supposed to be.
     ///
-    /// DOCS-010: Box does not return <c>content_type</c> for a file — it is not
+    /// Box does not return <c>content_type</c> for a file — it is not
     /// a field of the v2 file object, and asking for it simply yields nothing —
     /// so <see cref="BoxContentClient.BoxItem.MediaType"/> is null on every
     /// read. Comparing it unconditionally made this check impossible to pass,
@@ -427,7 +427,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             || string.Equals(mediaType, expectedMediaType, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
-    /// PLAT-041: only the write path still asks. A read used to spend this GET
+    /// Only the write path still asks. A read used to spend this GET
     /// and the two ancestry calls under it on every image — three of its nine
     /// round trips — to re-derive length and parent before downloading the
     /// content and verifying its SHA-256 anyway. As the remarks on
@@ -619,7 +619,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     }
 
     /// <summary>
-    /// PLAT-041 review: refuse a length mismatch before any bytes move. Dropping
+    /// Refuse a length mismatch before any bytes move. Dropping
     /// the per-read metadata GET also dropped the only pre-download size guard,
     /// so an unbounded body could be buffered — four at once under the fan-out —
     /// before <see cref="Verify"/> rejected it.

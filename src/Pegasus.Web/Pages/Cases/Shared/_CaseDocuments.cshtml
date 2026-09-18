@@ -9,7 +9,7 @@
     var mayEdit = Model.CanEditCaseData;
     // Every current non-image file, whatever its custody has reached. The row
     // carries the custody chip, so a file still being stored or whose storage
-    // failed says so here instead of being left off the tab (DOCS-012).
+    // failed says so here instead of being left off the tab.
     var files = Model.CaseDocumentFiles;
 }
 
@@ -56,7 +56,7 @@ else
                 <span class="doc-row-actions">
                     @if (mayRead)
                     {
-                        @* DOCS-011: the same authorised route displays or saves
+                        @* The same authorised route displays or saves
                            depending on the flag; the preview link is the
                            viewer's trigger and stays a real link without script. *@
                         @if (viewable)

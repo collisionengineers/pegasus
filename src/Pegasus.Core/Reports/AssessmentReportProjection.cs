@@ -400,7 +400,7 @@ public static class AssessmentReportProjection
             : null;
 
     /// <summary>
-    /// ENG-037: persisted dates are invariant <c>yyyy-MM-dd</c>. Parsing them
+    /// Persisted dates are invariant <c>yyyy-MM-dd</c>. Parsing them
     /// under the ambient culture reads a Buddhist- or Hijri-calendar year on a
     /// th-TH or ar-SA workstation, so the culture is always stated.
     /// </summary>
@@ -459,7 +459,7 @@ public sealed record GenerateCaseAssessmentReportDraftResult(
     IReadOnlyList<AssessmentReadinessItem> Reasons);
 
 /// <summary>
-/// The reachable operator entry point (DELIV-012): loads a case's report
+/// The reachable operator entry point: loads a case's report
 /// inputs, projects them, and renders the draft only when every requirement
 /// is met. Authorisation is inherited from the composed
 /// <see cref="IAssessmentReportProjectionSource"/> (the same

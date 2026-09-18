@@ -403,7 +403,7 @@ public sealed class ProcessIntake(
     /// <summary>
     /// Identifies the retained source's document role from the document itself
     /// and, when it carries a third-party report signature, records what the
-    /// report says as ordinary source candidates (INTK-031).
+    /// report says as ordinary source candidates.
     ///
     /// Retention is the right place for it: the role is a property of the bytes
     /// that were just retained, not of anything a member of staff does later,
@@ -593,7 +593,7 @@ public sealed class ProcessIntake(
     /// same caller: the operator's rule holds it in Unidentified only "until a
     /// vehicle registration is known, then open the Triage", and Triage
     /// creation runs after this hook. Registering here would give every Triage
-    /// request an Unidentified item it is about to stop deserving (INTK-033).
+    /// request an Unidentified item it is about to stop deserving.
     /// </summary>
     internal static bool IsUnidentifiedEligible(IntakeReceipt receipt) =>
         receipt.Decision is IntakeDecision.NeedsSorting
@@ -626,7 +626,7 @@ public sealed class ProcessIntake(
     /// is already what Triage creation itself keys off — so reading the
     /// evidence keeps one answer for both. Without the second clause a declared
     /// Triage opened its Triage record and an Unidentified item beside it, the
-    /// two-queues defect INTK-033 closed for the mail route.
+    /// two-queues defect already closed for the mail route.
     ///
     /// The classification clause stays: a reply in a Triage thread classifies
     /// as a Triage request but is deliberately given no accepted-match
@@ -1128,7 +1128,7 @@ public sealed class ProcessIntake(
     /// A second matcher asking the same question was therefore a duplicate
     /// owner, and the only implementation it ever had was the null one — so
     /// the gate downstream could never pass and no Triage was ever created
-    /// from intake (INTK-033).
+    /// from intake.
     ///
     /// The source is <see cref="IntakeEvidenceSource.SystemDefault"/> because
     /// this finding is a policy judgement over the whole message, not a value
@@ -1246,7 +1246,7 @@ public sealed class ProcessIntake(
 
         // The identity-critical fields are the only ones that may withhold a
         // reference; ordinary detail missing from a declaration leaves the case
-        // Not ready exactly as it does for an e-mail (FRD-02).
+        // Not ready exactly as it does for an e-mail (FRD-22).
         var missingIdentity = InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
         var decision = missingIdentity.Count > 0 || isTriage
             ? IntakeDecision.NeedsSorting
@@ -1276,7 +1276,7 @@ public sealed class ProcessIntake(
             caseMatchDecision);
     }
 
-    // INTK-060 narrowed the extraction input to the selected instruction
+    // Narrowing the extraction input to the selected instruction
     // document, and that silently dropped every fact only the accompanying
     // third-party engineer report states — production QDOS cases stopped
     // carrying a mileage. The submission's other current documents travel

@@ -162,7 +162,7 @@ internal sealed class EfDocumentCustodyStore(
     }
 
     /// <summary>
-    /// DOCS-015: the occurrence lookup a preview needs, and nothing else. It
+    /// The occurrence lookup a preview needs, and nothing else. It
     /// takes no operation key, writes no <c>ActionHistory</c> row and opens no
     /// content: the caller reads the bytes through
     /// <see cref="IReadLogicalDocumentVersion"/>, which verifies the same

@@ -7,7 +7,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Tests.Triage;
 
 /// <summary>
-/// PLAT-011: the Triage history table (<c>Pages/Triage/Details.cshtml</c>) shows
+/// The Triage history table (<c>Pages/Triage/Details.cshtml</c>) shows
 /// the resolved staff name, never the raw actor subject id it used to render —
 /// covers <c>GetTriage</c>'s resolution of <see cref="TriageHistoryEntry.Actor"/>.
 /// </summary>

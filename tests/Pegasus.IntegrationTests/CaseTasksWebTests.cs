@@ -120,8 +120,8 @@ public sealed class CaseTasksWebTests
     }
 
     /// <summary>
-    /// EPIC-011 §1.8 Inspection address: the recorded value and, in edit
-    /// context, an editor for it. CASE-038: the record renders every section
+    /// Inspection address: the recorded value and, in edit
+    /// context, an editor for it. The record renders every section
     /// at once, so the Inspection section no longer carries a whole-record
     /// form of its own — its control is associated with the one record form,
     /// which is the only entry for `inspectionAddress`, and that one form
@@ -208,7 +208,7 @@ public sealed class CaseTasksWebTests
     /// <summary>
     /// The Overview editor writes the same editable values, so it must carry the
     /// claimant's own contact number and address too: SaveCase writes a null for
-    /// anything the form omits, which cleared them on every save (CASE-027).
+    /// anything the form omits, which cleared them on every save.
     /// </summary>
     [Fact]
     public async Task OverviewEditorAlsoPostsTheClaimantContactNumberAndAddress()
@@ -224,7 +224,7 @@ public sealed class CaseTasksWebTests
     }
 
     /// <summary>
-    /// EPIC-011 §1.8 Notes: entries carry the date, the clock time and the
+    /// Notes: entries carry the date, the clock time and the
     /// actor, and both writing actions post the handlers the case already has.
     /// </summary>
     [Fact]

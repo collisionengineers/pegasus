@@ -1250,7 +1250,7 @@ internal sealed class EfDocumentRequestStore(
         {
             // A link that outlived a limits change is still the sender's link,
             // so it is served in a refusal-only shape and the page renders the
-            // typed "ask for a new one" (INTK-051) instead of a bare 404 that
+            // typed "ask for a new one" instead of a bare 404 that
             // reads as a mistyped address. Every other refusal means the link
             // is gone, and 404 is what discloses nothing about the Case.
             return refusal == RequestUploadDecision.LimitsVersionMismatch

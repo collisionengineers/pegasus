@@ -4,7 +4,7 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// UIIMP-008: the needs-attention row carries recorded facts and Core enum
+/// The needs-attention row carries recorded facts and Core enum
 /// names, and the Work Centre labels them. An AI draft records its kind as the
 /// enum name, so it may not reach the operator as it is stored. Failed
 /// external work is no longer a row (Work Centre D1).
@@ -36,7 +36,7 @@ public sealed class WorkCentreLabelTests
     }
 
     /// <summary>
-    /// UIIMP-008: `asp-page` takes a Razor page name, not a route template.
+    /// `asp-page` takes a Razor page name, not a route template.
     /// `Pages/Operations/Index.cshtml` declares `@page "/Operations"`, which
     /// sets its route but leaves its page name `/Operations/Index` — the
     /// spelling `_Layout.cshtml` uses. `RecordPage` returned the route, so the

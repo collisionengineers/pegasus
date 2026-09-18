@@ -751,7 +751,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => item.PrincipalId);
             entity.HasIndex(item => item.CreationOperationKey).IsUnique();
             entity.HasIndex(item => new { item.NormalizedVehicleRegistration, item.CreatedAtUtc });
-            // One ImageIntake per submission group (INTK-015); single-receipt
+            // One ImageIntake per submission group; single-receipt
             // registrations carry no group and are exempt via the filter.
             entity.HasIndex(item => item.SubmissionGroupId)
                 .IsUnique()

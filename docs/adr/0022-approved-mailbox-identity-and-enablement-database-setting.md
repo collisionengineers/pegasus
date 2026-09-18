@@ -5,7 +5,7 @@ date: 2026-08-06
 supersedes: []
 superseded_by: [ADR-0024]
 related_capabilities: []
-related_frd: [frd-08]
+related_frd: [frd-26]
 tags: [mailbox, config]
 ---
 # ADR-0022: Approved-mailbox identity and enablement as an administrator-editable database setting
@@ -79,7 +79,7 @@ Two ways of closing it were rejected:
    normally, so disabling is eventually effective within one poll page, never
    mid-message.
 
-Functional behaviour: see [FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md).
+Functional behaviour: see [FRD-26](../frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md).
 
 ## Consequences
 

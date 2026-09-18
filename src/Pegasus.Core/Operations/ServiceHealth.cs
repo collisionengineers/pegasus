@@ -7,7 +7,7 @@ using Pegasus.Core.Intake;
 namespace Pegasus.Core.Operations;
 
 /// <summary>
-/// The Service health table (FRD-12 § Operations; EPIC-011 §1.11). Every row
+/// The Service health table (FRD-12 § Operations). Every row
 /// is derived from a fact the system already recorded — a poll cursor, a
 /// work item, a submission attempt, a job, a switch — and names the time of
 /// that evidence. Nothing here probes a dependency, and a service with no
@@ -219,7 +219,7 @@ public static class ServiceHealthPolicy
 
     /// <summary>
     /// A switched-off Send to AI channel is a configured state, not a fault;
-    /// a failed job is terminal and waits for a person (FRD-11 § AI Job List).
+    /// a failed job is terminal and waits for a person (FRD-27 § AI Job List).
     /// </summary>
     public static ServiceHealthState AiState(
         bool sendToAiEnabled,

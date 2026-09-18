@@ -5,7 +5,7 @@ using static Pegasus.Infrastructure.Assessment.PdfEstimateDocumentParser;
 namespace Pegasus.Infrastructure.Assessment;
 
 /// <summary>
-/// Deterministic parser for the Audatex full-report estimate PDF (ENG-002).
+/// Deterministic parser for the Audatex full-report estimate PDF.
 ///
 /// The format prints tables whose numeric column (work units, prices) sits on
 /// its own text baseline roughly one point below the description row, so

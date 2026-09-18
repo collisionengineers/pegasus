@@ -9,7 +9,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// INTK-011: reproduces the production race directly against LocalDB — two
+/// Reproduces the production race directly against LocalDB — two
 /// members of one image group processed by independent, concurrent durable
 /// work items must never split (one registered, the sibling stranded at
 /// <c>needs_sorting</c> through the instruction fallback). Also covers the
@@ -170,7 +170,7 @@ public sealed class GroupedImageIntakeConcurrencyTests
                 intakeIds.Add(detail.Record.Id);
             }
 
-            // INTK-015: the group is the registration unit — every member
+            // The group is the registration unit — every member
             // resolves to the SAME single ImageIntake (one reference, one
             // row), never one registration per member.
             Assert.Single(references);

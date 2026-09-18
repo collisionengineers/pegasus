@@ -6,7 +6,7 @@ using Pegasus.Infrastructure.Glass;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// CASE-047 B04: the Glass's ERE export parser against synthetic
+/// The Glass's ERE export parser against synthetic
 /// <c>&lt;Estimation&gt;</c> documents shaped exactly like the reference
 /// exports — the same elements, the same position types and repair kinds, the
 /// same <c>TimeUnit</c> 60 and the same printed statistics block — but with

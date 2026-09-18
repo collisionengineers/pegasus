@@ -5,8 +5,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// compare and assign these constants instead of repeating the literals.
 ///
 /// Not yet the vocabulary's only reader: the remaining Infrastructure stores
-/// on the same table still spell the words out, and folding them onto this
-/// class is PLAT-056.
+/// on the same table still spell the words out; folding them onto this
+/// class is outstanding work.
 /// </summary>
 internal static class ExternalWorkStatePersistence
 {

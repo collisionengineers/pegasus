@@ -5,7 +5,7 @@ date: 2026-08-25
 supersedes: []
 superseded_by: [ADR-0033]
 related_capabilities: [INT-33]
-related_frd: [FRD-02, FRD-08]
+related_frd: [FRD-02, FRD-26]
 tags: [intake, email, queues, reliability]
 ---
 # ADR-0032: Near-real-time durable intake triggering
@@ -78,5 +78,5 @@ decisions remain accepted.
 ## Links
 
 - [FRD-02](../frd/frd-02-intake-and-source-identity.md)
-- [FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md)
+- [FRD-26](../frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md)
 - [ADR-0002](0002-dotnet-modular-monolith-on-azure.md)

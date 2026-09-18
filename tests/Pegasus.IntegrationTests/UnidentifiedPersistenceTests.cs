@@ -8,7 +8,7 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// EfUnidentifiedStore against the real migration: the history-truncation,
-/// replay-fingerprint, and destination-validation fixes from the INTK-007
+/// replay-fingerprint, and destination-validation fixes from the Unidentified
 /// review, which had no persistence-level coverage.
 /// </summary>
 [Trait("Category", "SqlServer")]
@@ -131,7 +131,7 @@ public sealed class UnidentifiedPersistenceTests
     }
 
     /// <summary>
-    /// INTK-009's Unidentified tab filters: media kind is derived from the
+    /// The Unidentified tab filters: media kind is derived from the
     /// origin receipt's channel and content type, not a stored field, so this
     /// exercises the join and the classification together.
     /// </summary>

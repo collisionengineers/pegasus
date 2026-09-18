@@ -51,8 +51,8 @@ public sealed record EvaBundle(
     string FileName);
 
 /// <summary>
-/// CASE-019, ENG-016: the operator's export of a case as the EVA-format
-/// archive. Since ENG-016 it is the only act that produces the package, and
+/// The operator's export of a case as the EVA-format
+/// archive. Since the hand-off was folded into it, it is the only act that produces the package, and
 /// its first success on a case records the once-per-case
 /// <c>First sent to Engineer</c> proxy. Every success updates which workflow
 /// version was exported for Assessment access.
@@ -120,8 +120,7 @@ public static class EvaHandoffPolicy
     /// whose write is atomic with the state change (a failed write commits
     /// nothing, so by the time this runs the handoff always happened). The
     /// API route passes the transport's actual
-    /// <see cref="EvaSubmissionResult.IsDelivered"/> explicitly (CASE-040
-    /// review): a Rejected or Unknown outcome never reached EVA, so it is not
+    /// <see cref="EvaSubmissionResult.IsDelivered"/> explicitly: a Rejected or Unknown outcome never reached EVA, so it is not
     /// a handoff and must not move the case out of Review — only Succeeded or
     /// Partial does, because Partial still means EVA created a claim.
     /// </summary>
@@ -214,7 +213,7 @@ public static class EvaBundleSchema
     /// <paramref name="fileNameReference"/> names the archive and the JSON
     /// inside it. It is the Pegasus case reference, which is unique and
     /// already file-safe — deliberately not the <c>Reference</c> field, which
-    /// since ENG-015 carries the work provider's own reference. Those can
+    /// now carries the work provider's own reference. Those can
     /// repeat across cases and contain path separators ("AKH//47743/1"), which
     /// <see cref="SafeFileComponent"/> would reduce to "1". Omitted, the
     /// reference field still names the bundle, which is what an offline replay
@@ -264,7 +263,7 @@ public static class EvaBundleSchema
         // that match that provenance. It never guarded the evidence bar — the
         // and a case with gaps clears it by design.
         //
-        // ENG-016 (ENG-014 review finding F3): the loop below throws, and the
+        // The loop below throws, and the
         // throws are the whole point. It used to also build a second,
         // normalized copy of the provenance array and return it — dead output,
         // because CreateOfflineReplay reads only the fields. The validation
