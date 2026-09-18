@@ -96,7 +96,7 @@ internal sealed class FakeGetAssessmentWorkspace(AssessmentWorkspace workspace)
         Task.FromResult<AssessmentWorkspace?>(workspace);
 }
 
-internal sealed class FakeGetAssessmentAccess(bool canOpen = true) : IGetAssessmentAccess
+internal sealed class FakeGetAssessmentAccess(bool canOpen = true, CaseLifecycleState? state = null) : IGetAssessmentAccess
 {
     public Task<AssessmentAccessState?> ExecuteAsync(
         GetAssessmentAccessQuery query,
@@ -105,6 +105,6 @@ internal sealed class FakeGetAssessmentAccess(bool canOpen = true) : IGetAssessm
             // D11: the open states are With Engineer onwards — Review no
             // longer opens the workspace, so the open fake must sit inside
             // the new state set or the policy itself refuses it.
-            ? new(CaseLifecycleState.ReportPreparation)
+            ? new(state ?? CaseLifecycleState.ReportPreparation)
             : new(CaseLifecycleState.Held));
 }

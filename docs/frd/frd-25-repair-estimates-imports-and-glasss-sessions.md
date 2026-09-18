@@ -81,13 +81,13 @@ not select a Pegasus rate card or decide a repairer's VAT status.
 
 **Readable text is required.** Estimate PDFs need readable embedded text.
 Unreadable, scan-like or unsupported estimates are refused, with no OCR and
-no partial Draft. Completing an interrupted import reuses the retained source
-under fresh Case authority, without uploading again. Source attribution and
-complete arithmetic must agree before an import succeeds. The Estimate
-section offers **Complete import** for confirmed retained import sources not
-yet represented by an estimate. Pending custody becomes selectable only when
-its confirmation completes. Replaying the original upload does not revive
-its old lease or assume another Case-version increment.
+no partial Draft. A staff upload stores the confirmed source through the normal
+Case document flow, then parses it immediately in the same Import action.
+After an interrupted or refused parse, retrying the same source reuses the
+confirmed retained document under current Case authority without uploading it
+again. Source attribution and complete arithmetic must agree before an import
+succeeds. Replaying the original operation does not revive its old lease or
+assume another Case-version increment.
 
 **Corrections and projections.** A correction creates a new reasoned version
 that keeps and supersedes the earlier accepted one. Accepted rows and their
@@ -165,10 +165,12 @@ again by the XML-specific overlap rule.
 
 Readable embedded text is required. An unusable font map, a scan-like page
 or a parser failure gives an explicit refusal, never an OCR request
-([ADR-0047](../adr/0047-scanned-instruction-ocr-only.md)). Retained sources
-from an interrupted import can be completed later by the same command under
-the current Case version and edit lease. Import never selects a Current
-estimate.
+([ADR-0047](../adr/0047-scanned-instruction-ocr-only.md)). The staff Import
+action accepts one supported file and stores the source through the existing
+Case document upload mechanism before parsing it immediately. The confirmed
+source appears in Case Files even when parsing refuses it; retrying the same
+file uses that retained source, while a replay of the same operation returns
+the same import. Import never selects a Current estimate.
 
 ## States and transitions
 

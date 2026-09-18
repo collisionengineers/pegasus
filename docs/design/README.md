@@ -208,10 +208,11 @@ application (see
 | ArrowUp / ArrowDown | Move through a row list (`scope-list`, `row-button`, `work-item`, result rows) |
 | Escape | Close the open dialog |
 
-One accepted exception to keyboard parity: the Assessment whole-page raw
-estimate drop is pointer-only, and it is a real gap — no staff keyboard
-route performs this import. Every other action on the page stays
-keyboard-reachable.
+The Estimate section's keyboard-accessible **Import** button opens the native
+file picker. Dropping a file over that section uses the same path; while a
+valid file is held over it, a temporary overlay marks the drop target. The
+overlay follows the existing file-upload visual language and disappears when
+the drag ends.
 
 Dialogs are `.dialog` inside `.dialog-backdrop`, mounted in the dialog root:
 initial focus on the first control, a focus trap, the rest of the document
@@ -784,8 +785,8 @@ just as well. There is no separate Add valuation dialog. This does not
 remove the Estimate section's selected configured-Engineer Glass's
 repair-estimate launch; a connected Glass's valuation provider
 supersedes the earlier rule that Pegasus "records no Glass's valuation". Glass's and Audatex file
-import stays in scope through the whole-page drop; Cazana remains the
-disabled seam.
+import stays in scope through the Estimate section's direct Import button and
+temporary section-scoped drop overlay; Cazana remains the disabled seam.
 
 Every other uncomposed capability stays absent: no inert card, no
 "Unavailable" placeholder, no unlinked route. A disabled seam carries its

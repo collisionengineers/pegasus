@@ -1,6 +1,6 @@
 @*
-    Estimate (v26 § Estimate). One section: the head carries Import (visible
-    in read mode, where it opens the edit session first), the one Glass's /
+    Estimate (v26 § Estimate). One section: the head carries direct Import
+    (available in read and edit mode), the one Glass's /
     Resume slot, Send to AI, one More menu (New estimate, Compare) and
     Expand; the body carries the outcome notice, the tabs, the Glass's
     session line with its guarded Close, Use estimate / Duplicate / Discard,
@@ -31,6 +31,7 @@
     var editable = editing && Model.SelectedEstimateIsEditable;
     var canImport = editing && Model.ImportCondition is null;
     var offersImportFromRead = !editing && Model.SectionOffersEdit("estimate") && Model.ImportCondition is null;
+    var canOfferImport = canImport || offersImportFromRead;
     var details = Model.EditorDetails;
     var totals = Model.EditorTotals;
     var printed = totals.Printed;
@@ -153,7 +154,7 @@
     }
 }
 
-<section class="record-section panel @Model.CollapsedClass("case.estimate") @Model.ActiveTabClass("estimate") @(Model.IsEditing && !Model.SectionIsEditable("estimate") ? "is-locked" : null)" id="section-estimate" data-section="estimate" data-collapse="case.estimate" aria-labelledby="section-estimate-title" data-estimate-section>
+<section class="record-section panel @Model.CollapsedClass("case.estimate") @Model.ActiveTabClass("estimate") @(Model.IsEditing && !Model.SectionIsEditable("estimate") ? "is-locked" : null)" id="section-estimate" data-section="estimate" data-collapse="case.estimate" aria-labelledby="section-estimate-title" data-estimate-section data-estimate-drop-target>
     <div class="panel-head">
         <h2 id="section-estimate-title">@EngineerLabels.Estimate</h2>
         @if (meta is not null)
@@ -161,29 +162,41 @@
             <span class="meta" data-estimate-meta>@meta</span>
         }
         <div class="panel-actions">
-            @if (canImport)
+            @if (canOfferImport)
             {
-                <a class="btn btn--small" asp-page="/Cases/Details" asp-route-id="@caseId"
-                   asp-route-section="estimate" asp-route-dialog="import-estimate"
-                   data-dialog-open="import-estimate-dialog" data-estimate-import>
-                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-                    <span>@EstimateLabels.Import</span>
-                </a>
-            }
-            else if (offersImportFromRead)
-            {
-                @* Import stays visible in read mode and opens the edit session
-                   first (v26); the operator then presses Import again. Without
-                   script this is the same claim the section-head Edit posts. *@
-                <form method="post" asp-page="/Cases/Details" asp-page-handler="ClaimLease" asp-route-id="@caseId" data-case-edit-form>
+                <form id="case-estimate-import-form" method="post" enctype="multipart/form-data"
+                      asp-page="/Cases/Details" asp-page-handler="ImportEstimate"
+                      asp-route-id="@caseId" asp-route-section="estimate"
+                      data-estimate-import-form
+                      data-estimate-import-one-file="@ImportLabels.ExactlyOneFile"
+                      data-estimate-import-non-empty="@ImportLabels.NonEmptyFile"
+                      data-estimate-import-too-large="@ImportLabels.FileTooLarge"
+                      data-estimate-import-unsupported="@ImportLabels.UnsupportedFile"
+                      data-estimate-import-dirty="@ImportLabels.UnsavedEstimate"
+                      data-estimate-import-busy="@ImportLabels.ActionInProgress">
                     <input type="hidden" name="id" value="@caseId" />
                     <input type="hidden" name="expectedVersion" value="@caseVersion" />
-                    <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
+                    <input type="hidden" name="operationKey" value="@Model.ImportOperationKey" />
+                    <input type="hidden" name="editLeaseToken" value="@(canImport ? Model.LeaseToken : string.Empty)" />
                     <input type="hidden" name="section" value="estimate" />
-                    <button type="submit" class="btn btn--small" data-section-edit="estimate" data-estimate-import>
-                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-                        <span>@EstimateLabels.Import</span>
-                    </button>
+                    <div class="estimate-import-control">
+                        <div class="estimate-import-fallback" data-estimate-import-fallback>
+                            <label for="estimate-import-file">@ImportLabels.FileLabel</label>
+                            <input id="estimate-import-file" type="file" name="estimateFile"
+                                   accept=".pdf,.json,.xml,application/pdf,application/json,application/xml,text/xml"
+                                   required data-estimate-import-input />
+                            <button type="submit" class="btn btn--small">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                                <span>@EngineerLabels.ImportEstimate</span>
+                            </button>
+                        </div>
+                        <button type="button" class="btn btn--small" hidden data-estimate-import-picker>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                            <span>@EstimateLabels.Import</span>
+                        </button>
+                        <span class="estimate-import-status" role="status" aria-live="polite" hidden
+                              data-estimate-import-status data-importing-text="@ImportLabels.Importing"></span>
+                    </div>
                 </form>
             }
             @* The one Glass's slot (v26 G) — Glass's while the
@@ -333,31 +346,7 @@
                 }
                 @if (glassSession.State == GlassRepairEstimateSessionState.AwaitingImport)
                 {
-                    @* Waiting: the retained result lands as a Draft once the
-                       Case's edit authority is back (PendingEstimateSources). *@
-                    @if (editing && Model.ImportCondition is null && Model.PendingEstimateSources.Count > 0)
-                    {
-                        foreach (var source in Model.PendingEstimateSources)
-                        {
-                            <form method="post" asp-page="/Cases/Details" asp-page-handler="CompleteEstimateImport"
-                                  asp-route-id="@caseId" asp-route-section="estimate" data-glass-complete-import>
-                                <input type="hidden" name="expectedVersion" value="@caseVersion" />
-                                <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                                <input type="hidden" name="occurrenceId" value="@source.Occurrence.Id" />
-                                <input type="hidden" name="documentVersionId" value="@source.Version.Id" />
-                                <input type="hidden" name="sha256" value="@source.Version.Sha256" />
-                                <button type="submit" class="btn btn--small btn--primary">
-                                    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
-                                    <span>@ImportLabels.Complete</span>
-                                </button>
-                            </form>
-                        }
-                    }
-                    else
-                    {
-                        <span class="gated"><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span>@EstimateLabels.AvailableWhileEditing</span></span>
-                    }
+                    <span class="gated"><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span>@EstimateLabels.AvailableWhileEditing</span></span>
                 }
                 @if (Model.CanCloseGlass)
                 {
@@ -384,42 +373,6 @@
                         </form>
                     </details>
                 }
-            </div>
-        }
-
-        @* A retained source not yet imported (an import whose custody was
-           still pending, or a Glass's result held for edit authority) lands
-           as a Draft from here; the Waiting line above already offers it
-           while the Glass's session is Waiting. *@
-        @if (Model.PendingEstimateSources.Count > 0 && glassSession?.State != GlassRepairEstimateSessionState.AwaitingImport)
-        {
-            <div class="sub-panel" data-estimate-sources>
-                <h3>@ImportLabels.Sources</h3>
-                <div class="stack">
-                    @foreach (var source in Model.PendingEstimateSources)
-                    {
-                        <div class="cluster">
-                            <span class="mono">@source.Version.FileName</span>
-                            @if (editing && Model.ImportCondition is null)
-                            {
-                                <form method="post" asp-page="/Cases/Details" asp-page-handler="CompleteEstimateImport"
-                                      asp-route-id="@caseId" asp-route-section="estimate" data-estimate-complete-import>
-                                    <input type="hidden" name="expectedVersion" value="@caseVersion" />
-                                    <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
-                                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                                    <input type="hidden" name="occurrenceId" value="@source.Occurrence.Id" />
-                                    <input type="hidden" name="documentVersionId" value="@source.Version.Id" />
-                                    <input type="hidden" name="sha256" value="@source.Version.Sha256" />
-                                    <button type="submit" class="btn btn--small">@ImportLabels.Complete</button>
-                                </form>
-                            }
-                            else
-                            {
-                                <span class="gated"><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span>@EstimateLabels.AvailableWhileEditing</span></span>
-                            }
-                        </div>
-                    }
-                </div>
             </div>
         }
 
@@ -713,44 +666,14 @@
             }
         }
     </div>
-</section>
-
-@if (canImport)
-{
-    var openOnLoad = Model.OpenDialog == "import-estimate"
-        ? Html.Raw(" data-dialog-open-on-load=\"true\"")
-        : Html.Raw(" hidden");
-    <div id="import-estimate-dialog" class="dialog-backdrop" data-dialog="import-estimate-dialog"
-         @openOnLoad>
-        <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="import-estimate-dialog-title">
-            <div class="dialog-head">
-                <h2 id="import-estimate-dialog-title" tabindex="-1">@EngineerLabels.ImportEstimate</h2>
-                <button type="button" class="dialog-close" data-dialog-close aria-label="@EngineerLabels.CloseDialog">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                </button>
-            </div>
-            <form method="post" enctype="multipart/form-data" asp-page="/Cases/Details"
-                  asp-page-handler="ImportEstimate" asp-route-id="@caseId" asp-route-section="estimate" data-estimate-import-form>
-                <input type="hidden" name="operationKey" value="@Model.ImportOperationKey" />
-                <input type="hidden" name="expectedVersion" value="@caseVersion" />
-                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
-                <div class="dialog-body stack">
-                    <div class="field">
-                        <label class="req" for="estimate-file">@EstimateLabels.EstimateFile</label>
-                        <input type="file" id="estimate-file" name="estimateFile" accept=".pdf,.json,.xml,application/pdf,application/json,application/xml,text/xml" required data-dialog-initial-focus />
-                    </div>
-                </div>
-                <div class="dialog-foot">
-                    <button type="button" class="btn" data-dialog-close data-dialog-dismiss>@EngineerLabels.Cancel</button>
-                    <button type="submit" class="btn btn--primary">
-                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-                        <span>@EngineerLabels.ImportEstimate</span>
-                    </button>
-                </div>
-            </form>
-        </section>
+    <div class="estimate-import-drop-overlay" hidden data-estimate-import-overlay aria-hidden="true">
+        <div class="estimate-import-drop-card">
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            <strong>@ImportLabels.DropEstimate</strong>
+            <span>@ImportLabels.DropHint</span>
+        </div>
     </div>
-}
+</section>
 
 @if (Model.Estimates.Count >= 2)
 {

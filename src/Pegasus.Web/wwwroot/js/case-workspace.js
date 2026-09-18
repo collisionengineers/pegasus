@@ -729,7 +729,8 @@
     }
     function submitInPlace(form, submitter) {
         var body = new FormData(form, submitter && submitter.name ? submitter : undefined);
-        var command = editorLabels[form.getAttribute('id')] ? {
+        var isImport = form.hasAttribute('data-estimate-import-form');
+        var command = editorLabels[form.getAttribute('id')] || isImport ? {
             editor: form.getAttribute('id'), operationKey: body.get('operationKey'),
             expectedVersion: body.get('expectedVersion'), editLeaseToken: body.get('editLeaseToken'),
             revision: dirtyEditors.get(form.getAttribute('id'))
@@ -745,6 +746,16 @@
             request.body = body;
         }
         form.setAttribute('aria-busy', 'true');
+        var importSection = isImport ? form.closest('[data-estimate-drop-target]') : null;
+        var importStatus = isImport ? form.querySelector('[data-estimate-import-status]') : null;
+        if (isImport && importSection) {
+            importSection.setAttribute('data-estimate-importing', 'true');
+            importSection.classList.add('is-import-unavailable');
+            if (importStatus) {
+                importStatus.hidden = false;
+                importStatus.textContent = importStatus.dataset.importingText || 'Importing estimate…';
+            }
+        }
         return fetch(action, request).then(function (response) {
             var landed = response.url || action;
             if (!samePage(landed)) {
@@ -765,10 +776,21 @@
                 throw new Error('The server did not return the Case.');
             }
         }).catch(function (error) {
-            showActionError(error.message + ' Your unsaved changes are still here.');
+            var failure = isImport
+                ? error.message + ' Import completion was not confirmed. Your unsaved changes are still here; reload the Case before retrying. If the source was already stored, it will be reused.'
+                : error.message + ' Your unsaved changes are still here.';
+            showActionError(failure);
         }).finally(function () {
             form.removeAttribute('aria-busy');
             form.removeAttribute('data-inplace-submitting');
+            if (importSection && importSection.isConnected) {
+                importSection.removeAttribute('data-estimate-importing');
+                importSection.classList.remove('is-import-unavailable');
+            }
+            if (importStatus && importStatus.isConnected) {
+                importStatus.hidden = true;
+                importStatus.textContent = '';
+            }
             submitting = false;
         });
     }
@@ -787,6 +809,161 @@
             window.pegasusToast(message, 'danger');
         }
     }
+
+    function bindEstimateImport(root) {
+        if (!window.pegasusEstimateImportGlobalBound) {
+            window.pegasusEstimateImportGlobalBound = true;
+            var clearEstimateDragStates = function () {
+                document.querySelectorAll('[data-estimate-drop-target][data-estimate-dragging="true"]').forEach(function (section) {
+                    section.classList.remove('is-dragover', 'is-import-unavailable');
+                    section.removeAttribute('data-estimate-dragging');
+                    var overlay = section.querySelector('[data-estimate-import-overlay]');
+                    if (overlay) {
+                        overlay.hidden = true;
+                        overlay.setAttribute('aria-hidden', 'true');
+                    }
+                });
+            };
+            var preventOutsideFileNavigation = function (event) {
+                var transfer = event.dataTransfer;
+                if (!transfer || Array.prototype.slice.call(transfer.types || []).indexOf('Files') < 0) { return; }
+                var target = event.target;
+                if (target && target.nodeType !== 1) { target = target.parentElement; }
+                if (target && target.closest && target.closest('[data-estimate-drop-target]')) { return; }
+                event.preventDefault();
+            };
+            window.addEventListener('dragend', clearEstimateDragStates, true);
+            window.addEventListener('blur', clearEstimateDragStates);
+            window.addEventListener('dragover', preventOutsideFileNavigation, true);
+            window.addEventListener('drop', preventOutsideFileNavigation, true);
+        }
+        var sections = [];
+        if (root.matches && root.matches('[data-estimate-drop-target]')) { sections.push(root); }
+        sections = sections.concat(Array.prototype.slice.call(root.querySelectorAll('[data-estimate-drop-target]')));
+        sections.forEach(function (section) {
+            if (section.dataset.estimateImportBound === 'true') { return; }
+            var form = section.querySelector('form[data-estimate-import-form]');
+            var input = form && form.querySelector('input[type="file"][name="estimateFile"]');
+            var fallback = form && form.querySelector('[data-estimate-import-fallback]');
+            var picker = form && form.querySelector('[data-estimate-import-picker]');
+            var overlay = section.querySelector('[data-estimate-import-overlay]');
+            if (!form || !input || !fallback || !picker || !overlay) { return; }
+
+            section.dataset.estimateImportBound = 'true';
+            fallback.hidden = true;
+            picker.hidden = false;
+            var depth = 0;
+            var maxBytes = 10 * 1024 * 1024;
+            var validExtensions = ['.pdf', '.xml', '.json'];
+            var importMessage = function (name, fallback) {
+                return form.dataset['estimateImport' + name] || fallback;
+            };
+            var isFileDrag = function (event) {
+                return Boolean(event.dataTransfer)
+                    && Array.prototype.slice.call(event.dataTransfer.types || []).indexOf('Files') >= 0;
+            };
+            function estimateIsDirty() { return dirtyEditors.has('case-estimate-form'); }
+            function canAccept() {
+                return !submitting && !confirmResolve && form.dataset.inplaceSubmitting !== 'true';
+            }
+            function clearDrag() {
+                depth = 0;
+                section.classList.remove('is-dragover', 'is-import-unavailable');
+                section.removeAttribute('data-estimate-dragging');
+                overlay.hidden = true;
+                overlay.setAttribute('aria-hidden', 'true');
+            }
+            function showDrag(unavailable) {
+                section.classList.add('is-dragover');
+                section.classList.toggle('is-import-unavailable', unavailable);
+                section.setAttribute('data-estimate-dragging', 'true');
+                overlay.hidden = false;
+                overlay.setAttribute('aria-hidden', 'false');
+            }
+            function validate(files) {
+                if (!files || files.length !== 1) {
+                    return importMessage('OneFile', 'Choose exactly one estimate file.');
+                }
+                var file = files[0];
+                if (!file || file.size <= 0) { return importMessage('NonEmpty', 'Choose a non-empty estimate file.'); }
+                if (file.size > maxBytes) { return importMessage('TooLarge', 'Choose an estimate file of 10 MB or less.'); }
+                var name = String(file.name || '').toLowerCase();
+                if (!validExtensions.some(function (extension) { return name.endsWith(extension); })) {
+                    return importMessage('Unsupported', 'Choose a PDF, XML or JSON estimate file.');
+                }
+                return null;
+            }
+            function submitSelectedFile() {
+                var files = input.files ? Array.prototype.slice.call(input.files) : [];
+                var error = validate(files);
+                if (error) {
+                    input.value = '';
+                    showActionError(error);
+                    return;
+                }
+                if (estimateIsDirty()) {
+                    input.value = '';
+                    showActionError(importMessage('Dirty', 'Save or cancel the estimate changes before importing another estimate.'));
+                    return;
+                }
+                if (!canAccept()) {
+                    input.value = '';
+                    showActionError(importMessage('Busy', 'Wait for the current Case action to finish before importing an estimate.'));
+                    return;
+                }
+                form.requestSubmit();
+            }
+
+            picker.addEventListener('click', function () {
+                if (!canAccept()) { return; }
+                if (estimateIsDirty()) {
+                    showActionError(importMessage('Dirty', 'Save or cancel the estimate changes before importing another estimate.'));
+                    return;
+                }
+                input.click();
+            });
+            input.addEventListener('change', submitSelectedFile);
+            section.addEventListener('dragenter', function (event) {
+                if (!isFileDrag(event)) { return; }
+                event.preventDefault();
+                depth += 1;
+                showDrag(!canAccept() || estimateIsDirty());
+            });
+            section.addEventListener('dragover', function (event) {
+                if (!isFileDrag(event)) { return; }
+                event.preventDefault();
+                event.dataTransfer.dropEffect = canAccept() && !estimateIsDirty() ? 'copy' : 'none';
+                showDrag(!canAccept() || estimateIsDirty());
+            });
+            section.addEventListener('dragleave', function (event) {
+                depth = Math.max(0, depth - 1);
+                if (depth === 0) { clearDrag(); }
+            });
+            section.addEventListener('dragend', clearDrag);
+            section.addEventListener('drop', function (event) {
+                var fileDrag = isFileDrag(event);
+                clearDrag();
+                if (!fileDrag) { return; }
+                event.preventDefault();
+                event.stopPropagation();
+                var files = event.dataTransfer && event.dataTransfer.files
+                    ? Array.prototype.slice.call(event.dataTransfer.files) : [];
+                var error = validate(files);
+                if (error) { showActionError(error); return; }
+                if (estimateIsDirty()) {
+                    showActionError(importMessage('Dirty', 'Save or cancel the estimate changes before importing another estimate.'));
+                    return;
+                }
+                if (!canAccept()) {
+                    showActionError(importMessage('Busy', 'Wait for the current Case action to finish before importing an estimate.'));
+                    return;
+                }
+                input.files = event.dataTransfer.files;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+        });
+    }
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindEstimateImport);
 
     function inPlace(form) {
         if (form.hasAttribute('target') || form.hasAttribute('data-no-inplace') || form.hasAttribute('data-case-heartbeat')) {
@@ -809,7 +986,13 @@
             return;
         }
         event.preventDefault();
+        var isImport = form.hasAttribute('data-estimate-import-form');
         if (submitting || confirmResolve || form.dataset.inplaceSubmitting === 'true') { return; }
+        if (isImport && dirtyEditors.has('case-estimate-form')) {
+            showActionError(form.dataset.estimateImportDirty
+                || 'Save or cancel the estimate changes before importing another estimate.');
+            return;
+        }
         var isSave = !!editorLabels[form.getAttribute('id')];
         var proceed = function () {
             submitting = true;
@@ -819,7 +1002,7 @@
         };
         // Cancel is the operator discarding: it needs no second question.
         var isCancel = form.hasAttribute('data-case-cancel-form');
-        if (!isSave && dirty && !isCancel) {
+        if (!isSave && dirty && !isCancel && !isImport) {
             askUnsaved().then(function (answer) {
                 if (answer === 'keep') {
                     return;
@@ -890,6 +1073,7 @@
     // ---- init ------------------------------------------------------------------
     layout = readLayout();
     measure();
+    bindEstimateImport(record);
     setLayout(layout, false);
     bindHeartbeat();
     var addressed = new URLSearchParams(window.location.search).get('section');
