@@ -92,10 +92,9 @@ public static class StaffNotificationPolicy
 
     /// <summary>
     /// Who a notification goes to, or null for nobody. The actor is never told
-    /// about their own act. An AI draft goes to the Case's engineer, otherwise to
-    /// the staff member who started the job. Assignment goes to the engineer. The
-    /// "changed hands" causes go to the Case's engineer only, so a User who created
-    /// a Case is never told about it (decided 13 September).
+    /// about their own act. An AI draft goes to the assigned staff member,
+    /// otherwise to the staff member who started the job. Assignment and
+    /// "changed hands" causes go to the assigned staff member.
     /// </summary>
     public static Guid? Recipient(
         StaffNotificationCause cause,

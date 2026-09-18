@@ -43,8 +43,8 @@ hands a scoped worker a pointer to one Case, never Case content. The worker
 writes back through the same Core commands, edit lease, operation-key replay
 and version guards as a staff save, attributed and recorded like any human
 action. What the automation records is unconfirmed working data for the
-assigned Engineer to review. Confirming a professional finding is for staff
-with Engineer capabilities, including Administrator. Report approval and
+assigned Engineer to review. Confirming a professional finding is for every
+enabled human staff role. Report approval and
 sending stay human acts. No model, skill, prompt or external source ever
 issues an accepted Case, engineering, financial, legal or report outcome.
 
@@ -84,7 +84,7 @@ and in the table below).
 
 | Kind | Started from | Input | Result | Staff confirmation |
 | --- | --- | --- | --- | --- |
-| Estimate | Estimate section `Send to AI` (With Engineer or later) | Direction text and an optional target percentage of the recorded Engineer's Value, 0 to 80 %, no default; the amount is shown as derived from that value and is guidance only, never an accepted figure. Refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An Engineer accepts the draft (`Use estimate`), which makes it the Current estimate |
+| Estimate | Estimate section `Send to AI` (With Engineer or later) | Direction text and an optional target percentage of the recorded Engineer's Value, 0 to 80 %, no default; the amount is shown as derived from that value and is guidance only, never an accepted figure. Refused without an Engineer's Value | A drafted estimate saved on the Case through the estimate tools, citing the job; state `Draft` | An enabled human staff member accepts the draft (`Use estimate`), which makes it the Current estimate |
 | Unidentified resolution | Operations `Send Unidentified to AI` for one U reference | The U reference only | A proposed destination (existing Case, new Case from an accepted instruction, Image-initiated Case, or close) and a reason | Staff confirm through the existing Unidentified resolve action; the proposal never resolves the item itself |
 | Query response | A retained post-report query linked to a Case | The message reference only | Draft reply text | Offered to the composer or Case notes; never sent automatically |
 | Unidentified-queue pass | An external scheduler through the Actor `create` tool; Pegasus runs no timer | The queue scope | One Unidentified-resolution proposal per item examined | As Unidentified resolution, per item |
