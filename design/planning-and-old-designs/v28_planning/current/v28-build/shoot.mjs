@@ -23,17 +23,25 @@ const only = process.env.ONLY ? new Set(process.env.ONLY.split(',')) : null;
 
 const captured = JSON.parse(readFileSync(join(here, 'captured.json'), 'utf8'));
 const extras = existsSync(join(here, 'shots.json')) ? JSON.parse(readFileSync(join(here, 'shots.json'), 'utf8')) : [];
+// Baseline shots are taken with the proposals layer off. proposal-shots.json
+// lists the states that show a proposal; those are taken with it on and are
+// named p<nn>-... so the two sets never overwrite each other.
+const proposalShots = existsSync(join(here, 'proposal-shots.json')) ? JSON.parse(readFileSync(join(here, 'proposal-shots.json'), 'utf8')) : [];
+const which = process.env.SET || 'all'; // all | baseline | proposals
 const shots = [
-  ...captured.map((state) => ({ name: state.id, state: state.id, query: '' })),
-  ...extras,
+  ...(which === 'proposals' ? [] : [...captured.map((state) => ({ name: state.id, state: state.id, query: '' })), ...extras]),
+  ...(which === 'baseline' ? [] : proposalShots.map((shot) => ({ ...shot, proposal: true }))),
 ].filter((shot) => !only || only.has(shot.name));
 
 const page = await launch();
 const problems = [];
 let number = 0;
+let proposalNumber = 0;
 for (const shot of shots) {
-  number += 1;
-  const url = pathToFileURL(join(current, 'states', shot.state + '.html')).href + (shot.query ? '?' + shot.query : '');
+  number = shot.proposal ? number : number + 1;
+  if (shot.proposal) proposalNumber += 1;
+  const layer = shot.proposal ? 'proposals=on' : 'proposals=off';
+  const url = pathToFileURL(join(current, 'states', shot.state + '.html')).href + '?' + layer + (shot.query ? '&' + shot.query : '');
   for (const width of widths) {
     await page.viewport(width, SIZES[width] || 900);
     const before = page.errors.length;
@@ -41,7 +49,9 @@ for (const shot of shots) {
     await page.goto(url, 300);
     await page.eval(`try { window.localStorage.clear(); window.sessionStorage.clear(); } catch (e) {}`);
     await page.goto(url, 1100);
-    const name = `s${String(number).padStart(2, '0')}-${shot.name}-${width}.png`;
+    const name = shot.proposal
+      ? `p${String(proposalNumber).padStart(2, '0')}-${shot.name}-${width}.png`
+      : `s${String(number).padStart(2, '0')}-${shot.name}-${width}.png`;
     writeFileSync(join(outDir, name), await page.screenshot());
     for (const error of page.errors.slice(before)) problems.push(`${shot.name} @${width}: ${error}`);
   }

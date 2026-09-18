@@ -26,7 +26,7 @@ for (const family of manifest.families) {
 
   const html = `<!DOCTYPE html>
 <!--
-  v28 baseline, ${family.title}. As-is capture of ${manifest.source}; no proposed changes.
+  v28 baseline, ${family.title}. Captured from ${manifest.source}; the operator's proposals sit over it as a switchable layer.
   This file is a frame around captured state pages (states/*.html), which are the
   application's own server-rendered HTML with the live CSS and JS. The bar at the
   top is demo control, not product UI. Temporary design review artifact: not
@@ -65,6 +65,10 @@ for (const family of manifest.families) {
       <button type="button" data-width="1440" aria-pressed="false">1440</button>
       <button type="button" data-width="760" aria-pressed="false">760</button>
     </span>
+    <span role="group" aria-label="Baseline or proposals">
+      <button type="button" data-layer="on" aria-pressed="true">Proposals</button>
+      <button type="button" data-layer="off" aria-pressed="false">Baseline</button>
+    </span>
     <a class="button" id="alone" href="#" target="_blank" rel="noopener">Open state alone</a>
     <span class="live" id="live" title="The live route this state was captured from"></span>
     <span class="note" id="note"></span>
@@ -77,13 +81,15 @@ for (const family of manifest.families) {
   var select = document.getElementById('state');
   var view = document.getElementById('view');
   var owner = {};
+  var baseline = false;
   (window.V28_ROUTES.families || []).forEach(function (f) { f.states.forEach(function (s) { owner[s.id] = f; }); });
 
   function show(option, push) {
     var id = option.value;
     var query = option.getAttribute('data-query') || '';
-    view.src = 'states/' + id + '.html?embed=1' + (query ? '&' + query : '');
-    document.getElementById('alone').href = 'states/' + id + '.html' + (query ? '?' + query : '');
+    var layer = baseline ? '&proposals=off' : '';
+    view.src = 'states/' + id + '.html?embed=1' + layer + (query ? '&' + query : '');
+    document.getElementById('alone').href = 'states/' + id + '.html?' + (baseline ? 'proposals=off' : 'proposals=on') + (query ? '&' + query : '');
     document.getElementById('live').textContent = option.getAttribute('data-live') || '';
     document.getElementById('note').textContent = option.getAttribute('data-note') || '';
     if (push) history.replaceState(null, '', '#' + id + (query ? '?' + query : ''));
@@ -102,6 +108,13 @@ for (const family of manifest.families) {
       document.querySelectorAll('[data-width]').forEach(function (b) { b.setAttribute('aria-pressed', b === button ? 'true' : 'false'); });
       var width = button.getAttribute('data-width');
       view.style.width = width ? width + 'px' : '100%';
+    });
+  });
+  document.querySelectorAll('[data-layer]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      baseline = button.getAttribute('data-layer') === 'off';
+      document.querySelectorAll('[data-layer]').forEach(function (b) { b.setAttribute('aria-pressed', b === button ? 'true' : 'false'); });
+      show(select.options[select.selectedIndex], false);
     });
   });
   // A captured page navigating to another captured state tells the frame.

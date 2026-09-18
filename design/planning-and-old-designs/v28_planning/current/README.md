@@ -6,8 +6,10 @@ carve-out. Not application code, not design authority, and not implementation
 evidence. A captured page proves what the application rendered for synthetic
 fixture data on a local host, not that any behaviour is deployed or accepted.
 
-**This round proposes nothing.** It is an as-is capture of `origin/dev`
-(`904903fd1`, 18 September 2026).
+The baseline is an as-is capture of `origin/dev` (`904903fd1`, 18 September
+2026). The operator's proposals sit over it as a layer that can be switched
+off; they are listed in `v28-notes.md` section 9 and recorded as they are made
+in [`working-log.md`](working-log.md).
 
 ## How it is made
 
@@ -28,8 +30,9 @@ route or a post was not captured. It changes nothing on the page.
 
 Open any `pegasus_*_v28.html` file directly in a browser. Each is a frame:
 the bar at the top is demo control, not product UI. It picks the area, the
-state and a width (Fit, 1580, 1440, 760), shows the live route the state came
-from, and can open the state page on its own. Indented entries under a state
+state and a width (Fit, 1580, 1440, 760), switches between **Proposals** and
+**Baseline**, shows the live route the state came from, and can open the state
+page on its own. Indented entries under a state
 are presets, such as a dialog opened or a section brought into view.
 
 Links and GET forms inside a state move between captured states. A control
@@ -50,8 +53,9 @@ that posts to the server shows a short note naming the route instead.
 | `pegasus_account_shell_v28.html` | Sign in, account, errors | 11 |
 
 - `states/`: one offline page per captured state (73).
-- `assets/`: the live CSS, JS, fonts and images as served, plus `mock/shim.js`
-  and the generated `mock/routes.js`.
+- `assets/`: the live CSS, JS, fonts and images as served, plus `mock/shim.js`,
+  the generated `mock/routes.js`, and the proposals layer (`mock/proposals.js`,
+  `mock/proposals.css`, the refined mark).
 - `v28-build/`: the tooling, kept so the round is reproducible. `manifest.json`
   lists the states, `enrich.mjs` works the seeded Case through the live edit
   session, `capture.mjs` saves the pages, `frames.mjs` writes the family files,
@@ -59,6 +63,8 @@ that posts to the server shows a short note naming the route instead.
   `selfcheck.mjs` checks the result. `v28-notes.md` section 8 gives the
   commands.
 - `v28-shots/`: every state and preset at 1580x1000, 1440x900 and 760x1000.
+  `s..` files are the baseline; `p..` files show a proposal and are listed in
+  `v28-build/proposal-shots.json` with what each one shows.
 
 ## Evidence
 
@@ -76,5 +82,5 @@ Neither part is application evidence.
 
 ## Status
 
-Stage 1 complete and awaiting operator review. The sign-off list is in
-`v28-notes.md` section 6.
+Stage 1, in collaboration. The capture's sign-off list is `v28-notes.md`
+section 6; the proposals and what is open under them are section 9.

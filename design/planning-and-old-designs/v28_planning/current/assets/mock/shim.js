@@ -11,6 +11,14 @@
   var state = window.V28_STATE || {};
   var GUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
 
+  // The proposals layer sits over the capture unless the baseline is asked for.
+  // It is loaded from here so a captured page itself carries nothing but this shim.
+  if (new URLSearchParams(window.location.search).get('proposals') !== 'off' && document.currentScript) {
+    var mockFolder = document.currentScript.src.replace(/[^/]*$/, '');
+    document.write('<link rel="stylesheet" href="' + mockFolder + 'proposals.css" />'
+      + '<script src="' + mockFolder + 'proposals.js"><\/script>');
+  }
+
   // (1) No server: background requests never settle, so nothing reports a
   // false failure, and beacons are accepted and dropped.
   window.fetch = function () { return new Promise(function () {}); };
@@ -37,6 +45,14 @@
     return routes.shaped[shape] || null;
   }
 
+  // What follows the reader from state to state: the frame flag and the
+  // baseline-or-proposals choice. Presets belong to one state and do not.
+  function carried() {
+    var here = new URLSearchParams(window.location.search); var out = [];
+    ['embed', 'proposals', 'skip'].forEach(function (name) { if (here.get(name)) out.push(name + '=' + encodeURIComponent(here.get(name))); });
+    return out.length ? '?' + out.join('&') : '';
+  }
+
   function say(text) {
     var region = document.querySelector('[data-toast-region]');
     var note = document.createElement('div');
@@ -51,7 +67,7 @@
 
   function go(id) {
     var params = new URLSearchParams(window.location.search);
-    var keep = params.get('embed') ? '?embed=1' : '';
+    var keep = carried();
     if (window.parent !== window) {
       try { window.parent.postMessage({ v28: 'state', id: id }, '*'); } catch (e) { /* standalone */ }
     }
@@ -89,7 +105,7 @@
         if (!live || live.charAt(0) !== '/') return;
         var id = resolve(live);
         element.setAttribute('data-v28-live', live);
-        element.setAttribute(name, id ? id + '.html' + (window.location.search.indexOf('embed') >= 0 ? '?embed=1' : '') : '#');
+        element.setAttribute(name, id ? id + '.html' + carried() : '#');
       });
     });
   }

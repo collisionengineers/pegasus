@@ -165,3 +165,20 @@ compared with the running application, no linked page route left uncaptured.
 108 shots were taken at three widths with no page errors.
 
 **Sign-off list.** `v28-notes.md` section 6, items A to H. None is settled.
+
+## 18 September 2026 — from capture to collaboration
+
+The operator committed the rebuild and then asked for changes on it, which
+ends the "proposes nothing" phase. Decision: the captured pages stay untouched
+as the baseline and every change goes into a proposals layer loaded over them,
+switchable per state and per proposal, so a proposal can always be compared
+with what is live and the parity check keeps its meaning. Considered and
+rejected: editing the captured HTML (the baseline would be lost and a
+recapture would overwrite the changes); a second set of generated state files
+(two copies to keep in step).
+
+The operator settled baseline items C to H as valid issues, chose v27's area
+selector for damage, and asked for a working log. Requests, choices and Stage
+2 consequences are in `working-log.md`; the standing list is `v28-notes.md`
+section 9. Self-check after the pass: `RESULT {"fail":[],"okCount":1361}`,
+offline, with the new baseline-untouched and per-proposal assertions.

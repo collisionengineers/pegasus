@@ -1,7 +1,9 @@
 # v28 notes
 
-As-is capture, no proposed changes. Rebuilt on 18 September 2026 from
-`origin/dev` at `904903fd1` (worktree `task/ui-baseline-rebuild`).
+A faithful capture of `origin/dev` at `904903fd1` (18 September 2026, worktree
+`task/ui-baseline-rebuild`), with the operator's proposals as a switchable
+layer over it. The capture is sections 1 to 8; the proposals are section 9.
+Changes are recorded as they are made in [`working-log.md`](working-log.md).
 
 ## 1. Why this round was rebuilt
 
@@ -83,9 +85,8 @@ are taken at 1580x1000, 1440x900 and 760x1000.
 
 ## 6. The sign-off list
 
-This round proposes nothing, so nothing here is a design decision. Items A
-and B are about the capture; C to H record what the capture found in the live
-application, for the operator to confirm or to raise as work.
+Items A and B are about the capture. C to H recorded what the capture found
+in the live application; the operator ruled on them on 18 September.
 
 **A.** The mockup is a folder of captured pages framed by nine family files,
 not nine self-contained files. **Confirm, or** ask for each state to be
@@ -96,35 +97,19 @@ every page's "Not captured" list). **Confirm, or** name the states worth
 seeding next: a Case in Review, a Held Case, a processed mail message with a
 linked Case, AI jobs, and a generated report are the largest gaps.
 
-**C.** Saving the Case record with many changed fields at once is refused on
-`904903fd1`: the history entry lists every changed field and overflows
-`CaseHistory.Reason` ("String or binary data would be truncated"), and the
-operator sees only "The case action was not applied". `enrich.mjs` saves three
-fields at a time to avoid it. **Confirm** this should be raised as a defect.
-
-**D.** `Account/AccessDenied.cshtml` renders inside the full shell, while the
-error and status pages use the navless frame. **Confirm** this is intended.
-
-**E.** The Work Centre prints "Updated HH:mm" twice, in the page header and
-above the metric strip. **Confirm, or** raise it.
-
-**F.** At 1440 wide the Cases table wraps the Due date onto four lines
-("25 / Sep / 20 / 26"). **Confirm, or** raise it.
-
-**G.** One Case record showed both "2 Sept 2026" (Incident date) and
-"18 Sep 2026 10:05" (Received) on a local run. **Confirm, or** raise it.
-
-**H.** Re-verified from the first build's list, each still true in source:
-the Query state has no tone in `_StatusChip.cshtml` and renders neutral; the
-Work Centre AI jobs table says "Lease expires HH:mm"; manual Create Case
-offers no Audit type; no Administration page uses an `images/marks` mark;
-the Administration hub's card icons differ from the nav's for Service health
-and Reports. **Confirm** each is as intended, or raise it.
+**C to H.** *Settled 18 September: all six are valid issues to address, not
+all of them in a mockup.* What was done with each is P6 in section 9. The
+findings themselves: C, saving many Case fields at once is refused because the
+history reason overflows `CaseHistory.Reason`; D, Access denied renders in the
+full shell while the error family is navless; E, the Work Centre prints
+"Updated HH:mm" twice; F, the Cases table wraps the Due date onto four lines
+at 1440; G, one record showed "2 Sept 2026" and "18 Sep 2026"; H, Query has no
+chip tone, the AI jobs table says "Lease expires", manual Create Case offers no
+Audit type, no Administration page uses an `images/marks` mark, and the hub's
+icons differ from the nav's.
 
 Items E, F, J and K of the first build's list were transcription
 uncertainties. They no longer apply because nothing is transcribed.
-
-_No item is settled yet._
 
 ## 7. Self-check result
 
@@ -144,3 +129,42 @@ node shoot.mjs
 node pagedocs.mjs
 LIVE=1 node selfcheck.mjs
 ```
+
+## 9. Proposals
+
+From 18 September the round is a collaboration on top of the capture. The
+captured pages are never edited; every change is in `assets/mock/proposals.js`
+and `assets/mock/proposals.css`. The family files default to **Proposals** and
+switch to **Baseline**; on a state page `?proposals=off` is the baseline and
+`?skip=P4` turns one proposal off. [`working-log.md`](working-log.md) has the
+request, the choices and the Stage 2 consequence of each.
+
+| Id | Proposal | Shots | Status |
+| --- | --- | --- | --- |
+| P1 | The refined mark from `v27_planning/logo` replaces the lockup in the rail and on the navless frame | p01, p02 | asked for 18 September |
+| P2 | Status colour by meaning: green succeeded, red did not, amber waiting, navy in hand, neutral settled | p03, p09, p12 | asked for 18 September; the label table is a proposal |
+| P3 | "Provider" never appears: "Cancelled", "Principal" | p07 | asked for 18 September |
+| P4 | The lifecycle strip on Overview is removed | p03, p04 | asked for 18 September |
+| P5 | Damage by area: v27 variant C with the eight areas | p05, p06 | chosen 18 September |
+| P6 | Baseline issues D to H, where a mockup can show them | p01, p08, p10, p11 | asked for 18 September |
+
+### Open under the proposals
+
+- **P2.** Confirm the label table in the working log, in particular that
+  Active and Enabled stay navy, that "Could not be read" and "Unavailable" go
+  red, and that `design/README.md`'s "green is confirmed completion only"
+  widens to "an operation or outcome that succeeded".
+- **P3.** "Principal chasing for update" beside "Client chasing for update":
+  confirm both categories stand, or name the one that goes.
+- **P5.** v27's G1: is the disc stored with its derived areas, or only the
+  areas. The mockup assumes the disc is stored. Also whether the report's
+  narrative says "LH Rear" or "left rear".
+- **P6.** Issue C needs a ticket, not a drawing. "Lease expires HH:mm" on the
+  AI jobs table needs the operator's wording. The Administration panel marks
+  in `images/marks` are unused; confirm they go from `design/README.md`.
+
+### Not yet carried over from v27
+
+v27 never went to Stage 2 and none of its proposals is live. P1 and P5 are
+the first two brought into v28. The rest, listed in the working log, can be
+added to the layer one at a time on instruction.

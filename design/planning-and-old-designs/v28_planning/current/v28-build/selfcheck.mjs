@@ -1,4 +1,5 @@
-// v28 self-check. Prints RESULT {"fail":[...],"okCount":N} and exits non-zero on any failure.
+// v28 self-check. The capture is checked with the proposals layer off; the
+// proposals are then checked, per state, with it on. Prints RESULT {"fail":[...],"okCount":N} and exits non-zero on any failure.
 //
 //   node selfcheck.mjs                 offline checks only
 //   LIVE=1 HOST_INFO=<host.json> node selfcheck.mjs
@@ -92,9 +93,56 @@ for (const state of captured) {
     }
   }
   const before = page.errors.length;
-  await page.goto(pathToFileURL(file).href, 700);
+  await page.goto(pathToFileURL(file).href + '?proposals=off', 700);
   const errors = page.errors.slice(before);
   check(errors.length === 0, `${state.id}: page error offline: ${errors[0]}`);
+  const untouched = await page.eval(`!document.documentElement.hasAttribute('data-v28-proposals') && !document.querySelector('[data-v28-removed], [data-v28-proposal], [data-v28-live-tone]')`);
+  check(untouched, `${state.id}: the baseline view carries proposal changes`);
+
+  // The same state with the proposals layer on.
+  const beforeLayer = page.errors.length;
+  await page.goto(pathToFileURL(file).href + '?proposals=on', 700);
+  const layerErrors = page.errors.slice(beforeLayer);
+  check(layerErrors.length === 0, `${state.id}: page error with proposals on: ${layerErrors[0]}`);
+  const facts = JSON.parse(await page.eval(`JSON.stringify((() => {
+    const visible = (el) => !!el && !el.closest('[hidden]') && el.getClientRects().length > 0;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let provider = ''; let sept = ''; let node;
+    while ((node = walker.nextNode())) {
+      const tag = node.parentNode.nodeName;
+      if (tag === 'SCRIPT' || tag === 'STYLE') continue;
+      if (/provider/i.test(node.nodeValue)) provider = provider || node.nodeValue.trim().slice(0, 60);
+      if (/\\bSept\\b/.test(node.nodeValue)) sept = sept || node.nodeValue.trim().slice(0, 60);
+    }
+    const chips = [...document.querySelectorAll('.status')].map((c) => [c.textContent.replace(/\\s+/g, ' ').trim().toLowerCase(), c.className]);
+    return {
+      on: document.documentElement.getAttribute('data-v28-proposals') === 'on',
+      provider, sept,
+      lockup: [...document.querySelectorAll('.brand img, .auth-brand img')].filter((i) => !/pegasus-mark-refined/.test(i.src)).length,
+      stepper: [...document.querySelectorAll('.stepper')].filter(visible).length,
+      greyCreated: chips.filter(([t, c]) => t === 'case created' && !/status--green/.test(c)).length,
+      failedNotRed: chips.filter(([t, c]) => /failed|could not be read|not created/.test(t) && !/status--red/.test(c)).length,
+      marks: document.querySelectorAll('#section-damage .damage-marks .dm-area').length,
+      rows: document.querySelectorAll('#section-damage [data-damage-impact-list] [data-damage-row]').length,
+      liveMarkers: [...document.querySelectorAll('#section-damage .damage-marker')].filter(visible).length,
+      navless: !!document.querySelector('.external-shell .auth-card'),
+      updatedOutsidePanels: [...document.querySelectorAll('[data-wc-freshness]')].filter((l) => visible(l) && !l.closest('.panel-head, .pane-head') && /^\\s*Updated/.test(l.textContent)).length,
+      hubIconMismatch: (() => { const nav = {}; document.querySelectorAll('.admin-nav a[href]').forEach((a) => { const u = a.querySelector('use'); if (u) nav[a.getAttribute('href')] = u.getAttribute('href'); });
+        return [...document.querySelectorAll('.admin-layout a[href]')].filter((a) => !a.closest('.admin-nav') && a.querySelector('use') && nav[a.getAttribute('href')] && a.querySelector('use').getAttribute('href') !== nav[a.getAttribute('href')]).length; })(),
+    };
+  })())`));
+  check(facts.on, `${state.id}: proposals layer did not load`);
+  check(!facts.provider, `${state.id}: P3 the word provider is still shown: "${facts.provider}"`);
+  check(!facts.sept, `${state.id}: P6-G "Sept" is still shown: "${facts.sept}"`);
+  check(facts.lockup === 0, `${state.id}: P1 a brand slot still shows the old lockup`);
+  check(facts.stepper === 0, `${state.id}: P4 the lifecycle strip is still visible`);
+  check(facts.greyCreated === 0, `${state.id}: P2 a Case created chip is not green`);
+  check(facts.failedNotRed === 0, `${state.id}: P2 a failed outcome chip is not red`);
+  check(facts.marks === facts.rows && facts.liveMarkers === 0, `${state.id}: P5 damage marks (${facts.marks}) and rows (${facts.rows}) disagree, or live markers show (${facts.liveMarkers})`);
+  check(facts.updatedOutsidePanels === 0, `${state.id}: P6-E a second Updated line is still visible`);
+  check(facts.hubIconMismatch === 0, `${state.id}: P6-H a hub icon differs from the nav's`);
+  if (/^access-denied/.test(state.id)) check(facts.navless, `${state.id}: P6-D Access denied is not in the navless frame`);
+  if (state.id === 'case-record' || state.id === 'case-record-editing') check(facts.marks >= 1, `${state.id}: P5 no damage area drawn`);
 }
 
 // Every preset must find its target in the state it names.
@@ -121,7 +169,7 @@ if (process.env.LIVE) {
     const liveUrl = manifest.bases.default + fill(state.path);
     await page.goto(liveUrl, 1300);
     const live = JSON.parse(await page.eval(SIGNATURE));
-    await page.goto(pathToFileURL(join(current, 'states', state.id + '.html')).href, 900);
+    await page.goto(pathToFileURL(join(current, 'states', state.id + '.html')).href + '?proposals=off', 900);
     const mock = JSON.parse(await page.eval(SIGNATURE));
     const diff = (a, b) => a.filter((item) => !b.includes(item));
     const missing = [...diff(live.chains, mock.chains), ...diff(live.texts, mock.texts)];

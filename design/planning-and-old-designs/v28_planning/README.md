@@ -6,9 +6,10 @@ code, not design authority, not implementation evidence. Remove or retain it
 by operator instruction in the final Stage 2 PR, if a Stage 2 round is ever
 run from this capture.
 
-**Purpose: as-is capture only.** Unlike v24-v27, this round proposes nothing.
-It is a baseline of the whole application shell as it runs on `origin/dev`
-(commit `904903fd1`) on 18 September 2026.
+**Purpose.** A faithful baseline of the whole application shell as it runs on
+`origin/dev` (commit `904903fd1`) on 18 September 2026, and, from the same
+day, the operator's proposals drawn over it as a switchable layer. The
+baseline is never edited; the proposals are compared against it.
 
 **Rebuilt on 18 September 2026.** The first build of this round was
 transcribed by hand from the Razor source and was rejected on review: it
@@ -18,6 +19,8 @@ nothing. Every state is the running application's own server-rendered HTML,
 saved with the live CSS and JS, and checked element for element against the
 running application. See [`current/v28-notes.md`](current/v28-notes.md).
 
+- [`current/working-log.md`](current/working-log.md): the running record of
+  changes and the choices made.
 - [`current/`](current/README.md): the nine family files, the captured state
   pages, their assets, the self-check, screenshots and notes.
 - [`pages/`](pages/README.md): one folder per page, each listing its captured

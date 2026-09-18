@@ -1,0 +1,23 @@
+/* v28 proposals layer: styles for what proposals.js adds. Nothing here
+   restyles a live rule; each block names the proposal it serves. */
+
+/* P1 · the refined mark is square artwork */
+html[data-v28-proposals] .auth-brand img{width:96px;max-height:96px}
+
+/* P5 · damage areas (v27 variant C) */
+html[data-v28-proposals] #section-damage[data-v28-damage] .damage-marker{display:none}
+html[data-v28-proposals] #section-damage[data-v28-damage] [data-damage-zone]{cursor:default;fill:transparent;stroke:none}
+html[data-v28-proposals] #section-damage[data-v28-damage="edit"] svg.damage-diagram{cursor:crosshair;touch-action:none}
+#section-damage .damage-marks .dm{pointer-events:none}
+#section-damage[data-v28-damage="edit"] .damage-marks .dm{pointer-events:auto;cursor:grab}
+#section-damage .damage-marks .dm text{fill:#fff;font:700 9px/1 var(--font);pointer-events:none}
+#section-damage .damage-marks .dm-area circle.area{fill-opacity:.32;stroke-width:1.6}
+#section-damage .damage-marks .dm .n{fill:var(--ink);stroke:#fff;stroke-width:1.5}
+#section-damage .damage-marks .dm[data-sev="light"] .sev{stroke:color-mix(in srgb,var(--red) 40%,#fff);fill:color-mix(in srgb,var(--red) 40%,#fff)}
+#section-damage .damage-marks .dm[data-sev="light_to_moderate"] .sev{stroke:color-mix(in srgb,var(--red) 55%,#fff);fill:color-mix(in srgb,var(--red) 55%,#fff)}
+#section-damage .damage-marks .dm[data-sev="moderate"] .sev{stroke:color-mix(in srgb,var(--red) 70%,#fff);fill:color-mix(in srgb,var(--red) 70%,#fff)}
+#section-damage .damage-marks .dm[data-sev="moderate_to_heavy"] .sev{stroke:color-mix(in srgb,var(--red) 85%,#fff);fill:color-mix(in srgb,var(--red) 85%,#fff)}
+#section-damage .damage-marks .dm[data-sev="heavy"] .sev{stroke:var(--red-dark);fill:var(--red-dark)}
+#section-damage .dm-guides path{fill:none;stroke:var(--navy);stroke-width:.6;stroke-dasharray:3 3;opacity:.45;pointer-events:none}
+.v28-damage-hint{display:flex;justify-content:space-between;gap:8px;margin:6px 0 0;font-size:11px;color:var(--ink-3,#5f666b)}
+.v28-damage-hint strong{color:var(--ink);font-weight:600}

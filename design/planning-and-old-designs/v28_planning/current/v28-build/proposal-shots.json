@@ -1,0 +1,14 @@
+[
+  { "name": "work-centre", "state": "work-centre", "query": "", "shows": "P1 refined mark; P6-E Updated stated once" },
+  { "name": "sign-in", "state": "sign-in", "query": "", "shows": "P1 refined mark on the navless frame" },
+  { "name": "case-record", "state": "case-record", "query": "", "shows": "P4 lifecycle strip removed; P2 Roadworthy green" },
+  { "name": "case-record-editing", "state": "case-record-editing", "query": "", "shows": "P4 lifecycle strip removed in the edit session" },
+  { "name": "case-record-damage", "state": "case-record", "query": "scroll=section-damage", "shows": "P5 damage areas, read" },
+  { "name": "case-record-editing-damage", "state": "case-record-editing", "query": "scroll=section-damage", "shows": "P5 damage areas, editing, with guides and hint" },
+  { "name": "cases-triage-selected", "state": "cases-triage-selected", "query": "", "shows": "P3 Principal in place of Provider" },
+  { "name": "cases-with-engineer-selected", "state": "cases-with-engineer-selected", "query": "", "shows": "P6-F dates stay on one line" },
+  { "name": "admin-logs-intake", "state": "admin-logs-intake", "query": "", "shows": "P2 outcome tones" },
+  { "name": "admin-hub", "state": "admin-hub", "query": "", "shows": "P6-H hub icons match the nav" },
+  { "name": "access-denied", "state": "access-denied", "query": "", "shows": "P6-D navless Access denied" },
+  { "name": "upload-group-status", "state": "upload-group-status", "query": "", "shows": "P2 tones on upload outcomes" }
+]
