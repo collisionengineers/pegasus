@@ -44,7 +44,7 @@ exclusion.
 | INT-13 | JPEG and PNG image-led intake | [Grouped image-intake routing](frd/frd-19-image-led-intake-and-pairing.md#grouped-image-intake-routing) |
 | INT-17 | Automatic vehicle-registration reading from ordinary vehicle images | [Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) |
 | INT-18 | Bounded, fail-closed processing for unreadable, oversized, or incomplete sources | [Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity) |
-| INT-19 | Typed, editable, operator-reviewable extracted case draft | [Field provenance and value kinds](frd/frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds); [Upload confirmation surface](frd/frd-18-manual-upload-and-upload-links.md#upload-confirmation-surface) |
+| INT-19 | Typed, editable, operator-reviewable extracted case draft | [Field provenance and value kinds](frd/frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds); [Upload confirmation surface](frd/frd-18-manual-upload.md#upload-confirmation-surface) |
 | INT-20 | Field provenance, validation, missing-value, and contradiction display | [Field provenance and value kinds](frd/frd-23-case-draft-fields-provenance-and-global-checks.md#field-provenance-and-value-kinds) |
 | INT-22 | Automatic identification of the correct principal/provider | [Matching conflicts and reversible association](frd/frd-22-pre-case-gates-matching-and-association.md#matching-conflicts-and-reversible-association) |
 | INT-23 | Unidentified queue with immutable U-references | [Unidentified destination and reference](frd/frd-02-intake-and-source-identity.md#unidentified-destination-and-reference) |
@@ -102,7 +102,7 @@ exclusion.
 | UI-05 | Click-through filtered work queues | [Work Centre](frd/frd-15-work-centre-queues-and-search.md#work-centre) |
 | UI-06 | Last-good time, distinct current/stale/partial/unavailable/failed states, auditable reconciliation, and manual refresh | [Dashboard freshness and reconciliation](frd/frd-15-work-centre-queues-and-search.md#dashboard-freshness-and-reconciliation) |
 | UI-07 | Search and filter across Cases and pre-Case records | [Search](frd/frd-15-work-centre-queues-and-search.md#search) |
-| UI-08 | Upload confirmation surface | [Upload confirmation surface](frd/frd-18-manual-upload-and-upload-links.md#upload-confirmation-surface) |
+| UI-08 | Upload confirmation surface | [Upload confirmation surface](frd/frd-18-manual-upload.md#upload-confirmation-surface) |
 | UI-09 | Full case workspace | [Case workspace](frd/frd-16-case-record-workspace.md#case-workspace) |
 | UI-11 | Accounts, Contacts, mailbox allowlist, and configuration workspace | [Administration](frd/frd-17-administration-workspace.md#administration) |
 | UI-13 | Accessible keyboard, screen-reader, focus, contrast, and error behavior | [Operator experience](frd/frd-12-operator-experience.md#operator-experience) |
@@ -148,7 +148,6 @@ exclusion.
 | DATA-01 | Publish immutable cumulative provider-domain reference snapshots from approved spreadsheets | [Provider-domain reference authoring](runbook.md#provider-domain-reference-authoring) |
 | OPS-23 | Operator acceptance against the real end-to-end workflow | [Acceptance model](prd/pegasus-product.md#acceptance-model) |
 | OPS-25 | Collision Engineers management approval before production release | [Acceptance model](prd/pegasus-product.md#acceptance-model) |
-| INT-31 | Temporary, revocable, request-scoped upload links | [Request-scoped upload links](frd/frd-18-manual-upload-and-upload-links.md#request-scoped-upload-links) |
 | DATA-02 | Prepare inspection-address / repairer reference data from separately approved spreadsheets | [Inspection address](frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address) |
 | INT-04 | Activate additional providers through the shared workflow | [Provider and intermediary routes](frd/frd-09-provider-and-intermediary-routes.md#provider-and-intermediary-routes) |
 | INT-05 | Automatic ingestion from `desk@collisionengineers.co.uk` | [Mailbox allowlist, activation and wipe](frd/frd-26-mailbox-allowlist-activation-wake-up-and-recovery.md#mailbox-allowlist-activation-and-wipe) |
@@ -242,7 +241,7 @@ exclusion.
 | BND-03 | Reuse predecessor application code (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | BND-04 | SMS integration (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | BND-05 | Microsoft Teams integration (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
-| BND-06 | Persistent external case/customer portal; request-scoped upload links under INT-31 are permitted (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
+| BND-06 | Persistent external case/customer portal (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | BND-07 | Independent Engineer accounts (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | BND-08 | Solicitor, insurer, repairer, or vehicle-owner accounts (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
 | BND-09 | Separate QA/test environment (excluded) | [Excluded product capabilities](prd/pegasus-product.md#excluded-product-capabilities) |
@@ -256,7 +255,8 @@ statements and the `CAP-0NN` source map remain recoverable from Git history.
 
 | ID | Was | Retired |
 | --- | --- | --- |
-| DOC-06 | Replaced by `INT-31` | before 2026-09 |
+| DOC-06 | Replaced by `INT-31`, itself retired | before 2026-09 |
+| INT-31 | Temporary, revocable, request-scoped upload links | 2026-09-17, operator decision |
 | AI-01 | In-app staff AI assistant | 2026-09-18, operator decision |
 | AI-02 | AI-assisted email classification | 2026-09-18, operator decision |
 | AI-03 | AI-assisted suggested email actions | 2026-09-18, operator decision |

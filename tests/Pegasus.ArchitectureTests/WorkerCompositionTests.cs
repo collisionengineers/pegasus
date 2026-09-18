@@ -62,7 +62,7 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(scopedServices.GetRequiredService<IGroupedIntakeSubmission>());
             Assert.NotNull(scopedServices.GetRequiredService<RetainIncomingArtifact>());
             Assert.Equal(
-                "Pegasus.Infrastructure.Persistence.EfPublicUploadRetentionStore",
+                "Pegasus.Infrastructure.Persistence.EfIncomingArtifactRetentionStore",
                 scopedServices.GetRequiredService<IIncomingArtifactRetentionStore>().GetType().FullName);
             Assert.NotNull(scopedServices.GetRequiredService<ProcessQueuedIntake>());
             Assert.NotNull(scopedServices.GetRequiredService<VehicleRegistrationCandidateLookup>());

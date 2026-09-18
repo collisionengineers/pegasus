@@ -15,8 +15,7 @@
   [FRD-22](frd-22-pre-case-gates-matching-and-association.md). Case fields,
   provenance and the global checks are in
   [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md).
-- Manual upload and public upload links are in
-  [FRD-18](frd-18-manual-upload-and-upload-links.md). Image-only
+- Manual upload is in [FRD-18](frd-18-manual-upload.md). Image-only
   material is in [FRD-19](frd-19-image-led-intake-and-pairing.md).
 
 ## Purpose
@@ -28,7 +27,7 @@ before a Case is created, matching and association are owned by
 [FRD-22](frd-22-pre-case-gates-matching-and-association.md). Case fields,
 provenance and the global vehicle and value checks are owned by
 [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md). Manual
-upload is owned by [FRD-18](frd-18-manual-upload-and-upload-links.md) and
+upload is owned by [FRD-18](frd-18-manual-upload.md) and
 image-only material by [FRD-19](frd-19-image-led-intake-and-pairing.md).
 
 ## Behaviour
@@ -55,9 +54,8 @@ Every intake path must:
 
 ### Ways intake starts
 
-Intake can start from staff-forwarded email, a staff-created upload link,
-provider material, manually supplied files, images, correspondence, or a
-future approved API route. Receiving something does not create a Case.
+Intake can start from staff-forwarded email, provider material, manually
+supplied files, images, correspondence, or a future approved API route. Receiving something does not create a Case.
 
 **Tractable capture (`EXT-17`).** Guided image capture happens outside
 Pegasus. Collision Engineers sends permanent external upload links that run
@@ -310,7 +308,7 @@ and live evidence are separate tiers
   [FRD-10](frd-10-mcp-automation-and-actor-boundary.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),
-  [FRD-18](frd-18-manual-upload-and-upload-links.md),
+  [FRD-18](frd-18-manual-upload.md),
   [FRD-19](frd-19-image-led-intake-and-pairing.md),
   [FRD-22](frd-22-pre-case-gates-matching-and-association.md),
   [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md).

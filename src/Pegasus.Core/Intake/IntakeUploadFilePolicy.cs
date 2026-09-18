@@ -3,7 +3,7 @@ namespace Pegasus.Core.Intake;
 /// <summary>
 /// Validates video file names, media types and bounded content before intake.
 /// Other retained sources are classified by the intake reader, including
-/// unsupported material. Public links also enforce their allowed-media list.
+/// unsupported material.
 /// </summary>
 public static class IntakeUploadFilePolicy
 {

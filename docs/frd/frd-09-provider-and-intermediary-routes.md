@@ -336,7 +336,7 @@ for a named provider needs exact-target approval and its own evidence tier
   [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-03](frd-03-triage.md),
   [FRD-08](frd-08-email-mailbox-and-background-processing.md),
-  [FRD-18](frd-18-manual-upload-and-upload-links.md).
+  [FRD-18](frd-18-manual-upload.md).
 - Technical constraints:
   [ADR-0004](../adr/0004-provider-api-and-staff-mcp-authentication.md),
   [ADR-0008](../adr/0008-separate-direct-provider-and-intermediary-email-policies.md),

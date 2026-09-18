@@ -47,7 +47,6 @@ public sealed class ActorDisplayNamesTests
     [Theory]
     [InlineData(ActorKind.SystemWorker, ActorDisplayNames.SystemWorker)]
     [InlineData(ActorKind.Automation, ActorDisplayNames.Automation)]
-    [InlineData(ActorKind.RequestLink, ActorDisplayNames.RequestLink)]
     public void ResolveNeverExposesTheRawSubjectForANonStaffActorKind(ActorKind kind, string expectedLabel)
     {
         var subjectId = Guid.NewGuid().ToString("D");

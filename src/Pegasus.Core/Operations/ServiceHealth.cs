@@ -267,10 +267,7 @@ public static class ServiceHealthPolicy
         IReadOnlyList<RequestOperationProjection> operations)
     {
         ArgumentNullException.ThrowIfNull(operations);
-        var work = operations
-            .Where(item => item.Kind == RequestOperationKind.ExternalWork)
-            .ToList();
-        var failed = work
+        var failed = operations
             .Where(item => item.State == RequestOperationState.Failed && item.CanRetry)
             .OrderBy(item => item.LastActivityAtUtc)
             .ToList();
@@ -287,10 +284,10 @@ public static class ServiceHealthPolicy
                 .ToList();
         }
 
-        DateTimeOffset? latest = work.Count == 0
+        DateTimeOffset? latest = operations.Count == 0
             ? null
-            : work.Max(item => item.LastActivityAtUtc);
-        var pending = work.Any(item => item.State == RequestOperationState.Pending);
+            : operations.Max(item => item.LastActivityAtUtc);
+        var pending = operations.Any(item => item.State == RequestOperationState.Pending);
         return
         [
             new(

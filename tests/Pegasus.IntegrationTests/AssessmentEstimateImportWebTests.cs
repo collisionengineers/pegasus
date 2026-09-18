@@ -1394,7 +1394,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 summary, workflow, ActiveLease,
                 RetainedDocument is { } retained
                     ? [new CaseDocument(retained.Version.DocumentId, caseId, [retained.Occurrence], [retained.Version])] : [],
-                null, CaseCustodyState.Pending, [], [], [])
+                null, CaseCustodyState.Pending, [], [])
             {
                 Data = CreateData(workflow.Version)
             };

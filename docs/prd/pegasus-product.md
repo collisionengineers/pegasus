@@ -163,7 +163,7 @@ recipient/package/chase and garage-procedure automation remain deferred.
 - BND-03: Reuse predecessor application code.
 - BND-04: SMS integration.
 - BND-05: Microsoft Teams integration.
-- BND-06: Persistent external case/customer portal; request-scoped upload links under INT-31 are permitted.
+- BND-06: Persistent external case/customer portal.
 - BND-07: Independent Engineer accounts.
 - BND-08: Solicitor, insurer, repairer, or vehicle-owner accounts.
 - BND-09: Separate QA/test environment.

@@ -172,7 +172,7 @@ public sealed class AssessmentCopyWebTests
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
                 DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
             CaseDetails details = new(
-                summary, workflow, null, [], null, CaseCustodyState.Pending, [], [], []);
+                summary, workflow, null, [], null, CaseCustodyState.Pending, [], []);
             return Task.FromResult<CaseDetails?>(details);
         }
 

@@ -147,7 +147,7 @@ public sealed class RetainedInstructionAnalysisTests
         Assert.Empty(await reports.GetAsync(
             StaffActor(), receiptId, null, Guid.NewGuid(), CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => reports.GetAsync(
-            ActionActor.RequestLink(Guid.NewGuid()),
+            ActionActor.Provider(Guid.NewGuid()),
             receiptId,
             null,
             row.IntakeAssetId,

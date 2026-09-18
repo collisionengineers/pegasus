@@ -57,7 +57,8 @@ function Get-MigrationPermissionMatrix {
         '20260730203141_ThirdPartyVehicleEvidenceAndRemoveBootstrap.cs',
         '20260730203833_RemoveDormantOpenIddict.cs',
         '20260814094632_DropBoxFileRequests.cs',
-        '20260824123336_DropEvaHandoffTables.cs'
+        '20260824123336_DropEvaHandoffTables.cs',
+        '20260917161519_RemovePublicUploadLinks.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -426,7 +427,7 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|AutomaticEvaReviewSubmissions')
     # 20260906054658_V1PlatformFoundation: v1 schema owners and holding custody.
-    $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','CaseReportDeliveryIntents','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','TriageSequences','DocumentContentCacheEntries','PublicUploadSessions','PublicUploadOccurrences')
+    $v1Tables = @('UserExternalCredentials','StaffMailSendOperations','ValuationPresets','LabourRateCards','AppliedValuationSnapshots','GlassRepairEstimateSessions','CaseReportGenerations','GeneratedCaseArtifacts','CaseReportDeliveryIntents','RetainedInstructionAnalyses','IntakeSourceCandidates','IntakeOcrOperations','TriageSequences','DocumentContentCacheEntries')
     foreach ($table in $v1Tables) {
         $expected.Add("pegasus_web_runtime_role|D|DELETE|$table")
         if ($table -ne 'DocumentContentCacheEntries') {
@@ -435,7 +436,7 @@ function Get-MigrationPermissionMatrix {
     }
     $v1Migration = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) '20260906054658_V1PlatformFoundation.cs')
     foreach ($grant in [regex]::Matches($v1Migration, 'GRANT (?<permissions>[A-Z,]+) ON OBJECT::\[dbo\]\.\[(?<table>[A-Za-z0-9]+)\] TO \[(?<role>pegasus_(?:web|worker)_runtime_role)\]')) {
-        if ($grant.Groups['table'].Value -in @('OrganizationDirectoryEntries', 'ClaimSources')) { continue }
+        if ($grant.Groups['table'].Value -in (@('OrganizationDirectoryEntries', 'ClaimSources') + $removedTables)) { continue }
         foreach ($permission in $grant.Groups['permissions'].Value.Split(',')) {
             $expected.Add("$($grant.Groups['role'].Value)|G|$permission|$($grant.Groups['table'].Value)")
         }

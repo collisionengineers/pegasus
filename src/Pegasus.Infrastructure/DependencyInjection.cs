@@ -44,7 +44,6 @@ public static class DependencyInjection
         this IServiceCollection services,
         Action<IServiceProvider, DbContextOptionsBuilder> configureDatabase,
         Func<IServiceProvider, string>? localArtifactRootFactory = null,
-        Func<IServiceProvider, RequestUploadLimits>? requestUploadLimitsFactory = null,
         Action<IServiceCollection>? documentStorage = null)
     {
         ArgumentNullException.ThrowIfNull(configureDatabase);
@@ -652,9 +651,7 @@ public static class DependencyInjection
 
         if (composesDocumentSurface)
         {
-            services.AddScoped<EfPublicUploadRetentionStore>();
-            services.AddScoped<IIncomingArtifactRetentionStore>(provider =>
-                provider.GetRequiredService<EfPublicUploadRetentionStore>());
+            services.AddScoped<IIncomingArtifactRetentionStore, EfIncomingArtifactRetentionStore>();
             services.AddScoped<RetainIncomingArtifact>();
             // The Provider API reader decorates the ordinary one: it answers for
             // its own channel and defers for every other (API-01).
@@ -704,33 +701,6 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IMarketResearchAiJobCompletionStore, EfMarketResearchAiJobCompletionStore>();
             services.AddScoped<ICompleteMarketResearchAiJob, CompleteMarketResearchAiJob>();
-        }
-        if (composesDocumentSurface
-            && requestUploadLimitsFactory is not null)
-        {
-            services.AddSingleton(requestUploadLimitsFactory);
-            services.AddSingleton<RequestUploadPolicy>();
-            services.AddScoped<EfDocumentRequestStore>();
-            services.AddScoped<ICreateRequestUploadLink>(provider =>
-                provider.GetRequiredService<EfDocumentRequestStore>());
-            services.AddScoped<IRevokeRequestUploadLink>(provider =>
-                provider.GetRequiredService<EfDocumentRequestStore>());
-            services.AddScoped<IUploadToRequest>(provider =>
-                provider.GetRequiredService<EfDocumentRequestStore>());
-            services.AddScoped<IGetRequestUpload>(provider =>
-                provider.GetRequiredService<EfDocumentRequestStore>());
-        }
-        else
-        {
-            services.AddScoped<UnavailableDocumentRequestStore>();
-            services.AddScoped<ICreateRequestUploadLink>(provider =>
-                provider.GetRequiredService<UnavailableDocumentRequestStore>());
-            services.AddScoped<IRevokeRequestUploadLink>(provider =>
-                provider.GetRequiredService<UnavailableDocumentRequestStore>());
-            services.AddScoped<IUploadToRequest>(provider =>
-                provider.GetRequiredService<UnavailableDocumentRequestStore>());
-            services.AddScoped<IGetRequestUpload>(provider =>
-                provider.GetRequiredService<UnavailableDocumentRequestStore>());
         }
         return services;
     }
