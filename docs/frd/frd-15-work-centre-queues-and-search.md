@@ -70,8 +70,8 @@ so where it is used ("Lookup failed", "Storage not ready").
 
 **Office and Mine.** A switch above the list. Office is every item. Mine is
 the items the signed-in person owns plus unowned items of kinds they can
-take. Engineers open on Mine, everyone else on Office, and the choice is
-remembered per browser. **Kind chips** (Case, Held, Review, Unassigned,
+take. Every staff role opens on Office, and the choice is remembered per
+browser. **Kind chips** (Case, Held, Review, Unassigned,
 Unidentified, Triage, AI draft) filter the list, several at once. Each chip
 shows its count over the whole scope before the filter. All kinds clears.
 
@@ -88,9 +88,9 @@ Next. Nothing is silently dropped.
 when Overdue (red, with how late) or Due today (amber), its facts, and a next
 action that does the action. Assign Engineer opens the assignment dialog on
 the Work Centre. Review Case opens the Case. Open Triage opens the Triage. An
-AI draft offers its per-kind action. **Assign to me** is offered on an
-Unassigned item to an Engineer, and on a Triage item without an assignee,
-where Core would accept it.
+AI draft offers its per-kind action. **Assign to me** is offered to every
+enabled staff role on an Unassigned item and on a Triage item without an
+assignee, where Core would accept it.
 
 **New cases.** Every Case created in the last 7 calendar days, newest first,
 whatever created it: reference, registration, claimant, principal and an

@@ -19,16 +19,6 @@ public static class StaffRoleNames
         [Administrator, Engineer, User];
 }
 
-/// <summary>
-/// Defines the application role hierarchy. An Administrator holds every staff
-/// capability while retaining a single stored role.
-/// </summary>
-public static class StaffRoleCapabilities
-{
-    public static bool MeetsRequirement(StaffRole grantedRole, StaffRole requiredRole) =>
-        grantedRole == StaffRole.Administrator || grantedRole == requiredRole;
-}
-
 public enum ActorKind
 {
     Staff,
@@ -57,8 +47,7 @@ public sealed class ActionActor
 
     public IReadOnlySet<StaffRole> Roles { get; }
 
-    public bool IsInRole(StaffRole role) =>
-        Roles.Any(grantedRole => StaffRoleCapabilities.MeetsRequirement(grantedRole, role));
+    public bool IsInRole(StaffRole role) => Roles.Contains(role);
 
     public static ActionActor Staff(Guid staffId, IEnumerable<StaffRole> roles)
     {

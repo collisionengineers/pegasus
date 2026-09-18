@@ -1713,20 +1713,12 @@ public static class OperatorLabels
             "Enter the printed name for the Sign-off Engineer.";
         public const string SignatureInvalid =
             "Select a PNG signature image no larger than 1 MiB.";
-        public const string EngineerRoleRequired =
-            "Only an Engineer account can be a Sign-off Engineer.";
         public const string DefaultRequiresEligible =
             "The default Sign-off Engineer must be eligible to sign off.";
         public const string SignOffUpdated = "Sign-off Engineer settings updated.";
 
         public static string SignOffState(StaffAccountSummary account)
         {
-            if (account.Role is not (Pegasus.Core.Identity.StaffRole.Administrator
-                or Pegasus.Core.Identity.StaffRole.Engineer))
-            {
-                return "—";
-            }
-
             if (!account.SignOff.IsSignOffEngineer)
             {
                 return No;
@@ -1744,9 +1736,9 @@ public static class OperatorLabels
 
             if (account.SignOff.IsDefault)
             {
-                // Role, sign-off flag, and signature presence are already
-                // confirmed by the earlier branches; only enabled state
-                // remains to determine eligibility here.
+                // Sign-off flag and signature presence are already confirmed
+                // by the earlier branches; only enabled state remains to
+                // determine eligibility here.
                 return account.IsEnabled ? Default : NotEligible;
             }
 
@@ -2082,7 +2074,6 @@ public static class OperatorLabels
             public const string ToBeConfirmed = "To be confirmed";
 
             public const string ReadOnlyOnceComplete = "Read-only once Complete";
-            public const string EngineerOnlyImport = "Only an Engineer can import an estimate";
             public const string SendingToAiDisabled = "Sending to AI is disabled by an Administrator";
             public const string ConfirmedEngineerValueRequired = "A confirmed Engineer's Value is required";
             public const string NotAvailableForCase = "Not available for this case";

@@ -12,7 +12,8 @@
 - One Actions menu offers only what Core allows for the current state.
   Hand to Engineer is the only way out of Review.
 - The Engineer sections (Damage, Valuation, Estimate, Settlement, Report)
-  are editable in Not ready, Review and With Engineer, and read-only in Held,
+  are editable by every enabled staff role in Not ready, Review and With
+  Engineer, and read-only in Held,
   Completed and Query.
 - Raw estimate import is a whole-page drop. It is pointer-only, and that is a
   recorded accessibility gap.
@@ -98,9 +99,10 @@ return to engineering record a reason.
 **Sections**, in order: **Overview**, **Inspection**, **Vehicle**, **Damage**,
 **Valuation**, **Estimate**, **Settlement**, **Report**, **Files**, **Notes**.
 Every section can always be read. The Engineer sections (Damage, Valuation,
-Estimate, Settlement, Report) are editable in Not ready, Review and With
-Engineer by staff with `PerformCasework`, and read-only in Held and after
-completion. Adopting the Engineer's Value is an Engineer act.
+Estimate, Settlement, Report) are editable by every enabled staff role in Not
+ready, Review and With Engineer under the normal edit authority, and read-only
+in Held and after completion. Adopting the Engineer's Value is an explicit
+human staff act.
 
 ### Actions menu
 
@@ -110,7 +112,7 @@ EVA is available. The rules behind each action are in
 [FRD-13](frd-13-case-lifecycle-and-workflow.md#actions).
 
 - **Hand to Engineer**, in Review while editing. Its dialog selects an
-  eligible Engineer or **Assign to me**. The one handoff assigns them and
+  eligible enabled staff account or **Assign to me**. The one handoff assigns them and
   enters With Engineer. There is no reviewed checkbox and no separate start
   action ([FRD-13](frd-13-case-lifecycle-and-workflow.md#hand-to-engineer)).
 - **Send to EVA**, when the Principal's report-generation policy offers it.
