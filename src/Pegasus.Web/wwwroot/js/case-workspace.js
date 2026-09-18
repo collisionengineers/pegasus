@@ -1650,6 +1650,9 @@
                 var option = select.options[select.selectedIndex];
                 var notes = option ? option.getAttribute('data-notes') || '' : '';
                 var contact = option ? option.getAttribute('data-contact') || '' : '';
+                section.querySelectorAll('[data-claim-source-contact-override]').forEach(function (input) {
+                    input.value = '';
+                });
                 var contactCell = section.querySelector('[data-claim-source-contact]');
                 if (contactCell) {
                     contactCell.textContent = contact || '—';

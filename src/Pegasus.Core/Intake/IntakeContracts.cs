@@ -849,13 +849,35 @@ public sealed record EstablishedPrincipalContext(
     string PolicyKey,
     int PolicyVersion);
 
+public sealed record InstructionExtractionTiming(
+    DateTimeOffset ProcessedAtUtc,
+    DateTimeOffset ReceivedAtUtc)
+{
+    public InstructionExtractionTiming(
+        int year,
+        int month,
+        int day,
+        int hour,
+        int minute,
+        int second,
+        TimeSpan offset)
+        : this(
+            new DateTimeOffset(year, month, day, hour, minute, second, offset),
+            new DateTimeOffset(year, month, day, hour, minute, second, offset))
+    {
+    }
+
+    public static implicit operator InstructionExtractionTiming(DateTimeOffset processedAtUtc) =>
+        new(processedAtUtc, processedAtUtc);
+}
+
 public interface IInstructionExtractionPolicy
 {
     string PrincipalCode { get; }
 
     InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
-        DateTimeOffset processedAtUtc,
+        InstructionExtractionTiming timing,
         EstablishedPrincipalContext principalContext);
 }
 public interface IIntakeSourceReader

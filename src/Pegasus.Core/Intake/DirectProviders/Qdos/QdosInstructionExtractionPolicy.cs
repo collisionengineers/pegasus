@@ -27,7 +27,9 @@ public sealed partial class QdosInstructionExtractionPolicy
     // again: an earlier version narrowed the policy's input to the selected
     // instruction document, and the attached engineer report is deliberately
     // not that document, so every report-sourced mileage was lost.
-    public const int Version = 9;
+    // v10 retains interleaved party blocks, records their contact choice, and
+    // defaults a missing inspection date from the received London date.
+    public const int Version = 10;
     public const string SupportedPrincipalCode = "QDOS";
 
     public string PrincipalCode => SupportedPrincipalCode;
@@ -155,7 +157,9 @@ public sealed partial class QdosInstructionExtractionPolicy
             CanonicalValue: InstructionFieldEngine.CanonicalDate,
             GuardedPrefixes: ["Accident", "Incident", "Inspection", "Issue", "Report", "Due"],
             PartyRole: InstructionRole,
-            DefaultsToProcessedDate: true),
+            DefaultsTo: InstructionFieldEngine.FieldDefaultSource.ProcessedDate,
+            DefaultEvidenceKey: "instruction-date-defaulted",
+            DefaultSourceLabel: "Receipt date"),
         new("Inspection address", ["Inspection Address", "Vehicle Location", "Inspection Location"],
             PartyRole: InstructionRole),
         // An appended engineer's report states when the vehicle was actually
@@ -168,7 +172,10 @@ public sealed partial class QdosInstructionExtractionPolicy
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate,
             PrefersLatestFragment: true,
-            PartyRole: InstructionRole),
+            PartyRole: InstructionRole,
+            DefaultsTo: InstructionFieldEngine.FieldDefaultSource.ReceivedDate,
+            DefaultEvidenceKey: "inspection-date-defaulted",
+            DefaultSourceLabel: "Receipt date"),
         // The real correspondence writes the vehicle as one description line
         // ("Our Client's Vehicle: PEUGEOT RCZ GT THP 156"). The bare word
         // "Vehicle" is deliberately not a label here - it collides with the
@@ -285,7 +292,7 @@ public sealed partial class QdosInstructionExtractionPolicy
     /// <summary>
     public InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
-        DateTimeOffset processedAtUtc,
+        InstructionExtractionTiming timing,
         EstablishedPrincipalContext principalContext)
     {
         ArgumentNullException.ThrowIfNull(readResult);
@@ -319,7 +326,7 @@ public sealed partial class QdosInstructionExtractionPolicy
             WithDerivedFacts(readResult),
             FieldDefinitions,
             FieldRegexCache,
-            processedAtUtc);
+            timing);
         fields = DeriveVehicleRegistration(fields, out var derivedNames);
         missingFields = missingFields.Where(name => !derivedNames.Contains(name)).ToArray();
         evidence.AddRange(fieldEvidence);
@@ -699,6 +706,11 @@ public sealed partial class QdosInstructionExtractionPolicy
                 break;
             }
 
+            if (ColumnHeadingRegex().IsMatch(line) || IsDefinitionLabelledRow(line))
+            {
+                continue;
+            }
+
             var cut = ColumnCutRegex().Split(line, 2)[0].Trim();
             // A row that is only the next column's label, left behind by the
             // cut, states nothing about this party and is skipped rather than
@@ -709,9 +721,10 @@ public sealed partial class QdosInstructionExtractionPolicy
             }
         }
 
-        if (block.Count > 0 && PersonalNameRegex().IsMatch(block[0]))
+        var personalName = block.FindIndex(PersonalNameRegex().IsMatch);
+        if (personalName >= 0)
         {
-            block.RemoveAt(0);
+            block.RemoveRange(0, personalName + 1);
         }
 
         return block.Count == 0 ? null : string.Join(", ", block);
@@ -846,15 +859,23 @@ public sealed partial class QdosInstructionExtractionPolicy
     private static partial Regex RepairerDetailsHeadingRegex();
 
     /// <summary>
-    /// Where a party block ends: the next heading, the contact rows the
-    /// engine reads as their own fields, or the estimate row.
+    /// Where a party block ends: the next party heading or letter footer.
+    /// Rows labelled by any field definition are skipped by <see
+    /// cref="IsDefinitionLabelledRow"/> so the block can survive an
+    /// interleaved flattened column.
     /// </summary>
     [GeneratedRegex(
-        @"(?i)^(?:client details|repairer details|vehicle details|home tel|work tel|mobile"
-        + @"|tel|fax|email|engineer to estimate|if you need|yours\b)",
+        @"(?i)^(?:client details|repairer details|engineer to estimate|if you need|yours\b)",
         RegexOptions.CultureInvariant,
         100)]
     private static partial Regex PartyBlockStopRegex();
+
+    [GeneratedRegex(@"(?i)^\s*(?:vehicle details)\s*$", RegexOptions.CultureInvariant, 100)]
+    private static partial Regex ColumnHeadingRegex();
+
+    private static bool IsDefinitionLabelledRow(string line) => FieldDefinitions
+        .SelectMany(definition => definition.Labels)
+        .Any(label => line.StartsWith(label + ":", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// The column boundary a flattened page leaves behind: a run of two or
@@ -963,6 +984,9 @@ public sealed partial class QdosInstructionExtractionPolicy
             InstructionFieldEngine.ParseDate(values["Date of incident"]),
             InstructionFieldEngine.ParseDate(values["Instruction date"]),
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
-            InstructionFieldEngine.ParseDate(values["Inspection date"]));
+            InstructionFieldEngine.ParseDate(values["Inspection date"]),
+            ClaimantAddress: InstructionFieldEngine.TypedString(values[ClaimantAddressField], 1000),
+            ClaimantContactNumber: InstructionFieldEngine.TypedString(values["Claimant mobile telephone"], 100)
+                ?? InstructionFieldEngine.TypedString(values["Claimant home telephone"], 100));
     }
 }
