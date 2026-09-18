@@ -1278,8 +1278,16 @@ def build_package(repository_root: Path, collision_root: Path, corpus_root: Path
             )
         )
 
+    # Policy source is recorded as provenance only (id and path), never hashed:
+    # a hash would pin live source into review evidence that only the private
+    # corpus can regenerate, failing CI on every policy edit.
     source_snapshots.extend(
-        snapshot(source_id, "pegasus", repository_root, path, "source-code", hash_mode="normalized-lf")
+        {
+            "id": source_id,
+            "repository": "pegasus",
+            "relativePath": Path(path).as_posix(),
+            "mediaKind": "source-code",
+        }
         for source_id, path in PEGASUS_POLICY_SNAPSHOTS
     )
 

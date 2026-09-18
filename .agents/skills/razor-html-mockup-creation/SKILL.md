@@ -114,5 +114,5 @@ instructions; do not restate them here.
 - The folder is a temporary review artifact under the
   [index](../../../docs/index.md) carve-out: mark it temporary, and remove or
   retain it by operator instruction in the final Stage 2 PR.
-- New Markdown must pass `scripts/Test-MarkdownPlacement.ps1` (the path is on
-  its allow-list) and `scripts/Test-DocumentationLinks.ps1`.
+- Relative links in new Markdown must resolve; CI's `documentation` job
+  checks them.

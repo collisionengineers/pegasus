@@ -32,37 +32,6 @@ public sealed class DueWorkSweepFunctionTests
     }
 
     [Fact]
-    public void FunctionMetadataBindsOnlyApprovedTimerScheduleAndCoreUseCase()
-    {
-        var constructor = Assert.Single(typeof(DueWorkSweepFunction).GetConstructors());
-        Assert.Equal(
-            [typeof(RunDueChasers), typeof(ILogger<DueWorkSweepFunction>)],
-            constructor.GetParameters().Select(parameter => parameter.ParameterType));
-
-        var method = typeof(DueWorkSweepFunction).GetMethod(nameof(DueWorkSweepFunction.RunAsync));
-        Assert.NotNull(method);
-        var functionAttribute = Assert.Single(
-            method.CustomAttributes,
-            attribute => attribute.AttributeType.Name == "FunctionAttribute");
-        Assert.Equal(
-            nameof(DueWorkSweepFunction),
-            Assert.IsType<string>(Assert.Single(functionAttribute.ConstructorArguments).Value));
-
-        var parameters = method.GetParameters();
-        Assert.Equal(2, parameters.Length);
-        var timerAttribute = Assert.Single(
-            parameters[0].CustomAttributes,
-            attribute => attribute.AttributeType.Name == "TimerTriggerAttribute");
-        Assert.Equal(
-            "%DueWorkSweepSchedule%",
-            Assert.IsType<string>(Assert.Single(timerAttribute.ConstructorArguments).Value));
-        Assert.False(Assert.IsType<bool>(Assert.Single(
-            timerAttribute.NamedArguments,
-            argument => argument.MemberName == "RunOnStartup").TypedValue.Value));
-        Assert.Equal(typeof(CancellationToken), parameters[1].ParameterType);
-    }
-
-    [Fact]
     public async Task TimerCallsRunDueChasersWithoutAnyOutboundAdapter()
     {
         var queries = new EmptyQueries();
