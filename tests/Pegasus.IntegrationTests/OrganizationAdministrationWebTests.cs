@@ -296,6 +296,67 @@ public sealed partial class OrganizationAdministrationWebTests
             $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateId = '{principalId:D}' AND EventKind LIKE 'principal_credential_%';"));
     }
 
+    [Theory]
+    [InlineData("IssueCredential", false)]
+    [InlineData("IssueCredential", true)]
+    [InlineData("PauseCredential", true)]
+    [InlineData("ResumeCredential", true)]
+    [InlineData("RevokeCredential", true)]
+    public async Task StaleContactCredentialActionsShowConflictAndPreserveCredential(
+        string handler, bool credentialExists)
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var principalId = await factory.Database.ScalarAsync<Guid>(
+            "SELECT Id FROM Principals WHERE Code = 'QDOS';");
+        var contactId = await factory.Database.ScalarAsync<Guid>(
+            $"SELECT OrganizationId FROM Principals WHERE Id = '{principalId:D}';");
+        var path = $"/Administration/Contacts/Edit/{contactId:D}";
+        var settings = await EditContactAsync(client, path);
+        if (credentialExists)
+        {
+            using var issued = await client.PostAsync(
+                $"{path}?handler=IssueCredential", new FormUrlEncodedContent(CredentialForm(settings)));
+            Assert.Equal(HttpStatusCode.OK, issued.StatusCode);
+            settings = await EditContactAsync(client, path);
+        }
+        if (handler == "ResumeCredential")
+        {
+            using var paused = await client.PostAsync(
+                $"{path}?handler=PauseCredential", new FormUrlEncodedContent(CredentialForm(settings)));
+            Assert.Equal(HttpStatusCode.Redirect, paused.StatusCode);
+            settings = await EditContactAsync(client, path);
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var getCredential = scope.ServiceProvider.GetRequiredService<IGetPrincipalCredential>();
+        var actor = ActionActor.Staff(DevelopmentOfflineIdentity.AdministratorId, [StaffRole.Administrator]);
+        var before = await getCredential.ExecuteAsync(actor, principalId, default);
+        var historyBefore = await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateId = '{principalId:D}' AND EventKind LIKE 'principal_credential_%';");
+        await factory.Database.ExecuteAsync(
+            $"UPDATE Organizations SET Version = Version + 1 WHERE Id = '{contactId:D}';");
+
+        using var refused = await client.PostAsync(
+            $"{path}?handler={handler}", new FormUrlEncodedContent(CredentialForm(settings)));
+
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        var refusedHtml = await refused.Content.ReadAsStringAsync();
+        Assert.Contains("This contact changed. Reload it before making further changes.", refusedHtml, StringComparison.Ordinal);
+        Assert.Equal(InputValue(settings, "ExpectedVersion"), InputValue(refusedHtml, "ExpectedVersion"));
+        Assert.DoesNotContain("id=\"issued-api-key\"", refusedHtml, StringComparison.Ordinal);
+        Assert.Equal(before, await getCredential.ExecuteAsync(actor, principalId, default));
+        Assert.Equal(historyBefore, await factory.Database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM ActionHistory WHERE AggregateId = '{principalId:D}' AND EventKind LIKE 'principal_credential_%';"));
+
+        var reloaded = await EditContactAsync(client, path);
+        using var retried = await client.PostAsync(
+            $"{path}?handler={handler}", new FormUrlEncodedContent(CredentialForm(reloaded)));
+        Assert.Equal(handler == "IssueCredential" ? HttpStatusCode.OK : HttpStatusCode.Redirect, retried.StatusCode);
+        Assert.Equal((before?.Version ?? 0) + 1,
+            (await getCredential.ExecuteAsync(actor, principalId, default))!.Version);
+    }
+
     private static Dictionary<string, string> CredentialForm(string html) => new()
     {
         ["__RequestVerificationToken"] = InputValue(html, "__RequestVerificationToken"),
