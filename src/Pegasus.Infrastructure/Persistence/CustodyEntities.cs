@@ -83,33 +83,3 @@ internal sealed class DocumentOccurrenceTagEntity
     public DateTimeOffset AppliedAtUtc { get; set; }
     public string OperationKey { get; set; } = string.Empty;
 }
-
-internal sealed class RequestUploadLinkEntity
-{
-    public Guid Id { get; set; }
-    public Guid CaseId { get; set; }
-    public string TokenDigest { get; set; } = string.Empty;
-    public RequestUploadStatus Status { get; set; }
-    public DateTimeOffset CreatedAtUtc { get; set; }
-    public DateTimeOffset ExpiresAtUtc { get; set; }
-    public DateTimeOffset? RevokedAtUtc { get; set; }
-    public int AcceptedFileCount { get; set; }
-    public long AcceptedByteCount { get; set; }
-    public string LimitsVersion { get; set; } = string.Empty;
-    public string? Recipient { get; set; }
-    public string? Reason { get; set; }
-    public long Version { get; set; }
-    public string CreateOperationKey { get; set; } = string.Empty;
-    public string? RevokeOperationKey { get; set; }
-}
-
-internal sealed class RequestUploadReceiptEntity
-{
-    public Guid Id { get; set; }
-    public Guid RequestId { get; set; }
-    public Guid OccurrenceId { get; set; }
-    public Guid VersionId { get; set; }
-    public string OperationKey { get; set; } = string.Empty;
-    public string ContentHash { get; set; } = string.Empty;
-    public DateTimeOffset ReceivedAtUtc { get; set; }
-}

@@ -44,7 +44,6 @@ public sealed class AutomationActorTests
     [InlineData(StaffAccessRight.ManageApprovedOutlookCategories)]
     [InlineData(StaffAccessRight.ManageAutomationClients)]
     [InlineData(StaffAccessRight.ExecuteSystemWork)]
-    [InlineData(StaffAccessRight.SubmitRequestUpload)]
     public void AutomationIsDeniedEveryOtherRight(StaffAccessRight permission)
     {
         Assert.False(StaffAuthorization.IsAuthorized(Automation(), permission));

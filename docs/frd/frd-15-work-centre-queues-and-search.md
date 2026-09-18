@@ -11,7 +11,7 @@
 - `/Cases` is one page of queues grouped as Workflow, Pre-Case work and
   Exceptions. Each queue keeps its own row shape.
 - `/Search` is the advanced search. `/Operations` shows AI jobs, retryable
-  failures, upload links and EVA handoffs.
+  failures and EVA handoffs.
 - Due dates are calendar days at midnight Europe/London. Targets are
   settings; the day rules are not.
 
@@ -237,8 +237,6 @@ current:
   offering only its own action (Retry allocation, Retry OCR or
   Re-evaluate), each with a reason, through the Logs handlers
   ([FRD-02](frd-02-intake-and-source-identity.md#received-file-history-and-technical-actions));
-- **Active upload links**: Case, recipient, created, last activity, files,
-  expiry, state, Withdraw;
 - **EVA handoffs**: route, Engineer, state, result.
 
 Operations is open to Engineers and Users. Its rail badge counts retryable

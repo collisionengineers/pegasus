@@ -760,9 +760,8 @@ The public origin changes from the Container App hostname to
 cutover, perform these steps after the smoke passes and before section 12.5. For
 a destructive cutover, the Container App is already unserved before SQL: carry
 out these steps after section 10's smoke within the approved migration window.
-That approval covers the new public URL, any interval in which old public upload
-links are unavailable, and needed operator notifications; do not leave the old
-Container App serving while consumers are moved.
+That approval covers the new public URL and needed operator notifications; do
+not leave the old Container App serving while consumers are moved.
 
 1. **Staff sign-in.** Staff authenticate with the application's own cookie
    scheme at `/Account/SignIn`; there is no Entra app registration redirect
@@ -806,18 +805,12 @@ Container App serving while consumers are moved.
    usage. The superseded Graph subscriptions expire within six days on their own;
    the five-minute recovery poll carries intake throughout, so the webhook change
    affects immediacy, not delivery.
-4. **Public upload links.** Links are issued as absolute URLs on the origin
-   current at issue time. Every unexpired link issued before cutover carries the
-   Container App hostname and stops working when that origin is disabled in
-   12.5; a member of staff issues a fresh link from the Case for any outstanding
-   request. Links have a seven-day lifetime (`DocumentRequests__LifetimeHours`),
-   so the exposure ends within a week of cutover.
-5. **Provider API base address.** The Provider API is served at the new origin.
+4. **Provider API base address.** The Provider API is served at the new origin.
    For the destructive route, holders were notified before containment; after
    the new Web App smoke, confirm each holder has updated the base address.
    For the unchanged or additive route, notify and confirm before the old origin
    is disabled. Credentials do not change.
-6. **Glass's return.** `Glass__CallbackBaseUri` is derived from the Web App
+5. **Glass's return.** `Glass__CallbackBaseUri` is derived from the Web App
    origin by the template. Confirm that deployed setting uses the new origin.
    The launch client supplies the resulting per-session callback in the
    provider launch URL's `caller` parameter; the current integration contract

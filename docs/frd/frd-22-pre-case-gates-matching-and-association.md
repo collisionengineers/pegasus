@@ -28,7 +28,7 @@ the global checks are owned by
 [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md). The
 principal email routes are owned by
 [FRD-09](frd-09-provider-and-intermediary-routes.md), manual upload by
-[FRD-18](frd-18-manual-upload-and-upload-links.md), image pairing by
+[FRD-18](frd-18-manual-upload.md), image pairing by
 [FRD-19](frd-19-image-led-intake-and-pairing.md), and edit leases by
 [FRD-14](frd-14-record-edit-leases.md).
 
@@ -52,7 +52,7 @@ Before creating a Case or allocating a reference, Pegasus must have:
 Once those facts are established, an automatic route creates the Case/PO and
 allocates its permanent reference. Manual upload instead waits for staff to
 accept the editable proposal
-([FRD-18](frd-18-manual-upload-and-upload-links.md#upload-confirmation-surface));
+([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface));
 extraction alone never allocates or reserves a Case/PO. Missing ordinary
 detail, images, or external checks keep the Case at `Not ready`; they are not
 another pre-Case gate.
@@ -86,7 +86,7 @@ ambiguous, or contradictory signal never silently attaches material to a
 Case. Automatic routes send competing candidate Cases and unresolved
 source-identity conflicts to Unidentified with the matching reason. Manual
 upload offers the current viable destinations to staff instead
-([FRD-18](frd-18-manual-upload-and-upload-links.md#upload-confirmation-surface)).
+([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface)).
 Unsafe material or an unresolved source-integrity problem still fails closed;
 choosing a destination cannot override that.
 
@@ -209,6 +209,6 @@ association. Deployment and live evidence are separate tiers
   [FRD-09](frd-09-provider-and-intermediary-routes.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),
-  [FRD-18](frd-18-manual-upload-and-upload-links.md),
+  [FRD-18](frd-18-manual-upload.md),
   [FRD-19](frd-19-image-led-intake-and-pairing.md),
   [FRD-23](frd-23-case-draft-fields-provenance-and-global-checks.md).

@@ -11,7 +11,8 @@ public sealed class RetainIncomingArtifactTests
     private static readonly Guid DocumentId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid VersionId = Guid.Parse("33333333-3333-3333-3333-333333333333");
 
-    private static ActionActor PublicActor() => ActionActor.RequestLink(Guid.NewGuid());
+    private static ActionActor StaffActor() =>
+        ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 
     private static IncomingArtifactOccurrence Occurrence(
         string operationKey = "occurrence-1",
@@ -30,7 +31,7 @@ public sealed class RetainIncomingArtifactTests
     /// One arrival, committed before anything is offered. Every caller of the
     /// command has to do this - the command refuses a hand-over that names no
     /// committed arrival - so every test below hands over from a staged
-    /// arrival exactly as the public upload path does.
+    /// arrival exactly as the intake path does.
     /// </summary>
     private static IncomingArtifactOccurrence Staged(
         RecordingStore store,
@@ -58,7 +59,7 @@ public sealed class RetainIncomingArtifactTests
         var custody = new RecordingCustody(Confirmed());
         var store = new RecordingStore();
         var retained = await new RetainIncomingArtifact(custody, store).ExecuteAsync(
-            PublicActor(),
+            StaffActor(),
             Staged(store),
             new MemoryStream([1, 2, 3]));
 
@@ -82,7 +83,7 @@ public sealed class RetainIncomingArtifactTests
             Confirmed() with { Disposition = disposition, FailureCode = "custody_unavailable" });
         var store = new RecordingStore();
         var retained = await new RetainIncomingArtifact(custody, store).ExecuteAsync(
-            PublicActor(),
+            StaffActor(),
             Staged(store),
             new MemoryStream([1]));
 
@@ -105,8 +106,8 @@ public sealed class RetainIncomingArtifactTests
         var store = new RecordingStore();
         var command = new RetainIncomingArtifact(custody, store);
         var occurrence = Staged(store);
-        var first = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
-        var replay = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var first = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
+        var replay = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
 
         Assert.Equal(first, replay);
         Assert.Equal(1, custody.Calls);
@@ -119,11 +120,11 @@ public sealed class RetainIncomingArtifactTests
         var store = new RecordingStore();
         var command = new RetainIncomingArtifact(custody, store);
         var first = await command.ExecuteAsync(
-            PublicActor(),
+            StaffActor(),
             Staged(store, Occurrence("occurrence-1", "estimate.pdf", "aaaa")),
             new MemoryStream([1]));
         var second = await command.ExecuteAsync(
-            PublicActor(),
+            StaffActor(),
             Staged(store, Occurrence("occurrence-2", "estimate.pdf", "bbbb")),
             new MemoryStream([2]));
 
@@ -147,12 +148,12 @@ public sealed class RetainIncomingArtifactTests
         var command = new RetainIncomingArtifact(custody, store, status);
         var occurrence = Staged(store);
 
-        var uncertain = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var uncertain = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
         Assert.Equal(IncomingArtifactCustodyState.Unknown, uncertain.State);
 
         status.Committed[occurrence.OperationKey] = Confirmed();
 
-        var reconciled = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var reconciled = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
 
         // Asked, not repeated: custody saw the bytes exactly once.
         Assert.Equal(1, custody.Calls);
@@ -183,8 +184,8 @@ public sealed class RetainIncomingArtifactTests
         var command = new RetainIncomingArtifact(custody, store, status);
         var occurrence = Staged(store);
 
-        _ = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
-        var second = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        _ = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
+        var second = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
 
         Assert.Equal(IncomingArtifactCustodyState.Unknown, second.State);
 
@@ -210,15 +211,15 @@ public sealed class RetainIncomingArtifactTests
             Occurrence(),
             new MemoryStream([1])));
         await Assert.ThrowsAsync<ArgumentException>(() => command.ExecuteAsync(
-            PublicActor(),
+            StaffActor(),
             Occurrence() with { OccurrenceId = Guid.Empty },
             new MemoryStream([1])));
         await Assert.ThrowsAsync<ArgumentException>(() => command.ExecuteAsync(
-            PublicActor(),
+            StaffActor(),
             Occurrence() with { CaseId = null, IntakeReceiptId = null },
             new MemoryStream([1])));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => command.ExecuteAsync(
-            PublicActor(),
+            StaffActor(),
             Occurrence() with { ContentLength = 0 },
             new MemoryStream([1])));
 
@@ -248,12 +249,12 @@ public sealed class RetainIncomingArtifactTests
         var command = new RetainIncomingArtifact(custody, store, status);
         var occurrence = Staged(store);
 
-        var pending = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var pending = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
         Assert.Equal(IncomingArtifactCustodyState.Pending, pending.State);
 
         status.Committed[occurrence.OperationKey] = Confirmed() with { Disposition = reconciledAs };
 
-        var reconciled = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var reconciled = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
 
         Assert.Equal(expected, reconciled.State);
         Assert.Equal(occurrence.OperationKey, reconciled.OperationKey);
@@ -287,7 +288,7 @@ public sealed class RetainIncomingArtifactTests
         var command = new RetainIncomingArtifact(custody, store, status);
         var occurrence = Staged(store);
 
-        var uncertain = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var uncertain = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
 
         Assert.Equal(IncomingArtifactCustodyState.Unknown, uncertain.State);
         Assert.Equal(occurrence.OccurrenceId, uncertain.OccurrenceId);
@@ -299,7 +300,7 @@ public sealed class RetainIncomingArtifactTests
         // The retry asks first. There is nothing precise to ask with - custody
         // never named a document - so it asks by the key, and only a lookup
         // that observes nothing lets the same bytes go under the same key.
-        var retry = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var retry = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
 
         Assert.Equal(IncomingArtifactCustodyState.Unknown, retry.State);
         Assert.Equal(2, custody.Calls);
@@ -359,15 +360,15 @@ public sealed class RetainIncomingArtifactTests
     {
         var store = new RecordingStore();
         var custody = new ThrowingCustody(
-            new StaffAuthorizationException(StaffAccessRight.SubmitRequestUpload));
+            new StaffAuthorizationException(StaffAccessRight.PerformCasework));
         var command = new RetainIncomingArtifact(custody, store);
         var occurrence = Staged(store);
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1])));
+            command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1])));
 
         // The claim this attempt held is closed as the refusal it was, not
-        // left uncertain: that is what lets the sender make a new deliberate
+        // left uncertain: that is what lets the caller make a new deliberate
         // submission instead of retrying into a slot nothing can resolve.
         var refused = Assert.Single(store.Recorded);
         Assert.Equal(IncomingArtifactCustodyState.Failed, refused.State);
@@ -375,7 +376,7 @@ public sealed class RetainIncomingArtifactTests
 
         // And the same key is not offered again: the refusal answers it.
         var replay = await command.ExecuteAsync(
-            PublicActor(),
+            StaffActor(),
             occurrence,
             new MemoryStream([1]));
 
@@ -399,7 +400,7 @@ public sealed class RetainIncomingArtifactTests
 
         await Assert.ThrowsAsync<UnclaimedHandOverException>(() =>
             new RetainIncomingArtifact(custody, store).ExecuteAsync(
-                PublicActor(),
+                StaffActor(),
                 Occurrence(),
                 new MemoryStream([1])));
 
@@ -426,14 +427,14 @@ public sealed class RetainIncomingArtifactTests
         var occurrence = Staged(store);
 
         var uncertain = await command.ExecuteAsync(
-            PublicActor(),
+            StaffActor(),
             occurrence,
             new MemoryStream([1]));
 
         Assert.Equal(IncomingArtifactCustodyState.Unknown, uncertain.State);
 
         // The retry asks under the original key rather than offering again.
-        var retry = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var retry = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
 
         Assert.Equal(IncomingArtifactCustodyState.Unknown, retry.State);
 
@@ -462,7 +463,7 @@ public sealed class RetainIncomingArtifactTests
         Assert.True(await store.TryClaimHandOverAsync(occurrence.OperationKey, CancellationToken.None));
         status.Committed[occurrence.OperationKey] = Confirmed();
 
-        var lost = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var lost = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
 
         // It asked by the original key and custody owned up to the intent, so
         // the bytes were never offered a second time.
@@ -493,7 +494,7 @@ public sealed class RetainIncomingArtifactTests
         // The claim is taken and the call is never made.
         Assert.True(await store.TryClaimHandOverAsync(occurrence.OperationKey, CancellationToken.None));
 
-        var resolved = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var resolved = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
 
         // Asked first, observed nothing, then offered - under the original key
         // and only it.
@@ -574,12 +575,12 @@ public sealed class RetainIncomingArtifactTests
 
         await Assert.ThrowsAsync<HandOverContentMismatchException>(() =>
             command.ExecuteAsync(
-                PublicActor(),
+                StaffActor(),
                 occurrence with { Sha256 = "bbbb" },
                 new MemoryStream([2])));
         await Assert.ThrowsAsync<HandOverContentMismatchException>(() =>
             command.ExecuteAsync(
-                PublicActor(),
+                StaffActor(),
                 occurrence with { ContentLength = 2048 },
                 new MemoryStream([1])));
 
@@ -590,7 +591,7 @@ public sealed class RetainIncomingArtifactTests
         // The arrival is untouched, so the file it does name can still be
         // offered under it.
         var retained = await command.ExecuteAsync(
-            PublicActor(),
+            StaffActor(),
             occurrence,
             new MemoryStream([1]));
 
@@ -614,7 +615,7 @@ public sealed class RetainIncomingArtifactTests
         var command = new RetainIncomingArtifact(custody, store, status);
         var occurrence = Staged(store);
 
-        var uncertain = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var uncertain = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
         Assert.Equal(IncomingArtifactCustodyState.Unknown, uncertain.State);
         Assert.Null(uncertain.DocumentId);
 
@@ -622,7 +623,7 @@ public sealed class RetainIncomingArtifactTests
         // lost, and owns up to it under the same key.
         status.Committed[occurrence.OperationKey] = Confirmed();
 
-        var recovered = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var recovered = await command.ExecuteAsync(StaffActor(), occurrence, new MemoryStream([1]));
 
         Assert.Equal(IncomingArtifactCustodyState.Confirmed, recovered.State);
         Assert.Equal(DocumentId, recovered.DocumentId);
@@ -667,7 +668,7 @@ public sealed class RetainIncomingArtifactTests
             var store = new RecordingStore();
 
             var uncertain = await new RetainIncomingArtifact(custody, store).ExecuteAsync(
-                PublicActor(),
+                StaffActor(),
                 Staged(store),
                 new MemoryStream([1]));
 
@@ -677,7 +678,7 @@ public sealed class RetainIncomingArtifactTests
     }
 
     /// <summary>
-    /// The narrow case a transport-typed classifier missed: the sender
+    /// The narrow case a transport-typed classifier missed: the caller
     /// disconnects and the request's token is cancelled after custody already
     /// has the bytes. That is an uncertain hand-over like any other, and the
     /// record of it is written on a fresh token, because the cancelled one
@@ -694,7 +695,7 @@ public sealed class RetainIncomingArtifactTests
         var command = new RetainIncomingArtifact(custody, store);
 
         var uncertain = await command.ExecuteAsync(
-            PublicActor(),
+            StaffActor(),
             Staged(store),
             new MemoryStream([1]),
             aborted.Token);
@@ -705,17 +706,13 @@ public sealed class RetainIncomingArtifactTests
     }
 
     /// <summary>
-    /// A reconciliation custody's fence turns away - the link was revoked or
-    /// expired, or it names another Case - leaves the retention exactly where
-    /// it was: never success, never re-offered, and the refusal never reaches
-    /// the sender as a fault. What this proves is the command's behaviour on a
-    /// refused read, not that senders cannot read: Stream A's published fence
-    /// admits the exact active link that arrival came through, which
-    /// <c>PublicUploadRetentionWebTests</c> exercises against a real link row.
+    /// A system worker may retain an artifact but cannot inspect Case custody
+    /// status; the retention remains honest and the refusal is not surfaced.
     /// </summary>
     [Fact]
-    public async Task AReconciliationTheActorMayNotReadLeavesTheRetentionWhereItWas()
+    public async Task AWorkerUnableToReadCustodyStatusLeavesRetentionWhereItWas()
     {
+        var worker = ActionActor.SystemWorker("intake-processing");
         var custody = new RecordingCustody(Confirmed() with
         {
             Disposition = CaseArtifactCustodyDisposition.Pending
@@ -725,8 +722,8 @@ public sealed class RetainIncomingArtifactTests
         var command = new RetainIncomingArtifact(custody, store, status);
         var occurrence = Staged(store);
 
-        var pending = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
-        var retry = await command.ExecuteAsync(PublicActor(), occurrence, new MemoryStream([1]));
+        var pending = await command.ExecuteAsync(worker, occurrence, new MemoryStream([1]));
+        var retry = await command.ExecuteAsync(worker, occurrence, new MemoryStream([1]));
 
         Assert.Equal(IncomingArtifactCustodyState.Pending, pending.State);
         Assert.Equal(IncomingArtifactCustodyState.Pending, retry.State);
@@ -818,7 +815,7 @@ public sealed class RetainIncomingArtifactTests
             Calls++;
             request.Content.CopyTo(Stream.Null);
 
-            // A sender that disconnects mid-hand-over: the request's token is
+            // A caller that disconnects mid-hand-over: the request's token is
             // cancelled after custody has already read the bytes.
             abortBeforeThrowing?.Cancel();
             return Task.FromException<CaseArtifactCustodyResult>(exception);
@@ -931,7 +928,7 @@ public sealed class RetainIncomingArtifactTests
 
         /// <summary>
         /// Commits the pre-custody arrival a staging caller writes before it
-        /// hands anything over, exactly as the public upload path does. It
+        /// hands anything over, exactly as the intake path does. It
         /// reads as Unknown - custody has said nothing - and it can be claimed
         /// once.
         /// </summary>

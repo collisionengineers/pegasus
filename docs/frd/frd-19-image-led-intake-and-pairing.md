@@ -88,7 +88,7 @@ apart.
 Manual-upload image material needs explicit staff confirmation even for one
 eligible match. Its Image reference may be registered automatically, but
 neither initial processing nor later reconciliation chooses its Case
-([FRD-18](frd-18-manual-upload-and-upload-links.md#upload-confirmation-surface)).
+([FRD-18](frd-18-manual-upload.md#upload-confirmation-surface)).
 
 Both arrival orders, a registered-receipt replay, and an acceptance replay
 resume the same pairing operation. The reconciliation timer retries the
@@ -322,6 +322,6 @@ evidence are separate tiers
   [FRD-06](frd-06-vehicle-and-engineering-evidence.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
   [FRD-14](frd-14-record-edit-leases.md),
-  [FRD-18](frd-18-manual-upload-and-upload-links.md).
+  [FRD-18](frd-18-manual-upload.md).
 - Technical constraints:
   [ADR-0029](../adr/0029-image-initiated-case-projection.md).

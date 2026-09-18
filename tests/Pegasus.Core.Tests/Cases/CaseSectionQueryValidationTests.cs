@@ -137,7 +137,6 @@ public sealed class CaseSectionQueryValidationTests
                 [],
                 frame.CustodyFolderRemoteId,
                 frame.CustodyState,
-                [],
                 []));
         }
 

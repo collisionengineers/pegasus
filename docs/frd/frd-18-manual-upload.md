@@ -1,13 +1,11 @@
-# FRD-18: Manual upload and upload links
+# FRD-18: Manual upload
 
-> Owner capabilities: INT-19, INT-31, UI-08 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
+> Owner capabilities: INT-19, UI-08 · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · Design: [design](../design/README.md)
 
 ## Short version
 
-- Staff upload files on `/Upload`. Staff can also create a public upload
-  link for one request; the link shows a form and nothing else.
-- Limits: 100 MiB per file, 20 files and 200 MiB per request, links last
-  7 days, and a link's upload session is a fixed 15 minutes.
+- Staff upload files on `/Upload`.
+- Limits: 100 MiB per file, 20 files and 200 MiB per request.
 - An upload is one submission with one decision. Each file still reports
   its own outcome.
 - A manual upload never creates a Case or attaches to one by itself. Staff
@@ -17,9 +15,9 @@
 ## Purpose
 
 This document says how material gets into Pegasus by hand, through the
-staff Upload page or a public upload link, and how staff decide where it
-goes. It serves the PRD outcomes for manual intake, isolated public upload,
-and no automatic Case creation from manual material.
+staff Upload page, and how staff decide where it goes. It serves the PRD
+outcomes for manual intake and no automatic Case creation from manual
+material.
 
 ## Behaviour
 
@@ -37,49 +35,7 @@ one submission stores the whole batch and no finer signal exists. No row is
 ticked before the response proves it. No mechanics words ("receipt",
 "submission group" or similar) appear on the Upload or status screens.
 
-### Request-scoped upload links
-
-Only authenticated staff may create a link. Each link has a stable identity
-and is bound to exactly one upload request, one allowed operation, and a
-server-enforced expiry. The token is a cryptographically generated 256-bit
-value kept only as a hash. It is security-sensitive: it is never written to
-business history, diagnostic logs, or content-bearing telemetry. Staff may
-send the link to its intended recipient in a chaser; that is not permission
-to expose it anywhere else. Revoking a link refuses every later request. An
-unauthenticated caller cannot extend expiry.
-
-The public page shows only the request's upload fields and an immediate
-structured success or failure. It shows no Case or reference identity, no
-request or history state, no other document, no token management, no
-external account, and no cross-request lookup. An accepted upload means only
-that the request-local custody boundary succeeded. It is not Case creation,
-Box custody, EVA handoff, report generation, or external delivery.
-
-A link starts a fixed, non-sliding 15-minute submission session when it
-first accepts a file. Failed attempts before that first success do not start
-the session. During the session the requester may add or replace files.
-Finalising, or the session expiring, closes the link; later bytes are
-refused without disclosing the Case or earlier submissions. Idempotent
-retries return the same result.
-
-Public POST admission checks the route-bound token before reading the form.
-An unavailable link refuses the body without buffering it. File and
-total-body transport bounds apply before antiforgery and multipart model
-binding, with a finite allowance for normal multipart overhead. Enforcement
-counts actual bytes, including requests with a missing or understated
-Content-Length, and a refused oversized body never reaches custody. Form or
-query values cannot substitute a different token for the one in the route.
-
-Every attempt returns the same bounded result classes and never reveals
-whether another request, Case, reference, or file exists. This in-house
-route replaces Box File Request.
-
-Acceptance gates for links: file type, count, and size limits; staff
-authentication for creation; expiry and revocation; idempotent retry; abuse
-handling; durable custody; cross-request isolation; and non-disclosing
-errors, all proved through the real caller.
-
-### Source upload limits
+### Upload limits
 
 | Setting | Accepted source value |
 | --- | --- |
@@ -87,28 +43,15 @@ errors, all proved through the real caller.
 | Multipart request | 200 MiB plus 64 KiB fixed overhead |
 | Per-file bytes | 104 857 600 (100 MiB) |
 | File count | 20 |
-| Link lifetime | 168 h (7 days) |
-| Submission session | Fixed, non-sliding 15 minutes |
-| Rate, per token | 20 per 10 minutes |
-| Rate, per address | 30 per minute |
 | Content types | `application/pdf`, `image/jpeg`, `image/png`, `…wordprocessingml.document`, `application/msword`, `message/rfc822`, `application/vnd.ms-outlook`, `video/mp4`, `video/quicktime` |
 
 The Provider API has its own separate limits: 30 MiB decoded envelope and
 42 MiB encoded request
 ([FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary)).
 
-`IntakeEnvelopeLimits` in Core is the single owner of the manual and public
-per-file, file-count, and aggregate ceilings. `RequestUploadLimits` may
-tighten them for a configured estate and may never raise them. A public
-upload session reserves capacity before custody, admits at most one current
-successor for a replacement occurrence, and expires after its fixed
-15-minute window. Expiry, revocation, limit-version mismatch, and capacity
-refusal are typed outcomes; none allows a fresh upload.
-
-The per-address limiter is still needed because an unknown token is refused
-before the token-partitioned limiter runs, while Razor's antiforgery
-handling may otherwise buffer the multipart request first. It runs after
-routing and before endpoint execution.
+`IntakeEnvelopeLimits` in Core is the single owner of the manual per-file,
+file-count, and aggregate ceilings. Host and ingress limits may tighten them
+and may never raise them.
 
 MP4 and MOV uploads are kept immutable as video evidence. Their extension,
 declared media type, and ISO base-media header must agree. They can be
@@ -116,9 +59,7 @@ previewed in the browser where it supports the encoding and always
 downloaded. Pegasus never sends video to OCR or image cropping.
 
 Deployment configuration and dated live evidence are owned by
-[operations](../operations.md), not by this policy. An existing link is
-bound to the limits version and lifetime recorded when it was issued. A
-mismatch fails closed; staff then issue a new link through the Case action.
+[operations](../operations.md), not by this policy.
 
 ### Upload confirmation surface
 
@@ -198,9 +139,6 @@ matches. A response for an earlier query cannot replace newer input.
 
 ## States and transitions
 
-- A link is active, finalised, expired, or revoked. Only active links
-  accept bytes. A session starts on the first accepted file and lasts 15
-  minutes.
 - A file row is in flight, stored, or failed.
 - A submission is accepted or refused. Each member then reaches one of the
   four decision rows above.
@@ -208,12 +146,8 @@ matches. A response for an earlier query cannot replace newer input.
 
 ## Edge cases and fail-closed behaviour
 
-- Unknown, expired, or revoked token: refused before the body is read,
-  with a result that discloses nothing.
 - Content-Length missing or understated: actual bytes are counted and an
   oversized body never reaches custody.
-- Limits version changed since a link was issued: the link fails closed and
-  staff issue a new one.
 - Exactly one Case matches a manual upload: still a suggestion; staff must
   confirm.
 - Group with some unreadable members: readable members get their decision;
@@ -224,15 +158,14 @@ matches. A response for an earlier query cannot replace newer input.
 ## Acceptance evidence
 
 Acceptance proves, through the real caller: every limit in the table;
-token expiry, revocation, and cross-request isolation; the fixed 15-minute
-session; idempotent retry; the four decision rows; that confirmation takes
-the Case edit lease and binds to reviewed versions; and that Cancel and
-reject change nothing. Deployment and live evidence are separate tiers
+idempotent retry; the four decision rows; that confirmation takes the Case
+edit lease and binds to reviewed versions; and that Cancel and reject change
+nothing. Deployment and live evidence are separate tiers
 ([engineering](../engineering.md#required-evidence-tiers)).
 
 ## Links
 
-- Capabilities: `INT-19`, `INT-31`, `UI-08` in
+- Capabilities: `INT-19`, `UI-08` in
   [capabilities](../capabilities.md).
 - Related FRDs: [FRD-02](frd-02-intake-and-source-identity.md),
   [FRD-05](frd-05-documents-extraction-and-custody.md),

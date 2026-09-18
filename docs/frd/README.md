@@ -33,7 +33,7 @@ owner* column in [`capabilities.md`](../capabilities.md).
 | [FRD-15](frd-15-work-centre-queues-and-search.md) | Work Centre, Cases queues, pre-Case records, Search, Operations, freshness | UI |
 | [FRD-16](frd-16-case-record-workspace.md) | The Case record page and the Engineer workbench | UI, ENG |
 | [FRD-17](frd-17-administration-workspace.md) | Administration areas: accounts, contacts, workflow configuration, logs, reports | UI, MI |
-| [FRD-18](frd-18-manual-upload-and-upload-links.md) | Staff upload page, request-scoped upload links, upload limits and confirmation | INT |
+| [FRD-18](frd-18-manual-upload.md) | Staff upload page, upload limits and confirmation | INT |
 | [FRD-19](frd-19-image-led-intake-and-pairing.md) | Vehicle images that arrive without an instruction: grouping, pairing, merge | INT |
 | [FRD-20](frd-20-mailbox-workspace.md) | The Inbox: browsing, preview, classify, link, move, dismiss | UI, MAIL |
 | [FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md) | Sending mail from Pegasus and proving a report was sent | MAIL |
