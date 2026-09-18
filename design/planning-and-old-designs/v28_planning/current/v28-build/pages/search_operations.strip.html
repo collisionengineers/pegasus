@@ -1,0 +1,33 @@
+<fieldset>
+  <legend>Search</legend>
+  <label>Area
+    <select data-mock-input="so-area">
+      <option value="search" selected>Search</option>
+      <option value="operations">Operations</option>
+    </select>
+  </label>
+  <label>Search result state
+    <select data-mock-input="so-search-state">
+      <option value="results" selected>Case results</option>
+      <option value="images">Vehicle images match</option>
+      <option value="queryfailed">Cases unavailable</option>
+      <option value="empty">No cases match</option>
+      <option value="emptyimages">No vehicle images match</option>
+    </select>
+  </label>
+</fieldset>
+<fieldset>
+  <legend>Operations</legend>
+  <label>Query limit
+    <select data-mock-input="so-limit">
+      <option value="ok" selected>Not reached</option>
+      <option value="reached">Partial data (limit reached)</option>
+    </select>
+  </label>
+  <label>EVA handoffs recorded
+    <select data-mock-input="so-eva">
+      <option value="present" selected>Recorded</option>
+      <option value="absent">None (panel absent)</option>
+    </select>
+  </label>
+</fieldset>

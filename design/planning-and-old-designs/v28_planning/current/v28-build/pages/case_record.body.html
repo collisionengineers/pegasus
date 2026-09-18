@@ -1,0 +1,1397 @@
+<!-- Case record (v28 baseline). As-is capture of src/Pegasus.Web/Pages/Cases/Details.cshtml
+     and its Shared/_Case*.cshtml partials, read from the live worktree on 18 September 2026.
+     Fixture: Case/PO QDOS26214, registration MA59 BDY, Claimant David Okafor, Principal
+     Wingrove Insurance, Engineer Priya Anand, state Review, Case type Inspection. The
+     cr-view="record" block is the Case record itself (default); cr-view="eva-send" is the
+     standalone /Cases/{id}/Eva/Send fallback page the Actions menu's Send to EVA link opens. -->
+<div data-case-notices>
+  <div class="notice notice--success mb-2" role="status" data-dismissable data-mock-show="crtoast:save">
+    <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+    <span>Case data saved</span>
+    <button type="button" class="dismiss" aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+  </div>
+</div>
+
+<div data-cr-view="record" data-mock-show="crview:record">
+<article class="record case-record" id="case-record" data-case-record data-cr-editing-class>
+  <div class="sticky-block" data-sticky-block>
+    <div class="ribbon" aria-label="Case identity">
+      <div class="ribbon-facts" data-case-ribbon-facts>
+        <div class="ribbon-item ribbon-ref">
+          <span data-mock-show="crcasetype:inspection|inspectionaudit">
+            <div class="ribbon-label">Case workspace · MA59 BDY</div>
+            <h1 class="ribbon-value">QDOS26214</h1>
+          </span>
+          <span data-mock-show="crcasetype:audit">
+            <div class="ribbon-label">Case workspace · BN65 UUY</div>
+            <h1 class="ribbon-value">a.QDOS26150</h1>
+          </span>
+        </div>
+        <div class="ribbon-item">
+          <div class="ribbon-label">Claimant</div>
+          <div class="ribbon-value"><span>David Okafor</span></div>
+        </div>
+        <div class="ribbon-item">
+          <div class="ribbon-label">Principal</div>
+          <div class="ribbon-value"><span>WINGROVE</span></div>
+        </div>
+        <div class="ribbon-item">
+          <div class="ribbon-label">Engineer</div>
+          <div class="ribbon-value"><span>Priya Anand</span></div>
+        </div>
+        <div class="ribbon-chips" aria-label="State" data-case-ribbon-chips>
+          <span class="status" data-cr-state-chip>Review</span>
+          <span class="status status--navy status--plain" data-mock-show="crcasetype:audit" data-cr-type-chip>Audit</span>
+          <span class="status status--navy status--plain" data-mock-show="crcasetype:inspectionaudit" data-cr-type-chip>Inspection + Audit</span>
+          <span class="status status--red status--plain" data-mock-show="crarchived:yes">Archived</span>
+          <span class="status status--navy status--plain" data-mock-show="credit:colleague" data-edit-authority>
+            <svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>
+            Priya Anand is editing
+          </span>
+        </div>
+      </div>
+      <div class="ribbon-actions" data-case-ribbon-actions>
+        <a class="btn btn--small" href="#" data-mock-action="toast" data-mock-show="crcasetype:inspectionaudit,crhasreport:yes">Audit case a.QDOS26214</a>
+        <a class="btn btn--small" href="#" data-mock-action="toast" data-mock-show="crcasetype:audit">Original case QDOS26150</a>
+        <span data-mock-show="credit:on">
+          <span class="lease-line" data-lease-line hidden></span>
+          <button type="button" class="btn btn--small" data-mock-action="toast" title="Renew editing">
+            <svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+            <span>Renew editing</span>
+          </button>
+          <span class="status status--navy status--plain case-edit-badge">Editing</span>
+          <button type="button" class="btn" data-cr-cancel-edit>
+            <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+            <span>Cancel</span>
+          </button>
+          <button type="button" class="btn btn--primary" data-cr-save data-mock-show="crstate:notready|held|review|engineerprep|engineerpost|closedcancelled|closedrejected|closederror|closedunlinked">
+            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+            <span>Save</span>
+          </button>
+        </span>
+        <span data-mock-show="credit:off">
+          <button type="button" class="btn btn--dark" data-cr-edit>
+            <svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg>
+            <span data-cr-edit-label>Edit Case</span>
+          </button>
+        </span>
+        <details class="menu" data-menu data-case-actions data-cr-actions-menu>
+          <summary class="btn"><span>Actions</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+          <div class="menu-body">
+            <button type="button" class="btn" data-mock-show="credit:on,crstate:review" data-dialog-open="case-handoff-dialog">
+              <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+              <span>Hand to Engineer</span>
+            </button>
+            <a class="btn" href="#" data-mock-show="crstate:review|engineerprep|engineerpost" data-dialog-open="eva-handoff-dialog">
+              <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+              <span>Send to EVA</span>
+            </a>
+            <button type="button" class="btn" data-mock-show="credit:on,crstate:engineerprep" data-dialog-open="case-report-sent-dialog">
+              <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
+              <span>Mark report sent</span>
+            </button>
+            <button type="button" class="btn" data-mock-show="credit:on,crstate:engineerpost" data-dialog-open="case-complete-dialog">
+              <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+              <span>Mark completed</span>
+            </button>
+            <button type="button" class="btn" data-mock-show="credit:on,crstate:engineerprep|engineerpost" data-dialog-open="case-return-review-dialog">
+              <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+              <span>Return to Review</span>
+            </button>
+            <button type="button" class="btn" data-mock-show="credit:on,crstate:completed|query" data-dialog-open="case-return-engineer-dialog">
+              <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
+              <span>Return to Engineer</span>
+            </button>
+            <button type="button" class="btn" data-mock-show="credit:on,crstate:closedcancelled|closedrejected|closederror|closedunlinked,crarchived:no" data-dialog-open="case-archive-dialog">
+              <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+              <span>Archive case</span>
+            </button>
+            <div class="menu-sep" data-mock-show="credit:on,crstate:notready|held|review|engineerprep|engineerpost|closedcancelled|closedrejected|closederror|closedunlinked"></div>
+            <button type="button" class="btn" data-mock-show="credit:on,crstate:held" data-dialog-open="case-release-hold-dialog">
+              <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
+              <span>Release Hold</span>
+            </button>
+            <button type="button" class="btn" data-mock-show="credit:on,crstate:notready|review|engineerprep|engineerpost|closedcancelled|closedrejected|closederror|closedunlinked" data-dialog-open="case-hold-dialog">
+              <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
+              <span>Place on Hold</span>
+            </button>
+            <button type="button" class="btn" data-mock-show="credit:on,crstate:notready|held|review|engineerprep|engineerpost|closedcancelled|closedrejected|closederror|closedunlinked" data-dialog-open="case-correct-principal-dialog">
+              <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+              <span>Correct principal</span>
+            </button>
+            <button type="button" class="btn" data-mock-show="credit:on,crcasetype:inspectionaudit,crhasreport:yes" data-dialog-open="case-create-audit-dialog">
+              <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+              <span>Create audit</span>
+            </button>
+            <div class="menu-sep" data-mock-show="credit:on,crstate:notready|held|review|engineerprep|engineerpost"></div>
+            <button type="button" class="btn btn--danger" data-mock-show="credit:on,crstate:notready|held|review|engineerprep|engineerpost" data-dialog-open="case-close-dialog">
+              <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+              <span>Close case</span>
+            </button>
+          </div>
+        </details>
+      </div>
+    </div>
+    <div class="section-row">
+      <nav class="section-nav" aria-label="Case sections" data-section-nav>
+        <a class="section-link" href="#section-overview" data-section-link="overview" aria-current="true"><svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg><span>Overview</span></a>
+        <a class="section-link" href="#section-inspection" data-section-link="inspection"><svg class="icon" aria-hidden="true"><use href="#icon-map-pin" /></svg><span>Inspection details</span></a>
+        <a class="section-link" href="#section-vehicle" data-section-link="vehicle"><svg class="icon" aria-hidden="true"><use href="#icon-car" /></svg><span>Vehicle</span></a>
+        <a class="section-link" href="#section-damage" data-section-link="damage"><svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg><span>Damage</span></a>
+        <a class="section-link" href="#section-valuation" data-section-link="valuation"><svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg><span>Valuation</span></a>
+        <a class="section-link" href="#section-estimate" data-section-link="estimate"><svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg><span>Estimate</span></a>
+        <a class="section-link" href="#section-settlement" data-section-link="settlement"><svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg><span>Settlement</span></a>
+        <a class="section-link" href="#section-report" data-section-link="report"><svg class="icon" aria-hidden="true"><use href="#icon-file" /></svg><span>Report</span></a>
+        <a class="section-link" href="#section-files" data-section-link="files"><svg class="icon" aria-hidden="true"><use href="#icon-folder" /></svg><span>Files</span></a>
+        <a class="section-link" href="#section-notes" data-section-link="notes"><svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg><span>Notes</span></a>
+      </nav>
+      <div class="section-tools">
+        <button type="button" class="btn btn--icon btn--small" title="Refresh" aria-label="Refresh" data-mock-action="toast">
+          <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+        </button>
+        <div class="layout-switch" role="group" aria-label="Case layout" data-case-layout-switch>
+          <button type="button" data-cr-layout="scroll" aria-pressed="true">Scroll</button>
+          <button type="button" data-cr-layout="tabs" aria-pressed="false">Tabs</button>
+        </div>
+      </div>
+    </div>
+    <div data-case-stale>
+      <div class="stale-bar" role="status" data-dismissable data-mock-show="crreport:stale">
+        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+        <span>A newer fact changed after this generation. Generate again before delivery.</span>
+        <a class="btn btn--small" href="#section-report" data-section-jump="report">Open Report</a>
+        <button type="button" class="dismiss" aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="workspace" data-cr-workspace>
+    <div class="workspace-main" id="case-main">
+<!-- Overview: src/Pegasus.Web/Pages/Cases/Shared/_CaseOverview.cshtml -->
+<section class="record-section panel is-active" id="section-overview" data-section="overview" aria-labelledby="section-overview-title">
+  <div class="panel-head">
+    <h2 id="section-overview-title">Overview</h2>
+    <div class="panel-actions">
+      <button type="button" class="btn btn--small" data-section-edit="overview"><svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg><span>Edit</span></button>
+      <span class="gated avail" data-section-availability hidden><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span></span></span>
+      <button type="button" class="icon-button panel-collapse" data-collapse-toggle aria-expanded="true" aria-label="Collapse section" title="Collapse section"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></button>
+    </div>
+  </div>
+  <div class="panel-body stack">
+    <ol class="stepper" aria-label="Case workflow" data-cr-stepper>
+      <li data-step="0"><svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg><span>Not ready</span></li>
+      <li data-step="1"><svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>Review</span></li>
+      <li data-step="2"><svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg><span>With Engineer</span></li>
+      <li data-step="3"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span>Complete</span></li>
+    </ol>
+    <div class="workflow-exception" data-mock-show="crstate:held">
+      <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
+      <strong data-cr-state-chip-echo>Held · review on 24 Sep</strong>
+    </div>
+
+    <div class="sub-panel blockers" data-outstanding-requirements data-mock-show="crstate:notready">
+      <h3>Outstanding requirements <span class="status status--amber">2 outstanding</span></h3>
+      <ul class="blocker-list">
+        <li class="blocker"><strong>Instructions incomplete</strong><small><b>Source:</b> Case requirements<br /><b>Why:</b> Claim number is not recorded</small></li>
+        <li class="blocker"><strong>Images incomplete</strong><small><b>Source:</b> Case requirements<br /><b>Why:</b> Registration overview photograph is missing</small></li>
+      </ul>
+    </div>
+
+    <div class="sub-panel" data-lifecycle-actions data-mock-show="credit:on,crstate:engineerprep|engineerpost|closedcancelled|closedrejected|closederror|closedunlinked">
+      <h3>Lifecycle actions</h3>
+      <div class="button-row">
+        <button type="button" class="btn btn--small" data-mock-show="crstate:engineerprep|engineerpost" data-dialog-open="case-return-review-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg><span>Return to Review</span></button>
+        <button type="button" class="btn btn--small" data-mock-show="crstate:engineerprep|engineerpost" data-dialog-open="case-unlink-evidence-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg><span>Unlink report evidence</span></button>
+        <button type="button" class="btn btn--small" data-mock-show="crstate:closedcancelled|closedrejected|closederror|closedunlinked,crarchived:no" data-dialog-open="case-archive-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg><span>Archive case</span></button>
+      </div>
+      <div class="fc ro mt-2" data-mock-show="crreport:sent"><span class="lbl">Report sent</span><div class="fv">operations@wingrove-insurance.example · 16 Sep 2026 15:42</div></div>
+    </div>
+
+    <div class="overview-grid">
+      <div class="sub-panel"><h3>Case</h3>
+        <div class="fg g2">
+          <div class="fc ro idn"><span class="lbl">Case type<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">Inspection</div></div>
+          <div class="fc ro idn"><span class="lbl">Our ref<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv mono">QDOS26214</div></div>
+          <div class="fc"><label for="f-claim-reference">Claim reference</label><div class="fv mono">WNG-88213-24</div><input id="f-claim-reference" class="fi mono" value="WNG-88213-24" /></div>
+          <div class="fc"><label for="f-incident-date">Incident date</label><div class="fv">2 Sep 2026</div><input id="f-incident-date" class="fi" type="date" value="2026-09-02" /></div>
+          <div class="fc ro idn"><span class="lbl">Received<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">3 Sep 2026, 09:14</div></div>
+          <div class="fc"><label for="f-due-by">Due</label><div class="fv">20 Sep 2026</div><input id="f-due-by" class="fi" type="date" value="2026-09-20" /></div>
+        </div>
+      </div>
+      <div class="sub-panel"><h3>Principal</h3>
+        <div class="fg">
+          <div class="fc ro idn"><span class="lbl">Principal<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">WINGROVE</div></div>
+          <div class="fc" data-claim-source-cell><label for="f-claim-source">Claim source</label><div class="fv">Northgate Claims Management</div>
+            <select id="f-claim-source" class="fi" data-claim-source-select>
+              <option>None</option>
+              <option selected>Northgate Claims Management</option>
+              <option>Ferrow &amp; Vance Adjusters</option>
+            </select>
+          </div>
+          <div class="fc ro"><span class="lbl">Claim source contact</span><div class="fv" data-claim-source-contact>Alice Tran · 0161 496 0213 · alice.tran@northgateclaims.example</div></div>
+          <div class="fc"><label for="f-claim-source-contact-name">Contact name</label><div class="fv empty">Not recorded</div><input id="f-claim-source-contact-name" class="fi" /></div>
+          <div class="fc"><label for="f-claim-source-contact-phone">Contact phone</label><div class="fv empty">Not recorded</div><input id="f-claim-source-contact-phone" class="fi" /></div>
+          <div class="fc"><label for="f-claim-source-contact-email">Contact e-mail</label><div class="fv empty">Not recorded</div><input id="f-claim-source-contact-email" class="fi" type="email" /></div>
+        </div>
+      </div>
+      <div class="sub-panel"><h3>Claimant</h3>
+        <div class="fg">
+          <div class="fc"><label for="f-claimant">Claimant</label><div class="fv">David Okafor</div><input id="f-claimant" class="fi" value="David Okafor" /></div>
+          <div class="fc"><label for="f-claimant-contact">Contact</label><div class="fv">07700 900321</div><input id="f-claimant-contact" class="fi" value="07700 900321" /></div>
+          <div class="fc"><label for="f-claimant-address">Address</label><div class="fv">21 Marlpool Lane, Sheffield S8 0GH</div><input id="f-claimant-address" class="fi" value="21 Marlpool Lane, Sheffield S8 0GH" /></div>
+          <div class="fc"><label for="f-vat-status">VAT status</label><div class="fv empty">Not recorded</div><input id="f-vat-status" class="fi" /></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub-panel"><h3>Case contact</h3>
+      <div class="fg g3">
+        <div class="fc"><label for="f-contact-name">Contact name</label><div class="fv">David Okafor</div><input id="f-contact-name" class="fi" value="David Okafor" /></div>
+        <div class="fc"><label for="f-contact-email">Contact e-mail</label><div class="fv">d.okafor@example.com</div><input id="f-contact-email" class="fi" type="email" value="d.okafor@example.com" /></div>
+        <div class="fc"><label for="f-contact-phone">Contact phone</label><div class="fv">07700 900321</div><input id="f-contact-phone" class="fi" value="07700 900321" /></div>
+      </div>
+    </div>
+
+    <div class="sub-panel notes-band" data-notes-band><h3>Notes</h3>
+      <div class="fg g2">
+        <div class="fc ro idn rec-notes"><span class="lbl">Principal notes<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv multi">Always confirm salvage category directly with Wingrove's total-loss desk.</div></div>
+        <div class="fc"><label for="f-principal-notes">Principal notes · this Case</label><div class="fv empty multi">Not recorded</div><textarea id="f-principal-notes" class="fi"></textarea></div>
+        <div class="fc ro idn rec-notes" data-record-notes="claim-source"><span class="lbl">Claim source notes<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv multi" data-record-notes-text>Northgate expects the fee note attached to every report.</div></div>
+        <div class="fc"><label for="f-claim-source-notes">Claim source notes · this Case</label><div class="fv empty multi">Not recorded</div><textarea id="f-claim-source-notes" class="fi"></textarea></div>
+      </div>
+    </div>
+
+    <div class="accident" data-accident-band>
+      <div class="fg g2">
+        <div class="fc"><label for="f-circumstances">Accident circumstances</label><div class="fv multi">Claimant was stationary at a junction on Ecclesall Road when struck from behind by the third party.</div><textarea id="f-circumstances" class="fi">Claimant was stationary at a junction on Ecclesall Road when struck from behind by the third party.</textarea></div>
+        <div class="fc" data-client-notes><label for="f-client-notes">Notes from client</label><div class="fv empty multi">Not recorded</div><textarea id="f-client-notes" class="fi"></textarea></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Inspection details: src/Pegasus.Web/Pages/Cases/Shared/_CaseInspectionAddress.cshtml -->
+<section class="record-section panel" id="section-inspection" data-section="inspection" aria-labelledby="section-inspection-title">
+  <div class="panel-head">
+    <h2 id="section-inspection-title">Inspection details</h2>
+    <div class="panel-actions">
+      <button type="button" class="btn btn--small" data-section-edit="inspection"><svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg><span>Edit</span></button>
+      <span class="gated avail" data-section-availability hidden><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span></span></span>
+      <button type="button" class="icon-button panel-collapse" data-collapse-toggle aria-expanded="true" aria-label="Collapse section" title="Collapse section"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></button>
+    </div>
+  </div>
+  <div class="panel-body stack">
+    <div class="fg g4">
+      <div class="fc ro" data-inspection-type><span class="lbl">Inspection type</span><div class="fv">Physical address</div></div>
+      <div class="fc"><label for="f-inspection-date">Inspection date</label><div class="fv">19 Sep 2026</div><input id="f-inspection-date" class="fi" type="date" value="2026-09-19" /></div>
+      <div class="fc" data-inspection-choice-cell><label for="inspection-address-choice">Inspect at</label><div class="fv">Repairer location · Attercliffe Bodyshop</div>
+        <select id="inspection-address-choice" class="fi" data-inspection-address-choice>
+          <option>Image Based Assessment</option>
+          <option>Claimant address</option>
+          <option selected>Repairer location · Attercliffe Bodyshop</option>
+          <option>Storage location</option>
+          <option>Manual entry</option>
+        </select>
+      </div>
+      <div class="fc" data-inspection-address-field data-inspection-address><label for="inspection-address">Inspection address</label>
+        <div class="fv" data-inspection-address-read>
+          <div class="address-lines"><div>Attercliffe Bodyshop, Unit 4</div><div>Attercliffe Common</div><div>Sheffield S9 2AA</div></div>
+          <span class="src-tag" data-provenance-word="Staff">Staff</span>
+        </div>
+        <input id="inspection-address" class="fi" value="Attercliffe Bodyshop, Unit 4, Attercliffe Common, Sheffield S9 2AA" data-inspection-address-input />
+      </div>
+      <div class="fc ro" data-inspection-provider-default hidden><span class="lbl">Principal default</span><div class="fv">Image Based Assessment</div></div>
+    </div>
+
+    <div class="sub-panel" data-inspection-repairer><h3>Repairer</h3>
+      <div class="fg g4">
+        <div class="fc"><label for="repairer-directory">Repairer contact</label><div class="fv">Attercliffe Bodyshop</div>
+          <select id="repairer-directory" class="fi"><option>Not linked</option><option selected>Attercliffe Bodyshop</option><option>Sheffield Crash Repair Centre</option></select>
+        </div>
+        <div class="fc"><label for="repairer-name">Repairer</label><div class="fv">Attercliffe Bodyshop</div><input id="repairer-name" class="fi" value="Attercliffe Bodyshop" /></div>
+        <div class="fc span2"><label for="repairer-address">Address</label><div class="fv">Unit 4, Attercliffe Common, Sheffield S9 2AA</div><input id="repairer-address" class="fi" value="Unit 4, Attercliffe Common, Sheffield S9 2AA" /></div>
+      </div>
+    </div>
+
+    <div class="sub-panel" data-inspection-storage><h3>Storage</h3>
+      <div class="fg g4">
+        <div class="fc span2"><label for="storage-location">Storage location</label><div class="fv empty">Not recorded</div><input id="storage-location" class="fi" /></div>
+        <div class="fc"><label for="edit-storage-per-day">Storage per day</label><div class="fv mono empty">—</div><input type="number" step="0.01" min="0" id="edit-storage-per-day" class="fi mono" /></div>
+        <div class="fc"><label for="edit-recovery-charge">Recovery charge</label><div class="fv mono">£85.00</div><input type="number" step="0.01" min="0" id="edit-recovery-charge" class="fi mono" value="85.00" /></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Vehicle: src/Pegasus.Web/Pages/Cases/Shared/_CaseVehicle.cshtml -->
+<section class="record-section panel" id="section-vehicle" data-section="vehicle" aria-labelledby="section-vehicle-title">
+  <div class="panel-head">
+    <h2 id="section-vehicle-title">Vehicle</h2>
+    <span class="meta" data-vehicle-lookup-line>Looked up 3 Sep 2026, 09:16 · Current</span>
+    <div class="panel-actions">
+      <button type="button" class="btn btn--small" data-mock-action="toast"><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Look up DVLA &amp; MOT</span></button>
+      <span class="gated" data-vehicle-experian-seam><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span>Experian is not connected</span></span>
+      <button type="button" class="btn btn--small" data-section-edit="vehicle"><svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg><span>Edit</span></button>
+      <span class="gated avail" data-section-availability hidden><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span></span></span>
+      <button type="button" class="icon-button panel-collapse" data-collapse-toggle aria-expanded="true" aria-label="Collapse section" title="Collapse section"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></button>
+    </div>
+  </div>
+  <div class="panel-body stack">
+    <div class="fg g4" data-vehicle-facts>
+      <div class="fc"><label for="edit-registration">Registration</label><div class="fv mono">MA59 BDY<span class="src-tag src-tag--lookup" data-provenance-word="Lookup">Lookup</span></div><input id="edit-registration" class="fi mono" value="MA59 BDY" /></div>
+      <div class="fc"><label for="edit-make">Make</label><div class="fv">Ford<span class="src-tag src-tag--lookup" data-provenance-word="Lookup">Lookup</span></div><input id="edit-make" class="fi" value="Ford" /></div>
+      <div class="fc"><label for="edit-model">Model</label><div class="fv">Focus<span class="src-tag src-tag--lookup" data-provenance-word="Lookup">Lookup</span></div><input id="edit-model" class="fi" value="Focus" /></div>
+      <div class="fc"><label for="edit-year">Year</label><div class="fv">2019<span class="src-tag src-tag--lookup" data-provenance-word="Lookup">Lookup</span></div><input id="edit-year" class="fi" value="2019" /></div>
+      <div class="fc" data-vehicle-identity="vehicle.vin"><label for="edit-vehicle-vin">VIN</label><div class="fv mono">WF0AXXWPMAKX12345<span class="src-tag src-tag--lookup">Lookup</span></div><input id="edit-vehicle-vin" class="fi mono" maxlength="17" value="WF0AXXWPMAKX12345" /></div>
+      <div class="fc" data-vehicle-identity="vehicle.type"><label for="edit-vehicle-type">Vehicle type</label><div class="fv">Car</div>
+        <select id="edit-vehicle-type" class="fi"><option value=""></option><option selected>Car</option><option>Van</option><option>Motorcycle</option></select>
+      </div>
+      <div class="fc" data-vehicle-identity="vehicle.body"><label for="edit-vehicle-body">Body type</label><div class="fv">Hatchback</div>
+        <select id="edit-vehicle-body" class="fi"><option value=""></option><option selected>Hatchback</option><option>Saloon</option><option>Estate</option></select>
+      </div>
+      <div class="fc ro" data-vehicle-provenance-row="vehicle.engineCc"><span class="lbl">Engine</span><div class="fv">1499 cc<span class="src-tag src-tag--lookup">Lookup</span></div></div>
+      <div class="fc ro" data-vehicle-provenance-row="vehicle.fuel"><span class="lbl">Fuel</span><div class="fv">Diesel<span class="src-tag src-tag--lookup">Lookup</span></div></div>
+      <div class="fc ro" data-vehicle-provenance-row="vehicle.colour"><span class="lbl">Colour</span><div class="fv">Silver<span class="src-tag src-tag--lookup">Lookup</span></div></div>
+      <div class="fc ro" data-vehicle-provenance-row="vehicle.transmission"><span class="lbl">Transmission</span><div class="fv">Manual<span class="src-tag src-tag--lookup">Lookup</span></div></div>
+      <div class="fc ro" data-vehicle-provenance-row="vehicle.taxExpiry"><span class="lbl">Tax expiry</span><div class="fv">1 Mar 2027<span class="src-tag src-tag--lookup">Lookup</span></div></div>
+      <div class="fc ro" data-vehicle-provenance-row="vehicle.motExpiry"><span class="lbl">MOT expiry</span><div class="fv">14 Jun 2027<span class="src-tag src-tag--lookup">Lookup</span></div></div>
+    </div>
+
+    <div class="sub-panel" data-vehicle-mileage><h3>Mileage &amp; condition</h3>
+      <div class="fg g4">
+        <div class="fc"><label for="edit-mileage">Mileage</label><div class="fv mono" data-vehicle-mileage-read>42,150 mi<span class="src-tag" data-vehicle-mileage-source-read>Owner</span></div><input id="edit-mileage" class="fi mono" type="number" min="0" value="42150" /></div>
+        <div class="fc"><label for="edit-mileage-source">Mileage source</label><div class="fv">Owner</div>
+          <select id="edit-mileage-source" class="fi"><option selected>Owner</option><option>Repairer</option><option>Principal</option></select>
+        </div>
+        <div class="fc"><label for="edit-vehicle-condition">Pre-incident condition</label><div class="fv">Good</div>
+          <select id="edit-vehicle-condition" class="fi"><option value=""></option><option>Poor</option><option>Below average</option><option>Average</option><option selected>Good</option><option>Excellent</option></select>
+        </div>
+        <div class="fc"><label for="edit-mileage-unit">Odometer unit</label><div class="fv">Miles</div>
+          <select id="edit-mileage-unit" class="fi"><option selected>Miles</option><option>Kilometres</option></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="sub-panel vehicle-history" data-vehicle-history><h3>Vehicle history <span class="rt">Experian is not connected</span></h3>
+      <div class="fc"><label for="edit-vehicle-history">Vehicle history</label><div class="fv multi empty">Not recorded</div><textarea id="edit-vehicle-history" class="fi" rows="4"></textarea></div>
+    </div>
+  </div>
+</section>
+
+<!-- Damage: src/Pegasus.Web/Pages/Cases/Shared/_CaseDamage.cshtml (Plan clicker).
+     The live SVG plan is drawn from DamagePlanGeometry's own body/zone paths; this capture
+     approximates the same top-down silhouette with a simplified zone grid rather than
+     reproducing that geometry pixel-for-pixel — see Notes in the page README. -->
+<section class="record-section panel case-damage" id="section-damage" data-section="damage" aria-labelledby="section-damage-title" data-damage-editor>
+  <div class="panel-head">
+    <h2 id="section-damage-title">Damage</h2>
+    <div class="panel-actions">
+      <button type="button" class="btn btn--small" data-section-edit="damage"><svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg><span>Edit</span></button>
+      <span class="gated avail" data-section-availability hidden><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span></span></span>
+      <button type="button" class="icon-button panel-collapse" data-collapse-toggle aria-expanded="true" aria-label="Collapse section" title="Collapse section"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></button>
+    </div>
+  </div>
+  <div class="panel-body stack">
+    <div class="damage-workbench">
+      <div class="damage-view" data-damage-view>
+        <svg class="damage-diagram" viewBox="0 0 240 440" role="group" aria-label="Vehicle damage diagram, plan view">
+          <text class="damage-diagram-label" x="120" y="14" text-anchor="middle">FRONT</text>
+          <rect class="dv-body" x="46" y="26" width="148" height="388" rx="26" fill="#eef1f2" stroke="#c7cfd4" />
+          <rect class="dv-glass" x="66" y="70" width="108" height="46" rx="6" fill="#c9d3d8" />
+          <rect class="dv-glass" x="66" y="326" width="108" height="46" rx="6" fill="#c9d3d8" />
+          <g class="damage-zones" data-damage-zones>
+            <rect data-damage-zone="front_bumper" x="60" y="28" width="120" height="30" rx="4"><title>Front bumper</title></rect>
+            <rect data-damage-zone="offside_front_wing" x="46" y="60" width="36" height="46"><title>Offside front wing</title></rect>
+            <rect data-damage-zone="nearside_front_wing" x="158" y="60" width="36" height="46"><title>Nearside front wing</title></rect>
+            <rect data-damage-zone="bonnet" x="82" y="60" width="76" height="46"><title>Bonnet</title></rect>
+            <rect data-damage-zone="windscreen" x="66" y="118" width="108" height="20"><title>Windscreen</title></rect>
+            <rect data-damage-zone="roof" x="66" y="140" width="108" height="130"><title>Roof</title></rect>
+            <rect data-damage-zone="offside_front_door" x="46" y="140" width="20" height="62"><title>Offside front door</title></rect>
+            <rect data-damage-zone="offside_rear_door" x="46" y="204" width="20" height="62"><title>Offside rear door</title></rect>
+            <rect data-damage-zone="nearside_front_door" x="174" y="140" width="20" height="62"><title>Nearside front door</title></rect>
+            <rect data-damage-zone="nearside_rear_door" x="174" y="204" width="20" height="62"><title>Nearside rear door</title></rect>
+            <rect data-damage-zone="rear_screen" x="66" y="272" width="108" height="20"><title>Rear screen</title></rect>
+            <rect data-damage-zone="boot" x="82" y="326" width="76" height="46"><title>Boot</title></rect>
+            <rect data-damage-zone="offside_rear_wing" x="46" y="326" width="36" height="46"><title>Offside rear wing</title></rect>
+            <rect data-damage-zone="nearside_rear_wing" x="158" y="326" width="36" height="46"><title>Nearside rear wing</title></rect>
+            <rect data-damage-zone="rear_bumper" x="60" y="380" width="120" height="30" rx="4"><title>Rear bumper</title></rect>
+            <rect data-damage-zone="wheel_offside_front" x="30" y="70" width="14" height="34" rx="4"><title>Offside front wheel</title></rect>
+            <rect data-damage-zone="wheel_nearside_front" x="196" y="70" width="14" height="34" rx="4"><title>Nearside front wheel</title></rect>
+            <rect data-damage-zone="wheel_offside_rear" x="30" y="334" width="14" height="34" rx="4"><title>Offside rear wheel</title></rect>
+            <rect data-damage-zone="wheel_nearside_rear" x="196" y="334" width="14" height="34" rx="4"><title>Nearside rear wheel</title></rect>
+          </g>
+          <g class="damage-markers" data-damage-markers aria-hidden="true"></g>
+          <text class="damage-diagram-label" x="120" y="428" text-anchor="middle">REAR</text>
+        </svg>
+        <div class="dv-readout" data-damage-readout aria-live="polite"></div>
+        <div class="dv-legend" aria-label="Severity">
+          <span><i class="is-damaged" data-sev="light"></i>Light</span>
+          <span><i class="is-damaged" data-sev="light_to_moderate"></i>Light to moderate</span>
+          <span><i class="is-damaged" data-sev="moderate"></i>Moderate</span>
+          <span><i class="is-damaged" data-sev="moderate_to_heavy"></i>Moderate to heavy</span>
+          <span><i class="is-damaged" data-sev="heavy"></i>Heavy</span>
+        </div>
+        <div class="damage-extra" aria-label="Other vehicle areas">
+          <button type="button" class="btn btn--small" data-damage-zone="interior">Interior</button>
+          <button type="button" class="btn btn--small" data-damage-zone="underbody">Underbody</button>
+        </div>
+      </div>
+      <div class="damage-facts">
+        <div class="fg g3">
+          <div class="fc ro"><span class="lbl">Impact location</span><div class="fv derived" data-damage-location>Nearside rear door</div></div>
+          <div class="fc ro"><span class="lbl">Impact severity</span><div class="fv derived" data-damage-severity>Moderate</div></div>
+          <div class="fc ro"><span class="lbl">Recorded zones</span><div class="fv" data-damage-count>1</div></div>
+        </div>
+        <ul class="impact-list" data-damage-impact-list aria-label="Recorded zones">
+          <li class="impact-row" data-damage-row="nearside_rear_door">
+            <span class="zc"><i class="zn">1</i>Nearside rear door</span>
+            <span class="fc"><label class="sr-only" for="damage-severity-0">Severity</label><div class="fv">Moderate</div>
+              <select id="damage-severity-0" class="fi" data-damage-row-severity>
+                <option>Light</option><option>Light to moderate</option><option selected>Moderate</option><option>Moderate to heavy</option><option>Heavy</option>
+              </select>
+            </span>
+            <span class="fc"><label class="sr-only" for="damage-note-0">Note</label><div class="fv">Deep crease, door will not latch</div><input id="damage-note-0" class="fi" value="Deep crease, door will not latch" data-damage-row-note /></span>
+            <button type="button" class="del" data-damage-row-remove aria-label="Remove Nearside rear door">×</button>
+          </li>
+        </ul>
+        <div class="sub-panel mt-2"><h3>Tyres &amp; seat belts</h3>
+          <div class="fg g4">
+            <div class="fc"><label for="edit-tyre-rf">Right-front tyre</label><div class="fv empty">Not recorded</div><select id="edit-tyre-rf" class="fi"><option value=""></option><option>Serviceable</option><option>Damaged</option><option>Not fitted</option></select></div>
+            <div class="fc"><label for="edit-tyre-lf">Left-front tyre</label><div class="fv empty">Not recorded</div><select id="edit-tyre-lf" class="fi"><option value=""></option><option>Serviceable</option><option>Damaged</option><option>Not fitted</option></select></div>
+            <div class="fc"><label for="edit-tyre-rr">Right-rear tyre</label><div class="fv empty">Not recorded</div><select id="edit-tyre-rr" class="fi"><option value=""></option><option>Serviceable</option><option>Damaged</option><option>Not fitted</option></select></div>
+            <div class="fc"><label for="edit-tyre-lr">Left-rear tyre</label><div class="fv empty">Not recorded</div><select id="edit-tyre-lr" class="fi"><option value=""></option><option>Serviceable</option><option>Damaged</option><option>Not fitted</option></select></div>
+            <div class="fc"><label for="edit-belt-rf">Right-front belt</label><div class="fv empty">Not recorded</div><select id="edit-belt-rf" class="fi"><option value=""></option><option>Serviceable</option><option>Damaged</option></select></div>
+            <div class="fc"><label for="edit-belt-lf">Left-front belt</label><div class="fv empty">Not recorded</div><select id="edit-belt-lf" class="fi"><option value=""></option><option>Serviceable</option><option>Damaged</option></select></div>
+            <div class="fc"><label for="edit-belt-rr">Right-rear belt</label><div class="fv empty">Not recorded</div><select id="edit-belt-rr" class="fi"><option value=""></option><option>Serviceable</option><option>Damaged</option></select></div>
+            <div class="fc"><label for="edit-belt-lr">Left-rear belt</label><div class="fv empty">Not recorded</div><select id="edit-belt-lr" class="fi"><option value=""></option><option>Serviceable</option><option>Damaged</option></select></div>
+            <div class="fc"><label for="edit-spare">Spare tyre</label><div class="fv empty">Not recorded</div><select id="edit-spare" class="fi"><option value=""></option><option>Present</option><option>Not fitted</option></select></div>
+            <div class="fc"><label for="edit-centre-belt">Centre belt</label><div class="fv empty">Not recorded</div><select id="edit-centre-belt" class="fi"><option value=""></option><option>Serviceable</option><option>Damaged</option></select></div>
+            <div class="fc span2"><label for="edit-material-transfer">Material transfer</label><div class="fv empty">Not recorded</div><input id="edit-material-transfer" class="fi" /></div>
+          </div>
+        </div>
+        <div class="fg g4 mt-2">
+          <div class="fc span3"><label for="edit-unrelated">Unrelated damage</label><div class="fv empty">Not recorded</div><input id="edit-unrelated" class="fi" /></div>
+          <div class="fc"><label for="edit-unrelated-deduction">Unrelated-damage deduction</label><div class="fv mono empty">—</div><input id="edit-unrelated-deduction" class="fi mono" type="number" step="0.01" min="0" /></div>
+          <div class="fc ro span4"><span class="lbl">Incident narrative</span><div class="fv derived" data-damage-narrative>Rear-end shunt; nearside rear door and quarter panel affected.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Valuation: src/Pegasus.Web/Pages/Cases/Shared/_CaseValuation.cshtml + _CaseValuationLines.cshtml -->
+<section class="record-section panel" id="section-valuation" data-section="valuation" aria-labelledby="section-valuation-title">
+  <div class="panel-head">
+    <h2 id="section-valuation-title">Valuation</h2>
+    <span class="meta" data-valuation-head>Engineer's Value £8,450.00</span>
+    <div class="panel-actions">
+      <button type="button" class="btn btn--small" data-section-edit="valuation"><svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg><span>Edit</span></button>
+      <span class="gated avail" data-section-availability hidden><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span></span></span>
+      <button type="button" class="icon-button panel-collapse" data-collapse-toggle aria-expanded="true" aria-label="Collapse section" title="Collapse section"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></button>
+    </div>
+  </div>
+  <div class="panel-body stack">
+    <div class="val-tools" data-valuation-tools>
+      <div class="fc val-month"><label for="f-valuation-month">Valuation month</label><input id="f-valuation-month" class="fi" type="month" value="2026-09" data-valuation-month /></div>
+      <span class="val-get"><span class="lbl">Get valuation</span>
+        <button type="button" class="btn btn--small" data-mock-action="toast" data-valuation-source="ai-market-research"><svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg><span>AI market research</span></button>
+      </span>
+    </div>
+
+    <div class="guides" data-valuation-cards>
+      <form class="valuation-card entry sel" data-valuation-entry="glasses" data-mock-action="toast">
+        <h3><span>Glass's</span><label class="pick"><input type="radio" name="crvalbasis" checked data-valuation-basis />Basis</label>
+          <button type="button" class="btn btn--small btn--ghost" data-mock-action="toast" data-valuation-source="glasses"><span>Get valuation</span></button>
+        </h3>
+        <div class="figs"><label>Retail<input class="fi mono" type="number" value="9200.00" data-valuation-retail /></label><label>Trade<input class="fi mono" type="number" value="8100.00" data-valuation-trade /></label></div>
+        <div class="meta"><label>Guide month<input class="fi" type="month" value="2026-09" /></label><label>Mileage<input class="fi mono" type="number" value="42150" /></label></div>
+        <div class="entry-actions"><button type="button" class="btn btn--small btn--primary" data-mock-action="toast" data-valuation-save="glasses">Save</button></div>
+      </form>
+      <form class="valuation-card entry" data-valuation-entry="brego" data-mock-action="toast">
+        <h3><span>Brego</span><button type="button" class="btn btn--small btn--ghost" data-mock-action="toast" data-valuation-source="brego"><span>Get valuation</span></button></h3>
+        <div class="figs"><label>Retail<input class="fi mono" type="number" data-valuation-retail /></label><label>Trade<input class="fi mono" type="number" data-valuation-trade /></label></div>
+        <div class="meta"><label>Guide month<input class="fi" type="month" /></label><label>Mileage<input class="fi mono" type="number" /></label></div>
+        <div class="entry-actions"><button type="button" class="btn btn--small btn--primary" data-mock-action="toast">Save</button></div>
+      </form>
+      <form class="valuation-card entry" data-valuation-entry="super-cap" data-mock-action="toast">
+        <h3><span>Super CAP</span><button type="button" class="btn btn--small btn--ghost" data-mock-action="toast" data-valuation-source="super-cap"><span>Get valuation</span></button></h3>
+        <div class="figs"><label>Retail<input class="fi mono" type="number" data-valuation-retail /></label><label>Trade<input class="fi mono" type="number" data-valuation-trade /></label></div>
+        <div class="meta"><label>Guide month<input class="fi" type="month" /></label><label>Mileage<input class="fi mono" type="number" /></label></div>
+        <div class="entry-actions"><button type="button" class="btn btn--small btn--primary" data-mock-action="toast">Save</button></div>
+      </form>
+      <div class="valuation-card" data-valuation-card="ai-1">
+        <h3><span>AI market research</span><span class="src-tag src-tag--ai">AI</span><label class="pick"><input type="radio" name="crvalbasis" data-valuation-basis />Basis</label></h3>
+        <div class="figs"><div>Retail<b>£8,950.00</b></div><div>Trade<b>£7,820.00</b></div></div>
+        <div class="meta">Sep 2026 · 41,900 miles · 12 Sep 2026</div>
+      </div>
+      <div class="valuation-card seam" data-valuation-seam><h3><span>Cazana</span></h3><span class="gated"><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>Cazana is not connected</span></div>
+    </div>
+
+    <div class="calc" data-valuation-calc>
+      <div class="sub-panel">
+        <h3>Calculation <span class="rt" data-valuation-basis-name>from Glass's retail</span></h3>
+        <div class="fg g3">
+          <div class="fc"><label for="f-valuation-ptl">Previous total loss</label><div class="fv">None</div>
+            <select id="f-valuation-ptl" class="fi" data-valuation-input><option value="" selected>None</option><option value="10">−10 %</option><option value="20">−20 %</option></select>
+          </div>
+          <div class="fc"><label for="f-valuation-deduction">Condition deduction</label><div class="fv mono empty">—</div><input id="f-valuation-deduction" class="fi mono" type="number" min="0" step="0.01" placeholder="£" data-valuation-input /></div>
+          <div class="fc"><span class="lbl">Commercial VAT</span><div class="fv">Not applied</div>
+            <label class="fi chk choice" data-valuation-vat-wrap><input type="checkbox" data-valuation-input /><span>Add 20 % VAT</span></label>
+          </div>
+        </div>
+        <h3 class="adds-head" data-valuation-adds-head>Value increases</h3>
+        <div class="adds" data-valuation-adds>
+          <div class="add" data-valuation-add="0"><input type="checkbox" id="f-valuation-add-0" data-preset-toggle data-valuation-input /><label for="f-valuation-add-0">Tow bar</label><input class="amt" type="number" value="180.00" placeholder="£" data-valuation-input /></div>
+          <div class="add add--custom" data-valuation-add="1"><input type="checkbox" id="f-valuation-add-1" data-preset-toggle data-valuation-input /><input type="text" placeholder="Other…" data-valuation-input /><input class="amt" type="number" placeholder="£" data-valuation-input /></div>
+        </div>
+      </div>
+      <div>
+        <div data-valuation-lines-host>
+          <div class="lines" data-valuation-lines>
+            <div class="ln"><span>Guide retail</span><b>£9,200.00</b></div>
+            <div class="ln tot"><span>Proposed Engineer's Value</span><b data-valuation-proposal>£9,200.00</b></div>
+          </div>
+        </div>
+        <div class="cluster mt-2"><button type="button" class="btn btn--primary" data-mock-action="toast" data-valuation-apply><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span>Apply as Engineer's Value</span></button></div>
+        <div class="hist" data-valuation-history>
+          <dl class="definition-list">
+            <div class="definition"><dt>Engineer's Value</dt><dd class="mono">£8,450.00</dd></div>
+            <div class="definition"><dt>Basis</dt><dd>Glass's retail £9,000.00</dd></div>
+            <div class="definition"><dt>Applied by</dt><dd>Priya Anand · 12 Sep 2026, 11:05</dd></div>
+            <div class="definition"><dt>Adjustments</dt><dd>− condition</dd></div>
+          </dl>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Estimate: src/Pegasus.Web/Pages/Cases/Shared/_CaseEstimate.cshtml -->
+<section class="record-section panel" id="section-estimate" data-section="estimate" aria-labelledby="section-estimate-title" data-estimate-section>
+  <div class="panel-head">
+    <h2 id="section-estimate-title">Estimate</h2>
+    <span class="meta" data-estimate-meta>Glass's · 12 Sep 2026, 11:02 · 4 lines</span>
+    <div class="panel-actions">
+      <a class="btn btn--small" href="#" data-dialog-open="import-estimate-dialog" data-estimate-import><svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg><span>Import</span></a>
+      <form data-mock-action="toast" data-mock-show="crglass:none"><button type="submit" class="btn btn--small" target="_blank" data-glass-window data-glass-slot="launch"><svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg><span>Glass's</span></button></form>
+      <form data-mock-action="toast" data-mock-show="crglass:awaiting|active"><button type="submit" class="btn btn--small" target="_blank" data-glass-window data-glass-slot="resume"><svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg><span>Resume</span></button></form>
+      <a class="btn btn--small btn--primary" href="#" data-dialog-open="send-to-ai-dialog" data-estimate-send-to-ai><svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg><span>Send to AI</span></a>
+      <details class="menu" data-menu data-estimate-more>
+        <summary class="btn btn--small"><span>More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+        <div class="menu-body">
+          <a class="btn" href="#" data-mock-action="toast" data-estimate-new><svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>New estimate</span></a>
+          <a class="btn" href="#" data-dialog-open="compare-estimates-dialog" data-estimate-compare><svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg><span>Compare</span></a>
+        </div>
+      </details>
+      <button type="button" class="btn btn--small btn--icon" data-estimate-expand title="Expand" aria-label="Expand estimate"><svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg></button>
+      <button type="button" class="btn btn--small" data-section-edit="estimate"><svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg><span>Edit</span></button>
+      <span class="gated avail" data-section-availability hidden><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span></span></span>
+      <button type="button" class="icon-button panel-collapse" data-collapse-toggle aria-expanded="true" aria-label="Collapse section" title="Collapse section"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></button>
+    </div>
+  </div>
+  <div class="panel-body stack">
+    <div class="notice notice--success" role="status" data-estimate-notice data-mock-show="crglass:completed">
+      <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg><span>The Glass's estimate was recorded as a draft.</span>
+      <button type="button" class="dismiss" aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+    <div class="notice notice--warning" role="status" data-estimate-notice data-mock-show="crglass:awaiting">
+      <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg><span>The Glass's estimate is held. Not yet recorded.</span>
+      <button type="button" class="dismiss" aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+
+    <div class="estimate-tabs" role="tablist" aria-label="Estimates" data-estimate-tabs>
+      <a class="estimate-tab" role="tab" href="#" aria-selected="true" data-estimate-tab="e1"><span>Estimate 1</span><span class="src-tag">Glass's</span><span class="status status--plain status--green">Current</span></a>
+      <a class="estimate-tab" role="tab" href="#" aria-selected="false" data-estimate-tab="e2"><span>Estimate 2 (draft)</span><span class="src-tag">Manual</span><span class="status status--plain status--amber">Draft</span></a>
+    </div>
+
+    <div class="glass-session" data-glass-session="active" data-mock-show="crglass:active|awaiting|failed">
+      <span class="status status--blue" data-mock-show="crglass:active">Glass's session · Open</span>
+      <span class="status status--amber" data-mock-show="crglass:awaiting">Glass's session · Waiting</span>
+      <span class="status status--red" data-mock-show="crglass:failed">Glass's session · Failed</span>
+      <span class="muted grow">started 09:58</span>
+      <span class="glass-fail" data-glass-failure data-mock-show="crglass:failed">provider_timeout</span>
+      <form data-mock-show="crglass:awaiting" data-mock-action="toast"><button type="submit" class="btn btn--small btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span>Complete import</span></button></form>
+      <details class="glass-close" data-glass-close data-mock-show="crglass:active"><summary><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>Close session</summary>
+        <form class="glass-close-form" data-mock-action="toast">
+          <div class="fc"><label for="glass-close-reason">Reason</label><input id="glass-close-reason" class="fi" required /></div>
+          <label class="choice" for="glass-external-closed"><input id="glass-external-closed" type="checkbox" required /><span>Glass's is closed and no estimate remains open</span></label>
+          <p class="consequence">Closing this record releases the Glass's account for another estimate.</p>
+          <button type="submit" class="btn btn--danger">Close session</button>
+        </form>
+      </details>
+    </div>
+    <div class="glass-session" data-glass-session="elsewhere" data-mock-show="crglass:elsewhere">
+      <span class="status status--blue">Glass's session · Open</span>
+      <span class="muted grow">Your account is held from another Case</span>
+      <a class="btn btn--small" href="#" data-mock-action="toast"><span>Open on a.QDOS26150</span><svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg></a>
+    </div>
+
+    <div class="est-actions" data-estimate-actions>
+      <a class="btn btn--small" href="#" data-mock-action="toast"><svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>Estimate PDF</span></a>
+      <form data-mock-action="toast"><button type="submit" class="btn btn--small btn--primary" data-estimate-use><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span>Use estimate</span></button></form>
+      <form data-mock-action="toast"><button type="submit" class="btn btn--small" data-estimate-duplicate><svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg><span>Duplicate</span></button></form>
+      <a class="btn btn--small btn--danger" href="#" data-dialog-open="delete-estimate-dialog" data-estimate-discard><svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg><span>Discard</span></a>
+    </div>
+
+    <form class="stack" id="case-estimate-form" data-estimate-form data-mock-action="toast">
+      <div class="est-head">
+        <div class="fg g4">
+          <div class="fc"><label for="estimate-name">Estimate name</label><input id="estimate-name" class="fi" value="Estimate 1" required /></div>
+          <div class="fc"><label for="estimate-days">Repair days</label><input id="estimate-days" class="fi mono" type="number" value="4" /></div>
+          <div class="fc"><label for="estimate-rate-card">Labour-rate card</label>
+            <select id="estimate-rate-card" class="fi"><option>Keep entered rate</option><option selected>Sheffield standard — £48.00/h</option></select>
+          </div>
+          <div class="fc"><label for="estimate-labour-rate">Labour rate (£/h)</label><input id="estimate-labour-rate" class="fi mono" type="number" value="48.00" /></div>
+          <div class="fc"><label for="estimate-materials">Paint materials (£)</label><input id="estimate-materials" class="fi mono" type="number" value="210.00" /></div>
+          <div class="fc"><label for="estimate-other">Other costs (£)</label><input id="estimate-other" class="fi mono" type="number" value="0.00" /></div>
+          <div class="fc"><label for="estimate-vat">VAT %</label><input id="estimate-vat" class="fi mono" type="number" value="20" /></div>
+          <div class="fc"><label for="estimate-vat-status">Repairer VAT status</label>
+            <select id="estimate-vat-status" class="fi" data-vat-status><option>Unknown</option><option selected>Registered</option><option>Not registered</option></select>
+          </div>
+        </div>
+      </div>
+      <div class="grid" data-estimate-grid>
+        <table>
+          <thead><tr><th class="col-type">Type</th><th>Description</th><th class="col-part">Part no.</th><th class="num col-qty">Qty</th><th class="num col-money">Unit £</th><th class="num col-hours">Hours</th><th class="num col-hours">Paint h</th><th class="col-source">Source</th><th class="col-del"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody data-estimate-grid-body>
+            <tr data-estimate-line><td><select><option selected>Replace</option><option>Repair</option><option>R&amp;I</option><option>Paint</option><option>Blend</option><option>Specialist</option><option>Other</option></select></td><td><input value="Rear bumper cover" /></td><td><input class="mono" value="FL3Z-17K835-A" /></td><td><input class="num" type="number" value="1" /></td><td><input class="num" type="number" value="210.40" /></td><td><input class="num" type="number" value="0" /></td><td><input class="num" type="number" value="2.5" /></td><td><span class="src-tag">imported</span></td><td><button type="button" class="del" aria-label="Remove line 1">×</button></td></tr>
+            <tr data-estimate-line><td><select><option>Replace</option><option selected>Repair</option><option>R&amp;I</option><option>Paint</option><option>Blend</option><option>Specialist</option><option>Other</option></select></td><td><input value="Nearside rear door — repair &amp; refinish" /></td><td><input class="mono" /></td><td><input class="num" type="number" value="1" /></td><td><input class="num" type="number" value="0" /></td><td><input class="num" type="number" value="3.2" /></td><td><input class="num" type="number" value="3.0" /></td><td><span class="src-tag">imported</span></td><td><button type="button" class="del" aria-label="Remove line 2">×</button></td></tr>
+            <tr data-estimate-line><td><select><option>Replace</option><option>Repair</option><option>R&amp;I</option><option selected>Paint</option><option>Blend</option><option>Specialist</option><option>Other</option></select></td><td><input value="Blend nearside quarter panel" /></td><td><input class="mono" /></td><td><input class="num" type="number" value="1" /></td><td><input class="num" type="number" value="0" /></td><td><input class="num" type="number" value="0" /></td><td><input class="num" type="number" value="1.4" /></td><td><span class="src-tag src-tag--ai">amended</span></td><td><button type="button" class="del" aria-label="Remove line 3">×</button></td></tr>
+            <tr class="phantom" data-estimate-phantom><td><select><option selected>Replace</option><option>Repair</option><option>R&amp;I</option><option>Paint</option><option>Blend</option><option>Specialist</option><option>Other</option></select></td><td><input placeholder="Add a line" /></td><td><input class="mono" /></td><td><input class="num" type="number" /></td><td><input class="num" type="number" /></td><td><input class="num" type="number" /></td><td><input class="num" type="number" /></td><td><span class="src-tag">manual</span></td><td><button type="button" class="del" aria-label="Remove this line">×</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="cluster est-add-line"><button type="button" class="btn btn--small" data-mock-action="toast" data-estimate-add-line><svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>Add line</span></button></div>
+      <div class="bar" data-estimate-discounts>
+        <span class="bl">Discounts %</span>
+        <span class="dsc"><label for="estimate-discount-parts">Parts</label><input id="estimate-discount-parts" type="number" value="10" /></span>
+        <span class="dsc"><label for="estimate-discount-materials">Materials</label><input id="estimate-discount-materials" type="number" value="0" /></span>
+        <span class="dsc"><label for="estimate-discount-specialist">Specialist</label><input id="estimate-discount-specialist" type="number" value="0" /></span>
+        <span class="dsc"><label for="estimate-discount-overall">Overall</label><input id="estimate-discount-overall" type="number" value="0" /></span>
+      </div>
+      <div class="bar" data-estimate-vat>
+        <span class="bl">VAT charged on</span>
+        <label class="choice"><input type="checkbox" checked data-vat-category="Labour" /><span>Labour</span></label>
+        <label class="choice"><input type="checkbox" checked data-vat-category="Parts" /><span>Parts</span></label>
+        <label class="choice"><input type="checkbox" checked data-vat-category="Materials" /><span>Materials</span></label>
+        <label class="choice"><input type="checkbox" data-vat-category="Specialist" /><span>Specialist</span></label>
+        <span class="status status--amber status--plain" data-vat-overridden>Overridden</span>
+        <button type="button" class="btn btn--small vat-reset" data-vat-reset>Reset to repairer status</button>
+      </div>
+      <div class="fc"><label for="estimate-notes">Estimate notes</label><textarea id="estimate-notes" class="fi" rows="3">Rear-end shunt repair; door mechanism to be checked on strip.</textarea></div>
+
+      <div class="est-bottom">
+        <div class="wl" data-estimate-worklists>
+          <div class="wcol"><div class="wt">Main new parts required</div><ul><li>Rear bumper cover</li></ul></div>
+          <div class="wcol"><div class="wt">Repairs required</div><ul><li>Nearside rear door — repair &amp; refinish</li></ul></div>
+          <div class="wcol"><div class="wt">Additional operations</div><ul><li>Blend nearside quarter panel</li></ul></div>
+        </div>
+        <dl class="rollup" data-estimate-rollup>
+          <div class="rr"><dt>Parts</dt><dd>£189.36</dd></div>
+          <div class="rr"><dt>Panel labour</dt><dd>£259.20</dd></div>
+          <div class="rr"><dt>Paint labour</dt><dd>£331.20</dd></div>
+          <div class="rr"><dt>Materials</dt><dd>£210.00</dd></div>
+          <div class="rr"><dt>Specialist</dt><dd>£0.00</dd></div>
+          <div class="rr"><dt>Parts discount</dt><dd>−10%</dd></div>
+          <div class="rr"><dt>Net</dt><dd>£989.76</dd></div>
+          <div class="rr"><dt>VAT 20 % on labour, parts, materials</dt><dd>£197.95</dd></div>
+          <div class="rr tot"><dt>Repair cost inc VAT</dt><dd data-estimate-gross>£1,187.71</dd></div>
+        </dl>
+      </div>
+      <div class="button-row"><button type="submit" class="btn btn--primary" data-estimate-save><svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg><span>Save estimate</span></button></div>
+    </form>
+  </div>
+</section>
+
+<div id="import-estimate-dialog" class="dialog-backdrop" data-dialog="import-estimate-dialog" hidden>
+  <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="import-estimate-dialog-title">
+    <div class="dialog-head"><h2 id="import-estimate-dialog-title" tabindex="-1">Import estimate</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast">
+      <div class="dialog-body stack"><div class="field"><label class="req" for="estimate-file">Estimate file</label><input type="file" id="estimate-file" required data-dialog-initial-focus /></div></div>
+      <div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg><span>Import estimate</span></button></div>
+    </form>
+  </section>
+</div>
+
+<div id="compare-estimates-dialog" class="dialog-backdrop" data-dialog="compare-estimates-dialog" hidden>
+  <section class="dialog dialog--wide" role="dialog" aria-modal="true" aria-labelledby="compare-estimates-dialog-title">
+    <div class="dialog-head"><h2 id="compare-estimates-dialog-title" tabindex="-1">Compare estimates</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <div class="dialog-body"><div class="table-wrap"><table class="table table--compact cmp-table" data-estimate-compare-table>
+      <thead><tr><th>Estimate</th><th>State</th><th class="num">Net</th><th class="num">VAT</th><th class="num">Gross</th></tr></thead>
+      <tbody>
+        <tr><td>Estimate 1<br /><small class="muted">Glass's · 12 Sep 2026, 11:02</small></td><td><span class="status status--plain status--green">Current</span></td><td class="num mono">£989.76</td><td class="num mono">£197.95</td><td class="num mono">£1,187.71</td></tr>
+        <tr><td>Estimate 2 (draft)<br /><small class="muted">Manual · 15 Sep 2026, 09:40</small></td><td><span class="status status--plain status--amber">Draft</span></td><td class="num mono">£860.00</td><td class="num mono">£172.00</td><td class="num mono">£1,032.00</td></tr>
+      </tbody>
+    </table></div></div>
+    <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Close dialog</button></div>
+  </section>
+</div>
+
+<div id="delete-estimate-dialog" class="dialog-backdrop" data-dialog="delete-estimate-dialog" hidden>
+  <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="delete-estimate-dialog-title">
+    <div class="dialog-head"><h2 id="delete-estimate-dialog-title" tabindex="-1">Discard estimate</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast">
+      <div class="dialog-body stack"><p class="consequence">Discard Estimate 2 (draft) and its lines from this case?</p><div class="field"><label class="req" for="delete-reason">Reason</label><input id="delete-reason" required data-dialog-initial-focus /></div></div>
+      <div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--danger">Discard</button></div>
+    </form>
+  </section>
+</div>
+
+<div id="send-to-ai-dialog" class="dialog-backdrop" data-dialog="send-to-ai-dialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="send-to-ai-dialog-title">
+    <div class="dialog-head"><h2 id="send-to-ai-dialog-title" tabindex="-1">Send to AI</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast">
+      <div class="dialog-body stack">
+        <div class="field"><label for="ai-direction">Direction</label><textarea id="ai-direction" rows="4" data-dialog-initial-focus></textarea></div>
+        <div class="field"><label for="ai-target">Target Estimate <output id="ai-target-value" for="ai-target">75%</output></label><input type="range" id="ai-target" min="1" max="100" value="75" data-estimate-range /></div>
+        <dl class="audit-facts"><dt>Case Valuation</dt><dd class="mono">£8,450.00</dd><dt>Target amount</dt><dd class="mono" id="ai-target-amount">£6,338.00</dd></dl>
+      </div>
+      <div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg><span>Send to AI</span></button></div>
+    </form>
+  </section>
+</div>
+
+<!-- Settlement: src/Pegasus.Web/Pages/Cases/Shared/_CaseSettlement.cshtml -->
+<section class="record-section panel" id="section-settlement" data-section="settlement" aria-labelledby="section-settlement-title" data-settlement>
+  <div class="panel-head">
+    <h2 id="section-settlement-title">Settlement</h2>
+    <div class="panel-actions">
+      <button type="button" class="btn btn--small" data-section-edit="settlement"><svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg><span>Edit</span></button>
+      <span class="gated avail" data-section-availability hidden><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span></span></span>
+      <button type="button" class="icon-button panel-collapse" data-collapse-toggle aria-expanded="true" aria-label="Collapse section" title="Collapse section"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></button>
+    </div>
+  </div>
+  <div class="panel-body stack">
+    <div class="metric-strip" data-settlement-figures>
+      <div class="metric"><span class="metric-label">Engineer's Value</span><span class="metric-value">£8,450.00</span></div>
+      <div class="metric"><span class="metric-label">Labour hours</span><span class="metric-value">5.70</span></div>
+      <div class="metric"><span class="metric-label">Repair cost inc VAT</span><span class="metric-value red">£1,187.71</span><span class="metric-meta">From current estimate</span></div>
+      <div class="metric"><span class="metric-label">Repair cost of value</span><span class="metric-value">14%</span></div>
+    </div>
+
+    <div class="decisions has-proposal" data-decisions data-mock-show="crproposal:on">
+      <div class="dec-head"><h3>Decisions</h3><span class="muted" data-decisions-meta>2 awaiting review · AI proposal</span>
+        <button type="button" class="btn btn--small" data-mock-action="toast" data-accept-all-proposals><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span>Accept all</span></button>
+      </div>
+      <div class="dec" data-decision="assessment.outcome">
+        <span class="dl">Outcome</span>
+        <div class="prop" data-proposal="assessment.outcome"><span>Repairable</span><span class="src-tag src-tag--ai">AI</span><span class="status status--amber">Awaiting</span><button type="button" class="btn btn--small" data-mock-action="toast" data-accept-proposal><span>Accept</span></button></div>
+        <div class="fc"><label for="f-outcome">Outcome</label><div class="fv">Repairable</div><select id="f-outcome" class="fi"><option>Repairable</option><option>Total loss</option><option>Cash in lieu</option></select></div>
+      </div>
+      <div class="dec" data-decision="assessment.valueEngineer">
+        <span class="dl">Engineer's Value</span>
+        <div class="prop" data-proposal="assessment.valueEngineer"><span>£8,450.00</span><span class="src-tag src-tag--ai">AI</span><span class="status status--green">Accepted</span></div>
+        <div class="fc ro"><span class="lbl">Engineer's Value</span><div class="fv mono">£8,450.00<a class="src-tag" href="#section-valuation" data-section-jump="valuation">Valuation</a></div></div>
+      </div>
+      <div class="dec" data-decision="assessment.salvageCategory" hidden>
+        <span class="dl">Salvage category</span>
+        <div class="prop" data-proposal="assessment.salvageCategory"></div>
+        <div class="fc"><label for="f-salvage-category">Salvage category</label><div class="fv empty">Not recorded</div><select id="f-salvage-category" class="fi"><option value=""></option><option>Cat A</option><option>Cat B</option><option>Cat N</option><option>Cat S</option></select></div>
+      </div>
+      <div class="dec" data-decision="assessment.salvageValue" hidden>
+        <span class="dl">Salvage value</span>
+        <div class="prop" data-proposal="assessment.salvageValue"></div>
+        <div class="fc"><label for="f-salvage-value">Salvage value</label><div class="fv mono empty">—</div><input id="f-salvage-value" class="fi mono" type="number" /></div>
+      </div>
+      <div class="dec" data-decision="assessment.legalStatus">
+        <span class="dl">Roadworthiness</span>
+        <div class="prop" data-proposal="assessment.legalStatus"><span>Roadworthy</span><span class="src-tag src-tag--ai">AI</span><span class="status status--green">Accepted</span></div>
+        <div class="fc"><label for="f-legal-status">Roadworthiness</label><div class="fv">Roadworthy</div><select id="f-legal-status" class="fi"><option selected>Roadworthy</option><option>Unroadworthy</option></select></div>
+      </div>
+      <div class="dec wide" data-decision="assessment.unroadworthyReason" hidden>
+        <span class="dl">Unroadworthy reason</span>
+        <div class="prop" data-proposal="assessment.unroadworthyReason"></div>
+        <div class="fc"><label for="f-unroadworthy-reason">Unroadworthy reason</label><div class="fv multi empty">Not recorded</div><textarea id="f-unroadworthy-reason" class="fi"></textarea></div>
+      </div>
+    </div>
+    <div class="decisions" data-decisions data-mock-show="crproposal:off">
+      <div class="dec-head"><h3>Decisions</h3></div>
+      <div class="dec" data-decision="assessment.outcome"><span class="dl">Outcome</span><div class="fc"><label for="f-outcome-b">Outcome</label><div class="fv">Repairable</div><select id="f-outcome-b" class="fi"><option selected>Repairable</option><option>Total loss</option><option>Cash in lieu</option></select></div></div>
+      <div class="dec" data-decision="assessment.valueEngineer"><span class="dl">Engineer's Value</span><div class="fc ro"><span class="lbl">Engineer's Value</span><div class="fv mono">£8,450.00<a class="src-tag" href="#section-valuation" data-section-jump="valuation">Valuation</a></div></div></div>
+      <div class="dec" data-decision="assessment.legalStatus"><span class="dl">Roadworthiness</span><div class="fc"><label for="f-legal-status-b">Roadworthiness</label><div class="fv">Roadworthy</div><select id="f-legal-status-b" class="fi"><option selected>Roadworthy</option><option>Unroadworthy</option></select></div></div>
+    </div>
+
+    <div class="fg g4">
+      <div class="fc"><label for="f-excess">Excess</label><div class="fv mono">£250.00</div><input id="f-excess" class="fi mono" type="number" value="250.00" /></div>
+      <div class="fc"><label for="f-betterment">Betterment</label><div class="fv mono empty">—</div><input id="f-betterment" class="fi mono" type="number" /></div>
+    </div>
+
+    <div class="sub-panel"><h3>Costs, hire &amp; delays</h3>
+      <div class="fg g4">
+        <div class="fc"><label for="f-reserve">Reserve</label><div class="fv mono empty">—</div><input id="f-reserve" class="fi mono" type="number" /></div>
+        <div class="fc"><label for="f-diminution">Diminution</label><div class="fv mono empty">—</div><input id="f-diminution" class="fi mono" type="number" /></div>
+        <div class="fc"><label for="f-hire-start">Hire start</label><div class="fv empty">Not recorded</div><input id="f-hire-start" class="fi" type="date" /></div>
+        <div class="fc"><label for="f-hire-daily">Hire daily cost</label><div class="fv mono empty">—</div><input id="f-hire-daily" class="fi mono" type="number" /></div>
+        <div class="fc"><label for="f-repair-delays">Repair delays</label><div class="fv multi empty">Not recorded</div><textarea id="f-repair-delays" class="fi"></textarea></div>
+        <div class="fc"><label for="f-report-delay">Report delay</label><div class="fv multi empty">Not recorded</div><textarea id="f-report-delay" class="fi"></textarea></div>
+        <div class="fc"><label for="f-claimant-vat">Claimant VAT registered</label><div class="fv">No</div><select id="f-claimant-vat" class="fi"><option value="">— </option><option>Yes</option><option selected>No</option></select></div>
+        <div class="fc ro"><span class="lbl">Storage charge</span><div class="fv mono derived empty">—</div></div>
+        <div class="fc ro"><span class="lbl">Repair days</span><div class="fv derived">4<span class="src-tag">current estimate</span></div></div>
+      </div>
+    </div>
+
+    <div class="sub-panel" data-shown-when="total-loss" hidden><h3>Salvage</h3>
+      <div class="fg g4">
+        <div class="fc"><label for="f-salvage-at">Salvage location</label><div class="fv empty">Not recorded</div><input id="f-salvage-at" class="fi" /></div>
+        <div class="fc"><label for="f-salvage-agent">Salvage agent</label><div class="fv empty">Not recorded</div><input id="f-salvage-agent" class="fi" /></div>
+        <div class="fc"><label for="f-salvage-agent-ref">Salvage agent reference</label><div class="fv empty">Not recorded</div><input id="f-salvage-agent-ref" class="fi" /></div>
+        <div class="fc"><label for="f-salvage-moved">Salvage moved</label><div class="fv">No</div><select id="f-salvage-moved" class="fi"><option>Yes</option><option selected>No</option></select></div>
+        <div class="fc"><label for="f-salvage-retains">Owner retains salvage</label><div class="fv">No</div><select id="f-salvage-retains" class="fi"><option>Yes</option><option selected>No</option></select></div>
+        <div class="fc"><label for="f-salvage-agreed">Salvage value agreed</label><div class="fv">No</div><select id="f-salvage-agreed" class="fi"><option>Yes</option><option selected>No</option></select></div>
+        <div class="fc"><label for="f-salvage-settled">Salvage settled</label><div class="fv">No</div><select id="f-salvage-settled" class="fi"><option>Yes</option><option selected>No</option></select></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Report: src/Pegasus.Web/Pages/Cases/Shared/_CaseReport.cshtml + _CaseReportImagePreparation.cshtml -->
+<section class="record-section panel" id="section-report" data-section="report" aria-labelledby="section-report-title" data-report>
+  <div class="panel-head">
+    <h2 id="section-report-title">Report</h2>
+    <div class="panel-actions">
+      <form data-mock-show="crreport:none|stale" data-mock-action="toast" id="case-generate-report-form">
+        <button type="submit" class="btn btn--small btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Generate report</span></button>
+      </form>
+      <details class="menu" data-menu data-report-menu>
+        <summary class="btn btn--small"><span>More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+        <div class="menu-body">
+          <a class="btn" href="#" data-mock-action="toast" data-report-preview><svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>Preview draft</span></a>
+          <form data-mock-show="crreport:generated" data-mock-action="toast"><button type="submit" class="btn"><svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg><span>Generate fee note</span></button></form>
+          <label class="choice menu-choice" for="report-include-fee-note"><input type="checkbox" id="report-include-fee-note" form="case-generate-report-form" /><span>Include fee note</span></label>
+        </div>
+      </details>
+      <button type="button" class="btn btn--small" data-section-edit="report"><svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg><span>Edit</span></button>
+      <span class="gated avail" data-section-availability hidden><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span></span></span>
+      <button type="button" class="icon-button panel-collapse" data-collapse-toggle aria-expanded="true" aria-label="Collapse section" title="Collapse section"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></button>
+    </div>
+  </div>
+  <div class="panel-body stack">
+    <div class="notice notice--warning" role="status" data-dismissable data-report-not-ready data-mock-show="crreport:none">
+      <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg><span>Report not ready: Roadworthiness; Engineer's comments.</span>
+      <button type="button" class="dismiss" aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+
+    <div class="pv" data-report-preview-card>
+      <div class="pv-thumb" aria-hidden="true"></div>
+      <div class="pv-meta">
+        <div class="pt" data-report-title>Engineer's Report — QDOS26214</div>
+        <div class="ps" data-report-status>
+          <span data-mock-show="crreport:none">No generation yet.</span>
+          <span data-mock-show="crreport:generated|stale|deliveryprepared|sent">Generated <b>16 September 2026 14:20</b> · State Confirmed</span>
+        </div>
+      </div>
+      <div class="cluster" data-mock-show="crreport:generated|stale|deliveryprepared|sent">
+        <a class="btn btn--small" href="#" data-mock-action="toast" data-report-artifact="AssessmentReport"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Report</span></a>
+      </div>
+    </div>
+
+    <dl class="detail-list" data-report-generation data-mock-show="crreport:generated|stale|deliveryprepared|sent">
+      <div><dt>Generated</dt><dd>16 September 2026 14:20</dd></div>
+      <div><dt>State</dt><dd>Confirmed</dd></div>
+    </dl>
+    <div class="notice notice--warning" role="status" data-dismissable data-report-stale data-mock-show="crreport:stale">
+      <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg><span>A newer fact changed after this generation. Generate again before delivery.</span>
+      <button type="button" class="dismiss" aria-label="Dismiss"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+    <form class="recip-form" data-prepare-delivery data-mock-action="toast" data-mock-show="crreport:generated">
+      <span class="lg">Reviewed recipients</span>
+      <span class="lbl">To</span>
+      <div id="report-recipient-to" class="stack"><input type="email" value="ops@wingrove-insurance.example" aria-label="Report recipient" /></div>
+      <button type="button" class="btn btn--small" data-mock-action="toast" data-add-report-recipient="report-recipient-to">Add To recipient</button>
+      <span class="lbl">Cc</span>
+      <div id="report-recipient-cc" class="stack"><input type="email" value="" aria-label="Report copy recipient" /></div>
+      <button type="button" class="btn btn--small" data-mock-action="toast" data-add-report-recipient="report-recipient-cc">Add Cc recipient</button>
+      <button type="submit" class="btn btn--small btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg><span>Prepare delivery</span></button>
+    </form>
+    <div data-mock-show="crreport:deliveryprepared|sent">
+      <dl class="detail-list" data-report-delivery><div><dt>Delivery prepared</dt><dd>ops@wingrove-insurance.example</dd></div></dl>
+      <form class="button-row" data-send-prepared data-mock-action="toast"><button type="submit" class="btn btn--small btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg><span>Send prepared report</span></button></form>
+    </div>
+
+    <div class="fg g4">
+      <div class="fc"><label for="f-sign-off-engineer">Sign-off Engineer</label><div class="fv">Priya Anand</div>
+        <select id="f-sign-off-engineer" class="fi"><option selected>Priya Anand</option><option>Marcus Webb</option></select>
+      </div>
+      <div class="fc"><label for="f-report-date">Report date</label><div class="fv derived">16 Sep 2026</div><input id="f-report-date" class="fi" type="date" value="2026-09-16" /></div>
+      <div class="fc"><label for="f-agreed-fee">Agreed fee</label><div class="fv mono">£180.00</div><input id="f-agreed-fee" class="fi mono" type="number" value="180.00" /></div>
+      <div class="fc"><label for="f-fee-description">Fee description</label><div class="fv multi">Engineer's report fee</div><textarea id="f-fee-description" class="fi">Engineer's report fee</textarea></div>
+      <div class="fc"><label for="f-report-date-override">Override report date</label><div class="fv empty">Not recorded</div><input id="f-report-date-override" class="fi" type="date" /></div>
+      <div class="fc span3"><label for="f-engineers-comments">Engineer's comments</label><div class="fv multi">Damage consistent with the reported rear-end shunt; no pre-existing damage noted.</div><textarea id="f-engineers-comments" class="fi">Damage consistent with the reported rear-end shunt; no pre-existing damage noted.</textarea></div>
+      <div class="fc span4" data-field="report-content">
+        <span class="lbl">Report content</span>
+        <div class="fv" data-report-content>Discloses guide source · Includes valuation commentary</div>
+        <div class="fi chk switches" data-report-switches>
+          <label class="choice"><input type="checkbox" checked data-report-switch="assessment.reportDiscloseGuideSource" /><span>Disclose guide source</span></label>
+          <label class="choice"><input type="checkbox" checked data-report-switch="assessment.reportValuationCommentary" /><span>Valuation commentary</span></label>
+          <label class="choice"><input type="checkbox" data-report-switch="assessment.reportIncludeUnrelatedDamage" /><span>Unrelated damage</span></label>
+        </div>
+      </div>
+      <div class="fc span4"><label for="f-valuation-commentary-text">Valuation commentary</label><div class="fv multi">Glass's retail guide, September 2026, adjusted for condition.</div><textarea id="f-valuation-commentary-text" class="fi">Glass's retail guide, September 2026, adjusted for condition.</textarea></div>
+      <div class="fc ro span4"><span class="lbl">Statement of truth</span><div class="fv derived multi">I confirm that the contents of this report are true to the best of my knowledge and belief.</div></div>
+    </div>
+
+    <div class="sub-panel" data-report-images>
+      <h3>Images in report <span class="rt" data-report-image-count>2 of 3 in report</span></h3>
+      <div class="thumbs" data-report-images-strip data-evidence-set>
+        <a class="th" href="#" data-evidence-item data-report-image="img1" data-report-image-role="CloseUp"><img alt="" data-gallery-image src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'/%3E" /><span class="inc" aria-hidden="true">✓</span><span class="tag">Close-up</span><span class="th-name">rear_door_damage.jpg</span></a>
+        <a class="th" href="#" data-evidence-item data-report-image="img2" data-report-image-role="Overview"><img alt="" data-gallery-image src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'/%3E" /><span class="inc" aria-hidden="true">✓</span><span class="tag">Overview</span><span class="th-name">registration_overview.jpg</span></a>
+        <a class="th off" href="#" data-evidence-item data-report-image="img3" data-report-image-role="NotUsed"><img alt="" data-gallery-image src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'/%3E" /><span class="inc" aria-hidden="true">–</span><span class="th-name">interior_footwell.jpg</span></a>
+      </div>
+    </div>
+
+    <div class="sub-panel" data-report-preparation>
+      <h3>Report image preparation</h3>
+      <div class="report-images" data-report-images="report">
+        <article class="report-image" data-report-image="img1">
+          <h3>rear_door_damage.jpg</h3>
+          <div class="report-image-preview th th--card" data-preparation-preview-box><img alt="" data-preparation-preview-image src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'/%3E" /></div>
+          <dl class="detail-list"><div><dt>Role</dt><dd data-preparation-role-label>Close-up</dd></div><div><dt>Rotation</dt><dd data-preparation-rotation-label>None</dd></div><div><dt>Crop</dt><dd data-preparation-crop-label>Full frame</dd></div></dl>
+          <div class="form-grid">
+            <div class="field"><label for="report-image-role-1">Role</label><select id="report-image-role-1" data-preparation-role-select><option>Not used</option><option selected>Close-up</option><option>Overview</option><option>Supporting</option></select></div>
+            <div class="field"><label for="report-image-order-1">Order</label><input id="report-image-order-1" type="number" min="1" value="1" data-preparation-order /></div>
+          </div>
+          <div class="button-row">
+            <button type="button" class="btn btn--small btn--primary" data-preparation-crop>Crop</button>
+            <button type="button" class="btn btn--small" data-mock-action="toast" data-preparation-rotate="-90">Rotate left</button>
+            <button type="button" class="btn btn--small" data-mock-action="toast" data-preparation-rotate="90">Rotate right</button>
+            <button type="button" class="btn btn--small" data-mock-action="toast" data-preparation-reset>Reset</button>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Files: src/Pegasus.Web/Pages/Cases/Shared/_CaseFiles.cshtml + _CaseDocuments/_CaseImages/_CaseCorrespondence/_CaseImageTagPicker -->
+<section class="record-section panel is-tabbed" id="section-files" data-section="files" aria-labelledby="section-files-title" data-file-tabs-wrap>
+  <div class="panel-head">
+    <h2 id="section-files-title">Files</h2>
+    <span class="status status--green status--plain" data-custody-chip data-mock-show="crcustody:confirmed">Box · confirmed</span>
+    <span class="status status--amber status--plain" data-custody-chip data-mock-show="crcustody:pending">Pending</span>
+    <span class="status status--red status--plain" data-custody-chip data-mock-show="crcustody:failed">Failed</span>
+    <div class="panel-actions">
+      <a class="btn btn--small btn--primary" href="#" data-mock-action="toast" data-add-evidence><svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg><span>Add evidence</span></a>
+      <details class="menu" data-menu data-files-menu>
+        <summary class="btn btn--small"><span>More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary>
+        <div class="menu-body">
+          <a class="btn" href="#" data-mock-action="toast" data-mock-show="crcustody:confirmed" data-open-in-box><svg class="icon" aria-hidden="true"><use href="#icon-external-link" /></svg><span>Open in Box</span></a>
+          <a class="btn" href="#" data-mock-action="toast"><svg class="icon" aria-hidden="true"><use href="#icon-activity" /></svg><span>Open Operations</span></a>
+        </div>
+      </details>
+      <button type="button" class="btn btn--small" data-section-edit="files" hidden><svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg><span>Edit</span></button>
+      <span class="gated avail" data-section-availability hidden><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span></span></span>
+      <button type="button" class="icon-button panel-collapse" data-collapse-toggle aria-expanded="true" aria-label="Collapse section" title="Collapse section"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></button>
+    </div>
+  </div>
+  <div class="panel-body stack">
+    <div class="tabs" role="tablist" aria-label="Files" data-file-tabs>
+      <button type="button" class="tab" role="tab" aria-selected="true" data-file-tab="documents">Documents · 2</button>
+      <button type="button" class="tab" role="tab" aria-selected="false" data-file-tab="images">Images · 3</button>
+      <button type="button" class="tab" role="tab" aria-selected="false" data-file-tab="correspondence">Correspondence · 2</button>
+    </div>
+
+    <div id="case-files-documents" role="tabpanel" data-file-tab-panel="documents">
+      <h3 class="tab-panel-title">Documents</h3>
+      <div class="doc-list stack" data-evidence-set data-document-list>
+        <div class="doc-row" data-document-row="doc1">
+          <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+          <div class="doc-row-name"><b>Instruction letter.pdf</b><small>E-mail · 3 Sep 2026, 09:14 · 0.4 MB</small></div>
+          <span class="doc-row-tags"><span class="src-tag">Instruction</span></span>
+          <span class="doc-row-actions">
+            <a class="btn btn--small" href="#" data-evidence-item><svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>View</span></a>
+            <a class="btn btn--small btn--icon" href="#" download title="Save as" aria-label="Save as Instruction letter.pdf"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg></a>
+            <button type="button" class="btn btn--small btn--icon btn--danger" data-dialog-open="remove-doc-1" title="Remove" aria-label="Remove Instruction letter.pdf"><svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg></button>
+          </span>
+        </div>
+        <div class="doc-row" data-document-row="doc2">
+          <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+          <div class="doc-row-name"><b>Estimate source — Glasses.pdf</b><small>Glass's · 12 Sep 2026, 11:02 · 0.2 MB</small></div>
+          <span class="doc-row-tags"><span class="src-tag">Estimate source</span></span>
+          <span class="doc-row-actions">
+            <a class="btn btn--small" href="#" data-evidence-item><svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>View</span></a>
+            <a class="btn btn--small btn--icon" href="#" download title="Save as" aria-label="Save as Estimate source — Glasses.pdf"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg></a>
+            <button type="button" class="btn btn--small btn--icon btn--danger" data-dialog-open="remove-doc-2" title="Remove" aria-label="Remove Estimate source — Glasses.pdf"><svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg></button>
+          </span>
+        </div>
+      </div>
+      <div id="remove-doc-1" class="dialog-backdrop" data-dialog="remove-doc-1" hidden><section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="remove-doc-1-title"><div class="dialog-head"><h2 id="remove-doc-1-title" tabindex="-1">Remove file</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div><form data-mock-action="toast"><div class="dialog-body stack"><div class="field"><label class="req" for="remove-doc-1-reason">Reason for action</label><textarea id="remove-doc-1-reason" required data-dialog-initial-focus></textarea></div></div><div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--danger">Remove file</button></div></form></section></div>
+      <div id="remove-doc-2" class="dialog-backdrop" data-dialog="remove-doc-2" hidden><section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="remove-doc-2-title"><div class="dialog-head"><h2 id="remove-doc-2-title" tabindex="-1">Remove file</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div><form data-mock-action="toast"><div class="dialog-body stack"><div class="field"><label class="req" for="remove-doc-2-reason">Reason for action</label><textarea id="remove-doc-2-reason" required data-dialog-initial-focus></textarea></div></div><div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--danger">Remove file</button></div></form></section></div>
+    </div>
+
+    <div id="case-files-images" role="tabpanel" data-file-tab-panel="images" hidden>
+      <h3 class="tab-panel-title">Images</h3>
+      <ul class="thumbs image-grid" data-evidence-set data-image-grid>
+        <li class="image-tile" data-image-tile="img1">
+          <a href="#" class="th" data-evidence-item data-thumb="#"><img alt="rear_door_damage.jpg" loading="lazy" data-gallery-image data-tile-image src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'/%3E" /><span class="tag">Damage close-up</span><span class="rot" data-tile-rotation hidden></span><span class="th-name">rear_door_damage.jpg</span></a>
+          <span class="tag-chips"><span class="tag-chip tag-chip--red">Damage close-up</span></span>
+          <div class="image-tile-actions">
+            <details class="tag-picker" data-tag-picker data-menu><summary class="btn btn--small">Tag</summary>
+              <div class="tag-picker-body">
+                <form data-mock-action="toast"><button type="submit" class="tag-option" aria-pressed="true"><span class="tag-swatch tag-swatch--red" aria-hidden="true"></span><span>Damage close-up</span><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg></button></form>
+                <form data-mock-action="toast"><button type="submit" class="tag-option" aria-pressed="false"><span class="tag-swatch tag-swatch--blue" aria-hidden="true"></span><span>Registration overview</span></button></form>
+                <form class="tag-picker-new" data-mock-action="toast"><label class="sr-only" for="tag-name-img1">Name</label><input id="tag-name-img1" placeholder="New tag" /><label class="sr-only" for="tag-colour-img1">Colour</label><select id="tag-colour-img1"><option>Blue</option><option>Green</option><option>Amber</option><option>Navy</option><option>Red</option><option>Grey</option></select><button type="submit" class="btn btn--small">Create</button></form>
+              </div>
+            </details>
+            <button type="button" class="btn btn--small" data-preparation-crop>Crop</button>
+          </div>
+        </li>
+        <li class="image-tile" data-image-tile="img2">
+          <a href="#" class="th" data-evidence-item data-thumb="#"><img alt="registration_overview.jpg" loading="lazy" data-gallery-image data-tile-image src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'/%3E" /><span class="tag">Registration overview</span><span class="th-name">registration_overview.jpg</span></a>
+          <span class="tag-chips"><span class="tag-chip tag-chip--blue">Registration overview</span></span>
+          <div class="image-tile-actions"><details class="tag-picker" data-tag-picker data-menu><summary class="btn btn--small">Tag</summary><div class="tag-picker-body"></div></details><button type="button" class="btn btn--small" data-preparation-crop>Crop</button></div>
+        </li>
+        <li class="image-tile" data-image-tile="img3">
+          <a href="#" class="th" data-evidence-item data-thumb="#"><img alt="interior_footwell.jpg" loading="lazy" data-gallery-image data-tile-image src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'/%3E" /><span class="th-name">interior_footwell.jpg</span></a>
+          <div class="image-tile-actions"><details class="tag-picker" data-tag-picker data-menu><summary class="btn btn--small">Tag</summary><div class="tag-picker-body"></div></details><button type="button" class="btn btn--small" data-preparation-crop>Crop</button></div>
+        </li>
+      </ul>
+      <div class="sub-panel intake-group" data-intake-group="ii1">
+        <h3><a href="#" data-mock-action="toast">Vehicle images MA59BDY-01</a><span class="rt">4 photographs</span></h3>
+        <ul class="thumbs" data-evidence-set>
+          <li class="image-tile"><a href="#" class="th" data-evidence-item><img alt="approach_1.jpg" loading="lazy" data-gallery-image data-tile-image src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'/%3E" /><span class="th-name">approach_1.jpg</span></a><div class="image-tile-source"><a href="#" data-mock-action="toast">MA59BDY-01</a></div></li>
+        </ul>
+      </div>
+    </div>
+
+    <div id="case-files-correspondence" role="tabpanel" data-file-tab-panel="correspondence" hidden>
+      <h3 class="tab-panel-title">Correspondence</h3>
+      <div class="correspondence" data-correspondence>
+        <div class="button-row"><a class="btn btn--small" href="#" data-mock-action="toast" data-compose><svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg><span>Compose</span></a></div>
+        <div class="table-wrap"><table class="table table--compact">
+          <thead><tr><th>Received</th><th>Sender</th><th>Subject</th><th>Classification</th><th><span class="sr-only">Action</span></th></tr></thead>
+          <tbody>
+            <tr data-correspondence-row="msg1"><td><time>3 Sep 2026, 09:14</time></td><td>claims@wingrove-insurance.example</td><td>New instruction — WNG-88213-24</td><td>Instruction</td><td class="row-actions"><a class="btn btn--small" href="#" data-mock-action="toast">Open message</a></td></tr>
+            <tr data-correspondence-row="msg2"><td><time>12 Sep 2026, 11:03</time></td><td>Priya Anand</td><td>Estimate imported from Glass's</td><td>Case update</td><td class="row-actions"><a class="btn btn--small" href="#" data-mock-action="toast">Open message</a></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Notes: src/Pegasus.Web/Pages/Cases/Shared/_CaseHistory.cshtml -->
+<section class="record-section panel" id="section-notes" data-section="notes" aria-labelledby="section-notes-title">
+  <div class="panel-head">
+    <h2 id="section-notes-title">Notes</h2>
+    <div class="panel-actions">
+      <button type="button" class="btn btn--small" data-section-edit="notes" hidden><svg class="icon" aria-hidden="true"><use href="#icon-pencil" /></svg><span>Edit</span></button>
+      <span class="gated avail" data-section-availability hidden><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg><span></span></span>
+      <button type="button" class="icon-button panel-collapse" data-collapse-toggle aria-expanded="true" aria-label="Collapse section" title="Collapse section"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></button>
+    </div>
+  </div>
+  <div class="panel-body stack">
+    <form class="note-form" data-case-note-form data-mock-action="toast" data-mock-show="crstate:notready|held|review|engineerprep|engineerpost|closedcancelled|closedrejected|closederror|closedunlinked">
+      <label class="lbl" for="case-note">Case note</label>
+      <textarea id="case-note" rows="2" required></textarea>
+      <div class="button-row">
+        <button type="submit" class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>Add Case note</span></button>
+        <button type="button" class="btn" data-dialog-open="case-chase-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-clock" /></svg><span>Record chase</span></button>
+      </div>
+    </form>
+
+    <div class="notes-timeline" data-case-history>
+      <div class="note" data-history-event="operator_note"><div class="nw"><span>16 Sep 2026</span> <span>14:32</span></div><div class="nb"><b>Priya Anand</b> — Report generated and sent for delivery review.</div></div>
+      <div class="note sys" data-history-event="engineer_assigned"><div class="nw"><span>12 Sep 2026</span> <span>09:50</span></div><div class="nb"><b>Sam Whitlock</b> — Hand to Engineer — assigned to Priya Anand</div></div>
+      <div class="note sys" data-history-event="estimate_imported"><div class="nw"><span>12 Sep 2026</span> <span>11:02</span></div><div class="nb"><b>Priya Anand</b> — Estimate recorded from Glass's</div></div>
+      <div class="note" data-history-event="operator_note"><div class="nw"><span>3 Sep 2026</span> <span>09:20</span></div><div class="nb"><b>Sam Whitlock</b> — Confirmed instruction details against Wingrove's covering letter.</div></div>
+    </div>
+  </div>
+</section>
+
+<div id="case-chase-dialog" class="dialog-backdrop" data-dialog="case-chase-dialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-chase-dialog-title">
+    <div class="dialog-head"><h2 id="case-chase-dialog-title" tabindex="-1">Record chase</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast">
+      <div class="dialog-body stack">
+        <div class="form-grid form-grid--2">
+          <div class="field"><label class="req" for="chase-recipient">Recipient</label><input id="chase-recipient" required data-dialog-initial-focus /></div>
+          <div class="field"><label class="req" for="chase-channel">Channel</label><input id="chase-channel" required /></div>
+          <div class="field"><label for="chase-content">Content</label><input id="chase-content" /></div>
+          <div class="field"><label class="req" for="chase-outcome">Outcome</label><input id="chase-outcome" required /></div>
+        </div>
+      </div>
+      <div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg><span>Record chase</span></button></div>
+    </form>
+  </section>
+</div>
+
+    </div>
+    <aside class="workspace-aside" aria-label="Case context" data-case-aside>
+<section class="panel context-card" data-figures>
+        <div class="panel-head"><h2>Figures</h2></div>
+        <div class="panel-body">
+          <div class="fig-chips">
+            <span class="status status--blue" data-outcome-chip>Repairable</span>
+            <span class="status status--neutral" data-legal-chip>Roadworthy</span>
+          </div>
+          <dl class="figures">
+            <div class="figure figure--big"><dt>Repair cost inc VAT</dt><dd class="mono">£1,187.71</dd></div>
+            <div class="figure"><dt>Engineer's Value</dt><dd class="mono">£8,450.00</dd></div>
+            <div class="figure"><dt>Repair cost of value</dt><dd class="mono">14%</dd></div>
+          </dl>
+        </div>
+      </section>
+      <section class="panel context-card" data-next-action>
+        <div class="panel-head"><h2>Next action</h2></div>
+        <div class="panel-body">
+          <div class="next-row ai-next" data-ai-draft="job1" data-mock-show="crproposal:on">
+            <span><span class="src-tag src-tag--ai">AI</span> Estimate draft ready</span>
+            <a class="btn btn--small btn--primary" href="#section-settlement">Review estimate</a>
+          </div>
+          <div class="next-row">
+            <span data-next-label data-cr-next-label>Hand to Engineer</span>
+            <a class="btn btn--small" href="#section-overview" data-section-jump="overview" data-cr-next-link>Overview</a>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</article>
+</div>
+
+<div data-cr-view="eva-send" data-mock-show="crview:evasend" hidden>
+<!-- EVA handoff: src/Pegasus.Web/Pages/Cases/Eva/Send.cshtml + Shared/_EvaHandoff.cshtml.
+     Real routed page at /Cases/{id}/Eva/Send: the Actions menu's Send to EVA link points here
+     (asp-page="/Cases/Eva/Send") and is enhanced into the eva-handoff-dialog by data-dialog-open;
+     this cr-view models the page as its own no-script destination. -->
+<header class="page-header">
+  <div class="page-title">
+    <p class="eyebrow">Case workspace · QDOS26214</p>
+    <h1>EVA handoff</h1>
+  </div>
+  <div class="page-actions">
+    <a class="btn" href="#" data-cr-back-to-record>
+      <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+      <span>Back to QDOS26214</span>
+    </a>
+  </div>
+</header>
+<section class="panel" aria-labelledby="eva-handoff-title">
+  <div class="panel-head"><h2 id="eva-handoff-title">QDOS26214</h2></div>
+  <div class="panel-body stack">
+    <div class="definition-list">
+      <dl class="definition"><dt>Sent to EVA</dt><dd>16 Sep 2026, 08:55</dd></dl>
+      <dl class="definition"><dt>File reference</dt><dd>EVA-4471226</dd></dl>
+    </div>
+    <dl class="definition"><dt>Engineer</dt><dd>Priya Anand</dd></dl>
+    <form class="stack" data-mock-action="toast">
+      <div class="field"><label class="req" for="eva-sign-off-engineer">Sign-off Engineer</label>
+        <select id="eva-sign-off-engineer" required><option value="pa" selected>Priya Anand</option><option value="mw">Marcus Webb</option></select>
+      </div>
+      <div class="field"><label class="req" for="eva-sign-off-reason">Reason for action</label><input id="eva-sign-off-reason" required /></div>
+      <div class="button-row"><button type="submit" class="btn btn--dark">Set Sign-off Engineer</button></div>
+    </form>
+    <div class="cluster">
+      <form data-mock-action="toast"><button type="submit" class="btn"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Export EVA ZIP</span></button></form>
+      <form data-mock-action="toast"><button type="submit" class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg><span>Send via API</span></button></form>
+    </div>
+  </div>
+</section>
+</div>
+
+<!-- Full-screen viewer: src/Pegasus.Web/Pages/Cases/Shared/_CaseViewer.cshtml -->
+<div class="case-viewer" data-case-viewer hidden role="dialog" aria-modal="true" aria-label="Image viewer" tabindex="-1">
+  <div class="case-viewer-top">
+    <div class="case-viewer-title">
+      <b data-viewer-name>rear_door_damage.jpg</b>
+      <span class="tag" data-viewer-tag>Damage close-up</span>
+      <span class="case-viewer-n" data-viewer-position>1 of 3</span>
+    </div>
+    <div class="case-viewer-tools" data-viewer-tools>
+      <span class="case-viewer-set" data-viewer-view-tools>
+        <button type="button" class="btn btn--small" data-viewer-rotate><svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg><span>Rotate</span></button>
+        <button type="button" class="btn btn--small" data-viewer-zoom><svg class="icon" aria-hidden="true"><use href="#icon-zoom-in" /></svg><span data-viewer-zoom-label>Zoom</span></button>
+        <button type="button" class="btn btn--small" data-viewer-crop><svg class="icon" aria-hidden="true"><use href="#icon-crop" /></svg><span>Crop</span></button>
+        <a class="btn btn--small" href="#" data-viewer-download download><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span data-viewer-download-label>Download</span></a>
+        <label class="case-viewer-inc" data-viewer-in-report-wrap><input type="checkbox" data-viewer-in-report checked /><span>In report</span></label>
+      </span>
+      <span class="case-viewer-set" data-viewer-crop-tools hidden>
+        <span class="case-viewer-n" data-viewer-crop-status>Free</span>
+        <label class="sr-only" for="case-viewer-aspect">Aspect</label>
+        <select id="case-viewer-aspect" class="case-viewer-select" data-viewer-aspect>
+          <option value="free">Free</option><option value="1">Square</option><option value="1.3333333">4:3</option><option value="1.7777778">16:9</option>
+        </select>
+        <button type="button" class="btn btn--small" data-mock-action="toast" data-viewer-crop-rotate="-90"><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Rotate left</span></button>
+        <button type="button" class="btn btn--small" data-mock-action="toast" data-viewer-crop-rotate="90"><svg class="icon" aria-hidden="true"><use href="#icon-rotate-cw" /></svg><span>Rotate right</span></button>
+        <button type="button" class="btn btn--small" data-mock-action="toast" data-viewer-crop-full><svg class="icon" aria-hidden="true"><use href="#icon-image" /></svg><span>Full frame</span></button>
+        <button type="button" class="btn btn--small" data-mock-action="toast" data-viewer-crop-reset><svg class="icon" aria-hidden="true"><use href="#icon-history" /></svg><span>Reset</span></button>
+        <button type="button" class="btn btn--small btn--primary" data-viewer-crop-save><svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span>Save crop</span></button>
+        <button type="button" class="btn btn--small" data-viewer-crop-cancel><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg><span>Cancel</span></button>
+      </span>
+    </div>
+    <button type="button" class="icon-button" data-viewer-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+  </div>
+  <button type="button" class="case-viewer-nav prev" data-mock-action="toast" data-viewer-prev aria-label="Previous"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg></button>
+  <div class="case-viewer-stage" data-viewer-stage>
+    <img alt="" data-viewer-image src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'/%3E" />
+  </div>
+  <button type="button" class="case-viewer-nav next" data-mock-action="toast" data-viewer-next aria-label="Next"><svg class="icon" aria-hidden="true"><use href="#icon-chevron-right" /></svg></button>
+  <div class="case-viewer-strip" data-viewer-strip>
+    <img alt="" data-gallery-image src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'/%3E" />
+    <img alt="" data-gallery-image src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'/%3E" />
+    <img alt="" class="is-excluded" data-gallery-image src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='3'/%3E" />
+  </div>
+</div>
+
+<!-- Frame dialogs: src/Pegasus.Web/Pages/Cases/Shared/_CaseDialogs.cshtml
+     (reason dialogs use the shared Shared/_ReasonDialog.cshtml pattern: title, one
+     required Reason for action textarea, Cancel / Confirm Action). -->
+<div id="case-hold-dialog" class="dialog-backdrop" data-dialog="case-hold-dialog" hidden>
+  <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-hold-dialog-title">
+    <div class="dialog-head"><h2 id="case-hold-dialog-title" tabindex="-1">Place on Hold</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast">
+      <div class="dialog-body stack">
+        <div class="field"><label class="req" for="case-hold-reason">Reason for action</label><textarea id="case-hold-reason" rows="3" required maxlength="500" data-dialog-initial-focus></textarea></div>
+        <div class="field"><label for="case-hold-review-on">Review on</label><input id="case-hold-review-on" type="date" /></div>
+      </div>
+      <div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--primary">Place on Hold</button></div>
+    </form>
+  </section>
+</div>
+
+<div id="case-release-hold-dialog" class="dialog-backdrop" data-dialog="case-release-hold-dialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-release-hold-dialog-title">
+    <div class="dialog-head"><h2 id="case-release-hold-dialog-title" tabindex="-1">Release Hold</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast"><div class="dialog-body stack"><div class="field"><label class="req" for="case-release-hold-reason">Reason for action</label><textarea id="case-release-hold-reason" rows="3" required maxlength="500" data-dialog-initial-focus></textarea></div></div><div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--primary">Confirm Action</button></div></form>
+  </section>
+</div>
+
+<div id="case-complete-dialog" class="dialog-backdrop" data-dialog="case-complete-dialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-complete-dialog-title">
+    <div class="dialog-head"><h2 id="case-complete-dialog-title" tabindex="-1">Mark completed</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast"><div class="dialog-body stack"><div class="field"><label class="req" for="case-complete-reason">Reason for action</label><textarea id="case-complete-reason" rows="3" required maxlength="500" data-dialog-initial-focus></textarea></div></div><div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--primary">Confirm Action</button></div></form>
+  </section>
+</div>
+
+<div id="case-return-review-dialog" class="dialog-backdrop" data-dialog="case-return-review-dialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-return-review-dialog-title">
+    <div class="dialog-head"><h2 id="case-return-review-dialog-title" tabindex="-1">Return to Review</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast"><div class="dialog-body stack"><div class="field"><label class="req" for="case-return-review-reason">Reason for action</label><textarea id="case-return-review-reason" rows="3" required maxlength="500" data-dialog-initial-focus></textarea></div></div><div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--primary">Confirm Action</button></div></form>
+  </section>
+</div>
+
+<div id="case-unlink-evidence-dialog" class="dialog-backdrop" data-dialog="case-unlink-evidence-dialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-unlink-evidence-dialog-title">
+    <div class="dialog-head"><h2 id="case-unlink-evidence-dialog-title" tabindex="-1">Unlink report evidence</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast"><div class="dialog-body stack"><div class="field"><label class="req" for="case-unlink-evidence-reason">Reason for action</label><textarea id="case-unlink-evidence-reason" rows="3" required maxlength="500" data-dialog-initial-focus></textarea></div></div><div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--primary">Confirm Action</button></div></form>
+  </section>
+</div>
+
+<div id="case-correct-principal-dialog" class="dialog-backdrop" data-dialog="case-correct-principal-dialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-correct-principal-dialog-title">
+    <div class="dialog-head"><h2 id="case-correct-principal-dialog-title" tabindex="-1">Correct principal</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast">
+      <div class="dialog-body stack">
+        <div class="notice notice--warning"><svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg><span>Record Created in error and create the linked replacement case.</span></div>
+        <div class="field"><label class="req" for="case-replacement-principal">Replacement principal code</label><input id="case-replacement-principal" required maxlength="100" data-dialog-initial-focus /></div>
+        <div class="field"><label class="req" for="case-replacement-reason">Reason for action</label><textarea id="case-replacement-reason" rows="3" required maxlength="500"></textarea></div>
+      </div>
+      <div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--danger">Create linked replacement</button></div>
+    </form>
+  </section>
+</div>
+
+<div id="case-archive-dialog" class="dialog-backdrop" data-dialog="case-archive-dialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-archive-dialog-title">
+    <div class="dialog-head"><h2 id="case-archive-dialog-title" tabindex="-1">Archive case</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast"><div class="dialog-body stack"><div class="field"><label class="req" for="case-archive-reason">Reason for action</label><textarea id="case-archive-reason" rows="3" required maxlength="500" data-dialog-initial-focus></textarea></div></div><div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--primary">Confirm Action</button></div></form>
+  </section>
+</div>
+
+<div id="case-close-dialog" class="dialog-backdrop" data-dialog="case-close-dialog" hidden>
+  <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-close-dialog-title">
+    <div class="dialog-head"><h2 id="case-close-dialog-title" tabindex="-1">Close case</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast">
+      <div class="dialog-body stack">
+        <div class="field"><label class="req" for="case-close-outcome">Outcome</label>
+          <select id="case-close-outcome" required data-dialog-initial-focus>
+            <option value=""></option>
+            <option>Provider cancelled</option>
+            <option>Collision Engineers rejected</option>
+            <option>Created in error</option>
+            <option>E-mail unlinked</option>
+          </select>
+        </div>
+        <div class="field"><label class="req" for="case-close-reason">Reason for action</label><textarea id="case-close-reason" rows="3" required maxlength="500"></textarea></div>
+      </div>
+      <div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--danger btn--danger-solid">Close case</button></div>
+    </form>
+  </section>
+</div>
+
+<div id="case-return-engineer-dialog" class="dialog-backdrop" data-dialog="case-return-engineer-dialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-return-engineer-dialog-title">
+    <div class="dialog-head"><h2 id="case-return-engineer-dialog-title" tabindex="-1">Return to Engineer</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast"><div class="dialog-body stack"><div class="field"><label class="req" for="case-return-engineer-reason">Reason for action</label><textarea id="case-return-engineer-reason" rows="3" required maxlength="500" data-dialog-initial-focus></textarea></div></div><div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--primary">Confirm Action</button></div></form>
+  </section>
+</div>
+
+<div id="case-handoff-dialog" class="dialog-backdrop" data-dialog="case-handoff-dialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-handoff-dialog-title">
+    <div class="dialog-head"><h2 id="case-handoff-dialog-title" tabindex="-1">Hand to Engineer</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <div class="dialog-body stack">
+      <form class="stack" id="case-handoff-form" data-mock-action="toast">
+        <div class="field"><label class="req" for="case-handoff-engineer">Engineer</label>
+          <select id="case-handoff-engineer" required data-dialog-initial-focus><option value=""></option><option>Priya Anand</option><option>Marcus Webb</option></select>
+        </div>
+      </form>
+      <form id="case-assign-to-me-form" data-assign-to-me data-mock-action="toast"></form>
+    </div>
+    <div class="dialog-foot">
+      <button type="submit" form="case-assign-to-me-form" class="btn"><svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg><span>Assign to me</span></button>
+      <button type="submit" form="case-handoff-form" class="btn btn--primary">Hand to Engineer</button>
+    </div>
+  </section>
+</div>
+
+<div id="eva-handoff-dialog" class="dialog-backdrop" data-dialog="eva-handoff-dialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="eva-handoff-dialog-title">
+    <div class="dialog-head"><h2 id="eva-handoff-dialog-title" tabindex="-1">EVA handoff</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <div class="dialog-body stack">
+      <dl class="definition"><dt>Engineer</dt><dd>Priya Anand</dd></dl>
+      <form class="stack" data-mock-action="toast">
+        <div class="field"><label class="req" for="eva-dialog-sign-off-engineer">Sign-off Engineer</label>
+          <select id="eva-dialog-sign-off-engineer" required><option selected>Priya Anand</option><option>Marcus Webb</option></select>
+        </div>
+        <div class="field"><label class="req" for="eva-dialog-sign-off-reason">Reason for action</label><input id="eva-dialog-sign-off-reason" required /></div>
+        <div class="button-row"><button type="submit" class="btn btn--dark">Set Sign-off Engineer</button></div>
+      </form>
+      <div class="cluster">
+        <form data-mock-action="toast"><button type="submit" class="btn"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Export EVA ZIP</span></button></form>
+        <form data-mock-action="toast"><button type="submit" class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg><span>Send via API</span></button></form>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="case-report-sent-dialog" class="dialog-backdrop" data-dialog="case-report-sent-dialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="case-report-sent-dialog-title">
+    <div class="dialog-head"><h2 id="case-report-sent-dialog-title" tabindex="-1">Mark report sent</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <div class="dialog-body stack">
+      <form class="stack" data-mock-action="toast">
+        <div class="definition-list">
+          <dl class="definition"><dt>Mailbox</dt><dd>reports@collisionengineers.example</dd></dl>
+          <dl class="definition"><dt>Sent</dt><dd>16 Sep 2026, 15:42</dd></dl>
+        </div>
+        <div class="field"><label class="req" for="report-sent-reason">Reason for action</label><input id="report-sent-reason" required maxlength="500" data-dialog-initial-focus /></div>
+        <div class="button-row"><button type="submit" class="btn btn--primary">Confirm detected evidence</button></div>
+      </form>
+    </div>
+  </section>
+</div>
+
+<div id="case-create-audit-dialog" class="dialog-backdrop" data-dialog="case-create-audit-dialog" hidden>
+  <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="case-create-audit-dialog-title">
+    <div class="dialog-head"><h2 id="case-create-audit-dialog-title" tabindex="-1">Create audit</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="toast">
+      <div class="dialog-body stack">
+        <dl class="audit-facts">
+          <dt>Original case</dt><dd class="mono">QDOS26214</dd>
+          <dt>Outcome</dt><dd>Repairable</dd>
+          <dt>Audit reference</dt><dd class="mono" data-audit-reference>a.QDOS26214</dd>
+        </dl>
+      </div>
+      <div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-dialog-dismiss>Cancel</button><button type="submit" class="btn btn--primary" data-dialog-initial-focus><svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>Create audit</span></button></div>
+    </form>
+  </section>
+</div>

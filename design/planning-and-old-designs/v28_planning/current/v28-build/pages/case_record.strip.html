@@ -1,0 +1,88 @@
+<fieldset>
+  <legend>Case record</legend>
+  <label>Case lifecycle state
+    <select data-mock-input="crstate">
+      <option value="notready">Not ready</option>
+      <option value="held">Held</option>
+      <option value="review" selected>Review</option>
+      <option value="engineerprep">With Engineer · report preparation</option>
+      <option value="engineerpost">With Engineer · post report</option>
+      <option value="completed">Completed</option>
+      <option value="query">Query</option>
+      <option value="closedcancelled">Closed · Provider cancelled</option>
+      <option value="closedrejected">Closed · Collision Engineers rejected</option>
+      <option value="closederror">Closed · Created in error</option>
+      <option value="closedunlinked">Closed · E-mail unlinked</option>
+    </select>
+  </label>
+  <label>Case type
+    <select data-mock-input="crcasetype">
+      <option value="inspection" selected>Inspection</option>
+      <option value="audit">Audit (this Case is a.QDOS26150)</option>
+      <option value="inspectionaudit">Inspection + Audit</option>
+    </select>
+  </label>
+  <label>Report ever generated (Create audit gate)
+    <select data-mock-input="crhasreport">
+      <option value="no" selected>No</option>
+      <option value="yes">Yes</option>
+    </select>
+  </label>
+  <label>Edit session
+    <select data-mock-input="credit">
+      <option value="off" selected>Off — not editing</option>
+      <option value="on">On — this browser holds the lease</option>
+      <option value="colleague">A colleague holds the lease</option>
+    </select>
+  </label>
+  <label>Archived
+    <select data-mock-input="crarchived">
+      <option value="no" selected>No</option>
+      <option value="yes">Yes</option>
+    </select>
+  </label>
+  <label>Glass's session
+    <select data-mock-input="crglass">
+      <option value="none" selected>No session</option>
+      <option value="active">Open</option>
+      <option value="awaiting">Waiting (awaiting import)</option>
+      <option value="completed">Recorded (outcome notice)</option>
+      <option value="failed">Failed</option>
+      <option value="elsewhere">Held from another Case</option>
+    </select>
+  </label>
+  <label>AI proposal presence (Settlement)
+    <select data-mock-input="crproposal">
+      <option value="off" selected>None</option>
+      <option value="on">Awaiting review</option>
+    </select>
+  </label>
+  <label>Report generation state
+    <select data-mock-input="crreport">
+      <option value="none" selected>Not yet generated</option>
+      <option value="generated">Generated</option>
+      <option value="stale">Generated, now stale</option>
+      <option value="deliveryprepared">Delivery prepared</option>
+      <option value="sent">Sent</option>
+    </select>
+  </label>
+  <label>Files custody state
+    <select data-mock-input="crcustody">
+      <option value="confirmed" selected>Confirmed (Box)</option>
+      <option value="pending">Pending</option>
+      <option value="failed">Failed</option>
+    </select>
+  </label>
+  <label>Section display
+    <select data-mock-input="crscroll">
+      <option value="scroll" selected>Scroll (default every state)</option>
+      <option value="tabs">Tabs (session preference)</option>
+    </select>
+  </label>
+  <label>View
+    <select data-mock-input="crview">
+      <option value="record" selected>Case record</option>
+      <option value="evasend">EVA handoff (/Cases/{id}/Eva/Send fallback)</option>
+    </select>
+  </label>
+</fieldset>

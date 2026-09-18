@@ -1,0 +1,1018 @@
+<div data-mock-show="role:Administrator">
+
+<header class="page-header" data-mock-show="ad-area:hub"><div class="page-title"><h1>Administration</h1></div></header>
+<header class="page-header" data-mock-show="ad-area:accounts"><div class="page-title"><p class="eyebrow">Administration</p><h1>Staff accounts &amp; roles</h1></div></header>
+<header class="page-header" data-mock-show="ad-area:contacts"><div class="page-title"><p class="eyebrow">Administration</p><h1>Contacts</h1></div></header>
+<header class="page-header" data-mock-show="ad-area:configuration"><div class="page-title"><h1>Workflow configuration</h1></div></header>
+<header class="page-header" data-mock-show="ad-area:mail"><div class="page-title"><p class="eyebrow">Administration</p><h1>Mail settings</h1></div></header>
+<header class="page-header" data-mock-show="ad-area:valuation-presets"><div class="page-title"><p class="eyebrow">Administration</p><h1>Valuation presets</h1></div></header>
+<header class="page-header" data-mock-show="ad-area:health"><div class="page-title"><p class="eyebrow">Administration</p><h1>Service health</h1></div></header>
+<header class="page-header" data-mock-show="ad-area:logs"><div class="page-title"><p class="eyebrow">Administration</p><h1>Logs</h1></div></header>
+<header class="page-header" data-mock-show="ad-area:reports"><div class="page-title"><p class="eyebrow">Administration</p><h1>Reports</h1></div></header>
+<header class="page-header" data-mock-show="ad-area:ai-jobs"><div class="page-title"><p class="eyebrow">Administration</p><h1>AI jobs</h1></div></header>
+<header class="page-header" data-mock-show="ad-area:automation"><div class="page-title"><p class="eyebrow">Administration</p><h1>Automation &amp; AI</h1></div></header>
+
+<div class="admin-layout">
+  <nav class="admin-nav panel" aria-label="Administration areas">
+    <div class="admin-nav__group" role="group" aria-labelledby="admin-nav-people">
+      <span class="admin-nav__label" id="admin-nav-people">People and access</span>
+      <a href="#accounts" data-ad-set="ad-area:accounts" data-ad-area-link="accounts">
+        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        <span>Staff accounts &amp; roles</span>
+      </a>
+      <a href="#contacts" data-ad-set="ad-area:contacts" data-ad-area-link="contacts">
+        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+        <span>Contacts</span>
+      </a>
+    </div>
+    <div class="admin-nav__group" role="group" aria-labelledby="admin-nav-configuration">
+      <span class="admin-nav__label" id="admin-nav-configuration">Configuration</span>
+      <a href="#configuration" data-ad-set="ad-area:configuration" data-ad-area-link="configuration">
+        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+        <span>Workflow configuration</span>
+      </a>
+      <a href="#mail" data-ad-set="ad-area:mail" data-ad-area-link="mail">
+        <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+        <span>Mail settings</span>
+      </a>
+      <a href="#valuation-presets" data-ad-set="ad-area:valuation-presets" data-ad-area-link="valuation-presets">
+        <svg class="icon" aria-hidden="true"><use href="#icon-pound-sterling" /></svg>
+        <span>Valuation presets</span>
+      </a>
+    </div>
+    <div class="admin-nav__group" role="group" aria-labelledby="admin-nav-oversight">
+      <span class="admin-nav__label" id="admin-nav-oversight">Operations and oversight</span>
+      <a href="#health" data-ad-set="ad-area:health" data-ad-area-link="health">
+        <svg class="icon" aria-hidden="true"><use href="#icon-heart-pulse" /></svg>
+        <span>Service health</span>
+      </a>
+      <a href="#logs" data-ad-set="ad-area:logs" data-ad-area-link="logs">
+        <svg class="icon" aria-hidden="true"><use href="#icon-scroll-text" /></svg>
+        <span>Logs</span>
+      </a>
+      <a href="#reports" data-ad-set="ad-area:reports" data-ad-area-link="reports">
+        <svg class="icon" aria-hidden="true"><use href="#icon-bar-chart" /></svg>
+        <span>Reports</span>
+      </a>
+      <a href="#ai-jobs" data-ad-set="ad-area:ai-jobs" data-ad-area-link="ai-jobs">
+        <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+        <span>AI jobs</span>
+      </a>
+      <a href="#automation" data-ad-set="ad-area:automation" data-ad-area-link="automation" data-mock-show="adAutomationComposed:1">
+        <svg class="icon" aria-hidden="true"><use href="#icon-bot" /></svg>
+        <span>Automation &amp; AI</span>
+      </a>
+    </div>
+  </nav>
+
+  <div class="stack">
+
+  <!-- ============================= HUB ============================= -->
+  <div data-mock-show="ad-area:hub">
+    <section class="panel" aria-labelledby="admin-identity-title">
+      <div class="panel-head"><h2 id="admin-identity-title">People and access</h2></div>
+      <div class="panel-body">
+        <div class="admin-grid">
+          <a class="admin-card" href="#accounts" data-ad-set="ad-area:accounts">
+            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+            <h3>Staff accounts &amp; roles</h3>
+            <p>Manage staff access and sign-off roles.</p>
+          </a>
+          <a class="admin-card" href="#contacts" data-ad-set="ad-area:contacts">
+            <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+            <h3>Contacts</h3>
+            <p>Manage principals, claim sources and service contacts.</p>
+          </a>
+        </div>
+      </div>
+    </section>
+    <section class="panel" aria-labelledby="admin-configuration-title">
+      <div class="panel-head"><h2 id="admin-configuration-title">Configuration</h2></div>
+      <div class="panel-body">
+        <div class="admin-grid">
+          <a class="admin-card" href="#configuration" data-ad-set="ad-area:configuration">
+            <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+            <h3>Workflow configuration</h3>
+            <p>View the current workflow policy.</p>
+          </a>
+          <a class="admin-card" href="#mail" data-ad-set="ad-area:mail">
+            <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+            <h3>Mail settings</h3>
+            <p>Approve mailbox routes and mail categories.</p>
+          </a>
+          <a class="admin-card" href="#valuation-presets" data-ad-set="ad-area:valuation-presets">
+            <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+            <h3>Valuation presets</h3>
+            <p>Manage valuation values used in case assessments.</p>
+          </a>
+        </div>
+      </div>
+    </section>
+    <section class="panel" aria-labelledby="admin-oversight-title">
+      <div class="panel-head"><h2 id="admin-oversight-title">Operations and oversight</h2></div>
+      <div class="panel-body">
+        <div class="admin-grid">
+          <a class="admin-card" href="#health" data-ad-set="ad-area:health">
+            <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+            <h3>Service health</h3>
+            <p>Review recorded service and mailbox health.</p>
+          </a>
+          <a class="admin-card" href="#logs" data-ad-set="ad-area:logs">
+            <svg class="icon" aria-hidden="true"><use href="#icon-scroll-text" /></svg>
+            <h3>Logs</h3>
+            <p>Action logs and the intake log.</p>
+          </a>
+          <a class="admin-card" href="#reports" data-ad-set="ad-area:reports">
+            <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+            <h3>Reports</h3>
+            <p>Review report delivery activity and turnaround.</p>
+          </a>
+          <a class="admin-card" href="#ai-jobs" data-ad-set="ad-area:ai-jobs">
+            <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+            <h3>AI jobs</h3>
+            <p>Review queued and completed AI work.</p>
+          </a>
+          <a class="admin-card" href="#automation" data-ad-set="ad-area:automation" data-mock-show="adAutomationComposed:1">
+            <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+            <h3>Automation &amp; AI</h3>
+            <p>Control composed automation channels.</p>
+          </a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ========================= ACCOUNTS ========================= -->
+  <div data-mock-show="ad-area:accounts">
+    <section class="panel" aria-labelledby="staff-accounts-title">
+      <div class="panel-head">
+        <div>
+          <h2 id="staff-accounts-title">Staff accounts</h2>
+          <p class="panel-title-meta">3 accounts</p>
+        </div>
+        <button type="button" class="btn btn--primary" data-dialog-open="create-account-dialog">
+          <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>Create staff account</span>
+        </button>
+      </div>
+      <div class="table-wrap no-border">
+        <table>
+          <caption class="sr-only">Staff accounts</caption>
+          <thead><tr><th scope="col">Username</th><th scope="col">Role</th><th scope="col">Sign-off</th><th scope="col">Glass's</th><th scope="col">State</th><th scope="col"><span class="sr-only">Settings</span></th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="mono">s.whitlock</td>
+              <td>Administrator</td>
+              <td>Yes &middot; default</td>
+              <td data-account-glass>
+                <span class="cluster">
+                  <span class="muted" data-mock-show="adGlass:notset">Not set</span>
+                  <span class="mono" data-mock-show="adGlass:username">s.whitlock</span>
+                  <span class="muted" data-mock-show="adGlass:disabled">Disabled</span>
+                  <a class="link-button" href="#" data-dialog-open="glass-credential-dialog">Manage login</a>
+                </span>
+              </td>
+              <td><span class="status status--navy">Enabled</span></td>
+              <td class="right"><a class="btn btn--small" href="#" data-dialog-open="settings-sam-whitlock">Settings</a></td>
+            </tr>
+            <tr>
+              <td class="mono">p.anand</td>
+              <td>Engineer</td>
+              <td>Yes</td>
+              <td data-account-glass><span class="cluster"><span class="muted">Not set</span><a class="link-button" href="#" data-mock-action="demo">Manage login</a></span></td>
+              <td><span class="status status--navy">Enabled</span></td>
+              <td class="right"><a class="btn btn--small" href="#" data-mock-action="demo">Settings</a></td>
+            </tr>
+            <tr>
+              <td class="mono">d.okafor</td>
+              <td>User</td>
+              <td>&mdash;</td>
+              <td data-account-glass><span class="cluster"><span class="muted">Not set</span><a class="link-button" href="#" data-mock-action="demo">Manage login</a></span></td>
+              <td><span class="cluster"><span class="status status--red">Disabled</span><span class="status status--amber">Password change required</span></span></td>
+              <td class="right"><a class="btn btn--small" href="#" data-mock-action="demo">Settings</a></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- ========================= CONTACTS ========================= -->
+  <div data-mock-show="ad-area:contacts">
+    <section class="panel" aria-labelledby="contacts-title" data-mock-show="adContactsView:list">
+      <div class="panel-head">
+        <div>
+          <h2 id="contacts-title">Contacts</h2>
+          <p class="panel-title-meta">Principals, claim sources, repairers, storage and third party engineers.</p>
+        </div>
+        <button class="btn btn--primary" type="button" data-dialog-open="contact-type-dialog">Add contact</button>
+      </div>
+      <form class="contact-toolbar" data-mock-action="demo-filter">
+        <div class="field"><label for="contact-search">Name or contact</label><input id="contact-search" type="search" autocomplete="off" /></div>
+        <div class="field"><label for="contact-type">Type</label>
+          <select id="contact-type">
+            <option selected>All types</option>
+            <option>Principal</option>
+            <option>Claim Source</option>
+            <option>Repairer</option>
+            <option>Storage</option>
+            <option>Third Party Engineer</option>
+          </select>
+        </div>
+        <div class="field"><label for="contact-sort">Sort</label>
+          <select id="contact-sort"><option selected>Name</option><option>Type</option><option>Last case</option></select>
+        </div>
+        <button class="btn" type="submit">Apply</button>
+      </form>
+      <div class="table-wrap no-border">
+        <table>
+          <caption class="sr-only">Contact directory</caption>
+          <thead><tr><th>Name</th><th>Type</th><th>Contact person</th><th>Email</th><th>Phone</th><th>Last case</th><th>Status</th><th><span class="sr-only">Open</span></th></tr></thead>
+          <tbody>
+            <tr><td>Wingrove Insurance</td><td>Principal</td><td>R. Hartley</td><td class="mono">claims@wingroveinsurance.example</td><td class="mono">0121 555 0142</td><td>QDOS26214</td><td><span class="status status--navy">Active</span></td><td class="right"><a class="btn btn--small" href="#" data-ad-set="adContactsView:edit">Open</a></td></tr>
+            <tr><td>Meridian Claims Bureau</td><td>Claim Source</td><td>S. Doyle</td><td class="mono">claims@meridianclaims.example</td><td class="mono">0161 555 0199</td><td>QDOS26198</td><td><span class="status status--navy">Active</span></td><td class="right"><a class="btn btn--small" href="#" data-mock-action="demo">Open</a></td></tr>
+            <tr><td>Oakfield Bodyshop</td><td>Repairer</td><td>T. Nwosu</td><td class="mono">repairs@oakfieldbodyshop.example</td><td class="mono">0117 555 0120</td><td>QDOS26177</td><td><span class="status status--navy">Active</span></td><td class="right"><a class="btn btn--small" href="#" data-mock-action="demo">Open</a></td></tr>
+            <tr><td>Sentry Salvage &amp; Storage</td><td>Storage</td><td>&mdash;</td><td class="mono">&mdash;</td><td class="mono">&mdash;</td><td>&mdash;</td><td><span class="status status--red">Disabled</span></td><td class="right"><a class="btn btn--small" href="#" data-mock-action="demo">Open</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Contacts/Edit.cshtml, reached live as its own route; folded into this
+         area's switcher as the "Wingrove Insurance (edit)" state. -->
+    <section class="panel" aria-labelledby="contact-title" data-mock-show="adContactsView:edit">
+      <div class="panel-head"><div><h2 id="contact-title">Wingrove Insurance</h2><p class="panel-title-meta">One organisation may have several contact types.</p></div><span class="status status--navy">Active</span></div>
+      <form class="panel-body stack contact-editor" data-mock-action="demo">
+        <fieldset class="stack" data-mock-show="adContactEdit:1">
+          <div class="form-grid form-grid--2">
+            <div class="field field-wide"><label class="req" for="ce-name">Organisation name</label><input id="ce-name" value="Wingrove Insurance" /></div>
+            <div class="field"><label for="ce-contact">Contact person</label><input id="ce-contact" value="R. Hartley" /></div>
+            <div class="field"><label for="ce-phone">Phone</label><input id="ce-phone" value="0121 555 0142" /></div>
+            <div class="field field-wide"><label for="ce-email">Email</label><input id="ce-email" value="claims@wingroveinsurance.example" /></div>
+            <div class="field"><label for="ce-address">Address</label><textarea id="ce-address" rows="3">4 Charter Square, Birmingham</textarea></div>
+            <div class="field"><label for="ce-postcode">Postcode</label><input id="ce-postcode" value="B1 4DZ" /></div>
+          </div>
+          <section class="contact-section" aria-labelledby="contact-types-title">
+            <h3 id="contact-types-title">Contact types</h3>
+            <div class="contact-kind-grid">
+              <label class="contact-kind"><input type="checkbox" checked disabled /> <span>Principal</span></label>
+              <label class="contact-kind"><input type="checkbox" disabled /> <span>Claim Source</span></label>
+              <label class="contact-kind"><input type="checkbox" disabled /> <span>Repairer</span></label>
+              <label class="contact-kind"><input type="checkbox" disabled /> <span>Storage</span></label>
+              <label class="contact-kind"><input type="checkbox" disabled /> <span>Third Party Engineer</span></label>
+            </div>
+          </section>
+          <section class="contact-section" aria-labelledby="principal-details-title">
+            <h3 id="principal-details-title">Principal details</h3>
+            <div class="form-grid form-grid--2">
+              <div class="field"><label for="ce-code">Principal code</label><input id="ce-code" value="WING01" /></div>
+              <div class="field"><label for="ce-inspection">Inspection mode</label><select id="ce-inspection"><option selected>Physical address</option><option>Image Based Assessment</option></select></div>
+            </div>
+          </section>
+          <section class="contact-section" aria-labelledby="case-guidance-title">
+            <h3 id="case-guidance-title">Case guidance</h3>
+            <div class="field"><label for="ce-guidance">Guidance for new Cases</label><textarea id="ce-guidance" rows="4">Confirm policy excess before Review.</textarea></div>
+            <div class="field"><label for="ce-notes">Notes on every Case</label><textarea id="ce-notes" rows="4"></textarea></div>
+          </section>
+          <label class="choice"><input type="checkbox" checked /> <span>Active</span></label>
+        </fieldset>
+        <dl class="definition-list" data-mock-show="adContactEdit:0">
+          <div class="definition"><dt>Contact person</dt><dd>R. Hartley</dd></div>
+          <div class="definition"><dt>Phone</dt><dd class="mono">0121 555 0142</dd></div>
+          <div class="definition"><dt>Email</dt><dd class="mono">claims@wingroveinsurance.example</dd></div>
+          <div class="definition"><dt>Address</dt><dd>4 Charter Square, Birmingham, B1 4DZ</dd></div>
+          <div class="definition"><dt>Contact types</dt><dd>Principal</dd></div>
+          <div class="definition"><dt>Principal code</dt><dd class="mono">WING01</dd></div>
+          <div class="definition"><dt>Inspection mode</dt><dd>Physical address</dd></div>
+        </dl>
+        <div class="button-row">
+          <button type="submit" class="btn btn--primary" data-mock-show="adContactEdit:1">Save contact</button>
+          <button type="button" class="btn" data-ad-set="adContactEdit:0" data-mock-show="adContactEdit:1">Cancel</button>
+          <button type="button" class="btn btn--primary" data-ad-set="adContactEdit:1" data-mock-show="adContactEdit:0">Edit contact</button>
+          <button type="button" class="btn" data-ad-set="adContactsView:list">Back to Contacts</button>
+        </div>
+      </form>
+      </section>
+      <section class="panel" aria-labelledby="principal-settings-title" data-mock-show="adContactsView:edit">
+        <div class="panel-head"><div><h2 id="principal-settings-title">Principal settings</h2><p class="panel-title-meta mono">WING01</p></div><span class="status status--navy">Active</span></div>
+        <div class="panel-body stack"><dl class="definition-list"><div class="definition"><dt>Accepted e-mail identities</dt><dd>claims@wingroveinsurance.example</dd></div></dl></div>
+      </section>
+      <section class="panel" aria-labelledby="principal-report-title" data-mock-show="adContactsView:edit">
+        <div class="panel-head"><h2 id="principal-report-title">Report generation</h2></div>
+        <form class="panel-body stack" data-mock-action="demo">
+          <div class="field"><label for="report-route">Report generation</label><select id="report-route"><option selected>Pegasus</option><option>EVA</option></select></div>
+          <fieldset class="field"><legend>Report recipients</legend>
+            <label class="choice"><input type="checkbox" checked /> <span>Original instruction sender</span></label>
+            <div class="stack"><input type="email" value="claims@wingroveinsurance.example" aria-label="Additional report recipient" /></div>
+            <button type="button" class="btn" data-mock-action="demo">Add recipient</button>
+          </fieldset>
+          <div class="button-row"><button type="submit" class="btn btn--primary">Save report settings</button></div>
+        </form>
+      </section>
+      <section class="panel" aria-labelledby="principal-location-title" data-mock-show="adContactsView:edit">
+        <div class="panel-head"><h2 id="principal-location-title">Default inspection location</h2></div>
+        <form class="panel-body stack" data-mock-action="demo">
+          <label class="choice"><input type="checkbox" /> <span>Default to Image Based Assessment</span></label>
+          <div class="field"><label for="loc-label">Location label (optional)</label><input id="loc-label" /></div>
+          <div class="field"><label for="loc-address">Address</label><input id="loc-address" value="4 Charter Square, Birmingham" /></div>
+          <div class="field"><label for="loc-postcode">Postcode (optional)</label><input id="loc-postcode" value="B1 4DZ" /></div>
+          <div class="button-row"><button type="submit" class="btn btn--primary">Save default location</button></div>
+        </form>
+      </section>
+      <section class="panel" aria-labelledby="principal-provider-api-title" data-mock-show="adContactsView:edit">
+        <div class="panel-head"><h2 id="principal-provider-api-title">Provider API</h2></div>
+        <div class="panel-body stack">
+          <dl class="definition-list">
+            <div class="definition"><dt>Submission endpoint</dt><dd><code>/provider-api/v1/submissions</code></dd></div>
+            <div class="definition"><dt>State</dt><dd>Active</dd></div>
+          </dl>
+          <form class="stack" data-mock-action="demo">
+            <div class="button-row">
+              <button type="submit" class="btn btn--primary">Reset API key</button>
+              <button type="submit" class="btn">Pause</button>
+              <button type="submit" class="btn btn--danger">Revoke</button>
+            </div>
+          </form>
+        </div>
+      </section>
+      <div class="button-row" data-mock-show="adContactsView:edit"><button class="btn btn--danger" type="button" data-dialog-open="replace-principal">Replace code</button></div>
+  </div>
+
+  <!-- ======================= CONFIGURATION ======================= -->
+  <div data-mock-show="ad-area:configuration">
+    <section class="panel" aria-labelledby="workflow-title">
+      <div class="panel-head">
+        <h2 id="workflow-title">Case workflow</h2>
+        <button class="btn" type="button" data-ad-set="adConfigEdit:1" data-mock-show="adConfigEdit:0">Edit</button>
+      </div>
+      <div class="panel-body">
+        <dl class="definition-list definition-list--compact" data-mock-show="adConfigEdit:0">
+          <div class="definition"><dt>Instructions</dt><dd>Required</dd></div>
+          <div class="definition"><dt>Images</dt><dd>Required</dd></div>
+          <div class="definition"><dt>Chase interval</dt><dd>7 days</dd></div>
+          <div class="definition"><dt>Unidentified target</dt><dd>3 days</dd></div>
+          <div class="definition"><dt>Triage target</dt><dd>2 days</dd></div>
+          <div class="definition"><dt>Held decision target</dt><dd>5 days</dd></div>
+          <div class="definition"><dt>Review target</dt><dd>3 days</dd></div>
+          <div class="definition"><dt>AI draft target</dt><dd>2 days</dd></div>
+        </dl>
+        <fieldset class="stack" data-mock-show="adConfigEdit:1">
+          <legend>Required before Review</legend>
+          <div class="form-grid form-grid--2">
+            <label class="choice"><input type="checkbox" checked /> Instructions</label>
+            <label class="choice"><input type="checkbox" checked /> Images</label>
+          </div>
+          <div class="form-grid form-grid--3">
+            <div class="field"><label for="cfg-chase">Chase interval (days)</label><input id="cfg-chase" type="number" min="1" max="365" value="7" /><span class="field-hint">1 to 365</span></div>
+            <div class="field"><label for="cfg-unidentified">Unidentified target (days)</label><input id="cfg-unidentified" type="number" min="1" max="90" value="3" /><span class="field-hint">1 to 90</span></div>
+            <div class="field"><label for="cfg-triage">Triage target (days)</label><input id="cfg-triage" type="number" min="1" max="90" value="2" /><span class="field-hint">1 to 90</span></div>
+            <div class="field"><label for="cfg-held">Held decision target (days)</label><input id="cfg-held" type="number" min="1" max="90" value="5" /><span class="field-hint">1 to 90</span></div>
+            <div class="field"><label for="cfg-review">Review target (days)</label><input id="cfg-review" type="number" min="1" max="90" value="3" /><span class="field-hint">1 to 90</span></div>
+            <div class="field"><label for="cfg-aidraft">AI draft target (days)</label><input id="cfg-aidraft" type="number" min="1" max="90" value="2" /><span class="field-hint">1 to 90</span></div>
+          </div>
+        </fieldset>
+      </div>
+    </section>
+    <section class="panel" aria-labelledby="rates-title">
+      <div class="panel-head"><h2 id="rates-title">Labour-rate cards</h2>
+        <button class="btn" type="button" data-mock-action="demo" data-mock-show="adConfigEdit:0">Add rate card</button>
+      </div>
+      <div class="table-wrap no-border"><table>
+        <thead><tr><th>Name</th><th>Panel and paint (£/hour)</th><th>Enabled</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>Standard</td><td>45.00</td><td>Yes</td><td><button class="btn btn--small" type="button" data-mock-action="demo" data-mock-show="adConfigEdit:0">Edit</button></td></tr>
+          <tr><td>Premium</td><td>60.00</td><td>Yes</td><td><button class="btn btn--small" type="button" data-mock-action="demo" data-mock-show="adConfigEdit:0">Edit</button></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+    <form data-mock-show="adConfigEdit:1" data-mock-action="demo">
+      <div class="button-row">
+        <button type="button" class="btn" data-ad-set="adConfigEdit:0">Cancel</button>
+        <button type="submit" class="btn btn--primary" data-ad-set="adConfigEdit:0">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ============================ MAIL ============================ -->
+  <div data-mock-show="ad-area:mail">
+    <section class="panel" aria-labelledby="default-sender-title">
+      <div class="panel-head"><h2 id="default-sender-title">Default sender</h2></div>
+      <div class="settings-line">
+        <div><strong>reports@collisionengineers.example</strong><span class="meta">New correspondence</span></div>
+        <button type="button" class="btn btn--small" data-dialog-open="default-sender-dialog">Change</button>
+      </div>
+    </section>
+    <section class="panel" aria-labelledby="approved-mailboxes-title">
+      <div class="panel-head">
+        <h2 id="approved-mailboxes-title">Approved mailboxes</h2>
+        <button type="button" class="btn btn--small btn--dark" data-dialog-open="new-mailbox-dialog">
+          <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>Add mailbox</span>
+        </button>
+      </div>
+      <div class="table-wrap no-border">
+        <table class="table table--compact mailbox-table">
+          <caption class="sr-only">Approved mailboxes</caption>
+          <thead><tr><th scope="col">Mailbox</th><th scope="col">Used for</th><th scope="col">Last checked</th><th scope="col">State</th><th scope="col"><span class="sr-only">Settings</span></th></tr></thead>
+          <tbody>
+            <tr><td><strong>instructions@collisionengineers.example</strong></td><td>New instructions and Triage mail (Inbox)</td><td class="nowrap">Last completed 18 Sep 2026, 08:12. Next due 18 Sep 2026, 08:27.</td><td><span class="status status--navy">Approved</span></td><td><a class="btn btn--small" href="#" data-dialog-open="mailbox-settings-instructions">Settings</a></td></tr>
+            <tr><td><strong>evidence@collisionengineers.example</strong></td><td>Exact report and Triage evidence (Sent Items)</td><td class="nowrap">Not polled.</td><td><span class="status status--navy">Approved</span></td><td><a class="btn btn--small" href="#" data-mock-action="demo">Settings</a></td></tr>
+            <tr><td><strong>reports@collisionengineers.example</strong></td><td>Staff send</td><td class="nowrap">Not polled.</td><td><span class="status status--navy">Approved</span></td><td><a class="btn btn--small" href="#" data-mock-action="demo">Settings</a></td></tr>
+            <tr><td><strong>archive@collisionengineers.example</strong></td><td>&mdash;</td><td class="nowrap">Not polled.</td><td><span class="status status--red">Disabled</span></td><td><a class="btn btn--small" href="#" data-mock-action="demo">Settings</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section class="panel" aria-labelledby="mail-categories-title">
+      <div class="panel-head">
+        <h2 id="mail-categories-title">Mail categories</h2>
+        <button type="button" class="btn btn--small btn--dark" data-dialog-open="add-mail-category-dialog"><svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg><span>Add category</span></button>
+      </div>
+      <div class="table-wrap no-border">
+        <table class="table table--compact">
+          <caption class="sr-only">Mail categories</caption>
+          <thead><tr><th scope="col">Category</th><th scope="col">State</th><th scope="col">Review</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Instructions</strong></td><td><span class="status status--navy">Active</span></td><td><details><summary class="btn btn--small">Review</summary><form class="stack section-gap" data-mock-action="demo"><div class="field"><label class="req" for="cat1-name">Display name</label><input id="cat1-name" value="Instructions" /></div><div class="field"><label for="cat1-state">State</label><select id="cat1-state"><option selected>Active</option><option>Disabled</option></select></div><button type="submit" class="btn btn--dark" data-mock-action="demo">Save category</button></form><button type="button" class="btn btn--small" data-mock-action="demo">Edit category</button></details></td></tr>
+            <tr><td><strong>Enquiries</strong></td><td><span class="status status--navy">Active</span></td><td><details><summary class="btn btn--small">Review</summary><button type="button" class="btn btn--small" data-mock-action="demo">Edit category</button></details></td></tr>
+            <tr><td><strong>Cancellations</strong></td><td><span class="status status--neutral">Disabled</span></td><td><details><summary class="btn btn--small">Review</summary><button type="button" class="btn btn--small" data-mock-action="demo">Edit category</button></details></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- ==================== VALUATION PRESETS ==================== -->
+  <div data-mock-show="ad-area:valuation-presets">
+    <section class="panel" aria-labelledby="valuation-presets-title">
+      <div class="panel-head">
+        <h2 id="valuation-presets-title">Fixed valuation additions</h2>
+        <span class="meta">3 presets</span>
+      </div>
+      <div class="table-wrap no-border">
+        <table class="table table--compact preset-table">
+          <caption class="sr-only">Valuation presets</caption>
+          <thead><tr><th scope="col">Label</th><th scope="col" class="num">Amount</th><th scope="col">State</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+          <tbody>
+            <tr data-mock-show="adPresetEdit:0">
+              <td><strong>Delivery and collection</strong></td><td class="num">£45.00</td><td><span class="status status--navy">Enabled</span></td>
+              <td><span class="cluster"><button class="btn btn--small" type="button" data-ad-set="adPresetEdit:1">Edit</button><button class="btn btn--small btn--danger" type="button" data-mock-action="demo">Remove</button></span></td>
+            </tr>
+            <tr data-mock-show="adPresetEdit:1">
+              <td><label class="sr-only" for="preset-label-1">Label</label><input id="preset-label-1" class="input" value="Delivery and collection" /></td>
+              <td><label class="sr-only" for="preset-amount-1">Amount</label><input id="preset-amount-1" class="input-money" type="number" value="45.00" /></td>
+              <td><label class="choice"><input type="checkbox" checked /><span>Enabled</span></label></td>
+              <td><span class="cluster"><button type="button" class="btn btn--small" data-ad-set="adPresetEdit:0">Cancel</button><button type="button" class="btn btn--small btn--primary" data-ad-set="adPresetEdit:0" data-mock-action="demo">Save</button></span></td>
+            </tr>
+            <tr><td><strong>VAT adjustment</strong></td><td class="num">£0.00</td><td><span class="status status--navy">Enabled</span></td><td><span class="cluster"><button class="btn btn--small" type="button" data-mock-action="demo">Edit</button><button class="btn btn--small btn--danger" type="button" data-mock-action="demo">Remove</button></span></td></tr>
+            <tr><td><strong>Storage contribution</strong></td><td class="num">£20.00</td><td><span class="status status--neutral">Disabled</span></td><td><span class="cluster"><button class="btn btn--small" type="button" data-mock-action="demo">Edit</button><button class="btn btn--small btn--danger" type="button" data-mock-action="demo">Remove</button></span></td></tr>
+            <tr class="preset-row--add">
+              <td><label class="sr-only" for="create-label">Label</label><input id="create-label" class="input" /></td>
+              <td><label class="sr-only" for="create-amount">Amount</label><input id="create-amount" class="input-money" type="number" /></td>
+              <td><label class="choice"><input type="checkbox" checked /><span>Enabled</span></label></td>
+              <td><span class="cluster"><a class="btn btn--small" href="#" data-mock-action="demo">Cancel</a><button type="submit" form="preset-create" class="btn btn--small btn--primary">Add</button></span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <form id="preset-create" data-mock-action="demo" hidden></form>
+  </div>
+
+  <!-- =========================== HEALTH =========================== -->
+  <div data-mock-show="ad-area:health">
+    <section class="panel" aria-labelledby="service-health-title">
+      <div class="panel-head"><h2 id="service-health-title">Service health</h2></div>
+      <div class="table-wrap no-border service-health-table">
+        <table class="table table--compact">
+          <caption class="sr-only">Service health</caption>
+          <thead><tr><th scope="col">Service</th><th scope="col">State</th><th scope="col">Last recorded</th><th scope="col">Dependency</th></tr></thead>
+          <tbody>
+            <tr><td><strong>instructions@collisionengineers.example</strong><small class="admin-service-area">Mail</small></td><td><span class="status status--blue">Working</span></td><td class="nowrap">18 Sep 2026, 08:12</td><td>Microsoft Graph</td></tr>
+            <tr><td><strong>Receiving dispatch</strong><small class="admin-service-area">Receiving</small></td><td><span class="status status--blue">Working</span></td><td class="nowrap">18 Sep 2026, 08:10</td><td>Worker</td></tr>
+            <tr><td><strong>Sent evidence</strong><small class="admin-service-area">Mail</small></td><td><span class="status status--amber">Needs attention</span></td><td class="nowrap">17 Sep 2026, 22:41</td><td>Microsoft Graph</td></tr>
+            <tr><td><strong>Box</strong><small class="admin-service-area">Box</small></td><td><span class="status status--blue">Working</span></td><td class="nowrap">18 Sep 2026, 08:05</td><td>Box</td></tr>
+            <tr><td><strong>EVA submissions</strong><small class="admin-service-area">EVA</small></td><td><span class="status status--neutral">No recorded activity</span></td><td class="nowrap">Not recorded</td><td>EVA API</td></tr>
+            <tr><td><strong>AI jobs</strong><small class="admin-service-area">AI</small></td><td><span class="status status--blue">Working</span></td><td class="nowrap">18 Sep 2026, 08:14</td><td>AI</td></tr>
+            <tr><td><strong>Automation clients</strong><small class="admin-service-area">Automation</small></td><td><span class="status status--blue">Working</span></td><td class="nowrap">18 Sep 2026, 08:00</td><td>Automation client</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============================ LOGS ============================ -->
+  <div data-mock-show="ad-area:logs">
+    <nav class="tabs logs-tabs" aria-label="Logs">
+      <a class="tab" href="#" data-ad-set="adLogsTab:action" data-ad-logs-tab="action" aria-current="page">Action logs</a>
+      <a class="tab" href="#" data-ad-set="adLogsTab:intake" data-ad-logs-tab="intake">Intake log</a>
+    </nav>
+
+    <div data-mock-show="adLogsTab:action">
+      <section class="panel">
+        <div class="panel-body panel-body--compact">
+          <form class="compact-log-filter" data-mock-action="demo-filter">
+            <div class="field"><label for="al-search">Keywords</label><input id="al-search" /></div>
+            <div class="field"><label for="al-operation">Activity</label><input id="al-operation" /></div>
+            <div class="field"><label for="al-actor">Person</label>
+              <select id="al-actor"><option selected>All people</option><option>Sam Whitlock</option><option>Priya Anand</option><option>David Okafor</option><option>Automation client</option></select>
+            </div>
+            <div class="field"><label for="al-actor-type">Actor type</label>
+              <select id="al-actor-type"><option selected>All actors</option><option>Staff</option><option>AI (automation)</option><option>Pegasus (system)</option></select>
+            </div>
+            <div class="field"><label for="al-record">Case/reference</label><input id="al-record" /></div>
+            <div class="field"><label for="al-result">Outcome</label><input id="al-result" /></div>
+            <div class="field"><label for="al-from">From</label><input id="al-from" type="datetime-local" step="60" /></div>
+            <div class="field"><label for="al-to">To</label><input id="al-to" type="datetime-local" step="60" /></div>
+            <div class="button-row"><button class="btn btn--primary" type="submit">Apply</button><a class="btn" href="#" data-mock-action="demo">Clear</a></div>
+          </form>
+          <div class="table-wrap">
+            <table class="table table--compact">
+              <thead><tr><th><a href="#" data-mock-action="demo">Time &darr;</a></th><th>Actor</th><th>Area</th><th>Action</th><th>Reference</th><th>Result</th></tr></thead>
+              <tbody>
+                <tr><td>18 Sep 2026, 08:41</td><td>Sam Whitlock</td><td>Case workspace</td><td>Saved estimate</td><td><a href="#" data-mock-action="demo">QDOS26214</a></td><td>Success</td></tr>
+                <tr><td>18 Sep 2026, 08:22</td><td><span class="status-chip status-chip--neutral">AI</span> Automation client</td><td>Mail</td><td>Filed evidence</td><td><a href="#" data-mock-action="demo">QDOS26198</a></td><td>Success</td></tr>
+                <tr><td>17 Sep 2026, 16:05</td><td>David Okafor</td><td>Cases</td><td>Reopened case</td><td><a href="#" data-mock-action="demo">QDOS26150</a></td><td>Refused</td></tr>
+                <tr><td>17 Sep 2026, 11:37</td><td>Priya Anand</td><td>Estimate</td><td>Sent report</td><td><a href="#" data-mock-action="demo">QDOS26177</a></td><td>Success</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <nav class="pagination" aria-label="Action log pages">
+            <span>Page 1</span>
+            <a class="btn btn--small" href="#" data-mock-action="demo">Next</a>
+          </nav>
+          <details class="panel">
+            <summary class="panel-head">Recorded counts and processing times</summary>
+            <div class="panel-body grid grid-3">
+              <dl><dt class="muted">Mailbox failures</dt><dd>0</dd></dl>
+              <dl><dt class="muted">Mailbox freshness</dt><dd>Current (18 Sep 2026, 08:12)</dd></dl>
+              <dl><dt class="muted">Oldest pending Box upload</dt><dd>&mdash;</dd></dl>
+              <dl><dt class="muted">Poisoned inbox messages</dt><dd>0</dd></dl>
+              <dl><dt class="muted">Unknown sends</dt><dd>0</dd></dl>
+              <dl><dt class="muted">Oldest pending AI job</dt><dd>18 Sep 2026, 08:14</dd></dl>
+              <dl><dt class="muted">Cache entries</dt><dd>128</dd></dl>
+              <dl><dt class="muted">Cache bytes</dt><dd>2,411,904</dd></dl>
+              <dl><dt class="muted">Next cache expiry</dt><dd>18 Sep 2026, 09:00</dd></dl>
+              <dl><dt class="muted">Active cache reads</dt><dd>0</dd></dl>
+              <dl><dt class="muted">Cache cleanup failures</dt><dd>0</dd></dl>
+              <dl><dt class="muted">Cache hits since Web start</dt><dd>412</dd></dl>
+              <dl><dt class="muted">Cache misses since Web start</dt><dd>37</dd></dl>
+            </div>
+          </details>
+        </div>
+      </section>
+    </div>
+
+    <div data-mock-show="adLogsTab:intake">
+      <div class="figures logs-figures">
+        <a class="figure logs-figure" href="#" data-mock-action="demo">
+          <span class="label">Failed intake</span><span class="value">2</span>
+        </a>
+        <div class="figure logs-figure logs-figure--pending">
+          <span class="label">Oldest pending intake</span><span class="value">18 Sep 2026, 07:50</span>
+        </div>
+      </div>
+      <form class="panel logs-filter" aria-label="Filter the intake log" data-mock-action="demo-filter">
+        <div class="panel-body logs-filter__fields">
+          <div class="field logs-filter__search"><label for="il-text">Search</label><input id="il-text" placeholder="Reference, registration, claim number, sender, file name" /></div>
+          <div class="field"><label for="il-outcome">Outcome</label>
+            <select id="il-outcome"><option selected>All outcomes</option><option>Case created</option><option>Unidentified</option><option>Triage</option><option>Vehicle images</option><option>Could not be read</option><option>Processing failed</option><option>Closed</option><option>Allocation failed</option><option>OCR failed</option></select>
+          </div>
+          <div class="field"><label for="il-source">Source</label>
+            <select id="il-source"><option selected>All sources</option><option>Manual upload</option><option>Mailbox</option><option>Automation</option><option>Provider API</option></select>
+          </div>
+          <div class="field"><label for="il-principal">Principal</label><input id="il-principal" /></div>
+          <div class="field"><label for="il-from">From</label><input id="il-from" type="date" /></div>
+          <div class="field"><label for="il-to">To</label><input id="il-to" type="date" /></div>
+          <div class="button-row"><button class="btn btn--dark" type="submit">Apply</button><a class="btn" href="#" data-mock-action="demo">Clear</a></div>
+        </div>
+      </form>
+      <section class="panel" aria-labelledby="intake-log-title">
+        <div class="panel-head">
+          <h2 id="intake-log-title">Intake log</h2>
+          <span class="meta">4 items &middot; Newest first</span>
+        </div>
+        <div class="table-wrap no-border">
+          <table class="table table--compact">
+            <caption class="sr-only">Intake log</caption>
+            <thead><tr><th scope="col">Received</th><th scope="col">Source</th><th scope="col">Item</th><th scope="col">Outcome</th><th scope="col">Became</th><th scope="col">Attempts</th><th scope="col"><span class="sr-only">Open</span></th></tr></thead>
+            <tbody>
+              <tr>
+                <td>08:12</td><td>Mailbox &middot; claims@wingroveinsurance.example</td>
+                <td class="logs-item"><a href="#" data-mock-action="demo">Instruction - Ford Focus.pdf</a></td>
+                <td><span class="status status--green">Case created</span></td>
+                <td class="mono"><a href="#" data-mock-action="demo">QDOS26214</a></td>
+                <td>&mdash;</td>
+                <td class="row-actions"><a class="btn btn--small" href="#" data-ad-set="adLogsDrawer:open">Open</a></td>
+              </tr>
+              <tr><td>07:50</td><td>Manual upload</td><td class="logs-item"><a href="#" data-mock-action="demo">photo1.jpg</a></td><td><span class="status status--green">Vehicle images</span></td><td class="mono"><span class="muted">&mdash;</span></td><td>&mdash;</td><td class="row-actions"><a class="btn btn--small" href="#" data-mock-action="demo">Open</a></td></tr>
+              <tr><td>Yesterday, 17:20</td><td>Automation</td><td class="logs-item"><a href="#" data-mock-action="demo">claim-bundle.docx</a></td><td><span class="status status--amber">Unidentified</span></td><td class="mono"><span class="muted">&mdash;</span></td><td>&mdash;</td><td class="row-actions"><a class="btn btn--small" href="#" data-mock-action="demo">Open</a></td></tr>
+              <tr>
+                <td>Yesterday, 09:03</td><td>Mailbox &middot; claims@meridianclaims.example</td>
+                <td class="logs-item"><a href="#" data-mock-action="demo">Re: Claim update</a></td>
+                <td><span class="status status--red">Could not be read</span><span class="logs-reason">The Word document could not be read</span></td>
+                <td class="mono"><span class="muted">&mdash;</span></td>
+                <td>2 processing &middot; 1 allocation</td>
+                <td class="row-actions"><a class="btn btn--small" href="#" data-mock-action="demo">Open</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <aside class="logs-drawer" role="dialog" aria-modal="false" aria-labelledby="intake-drawer-title" data-mock-show="adLogsDrawer:open">
+        <div class="logs-drawer__head">
+          <h2 id="intake-drawer-title">Instruction - Ford Focus.pdf</h2>
+          <a class="icon-button" href="#" aria-label="Close" data-ad-set="adLogsDrawer:closed"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></a>
+        </div>
+        <div class="logs-drawer__body">
+          <dl class="logs-facts">
+            <dt>Received</dt><dd>18 Sep 2026, 08:12</dd>
+            <dt>Source</dt><dd>Mailbox &middot; claims@wingroveinsurance.example</dd>
+            <dt>Outcome</dt><dd><span class="status status--green">Case created</span></dd>
+            <dt>Became</dt><dd class="mono"><a href="#" data-mock-action="demo">QDOS26214</a></dd>
+            <dt>Attempts</dt><dd>1 processing &middot; 1 allocation</dd>
+          </dl>
+          <section class="panel">
+            <div class="panel-head"><h3>Retained original</h3></div>
+            <div class="panel-body button-row">
+              <a class="btn" href="#" data-mock-action="demo"><svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg><span>Open file</span></a>
+              <a class="btn" href="#" data-mock-action="demo"><svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg><span>Open message</span></a>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-head"><h3>Processing evidence</h3></div>
+            <ul class="logs-evidence">
+              <li><strong>Decision</strong><span>Matched Wingrove Insurance by claim number and registration.</span></li>
+              <li><strong>Registration reading</strong><span class="mono">MA59 BDY</span></li>
+              <li><strong>Claim number</strong><span>WI-88214</span></li>
+            </ul>
+          </section>
+        </div>
+        <div class="logs-drawer__foot">
+          <form class="logs-action" data-mock-action="demo">
+            <label class="sr-only" for="reevaluate-reason">Reason</label>
+            <input id="reevaluate-reason" placeholder="Reason" required />
+            <button class="btn" type="submit">Re-evaluate with current policy</button>
+          </form>
+          <a class="btn" href="#" data-ad-set="adLogsDrawer:closed">Close</a>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- =========================== REPORTS =========================== -->
+  <div data-mock-show="ad-area:reports">
+    <section class="panel" aria-labelledby="mi01-title">
+      <div class="panel-head"><h2 id="mi01-title">Engineer activity</h2><span class="meta">MI01</span></div>
+      <div class="panel-body">
+        <p class="muted admin-report-note">Queries received are credited to the Engineer assigned to the Case. Reports sent are credited to the staff member recorded as the sender.</p>
+        <form class="form-grid form-grid--auto admin-report-filter" aria-label="Engineer activity filters" data-mock-action="demo-filter">
+          <div class="field"><label for="mi01-from">From London</label><input id="mi01-from" type="datetime-local" step="60" /></div>
+          <div class="field"><label for="mi01-to">To London</label><input id="mi01-to" type="datetime-local" step="60" /></div>
+          <div class="field"><label for="mi01-person">Person</label><select id="mi01-person"><option selected>All people</option><option>Sam Whitlock</option><option>Priya Anand</option><option>David Okafor</option></select></div>
+          <div class="cluster">
+            <button class="btn btn--dark" type="submit">Apply</button>
+            <a class="btn" href="#" data-mock-action="demo"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
+          </div>
+        </form>
+        <div class="metric-strip metric-strip--2 section-gap" aria-label="Engineer activity totals">
+          <div class="metric"><span class="metric-label">Queries received</span><span class="metric-value">5</span></div>
+          <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">11</span></div>
+        </div>
+        <div class="table-wrap section-gap">
+          <table class="table table--compact">
+            <thead><tr><th scope="col">Person</th><th scope="col" class="num">Queries received</th><th scope="col" class="num">Reports sent</th></tr></thead>
+            <tbody>
+              <tr><td>Priya Anand</td><td class="num tabular">4</td><td class="num tabular">6</td></tr>
+              <tr><td>Sam Whitlock</td><td class="num tabular">1</td><td class="num tabular">3</td></tr>
+              <tr><td>David Okafor</td><td class="num tabular">0</td><td class="num tabular">2</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <section class="panel" aria-labelledby="mi02-title">
+      <div class="panel-head"><h2 id="mi02-title">Reports by Principal</h2><span class="meta">MI02</span>
+        <div class="panel-actions"><a class="btn btn--small" href="#" data-mock-action="demo"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a></div>
+      </div>
+      <div class="panel-body">
+        <div class="metric-strip metric-strip--2" aria-label="Reports by Principal totals">
+          <div class="metric"><span class="metric-label">Reports produced</span><span class="metric-value">8</span></div>
+          <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">7</span></div>
+        </div>
+        <div class="table-wrap section-gap">
+          <table class="table table--compact">
+            <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">Reports sent</th><th scope="col">Report types</th></tr></thead>
+            <tbody><tr><td class="mono">WING01</td><td class="num tabular">8</td><td class="num tabular">7</td><td>Report 6, Fee note 2</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+    <section class="panel" aria-labelledby="mi03-title">
+      <div class="panel-head"><h2 id="mi03-title">Turnaround</h2><span class="meta">MI03</span>
+        <div class="panel-actions"><a class="btn btn--small" href="#" data-mock-action="demo"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a></div>
+      </div>
+      <div class="panel-body">
+        <div class="metric-strip" aria-label="Turnaround totals">
+          <div class="metric"><span class="metric-label">Cases currently held</span><span class="metric-value">2</span></div>
+        </div>
+        <div class="table-wrap section-gap">
+          <table class="table table--compact">
+            <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Currently held</th><th scope="col">Oldest held since</th><th scope="col">Time to produce</th><th scope="col">Time to ready</th><th scope="col">Time to send</th></tr></thead>
+            <tbody><tr><td class="mono">WING01</td><td class="num tabular">2</td><td>15 Sep 2026, 09:30</td><td>1 day</td><td>2 days</td><td>3 days</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- =========================== AI JOBS =========================== -->
+  <div data-mock-show="ad-area:ai-jobs">
+    <section class="panel" aria-labelledby="ai-jobs-title">
+      <div class="panel-head">
+        <h2 id="ai-jobs-title">AI jobs</h2>
+        <span class="meta">3 active &middot; 1 failed &middot; Active</span>
+      </div>
+      <div class="table-wrap no-border">
+        <table class="table table--compact">
+          <caption class="sr-only">AI jobs</caption>
+          <thead><tr><th scope="col">Job</th><th scope="col">Subject</th><th scope="col">Created</th><th scope="col">State</th><th scope="col">Action</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Estimate</strong></td><td class="mono">QDOS26214</td><td class="nowrap">18 Sep 2026, 08:05</td><td><span class="status status--amber">Draft ready</span></td><td class="row-actions"><form data-mock-action="demo"><button class="btn btn--small btn--danger" type="submit">Stop</button></form></td></tr>
+            <tr><td><strong>Unidentified resolution</strong><small class="admin-job-detail">Unidentified queue</small></td><td class="mono">Unidentified queue</td><td class="nowrap">18 Sep 2026, 07:58</td><td><span class="status status--navy">Taken</span></td><td class="row-actions"><form data-mock-action="demo"><button class="btn btn--small btn--danger" type="submit">Stop</button></form></td></tr>
+            <tr><td><strong>Query response</strong></td><td class="mono">QDOS26198</td><td class="nowrap">18 Sep 2026, 07:40</td><td><span class="status status--amber">Queued</span></td><td class="row-actions"><form data-mock-action="demo"><button class="btn btn--small btn--danger" type="submit">Stop</button></form></td></tr>
+            <tr><td><strong>Unidentified-queue pass</strong></td><td class="mono">Unidentified queue</td><td class="nowrap">17 Sep 2026, 22:15</td><td><span class="status status--green">Completed</span></td><td class="row-actions"><span class="muted">&mdash;</span></td></tr>
+            <tr><td><strong>Market research</strong></td><td class="mono">QDOS26150</td><td class="nowrap">17 Sep 2026, 15:02</td><td><span class="status status--red">Failed</span></td><td class="row-actions"><span class="muted">&mdash;</span></td></tr>
+            <tr><td><strong>Estimate</strong></td><td class="mono">QDOS26177</td><td class="nowrap">16 Sep 2026, 10:11</td><td><span class="status status--neutral">Cancelled</span></td><td class="row-actions"><span class="muted">&mdash;</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-foot">
+        <nav class="pagination" aria-label="AI job pages"><span>Page 1</span><a class="btn btn--small" href="#" data-mock-action="demo">Next</a></nav>
+      </div>
+    </section>
+  </div>
+
+  <!-- ========================= AUTOMATION ========================= -->
+  <div data-mock-show="ad-area:automation">
+    <div data-mock-show="adAutomationComposed:1">
+      <section class="panel" aria-labelledby="automation-panel-title">
+        <div class="panel-head">
+          <h2 id="automation-panel-title">Automation</h2>
+          <span class="status status--navy">Enabled</span>
+        </div>
+        <div class="panel-body">
+          <div class="fact-grid">
+            <dl class="fact"><dt>Registered clients</dt><dd>Pegasus automation client</dd></dl>
+            <dl class="fact"><dt>Client identifier</dt><dd class="mono">a1b2c3d4-...</dd></dl>
+            <dl class="fact"><dt>Granted scopes</dt><dd>Cases, Documents, Assessment, Mail, AI jobs</dd></dl>
+            <dl class="fact"><dt>Active jobs</dt><dd class="tabular">1</dd></dl>
+            <dl class="fact"><dt>Failed jobs</dt><dd class="tabular">0</dd></dl>
+          </div>
+          <form class="cluster mt-2" data-mock-action="demo">
+            <span class="muted">In-flight work remains visible and no result is discarded.</span>
+            <button type="submit" class="btn btn--danger"><svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg><span>Stop automation</span></button>
+          </form>
+        </div>
+      </section>
+      <section class="panel" aria-labelledby="ai-settings-panel-title">
+        <div class="panel-head">
+          <h2 id="ai-settings-panel-title">AI settings</h2>
+          <span class="status status--navy">Enabled</span>
+        </div>
+        <div class="panel-body">
+          <dl class="definition-list">
+            <div class="definition"><dt>Channel token</dt><dd>Entered from Administration</dd></div>
+            <div class="definition"><dt>Changed</dt><dd><time>10 Sep 2026</time></dd></div>
+          </dl>
+          <form class="section-gap stack" data-mock-action="demo">
+            <div class="form-grid form-grid--3">
+              <div class="field"><label for="ai-channel-address">Channel address</label><input id="ai-channel-address" value="https://ai.collisionengineers.example" /></div>
+              <div class="field"><label for="ai-timeout">Timeout in seconds</label><input id="ai-timeout" type="number" value="30" /></div>
+              <div class="field"><label for="ai-channel-token">New channel token</label><input id="ai-channel-token" type="password" autocomplete="new-password" /></div>
+            </div>
+            <label class="cluster"><input type="checkbox" checked /><span>Reviewed AI proposals enabled</span></label>
+            <div class="cluster admin-actions-end">
+              <button type="submit" class="btn btn--danger"><svg class="icon" aria-hidden="true"><use href="#icon-trash-2" /></svg><span>Remove the channel token</span></button>
+              <button type="submit" class="btn btn--primary"><svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg><span>Save AI settings</span></button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+    <section class="panel unavailable-panel" aria-labelledby="automation-unavailable-title" data-mock-show="adAutomationComposed:0">
+      <div class="panel-head"><h2 id="automation-unavailable-title">Automation &amp; AI</h2></div>
+      <div class="panel-body"><p>This deployment does not have Automation or AI configuration available.</p></div>
+    </section>
+  </div>
+
+  </div>
+</div>
+
+<!-- ============================ DIALOGS ============================ -->
+
+<div class="dialog-backdrop" data-dialog="create-account-dialog" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="create-account-title">
+    <div class="dialog-head"><h2 id="create-account-title" tabindex="-1">Create staff account</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="demo">
+      <div class="dialog-body stack">
+        <div class="field"><label class="req" for="create-username">Username</label><input id="create-username" required autocomplete="off" /></div>
+        <div class="field"><label class="req" for="create-password">Temporary password</label><input id="create-password" type="password" required autocomplete="new-password" /></div>
+      </div>
+      <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Create staff account</button></div>
+    </form>
+  </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="settings-sam-whitlock" hidden>
+  <section class="dialog dialog--wide account-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-sam-whitlock-title">
+    <div class="dialog-head"><h2 id="settings-sam-whitlock-title" tabindex="-1">s.whitlock</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="demo">
+      <div class="dialog-body stack">
+        <dl class="fact-grid account-settings-facts"><div class="fact"><dt>Username</dt><dd class="mono">s.whitlock</dd></div><div class="fact"><dt>State</dt><dd>Enabled</dd></div></dl>
+        <div class="account-signoff-fields">
+          <div class="field"><label for="acc-role">Role</label><select id="acc-role" data-account-role><option selected>Administrator</option><option>Engineer</option><option>User</option></select></div>
+          <div class="field"><label for="acc-signoff">Sign-off Engineer</label><select id="acc-signoff" data-account-signoff><option>No</option><option selected>Yes</option></select></div>
+          <div class="field" data-account-signoff-field><label for="acc-name">Printed name</label><input id="acc-name" value="Sam Whitlock" /></div>
+          <div class="field" data-account-signoff-field><label for="acc-qual">Qualifications</label><input id="acc-qual" value="IMI Level 3 Vehicle Damage Assessment" /></div>
+        </div>
+        <section class="account-settings-section" aria-labelledby="settings-sam-whitlock-glass-title">
+          <div class="settings-line"><div><strong id="settings-sam-whitlock-glass-title">Glass's repair estimates</strong><span class="meta">Manage this account's login.</span></div><a class="btn" href="#" data-dialog-open="glass-credential-dialog">Manage login</a></div>
+        </section>
+        <div class="field" data-account-signoff-field><label for="acc-signature">Signature image</label><input id="acc-signature" type="file" accept="image/png" /></div>
+        <label class="choice" data-account-signoff-field><input type="checkbox" checked /><span>Default sign-off Engineer</span></label>
+      </div>
+      <div class="dialog-foot">
+        <button type="button" class="btn" data-dialog-close>Cancel</button>
+        <button type="submit" class="btn btn--primary">Save settings</button>
+      </div>
+    </form>
+    <div class="dialog-foot">
+      <div class="left">
+        <button type="button" class="btn" data-mock-action="demo">Force logout</button>
+        <button type="button" class="btn" data-mock-action="demo">Reset password</button>
+        <button type="button" class="btn btn--danger" data-dialog-open="settings-sam-whitlock-delete">Delete</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<dialog id="settings-sam-whitlock-delete" aria-labelledby="settings-sam-whitlock-delete-title">
+  <form class="stack" data-mock-action="demo">
+    <h2 id="settings-sam-whitlock-delete-title" tabindex="-1">Delete s.whitlock</h2>
+    <div class="button-row"><button class="btn" type="button" data-dialog-close>Cancel</button><button type="submit" class="btn btn--danger">Delete</button></div>
+  </form>
+</dialog>
+
+<div class="dialog-backdrop" data-dialog="glass-credential-dialog" hidden>
+  <section class="dialog dialog--compact glass-credential-dialog" role="dialog" aria-modal="true" aria-labelledby="glass-credential-title">
+    <div class="dialog-head">
+      <h2 id="glass-credential-title">Glass's login</h2>
+      <span class="status status--neutral" data-mock-show="adGlass:notset">Not configured</span>
+      <span class="status status--navy" data-mock-show="adGlass:username">Enabled</span>
+      <span class="status status--neutral" data-mock-show="adGlass:disabled">Disabled</span>
+      <button type="button" class="dialog-close" data-dialog-close aria-label="Back to account"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button>
+    </div>
+    <div class="dialog-body stack">
+      <dl class="detail-list credentials-summary">
+        <div><dt>Account</dt><dd>s.whitlock</dd></div>
+        <div data-mock-show="adGlass:username,adGlass:disabled"><dt>Username</dt><dd>s.whitlock</dd></div>
+        <div data-mock-show="adGlass:username,adGlass:disabled"><dt>Generation</dt><dd class="tabular">1</dd></div>
+        <div data-mock-show="adGlass:username,adGlass:disabled"><dt>Version</dt><dd class="tabular">2</dd></div>
+        <div data-mock-show="adGlass:username,adGlass:disabled"><dt>Updated</dt><dd><time>10 Sep 2026, 09:15</time></dd></div>
+      </dl>
+      <form class="stack" data-mock-action="demo">
+        <fieldset class="stack" data-mock-show="adGlassEditing:1">
+          <div class="field"><label class="req" for="glass-username">Username</label><input id="glass-username" required autocomplete="off" /></div>
+          <div class="field"><label class="req" for="glass-password">Password</label><input id="glass-password" type="password" required autocomplete="new-password" /></div>
+        </fieldset>
+      </form>
+    </div>
+    <div class="dialog-foot">
+      <div class="left" data-mock-show="adGlass:username,adGlass:disabled"><button type="button" class="btn btn--danger" data-mock-action="demo" data-mock-show="adGlassEditing:1">Clear credential</button></div>
+      <button type="button" class="btn" data-dialog-close data-mock-show="adGlassEditing:1" data-ad-set="adGlassEditing:0">Cancel</button>
+      <button type="button" class="btn btn--primary" data-mock-action="demo" data-ad-set="adGlassEditing:0" data-mock-show="adGlassEditing:1"><svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg><span>Save credential</span></button>
+      <button type="button" class="btn btn--primary" data-ad-set="adGlassEditing:1" data-mock-show="adGlassEditing:0">Edit credential</button>
+      <button type="button" class="btn" data-dialog-close data-mock-show="adGlassEditing:0">Back to account</button>
+    </div>
+  </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="contact-type-dialog" hidden>
+  <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="contact-type-title">
+    <div class="dialog-head"><h2 id="contact-type-title" tabindex="-1">Add contact</h2><button class="dialog-close" type="button" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <div class="dialog-body">
+      <div class="contact-kind-grid">
+        <a class="contact-kind" href="#" data-mock-action="demo"><strong>Principal</strong></a>
+        <a class="contact-kind" href="#" data-mock-action="demo"><strong>Claim Source</strong></a>
+        <a class="contact-kind" href="#" data-mock-action="demo"><strong>Repairer</strong></a>
+        <a class="contact-kind" href="#" data-mock-action="demo"><strong>Storage</strong></a>
+        <a class="contact-kind" href="#" data-mock-action="demo"><strong>Third Party Engineer</strong></a>
+      </div>
+    </div>
+    <div class="dialog-foot"><button class="btn" type="button" data-dialog-close>Cancel</button></div>
+  </section>
+</div>
+
+<dialog id="replace-principal" aria-labelledby="replace-principal-title">
+  <form class="stack" data-mock-action="demo">
+    <h2 id="replace-principal-title">Replace WING01</h2>
+    <p>14 allocated cases remain with their existing references.</p>
+    <div class="field"><label class="req" for="successor-code">New principal code</label><input id="successor-code" autocomplete="off" /></div>
+    <div class="button-row"><button class="btn" type="button" data-dialog-close="replace-principal">Cancel</button><button type="submit" class="btn btn--danger">Replace code</button></div>
+  </form>
+</dialog>
+
+<div class="dialog-backdrop" data-dialog="default-sender-dialog" hidden>
+  <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="default-sender-dialog-title">
+    <form data-mock-action="demo">
+      <div class="dialog-head"><h2 id="default-sender-dialog-title" tabindex="-1">Default sender</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">&times;</button></div>
+      <div class="dialog-body">
+        <div class="field"><label for="default-staff-send-mailbox">Mailbox</label>
+          <select id="default-staff-send-mailbox" required>
+            <option value="" selected>Select an eligible staff-send mailbox</option>
+            <option>reports@collisionengineers.example</option>
+          </select>
+        </div>
+      </div>
+      <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Continue</button></div>
+    </form>
+  </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="new-mailbox-dialog" hidden>
+  <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="new-mailbox-dialog-title">
+    <form data-mock-action="demo">
+      <div class="dialog-head"><h2 id="new-mailbox-dialog-title" tabindex="-1">Add mailbox</h2><button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">&times;</button></div>
+      <div class="dialog-body">
+        <div class="field"><label class="req" for="new-mailbox-address">Approved address</label><input id="new-mailbox-address" required inputmode="email" /></div>
+        <fieldset class="stack"><legend>Route scope</legend>
+          <label class="cluster"><input type="checkbox" /><span>New instructions and Triage mail (Inbox)</span></label>
+          <label class="cluster"><input type="checkbox" /><span>Exact report and Triage evidence (Sent Items)</span></label>
+          <label class="cluster"><input type="checkbox" /><span>Staff send</span></label>
+        </fieldset>
+        <div class="field"><label for="new-mailbox-send-limit">Verified encoded-message size limit (bytes)</label><input id="new-mailbox-send-limit" type="number" min="1" /></div>
+        <div class="field"><label for="new-mailbox-state">State</label><select id="new-mailbox-state"><option selected>Approved</option><option>Disabled</option></select></div>
+      </div>
+      <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Add mailbox</button></div>
+    </form>
+  </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="mailbox-settings-instructions" hidden>
+  <section class="dialog dialog--contact" role="dialog" aria-modal="true" aria-labelledby="mailbox-settings-instructions-title">
+    <form data-mock-action="demo">
+      <div class="dialog-head"><h2 id="mailbox-settings-instructions-title" tabindex="-1">Mailbox settings</h2><button type="submit" class="dialog-close" aria-label="Close dialog">&times;</button></div>
+      <div class="dialog-body stack">
+        <div class="field"><label class="req" for="mb-address">Approved address</label><input id="mb-address" value="instructions@collisionengineers.example" readonly /></div>
+        <fieldset class="stack"><legend>Route scope</legend>
+          <label class="cluster"><input type="checkbox" checked /><span>New instructions and Triage mail (Inbox)</span></label>
+          <label class="cluster"><input type="checkbox" /><span>Exact report and Triage evidence (Sent Items)</span></label>
+          <label class="cluster"><input type="checkbox" /><span>Staff send</span></label>
+        </fieldset>
+        <div class="form-grid form-grid--2">
+          <div class="field"><label for="mb-send-limit">Verified encoded-message size limit (bytes)</label><input id="mb-send-limit" type="number" value="26214400" /></div>
+          <div class="field"><label for="mb-state">State</label><select id="mb-state"><option selected>Approved</option><option>Disabled</option></select></div>
+        </div>
+        <section class="contact-section" aria-labelledby="mb-access"><h3 id="mb-access">Access and polling</h3>
+          <dl class="definition-list">
+            <div class="definition"><dt>Activation</dt><dd>3 Sep 2026, 10:02</dd></div>
+            <div class="definition"><dt>Subscription</dt><dd>Active. Expires 25 Sep 2026, 10:02.</dd></div>
+            <div class="definition"><dt>Last success</dt><dd>18 Sep 2026, 08:12</dd></div>
+            <div class="definition"><dt>Freshness</dt><dd>Current</dd></div>
+            <div class="definition"><dt>Last error</dt><dd>None</dd></div>
+          </dl>
+        </section>
+        <section class="contact-section" aria-labelledby="mb-folders"><h3 id="mb-folders">Logical folders</h3>
+          <dl class="definition-list">
+            <div class="definition"><dt>Instructions</dt><dd>Configured</dd></div>
+            <div class="definition"><dt>Audits</dt><dd>Not configured</dd></div>
+            <div class="definition"><dt>Enquiries</dt><dd>Configured</dd></div>
+            <div class="definition"><dt>Billing</dt><dd>Not configured</dd></div>
+            <div class="definition"><dt>Cancellations</dt><dd>Not configured</dd></div>
+            <div class="definition"><dt>Case updates</dt><dd>Not configured</dd></div>
+          </dl>
+        </section>
+      </div>
+      <div class="dialog-foot"><button type="submit" class="btn">Cancel</button><button type="submit" class="btn">Refresh</button><button type="submit" class="btn btn--primary">Save mailbox</button></div>
+    </form>
+  </section>
+</div>
+
+<div class="dialog-backdrop" data-dialog="add-mail-category-dialog" hidden>
+  <section class="dialog dialog--mailbox" role="dialog" aria-modal="true" aria-labelledby="add-mail-category-title">
+    <div class="dialog-head"><h2 id="add-mail-category-title">Add category</h2><button type="button" class="btn btn--icon" data-dialog-close aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
+    <form data-mock-action="demo">
+      <div class="dialog-body stack">
+        <div class="field"><label class="req" for="new-category-display-name">Display name</label><input id="new-category-display-name" required /></div>
+        <div class="field"><label for="new-category-state">State</label><select id="new-category-state"><option selected>Active</option><option>Disabled</option></select></div>
+      </div>
+      <div class="dialog-foot"><button type="button" class="btn" data-dialog-close>Cancel</button><button type="submit" class="btn btn--primary">Add category</button></div>
+    </form>
+  </section>
+</div>
+
+</div>
+
+<div data-mock-show="role:Engineer|User">
+  <header class="page-header"><div class="page-title"><p class="eyebrow">Administration</p><h1>Access denied</h1></div></header>
+  <section class="panel"><div class="panel-body"><p class="empty-state">Administration is available to Administrators only.</p></div></section>
+</div>

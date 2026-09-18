@@ -1,0 +1,36 @@
+<fieldset>
+  <legend>Account / navless family</legend>
+  <label>Page
+    <select data-mock-input="acc-page">
+      <option value="signin" selected>Sign in</option>
+      <option value="signedout">Signed out</option>
+      <option value="accessdenied">Access denied</option>
+      <option value="passwordchange-forced">Change password (forced)</option>
+      <option value="authorize">Authorise a connector</option>
+      <option value="error">Error</option>
+      <option value="status404">Status 404</option>
+      <option value="status413">Status 413</option>
+      <option value="status429">Status 429</option>
+      <option value="status403">Status 403</option>
+    </select>
+  </label>
+  <label>Sign-in error
+    <select data-mock-input="acc-error">
+      <option value="none" selected>None</option>
+      <option value="signin-invalid">Invalid credentials</option>
+      <option value="password-mismatch">New passwords do not match</option>
+    </select>
+  </label>
+  <label>Access-denied area
+    <select data-mock-input="acc-denied-area">
+      <option value="general" selected>General (no eyebrow)</option>
+      <option value="named">Named area (e.g. Administration)</option>
+    </select>
+  </label>
+  <label>Connector scopes
+    <select data-mock-input="acc-scopes">
+      <option value="present" selected>Requested</option>
+      <option value="none">None requested</option>
+    </select>
+  </label>
+</fieldset>

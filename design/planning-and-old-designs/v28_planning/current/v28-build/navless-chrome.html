@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<!--
+  v28 baseline — as-is capture, no proposed changes. Built @@HEAD@@ from
+  origin/dev by design/planning-and-old-designs/v28_planning/current/v28-build/build.py.
+  This file is a temporary design review artifact, not application code, not
+  design authority and not implementation evidence.
+
+  The navless external frame, transcribed from
+  src/Pegasus.Web/Pages/Shared/_LayoutAuth.cshtml: one card on the dark
+  ground, the company logo and product name, no navigation — sign-in, signed
+  out, access denied and the error family are not places in the application
+  (docs/design/README.md).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>@@TITLE@@ · Pegasus (v28 baseline)</title>
+<style>
+/*@@SITE_CSS@@*/
+/*@@PAGE_CSS@@*/
+.mockup-strip{position:fixed;left:12px;bottom:12px;z-index:9000;width:360px;max-height:70vh;overflow:auto;background:#1b1e20;color:#e7e9ea;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);font:12px/1.4 var(--font);}
+.mockup-strip__head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;font-weight:600;cursor:pointer;border-bottom:1px solid #33383b;}
+.mockup-strip__body{padding:8px 10px;display:grid;gap:8px;}
+.mockup-strip.is-collapsed .mockup-strip__body{display:none;}
+.mockup-strip fieldset{border:1px solid #33383b;border-radius:4px;padding:6px 8px;}
+.mockup-strip legend{padding:0 4px;color:#9aa0a3;font-size:10px;text-transform:uppercase;letter-spacing:.04em;}
+.mockup-strip label{display:flex;align-items:center;gap:6px;margin:3px 0;}
+.mockup-strip select,.mockup-strip button{font:inherit;}
+.mockup-strip button{background:#2a2f32;color:#e7e9ea;border:1px solid #454b4f;border-radius:3px;padding:3px 8px;cursor:pointer;}
+.mockup-strip .disclaimer{color:#9aa0a3;font-style:italic;}
+[data-mock-hidden]{display:none !important;}
+</style>
+</head>
+<body data-role="Administrator">
+<!--@@SPRITE@@-->
+<div class="external-shell">
+  <main id="main-content" tabindex="-1">
+    <section class="auth-card" data-auth-card>
+      <div class="auth-brand">
+        <img src="/*@@LOGO@@*/" alt="" />
+        <strong>PEGASUS</strong>
+      </div>
+      <!--@@BODY@@-->
+    </section>
+  </main>
+</div>
+
+<div class="mockup-strip" data-mockup-strip>
+  <div class="mockup-strip__head" data-mock-action="strip-toggle"><span>Mockup controls</span><span aria-hidden="true">&and;</span></div>
+  <div class="mockup-strip__body">
+    <p class="disclaimer">Demo control, not product UI. Every choice is also a query-string preset.</p>
+    <!--@@STRIP@@-->
+  </div>
+</div>
+
+<div class="toast-region" aria-live="polite" data-toast-region></div>
+
+<script>
+/*@@ENGINE@@*/
+/*@@PAGE_JS@@*/
+</script>
+</body>
+</html>

@@ -1,0 +1,1010 @@
+[
+  {
+    "name": "s01-search-results-1580",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s01-search-results-1440",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s01-search-results-760",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s02-search-vehicle-images-1580",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "so-search-state=images",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s02-search-vehicle-images-1440",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "so-search-state=images",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s02-search-vehicle-images-760",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "so-search-state=images",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s03-search-unavailable-1580",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "so-search-state=queryfailed",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s03-search-unavailable-1440",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "so-search-state=queryfailed",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s03-search-unavailable-760",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "so-search-state=queryfailed",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s04-operations-jobs-1580",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "so-area=operations",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s04-operations-jobs-1440",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "so-area=operations",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s04-operations-jobs-760",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "so-area=operations",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s05-operations-attention-1580",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "so-area=operations&data=present",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s05-operations-attention-1440",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "so-area=operations&data=present",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s05-operations-attention-760",
+    "file": "pegasus_search_operations_v28.html",
+    "query": "so-area=operations&data=present",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s06-signin-1580",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=signin",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s06-signin-1440",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=signin",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s06-signin-760",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=signin",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s07-signedout-1580",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=signedout",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s07-signedout-1440",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=signedout",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s07-signedout-760",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=signedout",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s08-accessdenied-1580",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=accessdenied&acc-denied-area=named",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s08-accessdenied-1440",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=accessdenied&acc-denied-area=named",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s08-accessdenied-760",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=accessdenied&acc-denied-area=named",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s09-passwordchange-forced-1580",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=passwordchange-forced",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s09-passwordchange-forced-1440",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=passwordchange-forced",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s09-passwordchange-forced-760",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=passwordchange-forced",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s10-connector-consent-1580",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=authorize",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s10-connector-consent-1440",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=authorize",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s10-connector-consent-760",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=authorize",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s11-error-1580",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=error",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s11-error-1440",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=error",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s11-error-760",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=error",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s12-status404-1580",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=status404",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s12-status404-1440",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=status404",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s12-status404-760",
+    "file": "pegasus_account_shell_v28.html",
+    "query": "acc-page=status404",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s13-work-centre-1580",
+    "file": "pegasus_work_centre_v28.html",
+    "query": "",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s13-work-centre-1440",
+    "file": "pegasus_work_centre_v28.html",
+    "query": "",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s13-work-centre-760",
+    "file": "pegasus_work_centre_v28.html",
+    "query": "",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s14-work-centre-empty-1580",
+    "file": "pegasus_work_centre_v28.html",
+    "query": "data=empty",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s14-work-centre-empty-1440",
+    "file": "pegasus_work_centre_v28.html",
+    "query": "data=empty",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s14-work-centre-empty-760",
+    "file": "pegasus_work_centre_v28.html",
+    "query": "data=empty",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s15-work-centre-unavailable-1580",
+    "file": "pegasus_work_centre_v28.html",
+    "query": "wcattention=unavailable&wcnewcases=unavailable&wcaijobs=unavailable",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s15-work-centre-unavailable-1440",
+    "file": "pegasus_work_centre_v28.html",
+    "query": "wcattention=unavailable&wcnewcases=unavailable&wcaijobs=unavailable",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s15-work-centre-unavailable-760",
+    "file": "pegasus_work_centre_v28.html",
+    "query": "wcattention=unavailable&wcnewcases=unavailable&wcaijobs=unavailable",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s16-cases-index-list-1580",
+    "file": "pegasus_cases_index_v28.html",
+    "query": "",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s16-cases-index-list-1440",
+    "file": "pegasus_cases_index_v28.html",
+    "query": "",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s16-cases-index-list-760",
+    "file": "pegasus_cases_index_v28.html",
+    "query": "",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s17-cases-create-1580",
+    "file": "pegasus_cases_index_v28.html",
+    "query": "ciview=create",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s17-cases-create-1440",
+    "file": "pegasus_cases_index_v28.html",
+    "query": "ciview=create",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s17-cases-create-760",
+    "file": "pegasus_cases_index_v28.html",
+    "query": "ciview=create",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s18-cases-unidentified-closed-1580",
+    "file": "pegasus_cases_index_v28.html",
+    "query": "citab=unidentified&cishow=closed",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s18-cases-unidentified-closed-1440",
+    "file": "pegasus_cases_index_v28.html",
+    "query": "citab=unidentified&cishow=closed",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s18-cases-unidentified-closed-760",
+    "file": "pegasus_cases_index_v28.html",
+    "query": "citab=unidentified&cishow=closed",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s19-case-record-review-1580",
+    "file": "pegasus_case_record_v28.html",
+    "query": "",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s19-case-record-review-1440",
+    "file": "pegasus_case_record_v28.html",
+    "query": "",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s19-case-record-review-760",
+    "file": "pegasus_case_record_v28.html",
+    "query": "",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s20-case-record-edit-1580",
+    "file": "pegasus_case_record_v28.html",
+    "query": "credit=on",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s20-case-record-edit-1440",
+    "file": "pegasus_case_record_v28.html",
+    "query": "credit=on",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s20-case-record-edit-760",
+    "file": "pegasus_case_record_v28.html",
+    "query": "credit=on",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s21-case-record-held-1580",
+    "file": "pegasus_case_record_v28.html",
+    "query": "crstate=held",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s21-case-record-held-1440",
+    "file": "pegasus_case_record_v28.html",
+    "query": "crstate=held",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s21-case-record-held-760",
+    "file": "pegasus_case_record_v28.html",
+    "query": "crstate=held",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s22-case-record-evasend-1580",
+    "file": "pegasus_case_record_v28.html",
+    "query": "crview=evasend",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s22-case-record-evasend-1440",
+    "file": "pegasus_case_record_v28.html",
+    "query": "crview=evasend",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s22-case-record-evasend-760",
+    "file": "pegasus_case_record_v28.html",
+    "query": "crview=evasend",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s23-case-record-audit-1580",
+    "file": "pegasus_case_record_v28.html",
+    "query": "crcasetype=audit",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s23-case-record-audit-1440",
+    "file": "pegasus_case_record_v28.html",
+    "query": "crcasetype=audit",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s23-case-record-audit-760",
+    "file": "pegasus_case_record_v28.html",
+    "query": "crcasetype=audit",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s24-case-record-tabs-1580",
+    "file": "pegasus_case_record_v28.html",
+    "query": "crscroll=tabs",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s24-case-record-tabs-1440",
+    "file": "pegasus_case_record_v28.html",
+    "query": "crscroll=tabs",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s24-case-record-tabs-760",
+    "file": "pegasus_case_record_v28.html",
+    "query": "crscroll=tabs",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s25-triage-list-1580",
+    "file": "pegasus_triage_unidentified_v28.html",
+    "query": "",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s25-triage-list-1440",
+    "file": "pegasus_triage_unidentified_v28.html",
+    "query": "",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s25-triage-list-760",
+    "file": "pegasus_triage_unidentified_v28.html",
+    "query": "",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s26-triage-detail-1580",
+    "file": "pegasus_triage_unidentified_v28.html",
+    "query": "tu-area=triage&tu-triage-view=detail",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s26-triage-detail-1440",
+    "file": "pegasus_triage_unidentified_v28.html",
+    "query": "tu-area=triage&tu-triage-view=detail",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s26-triage-detail-760",
+    "file": "pegasus_triage_unidentified_v28.html",
+    "query": "tu-area=triage&tu-triage-view=detail",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s27-unidentified-detail-1580",
+    "file": "pegasus_triage_unidentified_v28.html",
+    "query": "tu-area=unidentified&tu-unident-view=detail",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s27-unidentified-detail-1440",
+    "file": "pegasus_triage_unidentified_v28.html",
+    "query": "tu-area=unidentified&tu-unident-view=detail",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s27-unidentified-detail-760",
+    "file": "pegasus_triage_unidentified_v28.html",
+    "query": "tu-area=unidentified&tu-unident-view=detail",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s28-unidentified-closed-1580",
+    "file": "pegasus_triage_unidentified_v28.html",
+    "query": "tu-area=unidentified&tu-unident-view=detail&tu-unident-state=closed&tu-unident-reason=no_id",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s28-unidentified-closed-1440",
+    "file": "pegasus_triage_unidentified_v28.html",
+    "query": "tu-area=unidentified&tu-unident-view=detail&tu-unident-state=closed&tu-unident-reason=no_id",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s28-unidentified-closed-760",
+    "file": "pegasus_triage_unidentified_v28.html",
+    "query": "tu-area=unidentified&tu-unident-view=detail&tu-unident-state=closed&tu-unident-reason=no_id",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s29-image-intake-list-1580",
+    "file": "pegasus_image_intake_v28.html",
+    "query": "",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s29-image-intake-list-1440",
+    "file": "pegasus_image_intake_v28.html",
+    "query": "",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s29-image-intake-list-760",
+    "file": "pegasus_image_intake_v28.html",
+    "query": "",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s30-image-intake-detail-1580",
+    "file": "pegasus_image_intake_v28.html",
+    "query": "ii-view=detail&ii-state=associated",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s30-image-intake-detail-1440",
+    "file": "pegasus_image_intake_v28.html",
+    "query": "ii-view=detail&ii-state=associated",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s30-image-intake-detail-760",
+    "file": "pegasus_image_intake_v28.html",
+    "query": "ii-view=detail&ii-state=associated",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s31-mail-inbox-1580",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s31-mail-inbox-1440",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s31-mail-inbox-760",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s32-mail-message-1580",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "mu-mail-view=message",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s32-mail-message-1440",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "mu-mail-view=message",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s32-mail-message-760",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "mu-mail-view=message",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s33-mail-compose-1580",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "mu-mail-view=compose",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s33-mail-compose-1440",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "mu-mail-view=compose",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s33-mail-compose-760",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "mu-mail-view=compose",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s34-upload-idle-1580",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "mu-area=upload&mu-upload-view=idle",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s34-upload-idle-1440",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "mu-area=upload&mu-upload-view=idle",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s34-upload-idle-760",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "mu-area=upload&mu-upload-view=idle",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s35-upload-status-failed-1580",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "mu-area=upload&mu-status-state=failed",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s35-upload-status-failed-1440",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "mu-area=upload&mu-status-state=failed",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s35-upload-status-failed-760",
+    "file": "pegasus_mail_upload_v28.html",
+    "query": "mu-area=upload&mu-status-state=failed",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s36-admin-hub-1580",
+    "file": "pegasus_administration_v28.html",
+    "query": "",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s36-admin-hub-1440",
+    "file": "pegasus_administration_v28.html",
+    "query": "",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s36-admin-hub-760",
+    "file": "pegasus_administration_v28.html",
+    "query": "",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s37-admin-accounts-1580",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=accounts",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s37-admin-accounts-1440",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=accounts",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s37-admin-accounts-760",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=accounts",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s38-admin-logs-1580",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=logs&adLogsTab=intake",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s38-admin-logs-1440",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=logs&adLogsTab=intake",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s38-admin-logs-760",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=logs&adLogsTab=intake",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s39-admin-denied-1580",
+    "file": "pegasus_administration_v28.html",
+    "query": "role=Engineer",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s39-admin-denied-1440",
+    "file": "pegasus_administration_v28.html",
+    "query": "role=Engineer",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s39-admin-denied-760",
+    "file": "pegasus_administration_v28.html",
+    "query": "role=Engineer",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s40-admin-aijobs-1580",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=ai-jobs",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s40-admin-aijobs-1440",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=ai-jobs",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s40-admin-aijobs-760",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=ai-jobs",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s41-admin-automation-1580",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=automation",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s41-admin-automation-1440",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=automation",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s41-admin-automation-760",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=automation",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s42-admin-configuration-1580",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=configuration",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s42-admin-configuration-1440",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=configuration",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s42-admin-configuration-760",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=configuration",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s43-admin-contacts-1580",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=contacts",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s43-admin-contacts-1440",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=contacts",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s43-admin-contacts-760",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=contacts",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s44-admin-glass-1580",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=accounts&dialog=glass-credential-dialog",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s44-admin-glass-1440",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=accounts&dialog=glass-credential-dialog",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s44-admin-glass-760",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=accounts&dialog=glass-credential-dialog",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s45-admin-health-1580",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=health",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s45-admin-health-1440",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=health",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s45-admin-health-760",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=health",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s46-admin-mailboxes-1580",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=mail",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s46-admin-mailboxes-1440",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=mail",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s46-admin-mailboxes-760",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=mail",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s47-admin-reports-1580",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=reports",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s47-admin-reports-1440",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=reports",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s47-admin-reports-760",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=reports",
+    "width": 760,
+    "height": 1000
+  },
+  {
+    "name": "s48-admin-valuationpresets-1580",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=valuation-presets",
+    "width": 1580,
+    "height": 1000
+  },
+  {
+    "name": "s48-admin-valuationpresets-1440",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=valuation-presets",
+    "width": 1440,
+    "height": 900
+  },
+  {
+    "name": "s48-admin-valuationpresets-760",
+    "file": "pegasus_administration_v28.html",
+    "query": "ad-area=valuation-presets",
+    "width": 760,
+    "height": 1000
+  }
+]

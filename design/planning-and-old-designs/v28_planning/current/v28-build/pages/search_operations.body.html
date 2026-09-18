@@ -1,0 +1,223 @@
+<!-- ===================== Search (src/Pegasus.Web/Pages/Search/Index.cshtml) ===================== -->
+<div data-mock-show="so-area:search">
+<header class="page-header">
+  <div class="page-title"><h1>Search</h1></div>
+  <div class="page-actions">
+    <div class="freshness" data-mock-show="fresh:current" role="status">
+      <span class="freshness-status"><span class="health-dot"></span><span>Current · 09:41</span></span>
+      <button type="button" class="btn btn--small" title="Refresh"><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Refresh</span></button>
+    </div>
+    <div class="freshness" data-mock-show="fresh:stale|partial" role="status">
+      <span class="freshness-status"><span class="health-dot partial"></span><span>Stale · 09:41</span> <span class="status status--amber">Stale</span></span>
+      <button type="button" class="btn btn--small" title="Refresh"><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Refresh</span></button>
+    </div>
+    <div class="freshness" data-mock-show="fresh:unavailable" role="status">
+      <span class="freshness-status"><span class="health-dot failed"></span><span>Unavailable</span> <span class="status status--red">Unavailable</span></span>
+      <button type="button" class="btn btn--small" title="Refresh"><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Refresh</span></button>
+    </div>
+    <a class="btn btn--primary" href="pegasus_mail_upload_v28.html#upload">
+      <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+      <span>Create Case</span>
+    </a>
+  </div>
+</header>
+
+<form method="get" class="panel section-gap compact-search" aria-label="Filter cases" onsubmit="return false">
+  <div class="panel-body compact-search__main">
+    <div class="field"><label for="search-query">Case or reference</label><input id="search-query" name="query" maxlength="300" /></div>
+    <div class="field"><label for="search-registration">Registration</label><input id="search-registration" name="registration" maxlength="20" /></div>
+    <div class="field"><label for="search-claimant">Claimant</label><input id="search-claimant" name="claimant" maxlength="300" /></div>
+    <div class="field"><label for="search-claim-number">Claim reference</label><input id="search-claim-number" name="claimNumber" maxlength="100" /></div>
+    <div class="field"><label for="search-principal">Principal</label><input id="search-principal" name="principal" maxlength="20" /></div>
+    <div class="field">
+      <label for="search-state">State</label>
+      <select id="search-state" name="state">
+        <option value="">All states</option>
+        <option>Not ready</option><option>Held</option><option selected>Review</option><option>With Engineer</option>
+        <option>Completed</option><option>Query</option><option>Closed · Provider cancelled</option>
+        <option>Closed · Collision Engineers rejected</option><option>Closed · Created in error</option>
+        <option>Closed · E-mail unlinked</option>
+      </select>
+    </div>
+    <div class="button-row">
+      <button type="submit" class="btn btn--dark"><svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg><span>Search</span></button>
+      <a href="pegasus_search_operations_v28.html" class="btn"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg><span>Clear</span></a>
+    </div>
+  </div>
+  <details class="compact-search__more">
+    <summary>More filters</summary>
+    <div class="compact-search__more-fields">
+      <div class="field"><label for="search-engineer">Engineer</label><input id="search-engineer" name="engineerId" /></div>
+      <div class="field"><label for="search-from-date">Received from</label><input id="search-from-date" name="fromDate" type="date" /></div>
+      <div class="field"><label for="search-to-date">Received to</label><input id="search-to-date" name="toDate" type="date" /></div>
+      <div class="field"><label for="search-origin">Origin</label><input id="search-origin" name="origin" maxlength="100" /></div>
+    </div>
+  </details>
+</form>
+
+<div class="notice notice--danger section-gap" role="alert" data-mock-show="so-search-state:queryfailed">
+  <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+  <div><strong>Cases are unavailable</strong><p>The search could not be completed; try again.</p></div>
+</div>
+
+<div data-mock-show="so-search-state:results|images">
+<section class="panel section-gap" aria-labelledby="search-vehicle-images-title" data-mock-show="so-search-state:images">
+  <div class="panel-head"><h2 id="search-vehicle-images-title">Vehicle images</h2><span class="meta">1 record</span></div>
+  <div class="table-wrap no-border">
+    <table class="table table--compact" data-vehicle-images>
+      <caption class="sr-only">Vehicle images</caption>
+      <thead><tr><th scope="col">Reference</th><th scope="col">Registration</th><th scope="col">Associated Case</th><th scope="col">Registered</th><th scope="col">State</th></tr></thead>
+      <tbody>
+        <tr><td class="mono"><a href="pegasus_image_intake_v28.html">MA59BDY-01</a></td><td class="mono">MA59 BDY</td><td class="mono">—</td><td><time>17 Sep 2026, 14:02</time></td><td><span class="status status--amber">Awaiting instruction</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="pane-layout pane-layout--2 case-search-layout section-gap" data-mock-show="so-search-state:results">
+  <div class="pane">
+    <div class="pane-head"><div><h2>Case results</h2><span class="muted">3 results</span></div></div>
+    <div class="pane-body pane-scroll" data-row-list>
+      <div class="table-wrap">
+        <table>
+          <caption class="sr-only">Case search results</caption>
+          <thead><tr><th scope="col">Case/PO</th><th scope="col">Vehicle</th><th scope="col">Claimant</th><th scope="col">Principal</th><th scope="col">State</th><th scope="col">Editing</th></tr></thead>
+          <tbody>
+            <tr aria-selected="true" data-mock-action="select-row" data-preview="hero">
+              <td><a class="table-row-link" href="pegasus_case_record_v28.html">QDOS26214</a><span class="secondary">WI-88213</span></td>
+              <td>MA59 BDY<span class="secondary">Ford Focus</span></td>
+              <td>David Okafor</td><td>Wingrove Insurance</td>
+              <td><span class="status status--navy">Review</span></td><td>—</td>
+            </tr>
+            <tr aria-selected="false" data-mock-action="select-row" data-preview="held">
+              <td><a class="table-row-link" href="pegasus_case_record_v28.html">QDOS26198</a></td>
+              <td>LM17 GVX</td><td>Grace Bellamy</td><td>Wingrove Insurance</td>
+              <td><span class="status status--amber">Held</span></td><td>—</td>
+            </tr>
+            <tr aria-selected="false" data-mock-action="select-row" data-preview="withengineer">
+              <td><a class="table-row-link" href="pegasus_case_record_v28.html">QDOS26150</a></td>
+              <td>BN65 UUY</td><td>Not recorded</td><td>Wingrove Insurance</td>
+              <td><span class="status status--navy">With Engineer</span></td><td>Priya Anand</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <nav class="pagination" aria-label="Case result pages"><span>Page 1</span><a class="btn btn--small" href="#">Next</a></nav>
+  </div>
+  <div class="pane">
+    <div class="pane-head"><h2>Selected Case</h2></div>
+    <div class="pane-body pane-scroll">
+      <div data-preview-target>
+        <div class="detail-canvas">
+          <p class="eyebrow">Inspection</p>
+          <h2>QDOS26214 · MA59 BDY</h2>
+          <p class="muted">Wingrove Insurance</p>
+          <span class="status status--navy">Review</span>
+          <section class="section-gap"><h3 class="section-label">Accident circumstances</h3><p>Rear-end collision at a signalled junction.</p></section>
+          <div class="fact-grid">
+            <dl class="fact"><dt>Our ref</dt><dd>WI-88213</dd></dl>
+            <dl class="fact"><dt>Engineer</dt><dd>Priya Anand</dd></dl>
+            <dl class="fact"><dt>Due</dt><dd>24 Sep 2026</dd></dl>
+            <dl class="fact"><dt>Next action</dt><dd>Hand to Engineer</dd></dl>
+          </div>
+          <div class="button-row section-gap"><a class="btn btn--dark" href="pegasus_case_record_v28.html"><svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg><span>Open Case</span></a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+
+<p class="empty" data-mock-show="so-search-state:empty">No cases match these filters.</p>
+<p class="empty" data-mock-show="so-search-state:emptyimages">No vehicle images match these filters.</p>
+</div>
+
+<!-- ===================== Operations (src/Pegasus.Web/Pages/Operations/Index.cshtml) ===================== -->
+<div data-mock-show="so-area:operations">
+<header class="page-header">
+  <div class="page-title"><h1>Operations</h1></div>
+  <div class="page-actions">
+    <div class="freshness" role="status"><span class="freshness-status"><span class="health-dot"></span><span>Current · 09:41</span></span><button type="button" class="btn btn--small" title="Refresh"><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Refresh</span></button></div>
+  </div>
+</header>
+
+<div class="notice notice--warning" role="status" data-mock-show="so-limit:reached">
+  <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+  <span><strong>Partial data</strong> &mdash; <a href="pegasus_administration_v28.html#health">Service health</a></span>
+</div>
+
+<div class="stack section-gap">
+  <section class="panel" aria-labelledby="ai-jobs-title">
+    <div class="panel-head">
+      <div><h2 id="ai-jobs-title">AI Job List</h2><span class="muted">3 jobs</span></div>
+      <details>
+        <summary class="btn btn--dark"><svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg><span>Send Unidentified to AI</span></summary>
+        <form method="post" class="row-confirm" data-mock-action="send-unidentified">
+          <label for="send-unidentified-reference">Unidentified reference</label>
+          <input id="send-unidentified-reference" name="unidentifiedReference" maxlength="20" required />
+          <button class="btn btn--dark" type="submit">Send Unidentified to AI</button>
+        </form>
+      </details>
+    </div>
+    <div class="table-wrap no-border">
+      <table>
+        <caption class="sr-only">AI Job List</caption>
+        <thead><tr><th scope="col">Job</th><th scope="col">Record</th><th scope="col">Started by</th><th scope="col">Created</th><th scope="col">State</th><th scope="col">Action</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Estimate</strong><span class="muted">Draft repair estimate</span></td><td><a href="pegasus_case_record_v28.html">QDOS26214</a></td><td>Priya Anand</td><td><time>09:12</time></td><td><span class="status status--amber">Queued</span></td><td><span class="muted">—</span></td></tr>
+          <tr><td><strong>Unidentified resolution</strong><span class="muted">Identify registration</span></td><td><a href="pegasus_triage_unidentified_v28.html">U-1140</a></td><td>Sam Whitlock</td><td><time>08:47</time></td><td><span class="status status--navy">Taken</span></td><td><span class="muted">—</span></td></tr>
+          <tr><td><strong>Query response</strong><span class="muted">Draft reply</span></td><td><a href="pegasus_case_record_v28.html">QDOS26177</a></td><td>Priya Anand</td><td><time>Yesterday</time></td><td><span class="status status--navy">Draft ready</span></td><td><a class="btn btn--small" href="pegasus_case_record_v28.html">Open query</a></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="eva-handoffs-title" data-mock-show="so-eva:present">
+    <div class="panel-head"><h2 id="eva-handoffs-title">EVA handoffs</h2></div>
+    <div class="table-wrap no-border">
+      <table><caption class="sr-only">EVA handoffs</caption>
+        <thead><tr><th scope="col">Latest activity</th><th scope="col">Failures</th></tr></thead>
+        <tbody><tr><td><time>16 Sep 2026, 11:20</time></td><td class="tabular">1</td></tr></tbody>
+      </table>
+    </div>
+    <div class="table-wrap no-border">
+      <table><caption class="sr-only">Failures</caption>
+        <thead><tr><th scope="col">Failure</th><th scope="col">Submitted</th></tr></thead>
+        <tbody><tr><td>Failed</td><td><time>16 Sep 2026, 11:20</time></td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" aria-labelledby="attention-title">
+    <div class="panel-head"><h2 id="attention-title">Attention required</h2></div>
+    <div class="empty" data-mock-show="data:empty"><h2>Nothing needs attention</h2></div>
+    <div class="table-wrap no-border" data-mock-show="data:present">
+      <table class="table table--compact" data-failed-intake>
+        <caption class="sr-only">Failed intake processing</caption>
+        <thead><tr><th scope="col">Work</th><th scope="col">Item</th><th scope="col">Source</th><th scope="col">Attempts</th><th scope="col">Failure</th><th scope="col">Received</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+        <tbody>
+          <tr data-failed-intake-kind="allocation-failed">
+            <td>Allocation failed</td><td><a href="pegasus_administration_v28.html#logs">A message from claims@wingroveinsurance.example</a></td><td>E-mail</td><td class="tabular">2</td><td>No matching Case</td><td><time>08:10</time></td>
+            <td class="row-actions"><details><summary class="btn btn--small">Retry allocation</summary>
+              <form method="post" class="row-confirm" data-mock-action="retry-allocation"><label for="retry-allocation-reason">Reason</label><input id="retry-allocation-reason" name="reason" maxlength="500" required /><button class="btn btn--dark" type="submit">Retry allocation</button></form>
+            </details></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-wrap no-border" data-mock-show="data:present">
+      <table>
+        <caption class="sr-only">Retryable external work</caption>
+        <thead><tr><th scope="col">Case</th><th scope="col">Work</th><th scope="col">Attempts</th><th scope="col">Failure</th><th scope="col">Action</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><a href="pegasus_case_record_v28.html">QDOS26150</a></td><td>Glass's valuation lookup</td><td class="tabular">1</td><td>Provider timeout</td>
+            <td><form method="post" data-mock-action="retry-external"><button class="btn btn--dark" type="submit"><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Retry this work</span></button></form></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+</div>
