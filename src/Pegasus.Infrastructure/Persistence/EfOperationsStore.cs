@@ -8,8 +8,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfOperationsStore(
-    IDbContextFactory<PegasusDbContext> contextFactory,
-    RequestUploadLimits? requestUploadLimits = null) :
+    IDbContextFactory<PegasusDbContext> contextFactory) :
     IEmailOperationsProjectionStore,
     IRequestOperationsProjectionStore,
     IMailboxProcessingRetryStore,
@@ -243,44 +242,6 @@ internal sealed class EfOperationsStore(
         var sourceLimit = checked(maximumItems + 1);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var uploadRows = await (
-                from request in context.Set<RequestUploadLinkEntity>().AsNoTracking()
-                join caseRecord in context.Cases.AsNoTracking()
-                    on request.CaseId equals caseRecord.Id
-                join workflow in context.CaseWorkflows.AsNoTracking()
-                    on request.CaseId equals workflow.CaseId
-                let lastReceiptAtUtc = context.Set<RequestUploadReceiptEntity>()
-                    .Where(receipt => receipt.RequestId == request.Id)
-                    .Max(receipt => (DateTimeOffset?)receipt.ReceivedAtUtc)
-                let activityAtUtc = lastReceiptAtUtc ?? request.CreatedAtUtc
-                where request.Status == RequestUploadStatus.Active
-                    && request.ExpiresAtUtc > nowUtc
-                orderby activityAtUtc descending, request.Id
-                select new UploadRequestRow(
-                    request.Id,
-                    request.Status,
-                    request.CaseId,
-                    caseRecord.Reference,
-                    caseRecord.Principal.Code,
-                    request.CreatedAtUtc,
-                    request.ExpiresAtUtc,
-                    request.RevokedAtUtc,
-                    lastReceiptAtUtc,
-                    request.AcceptedFileCount,
-                    request.AcceptedByteCount,
-                    request.LimitsVersion,
-                    request.Version,
-                    workflow.Version,
-                    workflow.EditLeaseTokenHash != null,
-                    workflow.EditLeaseHolder,
-                    workflow.EditLeaseHolderKind,
-                    workflow.EditLeaseOperationKey,
-                    workflow.EditLeaseExpiresAtUtc,
-                    workflow.ArchivedAtUtc != null,
-                    request.Recipient))
-            .Take(sourceLimit)
-            .ToListAsync(cancellationToken);
-
         var workRows = await (
                 from item in context.ExternalWorkItems.AsNoTracking()
                 join workflow in context.CaseWorkflows.AsNoTracking()
@@ -302,22 +263,11 @@ internal sealed class EfOperationsStore(
                     item.LeaseToken != null,
                     item.CompletedAtUtc,
                     item.FailureCode,
-                    item.FailureReason,
-                    workflow.Version,
-                    workflow.EditLeaseTokenHash != null,
-                    workflow.EditLeaseHolder,
-                    workflow.EditLeaseHolderKind,
-                    workflow.EditLeaseOperationKey,
-                    workflow.EditLeaseExpiresAtUtc,
-                    workflow.ArchivedAtUtc != null))
+                    item.FailureReason))
             .Take(sourceLimit)
             .ToListAsync(cancellationToken);
 
-        var candidates = new List<RequestOperationProjection>(
-            uploadRows.Count + workRows.Count);
-        candidates.AddRange(uploadRows.Select(item => MapUploadRequest(item, nowUtc)));
-        candidates.AddRange(workRows.Select(item => MapExternalWork(item, nowUtc)));
-        var ordered = candidates
+        var ordered = workRows.Select(item => MapExternalWork(item, nowUtc))
             .OrderByDescending(item => item.LastActivityAtUtc)
             .ThenBy(item => item.Id)
             .ToArray();
@@ -591,56 +541,6 @@ internal sealed class EfOperationsStore(
         _ => EmailOperationState.Unknown
     };
 
-    private RequestOperationProjection MapUploadRequest(
-        UploadRequestRow item,
-        DateTimeOffset nowUtc)
-    {
-        var state = MapUploadState(item.Status, item.ExpiresAtUtc, nowUtc);
-        var matchingLimits = requestUploadLimits is not null
-            && string.Equals(requestUploadLimits.Version, item.LimitsVersion, StringComparison.Ordinal);
-        var leaseState = MapLeaseState(
-            item.HasCaseEditLease,
-            item.CaseEditLeaseHolder,
-            item.CaseEditLeaseOperationKey,
-            item.CaseEditLeaseExpiresAtUtc,
-            nowUtc);
-        return new(
-            item.Id,
-            RequestOperationKind.PegasusUploadLink,
-            state,
-            item.CaseId,
-            item.CaseReference,
-            item.PrincipalCode,
-            LatestActivity(item.CreatedAtUtc, item.RevokedAtUtc, item.LastReceiptAtUtc),
-            item.ExpiresAtUtc,
-            item.Version,
-            item.AcceptedFileCount,
-            item.AcceptedByteCount,
-            matchingLimits ? requestUploadLimits!.MaximumFileCount : null,
-            matchingLimits ? requestUploadLimits!.MaximumRequestBytes : null,
-            item.LimitsVersion,
-            ExternalKind: null,
-            AttemptCount: null,
-            FailureCode: state == RequestOperationState.Failed ? "request_failed" : null,
-            FailureReason: null,
-            CanRetry: false,
-            CanRevoke: !item.CaseIsArchived &&
-                state is RequestOperationState.Pending or RequestOperationState.Active,
-            item.CaseVersion,
-            leaseState,
-            item.CaseEditLeaseExpiresAtUtc)
-        {
-            Recipient = item.Recipient,
-            CreatedAtUtc = item.CreatedAtUtc,
-            ActiveEditLease = MapActiveEditLease(
-                leaseState,
-                item.CaseEditLeaseHolder,
-                item.CaseEditLeaseHolderKind,
-                item.CaseEditLeaseOperationKey,
-                item.CaseEditLeaseExpiresAtUtc)
-        };
-    }
-
     private static DateTimeOffset LatestActivity(
         DateTimeOffset createdAtUtc,
         DateTimeOffset? revokedAtUtc,
@@ -653,39 +553,6 @@ internal sealed class EfOperationsStore(
             ? receipt
             : latest;
     }
-
-    private static RequestCaseEditLeaseState MapLeaseState(
-        bool hasCaseEditLease,
-        string? holder,
-        string? operationKey,
-        DateTimeOffset? expiresAtUtc,
-        DateTimeOffset nowUtc)
-    {
-        if (hasCaseEditLease != expiresAtUtc.HasValue ||
-            hasCaseEditLease != !string.IsNullOrWhiteSpace(holder) ||
-            hasCaseEditLease != !string.IsNullOrWhiteSpace(operationKey))
-        {
-            return RequestCaseEditLeaseState.Unknown;
-        }
-
-        return hasCaseEditLease && CaseEditAuthority.IsHeld(expiresAtUtc, nowUtc)
-            ? RequestCaseEditLeaseState.Active
-            : RequestCaseEditLeaseState.Available;
-    }
-
-    private static CaseEditLeaseSnapshot? MapActiveEditLease(
-        RequestCaseEditLeaseState leaseState,
-        string? holder,
-        string? holderKind,
-        string? operationKey,
-        DateTimeOffset? expiresAtUtc) =>
-        leaseState == RequestCaseEditLeaseState.Active
-            ? new CaseEditLeaseSnapshot(
-                holder!,
-                CaseMutationGuard.RetainedHolderKind(holderKind),
-                expiresAtUtc!.Value,
-                operationKey!)
-            : null;
 
     private static RequestOperationProjection MapExternalWork(
         ExternalWorkRow item,
@@ -702,60 +569,19 @@ internal sealed class EfOperationsStore(
                 "failed" => RequestOperationState.Failed,
                 _ => RequestOperationState.UnknownExternal
             };
-        var leaseState = MapLeaseState(
-            item.HasCaseEditLease,
-            item.CaseEditLeaseHolder,
-            item.CaseEditLeaseOperationKey,
-            item.CaseEditLeaseExpiresAtUtc,
-            nowUtc);
         return new(
             item.Id,
-            RequestOperationKind.ExternalWork,
             state,
             item.CaseId,
             item.CaseReference,
             item.PrincipalCode,
             LatestActivity(item.DueAtUtc, item.LeaseExpiresAtUtc, item.CompletedAtUtc),
-            ExpiresAtUtc: null,
-            Version: null,
-            AcceptedFileCount: null,
-            AcceptedByteCount: null,
-            MaximumFileCount: null,
-            MaximumByteCount: null,
-            LimitsVersion: null,
             item.Kind,
             item.AttemptCount,
             item.FailureCode,
             item.FailureReason,
-            CanRetry: state == RequestOperationState.Failed && !activelyLeased,
-            CanRevoke: false,
-            item.CaseVersion,
-            leaseState,
-            item.CaseEditLeaseExpiresAtUtc)
-        {
-            ActiveEditLease = MapActiveEditLease(
-                leaseState,
-                item.CaseEditLeaseHolder,
-                item.CaseEditLeaseHolderKind,
-                item.CaseEditLeaseOperationKey,
-                item.CaseEditLeaseExpiresAtUtc)
-        };
+            CanRetry: state == RequestOperationState.Failed && !activelyLeased);
     }
-
-    private static RequestOperationState MapUploadState(
-        RequestUploadStatus status,
-        DateTimeOffset expiresAtUtc,
-        DateTimeOffset nowUtc) => status switch
-    {
-        RequestUploadStatus.Pending => RequestOperationState.Pending,
-        RequestUploadStatus.Active when expiresAtUtc <= nowUtc => RequestOperationState.Expired,
-        RequestUploadStatus.Active => RequestOperationState.Active,
-        RequestUploadStatus.Expired => RequestOperationState.Expired,
-        RequestUploadStatus.Exhausted => RequestOperationState.Exhausted,
-        RequestUploadStatus.Revoked => RequestOperationState.Revoked,
-        RequestUploadStatus.Failed => RequestOperationState.Failed,
-        _ => RequestOperationState.UnknownExternal
-    };
 
     private static EmailOperationProjection[] OrderEmailOperations(
         IEnumerable<EmailOperationProjection> candidates) => candidates
@@ -819,29 +645,6 @@ internal sealed class EfOperationsStore(
         string? CaseReference,
         string? PrincipalCode);
 
-    private sealed record UploadRequestRow(
-        Guid Id,
-        RequestUploadStatus Status,
-        Guid CaseId,
-        string CaseReference,
-        string PrincipalCode,
-        DateTimeOffset CreatedAtUtc,
-        DateTimeOffset ExpiresAtUtc,
-        DateTimeOffset? RevokedAtUtc,
-        DateTimeOffset? LastReceiptAtUtc,
-        int AcceptedFileCount,
-        long AcceptedByteCount,
-        string LimitsVersion,
-        long Version,
-        long CaseVersion,
-        bool HasCaseEditLease,
-        string? CaseEditLeaseHolder,
-        string? CaseEditLeaseHolderKind,
-        string? CaseEditLeaseOperationKey,
-        DateTimeOffset? CaseEditLeaseExpiresAtUtc,
-        bool CaseIsArchived,
-        string? Recipient);
-
     private sealed record ExternalWorkRow(
         Guid Id,
         string State,
@@ -855,12 +658,5 @@ internal sealed class EfOperationsStore(
         bool HasWorkLease,
         DateTimeOffset? CompletedAtUtc,
         string? FailureCode,
-        string? FailureReason,
-        long CaseVersion,
-        bool HasCaseEditLease,
-        string? CaseEditLeaseHolder,
-        string? CaseEditLeaseHolderKind,
-        string? CaseEditLeaseOperationKey,
-        DateTimeOffset? CaseEditLeaseExpiresAtUtc,
-        bool CaseIsArchived);
+        string? FailureReason);
 }

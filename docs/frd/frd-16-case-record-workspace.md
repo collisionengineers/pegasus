@@ -128,7 +128,6 @@ EVA is available. The rules behind each action are in
   ([FRD-13](frd-13-case-lifecycle-and-workflow.md#archive)).
 - **Place on Hold** (reason and optional Review on date) or **Release Hold**
   (reason).
-- **Create upload link**.
 - **Correct principal**, which records Created in error and creates the
   replacement Case
   ([FRD-01](frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity)).
@@ -244,8 +243,8 @@ diagram.
 Files is one panel with two tabs. Both are rendered, so a no-script visit
 shows the two lists one after the other under their own headings. The panel
 header carries Add evidence, Open Box case folder (or the folder's own state
-chip before custody is confirmed), Open Operations, and Create upload link
-with its request table. Linked correspondence sits below both tabs
+chip before custody is confirmed) and Open Operations. Linked
+correspondence sits below both tabs
 ([FRD-21](frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)).
 
 **Documents** lists every live file as a row: filename, role, size, origin,

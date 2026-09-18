@@ -100,8 +100,7 @@ down, there is no collapse.
 
 **The utility bar** carries the page freshness text, the global search input
 (Enter or Ctrl K opens the command palette), **New case**, and the bell.
-Upload and Inbox keep their named navigation. Case upload links remain
-contextual actions.
+Upload and Inbox keep their named navigation.
 
 **Create Case** opens direct staff creation with the identity-critical Case
 facts and no invented intake receipt or source provenance. When opened from
@@ -138,14 +137,14 @@ failure is logged.
 | --- | --- | --- |
 | `/` | Work Centre ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)) | Dashboard |
 | `/Inbox`, `/Inbox/{id}` | Retained mail list and message ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) | — |
-| `/Upload`, `/Uploads/{token}` | Staff upload and the public upload request ([FRD-18](frd-18-manual-upload-and-upload-links.md#staff-upload-page)) | — |
+| `/Upload` | Staff upload ([FRD-18](frd-18-manual-upload.md#staff-upload-page)) | — |
 | `/Cases` | Queues: workflow, pre-Case work and exceptions ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)) | Queues (`/Triage`) |
 | `/Cases/{id}` | Case record, one page of ten sections; `?section=` jumps ([FRD-16](frd-16-case-record-workspace.md#case-workspace)) | Case workspace side-nav sections; the Assessment page |
 | `/Cases/{id}/Assessment` | Permanent redirect to `/Cases/{id}?section=estimate` | Engineer assessment page |
 | `/Search` | Advanced search ([FRD-15](frd-15-work-centre-queues-and-search.md#search)) | Cases list |
 | `/Triage/{id}`, `/Unidentified/{id}`, `/VehicleImages/{id}` | Triage, Unidentified and vehicle-images records | The received-file page |
 | `/Received/{id}/Source`, `/Received/{id}/Image`, `/Received/{id}/Asset/{assetId}` | Open file: the retained original, served to authorised staff only | — |
-| `/Operations` | AI jobs, attention, upload links, EVA handoffs ([FRD-15](frd-15-work-centre-queues-and-search.md#operations)) | Operations Service health table |
+| `/Operations` | AI jobs, attention, EVA handoffs ([FRD-15](frd-15-work-centre-queues-and-search.md#operations)) | Operations Service health table |
 | `/Administration`, `/Administration/...` | Administration areas ([FRD-17](frd-17-administration-workspace.md#administration)) | Separate Principal and Claim Source areas |
 | `/Administration/Logs` | Action logs and Intake log tabs; `/Administration/ActionLogs` answers a permanent redirect keeping its query | Action Logs |
 
@@ -263,7 +262,7 @@ correctness. Deployment and live acceptance are separate evidence tiers
   [FRD-15](frd-15-work-centre-queues-and-search.md),
   [FRD-16](frd-16-case-record-workspace.md),
   [FRD-17](frd-17-administration-workspace.md),
-  [FRD-18](frd-18-manual-upload-and-upload-links.md),
+  [FRD-18](frd-18-manual-upload.md),
   [FRD-20](frd-20-mailbox-workspace.md).
 - Design: [design](../design/README.md) owns the durable interaction,
   visual, component and source/runtime rules.

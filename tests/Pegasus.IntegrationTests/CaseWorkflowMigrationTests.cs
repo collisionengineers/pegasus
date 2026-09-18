@@ -10,6 +10,7 @@ public sealed class CaseWorkflowMigrationTests
 {
     private const string PreviousMigration = "20260729152105_WorkflowTriageEmailEvidence";
     private const string WorkflowMigration = "20260729160000_CaseWorkflowRuntime";
+    private const string PrePublicUploadRemovalMigration = "20260917153000_CaseClaimSourceContactOverride";
     private const string ReviewCaseId = "60000000-0000-0000-0000-000000000001";
     private const string NotReadyCaseId = "60000000-0000-0000-0000-000000000002";
 
@@ -20,7 +21,7 @@ public sealed class CaseWorkflowMigrationTests
         await using var context = await database.CreateContextAsync();
 
         await context.Database.MigrateAsync(PreviousMigration);
-        await database.ExecuteAsync(ExistingCasesSql);
+        await database.ExecuteAsync(ExistingCasesSql(withStaffConfirmationColumns: true));
         await context.Database.MigrateAsync(WorkflowMigration);
 
         Assert.Equal(2, await database.ScalarAsync<int>("SELECT COUNT(*) FROM CaseWorkflows"));
@@ -48,6 +49,89 @@ public sealed class CaseWorkflowMigrationTests
                 $"SELECT CASE WHEN NextChaseAtUtc IS NULL THEN 0 ELSE 1 END FROM CaseDueWork WHERE CaseId='{NotReadyCaseId}'"));
         AssertNonEmptyGuid(await database.ScalarAsync<Guid>(
             $"SELECT ConcurrencyToken FROM CaseDueWork WHERE CaseId='{NotReadyCaseId}'"));
+    }
+
+    [Fact]
+    public async Task PublicUploadRemovalPreservesOrdinaryCaseDocumentIntakeAndChaserRecords()
+    {
+        const string documentId = "80000000-0000-0000-0000-000000000001";
+        const string versionId = "81000000-0000-0000-0000-000000000001";
+        const string occurrenceId = "82000000-0000-0000-0000-000000000001";
+        const string chaserId = "83000000-0000-0000-0000-000000000001";
+        const string operationKey = "removal-migration-chaser";
+        var nextChaseAtUtc = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+        var nextChaseTicks = nextChaseAtUtc.UtcDateTime.Ticks;
+        var requestHash = new string('c', 64);
+
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync(PrePublicUploadRemovalMigration);
+        await database.ExecuteAsync(ExistingCasesSql(withStaffConfirmationColumns: false));
+        await database.ExecuteAsync(
+            $"""
+            INSERT INTO CaseWorkflows
+                (CaseId, State, Version, EditLeaseGeneration, ConcurrencyToken)
+            VALUES
+                ('{NotReadyCaseId}', 'NotReady', 0, 0, NEWID());
+            INSERT INTO CaseDueWork
+                (CaseId, MissingMaterialReason, State, NextChaseAtUtc,
+                 NextChaseAtUtcTicks, Version, ConcurrencyToken)
+            VALUES
+                ('{NotReadyCaseId}', N'Awaiting evidence', 'Scheduled',
+                 '{nextChaseAtUtc:O}', {nextChaseTicks}, 0, NEWID());
+            INSERT INTO CaseDueChasers
+                (Id, CaseId, ScheduledAtUtc, GeneratedAtUtc, NextChaseAtUtc,
+                 CopyableText, OperationKey, RequestHash, BeforeDueWorkVersion,
+                 AfterDueWorkVersion)
+            VALUES
+                ('{chaserId}', '{NotReadyCaseId}', '{nextChaseAtUtc.AddDays(-7):O}',
+                 '{nextChaseAtUtc.AddDays(-7):O}', '{nextChaseAtUtc:O}',
+                 N'Please send the outstanding evidence.', '{operationKey}',
+                 '{requestHash}', 0, 1);
+            INSERT INTO CaseDocuments (Id, CaseId, Ordinal, SourceOccurrenceIdentity)
+            VALUES ('{documentId}', '{NotReadyCaseId}', 1, 'migration:retained-document');
+            INSERT INTO DocumentVersions
+                (Id, DocumentId, Version, FileName, MediaType, ContentLength,
+                 Sha256, CustodyStatus, CreatedAtUtc, CreatedBy, IsCurrent,
+                 IsLogicallyRemoved)
+            VALUES
+                ('{versionId}', '{documentId}', 1, 'retained-evidence.jpg',
+                 'image/jpeg', 1,
+                 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+                 'Pending', '{nextChaseAtUtc:O}', 'migration', 1, 0);
+            INSERT INTO DocumentOccurrences
+                (Id, CaseId, DocumentId, VersionId, Ordinal, SemanticRole, Source,
+                 SourceOccurrenceIdentity, RecordedAtUtc, OperationKey,
+                 RotationDegrees, PreparationVersion)
+            VALUES
+                ('{occurrenceId}', '{NotReadyCaseId}', '{documentId}', '{versionId}',
+                 1, 'Image', 'StaffUpload', 'migration:retained-document',
+                 '{nextChaseAtUtc:O}', 'migration:retained-document', 0, 0);
+            """);
+
+        Assert.Equal(4, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'RequestUploadLinks', N'RequestUploadReceipts', N'PublicUploadSessions', N'PublicUploadOccurrences')"));
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.CaseDueChasers') AND name IN (N'RequestLinkReference', N'RequestLinkPurpose')"));
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'RequestUploadLinks', N'RequestUploadReceipts', N'PublicUploadSessions', N'PublicUploadOccurrences')"));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.CaseDueChasers') AND name IN (N'RequestLinkReference', N'RequestLinkPurpose')"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM Cases WHERE Id = '{NotReadyCaseId}'"));
+        Assert.Equal(2, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM IntakeReceipts"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDocuments WHERE Id = '{documentId}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM DocumentVersions WHERE Id = '{versionId}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM DocumentOccurrences WHERE Id = '{occurrenceId}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM CaseDueChasers WHERE Id = '{chaserId}' AND OperationKey = '{operationKey}'"));
     }
 
     [Fact]
@@ -84,7 +168,7 @@ public sealed class CaseWorkflowMigrationTests
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
         await using var context = await database.CreateContextAsync();
         await context.Database.MigrateAsync(previous);
-        await database.ExecuteAsync(ExistingCasesSql);
+        await database.ExecuteAsync(ExistingCasesSql(withStaffConfirmationColumns: true));
         await database.ExecuteAsync(
             $"""
             INSERT INTO CaseDocuments (Id, CaseId, SourceOccurrenceIdentity)
@@ -173,13 +257,26 @@ public sealed class CaseWorkflowMigrationTests
                 "20260917140000_GrantWorkerCaseAssessmentFields",
                 "20260917150000_RemoveCaseSequenceCeiling",
                 "20260917152000_CaseDueByStaffOverride",
-                "20260917153000_CaseClaimSourceContactOverride"
+                "20260917153000_CaseClaimSourceContactOverride",
+                "20260917161519_RemovePublicUploadLinks"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }
 
-    private const string ExistingCasesSql =
-        """
+    /// <summary>
+    /// Seed rows for an upgrade test. The two staff-confirmation columns exist
+    /// only in schemas before 20260907221500_RemoveCaseStaffConfirmation, so a
+    /// test that starts from a later schema omits them.
+    /// </summary>
+    private static string ExistingCasesSql(bool withStaffConfirmationColumns)
+    {
+        var staffConfirmationColumns = withStaffConfirmationColumns
+            ? "InstructionConfirmedByStaff, ImagesConfirmedByStaff, "
+            : string.Empty;
+        var staffConfirmationValues = withStaffConfirmationColumns
+            ? "1, 1, "
+            : string.Empty;
+        return $$"""
         INSERT INTO IntakeReceipts
             (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel,
              ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey,
@@ -210,7 +307,7 @@ public sealed class CaseWorkflowMigrationTests
         VALUES
             ('40000000-0000-0000-0000-000000000001',
              '20000000-0000-0000-0000-000000000001',
-             'QDOS',
+             'WMIG',
              '30000000-0000-0000-0000-000000000001',
              NULL,
              NULL,
@@ -220,7 +317,7 @@ public sealed class CaseWorkflowMigrationTests
         INSERT INTO Cases
             (Id, PrincipalId, SequenceLineageId, Year, Sequence, Reference, Type, InitialState,
              CustodyState, OriginIntakeReceiptId, InstructionComplete, ImagesComplete,
-             InstructionConfirmedByStaff, ImagesConfirmedByStaff, CreatedAtUtc, Version,
+             {{staffConfirmationColumns}}CreatedAtUtc, Version,
              ConcurrencyToken)
         VALUES
             ('60000000-0000-0000-0000-000000000001',
@@ -228,16 +325,14 @@ public sealed class CaseWorkflowMigrationTests
              '30000000-0000-0000-0000-000000000001',
              2031,
              1,
-             'QDOS31001',
+             'WMIG31001',
              'inspection',
              'review',
              'pending',
              '50000000-0000-0000-0000-000000000001',
              1,
              1,
-             1,
-             1,
-             '2031-05-06T10:30:00+00:00',
+             {{staffConfirmationValues}}'2031-05-06T10:30:00+00:00',
              0,
              '70000000-0000-0000-0000-000000000001'),
             ('60000000-0000-0000-0000-000000000002',
@@ -245,19 +340,18 @@ public sealed class CaseWorkflowMigrationTests
              '30000000-0000-0000-0000-000000000001',
              2031,
              2,
-             'QDOS31002',
+             'WMIG31002',
              'inspection',
              'not_ready',
              'pending',
              '50000000-0000-0000-0000-000000000002',
              1,
              0,
-             1,
-             1,
-             '2031-05-06T10:31:00+00:00',
+             {{staffConfirmationValues}}'2031-05-06T10:31:00+00:00',
              0,
              '70000000-0000-0000-0000-000000000002');
         """;
+    }
 
     private static void AssertNonEmptyGuid(Guid value)
     {

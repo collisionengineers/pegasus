@@ -108,15 +108,10 @@ internal static partial class CaseWebTestSupport
         ITagCaseImage,
         IUntagCaseImage,
         ICreateImageTag,
-        ICreateRequestUploadLink,
-        IRevokeRequestUploadLink,
         IMarkAsOriginalReportStore
     {
         /// <summary>The case's documents, when a test supplies them.</summary>
         public IReadOnlyList<CaseDocument> CaseDocuments { get; set; } = [];
-
-        /// <summary>The case's request-scoped upload links, when a test supplies them.</summary>
-        public IReadOnlyList<CaseRequestUploadSummary> RequestUploadLinks { get; init; } = [];
 
         public List<RetryCaseCustodyRequest> CustodyRetries { get; } = [];
         public List<AddCaseDocumentCommand> DocumentUploads { get; } = [];
@@ -124,9 +119,6 @@ internal static partial class CaseWebTestSupport
         public List<TagCaseImageCommand> ImageTagsApplied { get; } = [];
         public List<UntagCaseImageCommand> ImageTagsRemoved { get; } = [];
         public List<CreateImageTagCommand> ImageTagsCreated { get; } = [];
-        public List<CreateRequestUploadLinkCommand> RequestLinkCreations { get; } = [];
-        public List<RequestUploadSecret> RequestLinkSecrets { get; } = [];
-        public List<RevokeRequestUploadLinkCommand> RequestLinkRevocations { get; } = [];
         public List<MarkAsOriginalReportCommand> OriginalReportMarks { get; } = [];
 
         Task<RetryCaseCustodyResult> IRetryCaseCustody.ExecuteAsync(
@@ -213,40 +205,6 @@ internal static partial class CaseWebTestSupport
             return Task.FromResult(new CreateImageTagResult(
                 new ImageTag(Guid.NewGuid(), command.Name, command.Colour, IsBuiltIn: false, Version: 1),
                 IsReplay: false));
-        }
-
-        Task<CreateRequestUploadLinkResult> ICreateRequestUploadLink.ExecuteAsync(
-            CreateRequestUploadLinkCommand command,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            RequestLinkCreations.Add(command);
-            var issue = RequestUploadToken.Create();
-            RequestLinkSecrets.Add(issue.Secret);
-            return Task.FromResult(new CreateRequestUploadLinkResult(
-                new(
-                    Guid.NewGuid(),
-                    CaseId,
-                    issue.TokenDigest,
-                    RequestUploadStatus.Active,
-                    _now,
-                    _now.AddDays(7),
-                    null,
-                    0,
-                    0,
-                    "limits-v1",
-                    1),
-                issue.Secret,
-                IsReplay: false));
-        }
-
-        Task IRevokeRequestUploadLink.ExecuteAsync(
-            RevokeRequestUploadLinkCommand command,
-            CancellationToken cancellationToken)
-        {
-            ThrowNextFailure();
-            RequestLinkRevocations.Add(command);
-            return Task.CompletedTask;
         }
 
         Task<OriginalReportRecorded> IMarkAsOriginalReportStore.MarkAsOriginalReportAsync(

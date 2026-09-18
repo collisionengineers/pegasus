@@ -181,7 +181,6 @@ public sealed class CaseEngineerSectionsWebTests
                 null,
                 CaseCustodyState.Pending,
                 [],
-                [],
                 [])
             {
                 Data = workspace.Data

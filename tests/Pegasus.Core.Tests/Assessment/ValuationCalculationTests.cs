@@ -356,7 +356,7 @@ public sealed class ValuationCalculationTests
         Assert.Empty(store.Applied);
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             preview.ExecuteAsync(
-                new(CaseId, ActionActor.RequestLink(Guid.NewGuid()), Selection()),
+                new(CaseId, ActionActor.Provider(Guid.NewGuid()), Selection()),
                 CancellationToken.None));
     }
 
@@ -374,7 +374,7 @@ public sealed class ValuationCalculationTests
             apply.ExecuteAsync(ApplyRequest(User), CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             apply.ExecuteAsync(
-                ApplyRequest(ActionActor.RequestLink(Guid.NewGuid())),
+                ApplyRequest(ActionActor.Provider(Guid.NewGuid())),
                 CancellationToken.None));
         Assert.Empty(store.Applied);
 
@@ -481,7 +481,7 @@ public sealed class ValuationCalculationTests
         Assert.Equal("Tow bar", Assert.Single(store.Saves).Label);
         Assert.Equal([saved], await list.ExecuteAsync(Engineer, CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            list.ExecuteAsync(ActionActor.RequestLink(Guid.NewGuid()), CancellationToken.None));
+            list.ExecuteAsync(ActionActor.Provider(Guid.NewGuid()), CancellationToken.None));
     }
 
     /// <summary>

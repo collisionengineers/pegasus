@@ -17,7 +17,7 @@ public sealed class MarkAsOriginalReportTests
         var sut = new MarkAsOriginalReport(store);
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => sut.ExecuteAsync(
-            Request() with { Actor = ActionActor.RequestLink(Guid.NewGuid()) }));
+            Request() with { Actor = ActionActor.Provider(Guid.NewGuid()) }));
 
         Assert.Empty(store.Commands);
     }

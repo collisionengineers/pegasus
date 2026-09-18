@@ -20,7 +20,7 @@
 This document says which files Pegasus accepts, how it extracts text and
 images from them, where the files are kept, and how images are read back and
 tagged. Upload limits are in
-[FRD-18](frd-18-manual-upload-and-upload-links.md#source-upload-limits).
+[FRD-18](frd-18-manual-upload.md#upload-limits).
 The Provider API envelope is owned by
 [FRD-09](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary).
 
@@ -133,8 +133,8 @@ stay visible for normal recovery.
 
 An incoming custody claim uses the occurrence's operation identity to find
 its own source record. Intake claims update the matching receipt and asset
-pair directly; they do not probe public-upload records or need wider Worker
-permissions. Receipt and asset GUIDs are typed identities, never matched by
+pair directly; they do not probe unrelated source records or need wider
+Worker permissions. Receipt and asset GUIDs are typed identities, never matched by
 filename, source label or formatted string. Before a destination is settled,
 the original source and selected photographs are kept in the designated Box
 holding folder, each with verified content and confirmed file and version
@@ -276,7 +276,7 @@ test subtree. Deployment and live acceptance are separate evidence tiers
   [FRD-07](frd-07-eva-and-external-engineering-handoff.md),
   [FRD-09](frd-09-provider-and-intermediary-routes.md),
   [FRD-13](frd-13-case-lifecycle-and-workflow.md),
-  [FRD-18](frd-18-manual-upload-and-upload-links.md),
+  [FRD-18](frd-18-manual-upload.md),
   [FRD-19](frd-19-image-led-intake-and-pairing.md).
 - Technical constraints: [ADR-0001](../adr/0001-hybrid-pdf-extraction.md),
   [ADR-0003](../adr/0003-pdfpig-for-first-qdos-slice.md),

@@ -221,7 +221,6 @@ public sealed class InstructionEvidenceImagesTests
         ActionActor[] forbidden =
         [
             ActionActor.SystemWorker("intake-processing"),
-            ActionActor.RequestLink(Guid.NewGuid()),
             ActionActor.Provider(Guid.NewGuid())
         ];
 

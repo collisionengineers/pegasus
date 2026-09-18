@@ -1,152 +1,17 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
-using Pegasus.Web.Pages.Uploads;
 
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
 public sealed class QdosCustodialWebTests
 {
-    [Fact]
-    public async Task PublicRequestUploadWithNoMatchingTokenReturnsNoRequestOrCaseDisclosure()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-        var token = RequestUploadToken.Create().Secret.Token;
-
-        using var response = await client.GetAsync($"/Uploads/{Uri.EscapeDataString(token)}");
-        var body = await response.Content.ReadAsStringAsync();
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.DoesNotContain(token, body, StringComparison.Ordinal);
-        Assert.DoesNotContain("case", body, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("request", body, StringComparison.OrdinalIgnoreCase);
-    }
-    /// <summary>
-    /// Opening the composition gate made the anonymous upload page
-    /// reachable, and with it a bound that did not previously exist.
-    ///
-    /// <see cref="RequestUploadAttemptLimiter"/> partitions on the token digest
-    /// and <see cref="Pegasus.Web.Pages.Uploads.RequestModel.OnPostAsync"/>
-    /// answers <c>NotFound</c> for an unknown token before the limiter is
-    /// consulted, so a caller holding no token spends nothing there. While the
-    /// gate was closed the middleware short-circuited every <c>/Uploads</c>
-    /// request to 404 before a body was read; once composed, Razor Pages'
-    /// antiforgery filter buffers the whole multipart body first.
-    ///
-    /// The per-address policy is what closes that, so it has to be proven to
-    /// actually refuse — a bound nobody has seen reject is not a bound.
-    /// </summary>
-    [Fact]
-    public async Task PublicRequestUploadRefusesAnAddressThatHoldsNoToken()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = IntakeWebDriver.CreateClient(factory);
-
-        var statuses = new List<HttpStatusCode>();
-        for (var attempt = 0;
-            attempt < PublicUploadLink.RequestsPerClientPerMinute + 5;
-            attempt++)
-        {
-            // A fresh unknown token each time, so nothing is shared with the
-            // per-token limiter and only the address bound can refuse this.
-            var token = RequestUploadToken.Create().Secret.Token;
-            using var response = await client.GetAsync(
-                $"/Uploads/{Uri.EscapeDataString(token)}");
-            statuses.Add(response.StatusCode);
-            if (response.StatusCode == HttpStatusCode.TooManyRequests)
-            {
-                break;
-            }
-        }
-
-        Assert.Contains(HttpStatusCode.TooManyRequests, statuses);
-
-        // And it refuses only after the allowance, not from the first request.
-        var refusedAt = statuses.IndexOf(HttpStatusCode.TooManyRequests);
-        Assert.Equal(PublicUploadLink.RequestsPerClientPerMinute, refusedAt);
-        Assert.All(
-            statuses.Take(refusedAt),
-            status => Assert.Equal(HttpStatusCode.NotFound, status));
-    }
-
-    [Fact]
-    public async Task PublicRequestUploadUsesOneCoreCommandAndPrgWithGenericCompletion()
-    {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        var handler = new RecordingRequestUploadHandler();
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IGetRequestUpload>();
-                services.RemoveAll<IUploadToRequest>();
-                services.AddSingleton<IGetRequestUpload>(handler);
-                services.AddSingleton<IUploadToRequest>(handler);
-            }));
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-        var route = $"/Uploads/{Uri.EscapeDataString(handler.Token)}";
-
-        // The page's forms name their handler, and the page has no unnamed
-        // one to fall back to, so the suite posts where the sender's browser
-        // posts.
-        var uploadRoute = $"{route}?handler=Upload";
-
-        using var formResponse = await client.GetAsync(route);
-        formResponse.EnsureSuccessStatusCode();
-        var formHtml = await formResponse.Content.ReadAsStringAsync();
-        using (var invalidForm = new MultipartFormDataContent())
-        {
-            invalidForm.Add(new StringContent(AntiforgeryValue(formHtml)), "__RequestVerificationToken");
-            invalidForm.Add(new StringContent(InputValue(formHtml, "Token")), "Token");
-            invalidForm.Add(new StringContent(InputValue(formHtml, "OperationKey")), "OperationKey");
-            using var invalid = await client.PostAsync(uploadRoute, invalidForm);
-            Assert.Equal(HttpStatusCode.OK, invalid.StatusCode);
-            Assert.Contains("Choose a document to upload.", await invalid.Content.ReadAsStringAsync(), StringComparison.Ordinal);
-        }
-        using var form = new MultipartFormDataContent();
-        form.Add(new StringContent(AntiforgeryValue(formHtml)), "__RequestVerificationToken");
-        form.Add(new StringContent(InputValue(formHtml, "Token")), "Token");
-        form.Add(new StringContent(InputValue(formHtml, "OperationKey")), "OperationKey");
-        var file = new ByteArrayContent(Encoding.UTF8.GetBytes("public upload proof"));
-        file.Headers.ContentType = MediaTypeHeaderValue.Parse("text/plain");
-        form.Add(file, "Upload", "public-proof.txt");
-
-        using var post = await client.PostAsync(uploadRoute, form);
-
-        Assert.Equal(HttpStatusCode.Redirect, post.StatusCode);
-        Assert.Equal(route, post.Headers.Location?.OriginalString);
-        var command = Assert.Single(handler.Commands);
-        Assert.Equal(handler.Token, command.Token);
-        Assert.Equal("public-proof.txt", command.File.FileName);
-        Assert.Equal("text/plain", command.File.MediaType);
-        Assert.True(Guid.TryParseExact(command.File.OperationKey, "N", out _));
-
-        using var completion = await client.GetAsync(post.Headers.Location!);
-        var completionHtml = await completion.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, completion.StatusCode);
-        Assert.Contains(
-            "Your document was received and retained securely.",
-            completionHtml,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(handler.Token, completionHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("public-proof.txt", completionHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("name=\"Upload\"", completionHtml, StringComparison.Ordinal);
-        Assert.Equal(4, handler.QueryCount);
-    }
-
-
     [Fact]
     public async Task CanonicalCaseWorkspaceUsesTheAuthenticatedOfflineStaffSession()
     {
@@ -293,80 +158,6 @@ public sealed class QdosCustodialWebTests
         {
             Assert.Equal("attachment", plain.Content.Headers.ContentDisposition?.DispositionType);
         }
-    }
-
-    private static string AntiforgeryValue(string html)
-    {
-        var tag = Regex.Match(
-            html,
-            "<input[^>]*name=\"__RequestVerificationToken\"[^>]*>",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        Assert.True(tag.Success, "The authenticated form must render an antiforgery token.");
-        var value = Regex.Match(
-            tag.Value,
-            "value=\"(?<value>[^\"]+)\"",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        Assert.True(value.Success, "The antiforgery token must have a value.");
-        return WebUtility.HtmlDecode(value.Groups["value"].Value);
-    }
-    private static string InputValue(string html, string name)
-    {
-        var tag = Regex.Match(
-            html,
-            $"<input[^>]*name=\"{Regex.Escape(name)}\"[^>]*>",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        Assert.True(tag.Success, $"The form must render '{name}'.");
-        var value = Regex.Match(
-            tag.Value,
-            "value=\"(?<value>[^\"]+)\"",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        Assert.True(value.Success, $"The form field '{name}' must have a value.");
-        return WebUtility.HtmlDecode(value.Groups["value"].Value);
-    }
-
-
-    private sealed class RecordingRequestUploadHandler : IGetRequestUpload, IUploadToRequest
-    {
-        private bool completed;
-
-        public string Token { get; } = RequestUploadToken.Create().Secret.Token;
-
-        public int QueryCount { get; private set; }
-
-        public List<UploadToRequestCommand> Commands { get; } = [];
-
-        public Task<RequestUploadPublicView?> ExecuteAsync(
-            string token,
-            CancellationToken cancellationToken = default)
-        {
-            QueryCount++;
-            return Task.FromResult<RequestUploadPublicView?>(
-                token == Token && !completed
-                    ? new RequestUploadPublicView(
-                        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "text/plain" },
-                        1024)
-                    : null);
-        }
-
-        public Task<UploadToRequestResult> ExecuteAsync(
-            UploadToRequestCommand command,
-            CancellationToken cancellationToken = default)
-        {
-            Commands.Add(command);
-            completed = true;
-            return Task.FromResult(
-                new UploadToRequestResult(
-                    RequestUploadDecision.Accepted,
-                    Guid.NewGuid(),
-                    false));
-        }
-
-        public Task<FinalizeRequestUploadResult> FinalizeAsync(
-            string token,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new FinalizeRequestUploadResult(
-                RequestUploadDecision.Unavailable,
-                false));
     }
 
     private sealed class RecordingDocumentHandlers :

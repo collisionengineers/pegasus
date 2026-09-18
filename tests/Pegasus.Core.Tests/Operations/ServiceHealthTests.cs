@@ -120,8 +120,7 @@ public sealed class ServiceHealthTests
         var rows = ServiceHealthPolicy.ExternalWorkRows(
         [
             ExternalWork(Guid.NewGuid(), ExternalWorkKinds.CreateCaseCustody, RequestOperationState.Completed, 1, false, FixedUtcNow.AddMinutes(-30)),
-            ExternalWork(failedId, ExternalWorkKinds.CreateCaseCustody, RequestOperationState.Failed, 3, true, FixedUtcNow.AddMinutes(-10)),
-            UploadLink(Guid.NewGuid())
+            ExternalWork(failedId, ExternalWorkKinds.CreateCaseCustody, RequestOperationState.Failed, 3, true, FixedUtcNow.AddMinutes(-10))
         ]);
 
         var row = Assert.Single(rows);
@@ -148,7 +147,7 @@ public sealed class ServiceHealthTests
         Assert.Equal(FixedUtcNow.AddMinutes(-2), row.LatestEvidenceAtUtc);
         Assert.Null(row.RetryTarget);
 
-        var empty = Assert.Single(ServiceHealthPolicy.ExternalWorkRows([UploadLink(Guid.NewGuid())]));
+        var empty = Assert.Single(ServiceHealthPolicy.ExternalWorkRows(Array.Empty<RequestOperationProjection>()));
         Assert.Equal(ServiceHealthState.Configured, empty.State);
         Assert.Null(empty.LatestEvidenceAtUtc);
     }
@@ -319,54 +318,16 @@ public sealed class ServiceHealthTests
         DateTimeOffset lastActivityAtUtc) =>
         new(
             id,
-            RequestOperationKind.ExternalWork,
             state,
             Guid.NewGuid(),
             "EVA31003",
             "EVA",
             lastActivityAtUtc,
-            ExpiresAtUtc: null,
-            Version: null,
-            AcceptedFileCount: null,
-            AcceptedByteCount: null,
-            MaximumFileCount: null,
-            MaximumByteCount: null,
-            LimitsVersion: null,
             kind,
             attemptCount,
             state == RequestOperationState.Failed ? "box_unavailable" : null,
             null,
-            canRetry,
-            CanRevoke: false,
-            CaseVersion: 1,
-            RequestCaseEditLeaseState.Available,
-            CaseEditLeaseExpiresAtUtc: null);
-
-    private static RequestOperationProjection UploadLink(Guid id) =>
-        new(
-            id,
-            RequestOperationKind.PegasusUploadLink,
-            RequestOperationState.Active,
-            Guid.NewGuid(),
-            "EVA31003",
-            "EVA",
-            FixedUtcNow.AddMinutes(-1),
-            FixedUtcNow.AddDays(1),
-            Version: 1,
-            AcceptedFileCount: 0,
-            AcceptedByteCount: 0,
-            MaximumFileCount: 10,
-            MaximumByteCount: 25_000_000,
-            LimitsVersion: "1",
-            ExternalKind: null,
-            AttemptCount: null,
-            FailureCode: null,
-            FailureReason: null,
-            CanRetry: false,
-            CanRevoke: true,
-            CaseVersion: 1,
-            RequestCaseEditLeaseState.Available,
-            CaseEditLeaseExpiresAtUtc: null);
+            canRetry);
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
