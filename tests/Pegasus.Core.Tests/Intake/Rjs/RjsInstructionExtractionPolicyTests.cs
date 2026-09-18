@@ -1,11 +1,12 @@
 using System.Security.Cryptography;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.Rjs;
 
 public sealed class RjsInstructionExtractionPolicyTests
 {
-    [RjsReferencePackTheory]
+    [ReferencePackTheory]
     [Trait("Category", "Corpus")]
     [InlineData("6dd2cdadd7f6-RJS_01.DOC.txt", "RJS 01.DOC", "2df5be4f88b9830b456169601b01baf73cd8a3a514304507db4d87f09989f467", "Mr Maheswaran Ratnam", "119986AA.001/LDB/LDB", "BU16AYT", "none", null, "2026-04-28", "2026-05-06", "35 Leicester Road Luton Bedfordshire LU4 8SF", "07846769280", "The claimant was stationary in traffic on Dunstable Road when the defendant has failed to maintain proper braking distance, negligently colliding with the rear a third party vehicle. Following this, the third-party vehicle has been shunted into the rear of the claimant's vehicle..")]
     [InlineData("7ce9c3843ab1-RJS_02.DOC.txt", "RJS 02.DOC", "20a755f5fa2d5b8229665e3bee136b0148bf1aa218eda5c976403cd669cb3e8d", "Mr Haroon Ahmed Mahroof", "101805.002/LDB/BN", "YH15CVF", "none", "GOLF MATCH TDI BLUEMOTION TECHNOLOGY", "2026-04-30", "2026-05-01", "27 Dale Road Luton LU1 1LJ", "07568766640", "The claimant was stationary at traffic lights on Old Bedford Road in Luton when the defendant has failed to maintain proper braking distance, negligently collding with the rear of the claimant's vehicle..")]
@@ -17,7 +18,7 @@ public sealed class RjsInstructionExtractionPolicyTests
         string registration, string make, string? model, string incidentDate, string instructionDate,
         string address, string mobile, string circumstances)
     {
-        var root = ReferencePackRoot();
+        var root = ReferencePack.Root();
         var text = File.ReadAllText(Path.Combine(root, "astra_output", "extractions", "text", extractedFile));
         var original = File.ReadAllBytes(Path.Combine(root, "principal-docs", "original-mapper-instruction-corpus", originalFile));
         Assert.Equal(sha256, Convert.ToHexStringLower(SHA256.HashData(original)));
@@ -43,14 +44,4 @@ public sealed class RjsInstructionExtractionPolicyTests
         new(2026, 9, 6, 12, 0, 0, TimeSpan.Zero), new("RJS", RjsInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
     private static InstructionReviewField Field(InstructionExtractionResult result, string name) => Assert.Single(result.Fields, field => field.Name == name);
     private static string? Date(DateOnly? value) => value?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    private static string ReferencePackRoot() => Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT") ?? throw new InvalidOperationException("The reference-pack test should have been skipped.");
-}
-
-internal sealed class RjsReferencePackTheoryAttribute : TheoryAttribute
-{
-    public RjsReferencePackTheoryAttribute()
-    {
-        var root = Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT");
-        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) Skip = "PEGASUS_REFERENCE_PACK_ROOT is absent; the immutable reference pack differs per machine.";
-    }
 }

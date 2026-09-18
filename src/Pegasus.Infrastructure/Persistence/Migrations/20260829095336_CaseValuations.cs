@@ -50,9 +50,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 table: "CaseValuations",
                 columns: new[] { "CaseId", "Date", "Time" });
 
-            // CASE-029 will create and edit valuations from the Web Case
-            // workspace, while ENG-028 reads the current Engineer value in
-            // the same process. The Worker has no caller. DELETE is absent:
+            // The Web Case workspace creates and edits valuations, and the
+            // assessment reads the current Engineer value in the same
+            // process. The Worker has no caller. DELETE is absent:
             // a recorded Case valuation is never removed.
             if (IsSqlServer())
             {

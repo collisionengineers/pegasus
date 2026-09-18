@@ -28,7 +28,10 @@ the procedure.
 
 ## Inputs before drawing
 
-- [Design authority](../../../docs/design/README.md) binds; [FRD-12](../../../docs/frd/frd-12-operator-experience.md)
+- [Design authority](../../../docs/design/README.md) binds; [FRD-12](../../../docs/frd/frd-12-operator-experience.md),
+  [FRD-15](../../../docs/frd/frd-15-work-centre-queues-and-search.md),
+  [FRD-16](../../../docs/frd/frd-16-case-record-workspace.md),
+  [FRD-17](../../../docs/frd/frd-17-administration-workspace.md)
   and the owning FRDs settle behaviour; [CONTEXT.md](../../../CONTEXT.md) owns
   reserved terms.
 - The live Razor sources (`src/Pegasus.Web/Pages/**/*.cshtml`, the
@@ -111,5 +114,5 @@ instructions; do not restate them here.
 - The folder is a temporary review artifact under the
   [index](../../../docs/index.md) carve-out: mark it temporary, and remove or
   retain it by operator instruction in the final Stage 2 PR.
-- New Markdown must pass `scripts/Test-MarkdownPlacement.ps1` (the path is on
-  its allow-list) and `scripts/Test-DocumentationLinks.ps1`.
+- Relative links in new Markdown must resolve; CI's `documentation` job
+  checks them.

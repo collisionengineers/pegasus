@@ -381,7 +381,7 @@ public sealed partial class PrincipalMailClassificationPolicy(string workProvide
     // "RE:" reads that as a brand-new message. For a Triage request the
     // consequence was a second Triage opened for ordinary thread
     // correspondence, which is the duplicate the reply-context gate exists to
-    // prevent (INTK-033 review).
+    // prevent.
     //
     // Matching a reply anywhere in the chain needs no new anchor shape: any
     // chain containing "RE:" either opens with it, or reaches it past

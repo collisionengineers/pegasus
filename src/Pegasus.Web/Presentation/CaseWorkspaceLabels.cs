@@ -48,7 +48,6 @@ public static class CaseWorkspaceLabels
         public const string PlaceOnHold = "Place on Hold";
         public const string ReleaseHold = "Release Hold";
         public const string ReviewOn = "Review on";
-        public const string CreateUploadLink = "Create upload link";
         public const string CorrectPrincipal = "Correct principal";
         public const string CreateAudit = "Create audit";
         public const string MarkReportSent = "Mark report sent";
@@ -537,23 +536,6 @@ public static class CaseWorkspaceLabels
     }
 
     /// <summary>
-    /// The Files section's upload-request dialog (PR 670 port): who the
-    /// request goes to, why, and the accepted limits as values.
-    /// </summary>
-    public static class UploadRequest
-    {
-        public const string Create = "Create upload request";
-        public const string Recipient = "Recipient";
-        public const string Reason = "Reason";
-        public const string Lifetime = "Lifetime";
-        public const string Files = "Files";
-        public const string FileSize = "File size";
-
-        public static string Days(TimeSpan lifetime) =>
-            lifetime.TotalDays == 1 ? "1 day" : $"{lifetime.TotalDays:0.##} days";
-    }
-
-    /// <summary>
     /// The estimate totals block's row labels (B04). The five printed
     /// components, the net and the gross are what the canonical breakdown
     /// carries, so the block names them rather than the flat pre-B04 rows;
@@ -754,7 +736,7 @@ public static class CaseWorkspaceLabels
         public const string SendCancelled = "The send was cancelled.";
         /// <summary>
         /// One consequence sentence, no retry advice: an Unknown outcome must
-        /// never be blindly repeated (ENG-024), so the copy cannot invite a
+        /// never be blindly repeated, so the copy cannot invite a
         /// retry.
         /// </summary>
         public const string SendUnknown = "The send result is not yet known.";
@@ -792,7 +774,7 @@ public static class CaseWorkspaceLabels
 
         /// <summary>
         /// An uncertain provider outcome states what is known and invites no
-        /// retry, the same rule the report send follows (ENG-024).
+        /// retry, the same rule the report send follows.
         /// </summary>
         public const string OutcomeUnknown = "The Glass's session result is not yet known.";
 
@@ -843,7 +825,6 @@ public static class CaseWorkspaceLabels
         public const string View = "View";
         public const string Remove = "Remove";
         public const string RemoveFile = "Remove file";
-        public const string WithdrawLink = "Withdraw link";
         public const string Compose = "Compose";
         public const string StorageNotReady = "Storage not ready";
         public const string NoDocuments = "No documents on this Case.";

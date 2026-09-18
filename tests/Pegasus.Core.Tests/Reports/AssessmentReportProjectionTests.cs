@@ -271,7 +271,7 @@ public sealed class AssessmentReportProjectionTests
     }
 
     /// <summary>
-    /// ENG-039: the report's cost block is the printed breakdown itself, row
+    /// The report's cost block is the printed breakdown itself, row
     /// for row, even when the estimate carries discounts and charges VAT on
     /// only some of its categories. The report never re-derives a figure and
     /// never reads a flattened projection of one.
@@ -378,7 +378,7 @@ public sealed class AssessmentReportProjectionTests
     [Fact]
     public void PersistedDatesParseUnderANonGregorianCulture()
     {
-        // ENG-037: a th-TH workstation reads a Buddhist-calendar year unless
+        // A th-TH workstation reads a Buddhist-calendar year unless
         // the invariant culture is stated at every persisted-date parse.
         var original = CultureInfo.CurrentCulture;
         CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("th-TH");

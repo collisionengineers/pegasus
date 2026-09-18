@@ -45,7 +45,7 @@ internal sealed record MarketResearchCompletionToolResult(
 /// The AI job ledger tools (ADR-0035, FRD-10 § AI job and estimate tools):
 /// the pull side of the ledger for an external AI client. Every tool
 /// requires the <c>automation.jobs</c> scope; creation is limited to the
-/// scheduled Unidentified-queue pass (EPIC-011 D5); take and progress are
+/// scheduled Unidentified-queue pass (operator decision D5); take and progress are
 /// refused while the Administrator Send to AI switch is off.
 /// </summary>
 [McpServerToolType]

@@ -94,7 +94,7 @@ public sealed class ShellAndStatusPageWebTests
     }
 
     [Fact]
-    public async Task ExpiredPublicUploadLinkRendersTheExternalStatusSurface()
+    public async Task FormerPublicUploadRouteUsesTheOrdinaryNotFoundSurface()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -103,12 +103,10 @@ public sealed class ShellAndStatusPageWebTests
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("This link is no longer active", html, StringComparison.Ordinal);
-        Assert.Contains("· Collision Engineers</title>", html, StringComparison.Ordinal);
-        Assert.Contains("alt=\"Collision Engineers\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">PEGASUS<", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("aria-label=\"Primary\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Return to Work Centre", html, StringComparison.Ordinal);
+        Assert.Contains("We could not find that page", html, StringComparison.Ordinal);
+        Assert.Contains("auth-card", html, StringComparison.Ordinal);
+        Assert.Contains("Return to Work Centre", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("This link is no longer active", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -129,13 +127,11 @@ public sealed class ShellAndStatusPageWebTests
     }
 
     [Theory]
-    [InlineData("/Account/SignIn", "Too many sign-in attempts", false)]
-    [InlineData("/Uploads/expired-token", "Too many upload requests", true)]
-    [InlineData("/Cases/missing", "Too many requests", false)]
+    [InlineData("/Account/SignIn", "Too many sign-in attempts")]
+    [InlineData("/Cases/missing", "Too many requests")]
     public void RateLimitedStatusNamesOnlyItsKnownOrigin(
         string originalPath,
-        string expectedHeading,
-        bool externalSurface)
+        string expectedHeading)
     {
         var context = new DefaultHttpContext();
         context.Features.Set<IStatusCodeReExecuteFeature>(new StatusCodeReExecuteFeature
@@ -151,7 +147,6 @@ public sealed class ShellAndStatusPageWebTests
         page.OnGet(StatusCodes.Status429TooManyRequests);
 
         Assert.Equal(expectedHeading, page.Heading);
-        Assert.Equal(externalSurface, page.IsExternalSurface);
         Assert.Equal("Wait a minute, then try again.", page.Explanation);
     }
 

@@ -224,7 +224,7 @@ public sealed class AllocateIntake(
     /// born claiming complete images whatever arrived — and since the Review
     /// gate reduces to this one flag, an audit with an instruction, a report
     /// and no photographs went straight to Review while the EVA export refused
-    /// the very same case for having no images (CASE-021).
+    /// the very same case for having no images.
     /// </summary>
     private static CaseCompleteness AutomaticCompleteness(IntakeReceipt receipt) =>
         new(InstructionComplete: true,
@@ -551,7 +551,7 @@ public sealed class AllocateIntake(
         // parallel staff retries converge on the same Case identity. The
         // window is bounded but generous (ten seconds): a one-second budget
         // returned Pending to the concurrent caller whenever allocation ran
-        // slowly under load (CASE-005), which is the divergence this wait
+        // slowly under load, which is the divergence this wait
         // exists to prevent. Still Pending after the window is reported
         // honestly.
         for (var poll = 0; poll < 100; poll++)
@@ -601,7 +601,7 @@ public sealed class AllocateIntake(
             IntakeAllocationFailureKind.ConcurrencyConflict,
             IntakeAllocationRecoveryDisposition.ReloadThenRetry,
             "The receipt or allocation state changed. Reload it before retrying."),
-        // INTK-044: an unclassified fault used to be terminal, which left an
+        // An unclassified fault used to be terminal, which left an
         // automatic standalone Audit with no route at all — staff cannot
         // create an Audit by hand. It is therefore a reasoned staff retry of
         // the same immutable command, which re-runs the retained evidence path.

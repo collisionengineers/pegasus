@@ -308,7 +308,7 @@ public interface IRepairSpecificationStore
         Guid caseId,
         CancellationToken cancellationToken);
 
-    // Named estimates (ENG-026). Validation lives in EstimatePolicy and the
+    // Named estimates. Validation lives in EstimatePolicy and the
     // use cases in Estimates.cs; the store owns the transaction, the
     // replay-by-operation-key, and the one-Current-per-case invariant.
     Task<RepairSpecificationVersion> SaveEstimateAsync(
@@ -332,8 +332,8 @@ public interface IRepairSpecificationStore
         CancellationToken cancellationToken);
 
     /// <summary>
-    /// The keyset-paged sibling of <see cref="ListEstimatesAsync"/>
-    /// (CASE-047): newest version first, then estimate id. The after-values
+    /// The keyset-paged sibling of <see cref="ListEstimatesAsync"/>:
+    /// newest version first, then estimate id. The after-values
     /// are the decoded cursor's sort position, both null on the first page;
     /// <paramref name="fetchCount"/> is the caller's limit plus one. Returns
     /// the bounded <see cref="CaseEstimatePageItem"/> header projection

@@ -4,7 +4,7 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.Tests.Assessment;
 
 /// <summary>
-/// CASE-047 B04: the Case estimate editor replaces the whole line collection
+/// The Case estimate editor replaces the whole line collection
 /// on save, so amendment attribution is decided line by line. A line that
 /// came back exactly as it was loaded keeps the stamp it already carried; a
 /// line whose editable values moved names the operator who moved them and the

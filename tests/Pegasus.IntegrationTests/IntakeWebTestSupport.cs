@@ -114,9 +114,6 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         builder.UseSetting(
             "Features:LocalDocumentCustody",
             environment.Equals("Development", StringComparison.OrdinalIgnoreCase).ToString());
-        builder.UseSetting(
-            "DocumentRequests:AcceptedLimitsVersion",
-            "integration-fixture-v1");
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
             var values = new Dictionary<string, string?>
@@ -134,22 +131,6 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                     StringComparison.OrdinalIgnoreCase).ToString(),
                 ["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94",
                 ["Graph:ChangeNotificationClientState"] = "integration-client-state",
-                ["DocumentRequests:AcceptedLimitsVersion"] = "integration-fixture-v1",
-                ["DocumentRequests:LimitsVersion"] = "integration-fixture-v1",
-                ["DocumentRequests:LifetimeHours"] = "1",
-                ["DocumentRequests:MaximumFileCount"] = "5",
-                ["DocumentRequests:MaximumFileBytes"] = "1048576",
-                ["DocumentRequests:MaximumRequestBytes"] = "5242880",
-                ["DocumentRequests:RateLimit"] = "10",
-                ["DocumentRequests:RateLimitWindowMinutes"] = "1",
-                ["DocumentRequests:AllowedMediaTypes:0"] = "application/pdf",
-                ["DocumentRequests:AllowedMediaTypes:1"] = "text/plain",
-                ["DocumentRequests:AllowedMediaTypes:2"] = "image/jpeg",
-                ["DocumentRequests:AllowedMediaTypes:3"] = "image/png",
-                ["DocumentRequests:AllowedMediaTypes:4"] =
-                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                ["DocumentRequests:AllowedMediaTypes:5"] = "video/mp4",
-                ["DocumentRequests:AllowedMediaTypes:6"] = "video/quicktime",
             };
 
             configuration.AddInMemoryCollection(values);
@@ -294,7 +275,7 @@ internal sealed class IntegrationTestAuthenticationHandler(
         };
         if (Request.Headers.TryGetValue("X-Test-Roles", out var requestedRoles))
         {
-            // ENG-002: a test that needs a specific staff role (e.g. Engineer)
+            // A test that needs a specific staff role (e.g. Engineer)
             // names it; the default identity stays Administrator-only.
             foreach (var role in requestedRoles.ToString().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             {
@@ -903,7 +884,7 @@ internal static class IntakeTestEvidence
 
     // The retained QDOS Engineer Triage request shape. It is classified by the
     // real mail-classification policy, which is the sole owner of Triage
-    // eligibility (INTK-033).
+    // eligibility.
     public static TestEmail CreateEngineerTriageRequest(
         string fileName,
         IReadOnlyList<(string FileName, string MediaType, byte[] Content)>? attachments = null) =>

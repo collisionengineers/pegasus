@@ -646,7 +646,7 @@ public sealed record WorkCentreAiJobRow(AiJobRecord Job, AiDraft? Draft, string 
     public bool CanComplete => Draft is not null && CompletesByHand(Job);
 
     /// <summary>
-    /// FRD-11: a Draft ready Query response or queue pass is closed by hand; an
+    /// FRD-27: a Draft ready Query response or queue pass is closed by hand; an
     /// Estimate and an Unidentified resolution close through their record's own act.
     /// </summary>
     public static bool CompletesByHand(AiJobRecord job) =>

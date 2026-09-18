@@ -107,7 +107,6 @@ contract. Typical entries include:
 - Return to Review / Return to Engineer;
 - Archive;
 - Place on Hold / Release Hold;
-- Create upload link;
 - Correct principal;
 - Create audit.
 

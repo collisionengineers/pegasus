@@ -13,7 +13,7 @@ namespace Pegasus.Infrastructure.Glass;
 
 /// <summary>
 /// Runs one Glass's Repair Estimate session for a Case: launch, resume, and the
-/// operator's Save &amp; Exit through to a source-labelled Draft (CASE-047 B04).
+/// operator's Save &amp; Exit through to a source-labelled Draft.
 ///
 /// <para>
 /// <b>Identities are persisted before side effects.</b> The session exists,

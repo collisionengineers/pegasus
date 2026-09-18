@@ -36,7 +36,7 @@ public sealed class AddCaseNoteTests
     /// <summary>
     /// The rule this asserts is unchanged: the Automation Actor holds casework
     /// rights and records what it does under its own events, so it may not also
-    /// author an operator note. TICK-058 widened the guard by exactly one kind
+    /// author an operator note. The Provider API widened the guard by exactly one kind
     /// (below) and left this one denied.
     /// </summary>
     [Fact]
@@ -71,7 +71,7 @@ public sealed class AddCaseNoteTests
     public async Task AnActorWithNoCaseworkRightStillCannotWriteANote() =>
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             Command(new RecordingStore()).ExecuteAsync(
-                new(Guid.NewGuid(), ActionActor.RequestLink(Guid.NewGuid()), "note-6", "A note."),
+                new(Guid.NewGuid(), ActionActor.SystemWorker("note-6"), "note-6", "A note."),
                 CancellationToken.None));
 
     private static AddCaseNote Command(ICaseNoteStore store) => new(store, TimeProvider.System);

@@ -4,7 +4,7 @@ using Pegasus.Core.Eva;
 namespace Pegasus.Core.Tests.Qdos;
 
 /// <summary>
-/// ENG-016 collapsed the hand-off into the export, and the stage/custody/
+/// The hand-off was collapsed into the export, and the stage/custody/
 /// evidence gate that used to live in <c>EvaHandoffPolicy.Evaluate</c> went
 /// with the act it gated. Image selection is what remains, and it is now the
 /// only Core policy the export consults — so it is pinned here directly rather

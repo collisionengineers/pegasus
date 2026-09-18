@@ -51,22 +51,22 @@ public sealed class BoxDocumentContentStoreTests
     }
 
     [Fact]
-    public async Task RequestUploadAddressUsesThePersistedCaseRootAndManagedOrdinal()
+    public async Task OtherRoleAddressUsesThePersistedCaseRootAndManagedOrdinal()
     {
         var box = new InMemoryBox();
         box.BindCaseRoot();
         var store = CreateStore(box);
-        var content = Encoding.UTF8.GetBytes("request upload evidence");
+        var content = Encoding.UTF8.GetBytes("other evidence");
         var address = Address() with
         {
             SemanticRole = DocumentSemanticRole.Other,
-            FileName = "request upload evidence.txt",
+            FileName = "other evidence.txt",
             MediaType = "text/plain"
         };
 
         await store.StoreVersionAsync(address, content, Sha256(content), CancellationToken.None);
 
-        Assert.True(box.PathExists($"{CaseReference}/002 request upload evidence.txt"));
+        Assert.True(box.PathExists($"{CaseReference}/002 other evidence.txt"));
     }
 
     [Fact]
@@ -327,7 +327,7 @@ public sealed class BoxDocumentContentStoreTests
     [Fact]
     public async Task OneManagedReadCostsThreeBoxRoundTrips()
     {
-        // PLAT-041: it used to cost nine — the case folder resolved, the file
+        // It used to cost nine — the case folder resolved, the file
         // found, its metadata re-fetched, and its ancestry walked twice more
         // before a byte moved. The listing that finds the file already carries
         // its size and parent, and the SHA-256 below is the real guarantee.
@@ -351,7 +351,7 @@ public sealed class BoxDocumentContentStoreTests
     [Fact]
     public async Task ABatchReadResolvesTheCaseFolderOnceForEveryImage()
     {
-        // PLAT-041: five photographs cost forty-five Box round trips, which is
+        // Five photographs cost forty-five Box round trips, which is
         // the eighteen seconds the operator measured. The case folder is
         // addressed directly, listed once (ancestry 1 + listing 1), and then
         // only the five downloads remain.
@@ -412,7 +412,7 @@ public sealed class BoxDocumentContentStoreTests
     }
 
     /// <summary>
-    /// DOCS-015: Box rate-limits per application, and a Case's gallery is the
+    /// Box rate-limits per application, and a Case's gallery is the
     /// burst that finds the limit. A 429 on a read is Box saying "later", so
     /// the read waits and asks again instead of becoming a failed page element.
     /// </summary>
@@ -534,7 +534,7 @@ public sealed class BoxDocumentContentStoreTests
         public int LargestItemsRequestOffset { get; private set; }
         public int ApprovedRootListingCount { get; private set; }
         /// <summary>
-        /// PLAT-041: every Box round trip, whatever it is. The export's cost was
+        /// Every Box round trip, whatever it is. The export's cost was
         /// never bytes — it was the number of requests made to move them.
         /// </summary>
         public int RequestCount { get; private set; }
@@ -542,7 +542,7 @@ public sealed class BoxDocumentContentStoreTests
 
         /// <summary>
         /// How many of the next content downloads Box answers with its rate
-        /// limit (DOCS-015).
+        /// limit.
         /// </summary>
         public int ThrottleNextDownloads { get; set; }
 

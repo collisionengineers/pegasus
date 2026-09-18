@@ -26,7 +26,7 @@ stated in the README as demo control, not product UI.
 | --- | --- |
 | Global | lifecycle state, role (Administrator, Engineer, User), data present or every list empty, freshness (Current, Partial, Stale, Unavailable), the page-level Unavailable notice, rail collapse |
 | Per route | the states of the current page: Glass's session state, AI proposal, report state, lease, custody, lookup, Upload's Idle / Files chosen / Storing / Decided, Triage's states, and so on |
-| Dialogs | open any dialog by name, plus the navless frames (sign-in, public upload) |
+| Dialogs | open any dialog by name, plus the navless frame (sign-in) |
 | Variables | each undecided design choice as a switch with its options and a Reset (v26: tab layout `place`, `label`, `icons`, `density`, `max`, `glyphs`, `close`, `wc`, `open`; damage clicker `plan`, `side`, `dial`) |
 
 Every strip state is also reachable by query string (`state`, `edit=1`,

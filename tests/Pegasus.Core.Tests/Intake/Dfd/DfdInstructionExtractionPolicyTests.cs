@@ -1,11 +1,12 @@
 using System.Security.Cryptography;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.Dfd;
 
 public sealed class DfdInstructionExtractionPolicyTests
 {
-    [DfdReferencePackTheory]
+    [ReferencePackTheory]
     [Trait("Category", "Corpus")]
     [InlineData("3963d0e94ba1-DFD_01.pdf.txt", "DFD 01.pdf", "a8eebc6d0c4088cd8d7a1ccff8dc690a5f8a13c96457d1bc04b1aed7b4930782", "RJP/81517", "2026-05-01", "Samantha Wilson", "2026-04-28", "LS69OYW", "TBC", "TPV reverses into our o/s from a side road", "DFD")]
     [InlineData("7b34209b42ae-DFD_02.pdf.txt", "DFD 02.pdf", "10f47df9a02a19c111e0ad07d9f739e904b4665fbe8a452640f4f7a1814fb72d", "RJP/81516", "2026-04-30", "Henry Jones", "2026-04-29", "YS19OUA", "Car 2 Go", "TP pulls from side road into our path", "Car 2 Go")]
@@ -16,7 +17,7 @@ public sealed class DfdInstructionExtractionPolicyTests
         string reference, string instructionDate, string claimant, string incidentDate, string registration,
         string location, string circumstances, string source)
     {
-        var root = ReferencePackRoot();
+        var root = ReferencePack.Root();
         _ = File.ReadAllText(Path.Combine(root, "astra_output", "extractions", "text", extractedFile));
         var original = File.ReadAllBytes(Path.Combine(root, "principal-docs", "original-mapper-instruction-corpus", originalFile));
         Assert.Equal(sha256, Convert.ToHexStringLower(SHA256.HashData(original)));
@@ -50,14 +51,4 @@ public sealed class DfdInstructionExtractionPolicyTests
     }
     private static InstructionReviewField Field(InstructionExtractionResult result, string name) => Assert.Single(result.Fields, field => field.Name == name);
     private static string? Date(DateOnly? value) => value?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    private static string ReferencePackRoot() => Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT") ?? throw new InvalidOperationException("The reference-pack test should have been skipped.");
-}
-
-internal sealed class DfdReferencePackTheoryAttribute : TheoryAttribute
-{
-    public DfdReferencePackTheoryAttribute()
-    {
-        var root = Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT");
-        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) Skip = "PEGASUS_REFERENCE_PACK_ROOT is absent; the immutable reference pack differs per machine.";
-    }
 }

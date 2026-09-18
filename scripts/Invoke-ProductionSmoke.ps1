@@ -330,7 +330,7 @@ try {
     # The security headers are added only outside Development, so no test in the
     # suite ever sees them and a wrong value reaches production green. That is
     # exactly how frame-ancestors 'none' shipped and silently blocked the
-    # same-origin PDF preview (DOCS-011). Asserted here because here is the only
+    # same-origin PDF preview. Asserted here because here is the only
     # place the real header exists.
     $csp = ($anonymous.Headers.GetValues('Content-Security-Policy') | Select-Object -First 1)
     if (-not $csp) { throw 'The deployed response carries no Content-Security-Policy header.' }

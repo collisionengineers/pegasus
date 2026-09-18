@@ -97,25 +97,24 @@ public sealed class OperationsUseCaseTests
     }
 
     [Fact]
-    public async Task RequestProjectionUsesCallerInstantAtUploadExpiryBoundary()
+    public async Task RequestProjectionUsesCallerInstantInsteadOfClockInstant()
     {
-        var expiryUtc = FixedUtcNow;
-        var capturedBeforeExpiryUtc = expiryUtc.AddTicks(-1);
+        var capturedUtc = FixedUtcNow.AddTicks(-1);
         var projectionStore = new RecordingRequestStore(new(
-            ImmutableArray.Create(ActiveUploadLink(expiryUtc)),
+            ImmutableArray.Create(ExternalWork(capturedUtc)),
             LimitReached: false));
         var query = new GetRequestOperations(
             projectionStore,
-            new FixedTimeProvider(expiryUtc.AddTicks(1)));
+            new FixedTimeProvider(FixedUtcNow.AddTicks(1)));
 
         var result = await query.ExecuteAsync(
             StaffActor(),
-            asOfUtc: capturedBeforeExpiryUtc,
+            asOfUtc: capturedUtc,
             cancellationToken: CancellationToken.None);
 
-        Assert.Equal(capturedBeforeExpiryUtc, projectionStore.AsOfUtc);
-        Assert.NotEqual(expiryUtc.AddTicks(1), projectionStore.AsOfUtc);
-        Assert.Equal(RequestOperationState.Active, Assert.Single(result.Items).State);
+        Assert.Equal(capturedUtc, projectionStore.AsOfUtc);
+        Assert.NotEqual(FixedUtcNow.AddTicks(1), projectionStore.AsOfUtc);
+        Assert.Equal(capturedUtc, Assert.Single(result.Items).LastActivityAtUtc);
     }
 
     private static ActionActor StaffActor() =>
@@ -131,30 +130,18 @@ public sealed class OperationsUseCaseTests
         ImmutableArray<RequestOperationProjection>.Empty,
         LimitReached: false);
 
-    private static RequestOperationProjection ActiveUploadLink(DateTimeOffset expiryUtc) => new(
+    private static RequestOperationProjection ExternalWork(DateTimeOffset lastActivityAtUtc) => new(
         Guid.NewGuid(),
-        RequestOperationKind.PegasusUploadLink,
-        RequestOperationState.Active,
+        RequestOperationState.Pending,
         Guid.NewGuid(),
         "QDOS31001",
         "QDOS",
-        expiryUtc.AddMinutes(-1),
-        expiryUtc,
-        1,
-        AcceptedFileCount: 0,
-        AcceptedByteCount: 0,
-        MaximumFileCount: 10,
-        MaximumByteCount: 10_000,
-        LimitsVersion: "1",
-        ExternalKind: null,
-        AttemptCount: null,
+        lastActivityAtUtc,
+        ExternalKind: "document_custody",
+        AttemptCount: 1,
         FailureCode: null,
         FailureReason: null,
-        CanRetry: false,
-        CanRevoke: true,
-        CaseVersion: 1,
-        CaseEditLeaseState: RequestCaseEditLeaseState.Available,
-        CaseEditLeaseExpiresAtUtc: null);
+        CanRetry: false);
 
     private static EmailOperationProjection EmailItem(string id) => new(
         id,

@@ -51,15 +51,13 @@ public sealed class RunDueChasersTests
         var nowUtc = new DateTimeOffset(2026, 7, 30, 9, 0, 0, TimeSpan.Zero);
         var scheduledAtUtc = nowUtc.AddMinutes(-1);
         var caseId = Guid.NewGuid();
-        var requestLinkReference = Guid.NewGuid();
         var queries = new RecordingQueries([
             new(
                 caseId,
                 4,
                 "QDOS26001",
                 "Vehicle images",
-                scheduledAtUtc,
-                requestLinkReference)
+                scheduledAtUtc)
         ]);
         var store = new RecordingStore();
         var useCase = new RunDueChasers(queries, store, new FixedTimeProvider(nowUtc));
@@ -77,10 +75,6 @@ public sealed class RunDueChasersTests
         Assert.Equal(
             "Please provide the outstanding material for case QDOS26001: Vehicle images.",
             transition.CopyableText);
-        Assert.Equal(requestLinkReference, transition.RequestLinkReference);
-        Assert.Equal(
-            RunDueChasers.MissingMaterialRequestLinkPurpose,
-            transition.RequestLinkPurpose);
         Assert.Equal(ActorKind.SystemWorker, transition.Actor.Kind);
         Assert.Equal(RunDueChasers.WorkerSubjectId, transition.Actor.SubjectId);
         Assert.StartsWith($"due-chaser:{caseId:N}:", transition.OperationKey, StringComparison.Ordinal);
@@ -108,8 +102,7 @@ public sealed class RunDueChasersTests
         0,
         $"QDOS26{sequence:000}",
         "Outstanding material",
-        nowUtc,
-        null);
+        nowUtc);
 
     private sealed class RecordingQueries(IReadOnlyList<DueCaseChaser> candidates)
         : ICaseDueChaserQueries
@@ -149,8 +142,6 @@ public sealed class RunDueChasersTests
                     transition.GeneratedAtUtc,
                     transition.NextChaseAtUtc,
                     transition.CopyableText,
-                    transition.RequestLinkReference,
-                    transition.RequestLinkPurpose,
                     transition.ExpectedDueWorkVersion + 1)));
         }
     }

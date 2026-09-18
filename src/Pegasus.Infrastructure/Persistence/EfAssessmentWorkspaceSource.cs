@@ -7,7 +7,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// The Assessment screen's bounded relational projection. Six commands load
 /// only what that screen and report generation share; general Case documents,
-/// history, tasks, upload links and custody preparation stay on the Case screen.
+/// history, tasks and custody preparation stay on the Case screen.
 /// </summary>
 internal sealed class EfAssessmentWorkspaceSource(
     IDbContextFactory<PegasusDbContext> contextFactory) : IAssessmentWorkspaceSource
@@ -57,7 +57,7 @@ internal sealed class EfAssessmentWorkspaceSource(
             .ThenByDescending(item => item.RequestId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        // Named estimates (ENG-026): a case may hold several drafts and
+        // Named estimates: a case may hold several drafts and
         // several accepted estimates; the workspace shows the latest draft
         // and the Current one, the same choice EfRepairSpecificationStore's
         // DraftQuery / AcceptedQuery make.

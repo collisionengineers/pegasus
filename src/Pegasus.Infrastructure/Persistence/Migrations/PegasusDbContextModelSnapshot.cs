@@ -1585,13 +1585,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nchar(64)")
                         .IsFixedLength();
 
-                    b.Property<string>("RequestLinkPurpose")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<Guid?>("RequestLinkReference")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<DateTimeOffset>("ScheduledAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -1600,8 +1593,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("OperationKey")
                         .IsUnique();
 
-                    b.HasIndex("RequestLinkReference");
-
                     b.HasIndex("CaseId", "GeneratedAtUtc");
 
                     b.HasIndex("CaseId", "ScheduledAtUtc")
@@ -1609,8 +1600,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("CaseDueChasers", null, t =>
                         {
-                            t.HasCheckConstraint("CK_CaseDueChasers_RequestLink", "([RequestLinkReference] IS NULL AND [RequestLinkPurpose] IS NULL) OR ([RequestLinkReference] IS NOT NULL AND [RequestLinkPurpose] = 'missing-material-upload')");
-
                             t.HasCheckConstraint("CK_CaseDueChasers_Versions", "[BeforeDueWorkVersion] >= 0 AND [AfterDueWorkVersion] = [BeforeDueWorkVersion] + 1");
                         });
                 });
@@ -6313,224 +6302,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("ProviderSubmissions", (string)null);
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PublicUploadOccurrenceEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CustodyState")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid?>("DocumentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("DocumentVersionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("MediaType")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("OperationKey")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("ProposedName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid?>("ReplacesOccurrenceId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("SessionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Sha256")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
-
-                    b.Property<long>("Size")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SessionId", "OperationKey")
-                        .IsUnique();
-
-                    b.HasIndex("SessionId", "ReplacesOccurrenceId");
-
-                    b.ToTable("PublicUploadOccurrences", (string)null);
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PublicUploadSessionEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ConcurrencyToken")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("ExpiresAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("FinalizedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("LimitsVersion")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("RequestUploadLinkId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("StartedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<long>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RequestUploadLinkId")
-                        .IsUnique();
-
-                    b.ToTable("PublicUploadSessions", (string)null);
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RequestUploadLinkEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<long>("AcceptedByteCount")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("AcceptedFileCount")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("CaseId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CreateOperationKey")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset>("ExpiresAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("LimitsVersion")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<string>("Reason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("Recipient")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("RevokeOperationKey")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<DateTimeOffset?>("RevokedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<string>("TokenDigest")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
-
-                    b.Property<long>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TokenDigest")
-                        .IsUnique();
-
-                    b.HasIndex("CaseId", "CreateOperationKey")
-                        .IsUnique();
-
-                    b.HasIndex("CreatedAtUtc", "Id")
-                        .IsDescending(true, false);
-
-                    b.HasIndex("RevokedAtUtc", "Id")
-                        .IsDescending(true, false);
-
-                    b.ToTable("RequestUploadLinks", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_RequestUploadLinks_AcceptedByteCount", "[AcceptedByteCount] >= 0");
-
-                            t.HasCheckConstraint("CK_RequestUploadLinks_AcceptedFileCount", "[AcceptedFileCount] >= 0");
-                        });
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RequestUploadReceiptEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ContentHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
-
-                    b.Property<Guid>("OccurrenceId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("OperationKey")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<DateTimeOffset>("ReceivedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("RequestId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("VersionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OccurrenceId");
-
-                    b.HasIndex("VersionId");
-
-                    b.HasIndex("RequestId", "OperationKey")
-                        .IsUnique();
-
-                    b.HasIndex("RequestId", "ReceivedAtUtc")
-                        .IsDescending(false, true);
-
-                    b.ToTable("RequestUploadReceipts", (string)null);
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedInstructionAnalysisEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8128,11 +7899,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
-                    b.Property<int?>("RevenueWeightKg")
-                        .HasColumnType("int");
-
                     b.Property<DateTimeOffset>("RetrievedAtUtc")
                         .HasColumnType("datetimeoffset");
+
+                    b.Property<int?>("RevenueWeightKg")
+                        .HasColumnType("int");
 
                     b.Property<DateTimeOffset?>("SourceObservedAtUtc")
                         .HasColumnType("datetimeoffset");
@@ -8488,14 +8259,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("Pegasus.Infrastructure.Persistence.RequestUploadLinkEntity", "RequestLink")
-                        .WithMany()
-                        .HasForeignKey("RequestLinkReference")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("DueWork");
-
-                    b.Navigation("RequestLink");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseDueWorkEntity", b =>
@@ -9333,60 +9097,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Principal");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PublicUploadOccurrenceEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.PublicUploadSessionEntity", null)
-                        .WithMany()
-                        .HasForeignKey("SessionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Pegasus.Infrastructure.Persistence.PublicUploadOccurrenceEntity", null)
-                        .WithMany()
-                        .HasForeignKey("SessionId", "ReplacesOccurrenceId")
-                        .HasPrincipalKey("SessionId", "Id")
-                        .OnDelete(DeleteBehavior.Restrict);
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.PublicUploadSessionEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.RequestUploadLinkEntity", null)
-                        .WithMany()
-                        .HasForeignKey("RequestUploadLinkId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RequestUploadLinkEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", null)
-                        .WithMany()
-                        .HasForeignKey("CaseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RequestUploadReceiptEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.DocumentOccurrenceEntity", null)
-                        .WithMany()
-                        .HasForeignKey("OccurrenceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Pegasus.Infrastructure.Persistence.RequestUploadLinkEntity", null)
-                        .WithMany()
-                        .HasForeignKey("RequestId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Pegasus.Infrastructure.Persistence.DocumentVersionEntity", null)
-                        .WithMany()
-                        .HasForeignKey("VersionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedInstructionAnalysisEntity", b =>

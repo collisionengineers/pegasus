@@ -8,12 +8,10 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Cases;
-using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Operations;
-using Pegasus.Core.Workflow;
 using Pegasus.Web.Authentication;
 
 namespace Pegasus.IntegrationTests;
@@ -49,7 +47,6 @@ public sealed partial class OperationsWebTests
 
         Assert.Contains("Operations", html, StringComparison.Ordinal);
         Assert.Contains("Attention required", html, StringComparison.Ordinal);
-        Assert.Contains("Active upload links", html, StringComparison.Ordinal);
         // The composed list has no superseded placeholder heading or copy.
         Assert.DoesNotContain("AI operations", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Requesting an AI job and viewing live AI work are planned", html, StringComparison.Ordinal);
@@ -57,7 +54,6 @@ public sealed partial class OperationsWebTests
         Assert.DoesNotContain("Service health", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Automation MCP", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Send-to-AI transport", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Box file request", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Approve", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Reject", html, StringComparison.Ordinal);
         Assert.DoesNotContain("/Operations/Requests", html, StringComparison.Ordinal);
@@ -170,36 +166,6 @@ public sealed partial class OperationsWebTests
     }
 
     [Fact]
-    public async Task OperationsWithdrawalUsesTheCanonicalAntiforgeryAndLeaseGuardedCommand()
-    {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingOperationsStore();
-        using var factory = Configure(baseFactory, store);
-        using var client = CreateClient(factory);
-        var html = await GetHtmlAsync(client, "/Operations");
-
-        using var response = await client.PostAsync(
-            "/Operations?handler=RevokeLink",
-            Form(
-                AntiforgeryValue(html),
-                ("requestId", store.PegasusRequestId.ToString("D")),
-                ("caseId", store.CaseId.ToString("D")),
-                ("expectedVersion", "4"),
-                ("expectedCaseVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("reason", "The chaser is no longer needed."),
-                ("operationKey", OperationKeyValue(html))));
-
-        AssertPrg(response, "/Operations");
-        var command = Assert.IsType<RevokeRequestUploadLinkCommand>(store.PegasusRevoke);
-        Assert.Equal(store.CaseId, command.CaseId);
-        Assert.Equal(store.PegasusRequestId, command.RequestId);
-        Assert.Equal(store.CaseVersion, command.ExpectedCaseVersion);
-        Assert.Equal(store.LeaseToken, command.EditLeaseToken);
-        Assert.Equal(ActorKind.Staff, command.Actor.Kind);
-        Assert.Equal("The chaser is no longer needed.", command.Reason);
-    }
-
-    [Fact]
     public async Task AiJobListShowsLiveJobsAndOnlyTodaysTerminalJobs()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -213,7 +179,7 @@ public sealed partial class OperationsWebTests
         Assert.Contains("AI Job List", html, StringComparison.Ordinal);
         // Three non-terminal jobs, the job explicitly completed today and the
         // queued job that effectively expired today; the job cancelled a week
-        // ago is not on the list (FRD-11).
+        // ago is not on the list (FRD-27).
         Assert.Contains("6 jobs", html, StringComparison.Ordinal);
         Assert.Contains("Unidentified resolution", html, StringComparison.Ordinal);
         Assert.Contains("Unidentified-queue pass", html, StringComparison.Ordinal);
@@ -271,7 +237,7 @@ public sealed partial class OperationsWebTests
         var html = await GetHtmlAsync(client, "/Operations");
 
         // The ledger stores the acting actor's subject id, which for staff is a
-        // GUID. FRD-11 gives Started by "a staff username or the connector
+        // GUID. FRD-27 gives Started by "a staff username or the connector
         // client name", so the column resolves the name and never prints the
         // recorded identifier.
         var staffRow = RowContaining(html, RecordingAiWorkStore.EstimateInstruction);
@@ -363,7 +329,7 @@ public sealed partial class OperationsWebTests
 
         AssertPrg(response, "/Operations");
         var command = Assert.IsType<CreateAiJobCommand>(aiWork.Created);
-        // EPIC-011 D5 and FRD-11: the button starts a resolution for one U
+        // Operator decision D5 and FRD-27: the button starts a resolution for one U
         // reference; the queue pass belongs to the Automation Actor.
         Assert.Equal(AiJobKind.UnidentifiedResolution, command.Kind);
         Assert.Equal(aiWork.OpenUnidentifiedId, command.SubjectId);
@@ -614,16 +580,10 @@ public sealed partial class OperationsWebTests
                 services.RemoveAll<IRequestOperationsProjectionStore>();
                 services.RemoveAll<IMailboxProcessingRetryStore>();
                 services.RemoveAll<IExternalWorkRetryStore>();
-                services.RemoveAll<IAcquireCaseEditLease>();
-                services.RemoveAll<IReleaseCaseEditLease>();
-                services.RemoveAll<IRevokeRequestUploadLink>();
                 services.AddSingleton<IEmailOperationsProjectionStore>(store);
                 services.AddSingleton<IRequestOperationsProjectionStore>(store);
                 services.AddSingleton<IMailboxProcessingRetryStore>(store);
                 services.AddSingleton<IExternalWorkRetryStore>(store);
-                services.AddSingleton<IAcquireCaseEditLease>(store);
-                services.AddSingleton<IReleaseCaseEditLease>(store);
-                services.AddSingleton<IRevokeRequestUploadLink>(store);
             }));
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
@@ -679,18 +639,12 @@ public sealed partial class OperationsWebTests
         IEmailOperationsProjectionStore,
         IRequestOperationsProjectionStore,
         IMailboxProcessingRetryStore,
-        IExternalWorkRetryStore,
-        IAcquireCaseEditLease,
-        IReleaseCaseEditLease,
-        IRevokeRequestUploadLink
+        IExternalWorkRetryStore
     {
         public Guid CaseId { get; } = Guid.NewGuid();
         public Guid IntakeId { get; } = Guid.NewGuid();
         public Guid TriageId { get; } = Guid.NewGuid();
-        public Guid PegasusRequestId { get; } = Guid.NewGuid();
         public Guid ExternalWorkId { get; } = Guid.NewGuid();
-        public long CaseVersion { get; } = 10;
-        public string LeaseToken { get; } = "opaque-operations-lease";
         public string ReceivedMailboxId { get; } = "approved-inbox";
         public string MailboxFailureCode { get; } = "source_unavailable";
         public DateTimeOffset MailboxFailureDueAtUtc { get; } = FixedUtcNow.AddMinutes(5);
@@ -698,16 +652,11 @@ public sealed partial class OperationsWebTests
         public bool LimitReached { get; init; }
         public RetryMailboxProcessingCommand? MailboxRetry { get; private set; }
         public RetryExternalWorkCommand? ExternalRetry { get; private set; }
-        public RevokeRequestUploadLinkCommand? PegasusRevoke { get; private set; }
-        private bool LeaseIsActive { get; set; }
-        private string? LeaseHolder { get; set; }
-        private ActorKind? LeaseHolderKind { get; set; }
-        public string? LeaseOperationKey { get; private set; }
 
         public Task<int> CountRetryableExternalFailuresAsync(
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken) =>
-            Task.FromResult(LeaseIsActive && FixedUtcNow.AddMinutes(5) > nowUtc ? 0 : 1);
+            Task.FromResult(1);
 
         public Task<EmailOperationsProjection> GetAsync(
             int maximumItemsPerDirection,
@@ -730,13 +679,9 @@ public sealed partial class OperationsWebTests
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken) => Task.FromResult(new RequestOperationsProjection(
                 ImmutableArray.Create(
-                    Request(PegasusRequestId, RequestOperationKind.PegasusUploadLink, RequestOperationState.Active, version: 4, canRevoke: true),
-                    Request(Guid.NewGuid(), RequestOperationKind.PegasusUploadLink, RequestOperationState.Expired),
-                    Request(Guid.NewGuid(), RequestOperationKind.PegasusUploadLink, RequestOperationState.Exhausted),
-                    Request(Guid.NewGuid(), RequestOperationKind.PegasusUploadLink, RequestOperationState.Revoked),
-                    Request(ExternalWorkId, RequestOperationKind.ExternalWork, RequestOperationState.Failed, canRetry: true, attemptCount: ExternalAttemptCount),
-                    Request(Guid.NewGuid(), RequestOperationKind.ExternalWork, RequestOperationState.Pending),
-                    Request(Guid.NewGuid(), RequestOperationKind.ExternalWork, RequestOperationState.UnknownExternal)),
+                    Request(ExternalWorkId, RequestOperationState.Failed, canRetry: true, attemptCount: ExternalAttemptCount),
+                    Request(Guid.NewGuid(), RequestOperationState.Pending),
+                    Request(Guid.NewGuid(), RequestOperationState.UnknownExternal)),
                 LimitReached));
 
         public Task<OperationsRetryResult> RetryAsync(
@@ -755,45 +700,6 @@ public sealed partial class OperationsWebTests
         {
             ExternalRetry = command;
             return Task.FromResult(new OperationsRetryResult(IsReplay: false));
-        }
-
-        Task<CaseEditLease> IAcquireCaseEditLease.ExecuteAsync(
-            ClaimCaseEditLeaseRequest request,
-            CancellationToken cancellationToken)
-        {
-            LeaseIsActive = true;
-            LeaseHolder = request.Actor.SubjectId;
-            LeaseHolderKind = request.Actor.Kind;
-            LeaseOperationKey = request.OperationKey;
-            return Task.FromResult(new CaseEditLease(
-                request.CaseId,
-                LeaseToken,
-                request.Actor.SubjectId,
-                CaseVersion,
-                FixedUtcNow.AddMinutes(5)));
-        }
-
-        Task IReleaseCaseEditLease.ExecuteAsync(
-            ReleaseCaseEditLeaseRequest request,
-            CancellationToken cancellationToken)
-        {
-            LeaseIsActive = false;
-            LeaseHolder = null;
-            LeaseHolderKind = null;
-            LeaseOperationKey = null;
-            return Task.CompletedTask;
-        }
-
-        public Task ExecuteAsync(
-            RevokeRequestUploadLinkCommand command,
-            CancellationToken cancellationToken = default)
-        {
-            PegasusRevoke = command;
-            LeaseIsActive = false;
-            LeaseHolder = null;
-            LeaseHolderKind = null;
-            LeaseOperationKey = null;
-            return Task.CompletedTask;
         }
 
         private static EmailOperationProjection Email(
@@ -824,46 +730,20 @@ public sealed partial class OperationsWebTests
 
         private RequestOperationProjection Request(
             Guid id,
-            RequestOperationKind kind,
             RequestOperationState state,
-            long? version = null,
             bool canRetry = false,
-            bool canRevoke = false,
             int? attemptCount = null) => new(
                 id,
-                kind,
                 state,
                 CaseId,
                 "QD31001",
                 "QD",
                 FixedUtcNow,
-                FixedUtcNow.AddDays(1),
-                version,
-                AcceptedFileCount: kind == RequestOperationKind.PegasusUploadLink ? 1 : null,
-                AcceptedByteCount: kind == RequestOperationKind.PegasusUploadLink ? 1024 : null,
-                MaximumFileCount: kind == RequestOperationKind.PegasusUploadLink ? 10 : null,
-                MaximumByteCount: kind == RequestOperationKind.PegasusUploadLink ? 52_428_800 : null,
-                LimitsVersion: kind == RequestOperationKind.PegasusUploadLink ? "limits-v1" : null,
-                ExternalKind: kind == RequestOperationKind.ExternalWork ? "vehicle_lookup" : null,
+                ExternalKind: "vehicle_lookup",
                 attemptCount,
                 FailureCode: state == RequestOperationState.Failed ? "queue_poisoned" : null,
                 FailureReason: state == RequestOperationState.Failed ? "The retry policy was exhausted." : null,
-                canRetry,
-                canRevoke,
-                CaseVersion,
-                LeaseIsActive
-                    ? RequestCaseEditLeaseState.Active
-                    : RequestCaseEditLeaseState.Available,
-                LeaseIsActive ? FixedUtcNow.AddMinutes(5) : null)
-            {
-                ActiveEditLease = LeaseIsActive
-                    ? new CaseEditLeaseSnapshot(
-                        LeaseHolder!,
-                        LeaseHolderKind,
-                        FixedUtcNow.AddMinutes(5),
-                        LeaseOperationKey!)
-                    : null
-            };
+                canRetry);
     }
 
     /// <summary>

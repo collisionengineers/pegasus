@@ -115,7 +115,7 @@ public sealed class CaseDataCompletenessPersistenceTests
     [Fact]
     public void ExtractedRepairerNameAndAddressBecomeCaseFactsWithTheirOwnProvenance()
     {
-        // INTK-058: the instruction's repairer reaches the Case as ordinary
+        // The instruction's repairer reaches the Case as ordinary
         // source facts. A directory link is a separate staff decision and is
         // not inferred from the text here.
         var snapshot = PhoneSnapshot([
@@ -333,7 +333,7 @@ public sealed class CaseDataCompletenessPersistenceTests
             "qdos_mail_route",
             projection.Provider.WorkProviderCode.Fact?.Source.PolicyKey);
         Assert.Equal(2, projection.Provider.WorkProviderCode.Fact?.Source.PolicyVersion);
-        // INTK-021: an unambiguous extracted value is auto-added (Fact),
+        // An unambiguous extracted value is auto-added (Fact),
         // not parked as a suggestion awaiting confirmation.
         Assert.Null(projection.Claimant.Name.Suggestion);
         Assert.Equal("Jane Example", projection.Claimant.Name.Fact?.Value);
@@ -486,7 +486,7 @@ public sealed class CaseDataCompletenessPersistenceTests
         // from the row it just wrote
         // (CaseWorkspacePersistenceTests.ASaveDoesNotDemoteCompletenessAsASideEffect).
         // This assertion is retained deliberately, because SaveCase's own
-        // behaviour is unchanged by CASE-047.
+        // behaviour is unchanged by the cursor queries.
         Assert.Equal(CaseLifecycleState.NotReady, saved.State);
         Assert.False(saved.Completeness.Values.InstructionComplete);
         Assert.Equal(saved, replayedSave);

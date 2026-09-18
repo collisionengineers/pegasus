@@ -5,7 +5,7 @@ date: 2026-07-24
 supersedes: []
 superseded_by: [ADR-0008]
 related_capabilities: []
-related_frd: [frd-02]
+related_frd: [frd-02, frd-22]
 tags: [intake, policy]
 ---
 # ADR-0006: Provider-neutral intake with a contained QDOS policy
@@ -73,7 +73,7 @@ a compatibility boundary.
 No provider registry, rules engine, second policy, mailbox classifier, provider
 table, dormant transport, or compatibility route is introduced.
 
-Functional behaviour: see [FRD-02](../frd/frd-02-intake-and-source-identity.md)
+Functional behaviour: see [FRD-02](../frd/frd-02-intake-and-source-identity.md), [FRD-22](../frd/frd-22-pre-case-gates-matching-and-association.md)
 and [FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md).
 
 ## Consequences

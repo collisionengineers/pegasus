@@ -4,7 +4,7 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.Cases;
 
 /// <summary>
-/// API-04 (FRD-09, FRD-04 § Principals administration; EPIC-011 D8): one
+/// API-04 (FRD-09, FRD-04 § Principals administration): one
 /// Provider API credential per Principal. The clear secret exists only in
 /// the outcome of the issue/reset command; the store keeps a one-way
 /// verifier and nothing here ever carries it.
@@ -80,7 +80,7 @@ public sealed record PrincipalCredentialVerification(
 /// A credential that authenticated. <see cref="MaySubmit"/> is false while
 /// the credential is paused: the caller is known, and new submissions are
 /// refused while authenticated reads of prior receipts and results remain
-/// available (operator decision, TICK-061).
+/// available (operator decision).
 /// </summary>
 public sealed record PrincipalCredentialAuthentication(
     Guid PrincipalId,
@@ -164,8 +164,8 @@ public interface IGetPrincipalCredential
 }
 
 /// <summary>
-/// The Provider API authentication decision (TICK-058 composes the
-/// transport). Unknown key, wrong secret, revoked credential and inactive
+/// The Provider API authentication decision (the Provider API
+/// composes the transport). Unknown key, wrong secret, revoked credential and inactive
 /// Principal all refuse with null; a paused credential authenticates with
 /// <see cref="PrincipalCredentialAuthentication.MaySubmit"/> false.
 /// </summary>

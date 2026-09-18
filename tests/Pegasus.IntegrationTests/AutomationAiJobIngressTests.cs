@@ -329,7 +329,7 @@ public sealed class AutomationAiJobIngressTests
         using var client = mcpFactory.CreateClient();
         var token = await RequestTokenAsync(client, JobsScope);
 
-        // Only the queue pass may be started by the Actor (EPIC-011 D5).
+        // Only the queue pass may be started by the Actor (operator decision D5).
         using (var refused = await PostMcpAsync(
             client,
             token,

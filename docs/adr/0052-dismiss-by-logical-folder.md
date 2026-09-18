@@ -49,14 +49,14 @@ touching it in Outlook, and a way to get it back.
 
 - The only mailbox mutations Pegasus performs remain the confirmed folder
   move and the ADR-0036 send; Dismiss adds no Graph scope or seam.
-- FRD-08's Flag and Delete bullets are replaced by Dismiss; FRD-12 owns the
+- FRD-08's Flag and Delete bullets are replaced by Dismiss; FRD-20 owns the
   Inbox scopes and controls.
 - A retained message's dismissed state is Pegasus data and survives mailbox
   re-polls; a later Outlook move by a person does not undo a Dismiss.
 
 ## Links
 
-- [FRD-08 — Outbound correspondence](../frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence)
-- [FRD-12 — Inbox](../frd/frd-12-operator-experience.md#inbox)
+- [FRD-21 — Outbound correspondence](../frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)
+- [FRD-20 — Inbox](../frd/frd-20-mailbox-workspace.md#inbox-scopes-and-filters)
 - [ADR-0036](0036-outbound-mail-via-approved-mailbox.md)
 - Provenance: [v26 planning, Inbox](../../design/planning-and-old-designs/v26_planning/pages/inbox/how-it-should-work.md)

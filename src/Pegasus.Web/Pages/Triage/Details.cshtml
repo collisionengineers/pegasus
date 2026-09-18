@@ -257,8 +257,8 @@
                                it is not an inert control. D7's stricter clause
                                (a disabled control is permitted only for a
                                named, ticketed integration seam) reads against
-                               that merged convention — raised for the epic
-                               owner as UIIMP-012, not settled here. *@
+                               that merged convention — raised with the epic
+                               owner, not settled here. *@
                             <span class="gated" data-condition="@(canComplete ? null : "Available once a finding is recorded")">
                                 <button type="button"
                                         class="btn @(canComplete ? string.Empty : "is-disabled")"
@@ -365,7 +365,7 @@
                                 <span>Open file</span>
                             </a>
                         }
-                        @* INTK-059: recording the known principal is casework, not a
+                        @* Recording the known principal is casework, not a
                            lifecycle transition (mirrors Image Intake), so this is
                            never gated on `mutable` — a completed or cancelled
                            Triage's principal remains correctable. *@
@@ -388,7 +388,7 @@
                         {
                             // A retained receipt asset is already served inline, so
                             // preview and download are the same authorised URL --
-                            // the coincidence GalleryImage documents (DOCS-011).
+                            // the coincidence GalleryImage documents.
                             var href = Url.Page(
                                 "/Intake/Asset",
                                 new { id = record.Origin.ReceiptId, assetId = asset.Id })!;
@@ -569,7 +569,7 @@
             </section>
         }
 
-        @* The panel is "Notes" (EPIC-011 §1.5). Its entries are still the one
+        @* The panel is "Notes". Its entries are still the one
            permanent, attributed, versioned history: an operator note is an
            entry in that stream, not a second, editable record beside it. The
            entry shape (Date/Time/ID + text) is unchanged. *@
@@ -759,7 +759,7 @@ else
     })" />
 }
 
-@* INTK-059: recording the known principal is casework, not a lifecycle
+@* Recording the known principal is casework, not a lifecycle
    transition, so its dialog is drawn unconditionally rather than inside the
    `mutable`-gated block above — a completed or cancelled Triage's principal
    remains correctable, exactly as Image Intake's own principal editor is

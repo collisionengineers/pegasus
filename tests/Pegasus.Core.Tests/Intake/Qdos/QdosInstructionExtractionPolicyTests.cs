@@ -32,8 +32,8 @@ public sealed class QdosInstructionExtractionPolicyTests
     public void ALetterWithOnlyADamageAreaStillHasNoCircumstances()
     {
         // The shape of the QDOS audit letters: no circumstances prose at all.
-        // ENG-015 appended the labelled damage area to the circumstances
-        // field; INTK-060 C03 separated them, because what the vehicle looks
+        // The labelled damage area was once appended to the circumstances
+        // field; the two are now separate, because what the vehicle looks
         // like is not an account of how the accident happened and a reviewer
         // reading one concatenated value cannot tell which half the letter
         // actually stated.
@@ -83,7 +83,7 @@ public sealed class QdosInstructionExtractionPolicyTests
     [Fact]
     public void TheAppendedReportsInspectionDateBeatsTheInstructionLetters()
     {
-        // ENG-015: the instruction can only propose an inspection date; the
+        // The instruction can only propose an inspection date; the
         // appended engineer's report states when the vehicle was actually
         // seen. The later fragment wins for this field, and this field only.
         var result = new QdosInstructionExtractionPolicy().Extract(
@@ -130,7 +130,7 @@ public sealed class QdosInstructionExtractionPolicyTests
     [Fact]
     public void TheBareDateRowIsTheInstructionDateAndLeavesTheAccidentDateAlone()
     {
-        // ENG-015: the letters date themselves with a bare "Date:" row, so
+        // The letters date themselves with a bare "Date:" row, so
         // without it every QDOS case fell back to its receipt date. The
         // regression this risks is the bare label swallowing the accident
         // row instead — "Date of Accident:" also begins with "Date".
@@ -760,7 +760,7 @@ public sealed class QdosInstructionExtractionPolicyTests
     [Fact]
     public void AReportsVehicleLinePreservesTheDescriptionWithoutGuessingMakeOrModel()
     {
-        // INTK-025: the bodyshop report's own grammar backfills the vehicle
+        // The bodyshop report's own grammar backfills the vehicle
         // description and registration when the letter carries neither. It
         // does not backfill a make or a model - the report states one
         // combined vehicle text too.
@@ -815,7 +815,7 @@ public sealed class QdosInstructionExtractionPolicyTests
     [Fact]
     public void AVehicleLineContributesWhateverDocumentCarriesIt()
     {
-        // INTK-028: this once asserted the opposite — a "Vehicle:" line was
+        // This once asserted the opposite — a "Vehicle:" line was
         // read only from a document whose file name contained "report".
         // The accompanying report is written by a third-party engineer and
         // named however that firm's system named it, so the file name was
@@ -909,7 +909,7 @@ public sealed class QdosInstructionExtractionPolicyTests
     [Fact]
     public void QdosTwentySixZeroZeroEightsReportSuppliesItsMileage()
     {
-        // INTK-028 regression, verbatim from production: this is exactly
+        // Verbatim from production: this is exactly
         // what the reader stored for QDOS26008's two documents. The mileage
         // was plainly there and was not read, because the Speedo rule was
         // anchored to the start of a line and the reader lays the report's
@@ -944,8 +944,8 @@ public sealed class QdosInstructionExtractionPolicyTests
         // The regression above only ever passed because it hands the policy
         // both documents as content. In production the selector picks the
         // letter alone — the QDOS signature deliberately rejects an
-        // "Exclusive Vehicle Assessors" report — so INTK-060 left the report
-        // unread and the mileage unextracted. It arrives as companion
+        // "Exclusive Vehicle Assessors" report — so narrowing the policy's
+        // input left the report unread and the mileage unextracted. It arrives as companion
         // content instead, and the report grammar is the only pass reading
         // it.
         var result = new QdosInstructionExtractionPolicy().Extract(
@@ -1032,7 +1032,7 @@ public sealed class QdosInstructionExtractionPolicyTests
     [Fact]
     public void AnInstructionLetterKeepsItsCircumstancesEvenWhenItReadsAsAReport()
     {
-        // INTK-028 guard rail: broadening report identification must never
+        // Guard rail: broadening report identification must never
         // cost a letter its circumstances paragraph. The circumstances
         // prompt is now its own test rather than being gated on the letter
         // not looking like a report.
@@ -1057,8 +1057,8 @@ public sealed class QdosInstructionExtractionPolicyTests
     }
 
     // The Triage subject template is the only QDOS shape whose registration
-    // exists nowhere but the subject, and QDOS writes it in two spacings
-    // (INTK-033). Both are real corpus subjects.
+    // exists nowhere but the subject, and QDOS writes it in two spacings.
+    // Both are real corpus subjects.
     [Theory]
     [InlineData(
         "Engineer Triage - Our Claim Reference 46384/1 , Vehicle Registration YD14VGJ",
@@ -1127,8 +1127,7 @@ public sealed class QdosInstructionExtractionPolicyTests
     public void TheExtractionPolicyNoLongerProducesTriageMatchEvidence()
     {
         // The accepted Triage match is derived from the route's own
-        // classification decision now, and there is exactly one owner of it
-        // (INTK-033).
+        // classification decision now, and there is exactly one owner of it.
         var result = new QdosInstructionExtractionPolicy().Extract(
             ReadableWithSubject(
                 "Engineer Triage - Our Claim Reference 46384/1 , Vehicle Registration YD14VGJ",

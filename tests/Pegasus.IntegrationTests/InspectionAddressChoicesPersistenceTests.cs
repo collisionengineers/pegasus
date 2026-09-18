@@ -92,7 +92,7 @@ public sealed class InspectionAddressChoicesPersistenceTests
                     caseId,
                     expectedVersion = lease.CaseVersion,
                     editLeaseToken = lease.LeaseToken,
-                    operationKey = $"mcp:case-041-{Guid.NewGuid():N}",
+                    operationKey = $"mcp:inspect-at-{Guid.NewGuid():N}",
                     reason = "Updated an unrelated case detail",
                     claimantName = "Updated claimant"
                 }));

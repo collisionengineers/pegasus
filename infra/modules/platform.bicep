@@ -462,52 +462,6 @@ resource webApp 'Microsoft.Web/sites@2024-04-01' = if (webActivationApproved) {
         { name: 'Glass__EstimatorBaseUri', value: glassEstimatorBaseUri }
         { name: 'Glass__CallbackBaseUri', value: webPublicOrigin }
         { name: 'Glass__RepairProfileId', value: glassRepairProfileId }
-        // INT-31 upload links. Program.cs:247-250 composes the upload-link
-        // services only when AcceptedLimitsVersion is non-empty, so before
-        // this block production had no /Uploads surface at all.
-        //
-        // All SEVENTEEN entries are required together, the nine media-type
-        // entries no less than the eight scalars: Program.cs:266-268 throws
-        // when the array binds to null. Note the failure is NOT a startup
-        // crash-loop -- RequestUploadLimits is a lazily resolved factory
-        // singleton (DependencyInjection.cs:475) and ValidateOnBuild follows
-        // IsDevelopment(), false here -- so a missing or misspelled key
-        // surfaces as a 500 on the first request that touches /Uploads, a
-        // case's documents, or the Operations page. There is no fail-fast
-        // net behind this block; the values were verified by binding them
-        // directly (INTK-051 scratch).
-        //
-        // U7 aligns public links with IntakeEnvelopeLimits: 100 MiB per
-        // file, 20 files, and a 200 MiB retained aggregate. The version
-        // changes with these accepted limits so links issued under the old
-        // 10 MiB policy fail closed and staff can issue a current link.
-        { name: 'DocumentRequests__LimitsVersion', value: 'u7-media-v1' }
-        { name: 'DocumentRequests__AcceptedLimitsVersion', value: 'u7-media-v1' }
-        { name: 'DocumentRequests__MaximumRequestBytes', value: '209715200' }
-        { name: 'DocumentRequests__MaximumFileBytes', value: '104857600' }
-        { name: 'DocumentRequests__MaximumFileCount', value: '20' }
-        // 7 days, matching the existing chase cadence (CASE-17/18, MAIL-18).
-        { name: 'DocumentRequests__LifetimeHours', value: '168' }
-        // Bounds a caller who HOLDS a token. A caller who holds none is
-        // bounded by PublicUploadLink's per-address policy instead, because
-        // RequestUploadAttemptLimiter partitions on the token digest and is
-        // never reached for an unknown token.
-        { name: 'DocumentRequests__RateLimit', value: '20' }
-        { name: 'DocumentRequests__RateLimitWindowMinutes', value: '10' }
-        // The seven document/image types resolve to a SourceFormat and
-        // MP4/MOV are retained as video without OCR or crop processing.
-        // The upload link admits only material the intake boundary handles.
-        // text/plain is deliberately absent: the reader has no handler for it
-        // and would classify it Unsupported.
-        { name: 'DocumentRequests__AllowedMediaTypes__0', value: 'application/pdf' }
-        { name: 'DocumentRequests__AllowedMediaTypes__1', value: 'image/jpeg' }
-        { name: 'DocumentRequests__AllowedMediaTypes__2', value: 'image/png' }
-        { name: 'DocumentRequests__AllowedMediaTypes__3', value: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }
-        { name: 'DocumentRequests__AllowedMediaTypes__4', value: 'application/msword' }
-        { name: 'DocumentRequests__AllowedMediaTypes__5', value: 'message/rfc822' }
-        { name: 'DocumentRequests__AllowedMediaTypes__6', value: 'application/vnd.ms-outlook' }
-        { name: 'DocumentRequests__AllowedMediaTypes__7', value: 'video/mp4' }
-        { name: 'DocumentRequests__AllowedMediaTypes__8', value: 'video/quicktime' }
       ], automationMcpSigningCertificateEnvironment, automationMcpEncryptionCertificateEnvironment)
     }
   }

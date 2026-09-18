@@ -12,8 +12,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// Repair specifications and named estimates share one table and one
 /// aggregate. <see cref="StartDraftAsync"/> / <see cref="AcceptAsync"/> are
-/// the ENG-002 single-canonical-draft path (import, typed acceptance,
-/// reasoned correction); the estimate methods are the ENG-026 named-estimate
+/// the single-canonical-draft path (import, typed acceptance,
+/// reasoned correction); the estimate methods are the named-estimate
 /// path where a case holds several Drafts and Accepted estimates and exactly
 /// one is Current. Both paths write the same history and the same
 /// replay-by-operation-key.
@@ -515,9 +515,9 @@ public sealed class EfRepairSpecificationStore(
     }
 
     /// <summary>
-    /// The keyset-paged sibling of <see cref="ListEstimatesAsync"/>
-    /// (CASE-047): newest version first, then estimate id. Projects the
-    /// bounded <see cref="CaseEstimatePageItem"/> header (Stream A review)
+    /// The keyset-paged sibling of <see cref="ListEstimatesAsync"/>:
+    /// newest version first, then estimate id. Projects the
+    /// bounded <see cref="CaseEstimatePageItem"/> header
     /// and never includes <see cref="CaseRepairSpecificationEntity.Lines"/> —
     /// a case can carry many superseded versions, each with an unbounded
     /// line list a keyset page never needs.
@@ -974,7 +974,7 @@ public sealed class EfRepairSpecificationStore(
 
     /// <summary>
     /// The bounded <see cref="CaseEstimatePageItem"/> sibling of <see
-    /// cref="Map"/> (CASE-047, Stream A review), read without
+    /// cref="Map"/>, read without
     /// <c>entity.Lines</c> ever being included.
     /// </summary>
     internal static CaseEstimatePageItem MapPageItem(CaseRepairSpecificationEntity entity) => new(

@@ -90,7 +90,7 @@ public interface ICaseWorkflowConfiguration
 }
 
 /// <summary>
-/// CASE-046: retained only because the Case pages still post it. No gate reads
+/// Retained only because the Case pages still post it. No gate reads
 /// it: entry to Review is decided by the persisted completeness facts the
 /// transition store re-reads inside its own transaction, so nothing a client
 /// sends here is evidence of anything. Delete this record with the last posting
@@ -209,7 +209,7 @@ public sealed class CaseEditLeaseExpiredException(Guid caseId, long caseVersion)
 }
 
 /// <summary>
-/// CASE-046: a Review-gated transition was attempted while the case's own
+/// A Review-gated transition was attempted while the case's own
 /// persisted completeness facts say it is not ready. The facts are re-read by
 /// the transition store inside its own transaction, so this is never a report
 /// of what a client claimed.

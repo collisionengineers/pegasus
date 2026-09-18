@@ -70,8 +70,8 @@ public sealed class GroupedIntakeWebTests
     [Fact]
     public async Task EveryMemberResolvesToItsGroupByItsOwnSourceIdentity()
     {
-        // The test INTK-011 could not write: the ordinal-0 member carries the
-        // parent token verbatim (INTK-005), and the source-identity lookup
+        // The test the grouped-image race fix could not write: the ordinal-0 member carries the
+        // parent token verbatim, and the source-identity lookup
         // must still find its group — reconciliation, replay, and the group
         // automation all resolve members this way.
         using var factory = new IntakeWebApplicationFactory();

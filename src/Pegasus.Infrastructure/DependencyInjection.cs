@@ -44,7 +44,6 @@ public static class DependencyInjection
         this IServiceCollection services,
         Action<IServiceProvider, DbContextOptionsBuilder> configureDatabase,
         Func<IServiceProvider, string>? localArtifactRootFactory = null,
-        Func<IServiceProvider, RequestUploadLimits>? requestUploadLimitsFactory = null,
         Action<IServiceCollection>? documentStorage = null)
     {
         ArgumentNullException.ThrowIfNull(configureDatabase);
@@ -652,9 +651,7 @@ public static class DependencyInjection
 
         if (composesDocumentSurface)
         {
-            services.AddScoped<EfPublicUploadRetentionStore>();
-            services.AddScoped<IIncomingArtifactRetentionStore>(provider =>
-                provider.GetRequiredService<EfPublicUploadRetentionStore>());
+            services.AddScoped<IIncomingArtifactRetentionStore, EfIncomingArtifactRetentionStore>();
             services.AddScoped<RetainIncomingArtifact>();
             // The Provider API reader decorates the ordinary one: it answers for
             // its own channel and defers for every other (API-01).
@@ -680,7 +677,7 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IReadCaseDocumentPreview>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
-            // DOCS-015: the gallery's derived rendering. The cache variant is
+            // The gallery's derived rendering. The cache variant is
             // composed only where the content cache is, so a local profile
             // derives on each read rather than resolving a different port set.
             services.AddScoped<IReadCaseDocumentThumbnail>(provider =>
@@ -704,33 +701,6 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<IMarketResearchAiJobCompletionStore, EfMarketResearchAiJobCompletionStore>();
             services.AddScoped<ICompleteMarketResearchAiJob, CompleteMarketResearchAiJob>();
-        }
-        if (composesDocumentSurface
-            && requestUploadLimitsFactory is not null)
-        {
-            services.AddSingleton(requestUploadLimitsFactory);
-            services.AddSingleton<RequestUploadPolicy>();
-            services.AddScoped<EfDocumentRequestStore>();
-            services.AddScoped<ICreateRequestUploadLink>(provider =>
-                provider.GetRequiredService<EfDocumentRequestStore>());
-            services.AddScoped<IRevokeRequestUploadLink>(provider =>
-                provider.GetRequiredService<EfDocumentRequestStore>());
-            services.AddScoped<IUploadToRequest>(provider =>
-                provider.GetRequiredService<EfDocumentRequestStore>());
-            services.AddScoped<IGetRequestUpload>(provider =>
-                provider.GetRequiredService<EfDocumentRequestStore>());
-        }
-        else
-        {
-            services.AddScoped<UnavailableDocumentRequestStore>();
-            services.AddScoped<ICreateRequestUploadLink>(provider =>
-                provider.GetRequiredService<UnavailableDocumentRequestStore>());
-            services.AddScoped<IRevokeRequestUploadLink>(provider =>
-                provider.GetRequiredService<UnavailableDocumentRequestStore>());
-            services.AddScoped<IUploadToRequest>(provider =>
-                provider.GetRequiredService<UnavailableDocumentRequestStore>());
-            services.AddScoped<IGetRequestUpload>(provider =>
-                provider.GetRequiredService<UnavailableDocumentRequestStore>());
         }
         return services;
     }
@@ -843,7 +813,7 @@ public static class DependencyInjection
     /// and Worker resolve the same fenced Box client rather than diverging.
     /// The options factory runs at first Box resolution, not at host build: an
     /// invalid or still-unresolved Box secret fails the Box work item, never the
-    /// whole process (PLAT-013 — the worker exit-134 crash loop).
+    /// whole process (the worker exit-134 crash loop).
     /// </summary>
     public static IServiceCollection AddProductionBoxCustody(
         this IServiceCollection services,
@@ -900,8 +870,8 @@ public static class DependencyInjection
     ///
     /// The options come through a factory rather than a value so they are
     /// parsed at first use. Parsing at host build is what crash-looped the
-    /// worker when the platform handed over an unresolved Key Vault reference
-    /// (PLAT-013), and EVA's credentials arrive by exactly that route.
+    /// worker when the platform handed over an unresolved Key Vault reference,
+    /// and EVA's credentials arrive by exactly that route.
     /// </summary>
     public static IServiceCollection AddEvaApiSubmission(
         this IServiceCollection services,

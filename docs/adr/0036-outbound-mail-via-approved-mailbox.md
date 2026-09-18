@@ -13,7 +13,7 @@ tags: [mailbox, outbound-mail, graph]
 
 ## Status
 
-Accepted 2026-08-28 by the Collision Engineers product owner (EPIC-011
+Accepted 2026-08-28 by the Collision Engineers product owner (operator
 decision D4). Acceptance authorises this technical decision only; the
 production activation it names is a separately approved step.
 
@@ -33,7 +33,7 @@ until activation.
 
 The operator has asked for staff to reply to, forward and compose mail from
 the Inbox message and the Case correspondence surfaces without leaving
-Pegasus, and to flag or delete a retained message. [FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence)
+Pegasus, and to flag or delete a retained message. [FRD-21](../frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence-evidence)
 already defines the only outbound evidence Pegasus trusts: an exact immutable
 Sent item in an approved mailbox, retained by the Sent-evidence poll and
 linked to one Case. The product invariant that local alpha work never mutates
@@ -81,7 +81,7 @@ Enabling it in production is a separately approved live write under the
 
 ## Links
 
-- Behaviour: [FRD-08 § Outbound correspondence](../frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence)
-  and [§ EVA-sent report detection](../frd/frd-08-email-mailbox-and-background-processing.md#eva-sent-report-detection).
+- Behaviour: [FRD-21 § Outbound correspondence](../frd/frd-21-outbound-correspondence-and-sent-evidence.md#outbound-correspondence)
+  and [§ EVA-sent report detection](../frd/frd-21-outbound-correspondence-and-sent-evidence.md#eva-sent-report-detection).
 - Mailbox identity and activation layers: [ADR-0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md).
 - Report-sent business event: [FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md).

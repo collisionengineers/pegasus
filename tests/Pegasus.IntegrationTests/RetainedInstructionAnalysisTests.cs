@@ -147,7 +147,7 @@ public sealed class RetainedInstructionAnalysisTests
         Assert.Empty(await reports.GetAsync(
             StaffActor(), receiptId, null, Guid.NewGuid(), CancellationToken.None));
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => reports.GetAsync(
-            ActionActor.RequestLink(Guid.NewGuid()),
+            ActionActor.Provider(Guid.NewGuid()),
             receiptId,
             null,
             row.IntakeAssetId,
@@ -299,7 +299,7 @@ public sealed class RetainedInstructionAnalysisTests
     /// which casing lands in the candidate row is the reader's choice, not a
     /// claim this test makes. And the Web host composes no
     /// <c>VehicleRegistrationCandidateLookup</c> (it is Worker-only), so this
-    /// says nothing about INTK-049 candidate expansion.
+    /// says nothing about registration candidate expansion.
     /// </summary>
     [ReferencePackFact]
     [Trait("Category", "Corpus")]

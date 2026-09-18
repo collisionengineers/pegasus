@@ -1,5 +1,4 @@
 using Pegasus.Core.Address;
-using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -11,114 +10,6 @@ namespace Pegasus.Core.Tests.Qdos;
 public sealed class QdosBoundaryContractTests
 {
     private static readonly DateTimeOffset Now = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
-
-    [Fact]
-    public void RequestUploadMetadataMayBeOmitted()
-    {
-        var command = CreateRequestUploadCommand(null, null);
-
-        var normalized = RequestUploadPolicy.NormalizeCreate(command);
-
-        Assert.Equal(command, normalized);
-        Assert.Null(normalized.Recipient);
-        Assert.Null(normalized.Reason);
-    }
-
-    [Fact]
-    public void RequestUploadMetadataIsTrimmedWithoutChangingCommandContext()
-    {
-        var command = CreateRequestUploadCommand("  Workshop contact  ", "  Requested evidence  ");
-
-        var normalized = RequestUploadPolicy.NormalizeCreate(command);
-
-        Assert.Equal(command.CaseId, normalized.CaseId);
-        Assert.Same(command.Actor, normalized.Actor);
-        Assert.Equal(command.OperationKey, normalized.OperationKey);
-        Assert.Equal(command.ExpectedCaseVersion, normalized.ExpectedCaseVersion);
-        Assert.Equal(command.EditLeaseToken, normalized.EditLeaseToken);
-        Assert.Equal("Workshop contact", normalized.Recipient);
-        Assert.Equal("Requested evidence", normalized.Reason);
-    }
-
-    [Fact]
-    public void RequestUploadMetadataAcceptsItsExactLimits()
-    {
-        var normalized = RequestUploadPolicy.NormalizeCreate(
-            CreateRequestUploadCommand(new string('R', 500), new string('N', 1000)));
-
-        Assert.Equal(500, normalized.Recipient!.Length);
-        Assert.Equal(1000, normalized.Reason!.Length);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void RequestUploadMetadataRejectsValuesOverTheirLimits(bool recipient)
-    {
-        var command = recipient
-            ? CreateRequestUploadCommand(new string('R', 501), "Reason")
-            : CreateRequestUploadCommand("Recipient", new string('N', 1001));
-
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(
-            () => RequestUploadPolicy.NormalizeCreate(command));
-
-        Assert.Equal(recipient ? "Recipient" : "Reason", exception.ParamName);
-    }
-
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void RequestUploadMetadataRejectsWhitespaceOnlyValues(bool recipient)
-    {
-        var command = recipient
-            ? CreateRequestUploadCommand(" \t ", "Reason")
-            : CreateRequestUploadCommand("Recipient", " \r\n ");
-
-        var exception = Assert.Throws<ArgumentException>(
-            () => RequestUploadPolicy.NormalizeCreate(command));
-
-        Assert.Equal(recipient ? "Recipient" : "Reason", exception.ParamName);
-    }
-
-    [Fact]
-    public void RequestUploadRejectsRevokedLinkBeforeExposingFileDetails()
-    {
-        var issue = RequestUploadToken.Create();
-        var authorization = CreateRequestUploadPolicy().Authorize(
-            Link(issue, RequestUploadStatus.Revoked, revokedAtUtc: Now),
-            new(issue.Secret.Token, File("case-notes.pdf", "application/pdf", "%PDF-1.7\n"u8.ToArray(), "upload-1"), 0));
-
-        Assert.Equal(RequestUploadDecision.Unavailable, authorization.Decision);
-        Assert.Null(authorization.ContentHash);
-        Assert.Null(authorization.SafeFileName);
-        Assert.False(authorization.MayEnterCustody);
-    }
-
-    [Fact]
-    public void RequestUploadAllowsOnlyExactSameOperationReplay()
-    {
-        var issue = RequestUploadToken.Create();
-        var link = Link(issue, RequestUploadStatus.Active);
-        var first = File("case-notes.pdf", "application/pdf", "%PDF-1.7\n"u8.ToArray(), "upload-1");
-        var firstAuthorization = CreateRequestUploadPolicy().Authorize(link, new(issue.Secret.Token, first, 0));
-        var replay = CreateRequestUploadPolicy().Authorize(
-            link,
-            new(issue.Secret.Token, first, 0),
-            firstAuthorization.ContentHash);
-        var conflict = CreateRequestUploadPolicy().Authorize(
-            link,
-            new(issue.Secret.Token, File("case-notes.pdf", "application/pdf", "%PDF-1.8\n"u8.ToArray(), "upload-1"), 0),
-            firstAuthorization.ContentHash);
-
-        Assert.Equal(RequestUploadDecision.Accepted, firstAuthorization.Decision);
-        Assert.True(firstAuthorization.MayEnterCustody);
-        Assert.Equal(RequestUploadDecision.Replay, replay.Decision);
-        Assert.True(replay.IsReplay);
-        Assert.False(replay.MayEnterCustody);
-        Assert.Equal(RequestUploadDecision.OperationConflict, conflict.Decision);
-        Assert.Null(conflict.ContentHash);
-        Assert.False(conflict.MayEnterCustody);
-    }
 
     /// <summary>
     /// The Provider API's decoded envelope is 30 MB, and the per-file bound it
@@ -167,7 +58,7 @@ public sealed class QdosBoundaryContractTests
     /// <summary>
     /// The Provider API per-file bound at the limit and one byte past it. The
     /// manual channel's 100 MiB cap does not reach this channel: a file that
-    /// the staff form would accept is refused here (C07 item 5, INTK-052).
+    /// the staff form would accept is refused here (C07 item 5).
     /// </summary>
     [Fact]
     public void TheProviderApiPerFileBoundAcceptsItsLimitAndRefusesOneByteMore()
@@ -248,7 +139,7 @@ public sealed class QdosBoundaryContractTests
     [Fact]
     public void ARealInspectionAddressPutsItsPostcodeOnTheSixthLine()
     {
-        // ENG-015: the system EVA imports into requires six lines — five body
+        // The system EVA imports into requires six lines — five body
         // lines then the postcode — and rejects a bare string. The case stores
         // the address as one collapsed line, so commas separate lines here.
         var accepted = AcceptedEvaEvidence();
@@ -305,7 +196,7 @@ public sealed class QdosBoundaryContractTests
     [Fact]
     public void VatStatusStaysBlankForQdosRatherThanBeingDefaulted()
     {
-        // ENG-015, pinned deliberately: QDOS's presence-check config in the
+        // Pinned deliberately: QDOS's presence-check config in the
         // original extractor is empty, so this field is blank by design and
         // not by failure. Nothing should "fix" it with a default or a prompt.
         var accepted = AcceptedEvaEvidence();
@@ -324,8 +215,8 @@ public sealed class QdosBoundaryContractTests
     [Fact]
     public void ASuggestedMileageStillReachesAnOperatorExport()
     {
-        // ENG-015, pinned deliberately: Pegasus fills mileage from the DVLA and
-        // DVSA lookup (ENG-013) where the original extractor emitted "". That
+        // Pinned deliberately: Pegasus fills mileage from the DVLA and
+        // DVSA lookup where the original extractor emitted "". That
         // divergence is what the operator asked for; nobody should "restore
         // parity" by dropping it.
         var accepted = AcceptedEvaEvidence();
@@ -387,29 +278,6 @@ public sealed class QdosBoundaryContractTests
         Assert.Null(recorder.Request);
     }
 
-    private static RequestUploadPolicy CreateRequestUploadPolicy() => new(
-        new("test-v1", TimeSpan.FromHours(1), 2, 1024, 2048, ["application/pdf"], 3, TimeSpan.FromMinutes(1)),
-        new FixedTimeProvider(Now));
-
-    private static RequestUploadLink Link(
-        RequestUploadTokenIssue issue,
-        RequestUploadStatus status,
-        DateTimeOffset? revokedAtUtc = null) => new(
-            Guid.NewGuid(),
-            Guid.NewGuid(),
-            issue.TokenDigest,
-            status,
-            Now,
-            Now.AddHours(1),
-            revokedAtUtc,
-            0,
-            0,
-            "test-v1",
-            0);
-
-    private static RequestUploadFile File(string name, string mediaType, byte[] content, string operationKey) =>
-        new(name, mediaType, content, operationKey);
-
     private static InstructionReviewField Field(
         string name,
         bool hasConflict,
@@ -446,17 +314,6 @@ public sealed class QdosBoundaryContractTests
             accepted with { Value = "12000" },
             accepted with { Value = "miles" });
     }
-
-    private static CreateRequestUploadLinkCommand CreateRequestUploadCommand(
-        string? recipient,
-        string? reason) => new(
-            Guid.NewGuid(),
-            ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
-            "request-upload:create",
-            17,
-            "lease-token",
-            recipient,
-            reason);
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {

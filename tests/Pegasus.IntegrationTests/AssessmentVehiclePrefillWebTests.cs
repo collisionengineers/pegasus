@@ -12,7 +12,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// ENG-034: vehicle evidence remains on the Case record when the Assessment
+/// Vehicle evidence remains on the Case record when the Assessment
 /// page is retired. The existing Vehicle section renders lookup observations
 /// and gives confirmed case facts precedence in its primary fields.
 /// </summary>
@@ -166,7 +166,7 @@ public sealed class AssessmentVehiclePrefillWebTests
                 ? new ConfirmedVehicleEvidence(null, ConfirmedField("FORD"), null, null, null)
                 : null;
             CaseDetails details = new(
-                summary, workflow, null, [], null, CaseCustodyState.Pending, [], [], [])
+                summary, workflow, null, [], null, CaseCustodyState.Pending, [], [])
             {
                 Data = Data(identity, workflow, includeConfirmedFacts, includePartialConfirmedFacts),
                 VehicleEvidence = new(caseId, confirmed, observation, [observation], []),

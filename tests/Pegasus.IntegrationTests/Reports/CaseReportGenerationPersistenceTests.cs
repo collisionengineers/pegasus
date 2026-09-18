@@ -1097,7 +1097,7 @@ public sealed class CaseReportGenerationPersistenceTests
     }
 
     /// <summary>
-    /// DOCS-014: a preview is a Case-history "viewed" event, never a
+    /// A preview is a Case-history "viewed" event, never a
     /// "downloaded" one, and repeat previews the same staff day never grow
     /// the Case's history — the simplest idempotent rule the existing
     /// per-Case operation-key pattern already supports.
@@ -1159,7 +1159,7 @@ public sealed class CaseReportGenerationPersistenceTests
     }
 
     /// <summary>
-    /// DOCS-014's other half: reopening a confirmed generation artifact is a
+    /// The presentation events' other half: reopening a confirmed generation artifact is a
     /// completed download, recorded distinctly from a preview view, and only
     /// once the bytes are actually reopened — never on a failed or refused
     /// attempt.
@@ -1641,7 +1641,7 @@ public sealed class CaseReportGenerationPersistenceTests
 
         /// <summary>
         /// The Case-history events a preview view or artifact download
-        /// records (DOCS-014) — <c>CaseWorkflowEvents</c>, the table the
+        /// records — <c>CaseWorkflowEvents</c>, the table the
         /// Case's own Notes/history panel reads, not <c>ActionHistory</c>.
         /// </summary>
         public async Task<IReadOnlyList<CaseWorkflowEventEntity>> CaseHistoryEventsAsync(string eventType)

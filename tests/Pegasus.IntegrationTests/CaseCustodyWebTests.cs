@@ -20,14 +20,13 @@ using static Pegasus.IntegrationTests.CaseWebTestSupport;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The Custody page: custody retry, logical removal, image tags, and the
-/// request-scoped upload links.
+/// The Custody page: custody retry, logical removal and image tags.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class CaseCustodyWebTests
 {
     [Fact]
-    public async Task CustodyPageBindsRetryRemovalImageTagsAndRequestLinks()
+    public async Task CustodyPageBindsRetryRemovalAndImageTags()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
@@ -36,11 +35,8 @@ public sealed class CaseCustodyWebTests
             Substitute<ILogicallyRemoveDocument>(services, store);
             Substitute<ITagCaseImage>(services, store);
             Substitute<IUntagCaseImage>(services, store);
-            Substitute<ICreateRequestUploadLink>(services, store);
-            Substitute<IRevokeRequestUploadLink>(services, store);
         });
         var occurrenceId = Guid.NewGuid();
-        var requestId = Guid.NewGuid();
         var tagId = ImageTagVocabulary.ThirdPartyId;
 
         using var retried = await workspace.PostAsync(
@@ -63,19 +59,8 @@ public sealed class CaseCustodyWebTests
                 reason: string.Empty,
                 ("occurrenceId", occurrenceId.ToString("D")),
                 ("tagId", tagId.ToString("D"))));
-        using var linkCreated = await workspace.PostAsync(
-            "Custody?handler=CreateRequestUploadLink",
-            workspace.MutationForm("create-request-link", "Ask the claimant for images", ("recipient", "Claimant")));
-        using var linkRevoked = await workspace.PostAsync(
-            "Custody?handler=RevokeRequestUploadLink",
-            workspace.MutationForm(
-                "revoke-request-link",
-                "Sent to the wrong address",
-                ("requestId", requestId.ToString("D")),
-                ("expectedRequestVersion", "2")));
-
         // v26: the Custody page returns to the Files section.
-        foreach (var response in new[] { retried, removed, linkCreated, linkRevoked })
+        foreach (var response in new[] { retried, removed })
         {
             AssertPrg(response, store.CaseId, "?section=files");
         }
@@ -120,30 +105,6 @@ public sealed class CaseCustodyWebTests
         Assert.Equal(store.LeaseToken, removedTag.EditLeaseToken);
         Assert.Equal("untag-image", removedTag.OperationKey);
 
-        var linkCreation = Assert.Single(store.RequestLinkCreations);
-        AssertClaimant(workspace, linkCreation.Actor);
-        Assert.Equal(store.CaseVersion, linkCreation.ExpectedCaseVersion);
-        Assert.Equal(store.LeaseToken, linkCreation.EditLeaseToken);
-        Assert.Equal("create-request-link", linkCreation.OperationKey);
-
-        var revocation = Assert.Single(store.RequestLinkRevocations);
-        AssertClaimant(workspace, revocation.Actor);
-        Assert.Equal(requestId, revocation.RequestId);
-        Assert.Equal(2, revocation.ExpectedRequestVersion);
-        Assert.Equal(store.CaseVersion, revocation.ExpectedCaseVersion);
-        Assert.Equal(store.LeaseToken, revocation.EditLeaseToken);
-        Assert.Equal("revoke-request-link", revocation.OperationKey);
-        Assert.Equal("Sent to the wrong address", revocation.Reason);
-
-        // The one-time secret is shown once, as the absolute link the claimant will open; it
-        // survives the revoke post because only the workspace reads it.
-        var html = await workspace.GetWorkspaceAsync();
-        Assert.Contains(
-            $"https://localhost/Uploads/{Assert.Single(store.RequestLinkSecrets).Token}",
-            html,
-            StringComparison.Ordinal);
-        Assert.Contains("Copy this secret now", html, StringComparison.Ordinal);
-
         await AssertRefusalKeepsEditModeAsync(
             workspace,
             "Custody?handler=RemoveDocument",
@@ -151,14 +112,14 @@ public sealed class CaseCustodyWebTests
 
         // The staff upload handler and its refusal path went with the "Retain
         // document" control: the file is already stored, so there was nothing
-        // for a person to retain (DOCS-012).
+        // for a person to retain.
     }
 
     /// <summary>
-    /// EPIC-011 §1.8 Case Files: each live file is a row carrying its name, its
+    /// Case Files: each live file is a row carrying its name, its
     /// type, size and source, and the two things an operator does with it —
     /// View, which is the viewer's trigger, and Save as, which is the same
-    /// authorised route asked to save instead of display (DOCS-011). v26: the
+    /// authorised route asked to save instead of display. v26: the
     /// Case's custody is the head chip; a stored file wears no custody badge
     /// of its own.
     /// </summary>
@@ -284,7 +245,7 @@ public sealed class CaseCustodyWebTests
     /// docs/design/README.md "No explanatory copy and page economy": a
     /// read-only visit renders no empty-state panel and no prose about how the
     /// page works. Both sentences this section used to carry are gone, and a
-    /// case with no upload request and no images draws neither panel.
+    /// case with no images draws no empty panel or public-link controls.
     /// </summary>
     [Fact]
     public async Task CaseFilesSectionCarriesNoExplanatoryCopyOrEmptyStatePanels()
@@ -309,10 +270,8 @@ public sealed class CaseCustodyWebTests
 
         Assert.DoesNotContain("Availability is not assumed", html, StringComparison.Ordinal);
         Assert.DoesNotContain("No vehicle images", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            OperatorLabels.CaseWorkspace.UploadRequestsPanel,
-            html,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("Public upload requests", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Create upload link", html, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -479,169 +438,6 @@ public sealed class CaseCustodyWebTests
     }
 
     /// <summary>
-    /// PR 670 port (B01): an upload request names who it was sent to and why,
-    /// read from the request's own record; a request recorded before those
-    /// facts existed shows the absent marker rather than an empty cell.
-    /// </summary>
-
-    [Fact]
-    public async Task UploadRequestsListRecipientAndReasonFromTheRecord()
-    {
-        var createdAtUtc = new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero);
-        var store = new RecordingCaseDetailsStore
-        {
-            RequestUploadLinks =
-            [
-                new(
-                    Guid.NewGuid(),
-                    RequestUploadStatus.Active,
-                    createdAtUtc,
-                    createdAtUtc.AddDays(7),
-                    null,
-                    0,
-                    0,
-                    1,
-                    "Provider claims team",
-                    "Missing photographs of the rear damage"),
-                new(
-                    Guid.NewGuid(),
-                    RequestUploadStatus.Expired,
-                    createdAtUtc.AddDays(-14),
-                    createdAtUtc.AddDays(-7),
-                    null,
-                    2,
-                    4_096,
-                    3)
-            ]
-        };
-        using var baseFactory = new IntakeWebApplicationFactory();
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                Substitute<IGetCase>(services, store);
-                Substitute<IGetCasePageFrame>(services, store);
-                Substitute<IGetCaseVehicleSection>(services, store);
-                Substitute<IGetCaseValuationSection>(services, store);
-                Substitute<IGetCaseNotesSection>(services, store);
-                Substitute<IGetCaseFilesSection>(services, store);
-                Substitute<IGetAssessmentWorkspace>(services, store);
-            }));
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-
-        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
-        var panel = UploadRequests(html);
-        var visible = WebUtility.HtmlDecode(VisibleText(panel));
-
-        foreach (var heading in new[] { "Recipient", "Reason", "State", "Created", "Expires", "Accepted" })
-        {
-            Assert.Contains(heading, visible, StringComparison.Ordinal);
-        }
-        Assert.Contains("Provider claims team", visible, StringComparison.Ordinal);
-        Assert.Contains("Missing photographs of the rear damage", visible, StringComparison.Ordinal);
-        Assert.Equal(2, Occurrences(visible, Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.AbsentValue));
-        Assert.DoesNotContain("id=\"create-upload-request\"", html, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// PR 670 port (B01), the write side over the shared G17 contract: the
-    /// create dialog requires a recipient and offers a reason; the handler
-    /// forwards both unchanged, and an omitted reason reaches Core as null.
-    /// </summary>
-
-    [Fact]
-    public async Task CreateUploadRequestDialogPostsRecipientAndReasonToTheCommand()
-    {
-        var store = new RecordingCaseDetailsStore();
-        using var workspace = await EnterEditModeAsync(store, services =>
-            Substitute<ICreateRequestUploadLink>(services, store));
-
-        var html = await GetHtmlAsync(workspace.Client, $"/Cases/{store.CaseId:D}?section=files");
-        // v26: the create dialog is a div-backdrop dialog opened from the
-        // Files section's More menu; its form is what the test reads.
-        Assert.Contains("data-dialog-open=\"create-upload-request\"", html, StringComparison.Ordinal);
-        var dialog = html[html.IndexOf("id=\"create-upload-request\"", StringComparison.Ordinal)..];
-        dialog = dialog[..dialog.IndexOf("</form>", StringComparison.Ordinal)];
-
-        Assert.Contains($"/Cases/{store.CaseId:D}/Custody?handler=CreateRequestUploadLink", dialog, StringComparison.Ordinal);
-        Assert.Matches("<input[^>]*name=\"recipient\"[^>]*required", dialog);
-        Assert.Contains("name=\"reason\"", dialog, StringComparison.Ordinal);
-
-        using var withReason = await workspace.PostAsync(
-            "Custody?handler=CreateRequestUploadLink",
-            workspace.MutationForm(
-                "create-request-link-1",
-                "  Please send the rear photographs  ",
-                ("recipient", "Provider claims team")));
-        using var withoutReason = await workspace.PostAsync(
-            "Custody?handler=CreateRequestUploadLink",
-            Form(
-                workspace.AntiforgeryToken,
-                ("id", store.CaseId.ToString("D")),
-                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", "create-request-link-2"),
-                ("editLeaseToken", store.LeaseToken),
-                ("recipient", "Claimant"),
-                ("reason", "")));
-
-        AssertPrg(withReason, store.CaseId);
-        AssertPrg(withoutReason, store.CaseId);
-        Assert.Equal(2, store.RequestLinkCreations.Count);
-        var first = store.RequestLinkCreations[0];
-        AssertClaimant(workspace, first.Actor);
-        Assert.Equal(store.CaseVersion, first.ExpectedCaseVersion);
-        Assert.Equal(store.LeaseToken, first.EditLeaseToken);
-        Assert.Equal("create-request-link-1", first.OperationKey);
-        Assert.Equal("Provider claims team", first.Recipient);
-        Assert.Equal("  Please send the rear photographs  ", first.Reason);
-        var second = store.RequestLinkCreations[1];
-        Assert.Equal("Claimant", second.Recipient);
-        Assert.Null(second.Reason);
-    }
-
-    /// <summary>
-    /// The create action requires the recipient server-side as well: a post
-    /// without one, or with only whitespace, is refused before the command
-    /// port is reached, and the editor keeps edit mode to correct it.
-    /// </summary>
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public async Task CreateUploadRequestWithoutARecipientNeverReachesTheCommand(string? recipient)
-    {
-        var store = new RecordingCaseDetailsStore();
-        using var workspace = await EnterEditModeAsync(store, services =>
-            Substitute<ICreateRequestUploadLink>(services, store));
-        var fields = new List<(string Name, string Value)>
-        {
-            ("id", store.CaseId.ToString("D")),
-            ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-            ("operationKey", "create-request-link-blank"),
-            ("editLeaseToken", store.LeaseToken),
-            ("reason", "Photographs of the rear damage")
-        };
-        if (recipient is not null)
-        {
-            fields.Add(("recipient", recipient));
-        }
-
-        using var refused = await workspace.PostAsync(
-            "Custody?handler=CreateRequestUploadLink",
-            Form(workspace.AntiforgeryToken, [.. fields]));
-
-        AssertPrg(refused, store.CaseId);
-        Assert.Empty(store.RequestLinkCreations);
-        var html = await workspace.GetWorkspaceAsync();
-        Assert.Contains("role=\"alert\"", html, StringComparison.Ordinal);
-        Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
-    }
-
-    /// <summary>
     /// The frame's fragment handler answers with one section body and nothing
     /// of the record around it, so a mounted section cannot replace the frame
     /// or another section.
@@ -671,9 +467,15 @@ public sealed class CaseCustodyWebTests
     /// </summary>
 
     [Fact]
-    public async Task TheLazyFilesFragmentRendersExistingEditControlsFromItsHeaderWithoutSettingCookies()
+    public async Task TheLazyFilesFragmentRendersEditLeaseFromItsHeaderWithoutSettingCookies()
     {
-        var store = new RecordingCaseDetailsStore();
+        var store = new RecordingCaseDetailsStore
+        {
+            CaseDocuments =
+            [
+                Document(Guid.NewGuid(), Guid.NewGuid(), "estimate.pdf", "application/pdf")
+            ]
+        };
         using var workspace = await EnterEditModeAsync(store, _ => { });
         using var request = new HttpRequestMessage(
             HttpMethod.Get,
@@ -686,7 +488,7 @@ public sealed class CaseCustodyWebTests
 
         Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
         Assert.Equal(store.LeaseToken, InputValue(fragment, "editLeaseToken"));
-        Assert.Contains("handler=CreateRequestUploadLink", fragment, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=CreateRequestUploadLink", fragment, StringComparison.Ordinal);
     }
 
 
@@ -796,7 +598,7 @@ public sealed class CaseCustodyWebTests
         Assert.Contains("name=\"reason\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain(store.CaseId.ToString("D"), VisibleText(html), StringComparison.OrdinalIgnoreCase);
 
-        // ENG-016: the export must post, because it records the once-per-case
+        // The export must post, because it records the once-per-case
         // First sent to Engineer proxy and a prefetched or refreshed GET must
         // not be able to fire it.
         //
@@ -849,14 +651,6 @@ public sealed class CaseCustodyWebTests
     }
 
 
-    private static string UploadRequests(string html)
-    {
-        var start = html.IndexOf("data-upload-requests", StringComparison.Ordinal);
-        Assert.True(start >= 0, "The upload requests panel is not rendered.");
-        var end = html.IndexOf("</table>", start, StringComparison.Ordinal);
-        Assert.True(end > start, "The upload requests table is not rendered.");
-        return html[start..end];
-    }
 
     /// <summary>The Files section's Correspondence tab body (v26): the table of retained query mail.</summary>
 

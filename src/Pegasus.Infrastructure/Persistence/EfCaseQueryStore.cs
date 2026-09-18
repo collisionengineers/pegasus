@@ -46,7 +46,7 @@ public sealed class EfCaseQueryStore(
     }
 
     /// <summary>
-    /// The keyset-paged sibling of <see cref="SearchAsync"/> (CASE-047):
+    /// The keyset-paged sibling of <see cref="SearchAsync"/>:
     /// shares <see cref="SearchRows"/> and <see cref="OrderRows"/> so the two
     /// entry points can never read a different projection or sort a column
     /// differently. The after-values are the decoded cursor's position, both
@@ -141,7 +141,7 @@ public sealed class EfCaseQueryStore(
 
     /// <summary>
     /// The <see cref="SearchAsync"/> filter translation, shared with
-    /// <see cref="SearchByCursorAsync"/> (CASE-047) so the numbered and
+    /// <see cref="SearchByCursorAsync"/> so the numbered and
     /// cursor search entry points can never read a different set of rows for
     /// the same filters.
     /// </summary>
@@ -266,24 +266,6 @@ public sealed class EfCaseQueryStore(
         var summaryRow = await SearchRows(context)
             .SingleAsync(item => item.CaseId == query.CaseId, cancellationToken);
         var documents = await ReadDocumentsAsync(context, query.CaseId, cancellationToken);
-        var requestUploadLinks = await context.Set<RequestUploadLinkEntity>()
-            .AsNoTracking()
-            .Where(item => item.CaseId == query.CaseId)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(100)
-            .Select(item => new CaseRequestUploadSummary(
-                item.Id,
-                item.Status,
-                item.CreatedAtUtc,
-                item.ExpiresAtUtc,
-                item.RevokedAtUtc,
-                item.AcceptedFileCount,
-                item.AcceptedByteCount,
-                item.Version,
-                item.Recipient,
-                item.Reason))
-            .ToArrayAsync(cancellationToken);
         var availableReportSentEvidence = await context.CaseReportSentEvidence
             .AsNoTracking()
             .Where(item => item.CaseId == null
@@ -316,7 +298,6 @@ public sealed class EfCaseQueryStore(
             documents,
             workflow.Case.CustodyRootRemoteId,
             ParseCustodyState(workflow.Case.CustodyState),
-            requestUploadLinks,
             availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
             history)
         {
@@ -326,8 +307,8 @@ public sealed class EfCaseQueryStore(
     }
 
     /// <summary>
-    /// The bounded sibling of <see cref="GetAsync"/> (CASE-047, Stream A
-    /// review): the same summary, workflow and active-lease facts, with the
+    /// The bounded sibling of <see cref="GetAsync"/>: the same summary,
+    /// workflow and active-lease facts, with the
     /// document, history and open-task lists reduced to a single count query
     /// each instead of materializing every row.
     /// </summary>
@@ -530,16 +511,6 @@ public sealed class EfCaseQueryStore(
         IReadOnlyList<CaseDocument> documents = includeDocuments
             ? await ReadDocumentsAsync(context, caseId, cancellationToken)
             : [];
-        var requestUploadLinks = await context.Set<RequestUploadLinkEntity>()
-            .AsNoTracking()
-            .Where(item => item.CaseId == caseId)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(100)
-            .Select(item => new CaseRequestUploadSummary(
-                item.Id, item.Status, item.CreatedAtUtc, item.ExpiresAtUtc, item.RevokedAtUtc,
-                item.AcceptedFileCount, item.AcceptedByteCount, item.Version, item.Recipient, item.Reason))
-            .ToArrayAsync(cancellationToken);
         var queryEmails = await ReadQueryEmailsAsync(context, caseId, cancellationToken);
         // The two Audit facts the Files section needs are not on the section
         // frame a caller may hand in, so read them in one narrow projection.
@@ -549,8 +520,8 @@ public sealed class EfCaseQueryStore(
             .Select(item => new { item.StandaloneAuditEvidenceId, item.AuditOfCaseId })
             .SingleAsync(cancellationToken);
         return new(sectionFrame, documents, sectionFrame.CustodyFolderRemoteId,
-            sectionFrame.CustodyState, requestUploadLinks,
-            queryEmails, auditFacts.StandaloneAuditEvidenceId, auditFacts.AuditOfCaseId);
+            sectionFrame.CustodyState, queryEmails,
+            auditFacts.StandaloneAuditEvidenceId, auditFacts.AuditOfCaseId);
     }
 
     public async Task<CaseRenderLeaseValidation?> GetRenderLeaseValidationAsync(
@@ -576,8 +547,8 @@ public sealed class EfCaseQueryStore(
 
     /// <summary>
     /// The one rule for whether a case's edit lease is live, shared by
-    /// <see cref="GetAsync"/> and <see cref="GetHeaderAsync"/> (CASE-047,
-    /// Stream A review) so the two reads can never disagree about who — if
+    /// <see cref="GetAsync"/> and <see cref="GetHeaderAsync"/>
+    /// so the two reads can never disagree about who — if
     /// anyone — currently holds it.
     /// </summary>
     private static CaseEditLeaseSnapshot? ResolveActiveLease(CaseWorkflowEntity workflow, DateTimeOffset now) =>
@@ -797,8 +768,8 @@ public sealed class EfCaseQueryStore(
     }
 
     /// <summary>
-    /// The keyset-paged sibling of <see cref="ReadDocumentsAsync"/>
-    /// (CASE-047, Stream A MCP review): newest occurrence first, then
+    /// The keyset-paged sibling of <see cref="ReadDocumentsAsync"/>:
+    /// newest occurrence first, then
     /// occurrence id. The row unit is the occurrence, so a document with
     /// more occurrences than the caller's limit still enumerates every one
     /// across consecutive pages — a document-unit page cannot split one
@@ -853,8 +824,8 @@ public sealed class EfCaseQueryStore(
     }
 
     /// <summary>
-    /// The shared document-projection tail of <see cref="ReadDocumentsAsync"/>
-    /// (CASE-047): given the case's document rows in the caller's own order,
+    /// The shared document-projection tail of <see cref="ReadDocumentsAsync"/>:
+    /// given the case's document rows in the caller's own order,
     /// reads their occurrences and versions and maps them into <see
     /// cref="CaseDocument"/> without re-choosing which documents or what
     /// order.
@@ -957,8 +928,8 @@ public sealed class EfCaseQueryStore(
         item.RemovalReason);
 
     /// <summary>
-    /// The keyset-paged sibling of the history read in <see cref="GetAsync"/>
-    /// (CASE-047): newest event first, then entry id.
+    /// The keyset-paged sibling of the history read in <see cref="GetAsync"/>:
+    /// newest event first, then entry id.
     /// </summary>
     public async Task<IReadOnlyList<CaseHistoryEntry>> ListHistoryByCursorAsync(
         Guid caseId,

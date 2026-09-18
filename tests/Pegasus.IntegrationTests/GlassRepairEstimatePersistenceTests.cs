@@ -11,7 +11,7 @@ using Pegasus.Web.Authentication;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// CASE-047 B04: the Glass's repair-estimate session store against LocalDB,
+/// The Glass's repair-estimate session store against LocalDB,
 /// because the rules it keeps are the database's — a filtered unique index for
 /// the provider's one live session per account, a unique operation key for
 /// replay, and per-row optimistic concurrency. Nothing here is proven against

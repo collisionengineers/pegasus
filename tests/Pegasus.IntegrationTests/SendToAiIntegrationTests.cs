@@ -18,12 +18,12 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// ENG-025 / FRD-11 § AI Job List: the Assessment page's Send to Claude
+/// FRD-27 § AI Job List: the Assessment page's Send to Claude
 /// queues an Estimate-kind AI job through <see cref="ICreateAiJob"/> (the
-/// AUTO-011 ledger superseded the AI-09 push hand-off on this surface). The
+/// pull-based ledger superseded the AI-09 push hand-off on this surface). The
 /// switch-off gate stays visible as the control's condition, and the
 /// handler surfaces Core's refusal sentences unchanged. The ledger's own
-/// state machine is owned by the AUTO-011 Core tests; the channel connector
+/// state machine is owned by the AI job ledger Core tests; the channel connector
 /// seam is proven directly in SendToAiConnectorAdministrationTests, whose
 /// fixtures live in this partial class.
 /// </summary>
@@ -613,7 +613,7 @@ public sealed partial class SendToAiIntegrationTests
                 workflow.State, null, "AB12CDE", "Alex Example", "P-100",
                 DateTimeOffset.UtcNow, new DateOnly(2026, 8, 1), "Email", DateTimeOffset.UtcNow);
             CaseDetails details = new(
-                summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [], [])
+                summary, workflow, activeLease, [], null, CaseCustodyState.Pending, [], [])
             {
                 Data = CreateData()
             };

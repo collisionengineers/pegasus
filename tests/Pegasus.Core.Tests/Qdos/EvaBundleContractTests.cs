@@ -103,7 +103,7 @@ public sealed class EvaBundleContractTests
         Assert.Contains("current mapping version", exception.Message, StringComparison.Ordinal);
     }
 
-    // ENG-014's regression guard. Before this test the exported layout was
+    // The archive-layout regression guard. Before this test the exported layout was
     // pinned only transitively, through two bundles hashing the same -- which
     // holds just as well when both are wrong. The archive shape and the JSON
     // bytes are now asserted directly, because both are what EVA reads.
@@ -158,7 +158,7 @@ public sealed class EvaBundleContractTests
             FieldNames.Select(name => $"  \"{name}\": "),
             lines[1..^1].Select(line => line[..(line.IndexOf(": ", StringComparison.Ordinal) + 2)]));
 
-        // The whole-archive digest survives ENG-014 and is still the hash of
+        // The whole-archive digest survives the manifest's removal and is still the hash of
         // what ships: it is the revision InputFingerprint and the download's
         // Content-Digest, and only the manifest's per-entry hashes are gone.
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(bundle.Content)), bundle.Sha256);
@@ -169,7 +169,7 @@ public sealed class EvaBundleContractTests
     // checkable. It was previously only asserted -- in a comment here and
     // another beside the writer, both of which said the samples use CRLF. They
     // do not, and nothing failed when that was wrong, because no test ever
-    // opened them (ENG-014 review).
+    // opened them.
     [Fact]
     public void TheRetainedSamplesAreTheSourceOfTheNewlineConvention()
     {
@@ -260,7 +260,7 @@ public sealed class EvaBundleContractTests
     [Fact]
     public void TheArchiveIsNamedByTheCaseNotByTheProvidersOwnReference()
     {
-        // ENG-015: the Reference field now carries the work provider's own
+        // The Reference field now carries the work provider's own
         // reference, which repeats across cases and can contain path
         // separators — "AKH//47743/1" would reduce to "1" and collide. The
         // archive is named by the Pegasus case reference instead.

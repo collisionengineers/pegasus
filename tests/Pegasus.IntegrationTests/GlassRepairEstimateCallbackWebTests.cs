@@ -20,7 +20,7 @@ using Pegasus.Web.Authentication;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// CASE-047 B04: the Glass's repair estimate as an operator drives it — the
+/// The Glass's repair estimate as an operator drives it — the
 /// Estimate section's Launch and Resume, and the provider's own return at
 /// <c>/Integrations/Glass/Callback/{correlation}</c> — through the real routes
 /// and the host's own composition.
@@ -1198,7 +1198,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     Value = value,
                     SourceKind = CaseDataCodes.StaffCorrection,
                     SourceIdentity = actor,
-                    SourceLabel = "CASE-047 Glass's web fixture",
+                    SourceLabel = "Glass's web fixture",
                     PolicyKey = CaseDataPolicy.EditPolicyKey,
                     PolicyVersion = CaseDataPolicy.EditPolicyVersion,
                     ConfirmedByActor = actor,

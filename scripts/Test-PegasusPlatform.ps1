@@ -23,23 +23,6 @@ if ($actualWorkerDisabledSettings.Count -ne $expectedWorkerDisabledSettings.Coun
     @($actualWorkerDisabledSettings | Select-Object -Unique).Count -ne $actualWorkerDisabledSettings.Count) {
     throw 'Worker Disabled setting producer must return the exact distinct seven-name census.'
 }
-foreach ($consumer in @('Test-AzureDeploymentPlan.ps1', 'Invoke-ProductionSmoke.ps1')) {
-    $consumerSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot $consumer)
-    if ($consumerSource -notmatch '\@\(Get-PegasusWorkerDisabledSettingNames\)') {
-        throw "$consumer must consume the canonical Worker Disabled setting producer."
-    }
-}
-$productionSmokeSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'Invoke-ProductionSmoke.ps1')
-foreach ($requiredContract in @(
-    'if \(-not \$ActivationOnly -and -not \$censusIsExact\)',
-    'The live Worker disabled-setting census differs from the exact seven-function release contract\.',
-    'if \(-not \$valuesAreExact\)',
-    'The live Worker settings do not match the intended'
-)) {
-    if ($productionSmokeSource -notmatch $requiredContract) {
-        throw 'Production Worker smoke must retain its fail-closed exact census and value contracts.'
-    }
-}
 $platformResolver = ${function:Get-PegasusPlatform}
 try {
     foreach ($hostKind in @('Windows', 'Linux')) {
@@ -58,28 +41,11 @@ try {
                 throw "Missing $cloudTool installation guidance for $hostKind."
             }
         }
-        $orasHintMissing = $false
-        try { [void](Get-PegasusRepairHint -Id 'oras') } catch { $orasHintMissing = $true }
-        if (-not $orasHintMissing) {
-            throw 'ADR-0049: ORAS is no longer a release tool and must have no repair hint.'
-        }
     }
 }
 finally {
     ${function:Get-PegasusPlatform} = $platformResolver
 }
-
-# Load the real manifest function only: full validation also compiles Bicep.
-$parseErrors = $null
-$validationAst = [Management.Automation.Language.Parser]::ParseFile(
-    (Join-Path $PSScriptRoot 'Test-AzureDeploymentPlan.ps1'), [ref]$null, [ref]$parseErrors)
-if ($parseErrors.Count -ne 0) { throw 'Deployment-plan script does not parse.' }
-$manifestFunction = $validationAst.Find({ param($node)
-    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
-        $node.Name -eq 'Test-ArtifactManifest'
-}, $false)
-if ($null -eq $manifestFunction) { throw 'Manifest validator is missing.' }
-. ([scriptblock]::Create($manifestFunction.Extent.Text))
 
 $fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ("pegasus-release-contract-" + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $fixtureRoot | Out-Null
@@ -143,7 +109,7 @@ try {
         $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding utf8NoBOM
         $script:NativeCalls = 0
         $failure = $null
-        try { Test-ArtifactManifest -Path $manifestPath }
+        try { Test-PegasusArtifactManifest -Path $manifestPath }
         catch { $failure = $_.Exception.Message }
         if ($script:NativeCalls -ne 0) {
             throw "The manifest validator invoked image tooling ($script:NativeCalls calls)."

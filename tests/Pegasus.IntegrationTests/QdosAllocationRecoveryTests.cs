@@ -518,8 +518,8 @@ public sealed class QdosAllocationRecoveryTests
             // and the operation key conflicts.
             //
             // The instruction half is asserted by the route's own precondition
-            // (CASE-013). The images half is observed from the receipt, and this
-            // receipt is seeded with no assets, so it is false (CASE-021). It
+            // itself. The images half is observed from the receipt, and this
+            // receipt is seeded with no assets, so it is false. It
             // was a hardcoded true here because it was a hardcoded true in the
             // production path.
             new(true, false),
@@ -1412,7 +1412,7 @@ public sealed class QdosAllocationRecoveryTests
     [Fact]
     public async Task ConcurrentAutomaticAuditAndInspectionAllocationsForOnePrincipalBothSucceed()
     {
-        // INTK-044: the live shape of 2026-08-27 — two automatic acceptances
+        // The live shape of 2026-08-27 — two automatic acceptances
         // for one principal overlapping under Serializable, one of them a
         // standalone Audit — must converge on two cases. Any allocation
         // failure is reported with the exception the store logged, which is
@@ -1476,7 +1476,7 @@ public sealed class QdosAllocationRecoveryTests
     public async Task DistinctParallelRetriesResolveToOneCaseAggregate()
     {
         // Convergence under contention, repeatedly — not merely no-throw once
-        // (CASE-005). The per-receipt allocation lock makes the previously
+        // in isolation. The per-receipt allocation lock makes the previously
         // deadlocking interleaving queue instead, so no round may fail or
         // fork a second aggregate.
         using var factory = new IntakeWebApplicationFactory();

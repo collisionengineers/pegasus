@@ -11,7 +11,7 @@ namespace Pegasus.Web.Pages.Cases.Documents;
 /// preview a gallery tile or the viewer displays.
 /// </summary>
 /// <remarks>
-/// DOCS-015. The two are different reads, not one read with a different
+/// The two are different reads, not one read with a different
 /// header. A download is a custody act: it goes through
 /// <see cref="IDownloadCaseDocument"/>, which records it, and it is never
 /// cached. A preview is a page element: it resolves the occurrence through
@@ -181,7 +181,7 @@ public sealed partial class DownloadModel(
         }
         if (preview.CustodyStatus != DocumentCustodyStatus.Confirmed)
         {
-            // DOCS-015: a Case opened while custody is still in flight. The
+            // A Case opened while custody is still in flight. The
             // file exists and is arriving, which is a wait, not a 404 — the
             // gallery draws it as a placeholder and comes back for it.
             return preview.CustodyStatus == DocumentCustodyStatus.Pending
@@ -325,7 +325,7 @@ public sealed partial class DownloadModel(
     }
 
     /// <summary>
-    /// DOCS-011: the same authorised read, dispositioned for a preview rather
+    /// The same authorised read, dispositioned for a preview rather
     /// than a save. Naming the file to <c>File(...)</c> is what forces
     /// <c>attachment</c>, so the inline branch sets the header itself and
     /// passes no name — the idiom the retained-asset routes use.

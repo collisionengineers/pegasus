@@ -283,8 +283,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         IntakeOcrOperations
         IntakeSourceCandidates
         LabourRateCards
-        PublicUploadOccurrences
-        PublicUploadSessions
         RetainedInstructionAnalyses
         StaffMailSendOperations
         TriageSequences
@@ -307,8 +305,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         IntakeOcrOperations:SELECT,INSERT
         IntakeSourceCandidates:SELECT
         LabourRateCards:SELECT,INSERT,UPDATE
-        PublicUploadOccurrences:SELECT,INSERT,UPDATE
-        PublicUploadSessions:SELECT,INSERT,UPDATE
         RetainedInstructionAnalyses:SELECT
         StaffMailSendOperations:SELECT,INSERT,UPDATE
         TriageSequences:SELECT,INSERT,UPDATE
@@ -336,6 +332,11 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         await using var context = await database.CreateContextAsync();
 
         await context.Database.MigrateAsync();
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name IN (N'RequestUploadLinks', N'RequestUploadReceipts', N'PublicUploadSessions', N'PublicUploadOccurrences')"));
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.columns WHERE object_id = OBJECT_ID(N'dbo.CaseDueChasers') AND name IN (N'RequestLinkReference', N'RequestLinkPurpose')"));
 
         Assert.Equal(0, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApplicationInitializations'"));
@@ -852,7 +853,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         Assert.Contains("VehicleLookupRequests", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
     }
 
-    // DOCS-008: DOCS-007 moved case-document registration into the Worker's
+    // Case-document registration moved into the Worker's
     // custody processor while these three tables were granted to Web only, so
     // every deployed case uploaded its evidence to Box and was then refused the
     // record write. Nothing here caught it because the tests run
@@ -982,7 +983,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
                 """));
     }
 
-    // PLAT-035: catalog-grant checks alone run as the LocalDB administrator and
+    // Catalog-grant checks alone run as the LocalDB administrator and
     // therefore cannot detect a real runtime save denied by SQL Server. These
     // loginless users have only their corresponding Pegasus runtime role.
     [Fact]
@@ -1027,9 +1028,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             DELETE FROM dbo.EditScopes WHERE RecordId = '{contactOrganizationId:D}';
             INSERT INTO dbo.AutomaticEvaReviewSubmissions (Id, CaseId, WorkflowVersion, OperationKey, State, CreatedAtUtc, DueAtUtc)
             SELECT TOP (0) NEWID(), Id, 1, N'permission-fixture', N'Pending', SYSDATETIMEOFFSET(), SYSDATETIMEOFFSET() FROM dbo.Cases;
-            UPDATE [dbo].[PublicUploadOccurrences]
-            SET [CustodyState] = [CustodyState]
-            WHERE [Id] = '00000000-0000-0000-0000-000000000000';
             REVERT;
 
             EXECUTE AS USER = N'pegasus_test_worker_runtime';
@@ -1069,17 +1067,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             END CATCH;
             REVERT;
 
-            EXECUTE AS USER = N'pegasus_test_worker_runtime';
-            BEGIN TRY
-                UPDATE [dbo].[PublicUploadOccurrences]
-                SET [CustodyState] = [CustodyState]
-                WHERE [Id] = '00000000-0000-0000-0000-000000000000';
-                THROW 51000, 'Worker runtime unexpectedly updated a PublicUploadOccurrence.', 1;
-            END TRY
-            BEGIN CATCH
-                IF ERROR_NUMBER() <> 229 THROW;
-            END CATCH;
-            REVERT;
             """);
     }
 
@@ -1152,7 +1139,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
             $"SELECT COUNT(*) FROM [dbo].[ExternalWorkItems] WHERE [Id] = '{workId:D}' AND [State] = N'pending'"));
 
         // Exercise the actual EF custody claim as Worker, not merely the
-        // permission census: intake must never probe PublicUploadOccurrences.
+        // permission census: intake retention uses only the intake asset row.
         await database.ExecuteAsync($"""
             CREATE USER [pegasus_test_custody_worker] WITHOUT LOGIN;
             ALTER ROLE [{WorkerRole}] ADD MEMBER [pegasus_test_custody_worker];
@@ -1165,7 +1152,7 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         try
         {
             var options = new DbContextOptionsBuilder<PegasusDbContext>().UseSqlServer(connection).Options;
-            var custody = new EfPublicUploadRetentionStore(new ConnectedContextFactory(options));
+            var custody = new EfIncomingArtifactRetentionStore(new ConnectedContextFactory(options));
             Assert.False(await custody.TryClaimHandOverAsync($"intake:{Guid.NewGuid():N}:{assetId:N}", CancellationToken.None));
             Assert.True(await custody.TryClaimHandOverAsync($"intake:{receiptId:N}:{assetId:N}", CancellationToken.None));
             Assert.False(await custody.TryClaimHandOverAsync($"intake:{receiptId:N}:{assetId:N}", CancellationToken.None));

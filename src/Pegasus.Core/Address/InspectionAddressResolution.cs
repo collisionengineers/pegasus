@@ -164,7 +164,7 @@ public sealed record InspectionAddressChoicesData(
     string? RepairerAddress,
     string? StorageLocation,
     IReadOnlyList<string> PreviousAddresses,
-    // INTK-058: the Case's recorded repairer name, so the repairer option
+    // The Case's recorded repairer name, so the repairer option
     // says which repairer rather than only offering an address.
     string? RepairerName = null);
 

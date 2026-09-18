@@ -42,11 +42,33 @@ public sealed class IntakeWebNegativeTests
         "ExternalWorkItems",
         "CaseIntakeLinks",
         "CaseDocuments",
-        "RequestUploadLinks",
         "DocumentVersions",
-        "DocumentOccurrences",
-        "RequestUploadReceipts"
+        "DocumentOccurrences"
     ];
+
+    [Fact]
+    public async Task FormerPublicUploadRequestsDoNotReachAnUploadHandler()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        const string path = "/Uploads/retired-token";
+
+        using var get = await client.GetAsync(path);
+        Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
+        Assert.Contains(
+            "We could not find that page",
+            await get.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+
+        using var multipart = new MultipartFormDataContent();
+        multipart.Add(new ByteArrayContent([0x01]), "Upload", "sample.pdf");
+        using var upload = await client.PostAsync($"{path}?handler=Upload", multipart);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, upload.StatusCode);
+
+        using var finalizeForm = new FormUrlEncodedContent([]);
+        using var finalize = await client.PostAsync($"{path}?handler=Finalize", finalizeForm);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, finalize.StatusCode);
+    }
 
     [Fact]
     public async Task ArtifactFailureShowsRetryMessageCreatesNoReceiptAndSameTokenCanRetry()
@@ -119,7 +141,7 @@ public sealed class IntakeWebNegativeTests
 
     /// <summary>
     /// The manual channel's per-file cap, read from the constant that owns it
-    /// rather than restated here: C07 item 5 (residual INTK-052) set it to
+    /// rather than restated here: C07 item 5 set it to
     /// 100 MiB and these boundary tests must move with it.
     /// </summary>
     private const int PerFileLimit = IntakeEnvelopeLimits.MaximumContentLength;

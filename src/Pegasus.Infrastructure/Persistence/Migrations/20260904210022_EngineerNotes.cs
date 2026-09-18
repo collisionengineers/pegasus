@@ -50,7 +50,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 columns: new[] { "CaseId", "RecordedAtUtc", "Id" },
                 descending: new[] { false, true, true });
 
-            // CASE-039: the Web Case workspace appends and reads Engineer
+            // The Web Case workspace appends and reads Engineer
             // notes. The Worker has no caller, and append-only notes have no
             // UPDATE or DELETE grant.
             if (IsSqlServer())

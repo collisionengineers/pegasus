@@ -10,7 +10,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
     {
         private const string WorkerRole = "pegasus_worker_runtime_role";
 
-        // DOCS-008: DOCS-007 moved case-document registration into the Worker's
+        // Case-document registration moved into the Worker's
         // custody processor, but the Worker runtime role's grant matrix
         // (20260729199000_RuntimeRoleReconciliation) lists these three tables
         // for the Web role only — when that baseline was written, only Web
