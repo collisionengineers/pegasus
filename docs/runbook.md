@@ -529,7 +529,10 @@ tracked text-source snapshots declare `normalized-lf` hashing and byte counts
 so Git checkout line endings cannot create false drift; email, PDF, Office, workbook, and
 fixture evidence retains raw-byte hashes. The
 non-corpus tests validate its 49 dossiers, lifecycle counts, crosswalks,
-criterion states, deterministic split, and tracked Pegasus source hashes. The
+criterion states, deterministic split, and the hashes of the tracked
+`reference/` inputs it is derived from. Policy source snapshots are provenance
+(id and path only); the policy version the evidence was reviewed against is
+read from git history, not pinned by hash. The
 focused corpus lane additionally hashes every locally present original and
 runs it through the real MIME/PDF/Office reader.
 

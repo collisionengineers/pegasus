@@ -7,9 +7,8 @@
 # Linux with PowerShell 7. Every function here resolves the current platform and
 # refuses an unsupported one rather than degrading silently.
 #
-# This file is deliberately a .ps1 rather than a .psm1 so that it remains inside
-# the repository language census and documentation link validation performed by
-# scripts/Test-RepositoryPolicy.ps1.
+# This file is deliberately a .ps1 rather than a .psm1 so callers dot-source it
+# without a module path or import step.
 
 # Deliberately no Set-StrictMode here. This file is dot-sourced, so any strict
 # mode it set would apply to the whole calling script and change the behaviour
@@ -60,6 +59,132 @@ function Get-PegasusMigrationBundle {
         RuntimeIdentifier = if ($platform.IsWindows) { 'win-x64' } else { 'linux-x64' }
         Name = if ($platform.IsWindows) { 'efbundle.exe' } else { 'efbundle' }
         IsLinux = $platform.IsLinux
+    }
+}
+
+function Test-PegasusArtifactManifest {
+    <#
+        .SYNOPSIS
+        Validates a release manifest and the artifacts beside it, or throws.
+
+        .DESCRIPTION
+        Checks the schema-3 manifest identity, that exactly the Web ZIP, Worker
+        ZIP and this workstation's migration bundle are present with matching
+        size and SHA-256, that each ZIP has its required root entries, and that
+        a Linux migration bundle is executable. Never shells out (ADR-0049: no
+        image tooling is part of the release).
+    #>
+    param([Parameter(Mandatory)][string] $Path)
+
+    function Assert-ZipRoot {
+        param(
+            [Parameter(Mandatory)][string] $ArchivePath,
+            [Parameter(Mandatory)][string] $RequiredRoot
+        )
+
+        $archive = [IO.Compression.ZipFile]::OpenRead($ArchivePath)
+        try {
+            $hasRequiredRoot = @(
+                $archive.Entries | Where-Object {
+                    $_.FullName.StartsWith($RequiredRoot, [StringComparison]::Ordinal)
+                }
+            ).Count -gt 0
+            if (-not $hasRequiredRoot) {
+                throw "$(Split-Path -Leaf $ArchivePath) must contain $RequiredRoot at its root."
+            }
+        }
+        finally {
+            $archive.Dispose()
+        }
+    }
+
+    function Assert-ZipRootFile {
+        param(
+            [Parameter(Mandatory)][string] $ArchivePath,
+            [Parameter(Mandatory)][string] $RequiredFile
+        )
+
+        # App Service run-from-package mounts the zip root as the site root, so
+        # the entry must be exactly the file name: no directory prefix.
+        $archive = [IO.Compression.ZipFile]::OpenRead($ArchivePath)
+        try {
+            $hasRequiredFile = @(
+                $archive.Entries | Where-Object {
+                    [StringComparer]::Ordinal.Equals($_.FullName, $RequiredFile)
+                }
+            ).Count -eq 1
+            if (-not $hasRequiredFile) {
+                throw "$(Split-Path -Leaf $ArchivePath) must contain $RequiredFile at its root."
+            }
+        }
+        finally {
+            $archive.Dispose()
+        }
+    }
+
+    $resolvedManifest = Resolve-Path -LiteralPath $Path
+    $manifest = Get-Content -LiteralPath $resolvedManifest -Raw | ConvertFrom-Json
+    if ($manifest.schemaVersion -ne 3) {
+        throw 'The release manifest schemaVersion must be 3.'
+    }
+    if ($manifest.sourceRevision -notmatch '^[0-9a-f]{40}$') {
+        throw 'The release manifest sourceRevision must be an exact Git SHA.'
+    }
+    if ($manifest.sourceStatus -ne 'clean') {
+        throw 'The release manifest must record a clean source status.'
+    }
+    if (-not $manifest.artifacts -or $manifest.artifacts.Count -ne 3) {
+        throw 'The release manifest must contain exactly the Web ZIP, Worker ZIP, and migration bundle.'
+    }
+
+    $manifestDirectory = Split-Path -Parent $resolvedManifest
+    $migrationBundle = Get-PegasusMigrationBundle
+    if ($manifest.migrationRuntimeIdentifier -cne $migrationBundle.RuntimeIdentifier -or
+        $manifest.migrationBundleName -cne $migrationBundle.Name) {
+        throw "The release manifest must carry $($migrationBundle.RuntimeIdentifier)/$($migrationBundle.Name) for this workstation."
+    }
+    $migrationBundleName = $migrationBundle.Name
+    $requiredNames = @('web.zip', 'worker.zip', $migrationBundleName)
+    foreach ($name in $requiredNames) {
+        $entry = @($manifest.artifacts | Where-Object name -eq $name)
+        if ($entry.Count -ne 1) {
+            throw "The release manifest must contain exactly one $name entry."
+        }
+        $artifactPath = Join-Path $manifestDirectory $name
+        if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) {
+            throw "Release artifact is missing: $artifactPath"
+        }
+        $file = Get-Item -LiteralPath $artifactPath
+        $hash = (Get-FileHash -LiteralPath $artifactPath -Algorithm SHA256).Hash
+        if ($file.Length -ne $entry[0].sizeBytes -or $hash -ne $entry[0].sha256) {
+            throw "Release artifact identity mismatch: $name"
+        }
+    }
+
+    if ($migrationBundle.IsLinux) {
+        $migrationBundlePath = Join-Path $manifestDirectory $migrationBundleName
+        $migrationBundleMode = [IO.File]::GetUnixFileMode($migrationBundlePath)
+        if (($migrationBundleMode -band [IO.UnixFileMode]::UserExecute) -eq 0) {
+            throw 'The Linux x64 migration bundle must be executable by its owner.'
+        }
+    }
+
+    Assert-ZipRoot -ArchivePath (Join-Path $manifestDirectory 'worker.zip') -RequiredRoot '.azurefunctions/'
+    # ADR-0049: web.zip is a framework-dependent publish that App Service runs
+    # from package on the platform DOTNETCORE|10.0 stack; the entry assembly and
+    # its runtimeconfig must sit at the zip root.
+    Assert-ZipRootFile -ArchivePath (Join-Path $manifestDirectory 'web.zip') -RequiredFile 'Pegasus.Web.dll'
+    Assert-ZipRootFile -ArchivePath (Join-Path $manifestDirectory 'web.zip') -RequiredFile 'Pegasus.Web.runtimeconfig.json'
+
+    $webPackage = $manifest.PSObject.Properties['webPackage']
+    if (
+        $null -eq $webPackage -or
+        $webPackage.Value.name -cne 'web.zip' -or
+        $webPackage.Value.runtimeIdentifier -cne 'linux-x64' -or
+        $webPackage.Value.selfContained -ne $false -or
+        $webPackage.Value.hostStack -cne 'DOTNETCORE|10.0'
+    ) {
+        throw 'The release manifest Web package identity is incomplete or invalid.'
     }
 }
 

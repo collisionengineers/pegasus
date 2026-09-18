@@ -1,11 +1,12 @@
 using System.Security.Cryptography;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Tests.Support;
 
 namespace Pegasus.Core.Tests.Intake.Mp;
 
 public sealed class MpInstructionExtractionPolicyTests
 {
-    [MpReferencePackTheory]
+    [ReferencePackTheory]
     [Trait("Category", "Corpus")]
     [InlineData("6ca905773ea2", "MP PDF 01.pdf", "79097baeec1eac46bb9a34afe67945d398df93a621857179c793f2cff5d5d3f4", "Mr Ali Ahmed Qurban", "RA6458832", "FG21DGV", "Toyota Prius (Private Hire)", "2026-04-15", "2026-04-20", "Lewisham Park London SE13")]
     [InlineData("ddbac0aec529", "MP PDF 02.pdf", "bf8092e4bd7e47407590a20784173bc185b5d68b265451a7b71d4a6214eafe82", "Mr Ali Mohamed Sharif", "RA6458834", "LB18GZE", "Toyota Prius (Private Hire)", "2026-04-18", "2026-04-21", "Aldrington Road London SW16 1TA")]
@@ -22,20 +23,33 @@ public sealed class MpInstructionExtractionPolicyTests
         string claimant, string reference, string? registration, string vehicle, string incidentDate,
         string? instructionDate, string location)
     {
-        var root = ReferencePackRoot();
+        var root = ReferencePack.Root();
         var text = File.ReadAllText(Path.Combine(root, "astra_output", "reports", "principals", "MP", "sources", $"{sourceKey}.txt"));
         var original = File.ReadAllBytes(Path.Combine(root, "principal-docs", "original-mapper-instruction-corpus", originalFile));
         Assert.Equal(sha256, Convert.ToHexStringLower(SHA256.HashData(original)));
-        var result = Extract(text); var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
-        Assert.Equal(claimant, draft.ClaimantName); Assert.Equal(reference, draft.ClaimNumber); Assert.Equal(registration, draft.VehicleRegistration);
-        Assert.Equal(vehicle, draft.VehicleMake); Assert.Equal(incidentDate, Date(draft.DateOfIncident)); Assert.Equal(instructionDate, Date(draft.InstructionDate));
-        Assert.Equal(location, draft.InspectionAddress); Assert.Null(draft.InspectionDate); Assert.Null(draft.VatStatus);
+        var result = Extract(text);
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(claimant, draft.ClaimantName);
+        Assert.Equal(reference, draft.ClaimNumber);
+        Assert.Equal(registration, draft.VehicleRegistration);
+        Assert.Equal(vehicle, draft.VehicleMake);
+        Assert.Equal(incidentDate, Date(draft.DateOfIncident));
+        Assert.Equal(instructionDate, Date(draft.InstructionDate));
+        Assert.Equal(location, draft.InspectionAddress);
+        Assert.Null(draft.InspectionDate);
+        Assert.Null(draft.VatStatus);
     }
-    private static InstructionExtractionResult Extract(string text) => new MpInstructionExtractionPolicy().Extract(new(IntakeSourceReadStatus.Readable, [new(IntakeEvidenceSource.DocumentContent, "MP instruction", text, IntakeSourceLocator.ForPage(1))], [], [], RequiresOcr: false), new(2026, 9, 6, 12, 0, 0, TimeSpan.Zero), new("MP", MpInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
+
+    private static InstructionExtractionResult Extract(string text) =>
+        new MpInstructionExtractionPolicy().Extract(
+            new(
+                IntakeSourceReadStatus.Readable,
+                [new(IntakeEvidenceSource.DocumentContent, "MP instruction", text, IntakeSourceLocator.ForPage(1))],
+                [],
+                [],
+                RequiresOcr: false),
+            new(2026, 9, 6, 12, 0, 0, TimeSpan.Zero),
+            new("MP", MpInstructionExtractionPolicy.DocumentProfileKeyValue, 1));
+
     private static string? Date(DateOnly? value) => value?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-    private static string ReferencePackRoot() => Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT") ?? throw new InvalidOperationException("The reference-pack test should have been skipped.");
-}
-internal sealed class MpReferencePackTheoryAttribute : TheoryAttribute
-{
-    public MpReferencePackTheoryAttribute() { var root = Environment.GetEnvironmentVariable("PEGASUS_REFERENCE_PACK_ROOT"); if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) Skip = "PEGASUS_REFERENCE_PACK_ROOT is absent; the immutable reference pack differs per machine."; }
 }
