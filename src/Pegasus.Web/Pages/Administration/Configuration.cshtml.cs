@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.Actors;
+using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -12,17 +12,17 @@ namespace Pegasus.Web.Pages.Administration;
 public sealed class ConfigurationModel(
     GetWorkflowConfiguration getWorkflowConfiguration,
     UpdateWorkflowConfiguration updateWorkflowConfiguration,
-    LabourRateCardAdministration rateCards,
-    IEditScopeLeases editScopes,
-    IStaffAccountQueries staffAccounts) : AdministrationPageModel
+    LabourRateCardAdministration rateCards) : AdministrationPageModel
 {
     public CaseWorkflowConfiguration Configuration { get; private set; } = null!;
     public IReadOnlyList<LabourRateCard> RateCards { get; private set; } = [];
     public bool AutomationComposed { get; private set; }
-    [BindProperty] public Guid EditingId { get; set; }
-    [BindProperty] public long ExpectedVersion { get; set; }
-    [BindProperty] public string? LeaseToken { get; set; } = string.Empty;
-    [BindProperty] public string OperationKey { get; set; } = NewOperationKey();
+    public bool AddCardOpen { get; private set; }
+    public bool CardPostFailed { get; private set; }
+    public string HourlyRateInput { get; private set; } = string.Empty;
+
+    [BindProperty] public long WorkflowExpectedVersion { get; set; }
+    [BindProperty] public string WorkflowOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public bool RequireInstructions { get; set; }
     [BindProperty] public bool RequireImages { get; set; }
     [BindProperty] public int ChaseIntervalDays { get; set; } = 7;
@@ -31,19 +31,19 @@ public sealed class ConfigurationModel(
     [BindProperty] public int HeldTargetDays { get; set; } = 7;
     [BindProperty] public int ReviewTargetDays { get; set; } = 1;
     [BindProperty] public int AiDraftTargetDays { get; set; } = 1;
+
+    [BindProperty] public Guid CardId { get; set; }
+    [BindProperty] public long CardExpectedVersion { get; set; }
+    [BindProperty] public string CardOperationKey { get; set; } = NewOperationKey();
     [BindProperty] public string? CardName { get; set; } = string.Empty;
     [BindProperty] public decimal HourlyRate { get; set; }
     [BindProperty] public bool Enabled { get; set; } = true;
     [BindProperty] public string? Reason { get; set; }
-    public bool IsEditing => EditingId != Guid.Empty;
 
     /// <summary>One workflow setting: its posted field, label, range, the saved value and the value the form carries.</summary>
     public sealed record WorkflowSetting(string Field, string Label, int Minimum, int Maximum, int Current, int Posted);
 
-    /// <summary>
-    /// The six workflow settings in the planned order (Configuration, 13 September):
-    /// the chase interval and the five Work Centre due targets.
-    /// </summary>
+    /// <summary>The chase interval and five Work Centre due targets.</summary>
     public IReadOnlyList<WorkflowSetting> WorkflowSettings => Configuration is null ? [] :
     [
         new(nameof(ChaseIntervalDays), "Chase interval", 1, 365, Configuration.ChaseIntervalDays, ChaseIntervalDays),
@@ -56,7 +56,13 @@ public sealed class ConfigurationModel(
 
     public static string Days(int days) => days == 1 ? "1 day" : $"{days} days";
 
-    /// <summary>Each setting outside its range is refused against its own input, naming the range.</summary>
+    public string WorkflowInputValue(string field, int posted) =>
+        ModelState.TryGetValue(field, out var entry) && entry.AttemptedValue is { } attempted
+            ? attempted
+            : posted.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
+
     private void ValidateWorkflowRanges()
     {
         foreach (var setting in WorkflowSettings)
@@ -70,218 +76,143 @@ public sealed class ConfigurationModel(
         }
     }
 
-    private bool Posted(string field) => Request.HasFormContentType && Request.Form.ContainsKey(field);
-
-    /// <summary>
-    /// The record this operator is already editing in another window, offered
-    /// with the take-over that ends the other window's claim.
-    /// </summary>
-    public Guid TakeOverRecordId { get; private set; }
-
-    private EditScopeKind ScopeKind => EditingId == GetWorkflowConfiguration.RecordId
-        ? EditScopeKind.NamedConfiguration : EditScopeKind.LabourRateCard;
-
-    /// <summary>The record as the operator reading an ownership sentence names it.</summary>
-    private const string RecordName = "record";
-
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        await LoadAsync(actor, cancellationToken);
+        await LoadAsync(actor, initializeWorkflowSettings: true, cancellationToken);
         return Page();
     }
 
-    public async Task<IActionResult> OnPostEditAsync(
-        Guid recordId,
-        bool takeOver,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostSaveWorkflowAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        await LoadAsync(actor, cancellationToken);
-        // Edit posts only the record id: the editor's bound fields are filled below,
-        // so their missing-value binding errors are not the operator's.
-        ModelState.Clear();
-        EditingId = recordId;
-        if (recordId == GetWorkflowConfiguration.RecordId)
+        ModelState.Remove(nameof(CardOperationKey));
+        await LoadAsync(actor, initializeWorkflowSettings: false, cancellationToken);
+        if (WorkflowExpectedVersion < 1 || WorkflowExpectedVersion > int.MaxValue)
+            ModelState.AddModelError(string.Empty, "The settings version is invalid. Reload and try again.");
+        if (!IsOperationKeyValid(WorkflowOperationKey))
+            ModelState.AddModelError(string.Empty, "The form has expired. Reload and try again.");
+        ValidateWorkflowRanges();
+
+        if (ModelState.IsValid)
         {
-            ExpectedVersion = Configuration.PolicyVersion;
-            RequireInstructions = Configuration.RequireInstructions;
-            RequireImages = Configuration.RequireImages;
-            ChaseIntervalDays = Configuration.ChaseIntervalDays;
-            UnidentifiedTargetDays = Configuration.UnidentifiedTargetDays;
-            TriageTargetDays = Configuration.TriageTargetDays;
-            HeldTargetDays = Configuration.HeldTargetDays;
-            ReviewTargetDays = Configuration.ReviewTargetDays;
-            AiDraftTargetDays = Configuration.AiDraftTargetDays;
+            try
+            {
+                var current = Configuration;
+                await updateWorkflowConfiguration.ExecuteAsync(
+                    new(checked((int)WorkflowExpectedVersion), actor, WorkflowOperationKey)
+                    {
+                        RequireInstructions = RequireInstructions,
+                        RequireImages = RequireImages,
+                        ChaseIntervalDays = ChaseIntervalDays,
+                        UnidentifiedTargetDays = Posted(nameof(UnidentifiedTargetDays)) ? UnidentifiedTargetDays : current.UnidentifiedTargetDays,
+                        TriageTargetDays = Posted(nameof(TriageTargetDays)) ? TriageTargetDays : current.TriageTargetDays,
+                        HeldTargetDays = Posted(nameof(HeldTargetDays)) ? HeldTargetDays : current.HeldTargetDays,
+                        ReviewTargetDays = Posted(nameof(ReviewTargetDays)) ? ReviewTargetDays : current.ReviewTargetDays,
+                        AiDraftTargetDays = Posted(nameof(AiDraftTargetDays)) ? AiDraftTargetDays : current.AiDraftTargetDays
+                    },
+                    cancellationToken);
+                TempData["Confirmation"] = "Workflow settings saved.";
+                return RedirectToPage();
+            }
+            catch (WorkflowConfigurationVersionConflictException)
+            {
+                ModelState.AddModelError(string.Empty, "Workflow settings changed. Reload the page before trying again.");
+            }
+            catch (WorkflowConfigurationOperationConflictException)
+            {
+                ModelState.AddModelError(string.Empty, "This workflow settings form was already used. Reload the page before trying again.");
+            }
+            catch (ArgumentException exception)
+            {
+                ModelState.AddModelError(string.Empty, exception.Message);
+            }
+            await LoadAsync(actor, initializeWorkflowSettings: false, cancellationToken);
         }
-        else
-        {
-            var card = RateCards.SingleOrDefault(x => x.Id == recordId);
-            if (card is null) return NotFound();
-            ExpectedVersion = card.Version;
-            CardName = card.Name;
-            HourlyRate = card.HourlyRate;
-            Enabled = card.Enabled;
-        }
-        try
-        {
-            LeaseToken = (await editScopes.ClaimAsync(
-                new(ScopeKind, recordId, ExpectedVersion, actor, NewOperationKey())
-                {
-                    TakeOver = takeOver
-                },
-                cancellationToken)).Token;
-            OperationKey = NewOperationKey();
-        }
-        catch (EditScopeHeldElsewhereException)
-        {
-            EditingId = Guid.Empty;
-            TakeOverRecordId = recordId;
-            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
-        }
-        catch (EditScopeConflictException)
-        {
-            var active = await editScopes.GetActiveAsync(ScopeKind, recordId, actor, cancellationToken);
-            IReadOnlyDictionary<Guid, string> names = active is { HolderKind: ActorKind.Staff }
-                && Guid.TryParse(active.Holder, out var holderId)
-                ? await ActorDisplayNames.ResolveStaffNamesAsync(
-                    staffAccounts, [holderId], cancellationToken)
-                : new Dictionary<Guid, string>();
-            EditingId = Guid.Empty;
-            ModelState.AddModelError(string.Empty, active is null
-                ? "The record is being edited. Reload to try again."
-                : EditModeDisplay.HeldBy(
-                    RecordName,
-                    active.HolderKind == ActorKind.Automation
-                        ? CaseEditAuthorityHolder.Automation
-                        : new CaseEditAuthorityHolder(ActorDisplayNames.Resolve(
-                            active.HolderKind ?? ActorKind.Staff, active.Holder, names)),
-                    isSelf: false));
-        }
-        catch (EditScopeVersionConflictException)
-        {
-            EditingId = Guid.Empty;
-            ModelState.AddModelError(string.Empty, "The record changed. Reload to edit the current settings.");
-        }
-        ModelState.ClearValidationState(nameof(EditingId));
+
         return Page();
     }
 
     public async Task<IActionResult> OnPostNewCardAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        await LoadAsync(actor, cancellationToken);
-        EditingId = Guid.NewGuid();
-        ExpectedVersion = 0;
+        ModelState.Remove(nameof(WorkflowOperationKey));
+        ModelState.Remove(nameof(CardOperationKey));
+        await LoadAsync(actor, initializeWorkflowSettings: true, cancellationToken);
+        AddCardOpen = true;
+        CardId = Guid.NewGuid();
+        CardExpectedVersion = 0;
+        CardOperationKey = NewOperationKey();
+        CardName = string.Empty;
+        HourlyRate = 0;
+        HourlyRateInput = string.Empty;
+        Enabled = true;
+        Reason = null;
         return Page();
     }
 
-    public async Task<IActionResult> OnPostSaveAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostSaveCardAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
-        try
-        {
-            if (EditingId == GetWorkflowConfiguration.RecordId && (ExpectedVersion < 1 || ExpectedVersion > int.MaxValue))
-                ModelState.AddModelError(string.Empty, "The settings version is invalid. Reload to try again.");
-            if (EditingId == GetWorkflowConfiguration.RecordId)
-            {
-                Configuration = await getWorkflowConfiguration.ExecuteAsync(actor, cancellationToken);
-                ValidateWorkflowRanges();
-            }
-            if (ModelState.IsValid)
-            {
-                if (EditingId == GetWorkflowConfiguration.RecordId)
-                {
-                    // A target the form does not yet render keeps its current value rather
-                    // than falling back to the default.
-                    var current = await getWorkflowConfiguration.ExecuteAsync(actor, cancellationToken);
-                    await updateWorkflowConfiguration.ExecuteAsync(new(checked((int)ExpectedVersion), actor, OperationKey)
-                    {
-                        RequireInstructions = RequireInstructions, RequireImages = RequireImages,
-                        ChaseIntervalDays = ChaseIntervalDays,
-                        UnidentifiedTargetDays = Posted(nameof(UnidentifiedTargetDays)) ? UnidentifiedTargetDays : current.UnidentifiedTargetDays,
-                        TriageTargetDays = Posted(nameof(TriageTargetDays)) ? TriageTargetDays : current.TriageTargetDays,
-                        HeldTargetDays = Posted(nameof(HeldTargetDays)) ? HeldTargetDays : current.HeldTargetDays,
-                        ReviewTargetDays = Posted(nameof(ReviewTargetDays)) ? ReviewTargetDays : current.ReviewTargetDays,
-                        AiDraftTargetDays = Posted(nameof(AiDraftTargetDays)) ? AiDraftTargetDays : current.AiDraftTargetDays,
-                        EditLeaseToken = LeaseToken ?? string.Empty
-                    }, cancellationToken);
-                }
-                else
-                    await rateCards.SaveAsync(new(EditingId, CardName ?? string.Empty, HourlyRate, Enabled, ExpectedVersion,
-                        actor, Reason, OperationKey, LeaseToken ?? string.Empty), cancellationToken);
-                TempData["Confirmation"] = "Settings saved.";
-                return RedirectToPage();
-            }
-        }
-        catch (Exception exception) when (exception is ArgumentException or WorkflowConfigurationVersionConflictException
-            or WorkflowConfigurationOperationConflictException or EditScopeConflictException
-            or EditScopeExpiredException or EditScopeVersionConflictException or LabourRateCardConflictException)
-        {
-            ModelState.AddModelError(string.Empty, exception is ArgumentException
-                ? exception.Message : "The edit could not be saved. Cancel and reopen the current record.");
-        }
-        await LoadAsync(actor, cancellationToken);
-        return Page();
-    }
+        ModelState.Remove(nameof(WorkflowOperationKey));
+        HourlyRateInput = Request.Form[nameof(HourlyRate)].ToString();
+        if (string.IsNullOrWhiteSpace(HourlyRateInput))
+            HourlyRateInput = HourlyRate.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        await LoadAsync(actor, initializeWorkflowSettings: true, cancellationToken);
 
-    public async Task<IActionResult> OnPostCancelAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (ExpectedVersion > 0 && !string.IsNullOrEmpty(LeaseToken))
+        if (CardId == Guid.Empty)
+            ModelState.AddModelError(string.Empty, "The rate-card form has expired. Reload the page and try again.");
+        if (!IsOperationKeyValid(CardOperationKey))
+            ModelState.AddModelError(string.Empty, "The rate-card form has expired. Reload the page and try again.");
+
+        if (ModelState.IsValid)
         {
             try
             {
-            await editScopes.ReleaseAsync(new(ScopeKind, EditingId, actor, NewOperationKey(), LeaseToken), cancellationToken);
+                await rateCards.SaveAsync(new(
+                    CardId,
+                    CardName ?? string.Empty,
+                    HourlyRate,
+                    Enabled,
+                    CardExpectedVersion,
+                    actor,
+                    Reason,
+                    CardOperationKey), cancellationToken);
+                TempData["Confirmation"] = "The labour-rate card was saved.";
+                return RedirectToPage();
             }
-            catch (Exception exception) when (exception is EditScopeExpiredException or EditScopeConflictException)
+            catch (LabourRateCardConflictException exception)
             {
-                // No mutation is requested; an expired or replaced lease leaves nothing to release.
+                ModelState.AddModelError(string.Empty, exception.Message);
+            }
+            catch (ArgumentException exception)
+            {
+                ModelState.AddModelError(string.Empty, exception.Message);
             }
         }
-        return RedirectToPage();
+
+        CardPostFailed = true;
+        await LoadAsync(actor, initializeWorkflowSettings: true, cancellationToken);
+        AddCardOpen = !RateCards.Any(card => card.Id == CardId);
+        return Page();
     }
 
-    /// <summary>
-    /// The release a leaving page beacons. It is not an operator action: it
-    /// answers 204 whether or not a scope was still there to release, so a
-    /// duplicate beacon and a beacon that lost a race with Cancel are both
-    /// ordinary outcomes. Antiforgery is validated as it is for every post.
-    /// </summary>
-    public async Task<IActionResult> OnPostReleaseScopeBeaconAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (EditingId == Guid.Empty || string.IsNullOrEmpty(LeaseToken)) return new NoContentResult();
-        try
-        {
-            await editScopes.ReleaseAsync(
-                new(ScopeKind, EditingId, actor, NewOperationKey(), LeaseToken), cancellationToken);
-        }
-        catch (Exception exception)
-            when (exception is EditScopeExpiredException or EditScopeConflictException)
-        {
-            // The scope has already gone or has already been re-claimed by a
-            // newer window of this operator's own session.
-        }
-        return new NoContentResult();
-    }
-
-    public async Task<IActionResult> OnPostHeartbeatAsync(CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        try
-        {
-            await editScopes.HeartbeatAsync(new(ScopeKind, EditingId, actor, LeaseToken ?? string.Empty), cancellationToken);
-            return new NoContentResult();
-        }
-        catch (Exception exception) when (exception is EditScopeExpiredException or EditScopeConflictException)
-        { return StatusCode(409); }
-    }
-
-    private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
+    private async Task LoadAsync(ActionActor actor, bool initializeWorkflowSettings, CancellationToken cancellationToken)
     {
         AutomationComposed = HttpContext.RequestServices.GetService<AutomationClientRegistry>() is not null;
         Configuration = await getWorkflowConfiguration.ExecuteAsync(actor, cancellationToken);
         RateCards = await rateCards.ListAsync(actor, cancellationToken);
+        if (!initializeWorkflowSettings) return;
+
+        WorkflowExpectedVersion = Configuration.PolicyVersion;
+        WorkflowOperationKey = NewOperationKey();
+        RequireInstructions = Configuration.RequireInstructions;
+        RequireImages = Configuration.RequireImages;
+        ChaseIntervalDays = Configuration.ChaseIntervalDays;
+        UnidentifiedTargetDays = Configuration.UnidentifiedTargetDays;
+        TriageTargetDays = Configuration.TriageTargetDays;
+        HeldTargetDays = Configuration.HeldTargetDays;
+        ReviewTargetDays = Configuration.ReviewTargetDays;
+        AiDraftTargetDays = Configuration.AiDraftTargetDays;
     }
 }

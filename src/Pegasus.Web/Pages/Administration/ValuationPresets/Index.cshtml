@@ -9,9 +9,6 @@
     ViewData["AdminArea"] = "valuation-presets";
     ViewData["AdminAutomationComposed"] = Model.AutomationComposed;
     var labelLimit = ValuationCalculationPolicy.MaximumAdditionLabelLength;
-    var editing = Model.EditingPresetId != Guid.Empty;
-    var editingPreset = Model.Presets.SingleOrDefault(preset => preset.Id == Model.EditingPresetId);
-    var usePostedValues = Model.RowPresetId == Model.EditingPresetId;
 }
 
 <partial name="Shared/_PageHeader" />
@@ -20,6 +17,10 @@
     <partial name="Shared/_AdminNav" />
     <div class="stack">
         <partial name="Shared/_ErrorSummary" />
+        @if (TempData["Confirmation"] is string confirmation)
+        {
+            <div class="notice notice--success" role="status">@confirmation</div>
+        }
 
         <section class="panel" aria-labelledby="valuation-presets-title">
             <div class="panel-head">
@@ -44,80 +45,55 @@
                     }
                     @foreach (var preset in Model.Presets)
                     {
-                        @if (editing && editingPreset is not null && preset.Id == editingPreset.Id)
-                        {
-                            var presetId = editingPreset.Id.ToString("D");
-                            var formId = $"preset-{presetId}";
-                            <tr class="preset-row--editing">
-                                <td>
-                                    <label class="sr-only" for="preset-label-@presetId">@ValuationPresetLabels.PresetLabel</label>
-                                    <input id="preset-label-@presetId" class="input" name="label" form="@formId" required maxlength="@labelLimit"
-                                           value="@(usePostedValues ? Model.RowLabel : editingPreset.Label)" />
-                                </td>
-                                <td>
-                                    <label class="sr-only" for="preset-amount-@presetId">@ValuationPresetLabels.Amount</label>
-                                    <input id="preset-amount-@presetId" class="input-money" name="amount" type="number" inputmode="decimal" form="@formId" min="0" step="0.01" required
-                                           value="@(usePostedValues ? Model.RowAmount : editingPreset.SuggestedAmount.ToString("0.00", CultureInfo.InvariantCulture))" />
-                                </td>
-                                <td>
-                                    <label class="choice">
-                                        <input name="active" type="checkbox" value="true" form="@formId"
-                                               checked="@((usePostedValues ? Model.RowActive : editingPreset.Active) ? "checked" : null)" />
-                                        <span>@ValuationPresetLabels.Enabled</span>
-                                    </label>
-                                </td>
-                                <td>
-                                    <span class="cluster">
-                                        <button type="submit" form="@formId" class="btn btn--small">Cancel</button>
-                                        <button type="submit" form="@formId" formaction="?handler=Save" class="btn btn--small btn--primary">Save</button>
-                                    </span>
-                                    <p id="preset-edit-heartbeat-@presetId" class="notice notice--error" role="alert" hidden></p>
-                                </td>
-                            </tr>
-                        }
-                        else
-                        {
-                            <tr>
-                                <td><strong>@preset.Label</strong></td>
-                                <td class="num">@ValuationCalculationPolicy.FormatMoney(preset.SuggestedAmount)</td>
-                                <td><partial name="Shared/_StatusChip" model="@ValuationPresetLabels.StateName(preset.Active)" /></td>
-                                <td>
-                                    <span class="cluster">
-                                        <a class="btn btn--small" asp-page="/Administration/ValuationPresets/Index" asp-route-editPresetId="@preset.Id" asp-route-expectedVersion="@preset.Version">Edit</a>
-                                        @* Offered only to the operator whose own other window still
-                                           holds this preset; taking over rotates the token so that
-                                           window can no longer save. *@
-                                        @if (preset.Id == Model.TakeOverPresetId)
-                                        {
-                                            <form method="post" asp-page-handler="Edit">
-                                                <input type="hidden" name="presetId" value="@preset.Id" />
-                                                <input type="hidden" name="expectedVersion" value="@preset.Version" />
-                                                <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                                <input type="hidden" name="takeOver" value="true" />
-                                                <button type="submit" class="btn btn--small btn--primary">Take over</button>
-                                            </form>
-                                        }
-                                        <form method="post" asp-page-handler="Remove">
-                                            <input type="hidden" name="presetId" value="@preset.Id.ToString("D")" />
-                                            <input type="hidden" name="expectedVersion" value="@preset.Version" />
-                                            <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-                                            <button type="submit" class="btn btn--small btn--danger">@ValuationPresetLabels.Remove</button>
-                                        </form>
-                                    </span>
-                                </td>
-                            </tr>
-                        }
+                        var presetId = preset.Id.ToString("D");
+                        var saveFormId = "preset-save-" + preset.Id.ToString("N");
+                        var removeFormId = "preset-remove-" + preset.Id.ToString("N");
+                        var showingPostedValues = Model.RowPostFailed && Model.RowPresetId == preset.Id;
+                        var rowLabel = showingPostedValues ? Model.RowLabel : preset.Label;
+                        var rowAmount = showingPostedValues ? Model.RowAmount : preset.SuggestedAmount.ToString("0.00", CultureInfo.InvariantCulture);
+                        var rowActive = showingPostedValues ? Model.RowActive : preset.Active;
+                        var rowVersion = showingPostedValues ? Model.RowExpectedVersion : preset.Version;
+                        var rowOperationKey = showingPostedValues ? Model.RowOperationKey : IndexModel.NewOperationKey();
+                        <tr>
+                            <td>
+                                <label class="sr-only" for="preset-label-@presetId">@ValuationPresetLabels.PresetLabel</label>
+                                <input id="preset-label-@presetId" class="input" name="label" form="@saveFormId" required maxlength="@labelLimit" value="@rowLabel" />
+                            </td>
+                            <td>
+                                <label class="sr-only" for="preset-amount-@presetId">@ValuationPresetLabels.Amount</label>
+                                <input id="preset-amount-@presetId" class="input-money" name="amount" type="number" inputmode="decimal" form="@saveFormId" min="0" step="0.01" required value="@rowAmount" />
+                            </td>
+                            <td>
+                                <label class="choice">
+                                    <input name="active" type="checkbox" value="true" form="@saveFormId" checked="@(rowActive ? "checked" : null)" />
+                                    <span>@ValuationPresetLabels.Enabled</span>
+                                </label>
+                            </td>
+                            <td>
+                                <form id="@saveFormId" method="post" asp-page-handler="Save">
+                                    <input type="hidden" name="presetId" value="@presetId" />
+                                    <input type="hidden" name="expectedVersion" value="@rowVersion" />
+                                    <input type="hidden" name="operationKey" value="@rowOperationKey" />
+                                    <button type="reset" form="@saveFormId" class="btn btn--small">Reset</button>
+                                    <button type="submit" class="btn btn--small btn--primary">@ValuationPresetLabels.Save</button>
+                                </form>
+                                <form id="@removeFormId" method="post" asp-page-handler="Remove">
+                                    <input type="hidden" name="presetId" value="@presetId" />
+                                    <input type="hidden" name="expectedVersion" value="@preset.Version" />
+                                    <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                    <button type="submit" class="btn btn--small btn--danger">@ValuationPresetLabels.Remove</button>
+                                </form>
+                            </td>
+                        </tr>
                     }
                     <tr class="preset-row--add">
                         <td>
                             <label class="sr-only" for="create-label">@ValuationPresetLabels.PresetLabel</label>
-                            <input id="create-label" class="input" name="label" form="preset-create" required maxlength="@labelLimit"
-                                   value="@Model.CreateLabel" />
+                            <input id="create-label" class="input" name="label" form="preset-create" required maxlength="@labelLimit" value="@Model.CreateLabel" />
                         </td>
                         <td>
                             <label class="sr-only" for="create-amount">@ValuationPresetLabels.Amount</label>
-                            <input id="create-amount" class="input-money" name="amount" type="number" inputmode="decimal" form="preset-create" min="0" step="0.01" required
-                                   value="@(Model.CreateAmount?.ToString("0.00", CultureInfo.InvariantCulture))" />
+                            <input id="create-amount" class="input-money" name="amount" type="number" inputmode="decimal" form="preset-create" min="0" step="0.01" required value="@Model.CreateAmountInput" />
                         </td>
                         <td>
                             <label class="choice">
@@ -126,10 +102,12 @@
                             </label>
                         </td>
                         <td>
-                            <span class="cluster">
+                            <form id="preset-create" method="post" asp-page-handler="Create">
+                                <input type="hidden" name="presetId" value="@Model.CreatePresetId.ToString("D")" />
+                                <input type="hidden" name="operationKey" value="@Model.CreateOperationKey" />
                                 <a class="btn btn--small" asp-page="/Administration/ValuationPresets/Index">Cancel</a>
-                                <button type="submit" form="preset-create" class="btn btn--small btn--primary">Add</button>
-                            </span>
+                                <button type="submit" class="btn btn--small btn--primary">Add</button>
+                            </form>
                         </td>
                     </tr>
                     </tbody>
@@ -138,36 +116,3 @@
         </section>
     </div>
 </div>
-
-@* The add row's inputs live in the table above and post through this form via
-   the HTML `form` attribute — a compact row rather than a separate creation
-   panel, per the operator's request. *@
-<form id="preset-create" method="post" asp-page-handler="Create" hidden>
-    <input type="hidden" name="presetId" value="@Model.CreatePresetId.ToString("D")" />
-    <input type="hidden" name="operationKey" value="@Model.CreateOperationKey" />
-</form>
-
-@* Remove posts from its row. A removed preset leaves the list and any new
-   selection, and the valuations that already record it keep their own
-   snapshot of what was selected. *@
-@if (editing && editingPreset is not null)
-{
-    var presetId = editingPreset.Id.ToString("D");
-    var formId = $"preset-{presetId}";
-    @* Likewise, the edited row's own inputs post through this form; Save and
-       Cancel stay beside the changed values instead of a modal footer. *@
-    <form id="@formId" method="post" asp-page-handler="CancelEdit"
-          data-edit-heartbeat data-edit-heartbeat-url="?handler=HeartbeatEdit"
-          data-edit-heartbeat-status="preset-edit-heartbeat-@presetId" hidden>
-        <input type="hidden" name="presetId" value="@presetId" />
-        <input type="hidden" name="expectedVersion" value="@Model.EditingPresetVersion" />
-        <input type="hidden" name="editLeaseToken" value="@Model.EditingLeaseToken" />
-        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
-    </form>
-    @* Beaconed as the page unloads so an operator who navigates away is not
-       refused by their own lease when they come back. *@
-    <form method="post" asp-page-handler="ReleaseScopeBeacon" data-edit-scope-release hidden>
-        <input type="hidden" name="presetId" value="@presetId" />
-        <input type="hidden" name="editLeaseToken" value="@Model.EditingLeaseToken" />
-    </form>
-}

@@ -58,8 +58,7 @@ public sealed class ContactDirectoryPolicyTests
         PrincipalCode: null,
         PrincipalInspectionMode: CaseInspectionMode.PhysicalAddress,
         PrincipalAssociations: [],
-        OperationKey: "telephone-policy-test",
-        EditLeaseToken: string.Empty);
+        OperationKey: "telephone-policy-test");
 }
 
 public sealed class ContactNotesOnEveryCaseTests
@@ -96,6 +95,5 @@ public sealed class ContactNotesOnEveryCaseTests
         PrincipalInspectionMode: CaseInspectionMode.PhysicalAddress,
         PrincipalAssociations: [],
         OperationKey: "notes-policy-test",
-        EditLeaseToken: string.Empty,
         NotesOnEveryCase: notes);
 }

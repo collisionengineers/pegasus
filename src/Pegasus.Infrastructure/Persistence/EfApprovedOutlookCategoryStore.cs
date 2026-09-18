@@ -2,7 +2,6 @@ using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -73,16 +72,6 @@ public sealed class EfApprovedOutlookCategoryStore(
             if (entity is null) throw new ApprovedOutlookCategoryUpdateException(ApprovedOutlookCategoryUpdateError.NotFound);
             if (entity.Version != request.ExpectedVersion)
                 throw new ApprovedOutlookCategoryUpdateException(ApprovedOutlookCategoryUpdateError.VersionConflict, entity.Version);
-            await EfEditScopeStore.RequireAsync(
-                context,
-                EditScopeKind.ApprovedOutlookCategory,
-                entity.Id,
-                entity.Version,
-                request.ExpectedVersion,
-                request.Actor,
-                request.EditLeaseToken,
-                timeProvider.GetUtcNow(),
-                cancellationToken);
             before = TakeSnapshot(entity);
             entity.DisplayName = request.DisplayName;
             entity.NormalizedDisplayName = normalizedName;
@@ -100,10 +89,6 @@ public sealed class EfApprovedOutlookCategoryStore(
             BeforeJson = before is null ? null : JsonSerializer.Serialize(before),
             AfterJson = JsonSerializer.Serialize(after), PolicyVersion = $"approved-outlook-category/v{entity.Version}"
         });
-        if (request.ExpectedVersion > 0)
-        {
-            EfEditScopeStore.Complete(context, EditScopeKind.ApprovedOutlookCategory, entity.Id);
-        }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(after);

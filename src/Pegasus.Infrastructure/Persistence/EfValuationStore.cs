@@ -1049,17 +1049,6 @@ public sealed class EfValuationPresetStore(
                     entity.Version);
             }
 
-            await EfEditScopeStore.RequireAsync(
-                context,
-                EditScopeKind.ValuationPreset,
-                entity.Id,
-                entity.Version,
-                request.ExpectedVersion,
-                request.Actor,
-                request.EditLeaseToken,
-                now,
-                cancellationToken);
-
             before = Map(entity);
             entity.Label = request.Label;
             entity.SuggestedAmount = request.SuggestedAmount;
@@ -1091,22 +1080,15 @@ public sealed class EfValuationPresetStore(
             AfterJson = JsonSerializer.Serialize(after, SerializerOptions),
             PolicyVersion = ValuationCalculationPolicy.PolicyStamp,
         });
-        if (request.ExpectedVersion > 0)
-        {
-            EfEditScopeStore.Complete(context, EditScopeKind.ValuationPreset, entity.Id);
-        }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return after;
     }
 
     /// <summary>
-    /// Removes one preset from the maintained list under the same guards a
-    /// save takes — the expected version, the Administrator's edit lease, the
-    /// operation key's replay and the permanent history row — and keeps the
-    /// row itself: only <c>RemovedAtUtc</c> is written, so every recorded
-    /// valuation and every history entry that names this preset stays
-    /// readable.
+    /// Removes one preset from the maintained list after checking its expected
+    /// version and replay key. The preset row remains so recorded valuations
+    /// and history stay readable; only <c>RemovedAtUtc</c> is written.
     /// </summary>
     public async Task<ValuationPreset> RemoveAsync(
         RemoveValuationPresetRequest request,
@@ -1145,17 +1127,6 @@ public sealed class EfValuationPresetStore(
         }
 
         var now = timeProvider.GetUtcNow();
-        await EfEditScopeStore.RequireAsync(
-            context,
-            EditScopeKind.ValuationPreset,
-            entity.Id,
-            entity.Version,
-            request.ExpectedVersion,
-            request.Actor,
-            request.EditLeaseToken,
-            now,
-            cancellationToken);
-
         var before = Map(entity);
         entity.RemovedAtUtc = now;
         entity.UpdatedBy = request.Actor.SubjectId;
@@ -1182,7 +1153,6 @@ public sealed class EfValuationPresetStore(
             AfterJson = JsonSerializer.Serialize(after, SerializerOptions),
             PolicyVersion = ValuationCalculationPolicy.PolicyStamp,
         });
-        EfEditScopeStore.Complete(context, EditScopeKind.ValuationPreset, entity.Id);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return after;

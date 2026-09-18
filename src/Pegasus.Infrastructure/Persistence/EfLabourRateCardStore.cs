@@ -2,7 +2,6 @@ using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -40,10 +39,6 @@ public sealed class EfLabourRateCardStore(
         if (await context.LabourRateCards.AnyAsync(x => x.Id != request.Id && x.Label == request.Name, cancellationToken))
             throw new ArgumentException("A labour-rate card already has that name.");
         var before = entity is null ? null : Map(entity);
-        if (entity is not null)
-            await EfEditScopeStore.RequireAsync(context, EditScopeKind.LabourRateCard, request.Id,
-                entity.Version, request.ExpectedVersion, request.Actor, request.EditLeaseToken,
-                timeProvider.GetUtcNow(), cancellationToken);
         if (entity is null)
         {
             entity = new LabourRateCardEntity { Id = request.Id, Label = request.Name, UpdatedBy = request.Actor.SubjectId };
@@ -66,7 +61,6 @@ public sealed class EfLabourRateCardStore(
             Reason = request.Reason, BeforeJson = before is null ? null : JsonSerializer.Serialize(before),
             AfterJson = JsonSerializer.Serialize(after), PolicyVersion = "labour-rate-card/v1"
         });
-        if (before is not null) EfEditScopeStore.Complete(context, EditScopeKind.LabourRateCard, request.Id);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return after;

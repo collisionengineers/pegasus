@@ -198,23 +198,14 @@ public sealed class PrincipalCredentialPersistenceTests
         await using var context = await contextFactory.CreateDbContextAsync();
         var contact = await context.Principals.AsNoTracking()
             .Where(item => item.Id == principalId)
-            .Select(item => new { item.OrganizationId, item.Organization.Version })
+            .Select(item => item.Organization.Version)
             .SingleAsync();
-        var lease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(
-                EditScopeKind.Contact,
-                contact.OrganizationId,
-                contact.Version,
-                Administrator,
-                operationKey + ":scope"),
-            default);
         return new(
             principalId,
             expectedVersion,
             Administrator,
             operationKey,
             reason,
-            contact.Version,
-            lease.Token);
+            contact);
     }
 }

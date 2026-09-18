@@ -87,10 +87,12 @@ public sealed partial class GlassCredentialAdministrationWebTests
         Assert.Contains("autocomplete=\"new-password\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"__RequestVerificationToken\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain(FixturePassword, html, StringComparison.Ordinal);
-        // The credential mutation has no inert reason control; Edit uses an
-        // operation key to claim the staff-account scope.
+        // The credential mutation is directly available with both current
+        // expected versions and no edit-scope token.
         Assert.DoesNotContain("name=\"Reason\"", html, StringComparison.Ordinal);
-        Assert.Contains("operationKey", FormOf(html, "Edit"), StringComparison.Ordinal);
+        Assert.Contains("name=\"ExpectedVersion\"", FormOf(html, "Save"), StringComparison.Ordinal);
+        Assert.Contains("name=\"ExpectedStaffAccountVersion\"", FormOf(html, "Save"), StringComparison.Ordinal);
+        Assert.DoesNotContain("EditLeaseToken", html, StringComparison.Ordinal);
         // The credential page has no hint sentence or empty-state panel.
         // The shared Add dialog can explain the instruction-upload route.
         var main = Regex.Match(html, @"<main\b[^>]*>(?<content>[\s\S]*?)</main>");
@@ -128,16 +130,14 @@ public sealed partial class GlassCredentialAdministrationWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory, store);
         var html = await GetHtmlAsync(client, PageFor(StaffId));
-        var editing = await BeginEditingAsync(client, html);
-        var save = FormOf(editing, "Save");
+        var save = FormOf(html, "Save");
 
         using (var response = await client.PostAsync(
             $"{PageFor(StaffId)}?handler=Save",
             Form(
-                editing,
+                html,
                 ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
                 ("ExpectedStaffAccountVersion", InputValue(save, "ExpectedStaffAccountVersion")),
-                ("EditLeaseToken", InputValue(save, "EditLeaseToken")),
                 ("username", FixtureUsername),
                 ("password", FixturePassword))))
         {
@@ -149,7 +149,6 @@ public sealed partial class GlassCredentialAdministrationWebTests
         Assert.Equal(StaffId, call.PegasusUserId);
         Assert.Equal(ExternalCredentialProvider.GlassRepairEstimate, call.Provider);
         Assert.Equal(7, call.ExpectedVersion);
-        Assert.NotEmpty(call.EditLeaseToken);
         Assert.Equal(FixtureUsername, call.Username);
         Assert.True(call.PasswordMatchesFixture);
         Assert.True(call.Enabled);
@@ -171,16 +170,14 @@ public sealed partial class GlassCredentialAdministrationWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory, store);
         var html = await GetHtmlAsync(client, PageFor(StaffId));
-        var editing = await BeginEditingAsync(client, html);
-        var clear = FormOf(editing, "Clear");
+        var clear = FormOf(html, "Clear");
 
         using (var response = await client.PostAsync(
             $"{PageFor(StaffId)}?handler=Clear",
             Form(
-                editing,
+                html,
                 ("ExpectedVersion", InputValue(clear, "ExpectedVersion")),
-                ("ExpectedStaffAccountVersion", InputValue(clear, "ExpectedStaffAccountVersion")),
-                ("EditLeaseToken", InputValue(clear, "EditLeaseToken")))))
+                ("ExpectedStaffAccountVersion", InputValue(clear, "ExpectedStaffAccountVersion")))))
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         }
@@ -189,34 +186,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
         Assert.Equal(StaffId, call.PegasusUserId);
         Assert.Equal(ExternalCredentialProvider.GlassRepairEstimate, call.Provider);
         Assert.Equal(3, call.ExpectedVersion);
-        Assert.NotEmpty(call.EditLeaseToken);
         Assert.Empty(store.Replaced);
-    }
-
-    [Fact]
-    public async Task EditHeartbeatReturnsOkAndInvalidScopeReturnsConflict()
-    {
-        var store = new RecordingCredentialAdministration();
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = CreateClient(factory, store);
-        var html = await GetHtmlAsync(client, PageFor(StaffId));
-        var editing = await BeginEditingAsync(client, html);
-
-        using var renewed = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=HeartbeatEdit",
-            Form(
-                editing,
-                ("staffId", StaffId.ToString("D")),
-                ("editLeaseToken", InputValue(editing, "editLeaseToken"))));
-        Assert.Equal(HttpStatusCode.OK, renewed.StatusCode);
-
-        using var refused = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=HeartbeatEdit",
-            Form(
-                editing,
-                ("staffId", StaffId.ToString("D")),
-                ("editLeaseToken", string.Empty)));
-        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
     }
 
     /// <summary>
@@ -239,7 +209,8 @@ public sealed partial class GlassCredentialAdministrationWebTests
             $"{PageFor(StaffId)}?handler=Save",
             Form(
                 html,
-                ("ExpectedVersion", InputValue(save, "ExpectedVersion")),
+                ("ExpectedVersion", "4"),
+                ("ExpectedStaffAccountVersion", InputValue(save, "ExpectedStaffAccountVersion")),
                 ("username", FixtureUsername),
                 ("password", "   ")));
 
@@ -284,13 +255,13 @@ public sealed partial class GlassCredentialAdministrationWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains(
-            "The credential changed after this page was loaded.",
-            body,
+            "The staff account or Glass's credential changed. Reload this page before trying again.",
+            WebUtility.HtmlDecode(body),
             StringComparison.Ordinal);
         Assert.DoesNotContain(FixturePassword, body, StringComparison.Ordinal);
         Assert.Empty(store.Replaced);
-        // The refusal reloads: the status was read again, and the version the
-        // refused page offers is the one the store holds now.
+        // The status was reloaded, but the failed form keeps the stale version
+        // that was submitted until the operator reloads the page explicitly.
         Assert.Equal(2, store.Reads);
         Assert.Equal("5", InputValue(FormOf(body, "Save"), "ExpectedVersion"));
     }
@@ -313,32 +284,16 @@ public sealed partial class GlassCredentialAdministrationWebTests
             BaseAddress = new Uri("https://localhost:7139")
         });
         var initial = await GetHtmlAsync(client, PageFor(StaffId));
-        using (var directPost = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=Save",
-            Form(
-                initial,
-                ("ExpectedVersion", InputValue(FormOf(initial, "Save"), "ExpectedVersion")),
-                ("ExpectedStaffAccountVersion", InputValue(FormOf(initial, "Save"), "ExpectedStaffAccountVersion")),
-                ("EditLeaseToken", string.Empty),
-                ("username", FixtureUsername),
-                ("password", FixturePassword))))
-        {
-            var body = await directPost.Content.ReadAsStringAsync();
-            Assert.Equal(HttpStatusCode.OK, directPost.StatusCode);
-            Assert.Contains("Your edit session expired.", body, StringComparison.Ordinal);
-        }
-        var editingInitial = await BeginEditingAsync(client, initial);
-        var initialSave = FormOf(editingInitial, "Save");
+        var initialSave = FormOf(initial, "Save");
         var initialVersion = InputValue(initialSave, "ExpectedVersion");
         Assert.Contains(">Not configured<", initial, StringComparison.Ordinal);
 
         using (var replaced = await client.PostAsync(
             $"{PageFor(StaffId)}?handler=Save",
             Form(
-                editingInitial,
+                initial,
                 ("ExpectedVersion", initialVersion),
                 ("ExpectedStaffAccountVersion", InputValue(initialSave, "ExpectedStaffAccountVersion")),
-                ("EditLeaseToken", InputValue(initialSave, "EditLeaseToken")),
                 ("username", FixtureUsername),
                 ("password", FixturePassword))))
         {
@@ -349,8 +304,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
         var configured = await GetHtmlAsync(client, PageFor(StaffId));
         Assert.Equal(FixtureUsername, FactValue(configured, "Username"));
         Assert.DoesNotContain(FixturePassword, configured, StringComparison.Ordinal);
-        var editingConfigured = await BeginEditingAsync(client, configured);
-        var configuredSave = FormOf(editingConfigured, "Save");
+        var configuredSave = FormOf(configured, "Save");
         var currentVersion = InputValue(configuredSave, "ExpectedVersion");
         Assert.NotEqual(initialVersion, currentVersion);
 
@@ -361,20 +315,19 @@ public sealed partial class GlassCredentialAdministrationWebTests
         using (var stale = await client.PostAsync(
             $"{PageFor(StaffId)}?handler=Save",
             Form(
-                editingConfigured,
+                configured,
                 ("ExpectedVersion", initialVersion),
                 ("ExpectedStaffAccountVersion", InputValue(configuredSave, "ExpectedStaffAccountVersion")),
-                ("EditLeaseToken", InputValue(configuredSave, "EditLeaseToken")),
                 ("username", FixtureUsername + "-replaced"),
                 ("password", FixturePassword))))
         {
             Assert.Equal(HttpStatusCode.OK, stale.StatusCode);
             staleBody = await stale.Content.ReadAsStringAsync();
             Assert.Contains(
-                "The credential changed after this page was loaded.",
-                staleBody,
+                "The staff account or Glass's credential changed. Reload this page before trying again.",
+                WebUtility.HtmlDecode(staleBody),
                 StringComparison.Ordinal);
-            Assert.Equal(currentVersion, InputValue(FormOf(staleBody, "Save"), "ExpectedVersion"));
+            Assert.Equal(initialVersion, InputValue(FormOf(staleBody, "Save"), "ExpectedVersion"));
             Assert.DoesNotContain(FixturePassword, staleBody, StringComparison.Ordinal);
         }
         var unchanged = await GetHtmlAsync(client, PageFor(StaffId));
@@ -385,8 +338,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
             Form(
                 staleBody,
                 ("ExpectedVersion", currentVersion),
-                ("ExpectedStaffAccountVersion", InputValue(FormOf(staleBody, "Clear"), "ExpectedStaffAccountVersion")),
-                ("EditLeaseToken", InputValue(FormOf(staleBody, "Clear"), "EditLeaseToken")))))
+                ("ExpectedStaffAccountVersion", InputValue(FormOf(staleBody, "Clear"), "ExpectedStaffAccountVersion")))))
         {
             Assert.Equal(HttpStatusCode.Redirect, cleared.StatusCode);
         }
@@ -465,66 +417,6 @@ public sealed partial class GlassCredentialAdministrationWebTests
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    /// <summary>
-    /// The operator is never told "another user" is editing when the live
-    /// scope is their own other window: that window is named as such and
-    /// offered the one control it is entitled to, Take over, which rotates
-    /// the token so the abandoned window can no longer save.
-    /// </summary>
-    [Fact]
-    public async Task AnOperatorIsNeverBlockedByTheirOwnGlassCredentialEdit()
-    {
-        var store = new RecordingCredentialAdministration();
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = CreateClient(factory, store);
-
-        var html = await GetHtmlAsync(client, PageFor(StaffId));
-        var editing = await BeginEditingAsync(client, html);
-        var firstToken = InputValue(editing, "EditLeaseToken");
-
-        // A second window (an ordinary reload, since the lease token is never
-        // carried on a GET) while the first is still live.
-        var second = await GetHtmlAsync(client, PageFor(StaffId));
-        var secondEdit = FormOf(second, "Edit");
-        using (var response = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=Edit",
-            Form(
-                second,
-                ("staffId", StaffId.ToString("D")),
-                ("expectedStaffAccountVersion", InputValue(secondEdit, "expectedStaffAccountVersion")),
-                ("operationKey", InputValue(secondEdit, "operationKey")))))
-        {
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var body = await response.Content.ReadAsStringAsync();
-            Assert.Contains(
-                "You are editing this staff account in another window.",
-                body,
-                StringComparison.Ordinal);
-            Assert.Contains(">Take over<", body, StringComparison.Ordinal);
-            Assert.DoesNotContain("Another user is editing", body, StringComparison.Ordinal);
-        }
-
-        // Taking over rotates the token, so the abandoned window's own token
-        // no longer saves.
-        var reopened = await GetHtmlAsync(client, PageFor(StaffId));
-        var takeOverEdit = FormOf(reopened, "Edit");
-        using (var takenOver = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=Edit",
-            Form(
-                reopened,
-                ("staffId", StaffId.ToString("D")),
-                ("expectedStaffAccountVersion", InputValue(takeOverEdit, "expectedStaffAccountVersion")),
-                ("operationKey", InputValue(takeOverEdit, "operationKey")),
-                ("takeOver", "true"))))
-        {
-            Assert.Equal(HttpStatusCode.OK, takenOver.StatusCode);
-            var body = await takenOver.Content.ReadAsStringAsync();
-            Assert.DoesNotContain("another window", body, StringComparison.Ordinal);
-            var secondToken = InputValue(FormOf(body, "Save"), "EditLeaseToken");
-            Assert.NotEqual(firstToken, secondToken);
-        }
-    }
-
     private static PerUserExternalCredentialStatus Configured(long version, long generation) =>
         new(
             StaffId,
@@ -597,7 +489,6 @@ public sealed partial class GlassCredentialAdministrationWebTests
             ExternalCredentialProvider provider,
             long expectedCredentialVersion,
             long expectedStaffAccountVersion,
-            string editLeaseToken,
             string username,
             string password,
             bool enabled,
@@ -614,7 +505,6 @@ public sealed partial class GlassCredentialAdministrationWebTests
                 provider,
                 expectedCredentialVersion,
                 expectedStaffAccountVersion,
-                editLeaseToken,
                 username,
                 string.Equals(password, FixturePassword, StringComparison.Ordinal),
                 enabled));
@@ -635,7 +525,6 @@ public sealed partial class GlassCredentialAdministrationWebTests
             ExternalCredentialProvider provider,
             long expectedCredentialVersion,
             long expectedStaffAccountVersion,
-            string editLeaseToken,
             CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(actor);
@@ -648,8 +537,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
                 pegasusUserId,
                 provider,
                 expectedCredentialVersion,
-                expectedStaffAccountVersion,
-                editLeaseToken));
+                expectedStaffAccountVersion));
             Status = Status with
             {
                 Configured = false,
@@ -666,7 +554,6 @@ public sealed partial class GlassCredentialAdministrationWebTests
         ExternalCredentialProvider Provider,
         long ExpectedVersion,
         long ExpectedStaffAccountVersion,
-        string EditLeaseToken,
         string Username,
         bool PasswordMatchesFixture,
         bool Enabled);
@@ -675,8 +562,7 @@ public sealed partial class GlassCredentialAdministrationWebTests
         Guid PegasusUserId,
         ExternalCredentialProvider Provider,
         long ExpectedVersion,
-        long ExpectedStaffAccountVersion,
-        string EditLeaseToken);
+        long ExpectedStaffAccountVersion);
 
     private static HttpClient CreateClient(
         IntakeWebApplicationFactory factory,
@@ -693,20 +579,6 @@ public sealed partial class GlassCredentialAdministrationWebTests
     private static async Task<string> GetHtmlAsync(HttpClient client, string path)
     {
         using var response = await client.GetAsync(path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
-    }
-
-    private static async Task<string> BeginEditingAsync(HttpClient client, string html)
-    {
-        var edit = FormOf(html, "Edit");
-        using var response = await client.PostAsync(
-            $"{PageFor(StaffId)}?handler=Edit",
-            Form(
-                html,
-                ("staffId", StaffId.ToString("D")),
-                ("expectedStaffAccountVersion", InputValue(edit, "expectedStaffAccountVersion")),
-                ("operationKey", InputValue(edit, "operationKey"))));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return await response.Content.ReadAsStringAsync();
     }

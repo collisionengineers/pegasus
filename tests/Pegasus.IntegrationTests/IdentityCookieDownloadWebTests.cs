@@ -160,20 +160,17 @@ public sealed partial class IdentityCookieDownloadWebTests
             item => item.UserName == "identity-cookie-download-administrator");
         var actor = ActionActor.Staff(administrator.Id, [StaffRole.Administrator]);
         var operationKey = "identity-cookie-" + revocation.ToString().ToLowerInvariant();
-        var lease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(EditScopeKind.StaffAccount, staffId, target.Version, actor, operationKey + "-claim"),
-            default);
 
         switch (revocation)
         {
             case ThumbnailRevocation.Disabled:
                 await services.GetRequiredService<IDisableStaffAccount>().ExecuteAsync(
-                    new(actor, staffId, null, operationKey, target.Version, lease.Token), default);
+                    new(actor, staffId, null, operationKey, target.Version), default);
                 break;
 
             case ThumbnailRevocation.Deleted:
                 await services.GetRequiredService<IDeleteStaffAccount>().ExecuteAsync(
-                    new(actor, staffId, null, operationKey, target.Version, lease.Token), default);
+                    new(actor, staffId, null, operationKey, target.Version), default);
                 break;
 
             case ThumbnailRevocation.RoleChanged:
@@ -188,19 +185,18 @@ public sealed partial class IdentityCookieDownloadWebTests
                         Signature: null,
                         IsDefaultSignOffEngineer: false,
                         OperationKey: operationKey,
-                        ExpectedVersion: target.Version,
-                        EditLeaseToken: lease.Token),
+                        ExpectedVersion: target.Version),
                     default);
                 break;
 
             case ThumbnailRevocation.PasswordReset:
                 await services.GetRequiredService<IResetStaffPassword>().ExecuteAsync(
-                    new(actor, staffId, null, operationKey, target.Version, lease.Token), default);
+                    new(actor, staffId, null, operationKey, target.Version), default);
                 break;
 
             case ThumbnailRevocation.ForcedLogout:
                 await services.GetRequiredService<IForceStaffLogout>().ExecuteAsync(
-                    new(actor, staffId, null, operationKey, target.Version, lease.Token), default);
+                    new(actor, staffId, null, operationKey, target.Version), default);
                 break;
 
             default:

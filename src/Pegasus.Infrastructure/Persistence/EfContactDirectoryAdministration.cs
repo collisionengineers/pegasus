@@ -172,14 +172,6 @@ public sealed class EfContactDirectoryAdministration(
         {
             throw new ContactDirectoryException(ContactDirectoryError.StaleVersion);
         }
-        if (!creating)
-        {
-            await EfEditScopeStore.RequireAsync(
-                context, EditScopeKind.Contact, entity!.Id, entity.Version,
-                request.ExpectedVersion, request.Actor, request.EditLeaseToken,
-                _timeProvider.GetUtcNow(), cancellationToken);
-        }
-
         var before = creating ? null : ToRecord(entity!);
         var guidanceChanged = entity!.GuidanceTemplate != request.GuidanceTemplate;
         var changed = entity.Name != request.Name || entity.ContactPerson != request.ContactPerson || entity.Email != request.Email
@@ -249,7 +241,6 @@ public sealed class EfContactDirectoryAdministration(
         var now = _timeProvider.GetUtcNow();
         EfOrganizationAdministration.AddReceipt(context, request.OperationKey, SaveKind, requestHash, result, now);
         EfOrganizationAdministration.AddHistory(context, "contact", entity.Id, creating ? "contact_created" : "contact_saved", request.Actor, request.OperationKey, now, null, before, result);
-        if (!creating) EfEditScopeStore.Complete(context, EditScopeKind.Contact, entity.Id);
         try { await context.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateException exception) when (exception.GetBaseException() is SqlException { Number: 2601 or 2627 }) { throw new ContactDirectoryException(ContactDirectoryError.DuplicateOrganizationName); }
         await transaction.CommitAsync(cancellationToken);

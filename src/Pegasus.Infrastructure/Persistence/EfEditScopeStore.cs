@@ -8,7 +8,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
-/// The one persistence owner for non-Case edit scopes. Individual record
+/// The one persistence owner for Triage and Image Intake edit scopes. Individual record
 /// stores call <see cref="RequireAsync"/> and <see cref="Complete"/> inside
 /// their existing mutation transaction; that makes the version, ownership and
 /// mutation decision inseparable.
@@ -257,30 +257,6 @@ public sealed class EfEditScopeStore(
         EditScopeKind.ImageIntake => await context.ImageIntakes.AsNoTracking()
             .Where(item => item.Id == recordId).Select(item => (long?)item.LifecycleVersion)
             .SingleOrDefaultAsync(cancellationToken),
-        EditScopeKind.Contact => await context.Organizations.AsNoTracking()
-            .Where(item => item.Id == recordId).Select(item => (long?)item.Version)
-            .SingleOrDefaultAsync(cancellationToken),
-        EditScopeKind.ValuationPreset => await context.Set<ValuationPresetEntity>().AsNoTracking()
-            .Where(item => item.Id == recordId).Select(item => (long?)item.Version)
-            .SingleOrDefaultAsync(cancellationToken),
-        EditScopeKind.LabourRateCard => await context.LabourRateCards.AsNoTracking()
-            .Where(item => item.Id == recordId).Select(item => (long?)item.Version)
-            .SingleOrDefaultAsync(cancellationToken),
-        EditScopeKind.ApprovedMailbox => await context.ApprovedMailboxes.AsNoTracking()
-            .Where(item => item.Id == recordId).Select(item => (long?)item.Version)
-            .SingleOrDefaultAsync(cancellationToken),
-        EditScopeKind.ApprovedOutlookCategory => await context.Set<ApprovedOutlookCategoryEntity>()
-            .AsNoTracking()
-            .Where(item => item.Id == recordId).Select(item => (long?)item.Version)
-            .SingleOrDefaultAsync(cancellationToken),
-        EditScopeKind.NamedConfiguration when recordId == WorkflowConfigurationRecordId =>
-            await context.WorkflowConfigurations.AsNoTracking()
-                .Where(item => item.Id == "case-workflow")
-                .Select(item => (long?)item.Version)
-                .SingleOrDefaultAsync(cancellationToken),
-        EditScopeKind.StaffAccount => await context.Users.AsNoTracking()
-            .Where(item => item.Id == recordId).Select(item => (long?)item.Version)
-            .SingleOrDefaultAsync(cancellationToken),
         _ => throw new ArgumentOutOfRangeException(nameof(scopeKind))
     };
 
@@ -379,9 +355,6 @@ public sealed class EfEditScopeStore(
     }
 
     private static string ToCode(EditScopeKind scopeKind) => scopeKind.ToString();
-
-    private static readonly Guid WorkflowConfigurationRecordId =
-        Guid.Parse("6fb87d95-8b35-41d1-8873-5fa6c7d87c50");
 
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();

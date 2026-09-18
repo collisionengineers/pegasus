@@ -994,24 +994,15 @@ public sealed class ProviderApiSubmissionTests
         await using var context = await contextFactory.CreateDbContextAsync();
         var contact = await context.Principals.AsNoTracking()
             .Where(item => item.Id == principalId)
-            .Select(item => new { item.OrganizationId, ContactVersion = item.Organization.Version })
+            .Select(item => new { ContactVersion = item.Organization.Version })
             .SingleAsync();
-        var lease = await services.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-            new(
-                EditScopeKind.Contact,
-                contact.OrganizationId,
-                contact.ContactVersion,
-                Administrator,
-                operationKey + ":scope"),
-            default);
         return new(
             principalId,
             expectedCredentialVersion,
             Administrator,
             operationKey,
             reason,
-            contact.ContactVersion,
-            lease.Token);
+            contact.ContactVersion);
     }
 
     /// <summary>

@@ -39,7 +39,7 @@ public static class EditModeDisplay
     }
 
     /// <summary>
-    /// The same disclosure for one of the non-Case records that carry an edit scope. The holder is
+    /// The same disclosure for a Triage or Image Intake record that carries an edit scope. The holder is
     /// never named as the blocker of themselves: their own live scope belongs to another window of
     /// their own session, and the sentence says so and offers the take-over that ends it.
     /// </summary>

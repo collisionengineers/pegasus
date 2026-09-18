@@ -54,12 +54,12 @@ public sealed partial class ValuationPresetAdministrationWebTests
     }
 
     /// <summary>
-    /// The table is a compact read surface with one inline add row; add and
-    /// edit both stay within the row's own columns and carry no
+    /// The table keeps every preset editable beside its status and has one
+    /// inline add row. Save and Remove have independent forms and no
     /// routine-reason field.
     /// </summary>
     [Fact]
-    public async Task ThePresetListIsReadFirstAndItsEditorHasNoRoutineReason()
+    public async Task ThePresetListRendersEditableRowsAndSeparateActionsWithoutRoutineReasons()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
@@ -70,12 +70,17 @@ public sealed partial class ValuationPresetAdministrationWebTests
         var presetList = match.Value;
 
         Assert.Contains("Tow bar", presetList, StringComparison.Ordinal);
-        Assert.Contains("£300.00", WebUtility.HtmlDecode(presetList), StringComparison.Ordinal);
-        Assert.Contains("£1,500.00", WebUtility.HtmlDecode(presetList), StringComparison.Ordinal);
-        Assert.Contains("£0.00", WebUtility.HtmlDecode(presetList), StringComparison.Ordinal);
+        Assert.Contains("value=\"300.00\"", presetList, StringComparison.Ordinal);
+        Assert.Contains("value=\"1500.00\"", presetList, StringComparison.Ordinal);
+        Assert.Contains("value=\"0.00\"", presetList, StringComparison.Ordinal);
         Assert.Contains(">Enabled<", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("<details", presetList, StringComparison.Ordinal);
-        Assert.Contains(">Edit<", presetList, StringComparison.Ordinal);
+        Assert.Contains($"preset-save-{TowBarPresetId:N}", presetList, StringComparison.Ordinal);
+        Assert.Contains($"preset-remove-{TowBarPresetId:N}", presetList, StringComparison.Ordinal);
+        Assert.Contains("name=\"label\" form=\"preset-save-", presetList, StringComparison.Ordinal);
+        Assert.Contains("name=\"amount\" type=\"number\"", presetList, StringComparison.Ordinal);
+        Assert.Contains(">Save<", presetList, StringComparison.Ordinal);
+        Assert.Contains(">Remove<", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("<th scope=\"col\">Change</th>", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("<th scope=\"col\">Save</th>", presetList, StringComparison.Ordinal);
         Assert.DoesNotContain("Reason", presetList, StringComparison.Ordinal);
@@ -147,18 +152,17 @@ public sealed partial class ValuationPresetAdministrationWebTests
 
         page = await GetPageAsync(client);
         Assert.Contains("Roof rack", page, StringComparison.Ordinal);
-        Assert.Contains(">£125.00<", WebUtility.HtmlDecode(page), StringComparison.Ordinal);
+        Assert.Contains("value=\"125.00\"", page, StringComparison.Ordinal);
 
-        var editPage = await OpenPresetEditAsync(client, TowBarPresetId, 1);
-        var edit = RowForm(editPage, TowBarPresetId, "Tow bar", "350.00", "true");
+        var edit = RowForm(page, TowBarPresetId, "Tow bar", "350.00", "true");
         using (var edited = await PostSaveAsync(client, edit))
         {
             Assert.Equal(HttpStatusCode.Found, edited.StatusCode);
         }
 
         page = await GetPageAsync(client);
-        Assert.Contains(">£350.00<", WebUtility.HtmlDecode(page), StringComparison.Ordinal);
-        Assert.DoesNotContain(">£300.00<", WebUtility.HtmlDecode(page), StringComparison.Ordinal);
+        Assert.Contains("value=\"350.00\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"300.00\"", page, StringComparison.Ordinal);
 
         // The version the first post consumed is stale on a second, freshly
         // keyed post, and the page says so rather than writing a second edit.
@@ -177,11 +181,10 @@ public sealed partial class ValuationPresetAdministrationWebTests
             Assert.Contains("value=\"350.00\"", refusedPage, StringComparison.Ordinal);
         }
 
-        var disablePage = await OpenPresetEditAsync(client, TowBarPresetId, 2);
         using (var disabled = await PostSaveAsync(
             client,
             RowForm(
-                disablePage,
+                page,
                 TowBarPresetId,
                 "Tow bar",
                 "350.00",
@@ -191,13 +194,14 @@ public sealed partial class ValuationPresetAdministrationWebTests
         }
 
         page = await GetPageAsync(client);
-        Assert.Contains(">Disabled<", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("checked=\"checked\"", ActiveInput(page, TowBarPresetId), StringComparison.Ordinal);
         Assert.Contains("Tow bar", page, StringComparison.Ordinal);
-        var enablePage = await OpenPresetEditAsync(client, TowBarPresetId, 3);
-        Assert.Contains(">Enabled<", enablePage, StringComparison.Ordinal);
         using var enabled = await PostSaveAsync(
-            client, RowForm(enablePage, TowBarPresetId, "Tow bar", "350.00", "true"));
+            client,
+            RowForm(page, TowBarPresetId, "Tow bar", "350.00", "true"));
         Assert.Equal(HttpStatusCode.Found, enabled.StatusCode);
+        page = await GetPageAsync(client);
+        Assert.Contains("checked=\"checked\"", ActiveInput(page, TowBarPresetId), StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -209,7 +213,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
-        var page = await OpenPresetEditAsync(client, TowBarPresetId, 1);
+        var page = await GetPageAsync(client);
         var operationKey = LastValue(page, OperationKeyRegex());
 
         using var response = await client.PostAsync(
@@ -240,7 +244,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
-        var page = await OpenPresetEditAsync(client, TowBarPresetId, 1);
+        var page = await GetPageAsync(client);
 
         using var response = await PostSaveAsync(
             client,
@@ -263,109 +267,9 @@ public sealed partial class ValuationPresetAdministrationWebTests
             StringComparison.Ordinal);
         var reloaded = await GetPageAsync(client);
         Assert.DoesNotContain("Updated tow bar", reloaded, StringComparison.Ordinal);
-        Assert.Contains(">Tow bar<", reloaded, StringComparison.Ordinal);
-        Assert.Contains(">£300.00<", WebUtility.HtmlDecode(reloaded), StringComparison.Ordinal);
+        Assert.Contains("value=\"Tow bar\"", reloaded, StringComparison.Ordinal);
+        Assert.Contains("value=\"300.00\"", reloaded, StringComparison.Ordinal);
     }
-
-    /// <summary>
-    /// The operator is never blocked by their own edit. A second window is
-    /// named as such and offers Take over; a window that leaves beacons its
-    /// release, after which the editor reopens with no take-over at all.
-    /// </summary>
-    [Fact]
-    public async Task AnOperatorIsNeverBlockedByTheirOwnPresetEdit()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        using var client = CreateClient(factory);
-
-        var editing = await OpenPresetEditAsync(client, TowBarPresetId, 1);
-        var firstToken = FirstValue(editing, EditLeaseTokenRegex());
-
-        // A second window while the first is still live says whose edit it is
-        // and offers the one control the holder is entitled to.
-        var second = await OpenPresetEditAsync(client, TowBarPresetId, 1);
-        Assert.Contains(
-            "You are editing this preset in another window.",
-            second,
-            StringComparison.Ordinal);
-        Assert.Contains(">Take over<", second, StringComparison.Ordinal);
-        Assert.DoesNotContain("is editing it", second, StringComparison.Ordinal);
-
-        // Taking over rotates the token, so the abandoned window's own token no
-        // longer saves. It is a post, never a followed link: taking over ends
-        // another window's claim, which a GET must never do.
-        var takenOver = await PostTakeOverAsync(client, second);
-        var secondToken = FirstValue(takenOver, EditLeaseTokenRegex());
-        Assert.NotEqual(firstToken, secondToken);
-        Assert.DoesNotContain("another window", takenOver, StringComparison.Ordinal);
-
-        // The release a leaving page beacons is idempotent and answers 204
-        // whether or not a scope was still there.
-        using (var released = await PostBeaconAsync(client, takenOver, secondToken))
-        {
-            Assert.Equal(HttpStatusCode.NoContent, released.StatusCode);
-        }
-        using (var again = await PostBeaconAsync(client, takenOver, secondToken))
-        {
-            Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
-        }
-
-        // Reopening immediately after the beacon is an ordinary claim.
-        var reopened = await OpenPresetEditAsync(client, TowBarPresetId, 1);
-        Assert.NotEqual(secondToken, FirstValue(reopened, EditLeaseTokenRegex()));
-        Assert.DoesNotContain("another window", reopened, StringComparison.Ordinal);
-        Assert.DoesNotContain(">Take over<", reopened, StringComparison.Ordinal);
-    }
-
-    /// <summary>
-    /// Posts the Take over form the page rendered for the operator's own
-    /// other window: the same fields the form carries as hidden inputs, plus
-    /// the page's antiforgery token.
-    /// </summary>
-    private static async Task<string> PostTakeOverAsync(HttpClient client, string page)
-    {
-        var form = TakeOverForm(page);
-        using var response = await client.PostAsync(
-            $"{Page}?handler=Edit",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["presetId"] = FirstValue(form, PresetIdRegex()),
-                ["expectedVersion"] = FirstValue(form, ExpectedVersionRegex()),
-                ["operationKey"] = FirstValue(form, OperationKeyRegex()),
-                ["takeOver"] = "true",
-                ["__RequestVerificationToken"] = Token(page)
-            }));
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync();
-    }
-
-    /// <summary>
-    /// The Take over form itself, found by the button text rather than by
-    /// position: it is the only form on the row offering that control.
-    /// </summary>
-    private static string TakeOverForm(string page)
-    {
-        var buttonIndex = page.IndexOf(">Take over<", StringComparison.Ordinal);
-        Assert.True(buttonIndex >= 0);
-        var formStart = page.LastIndexOf("<form", buttonIndex, StringComparison.Ordinal);
-        Assert.True(formStart >= 0);
-        var formEnd = page.IndexOf("</form>", buttonIndex, StringComparison.Ordinal);
-        Assert.True(formEnd >= 0);
-        return page[formStart..formEnd];
-    }
-
-    private static Task<HttpResponseMessage> PostBeaconAsync(
-        HttpClient client,
-        string page,
-        string editLeaseToken) =>
-        client.PostAsync(
-            $"{Page}?handler=ReleaseScopeBeacon",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["presetId"] = TowBarPresetId.ToString("D"),
-                ["editLeaseToken"] = editLeaseToken,
-                ["__RequestVerificationToken"] = Token(page)
-            }));
 
     /// <summary>
     /// The hidden add-row form's own fields, read from that form rather than
@@ -394,7 +298,7 @@ public sealed partial class ValuationPresetAdministrationWebTests
         string active)
     {
         var start = page.IndexOf(
-            $"id=\"preset-{presetId:D}\"",
+            $"id=\"preset-save-{presetId:N}\"",
             StringComparison.Ordinal);
         Assert.True(start >= 0);
         var row = page[start..page.IndexOf("</form>", start, StringComparison.Ordinal)];
@@ -402,7 +306,6 @@ public sealed partial class ValuationPresetAdministrationWebTests
         {
             ["presetId"] = FirstValue(row, PresetIdRegex()),
             ["expectedVersion"] = FirstValue(row, ExpectedVersionRegex()),
-            ["editLeaseToken"] = FirstValue(row, EditLeaseTokenRegex()),
             ["operationKey"] = FirstValue(row, OperationKeyRegex()),
             ["label"] = label,
             ["amount"] = amount,
@@ -444,20 +347,19 @@ public sealed partial class ValuationPresetAdministrationWebTests
         IReadOnlyDictionary<string, string> form) =>
         client.PostAsync($"{Page}?handler=Save", new FormUrlEncodedContent(form));
 
+    private static string ActiveInput(string page, Guid presetId)
+    {
+        var match = Regex.Match(
+            page,
+            "<input name=\"active\" type=\"checkbox\" value=\"true\" form=\"preset-save-"
+                + presetId.ToString("N") + "\"[^>]*>");
+        Assert.True(match.Success, "The preset row must render its active-state checkbox.");
+        return match.Value;
+    }
+
     private static async Task<string> GetPageAsync(HttpClient client)
     {
         using var response = await client.GetAsync(Page);
-        response.EnsureSuccessStatusCode();
-        return await response.Content.ReadAsStringAsync();
-    }
-
-    private static async Task<string> OpenPresetEditAsync(
-        HttpClient client,
-        Guid presetId,
-        long expectedVersion)
-    {
-        using var response = await client.GetAsync(
-            $"{Page}?editPresetId={presetId:D}&expectedVersion={expectedVersion}");
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync();
     }
@@ -509,7 +411,6 @@ public sealed partial class ValuationPresetAdministrationWebTests
 
     [GeneratedRegex("<input[^>]*name=\"presetId\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex PresetIdRegex();
     [GeneratedRegex("<input[^>]*name=\"expectedVersion\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex ExpectedVersionRegex();
-    [GeneratedRegex("<input[^>]*name=\"editLeaseToken\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex EditLeaseTokenRegex();
     [GeneratedRegex("<input[^>]*name=\"operationKey\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex OperationKeyRegex();
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase)] private static partial Regex AntiforgeryRegex();
     [GeneratedRegex("value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase)] private static partial Regex ValueRegex();

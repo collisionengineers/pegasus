@@ -72,22 +72,7 @@
                                 <td class="nowrap">@Model.PollStatusFor(mailbox)</td>
                                 <td><partial name="Shared/_StatusChip" model="@OperatorLabels.MailSettings.MailboxState(mailbox.State)" /></td>
                                 <td>
-                                    <form method="post" asp-page-handler="EditMailbox">
-                                        <input type="hidden" name="mailboxId" value="@mailbox.Id" />
-                                        <input type="hidden" name="expectedVersion" value="@mailbox.Version" />
-                                        @* Offered only to the operator whose own other window still
-                                           holds this mailbox policy; taking over rotates the token so
-                                           that window can no longer save. *@
-                                        @if (Model.TakeOverMailboxId == mailbox.Id)
-                                        {
-                                            <input type="hidden" name="takeOver" value="true" />
-                                            <button type="submit" class="btn btn--small btn--primary">Take over</button>
-                                        }
-                                        else
-                                        {
-                                            <button type="submit" class="btn btn--small">Settings</button>
-                                        }
-                                    </form>
+                                    <a class="btn btn--small" asp-page="./Mailboxes" asp-route-mailboxId="@mailbox.Id" asp-route-expectedVersion="@mailbox.Version">Settings</a>
                                 </td>
                             </tr>
                         }
@@ -109,7 +94,7 @@
                         <tr>
                             <th scope="col">@OperatorLabels.MailSettings.Category</th>
                             <th scope="col">@OperatorLabels.MailSettings.State</th>
-                            <th scope="col">@OperatorLabels.MailSettings.Review</th>
+                            <th scope="col"><span class="sr-only">Save</span></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -121,37 +106,23 @@
                     {
                         @foreach (var category in Model.Categories)
                         {
+                            var formId = $"category-save-{category.Id}";
                             var displayNameId = $"category-display-name-{category.Id}";
                             var stateId = $"category-state-{category.Id}";
                             <tr>
-                                <td><strong>@category.DisplayName</strong></td>
-                                <td><partial name="Shared/_StatusChip" model="@OperatorLabels.MailSettings.CategoryState(category.State)" /></td>
                                 <td>
-                                    <details>
-                                        <summary class="btn btn--small">@OperatorLabels.MailSettings.Review</summary>
-                                        <form method="post" asp-page-handler="SaveCategory" class="stack section-gap">
-                                            <input type="hidden" name="CategoryForm.CategoryId" value="@category.Id" />
-                                            <input type="hidden" name="CategoryForm.ExpectedVersion" value="@category.Version" />
-                                            <input type="hidden" name="CategoryForm.OperationKey" value="@Model.CategoryOperationKeyFor(category)" />
-                                            <input type="hidden" name="CategoryForm.EditLeaseToken" value="@Model.CategoryEditLeaseTokenFor(category)" />
-                                            <div class="field"><label class="req" for="@displayNameId">@OperatorLabels.MailSettings.DisplayName</label><input id="@displayNameId" name="CategoryForm.DisplayName" value="@Model.CategoryDisplayNameFor(category)" required maxlength="255" /></div>
-                                            <div class="field"><label for="@stateId">@OperatorLabels.MailSettings.State</label><select id="@stateId" name="CategoryForm.SelectedState"><option value="Active" selected="@Model.IsCategoryStateSelected(category, ApprovedOutlookCategoryState.Active)">@OperatorLabels.MailSettings.CategoryState(ApprovedOutlookCategoryState.Active)</option><option value="Disabled" selected="@Model.IsCategoryStateSelected(category, ApprovedOutlookCategoryState.Disabled)">@OperatorLabels.MailSettings.CategoryState(ApprovedOutlookCategoryState.Disabled)</option></select></div>
-                                            <button type="submit" class="btn btn--dark" disabled="@(!Model.IsEditingCategory(category))">@OperatorLabels.MailSettings.SaveCategory</button>
-                                        </form>
-                                        @if (!Model.IsEditingCategory(category))
-                                        {
-                                            @* A take-over is offered only to the operator whose own other window still holds this category; it rotates the token so that window can no longer save. *@
-                                            <form method="post" asp-page-handler="EditCategory"><input type="hidden" name="categoryId" value="@category.Id" /><input type="hidden" name="expectedVersion" value="@category.Version" />@if (Model.TakeOverCategoryId == category.Id) { <input type="hidden" name="takeOver" value="true" /><button type="submit" class="btn btn--small btn--primary">Take over</button> } else { <button type="submit" class="btn btn--small">Edit category</button> }</form>
-                                        }
-                                        else
-                                        {
-                                            <form method="post" asp-page-handler="CancelCategoryEdit"><input type="hidden" name="categoryId" value="@category.Id" /><input type="hidden" name="editLeaseToken" value="@Model.CategoryEditLeaseTokenFor(category)" /><button type="submit" class="btn btn--small">Cancel</button></form>
-                                            <form method="post" asp-page-handler="HeartbeatCategoryEdit" data-edit-heartbeat data-edit-heartbeat-status="category-edit-heartbeat-@category.Id" hidden><input type="hidden" name="categoryId" value="@category.Id" /><input type="hidden" name="editLeaseToken" value="@Model.CategoryEditLeaseTokenFor(category)" /></form>
-                                            @* Beaconed as the page unloads so an operator who navigates away is not refused by their own lease when they come back. *@
-                                            <form method="post" asp-page-handler="ReleaseCategoryScopeBeacon" data-edit-scope-release hidden><input type="hidden" name="categoryId" value="@category.Id" /><input type="hidden" name="editLeaseToken" value="@Model.CategoryEditLeaseTokenFor(category)" /></form>
-                                            <p id="category-edit-heartbeat-@category.Id" class="notice notice--error" role="alert" hidden></p>
-                                        }
-                                    </details>
+                                    <form id="@formId" method="post" asp-page-handler="SaveCategory"></form>
+                                    <input form="@formId" type="hidden" name="CategoryForm.CategoryId" value="@category.Id" />
+                                    <input form="@formId" type="hidden" name="CategoryForm.ExpectedVersion" value="@Model.ExpectedCategoryVersionFor(category)" />
+                                    <input form="@formId" type="hidden" name="CategoryForm.OperationKey" value="@Model.CategoryOperationKeyFor(category)" />
+                                    <div class="field"><label class="sr-only" for="@displayNameId">@OperatorLabels.MailSettings.DisplayName</label><input form="@formId" id="@displayNameId" name="CategoryForm.DisplayName" value="@Model.CategoryDisplayNameFor(category)" required maxlength="255" /></div>
+                                </td>
+                                <td>
+                                    <div class="field"><label class="sr-only" for="@stateId">@OperatorLabels.MailSettings.State</label><select form="@formId" id="@stateId" name="CategoryForm.SelectedState"><option value="Active" selected="@Model.IsCategoryStateSelected(category, ApprovedOutlookCategoryState.Active)">@OperatorLabels.MailSettings.CategoryState(ApprovedOutlookCategoryState.Active)</option><option value="Disabled" selected="@Model.IsCategoryStateSelected(category, ApprovedOutlookCategoryState.Disabled)">@OperatorLabels.MailSettings.CategoryState(ApprovedOutlookCategoryState.Disabled)</option></select></div>
+                                </td>
+                                <td class="cluster">
+                                    <button form="@formId" type="submit" class="btn btn--small btn--dark">@OperatorLabels.MailSettings.SaveCategory</button>
+                                    <button form="@formId" type="reset" class="btn btn--small">Reset</button>
                                 </td>
                             </tr>
                         }
@@ -179,19 +150,16 @@
 </div>
 
 <div class="dialog-backdrop" data-dialog="default-sender-dialog"
-     data-dialog-cancel-form="@(Model.IsEditingDefaultMailbox ? "default-sender-form" : null)"
      data-dialog-open-on-load="@(defaultEditorOpen ? "true" : null)"
      hidden="@(defaultEditorOpen ? null : "hidden")">
     <section class="dialog dialog--compact" role="dialog" aria-modal="true" aria-labelledby="default-sender-dialog-title">
-        <form id="default-sender-form" method="post" asp-page-handler="CancelDefaultEdit">
-            <div class="dialog-head"><h2 id="default-sender-dialog-title" tabindex="-1">Default sender</h2>@if (Model.IsEditingDefaultMailbox) { <button type="submit" class="dialog-close" aria-label="Close dialog">×</button> } else { <button type="button" class="dialog-close" data-dialog-close aria-label="Close dialog">×</button> }</div>
+        <form id="default-sender-form" method="post" asp-page-handler="SetDefault">
+            <div class="dialog-head"><h2 id="default-sender-dialog-title" tabindex="-1">Default sender</h2><button type="reset" class="dialog-close" data-dialog-close aria-label="Close dialog">×</button></div>
             <div class="dialog-body">
                 <partial name="Shared/_ErrorSummary" />
-                <input type="hidden" name="DefaultMailboxForm.ExpectedPreviousDefaultMailboxId" value="@currentDefault?.Id" />
-                <input type="hidden" name="DefaultMailboxForm.ExpectedPreviousDefaultMailboxVersion" value="@currentDefault?.Version" />
+                <input type="hidden" name="DefaultMailboxForm.ExpectedPreviousDefaultMailboxId" value="@Model.ExpectedPreviousDefaultMailboxIdFor(currentDefault)" />
+                <input type="hidden" name="DefaultMailboxForm.ExpectedPreviousDefaultMailboxVersion" value="@Model.ExpectedPreviousDefaultMailboxVersionFor(currentDefault)" />
                 <input type="hidden" name="DefaultMailboxForm.OperationKey" value="@Model.DefaultMailboxOperationKey" />
-                <input type="hidden" name="DefaultMailboxForm.EditLeaseToken" value="@Model.DefaultMailboxForm?.EditLeaseToken" />
-                @if (Model.IsEditingDefaultMailbox) { <input type="hidden" name="mailboxId" value="@Model.DefaultEditingMailboxId" /> <input type="hidden" name="editLeaseToken" value="@Model.DefaultMailboxForm?.EditLeaseToken" /> }
                 @if (Model.EligibleDefaultStaffSendMailboxes.Count == 0)
                 {
                     <p>No eligible staff-send mailbox is available to select.</p>
@@ -202,43 +170,12 @@
                 }
             </div>
             <div class="dialog-foot">
-                @if (Model.IsEditingDefaultMailbox)
-                {
-                    <button type="submit" class="btn">Cancel</button><button type="submit" class="btn btn--primary" formaction="@Url.Page(null, "SetDefault")" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)">Save</button>
-                }
-                else
-                {
-                    @* A take-over is offered only when the default-sender dialog's own refusal named exactly the mailbox this dialog currently has selected; it rotates the token so that window can no longer save. *@
-                    <button type="button" class="btn" data-dialog-close>Cancel</button>
-                    if (Model.TakeOverDefaultMailboxId != Guid.Empty && Model.TakeOverDefaultMailboxId == Model.DefaultEditingMailboxId)
-                    {
-                        <input type="hidden" name="takeOver" value="true" />
-                        <button type="submit" class="btn btn--primary" formaction="@Url.Page(null, "EditDefault")" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)">Take over</button>
-                    }
-                    else
-                    {
-                        <button type="submit" class="btn btn--primary" formaction="@Url.Page(null, "EditDefault")" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)">Continue</button>
-                    }
-                }
+                <button type="reset" class="btn" data-dialog-close>Cancel</button>
+                <button type="submit" class="btn btn--primary" disabled="@(Model.EligibleDefaultStaffSendMailboxes.Count == 0)">Save</button>
             </div>
         </form>
     </section>
 </div>
-
-@if (Model.IsEditingDefaultMailbox)
-{
-    <form method="post" asp-page-handler="HeartbeatMailboxEdit" data-edit-heartbeat data-edit-heartbeat-status="default-mailbox-edit-heartbeat-status" hidden>
-        <input type="hidden" name="mailboxId" value="@Model.DefaultEditingMailboxId" />
-        <input type="hidden" name="editLeaseToken" value="@Model.DefaultMailboxForm?.EditLeaseToken" />
-    </form>
-    @* Beaconed as the page unloads so an operator who navigates away is not
-       refused by their own lease when they come back. *@
-    <form method="post" asp-page-handler="ReleaseMailboxScopeBeacon" data-edit-scope-release hidden>
-        <input type="hidden" name="mailboxId" value="@Model.DefaultEditingMailboxId" />
-        <input type="hidden" name="editLeaseToken" value="@Model.DefaultMailboxForm?.EditLeaseToken" />
-    </form>
-    <p id="default-mailbox-edit-heartbeat-status" class="notice notice--error" role="alert" hidden></p>
-}
 
 <div class="dialog-backdrop" data-dialog="new-mailbox-dialog"
      data-dialog-open-on-load="@(Model.IsNewMailboxEditorOpen ? "true" : null)"
@@ -264,28 +201,20 @@
     var addressId = $"mailbox-address-{mailbox.Id}";
     var stateId = $"mailbox-state-{mailbox.Id}";
     var dialogId = $"mailbox-settings-{mailbox.Id}";
-    <div class="dialog-backdrop" data-dialog="@dialogId" data-dialog-cancel-form="mailbox-settings-form-@mailbox.Id" data-dialog-open-on-load="true">
+    <div class="dialog-backdrop" data-dialog="@dialogId" data-dialog-open-on-load="true">
         <section class="dialog dialog--contact" role="dialog" aria-modal="true" aria-labelledby="@dialogId-title">
-            <form id="mailbox-settings-form-@mailbox.Id" method="post" asp-page-handler="CancelMailboxEdit" data-edit-heartbeat data-edit-heartbeat-url="?handler=HeartbeatMailboxEdit" data-edit-heartbeat-status="mailbox-edit-heartbeat-@mailbox.Id">
-                <div class="dialog-head"><h2 id="@dialogId-title" tabindex="-1">Mailbox settings</h2><button type="submit" class="dialog-close" aria-label="Close dialog">×</button></div>
+            <form id="mailbox-settings-form-@mailbox.Id" method="post" asp-page-handler="Update">
+                <div class="dialog-head"><h2 id="@dialogId-title" tabindex="-1">Mailbox settings</h2><button type="reset" class="dialog-close" data-dialog-close aria-label="Close dialog">×</button></div>
                 <div class="dialog-body stack">
                     <partial name="Shared/_ErrorSummary" />
-                    <input type="hidden" name="mailboxId" value="@mailbox.Id" /><input type="hidden" name="editLeaseToken" value="@Model.EditLeaseTokenFor(mailbox)" />
-                    <input type="hidden" name="MailboxForm.MailboxId" value="@mailbox.Id" /><input type="hidden" name="MailboxForm.ExpectedVersion" value="@mailbox.Version" /><input type="hidden" name="MailboxForm.OperationKey" value="@Model.OperationKeyFor(mailbox)" /><input type="hidden" name="MailboxForm.EditLeaseToken" value="@Model.EditLeaseTokenFor(mailbox)" />
+                    <input type="hidden" name="MailboxForm.MailboxId" value="@mailbox.Id" /><input type="hidden" name="MailboxForm.ExpectedVersion" value="@Model.ExpectedVersionFor(mailbox)" /><input type="hidden" name="MailboxForm.OperationKey" value="@Model.OperationKeyFor(mailbox)" />
                     <div class="field"><label class="req" for="@addressId">@OperatorLabels.MailSettings.ApprovedAddress</label><input id="@addressId" name="MailboxForm.Address" value="@Model.AddressFor(mailbox)" required maxlength="320" inputmode="email" readonly="@(mailbox.IdentityIsBound && mailbox.State != ApprovedMailboxState.Disabled)" /></div>
                     <fieldset class="stack"><legend>@OperatorLabels.MailSettings.RouteScope</legend><label class="cluster"><input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="InboundIntake" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.InboundIntake)" /><span>@OperatorLabels.RouteScope(ApprovedMailboxRouteScope.InboundIntake)</span></label><label class="cluster"><input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="SentEvidence" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.SentEvidence)" /><span>@OperatorLabels.RouteScope(ApprovedMailboxRouteScope.SentEvidence)</span></label><label class="cluster"><input type="checkbox" name="MailboxForm.SelectedRouteScopes" value="StaffSend" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.StaffSend)" /><span>Staff send</span></label></fieldset>
                     <div class="form-grid form-grid--2"><div class="field"><label for="mailbox-send-limit-@mailbox.Id">Verified encoded-message size limit (bytes)</label><input id="mailbox-send-limit-@mailbox.Id" name="MailboxForm.VerifiedEncodedMessageSizeLimit" value="@Model.VerifiedSendLimitFor(mailbox)" type="number" min="1" step="1" /></div><div class="field"><label for="@stateId">@OperatorLabels.MailSettings.State</label><select id="@stateId" name="MailboxForm.SelectedState"><option value="Approved" selected="@Model.IsStateSelected(mailbox, ApprovedMailboxState.Approved)">@OperatorLabels.MailSettings.MailboxState(ApprovedMailboxState.Approved)</option><option value="Disabled" selected="@Model.IsStateSelected(mailbox, ApprovedMailboxState.Disabled)">@OperatorLabels.MailSettings.MailboxState(ApprovedMailboxState.Disabled)</option></select></div></div>
                     <section class="contact-section" aria-labelledby="@dialogId-access"><h3 id="@dialogId-access">Access and polling</h3><dl class="definition-list"><div class="definition"><dt>Activation</dt><dd>@OperatorLabels.OfficeTime(mailbox.ActivatedAtUtc, OperatorLabels.MailSettings.NotActivated)</dd></div><div class="definition"><dt>Subscription</dt><dd>@Model.SubscriptionStatusFor(mailbox)</dd></div>@if (Model.PollStatusForMailbox(mailbox) is { } poll) { <div class="definition"><dt>Last success</dt><dd>@OperatorLabels.OfficeTime(poll.LastCompletedAtUtc, "Not yet polled")</dd></div><div class="definition"><dt>Freshness</dt><dd>@Model.PollFreshnessFor(poll)</dd></div><div class="definition"><dt>Last error</dt><dd>@(poll.LastFailureCode ?? "None")</dd></div> }</dl></section>
                     <section class="contact-section" aria-labelledby="@dialogId-folders"><h3 id="@dialogId-folders">Logical folders</h3><dl class="definition-list">@foreach (var folder in MailLogicalFolders.All) { var configured = mailbox.FolderBindings.Any(item => item.FolderType == folder.Type); <div class="definition"><dt>@folder.Label</dt><dd>@OperatorLabels.MailSettings.FolderState(configured)</dd></div> }</dl></section>
                 </div>
-                <div class="dialog-foot"><button type="submit" class="btn">Cancel</button>@if (mailbox.IdentityIsBound) { <button type="submit" class="btn" formaction="@Url.Page(null, "ResolveFolders")">@OperatorLabels.MailSettings.Refresh</button> }<button type="submit" class="btn btn--primary" formaction="@Url.Page(null, "Update")">@OperatorLabels.MailSettings.SaveMailbox</button></div>
-            </form>
-            <p id="mailbox-edit-heartbeat-@mailbox.Id" class="notice notice--error" role="alert" hidden></p>
-            @* Beaconed as the page unloads so an operator who navigates away is
-               not refused by their own lease when they come back. *@
-            <form method="post" asp-page-handler="ReleaseMailboxScopeBeacon" data-edit-scope-release hidden>
-                <input type="hidden" name="mailboxId" value="@mailbox.Id" />
-                <input type="hidden" name="editLeaseToken" value="@Model.EditLeaseTokenFor(mailbox)" />
+                <div class="dialog-foot"><button type="reset" class="btn" data-dialog-close>Cancel</button>@if (mailbox.IdentityIsBound) { <button type="submit" class="btn" formaction="@Url.Page(null, "ResolveFolders")">@OperatorLabels.MailSettings.Refresh</button> }<button type="submit" class="btn btn--primary" formaction="@Url.Page(null, "Update")">@OperatorLabels.MailSettings.SaveMailbox</button></div>
             </form>
         </section>
     </div>

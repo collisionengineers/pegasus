@@ -1,4 +1,3 @@
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Identity;
 
@@ -84,8 +83,7 @@ public sealed record DisableStaffAccountRequest(
     Guid StaffId,
     string? Reason,
     string OperationKey,
-    long ExpectedVersion = 0,
-    string EditLeaseToken = "");
+    long ExpectedVersion = 0);
 
 public sealed record DisableStaffAccountResult(
     StaffAccountSummary Account,
@@ -104,7 +102,6 @@ public sealed record UpdateStaffAccountSettingsRequest(
     bool IsDefaultSignOffEngineer,
     string OperationKey,
     long ExpectedVersion,
-    string EditLeaseToken,
     string? Reason = null);
 
 public sealed record UpdateStaffAccountSettingsResult(
@@ -118,8 +115,7 @@ public sealed record EnableStaffAccountRequest(
     Guid StaffId,
     string? Reason,
     string OperationKey,
-    long ExpectedVersion = 0,
-    string EditLeaseToken = "");
+    long ExpectedVersion = 0);
 
 public sealed record EnableStaffAccountResult(
     StaffAccountSummary Account,
@@ -130,8 +126,7 @@ public sealed record ForceStaffLogoutRequest(
     Guid StaffId,
     string? Reason,
     string OperationKey,
-    long ExpectedVersion = 0,
-    string EditLeaseToken = "");
+    long ExpectedVersion = 0);
 
 public sealed record ForceStaffLogoutResult(
     Guid StaffId,
@@ -144,8 +139,7 @@ public sealed record ResetStaffPasswordRequest(
     Guid StaffId,
     string? Reason,
     string OperationKey,
-    long ExpectedVersion = 0,
-    string EditLeaseToken = "");
+    long ExpectedVersion = 0);
 
 public sealed class ResetStaffPasswordResult(
     Guid staffId,
@@ -167,8 +161,7 @@ public sealed record DeleteStaffAccountRequest(
     Guid StaffId,
     string? Reason,
     string OperationKey,
-    long ExpectedVersion = 0,
-    string EditLeaseToken = "");
+    long ExpectedVersion = 0);
 
 public sealed record DeleteStaffAccountResult(
     Guid StaffId,
@@ -595,6 +588,7 @@ public static class StaffAccountAdministrationPolicy
         RequireAdministrator(request.Actor, StaffAccessRight.ManageStaffAccounts);
         RequireStaffId(request.StaffId);
         RequireDifferentStaffAccount(request.Actor, request.StaffId);
+        RequireExpectedVersion(request.ExpectedVersion);
         var normalized = request with
         {
             Reason = NormalizeOptionalText(
@@ -606,8 +600,7 @@ public static class StaffAccountAdministrationPolicy
                 MaximumOperationKeyLength,
                 nameof(request.OperationKey))
         };
-        return NormalizeEditScope(normalized, normalized.ExpectedVersion, normalized.EditLeaseToken,
-            (version, token) => normalized with { ExpectedVersion = version, EditLeaseToken = token });
+        return normalized;
     }
 
     public static UpdateStaffAccountSettingsRequest Normalize(UpdateStaffAccountSettingsRequest request)
@@ -665,17 +658,12 @@ public static class StaffAccountAdministrationPolicy
                 request.OperationKey,
                 MaximumOperationKeyLength,
                 nameof(request.OperationKey)),
-            EditLeaseToken = NormalizeRequiredText(
-                request.EditLeaseToken,
-                CaseEditAuthority.LeaseTokenLength,
-                nameof(request.EditLeaseToken)),
             Reason = NormalizeOptionalText(
                 request.Reason,
                 MaximumReasonLength,
                 nameof(request.Reason))
         };
-        return NormalizeEditScope(normalized, normalized.ExpectedVersion, normalized.EditLeaseToken,
-            (version, token) => normalized with { ExpectedVersion = version, EditLeaseToken = token });
+        return normalized;
     }
 
     public static EnableStaffAccountRequest Normalize(EnableStaffAccountRequest request)
@@ -683,6 +671,7 @@ public static class StaffAccountAdministrationPolicy
         ArgumentNullException.ThrowIfNull(request);
         RequireAdministrator(request.Actor, StaffAccessRight.ManageStaffAccounts);
         RequireStaffId(request.StaffId);
+        RequireExpectedVersion(request.ExpectedVersion);
         var normalized = request with
         {
             Reason = NormalizeOptionalText(
@@ -694,8 +683,7 @@ public static class StaffAccountAdministrationPolicy
                 MaximumOperationKeyLength,
                 nameof(request.OperationKey))
         };
-        return NormalizeEditScope(normalized, normalized.ExpectedVersion, normalized.EditLeaseToken,
-            (version, token) => normalized with { ExpectedVersion = version, EditLeaseToken = token });
+        return normalized;
     }
 
     public static ForceStaffLogoutRequest Normalize(ForceStaffLogoutRequest request)
@@ -711,8 +699,8 @@ public static class StaffAccountAdministrationPolicy
             Reason = reason,
             OperationKey = operationKey
         });
-        return NormalizeEditScope(normalized, normalized.ExpectedVersion, normalized.EditLeaseToken,
-            (version, token) => normalized with { ExpectedVersion = version, EditLeaseToken = token });
+        RequireExpectedVersion(normalized.ExpectedVersion);
+        return normalized;
     }
 
     public static ResetStaffPasswordRequest Normalize(ResetStaffPasswordRequest request)
@@ -728,8 +716,8 @@ public static class StaffAccountAdministrationPolicy
             Reason = reason,
             OperationKey = operationKey
         });
-        return NormalizeEditScope(normalized, normalized.ExpectedVersion, normalized.EditLeaseToken,
-            (version, token) => normalized with { ExpectedVersion = version, EditLeaseToken = token });
+        RequireExpectedVersion(normalized.ExpectedVersion);
+        return normalized;
     }
 
     public static DeleteStaffAccountRequest Normalize(DeleteStaffAccountRequest request)
@@ -745,28 +733,13 @@ public static class StaffAccountAdministrationPolicy
             Reason = reason,
             OperationKey = operationKey
         });
-        return NormalizeEditScope(normalized, normalized.ExpectedVersion, normalized.EditLeaseToken,
-            (version, token) => normalized with { ExpectedVersion = version, EditLeaseToken = token });
+        RequireExpectedVersion(normalized.ExpectedVersion);
+        return normalized;
     }
 
-
-    private static T NormalizeEditScope<T>(
-        T request,
-        long expectedVersion,
-        string? leaseToken,
-        Func<long, string, T> apply)
+    private static void RequireExpectedVersion(long expectedVersion)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(expectedVersion);
-        var token = NormalizeRequiredText(
-            leaseToken ?? string.Empty,
-            CaseEditAuthority.LeaseTokenLength,
-            nameof(leaseToken));
-        if (token.Length != CaseEditAuthority.LeaseTokenLength)
-        {
-            throw new ArgumentException("The account edit session is invalid.", nameof(leaseToken));
-        }
-
-        return apply(expectedVersion, token);
     }
 
     internal static void ValidateTemporaryPassword(string value, string parameterName)
@@ -877,6 +850,7 @@ public enum StaffAccountAdministrationError
     AssignedToOpenCases,
     SelfAction,
     OperationConflict,
+    StaleVersion,
     SignOffEngineerRequiresEngineerRole,
     SignOffPrintedNameRequired,
     IneligibleSignOffEngineer

@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Workflow;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Presentation;
 
@@ -22,15 +21,13 @@ namespace Pegasus.Web.Pages.Administration.Glass;
 /// submitted password is dropped from <see cref="Microsoft.AspNetCore.Mvc.RazorPages.PageModel.ModelState"/>
 /// as soon as it has been read for the same reason.
 ///
-/// An existing staff-account scope owns credential changes. The credential
-/// keeps its own version as well, so both the account and credential cannot
-/// change beneath an edit.
+/// Both the staff account and credential retain independent expected-version
+/// checks, so either change is rejected if it becomes stale.
 /// </remarks>
 [Authorize(Policy = StaffRoleNames.Administrator)]
 public sealed class IndexModel(
     IGetStaffAccount getStaffAccount,
-    IPerUserExternalCredentialAdministration credentials,
-    IEditScopeLeases editScopes) : AdministrationPageModel
+    IPerUserExternalCredentialAdministration credentials) : AdministrationPageModel
 {
     private const ExternalCredentialProvider Provider =
         ExternalCredentialProvider.GlassRepairEstimate;
@@ -52,21 +49,6 @@ public sealed class IndexModel(
 
     [BindProperty]
     public long ExpectedStaffAccountVersion { get; set; }
-
-    [BindProperty]
-    public string EditLeaseToken { get; set; } = string.Empty;
-
-    public bool IsEditing => !string.IsNullOrWhiteSpace(EditLeaseToken);
-
-    /// <summary>
-    /// Set when this operator's own other window still holds the staff-account
-    /// scope: the page offers Take over rather than the ordinary "another
-    /// user" wording, which would misname the operator's own second window.
-    /// </summary>
-    public bool CanTakeOverEdit { get; private set; }
-
-    /// <summary>The record as the operator reading an ownership sentence names it.</summary>
-    private const string RecordName = "staff account";
 
     /// <summary>The chip's word for the stored credential's state.</summary>
     public string StateName => Status is not { Configured: true }
@@ -103,7 +85,6 @@ public sealed class IndexModel(
                     Provider,
                     ExpectedVersion,
                     ExpectedStaffAccountVersion,
-                    EditLeaseToken,
                     Username,
                     password!,
                     enabled: true,
@@ -126,144 +107,11 @@ public sealed class IndexModel(
                     Provider,
                     ExpectedVersion,
                     ExpectedStaffAccountVersion,
-                    EditLeaseToken,
                     token);
                 return CaseWorkspaceLabels.GlassCredential.Cleared;
             },
             cancellationToken);
 
-    public async Task<IActionResult> OnPostEditAsync(
-        Guid staffId,
-        long expectedStaffAccountVersion,
-        string? operationKey,
-        bool takeOver,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (staffId == Guid.Empty || !IsOperationKeyValid(operationKey)) return BadRequest();
-
-        var result = await getStaffAccount.ExecuteAsync(new(actor, staffId), cancellationToken);
-        if (result is null) return NotFound();
-        if (result.Account.Version != expectedStaffAccountVersion)
-        {
-            ModelState.AddModelError(string.Empty, "The staff account changed. Reload it before editing this credential.");
-            return await LoadAsync(actor, staffId, cancellationToken) ? Page() : NotFound();
-        }
-
-        try
-        {
-            var lease = await editScopes.ClaimAsync(
-                new(EditScopeKind.StaffAccount, staffId, result.Account.Version, actor, operationKey!)
-                {
-                    TakeOver = takeOver
-                },
-                cancellationToken);
-            EditLeaseToken = lease.Token;
-            ExpectedStaffAccountVersion = result.Account.Version;
-        }
-        // Checked before the base EditScopeConflictException, which this type
-        // derives from: the operator's own live other window is never told
-        // "another user" is editing, only offered the take-over that is
-        // theirs to make.
-        catch (EditScopeHeldElsewhereException)
-        {
-            CanTakeOverEdit = true;
-            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
-        }
-        catch (EditScopeConflictException)
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                EditModeDisplay.HeldBy(RecordName, CaseEditAuthorityHolder.Unnamed, isSelf: false));
-        }
-        catch (EditScopeVersionConflictException)
-        {
-            ModelState.AddModelError(string.Empty, "The staff account changed. Reload it before editing this credential.");
-        }
-
-        return await LoadAsync(actor, staffId, cancellationToken) ? Page() : NotFound();
-    }
-
-    /// <summary>
-    /// The release a leaving page beacons. It is not an operator action: it
-    /// answers 204 whether or not a scope was still there to release, so a
-    /// duplicate beacon and a beacon that lost a race with Cancel are both
-    /// ordinary outcomes. Antiforgery is validated as it is for every post.
-    /// </summary>
-    public async Task<IActionResult> OnPostReleaseScopeBeaconAsync(
-        Guid staffId,
-        string? editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (staffId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken)) return new NoContentResult();
-        try
-        {
-            await editScopes.ReleaseAsync(
-                new(EditScopeKind.StaffAccount, staffId, actor, NewOperationKey(), editLeaseToken),
-                cancellationToken);
-        }
-        catch (Exception exception)
-            when (exception is EditScopeExpiredException or EditScopeConflictException)
-        {
-            // The scope has already gone or has already been re-claimed by a
-            // newer window of this operator's own session.
-        }
-        return new NoContentResult();
-    }
-
-    public async Task<IActionResult> OnPostCancelEditAsync(
-        Guid staffId,
-        string? editLeaseToken,
-        string? operationKey,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (staffId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken)
-            || !IsOperationKeyValid(operationKey)) return RedirectToPage(new { staffId });
-
-        try
-        {
-            await editScopes.ReleaseAsync(
-                new(EditScopeKind.StaffAccount, staffId, actor, operationKey!, editLeaseToken),
-                cancellationToken);
-        }
-        catch (Exception exception) when (exception is EditScopeExpiredException or EditScopeConflictException)
-        {
-        }
-
-        return RedirectToPage(new { staffId });
-    }
-
-    public async Task<IActionResult> OnPostHeartbeatEditAsync(
-        Guid staffId,
-        string? editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (staffId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
-        {
-            return new ConflictObjectResult("Editing this staff account has ended. Reload it before making further changes.");
-        }
-
-        try
-        {
-            await editScopes.HeartbeatAsync(
-                new(EditScopeKind.StaffAccount, staffId, actor, editLeaseToken), cancellationToken);
-            return new OkResult();
-        }
-        catch (Exception exception) when (exception is EditScopeExpiredException or EditScopeConflictException)
-        {
-            return new ConflictObjectResult("Editing this staff account has ended. Reload it before making further changes.");
-        }
-    }
-
-    /// <summary>
-    /// The one place an operation is authorised, run, turned into an operator
-    /// message and followed by a reload. Expected version and edit-scope
-    /// refusals are actionable; other failures propagate instead of being
-    /// reported as something the operator could simply retry.
-    /// </summary>
     private async Task<IActionResult> RunAsync(
         Guid staffId,
         Func<ActionActor, CancellationToken, Task<string?>> operation,
@@ -274,6 +122,8 @@ public sealed class IndexModel(
             return Forbid();
         }
 
+        var submittedCredentialVersion = ExpectedVersion;
+        var submittedAccountVersion = ExpectedStaffAccountVersion;
         try
         {
             var confirmation = await operation(actor, cancellationToken);
@@ -297,22 +147,16 @@ public sealed class IndexModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                CaseWorkspaceLabels.GlassCredential.StaleVersion);
-        }
-        catch (EditScopeConflictException)
-        {
-            ModelState.AddModelError(string.Empty, "Another user is editing this staff account.");
-        }
-        catch (EditScopeExpiredException)
-        {
-            ModelState.AddModelError(string.Empty, "Your edit session expired. Reload the credential before making further changes.");
-        }
-        catch (EditScopeVersionConflictException)
-        {
-            ModelState.AddModelError(string.Empty, "The staff account changed. Reload the credential before making further changes.");
+                "The staff account or Glass's credential changed. Reload this page before trying again.");
         }
 
-        return await LoadAsync(actor, staffId, cancellationToken) ? Page() : NotFound();
+        if (!await LoadAsync(actor, staffId, cancellationToken)) return NotFound();
+        if (string.Equals(Request.Method, "POST", StringComparison.OrdinalIgnoreCase))
+        {
+            ExpectedVersion = submittedCredentialVersion;
+            ExpectedStaffAccountVersion = submittedAccountVersion;
+        }
+        return Page();
     }
 
     private bool ValidateCredential(string? username, string? password)

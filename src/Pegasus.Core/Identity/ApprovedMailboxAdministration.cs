@@ -48,11 +48,7 @@ public sealed record UpdateApprovedMailboxRequest(
     string? InboxFolderIdentity = null,
     string? SentFolderIdentity = null,
     IReadOnlyCollection<ApprovedMailboxFolderBinding>? FolderBindings = null,
-    long? VerifiedEncodedMessageSizeLimit = null)
-{
-    /// <summary>Required when changing an existing mailbox; creation has no scope.</summary>
-    public string EditLeaseToken { get; init; } = string.Empty;
-}
+    long? VerifiedEncodedMessageSizeLimit = null);
 
 public sealed record SetDefaultApprovedMailboxRequest(
     Guid MailboxId,
@@ -60,11 +56,7 @@ public sealed record SetDefaultApprovedMailboxRequest(
     Guid? ExpectedPreviousDefaultMailboxId,
     int? ExpectedPreviousDefaultMailboxVersion,
     ActionActor Actor,
-    string OperationKey)
-{
-    /// <summary>Ownership of the selected mailbox, required for this change.</summary>
-    public string EditLeaseToken { get; init; } = string.Empty;
-}
+    string OperationKey);
 
 /// <summary>
 /// One mailbox the approved estate says inbound-intake polling may read, with the

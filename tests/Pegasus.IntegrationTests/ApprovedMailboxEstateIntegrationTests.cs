@@ -354,19 +354,10 @@ public sealed class ApprovedMailboxEstateIntegrationTests
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var command = scope.ServiceProvider.GetRequiredService<UpdateApprovedMailbox>();
         var mailboxes = scope.ServiceProvider.GetRequiredService<ListApprovedMailboxes>();
-        var editScopes = scope.ServiceProvider.GetRequiredService<IEditScopeLeases>();
         async Task SetStateAsync(ApprovedMailboxState state, string operationKey)
         {
             var current = (await mailboxes.ExecuteAsync(actor, CancellationToken.None))
                 .Single(item => item.Id == mailboxId);
-            var lease = await editScopes.ClaimAsync(
-                new(
-                    EditScopeKind.ApprovedMailbox,
-                    current.Id,
-                    current.Version,
-                    actor,
-                    $"{operationKey}-edit"),
-                CancellationToken.None);
             await command.ExecuteAsync(
                 new(
                     current.Id,
@@ -380,10 +371,7 @@ public sealed class ApprovedMailboxEstateIntegrationTests
                     current.InboxFolderIdentity,
                     current.SentFolderIdentity,
                     current.FolderBindings,
-                    current.VerifiedEncodedMessageSizeLimit)
-                {
-                    EditLeaseToken = lease.Token
-                },
+                    current.VerifiedEncodedMessageSizeLimit),
                 CancellationToken.None);
         }
 
