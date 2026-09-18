@@ -1,4 +1,4 @@
-// Bouncing a Glass's return through Pegasus's own origin (CASE-047 B04).
+// Bouncing a Glass's return through Pegasus's own origin.
 //
 // The provider navigates this window to the return address from its own
 // site, and the staff cookie is SameSite=Strict, so that first arrival

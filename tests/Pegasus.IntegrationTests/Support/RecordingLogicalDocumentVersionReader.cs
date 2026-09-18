@@ -21,7 +21,7 @@ internal sealed record RetainedLogicalSource(
 /// <summary>
 /// A C-owned test double for <see cref="IReadLogicalDocumentVersion"/>, the port
 /// <c>ProcessQueuedIntake</c> now requires to re-read a retained source after
-/// its staged copy is deleted (Stream A's INTK-027 correction).
+/// its staged copy is deleted (Stream A's durable-intake correction).
 ///
 /// Standalone C composes no concrete reader: A04's adapters are A-owned and are
 /// supplied by the combined host. So this double is qualified boundary proof and

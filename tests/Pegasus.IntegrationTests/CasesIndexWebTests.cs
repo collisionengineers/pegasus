@@ -408,7 +408,7 @@ public sealed class CasesIndexWebTests
     {
         public Guid CaseId { get; } = Guid.NewGuid();
 
-        /// <summary>A second result in a D3 terminal state, with the CASE-026 projection fields.</summary>
+        /// <summary>A second result in a D3 terminal state, with the search projection fields.</summary>
         public Guid ClosedCaseId { get; } = Guid.NewGuid();
 
         public List<SearchCasesQuery> Queries { get; } = [];

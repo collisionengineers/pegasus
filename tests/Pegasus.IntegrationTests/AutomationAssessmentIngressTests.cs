@@ -710,7 +710,7 @@ public sealed class AutomationAssessmentIngressTests
     }
 
     /// <summary>
-    /// KANMER-005, staff holds and the Automation Actor competes over real HTTP: begin, a write
+    /// Staff holds and the Automation Actor competes over real HTTP: begin, a write
     /// presenting the staff holder's own token, and end are each refused with the existing
     /// held-by-another-actor mapping; nothing moves; the staff holder then releases and the
     /// Automation Actor claims the free lease.
@@ -732,7 +732,7 @@ public sealed class AutomationAssessmentIngressTests
             ToolCallPayload(
                 31,
                 "pegasus_case_edit_begin",
-                new { caseId, expectedVersion = 0, operationKey = "mcp:kanmer-005-begin" }));
+                new { caseId, expectedVersion = 0, operationKey = "mcp:staff-holds-begin" }));
         await AssertRefusedByAnotherHolderAsync(
             client,
             token,
@@ -744,7 +744,7 @@ public sealed class AutomationAssessmentIngressTests
                     caseId,
                     expectedVersion = 0,
                     editLeaseToken = staffLease.Token,
-                    operationKey = "mcp:kanmer-005-write",
+                    operationKey = "mcp:staff-holds-write",
                     reason = "Automation attempted a write under a staff lease.",
                     fields = new Dictionary<string, string?> { ["vehicle.condition"] = "good" }
                 }));
@@ -754,7 +754,7 @@ public sealed class AutomationAssessmentIngressTests
             ToolCallPayload(
                 33,
                 "pegasus_case_edit_end",
-                new { caseId, operationKey = "mcp:kanmer-005-end", leaseToken = staffLease.Token }));
+                new { caseId, operationKey = "mcp:staff-holds-end", leaseToken = staffLease.Token }));
 
         Assert.Equal(0, await GetWorkflowVersionAsync(mcpFactory, caseId));
         Assert.Equal(
@@ -782,7 +782,7 @@ public sealed class AutomationAssessmentIngressTests
     }
 
     /// <summary>
-    /// KANMER-005, the reported direction: the Automation Actor holds the lease over real HTTP,
+    /// The reported direction: the Automation Actor holds the lease over real HTTP,
     /// the staff claim through the same Core port the workspace posts to is refused, the
     /// workspace renders the case read-only with no claim control, and the holder still ends
     /// its own lease afterwards — after which staff claim normally.
@@ -831,7 +831,7 @@ public sealed class AutomationAssessmentIngressTests
             ToolCallPayload(
                 42,
                 "pegasus_case_edit_end",
-                new { caseId, operationKey = "mcp:kanmer-005-holder-ends", leaseToken = automationLease.LeaseToken })))
+                new { caseId, operationKey = "mcp:automation-holder-ends", leaseToken = automationLease.LeaseToken })))
         {
             Assert.Equal(HttpStatusCode.OK, endResponse.StatusCode);
             _ = await ReadStructuredContentAsync(endResponse);
@@ -941,7 +941,7 @@ public sealed class AutomationAssessmentIngressTests
     }
 
     /// <summary>
-    /// ENG-026 / FRD-10 § AI job and estimate tools: an AI-draft estimate
+    /// FRD-10 § AI job and estimate tools: an AI-draft estimate
     /// must cite the Estimate job this client holds, always lands as a
     /// Draft with unconfirmed lines and never as Current, and is listed
     /// with Pegasus-computed totals.

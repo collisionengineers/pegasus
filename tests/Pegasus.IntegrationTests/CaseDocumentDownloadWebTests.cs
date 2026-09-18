@@ -8,7 +8,7 @@ using Pegasus.Core.Documents;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The one authorised document route, in its two capacities (DOCS-015).
+/// The one authorised document route, in its two capacities.
 ///
 /// A preview is a page element: it is cacheable by the content hash it names,
 /// answers a held copy with 304, offers a derived rendering at

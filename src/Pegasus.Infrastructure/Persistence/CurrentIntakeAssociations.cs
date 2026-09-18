@@ -10,7 +10,7 @@ internal sealed record CurrentIntakeAssociation(Guid CaseId, string Reference);
 /// association is not the same as never having had one: the automatic
 /// allocation attempt still names the case it created, so without this
 /// distinction an unlinked message goes on reporting the very link the
-/// operator just removed (INTK-029).
+/// operator just removed.
 /// </summary>
 internal sealed record IntakeAssociations(
     IReadOnlyDictionary<Guid, CurrentIntakeAssociation> Current,

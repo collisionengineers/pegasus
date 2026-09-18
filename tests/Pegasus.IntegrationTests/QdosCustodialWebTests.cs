@@ -31,7 +31,7 @@ public sealed class QdosCustodialWebTests
         Assert.DoesNotContain("request", body, StringComparison.OrdinalIgnoreCase);
     }
     /// <summary>
-    /// INTK-051: opening the composition gate made the anonymous upload page
+    /// Opening the composition gate made the anonymous upload page
     /// reachable, and with it a bound that did not previously exist.
     ///
     /// <see cref="RequestUploadAttemptLimiter"/> partitions on the token digest
@@ -184,7 +184,7 @@ public sealed class QdosCustodialWebTests
         Assert.Equal(handlers.Payload, content);
         Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
         Assert.Contains("engineer-report.pdf", response.Content.Headers.ContentDisposition?.ToString(), StringComparison.Ordinal);
-        // DOCS-011 added an inline disposition to this route. Until then no test
+        // The evidence viewer added an inline disposition to this route. Until then no test
         // pinned the disposition *type*, so a default flipped to inline would
         // have shipped green. This is the assertion that makes the additive
         // claim checkable.
@@ -217,7 +217,7 @@ public sealed class QdosCustodialWebTests
     [Fact]
     public async Task InlineFlagPreviewsOnlyContentABrowserWillNotExecute()
     {
-        // DOCS-011. The preview and the download are the same authorised read
+        // The preview and the download are the same authorised read
         // through the same use case; only the disposition differs. A case
         // document is arbitrary operator-supplied content, so retained HTML
         // served inline from this origin would execute as same-origin script --

@@ -246,7 +246,7 @@ public sealed class DocumentCustodyDurabilityTests
         // to CaseHistory persists happily, reports success, and never appears on
         // the Notes tab — which is how the Release 22 note defect reached
         // production. So it is asserted through CaseDetails.History, the same
-        // read the page makes (DOCS-012).
+        // read the page makes.
         var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
         try
         {
@@ -1006,7 +1006,7 @@ public sealed class DocumentCustodyDurabilityTests
                 InitialState = "NotReady",
                 // Lowercase, as ToCode writes it in production. The seed said
                 // "Confirmed" and nothing noticed, because no test in this file
-                // had ever read the case back through GetCase (DOCS-012).
+                // had ever read the case back through GetCase.
                 CustodyState = "confirmed",
                 CustodyRootRemoteId = "case-root-id",
                 OriginIntakeReceiptId = receiptId,

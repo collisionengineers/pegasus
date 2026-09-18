@@ -9,7 +9,7 @@ namespace Pegasus.Core.Reports;
 /// recorded send actor and period, reports sent and queries received. A report
 /// is credited to the recorded staff actor of its case-linked Sent evidence;
 /// a query is credited to the assigned Engineer of its associated case
-/// (operator decision D12, EPIC-011). Those are separate dimensions. Both are
+/// (operator decision D12). Those are separate dimensions. Both are
 /// counted by the time the mail was sent or received, in the half-open
 /// period <c>[from, to)</c>.
 /// </summary>

@@ -5,7 +5,7 @@ date: 2026-08-25
 supersedes: [ADR-0021]
 superseded_by: []
 related_capabilities: [MCP-06, AI-09]
-related_frd: [frd-07, frd-10, frd-11]
+related_frd: [frd-07, frd-10, frd-24, frd-27]
 tags: [mcp, automation, ai, eva]
 ---
 
@@ -51,7 +51,7 @@ FRD-07.
 
 - [FRD-07](../frd/frd-07-eva-and-external-engineering-handoff.md)
 - [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md)
-- [FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md)
+- [FRD-27](../frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md)
 - [ADR-0021](0021-automation-actor-direct-write-assessment-contract.md)
 - [ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md)
 - [ADR-0027](0027-authorization-code-for-external-mcp-connectors.md)

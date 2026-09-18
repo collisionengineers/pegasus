@@ -1490,13 +1490,13 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        // DOCS-007: Box is the record. Where intake's photographs have been
+        // Box is the record. Where intake's photographs have been
         // registered as case documents, the gallery reads them and serves them
         // through the case-document route — the intake blob is staging, not
         // custody, and it ages out. A case accepted before those records
         // existed still renders from its retained asset rather than going
         // blank, which is the additive transition the ticket required.
-        // DOCS-015: a version whose custody is still Pending is part of the
+        // A version whose custody is still Pending is part of the
         // set. Listing confirmed versions only meant a Case opened while
         // custody was in flight showed a partial gallery that grew on reload,
         // which reads as files that went missing. A pending image is carried
@@ -1513,7 +1513,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                     && (version.CustodyStatus == DocumentCustodyStatus.Confirmed
                         || version.CustodyStatus == DocumentCustodyStatus.Pending)
                 orderby occurrence.Ordinal
-                // DOCS-010: named, not positional. Built positionally, the two
+                // Named, not positional. Built positionally, the two
                 // adjacent Guid slots were filled in the wrong order — the
                 // document id landed in OccurrenceId and every gallery URL 404d
                 // before Box was reached. There is no intake asset behind an

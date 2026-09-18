@@ -294,7 +294,7 @@ internal sealed class IntegrationTestAuthenticationHandler(
         };
         if (Request.Headers.TryGetValue("X-Test-Roles", out var requestedRoles))
         {
-            // ENG-002: a test that needs a specific staff role (e.g. Engineer)
+            // A test that needs a specific staff role (e.g. Engineer)
             // names it; the default identity stays Administrator-only.
             foreach (var role in requestedRoles.ToString().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             {
@@ -903,7 +903,7 @@ internal static class IntakeTestEvidence
 
     // The retained QDOS Engineer Triage request shape. It is classified by the
     // real mail-classification policy, which is the sole owner of Triage
-    // eligibility (INTK-033).
+    // eligibility.
     public static TestEmail CreateEngineerTriageRequest(
         string fileName,
         IReadOnlyList<(string FileName, string MediaType, byte[] Content)>? attachments = null) =>

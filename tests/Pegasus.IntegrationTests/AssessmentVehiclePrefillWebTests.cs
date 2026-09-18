@@ -12,7 +12,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// ENG-034: vehicle evidence remains on the Case record when the Assessment
+/// Vehicle evidence remains on the Case record when the Assessment
 /// page is retired. The existing Vehicle section renders lookup observations
 /// and gives confirmed case facts precedence in its primary fields.
 /// </summary>

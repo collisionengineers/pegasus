@@ -213,7 +213,7 @@ public sealed partial class OperationsWebTests
         Assert.Contains("AI Job List", html, StringComparison.Ordinal);
         // Three non-terminal jobs, the job explicitly completed today and the
         // queued job that effectively expired today; the job cancelled a week
-        // ago is not on the list (FRD-11).
+        // ago is not on the list (FRD-27).
         Assert.Contains("6 jobs", html, StringComparison.Ordinal);
         Assert.Contains("Unidentified resolution", html, StringComparison.Ordinal);
         Assert.Contains("Unidentified-queue pass", html, StringComparison.Ordinal);
@@ -271,7 +271,7 @@ public sealed partial class OperationsWebTests
         var html = await GetHtmlAsync(client, "/Operations");
 
         // The ledger stores the acting actor's subject id, which for staff is a
-        // GUID. FRD-11 gives Started by "a staff username or the connector
+        // GUID. FRD-27 gives Started by "a staff username or the connector
         // client name", so the column resolves the name and never prints the
         // recorded identifier.
         var staffRow = RowContaining(html, RecordingAiWorkStore.EstimateInstruction);
@@ -363,7 +363,7 @@ public sealed partial class OperationsWebTests
 
         AssertPrg(response, "/Operations");
         var command = Assert.IsType<CreateAiJobCommand>(aiWork.Created);
-        // EPIC-011 D5 and FRD-11: the button starts a resolution for one U
+        // Operator decision D5 and FRD-27: the button starts a resolution for one U
         // reference; the queue pass belongs to the Automation Actor.
         Assert.Equal(AiJobKind.UnidentifiedResolution, command.Kind);
         Assert.Equal(aiWork.OpenUnidentifiedId, command.SubjectId);

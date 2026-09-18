@@ -17,7 +17,7 @@ public sealed record CaseDocumentPreviewQuery(
 /// the custody state the version is in.
 /// </summary>
 /// <remarks>
-/// DOCS-015: a gallery tile is a preview, not a download. The audited
+/// A gallery tile is a preview, not a download. The audited
 /// <see cref="IDownloadCaseDocument"/> path writes one
 /// <c>ActionHistory</c> row per call, so a Case of sixty photographs wrote
 /// sixty custody-download records for one page view, each behind its own
@@ -91,7 +91,7 @@ public sealed record CaseDocumentThumbnail(
 /// full bytes and cached as its own entry kind.
 /// </summary>
 /// <remarks>
-/// DOCS-015: a tile of a 6 MB photograph asked for the whole photograph.
+/// A tile of a 6 MB photograph asked for the whole photograph.
 /// Sixty of them is the page load. The derived rendering is bounded by
 /// <see cref="CaseDocumentThumbnails.LongestEdge"/>, so a tile costs kilobytes
 /// and the viewer keeps the full image.

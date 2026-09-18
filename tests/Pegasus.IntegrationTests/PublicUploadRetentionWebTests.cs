@@ -1968,7 +1968,7 @@ public sealed partial class PublicUploadRetentionWebTests
     /// <summary>
     /// A link that has taken every file it allows is exhausted, not gone. Its
     /// page still serves, it offers no further upload control and says why,
-    /// and the sender can still finish - INTK-051's "never a broken finalize
+    /// and the sender can still finish - the "never a broken finalize
     /// path".
     /// </summary>
     [Fact]
@@ -2401,7 +2401,7 @@ public sealed partial class PublicUploadRetentionWebTests
     /// A link issued under limits that have since been accepted anew is not
     /// gone: the sender did nothing wrong, and a bare 404 would read as a
     /// mistyped address. The page renders the typed refusal on the GET and on
-    /// both POSTs, and nothing is written by any of them (INTK-051, R-10).
+    /// both POSTs, and nothing is written by any of them (R-10).
     /// </summary>
     [Fact]
     public async Task ALinkFromAnotherLimitsVersionRendersTheTypedRefusalAndWritesNothing()

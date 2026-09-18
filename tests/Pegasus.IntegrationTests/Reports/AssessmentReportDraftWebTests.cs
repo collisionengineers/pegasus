@@ -19,7 +19,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests.Reports;
 
 /// <summary>
-/// Proves the DELIV-012 report-draft entry point is actually reachable from
+/// Proves the report-draft entry point is actually reachable from
 /// the web: a complete case renders and returns a PDF, and an incomplete
 /// case fails closed with its readiness reasons named instead of throwing.
 /// <see cref="IAssessmentReportRenderer"/> is substituted with a fast fake so

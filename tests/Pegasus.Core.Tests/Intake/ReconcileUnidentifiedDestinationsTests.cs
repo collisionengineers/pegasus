@@ -38,7 +38,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
         // The key is the ITEM's own version, never the receipt's: a destination
         // change need not mutate the receipt, so a receipt-keyed re-resolve
-        // rebuilds a key its own first resolution already took (INTK-048).
+        // rebuilds a key its own first resolution already took.
         Assert.Equal(
             $"intake-unidentified-reconcile:{item.Id:N}:{item.Version}",
             resolve.OperationKey);
@@ -66,7 +66,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Equal("QDOS26009", resolve.TargetReference);
     }
 
-    // Statement 1 (PR 639 preservation table §4) — the rule INTK-048 exists for.
+    // Statement 1 (PR 639 preservation table §4) — the rule the supersession pass exists for.
     [Fact]
     public async Task ManuallyLinkedUnidentifiedReceiptResolvesToTheInstructionCase()
     {
@@ -257,7 +257,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         // reaches it — the second pass reads the registration and opens the
         // Triage, and the U-reference minted by the first pass is then stale.
         // Without a Triage destination it stayed open beside the Triage
-        // forever, and the same material sat in two queues (INTK-033).
+        // forever, and the same material sat in two queues.
         var harness = new Harness();
         var receipt = TriageRequestReceipt(Guid.NewGuid());
         harness.Receipts.Receipts[receipt.Id] = receipt;
@@ -517,7 +517,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
 
         // Nothing changed, so no resolution is written — yet the recheck is
         // completed, or the row would hold the head of the bounded page for
-        // ever and starve every later stale resolution (INTK-048).
+        // ever and starve every later stale resolution.
         Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 0, 0), result);
         Assert.Empty(harness.Resolve.Requests);
         Assert.Empty(harness.Store.ReopenRequests);

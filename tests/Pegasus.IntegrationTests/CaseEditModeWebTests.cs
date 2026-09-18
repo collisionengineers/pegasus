@@ -383,7 +383,7 @@ public sealed class CaseEditModeWebTests
     }
 
     /// <summary>
-    /// CASE-024: the workspace renders a heartbeat form so an open editor is never timed out
+    /// The workspace renders a heartbeat form so an open editor is never timed out
     /// mid-edit, and answers it without a redirect, a status message, or - crucially - any
     /// TempData write. TempData here is cookie-backed, so a beat that re-issued that cookie could
     /// race a form post the operator did make and lose them the token they are editing under.
@@ -471,7 +471,7 @@ public sealed class CaseEditModeWebTests
 
     /// <summary>The value of one hidden input inside the form that posts to the named handler.</summary>
     /// <summary>
-    /// INTK-058/CASE-041: the Case's repairer is an Inspect-at option that
+    /// The Case's repairer is an Inspect-at option that
     /// names the repairer it came from, and the Save carries the repairer the
     /// operator confirmed into the one Case edit.
     /// </summary>
@@ -967,7 +967,7 @@ public sealed class CaseEditModeWebTests
         var note = EditAuthorityNote(html);
 
         Assert.Contains("r.hughes is editing", note, StringComparison.Ordinal);
-        // CASE-024: an open editor keeps its own lease alive, so no moment when editing
+        // An open editor keeps its own lease alive, so no moment when editing
         // becomes available is knowable here, and naming one would be a broken promise.
         Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
@@ -1005,7 +1005,7 @@ public sealed class CaseEditModeWebTests
             "Another member of staff is editing",
             note,
             StringComparison.Ordinal);
-        // CASE-024: an open editor keeps its own lease alive, so no moment when editing
+        // An open editor keeps its own lease alive, so no moment when editing
         // becomes available is knowable here, and naming one would be a broken promise.
         Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
         Assert.DoesNotContain(holderId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
@@ -1046,7 +1046,7 @@ public sealed class CaseEditModeWebTests
         var note = EditAuthorityNote(html);
 
         Assert.Contains("AI is editing", note, StringComparison.Ordinal);
-        // CASE-024: an open editor keeps its own lease alive, so no moment when editing
+        // An open editor keeps its own lease alive, so no moment when editing
         // becomes available is knowable here, and naming one would be a broken promise.
         Assert.DoesNotContain("Editing becomes available", note, StringComparison.Ordinal);
         Assert.DoesNotContain("member of staff", note, StringComparison.OrdinalIgnoreCase);
@@ -1248,7 +1248,7 @@ public sealed class CaseEditModeWebTests
     /// <summary>The Files section's upload-requests sub-panel (v26): the table of links.</summary>
 
     /// <summary>
-    /// KANMER-005: while the Automation Actor holds the lease, the workspace is read-only to
+    /// While the Automation Actor holds the lease, the workspace is read-only to
     /// staff — the holder is disclosed from its retained kind through the real descriptor, no
     /// claim control is rendered, and a claim posted anyway is refused without the page
     /// pretending edit mode was entered. The refusal is the shared owner's own conflict.

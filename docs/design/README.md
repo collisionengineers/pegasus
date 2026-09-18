@@ -1,7 +1,7 @@
 # Design authority
 
 This file owns Pegasus visual presentation, assets, components and source-to-runtime
-mappings. [FRD-12](../frd/frd-12-operator-experience.md) owns functional interactions;
+mappings. [FRD-12](../frd/frd-12-operator-experience.md), [FRD-15](../frd/frd-15-work-centre-queues-and-search.md), [FRD-16](../frd/frd-16-case-record-workspace.md) and [FRD-17](../frd/frd-17-administration-workspace.md) own functional interactions;
 the [PRD](../prd/pegasus-product.md) owns scope. The [index](../index.md) routes
 engineering, source architecture, operational observations and task workflow.
 These are requirements, not a claim of deployment or operator acceptance.
@@ -98,8 +98,8 @@ contract §1.1); the Inbox and Operations figures are composed by the wave-2
 and wave-3 tickets that own those queries — the shell invents none. An absent
 count renders nothing at all — a shell-level `0` would be exactly
 the stale zero the operator-experience requirements forbid. Counts are
-supplied by one page filter (`Presentation/RailCountsPageFilter.cs`,
-PLAT-029), not by each page.
+supplied by one page filter (`Presentation/RailCountsPageFilter.cs`), not by
+each page.
 
 The **account dialog** opens from the rail-foot button and shows Name, Role,
 Session started (an `auth_time` claim) and Idle lock, with Close and Sign out.
@@ -194,7 +194,7 @@ carries the skip link, the toast region and the dialog root.
 `_LayoutAuth` and `_LayoutExternal` remain the navless frames: sign-in, the
 signed-out confirmation, access denied, the error family and the one screen a
 third party sees are not places in the application (see
-[External frames](../frd/frd-12-operator-experience.md)).
+[Shell and routes](../frd/frd-12-operator-experience.md#shell-and-routes)).
 
 ### Keyboard and dialog contract
 
@@ -209,7 +209,7 @@ third party sees are not places in the application (see
 | Escape | Close the open dialog |
 
 One accepted exception to keyboard parity: the Assessment whole-page raw
-estimate drop is pointer-only (D16), and it is a real gap — no staff keyboard
+estimate drop is pointer-only, and it is a real gap — no staff keyboard
 route performs this import. Every other action on the page stays
 keyboard-reachable.
 
@@ -247,7 +247,7 @@ Uses under the integrated design: the rail brand and the sign-in card
 `principals`, `configuration`, `mailboxes`, `automation`); the Cases rail
 empty state (`checkmark`). `roles`, `access` and `organisations` lose their
 surfaces when those areas fold into Staff accounts & roles and Principals
-(D2, [Removed surfaces](../frd/frd-12-operator-experience.md)); their bytes stay registered and
+([Removed surfaces](../frd/frd-12-operator-experience.md)); their bytes stay registered and
 their removal is proposed for the wave-5 removal ticket.
 
 #### Pegasus marks source-to-runtime mapping
@@ -396,7 +396,7 @@ State chips are `.status` with one tone modifier and always a text label:
 
 Application text uses **Inter Variable** (upright and italic), vendored under
 `src/Pegasus.Web/wwwroot/fonts/inter/` as woff2 with the SIL Open Font
-License 1.1 text beside it (D13). The face is self-hosted and declared with
+License 1.1 text beside it. The face is self-hosted and declared with
 `font-display: swap`; no external font stylesheet or CDN is referenced, and
 the Content Security Policy permits fonts from `'self'` only.
 
@@ -543,7 +543,7 @@ as `<symbol viewBox="0 0 24 24">` elements; pages reference glyphs as
 `<svg class="icon"><use href="#icon-…"/></svg>`. The `.icon` rule applies the
 stroke and caps because a `<use>` clone does not inherit them. The sprite
 holds the sixty glyphs below (the original seventeen plus the
-forty-three PLAT-029 added from Lucide v0.344.0); each glyph checksum is the
+forty-three later added from Lucide v0.344.0); each glyph checksum is the
 SHA-256 of its `<g id="icon-…">…</g>` element in the sprite.
 
 An icon paired with a visible text label is decorative and carries
@@ -557,7 +557,7 @@ icon-system authority.
 Upstream source: Lucide official SVG vectors release (v0.344.0). Runtime
 sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (SHA-256 of the
 committed LF blob `90FEB7AB7E40931DDE9B011CEC06F4E8B4DCD058695DEC09DB5E0965AC7A0992`,
-sixty glyphs; the pre-PLAT-029 seventeen-glyph sprite was
+sixty glyphs; the earlier seventeen-glyph sprite was
 `24360787DB7A58F1B0ACA7E2F66405749C9D5742A2ADA91C07BDFF03202872D0`).
 
 | Prototype name | Lucide id | Glyph SHA-256 | Usage |
@@ -603,7 +603,7 @@ sixty glyphs; the pre-PLAT-029 seventeen-glyph sprite was
 | `calendar` | `calendar` | `9164C7178F10683EF0FB999F773149CD7AF5964875E6E896C6826F5A8988C67F` | Date filters, due |
 | `history` | `history` | `ECC48B15E6A405F12C901A460C5D9745A09C84439AA1359EA3F846B8C28EF802` | Timeline, History panel |
 | `copy` | `copy` | `10CBC775CD0ACEBBB15F863348821192DBD4A2858380CC295BEB020AB4144DCB` | Copy reference |
-| `download` | `download` | `C5BB0DCFCE72DDFCD8BAC34C368CDE4E2013FF05C175318324D40776DF0C457C` | Save as, Download ZIP in the Send to EVA dialog (D36) |
+| `download` | `download` | `C5BB0DCFCE72DDFCD8BAC34C368CDE4E2013FF05C175318324D40776DF0C457C` | Save as, Download ZIP in the Send to EVA dialog |
 | `folder` | `folder` | `6E9E30D6DB22DC0118AC8C8466659342AFAE90784EFD65B5E2929BE1BA7B0C16` | Folder scopes, Case Files |
 | `info` | `info` | `9B266C26D53D1F6661CD45D11E5138FE00AF4289EA4EC8D4C320D41AB272CC3F` | Provenance, informational notice |
 | `car` | `car` | `36AE3DC22866D02D1159AB8D6256BB09E91B2D98C03BC7126EE576437BECF0C5` | Vehicle section |
@@ -687,8 +687,8 @@ Genuine case images, emails and documents are operational evidence, not
 decorative assets. Use only authorised repository-provided evidence through
 its owning workflow. Never generate placeholder cases, damage images, emails,
 documents or people. The prototype's fixture data is not domain data and is
-never copied, except the Case Workspace v2 fixture set permitted by D43
-([engineering](../engineering.md#case-workspace-v2-fixture-values-d43)).
+never copied, except the Case Workspace v2 fixture set
+([engineering](../engineering.md#case-workspace-v2-fixture-values)).
 
 ### Web and renderer boundary
 
@@ -696,7 +696,7 @@ never copied, except the Case Workspace v2 fixture set permitted by D43
 | --- | --- |
 | Master logo | Embedded by the Infrastructure report adapter and copied byte-for-byte to Web for the external and sign-in frames |
 | Report templates and document stylesheet | Embedded by `src/Pegasus.Infrastructure`; not Web shell assets |
-| Supplied engineer signatures | The report snapshot carries the Case Sign-off Engineer account's printed name, optional qualifications and supplied signature image bytes/media type (D31, DOCS-017). No signature is embedded as an application resource. Supplied signature assets remain governed and are never Web decorative imagery. |
+| Supplied engineer signatures | The report snapshot carries the Case Sign-off Engineer account's printed name, optional qualifications and supplied signature image bytes/media type. No signature is embedded as an application resource. Supplied signature assets remain governed and are never Web decorative imagery. |
 | Retired renderer workspace, prompt, model, skill and AI material | Historical source evidence only; not a separate runtime or policy owner |
 
 The imported renderer can exercise its own assets without proving the planned
@@ -763,18 +763,18 @@ A capability that is not composed in this deployment is **absent** from the
 interface. A control whose record does not yet satisfy a condition is present,
 disabled, and states the condition on the control ("Available in Review").
 
-**Amended 2026-08-28 (D7).** A disabled control for an *uncomposed
-integration* is permitted only for a named, ticketed integration seam drawn
-in the approved design:
+**Amended 2026-08-28.** A disabled control for an *uncomposed
+integration* is permitted only for a named integration seam drawn in the
+approved design:
 
-| Seam | Control | Ticket |
-| --- | --- | --- |
-| Experian | Vehicle checks → Run Experian check | ENG-001 |
-| Cazana | Valuation source | ENG-008 / ENG-009 |
+| Seam | Control |
+| --- | --- |
+| Experian | Vehicle checks → Run Experian check |
+| Cazana | Valuation source |
 
-**Narrowed 2026-09-01 (D21).** An excluded capability is absent, never drawn as
+**Narrowed 2026-09-01.** An excluded capability is absent, never drawn as
 a disabled control. The direct Audatex service-launch control is removed on
-that rule (ENG-030). By the operator's 15 September 2026 instruction the
+that rule. By the operator's 15 September 2026 instruction the
 Valuation section has one route to a guide card: while editing, Glass's,
 Brego and Super CAP are each one card with editable month, mileage, retail
 and trade boxes, a Get valuation button that looks the figures up and fills
@@ -782,8 +782,8 @@ the boxes (answering with a notice while that source has no connected
 provider), and Save, which records the card; the boxes are typed by hand
 just as well. There is no separate Add valuation dialog. This does not
 remove the Estimate section's selected configured-Engineer Glass's
-repair-estimate launch (D03); a connected Glass's valuation provider
-supersedes D03's "records no Glass's valuation". Glass's and Audatex file
+repair-estimate launch; a connected Glass's valuation provider
+supersedes the earlier rule that Pegasus "records no Glass's valuation". Glass's and Audatex file
 import stays in scope through the whole-page drop; Cazana remains the
 disabled seam.
 
@@ -798,7 +798,7 @@ the integration enables it.
 
 The class vocabulary is the one `site.css` declares under the integrated
 design. Every page composes these classes; a page-specific class is a defect
-unless it is listed here. PLAT-029 delivers the vocabulary and carries the
+unless it is listed here. The shell delivery carries the
 previous vocabulary in a delimited legacy block for pages not yet ported,
 deleted in wave 5.
 
@@ -851,12 +851,12 @@ deleted in wave 5.
 | `menu`, `menu-body`, `menu-sep` | A `details` menu (the Actions menu, head menus); one open at a time |
 | `gated`, `avail` | The dashed availability label, stated once per section head |
 | `damage-workbench`, `damage-markers`, `stepper`, `figures`, `figure` | The Damage Plan clicker and its numbered markers, the workflow stepper and the aside figures |
-| `damage-diagram`, `impact` | The clickable damage diagram and its zone markers; `impact` marks a zone with recorded damage (D39) |
-| `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt (D39) |
-| `valuation-card` | One valuation entry: source, date, time, mileage, guide month (CASE-029), retail, trade (D40) |
-| `outcome-option` | Settlement outcome choice (D41) |
-| `derived` | A value derived, never entered: impact location and severity (D39), equity, and a permitted ratio line where one is shown (D41) |
-| `report-image`, `cropper` | Report-image preparation on the Report section: designated Close-up and Overview, supporting images in order, non-destructive crop (D19, ENG-031) |
+| `damage-diagram`, `impact` | The clickable damage diagram and its zone markers; `impact` marks a zone with recorded damage |
+| `tyre-card` | Tyre and seat belt per corner, spare tyre, centre belt |
+| `valuation-card` | One valuation entry: source, date, time, mileage, guide month, retail, trade |
+| `outcome-option` | Settlement outcome choice |
+| `derived` | A value derived, never entered: impact location and severity, equity, and a permitted ratio line where one is shown |
+| `report-image`, `cropper` | Report-image preparation on the Report section: designated Close-up and Overview, supporting images in order, non-destructive crop |
 | `workflow-stepper`, `workflow-step` | Not ready → Review → With Engineer → Completed ⇄ Query; Held badge |
 | `case-overview-grid`, `overview-facts`, `accident-card`, `checks-grid` | Overview and Vehicle sections |
 | `blocker-list`, `blocker` | Outstanding requirements |
@@ -886,8 +886,8 @@ The Content Security Policy forbids inline styles, so the prototype's
 `panel-body--compact`, `panel-body--tight`, `field--narrow`, `no-border`,
 `viewer-stage`, `metric-strip--3`, `metric-strip--4`.
 
-The names are fixed here and delivered by PLAT-029; a new utility needs a
-second caller and a reason in the ticket plan.
+The names are fixed here and delivered with the shell; a new utility needs a
+second caller and a recorded reason.
 
 ### Shared partials
 
@@ -946,12 +946,12 @@ prove acceptance.
 | Engineering procedure | [Engineering](../engineering.md) | Reviewed implementation and verification |
 | Design authority | This file | Approved tokens, assets, class vocabulary and page contracts |
 | Interaction contract | Current operator instructions and [FRD-12](../frd/frd-12-operator-experience.md) | Earlier imported design decisions provide context only where consistent with current requirements |
-| Shell | This file | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml`, `_ShellDialogs`, `RailCountsPageFilter.cs` (PLAT-029) |
-| Tokens and vocabulary | This file | `src/Pegasus.Web/wwwroot/css/site.css`, `site.js` (PLAT-029) |
-| Font | This file | `src/Pegasus.Web/wwwroot/fonts/inter/` (PLAT-029) |
+| Shell | This file | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml`, `_ShellDialogs`, `RailCountsPageFilter.cs` |
+| Tokens and vocabulary | This file | `src/Pegasus.Web/wwwroot/css/site.css`, `site.js` |
+| Font | This file | `src/Pegasus.Web/wwwroot/fonts/inter/` |
 | Master logo | `docs/design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core and the checksummed Web copy embedded by `_LayoutExternal.cshtml` |
 | Renderer templates/style | Repository renderer asset sources | Embedded by `src/Pegasus.Infrastructure`; Core owns report policy and accepted presentation values |
-| Engineer signatures | Repository renderer signature sources; the Sign-off Engineer account setting holds the signature image (D31, superseding D18) | Rendered as the Case's sign-off tuple by the renderer (DOCS-017); none is Web decorative imagery |
+| Engineer signatures | Repository renderer signature sources; the Sign-off Engineer account setting holds the signature image | Rendered as the Case's sign-off tuple by the renderer; none is Web decorative imagery |
 | Retired renderer/skills/AI source | Git history and accepted integration records | No separate caller, runtime, or policy owner |
 | Decision rationale | [Decision records](../adr/README.md) | Does not itself prove implementation |
 | Change evidence | Git history | Does not replace caller, deployment or acceptance evidence |
@@ -986,7 +986,7 @@ A conforming change must:
 ## UI specification
 
 Specification for the Integrated Operations Workspace. Runtime evidence is recorded separately.
-The per-page contract is the [workspace contract](../frd/frd-12-operator-experience.md) above;
+The per-page contract is [FRD-12](../frd/frd-12-operator-experience.md#operator-experience) with [FRD-15](../frd/frd-15-work-centre-queues-and-search.md), [FRD-16](../frd/frd-16-case-record-workspace.md) and [FRD-17](../frd/frd-17-administration-workspace.md);
 this section holds the cross-cutting rules every page is held to.
 
 ### Shared shell and hierarchy
@@ -1009,7 +1009,7 @@ this section holds the cross-cutting rules every page is held to.
 | Request-scoped upload | Staff create a temporary token bound to one request and server-enforced expiry. The public page exposes bound upload fields and an immediate request-local result only. |
 | State action | Permitted transition, prerequisite, consequence, required reason, recovery and history link; never generic Close. |
 | Readiness blocker | Every unmet requirement names its exact field or material, source, reason, and permitted resolution; no opaque aggregate blocker. |
-| Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it (D31); sticky on the single-scroll Case record (D29). There is no separate Assessment ribbon (D30). |
+| Identity ribbon | Read-only Case/PO, registration, claimant, principal, state, with Engineer and Sign-off Engineer beside it; sticky on the single-scroll Case record. There is no separate Assessment ribbon. |
 | Inspection address | Provider-determined default; reasoned per-Case override; previous values selectable. |
 | Estimates | Each estimate has its own VAT percentage (default 20) and selected VAT categories; VAT applies to selected discounted Labour, Parts, Materials and Specialist categories. Unknown repairer VAT blocks Use as Current until an explicit status or categories are recorded; totals compute once in Core. A saved version's actions row carries **Estimate PDF** in read and edit modes. |
 | Evidence/document panel | The stored case files themselves — name, type, size, source, custody chip, preview, download; a reasoned removal recorded on the timeline; exact Sent evidence with separate discovery, link and sent times. |
@@ -1062,7 +1062,7 @@ These are the rules every operator surface is held to.
    frontend preview may be visible disabled and inert before its backend exists;
    it makes no delivery claim and has no production handler. Implemented
    behaviour behind a closed composition gate is not delivered
-   ([Absent versus disabled](README.md#absent-versus-disabled), D7).
+   ([Absent versus disabled](README.md#absent-versus-disabled)).
 7. **Counts and times cannot be proved locally.** A count query against an
    empty database returns the same zero as a correct one, and a rendered time
    against a Europe/London workstation clock matches the office by accident.

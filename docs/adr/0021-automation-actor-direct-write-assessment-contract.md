@@ -5,7 +5,7 @@ date: 2026-08-03
 supersedes: []
 superseded_by: [ADR-0031]
 related_capabilities: []
-related_frd: [frd-10, frd-11]
+related_frd: [frd-10, frd-27]
 tags: [mcp, automation, ai]
 ---
 
@@ -41,7 +41,7 @@ case-assignment workflow rather than a staged-suggestion store — and automatio
 are designed and safeguarded outside Pegasus, which owes only a comprehensive
 toolset and logging parity. This ADR records the durable technical contract for
 that ingress; the functional behaviour it implies now lives in FRD-10 and
-FRD-11.
+FRD-27.
 
 ## Decision
 
@@ -71,7 +71,7 @@ FRD-11.
    composes it in the DevelopmentOffline profile only. The channel carries
    operator chat, never business data: the hand-off is a pointer (case
    reference, request identifier, short instruction), and content returns as
-   the attributed Automation Actor writes described in FRD-11. The Core-owned
+   the attributed Automation Actor writes described in FRD-27. The Core-owned
    work request tracks `Created → HandedOff → Completed` with `Failed`,
    `Cancelled`, and `Expired`; `HandedOff` maps to the connector's forwarded
    claim, never to "the provider read it"; completion is flipped by an
@@ -106,4 +106,4 @@ FRD-11.
 ## Functional behaviour
 
 See [FRD-10](../frd/frd-10-mcp-automation-and-actor-boundary.md) and
-[FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md).
+[FRD-27](../frd/frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md).

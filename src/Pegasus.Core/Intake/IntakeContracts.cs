@@ -11,7 +11,7 @@ public static class IntakeEnvelopeLimits
     /// which arrives inside one bounded multipart HTTP request.
     /// </summary>
     /// <remarks>
-    /// Exactly 100 MiB, set by C07 item 5 (residual INTK-052) as the single
+    /// Exactly 100 MiB, set by C07 item 5 as the single
     /// per-file cap the manual and public channels share. This class is the
     /// one owner of that figure: host, ingress and per-request
     /// <c>DocumentRequests</c> settings may tighten it and may never raise it.
@@ -50,7 +50,7 @@ public static class IntakeEnvelopeLimits
     /// carries (see <see cref="MaximumMailboxContentLength"/>), so a staff
     /// member reproducing that job manually is not capped below it.
     ///
-    /// C07 item 5 (residual INTK-052) retained 20 unchanged while the per-file
+    /// C07 item 5 retained 20 unchanged while the per-file
     /// cap rose, so the file count and the byte budget are now independent
     /// facts rather than two halves of one multiplication.
     /// </summary>
@@ -64,7 +64,7 @@ public static class IntakeEnvelopeLimits
     /// is not the manual per-file bound either, because a real instruction
     /// carries the documents and photographs of a job: the mailbox note above
     /// records a genuine 16.69 MB QDOS instruction, so this is set comfortably
-    /// above that. C07 item 5 (residual INTK-052) left it unchanged.
+    /// above that. C07 item 5 left it unchanged.
     /// </summary>
     public const int MaximumProviderApiEnvelopeLength = 30 * 1024 * 1024;
 
@@ -77,7 +77,7 @@ public static class IntakeEnvelopeLimits
     /// is stated separately, and used separately, so that the Provider API can
     /// never inherit the manual channel's larger
     /// <see cref="MaximumContentLength"/> the next time that cap moves
-    /// (C07 item 5, residual INTK-052).
+    /// (C07 item 5).
     /// </remarks>
     public const int MaximumProviderApiFileLength = MaximumProviderApiEnvelopeLength;
 
@@ -91,7 +91,7 @@ public static class IntakeEnvelopeLimits
     /// The multipart request body budget for one whole Upload submission.
     /// </summary>
     /// <remarks>
-    /// Pinned by C07 item 5 (residual INTK-052) at exactly 200 MiB plus the
+    /// Pinned by C07 item 5 at exactly 200 MiB plus the
     /// fixed multipart overhead, and deliberately not derived from
     /// <see cref="MaximumBatchFileCount"/> times
     /// <see cref="MaximumContentLength"/>: raising the per-file cap while
@@ -112,7 +112,7 @@ public static class IntakeEnvelopeLimits
     /// excluding multipart boundaries and non-file form fields.
     /// </summary>
     /// <remarks>
-    /// Pinned by C07 item 5 (residual INTK-052) at exactly 200 MiB. Public
+    /// Pinned by C07 item 5 at exactly 200 MiB. Public
     /// aggregate byte limit excludes multipart overhead, which belongs only
     /// to HTTP request framing.
     /// </remarks>
@@ -643,7 +643,7 @@ public sealed record InstructionReviewField(
         "Contact email" => CaseDataFieldNames.ContactEmailAddress,
         "Contact phone" => CaseDataFieldNames.ContactPhoneNumber,
         "VAT status" => CaseDataFieldNames.VatStatus,
-        // INTK-058: the repairer the instruction names. The profiles print
+        // The repairer the instruction names. The profiles print
         // these two labels; the Case keeps the name and the address as its
         // own facts, and a directory link is a separate staff decision.
         "Repairer name" => CaseDataFieldNames.RepairerName,
@@ -738,8 +738,7 @@ public sealed record IntakeReceipt(
     /// created: unlinking then takes the case's only source away. A receipt
     /// since relinked to some other case is not that case's source, so
     /// unlinking it leaves that case alone. Derived here beside the rest of the
-    /// association rules so no surface works it out again from raw fields
-    /// (INTK-029).
+    /// association rules so no surface works it out again from raw fields.
     /// </summary>
     public bool UnlinkCancelsCase =>
         AcceptedCaseId is not null && AcceptedCaseId == CurrentCaseId;

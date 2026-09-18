@@ -98,7 +98,7 @@ public sealed class InstructionEvidenceImagesTests
     [Fact]
     public void QdosTwentySixZeroZeroEightsLetterheadBannersAreNotEvidence()
     {
-        // INTK-030, measured from production. The operator reported the
+        // Measured from production. The operator reported the
         // first two images as signatures/logos. These are those two, at
         // their real sizes and dimensions, beside one of the nine genuine
         // photographs from the same receipt. Note the byte floor admits

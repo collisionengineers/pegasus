@@ -57,7 +57,7 @@ internal sealed class EfAssessmentWorkspaceSource(
             .ThenByDescending(item => item.RequestId)
             .FirstOrDefaultAsync(cancellationToken);
 
-        // Named estimates (ENG-026): a case may hold several drafts and
+        // Named estimates: a case may hold several drafts and
         // several accepted estimates; the workspace shows the latest draft
         // and the Current one, the same choice EfRepairSpecificationStore's
         // DraftQuery / AcceptedQuery make.

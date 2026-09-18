@@ -42,18 +42,17 @@ _Avoid_: Wrong image, unrelated evidence
 
 **Audit**:
 An Audit Case is instructed work to review another engineering firm's original
-report. Once the Principal and identity-critical gates pass, its Case/PO is
-`a.` followed by the allocated base reference, with or without that report;
-the assessment outcome is recorded on the Case, not in its identity. A readable
-report records the assessment at intake. When the report is missing, **Original
-report missing** remains outstanding on the Case until staff mark a filed
-document as the original report. Manual upload still requires explicit staff
-acceptance under [FRD-02](docs/frd/frd-02-intake-and-source-identity.md). An
-Audit Case can also be created from an Inspection + Audit Case (below).
+report. A standalone Audit Case's Case/PO is `a.` plus its own number from
+the Principal's sequence, for example `a.QDOS26002`. It is created with or
+without that report. The assessment outcome is recorded on the Case, not in
+its identity. When no original report is filed and none was kept at intake,
+**Original report missing** stays outstanding until staff mark a filed
+document as the original report ([FRD-01](docs/frd/frd-01-case-identity-and-lifecycle.md)).
+An Audit Case can also be created from an Inspection + Audit Case (below).
 _Avoid_: Triage, sorting
 
 **Inspection + Audit**:
-An Inspection Case and a linked Audit Case. Collision Engineers completes its standard Inspection on the Inspection Case; once a report has been generated there, Create audit creates the Audit Case with its own `a.` reference, which carries the Audit’s own identity, evidence, report and acceptance boundary.
+An Inspection Case and a linked Audit Case. Collision Engineers completes its standard Inspection on the Inspection Case (for example `QDOS26001`). Once a report has been generated there, Create audit creates the Audit Case as `a.` plus the same number (`a.QDOS26001`). The Audit Case carries its own identity, evidence, report and acceptance boundary.
 _Avoid_: Combined report, two-spec Inspection, second reference on the Inspection
 
 **Triage**:
@@ -66,7 +65,7 @@ Safely retained material or an inseparable submission group that has not become 
 _Avoid_: Triage, Blocked, Blocked intake
 
 **Held**:
-A nonterminal Case state that pauses progression and recurring chasers pending a named staff resolution. A hold may carry a Review on date, which is when it is next due for a decision. A cancellation message creates `Held pending staff decision`; it does not itself cancel the Case.
+A Case state that pauses progression and recurring chasers until staff decide. A hold records a reason and may carry a Review on date, which is when it is next due for a decision. A cancellation message never changes a Case by itself; staff may place the Case on Hold with the cancellation as the reason ([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md)).
 _Avoid_: Cancelled, closed
 
 **Created in error**:
@@ -98,7 +97,7 @@ The stable staff-triggered work handoff governed by FRD-10. It may return propos
 _Avoid_: Send to Claude, AI assessment, automatic report
 
 **First sent to Engineer**:
-The once-per-Case handoff proxy governed by FRD-01. Native handoff and optional EVA are distinct supported routes; the proxy is not external receipt, delivery or report-sent evidence.
+The once-per-Case handoff proxy governed by [FRD-07](docs/frd/frd-07-eva-and-external-engineering-handoff.md). Native handoff ([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md)) and optional EVA are distinct routes; the proxy is not external receipt, delivery or report-sent evidence.
 _Avoid_: Sent to Engineer (the activity count), report sent
 
 **Sent to Engineer today/week**:
@@ -114,8 +113,8 @@ A created Case state for an instructed Case whose ordinary business details, req
 _Avoid_: Unidentified
 
 **Review**:
-A Case state in which staff manually review its readiness and accepted evidence before Engineer-queue eligibility or direct Engineer assignment.
-_Avoid_: Automatic approval, Engineer assignment
+The Case state reached automatically when every required instruction item and image is present. Staff hand a Review Case to an Engineer; there is no separate act of reviewing instructions or images ([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md)).
+_Avoid_: Reviewed checkbox, staff review gate
 
 **Field provenance**:
 The current evidential origin of a Case datum; direct values identify their source, while derived values identify their accepted inputs and calculation.
@@ -163,4 +162,5 @@ The word “intake” never appears in operator-facing text (operator decision
 
 Reversible post-report Case states. A query received for or attached to a
 Completed Case moves it to Query; replying moves it back to Completed.
-There is no terminally closed Case state (FRD-01).
+There is no terminally closed Case state
+([FRD-13](docs/frd/frd-13-case-lifecycle-and-workflow.md)).

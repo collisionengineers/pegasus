@@ -631,7 +631,7 @@ public sealed class CaseAssetPreparationWebTests
     }
 
     /// <summary>
-    /// PLAT-011: the case history table shows the resolved actor name, never the
+    /// The case history table shows the resolved actor name, never the
     /// raw actor subject id (docs/design/README.md:168) — a Staff row shows its
     /// username and an Automation row shows the client label, not either GUID.
     /// </summary>

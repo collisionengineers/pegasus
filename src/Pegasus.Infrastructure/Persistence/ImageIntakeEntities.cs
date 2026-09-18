@@ -17,7 +17,7 @@ internal sealed class ImageIntakeEntity
 
     /// <summary>
     /// The submission group this registration covers, when the group is the
-    /// registration unit (INTK-015): at most one ImageIntake exists per
+    /// registration unit: at most one ImageIntake exists per
     /// group, enforced by a filtered unique index. Null for a single-receipt
     /// (non-grouped or legacy) registration.
     /// </summary>

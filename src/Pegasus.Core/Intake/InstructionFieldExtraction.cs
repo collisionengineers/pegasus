@@ -40,7 +40,7 @@ internal static partial class InstructionFieldEngine
     /// The clock source used when an absent value is defaulted. Only a field a
     /// profile has explicitly opted in carries this: a date from the clock is
     /// not an extracted fact, so a profile that does not ask for it records the
-    /// absence instead (INTK-060 C03).
+    /// absence instead.
     /// </param>
     /// <param name="DefaultEvidenceKey">The evidence key for the default.</param>
     /// <param name="DefaultSourceLabel">The source label for the default.</param>

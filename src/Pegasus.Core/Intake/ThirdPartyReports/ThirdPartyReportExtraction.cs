@@ -296,7 +296,7 @@ internal static class ThirdPartySections
 
 /// <summary>
 /// Builds a <see cref="ThirdPartyReportCandidate"/> from the selected family's
-/// bounded label rules (INTK-031). Every value keeps its printed text, page
+/// bounded label rules. Every value keeps its printed text, page
 /// locator, unit and role; nothing is taken by position, and no field is filled
 /// from another document. Arithmetic never edits a source value — it becomes a
 /// finding (see <see cref="ThirdPartyReportValidation"/>).
@@ -663,7 +663,7 @@ public static class ThirdPartyReportExtraction
     /// The rule table per family. John R Bell is deliberately empty: the only
     /// original in the corpus is scan-only, so no printed layout has been
     /// observed and no rule is guessed for it — its fields stay unavailable
-    /// until OCR text reaches this engine (INTK-032).
+    /// until OCR text reaches this engine.
     /// </summary>
     private static readonly Dictionary<ThirdPartyReportFamily, ThirdPartyFamilyRules> Rules = new()
     {
@@ -725,7 +725,7 @@ public static class ThirdPartyReportExtraction
 
     /// <summary>
     /// The same typed projection, rebuilt from the rows a reading already
-    /// recorded (INTK-060 C05). It is the read-back half of
+    /// recorded. It is the read-back half of
     /// <see cref="ThirdPartyReportAnalysis.ToCandidates"/>: a caller that holds
     /// the persisted candidates of one retained analysis gets back the
     /// <see cref="ThirdPartyReportCandidate"/> that reading produced, without a
@@ -866,7 +866,7 @@ public static class ThirdPartyReportExtraction
 
     /// <summary>
     /// Reconciles the rows that were read and records each finding as its own
-    /// source row beside them (INTK-056).
+    /// source row beside them.
     ///
     /// A finding is computed from the printed values only, and it reaches
     /// storage as an ordinary <see cref="SourceFieldCandidate"/> under the
@@ -1471,7 +1471,7 @@ public static class ThirdPartyReportExtraction
 
 /// <summary>
 /// The bridge from a read third-party report onto the retained-analysis record
-/// C01 already owns (INTK-031). It adds no persistence of its own: a report's
+/// C01 already owns. It adds no persistence of its own: a report's
 /// candidates are ordinary source candidates on the existing analysis row, so
 /// the Received page renders them through the provenance chips it already uses
 /// and <see cref="ISourceCandidateQueries"/> reads them back unchanged.

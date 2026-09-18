@@ -4,7 +4,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// DOCS-008: two production audits failed custody with an unclassified code and
+/// Two production audits failed custody with an unclassified code and
 /// nothing retained what threw, so diagnosis meant reading source and writing
 /// reproductions. An unclassified failure now names its own exception type.
 /// </summary>

@@ -700,7 +700,7 @@
 }());
 
 
-// CASE-007: finishing edit mode with unsaved changes asks first. Dirty means
+// Finishing edit mode with unsaved changes asks first. Dirty means
 // any input owned by a lease-carrying form changed since load; Save submits the
 // form that changed, Discard releases the lease as posted.
 (function () {
@@ -782,7 +782,7 @@
     });
 })();
 
-// CASE-041: Inspect-at choices fill the ordinary form-associated address
+// Inspect-at choices fill the ordinary form-associated address
 // input. The input remains the no-script editing path.
 (function () {
     function bind(root) {
@@ -824,7 +824,7 @@
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
 })();
 
-// CASE-024: an open editor keeps its own lease alive, so a real editing session
+// An open editor keeps its own lease alive, so a real editing session
 // is never timed out mid-edit. The beat posts the rendered form, whose
 // antiforgery token rides in the FormData exactly as the upload enhancement
 // above does. With script the manual "Renew editing" button is redundant, so it
@@ -891,7 +891,7 @@
     });
 })();
 
-// INTK-022: a filter form marked data-auto-submit submits itself when any of
+// A filter form marked data-auto-submit submits itself when any of
 // its selects change; the noscript Apply button covers the rest. A search
 // input in the same form submits itself too, 300ms after the last keystroke,
 // skipping a submit when the reload's own value has not actually changed.
@@ -1321,7 +1321,7 @@
     bindBackdropDialogs(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindBackdropDialogs);
 
-    // Evidence viewer ([data-evidence-viewer], DOCS-011): preview an evidence
+    // Evidence viewer ([data-evidence-viewer]): preview an evidence
     // image, PDF or admitted video over the page instead of navigating away
     // from the case.
     // Modelled on the reason-dialog block above and sharing its contract --
@@ -1822,7 +1822,7 @@
         bindEvidenceItems(document);
         (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bindEvidenceItems);
 
-        // DOCS-015: a gallery tile that fails to load. The route answers a
+        // A gallery tile that fails to load. The route answers a
         // throttled or in-flight read with 503 and Retry-After: 5, so two retries
         // paced to that advice are usually the whole fix; a successful response is the only
         // cacheable one. Re-setting the same src is not reliably a re-request —
@@ -1896,7 +1896,7 @@
 })();
 
 // ===========================================================================
-// PLAT-029 — Integrated Operations Workspace shell modules. Each section is
+// Integrated Operations Workspace shell modules. Each section is
 // self-contained and progressive: without script the markup it enhances is a
 // working link, form or list. New sections go below; nothing above is
 // reordered.

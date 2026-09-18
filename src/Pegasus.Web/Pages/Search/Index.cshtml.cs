@@ -12,14 +12,14 @@ using Pegasus.Web.Presentation;
 namespace Pegasus.Web.Pages.Search;
 
 /// <summary>
-/// Search (EPIC-011 §1.7): the advanced filter grid over the case query, a
+/// Search: the advanced filter grid over the case query, a
 /// results table whose selectable rows preview the selected Case beside it.
 /// </summary>
 /// <remarks>
 /// The grid's ten fields map 1:1 onto the existing search parameters; the
 /// pre-port parameters this design does not draw (<c>case</c>,
 /// <c>receivedDate</c>, <c>instructionDate</c>, <c>kind</c>) stay bound and
-/// pager-preserved, so the <c>/Cases</c> bookmarks PLAT-029 redirects here
+/// pager-preserved, so the <c>/Cases</c> bookmarks the shell redirects here
 /// keep working with their values intact. The preview pane is built from
 /// the row projection plus one batched Engineer-name resolve rather than
 /// <c>IGetCase</c>: the wave-1 selection script needs a preview template
@@ -287,7 +287,7 @@ public sealed partial class IndexModel(
     /// <summary>
     /// The display rows: one batched staff-name resolve covers every
     /// Engineer on the page, and the outstanding requirements read the
-    /// completeness facts the search already projected (CASE-025's rule:
+    /// completeness facts the search already projected (the Cases-page rule:
     /// only a Not ready case has any).
     /// </summary>
     private async Task<IReadOnlyList<ResultRow>> ComposeRowsAsync(CancellationToken cancellationToken)

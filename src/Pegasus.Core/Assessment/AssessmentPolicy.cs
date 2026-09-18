@@ -96,7 +96,7 @@ public static class AssessmentPolicy
     /// The one gate every generic field save passes: the path must be part of
     /// the vocabulary, must not be derived from the damage impacts, must not
     /// be owned by the accepted case record, and must not be a finding a named
-    /// command adopts (AUTO-015). The value is then canonicalized against its
+    /// command adopts. The value is then canonicalized against its
     /// own definition. Both the assessment save and the Case workspace save
     /// call it, so an unwritable path fails the same way on either route.
     /// </summary>
@@ -308,7 +308,7 @@ public static class AssessmentPolicy
         RequireField(AssessmentVocabulary.Outcome, "Assessment outcome", "Findings");
         RequireField(AssessmentVocabulary.LegalStatus, "Roadworthiness", "Findings");
         RequireField(AssessmentVocabulary.HistoryCheck, "Vehicle history check", "Report content");
-        // ENG-038: the Engineer name, qualifications and signature readiness
+        // The Engineer name, qualifications and signature readiness
         // items are retired (D18). The signing Engineer is the selected
         // sign-off account, whose printed name, qualifications and signature
         // come from that account, so typed copies of them were three ways to

@@ -9,7 +9,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// CASE-006: retained vehicle images are viewable in Pegasus — an authorised
+/// Retained vehicle images are viewable in Pegasus — an authorised
 /// staff-only endpoint serves true image media inline, and the
 /// Image-initiated Case page and the case Evidence tab render thumbnail
 /// galleries whose thumbnails click-expand to that endpoint. Anything that is
@@ -143,7 +143,7 @@ public sealed class ImageViewingWebTests
         var galleryImage = Assert.Single(images);
         Assert.Equal(receiptId, galleryImage.ReceiptId);
         Assert.Equal("vehicle.png", galleryImage.FileName);
-        // DOCS-011: the tile carries its own media type so the viewer can pick
+        // The tile carries its own media type so the viewer can pick
         // a preview element without a second query.
         Assert.StartsWith("image/", galleryImage.MediaType, StringComparison.Ordinal);
 
@@ -155,7 +155,7 @@ public sealed class ImageViewingWebTests
         Assert.Contains(expectedSource, imageCasePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("alt=\"vehicle.png\"", imageCasePage, StringComparison.Ordinal);
         Assert.Contains("loading=\"lazy\"", imageCasePage, StringComparison.Ordinal);
-        // DOCS-011: each tile is still a real link -- so it works with no
+        // Each tile is still a real link -- so it works with no
         // script -- and carries what the viewer needs to open and page it.
         Assert.Contains("data-evidence-set", imageCasePage, StringComparison.Ordinal);
         Assert.Contains("data-evidence-item", imageCasePage, StringComparison.Ordinal);
@@ -193,7 +193,7 @@ public sealed class ImageViewingWebTests
     }
 
     /// <summary>
-    /// DOCS-006: an instruction's retained image assets serve inline through
+    /// An instruction's retained image assets serve inline through
     /// the receipt-scoped asset route; non-image assets and foreign
     /// receipt/asset pairings stay off it.
     /// </summary>

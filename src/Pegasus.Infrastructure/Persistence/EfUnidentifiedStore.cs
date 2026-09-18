@@ -443,7 +443,7 @@ public sealed class EfUnidentifiedStore(
         var openState = UnidentifiedState.Open.ToString();
 
         // No foreign key is modelled between an Unidentified item and its
-        // origin receipt (the origin can be a receipt or, for INTK-007's
+        // origin receipt (the origin can be a receipt or, for the
         // grouped-VRM-conflict case, a submission group), so this is a plain
         // left join rather than a navigation property.
         var joined = await (
@@ -529,7 +529,7 @@ public sealed class EfUnidentifiedStore(
         // last row returned is always the correct next position.
         //
         // No foreign key is modelled between an Unidentified item and its
-        // origin receipt (the origin can be a receipt or, for INTK-007's
+        // origin receipt (the origin can be a receipt or, for the
         // grouped-VRM-conflict case, a submission group), so this is a plain
         // left join rather than a navigation property.
         var joined =

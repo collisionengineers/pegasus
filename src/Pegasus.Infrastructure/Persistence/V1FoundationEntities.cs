@@ -232,7 +232,7 @@ internal sealed class DocumentContentCacheEntryEntity : IApplicationManagedConcu
 
     /// <summary>
     /// Which kind of cached object this row names: the empty string for the
-    /// durable content itself, or a derived rendering's key (DOCS-015).
+    /// durable content itself, or a derived rendering's key.
     /// </summary>
     /// <remarks>
     /// The cache was one entry per source identity, so a derived thumbnail had

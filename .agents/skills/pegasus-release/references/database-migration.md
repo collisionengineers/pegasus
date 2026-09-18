@@ -87,8 +87,8 @@ stale containment blocks SQL.
    intentionally non-empty process-only placeholders, not azd configuration
    or secrets. The Box value is shape-valid JWT JSON. The migration host builds
    its deferred Box and EVA factories but does not use their external routes.
-   The four `Glass__*` values are the Web host's Production required keys
-   (CASE-047 B04); the two provider origins and the profile id are the same
+   The four `Glass__*` values are the Web host's Production required keys;
+   the two provider origins and the profile id are the same
    non-secret azd values bicep hands the Web App, and the callback origin is
    the fixed Web App origin `$webOrigin` from the release skill (the template
    derives the same value from its own hostname, so it is known before the

@@ -7,7 +7,7 @@ namespace Pegasus.Core.Tests.Lifecycle;
 public sealed class CaseReviewReadinessTests
 {
     /// <summary>
-    /// CASE-046: a posted readiness claim is never authority. Core no longer
+    /// A posted readiness claim is never authority. Core no longer
     /// refuses on the client's booleans; the Review gate reads the persisted
     /// instruction and image completeness inside the store transaction
     /// (CaseWorkflowPersistenceTests). Any posted combination passes here.

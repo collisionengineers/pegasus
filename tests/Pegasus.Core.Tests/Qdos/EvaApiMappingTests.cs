@@ -39,7 +39,7 @@ public sealed class EvaApiMappingTests
 
     /// <summary>
     /// The Pegasus case reference is the ExternalRef, deliberately not the
-    /// Reference field — which since ENG-015 carries the work provider's own
+    /// Reference field — which carries the work provider's own
     /// reference and can repeat across cases.
     /// </summary>
     [Fact]

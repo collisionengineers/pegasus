@@ -6,7 +6,7 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Core.Tests.Reports;
 
 /// <summary>
-/// CASE-047 B07: the delivery-preparation policy and use cases. Generation is
+/// The delivery-preparation policy and use cases. Generation is
 /// not delivery — nothing here records a Sent state, transport observation
 /// stays with Stream A, and every rule reads persisted structured facts the
 /// operator never types into a preparation form. The store's own

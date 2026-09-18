@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Pegasus.Infrastructure.Persistence.Migrations;
 
 /// <summary>
-/// DOCS-014: a report preview or a confirmed-artifact download is Case
+/// A report preview or a confirmed-artifact download is Case
 /// history, not a Case mutation — it records with an unchanged before/after
 /// version, exactly as an operator note already does. The per-Case,
 /// per-version uniqueness index must exempt the two new event types the same
