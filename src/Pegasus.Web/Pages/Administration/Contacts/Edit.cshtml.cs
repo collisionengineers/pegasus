@@ -6,7 +6,6 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Reports;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Administration.Contacts;
 
@@ -15,7 +14,6 @@ namespace Pegasus.Web.Pages.Administration.Contacts;
 public sealed class EditModel(
     IContactDirectoryQueries contacts,
     IContactDirectoryAdministration administration,
-    IEditScopeLeases editScopes,
     IGetPrincipal getPrincipal,
     IGetPrincipalCredential getCredential,
     IIssuePrincipalCredential issueCredential,
@@ -55,7 +53,6 @@ public sealed class EditModel(
     [BindProperty] public CaseInspectionMode PrincipalInspectionMode { get; set; } = CaseInspectionMode.PhysicalAddress;
     [BindProperty] public string[] PrincipalAssociationKeys { get; set; } = [];
     [BindProperty] public string OperationKey { get; set; } = NewOperationKey();
-    [BindProperty] public string LeaseToken { get; set; } = string.Empty;
 
     [BindProperty] public long PrincipalExpectedVersion { get; set; }
     [BindProperty] public PrincipalReportGenerationPolicy ReportGenerationPolicy { get; set; }
@@ -74,25 +71,6 @@ public sealed class EditModel(
     [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumPrincipalCodeLength)] public string SuccessorCode { get; set; } = string.Empty;
     [BindProperty, StringLength(OrganizationAdministrationPolicy.MaximumReasonLength)] public string? ReplacementReason { get; set; }
     [BindProperty] public string ReplacementOperationKey { get; set; } = NewOperationKey();
-    public bool IsEditing => !string.IsNullOrWhiteSpace(LeaseToken);
-
-    /// <summary>
-    /// Set when this operator is already editing this contact in another
-    /// window, so the page offers the take-over that ends the other window's
-    /// claim instead of an Edit that would be refused again.
-    /// </summary>
-    public bool CanTakeOverEdit { get; private set; }
-
-    /// <summary>The record as the operator reading an ownership sentence names it.</summary>
-    private const string RecordName = "contact";
-
-    /// <summary>
-    /// Another colleague's claim. This area never resolves the holder's name,
-    /// so the shared wording is used with an unnamed holder rather than a
-    /// second sentence of its own.
-    /// </summary>
-    private static readonly string HeldByAnother =
-        EditModeDisplay.HeldBy(RecordName, CaseEditAuthorityHolder.Unnamed, isSelf: false);
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -108,47 +86,6 @@ public sealed class EditModel(
         return Page();
     }
 
-    public async Task<IActionResult> OnPostEditAsync(
-        Guid id,
-        bool takeOver,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (!TargetsContact(id)) return BadRequest();
-        ContactId = id;
-        Contact = await contacts.GetAsync(actor, id, cancellationToken);
-        if (Contact is null) return NotFound();
-        ModelState.Clear();
-        CopyFrom(Contact);
-        await LoadPrincipalAsync(actor, cancellationToken);
-        InitializePrincipalSettings();
-        try
-        {
-            var lease = await editScopes.ClaimAsync(
-                new(EditScopeKind.Contact, ContactId, ExpectedVersion, actor, OperationKey)
-                {
-                    TakeOver = takeOver
-                },
-                cancellationToken);
-            LeaseToken = lease.Token;
-        }
-        catch (EditScopeHeldElsewhereException)
-        {
-            CanTakeOverEdit = true;
-            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(RecordName));
-        }
-        catch (EditScopeConflictException)
-        {
-            ModelState.AddModelError(string.Empty, HeldByAnother);
-        }
-        catch (EditScopeVersionConflictException)
-        {
-            ModelState.AddModelError(string.Empty, "This contact changed. Reload it before editing.");
-        }
-        await PopulateAsync(actor, cancellationToken, copyContactFields: false);
-        return Page();
-    }
-
     public async Task<IActionResult> OnPostSaveAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
@@ -159,7 +96,6 @@ public sealed class EditModel(
         // These fields belong to separate consequential Principal actions.
         ModelState.Remove(nameof(SuccessorCode));
         ModelState.Remove(nameof(ReplacementReason));
-        ModelState.Remove(nameof(LeaseToken));
         if (!IsOperationKeyValid(OperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Open the contact again.");
         if (!Enum.IsDefined(PrincipalInspectionMode)) ModelState.AddModelError(nameof(PrincipalInspectionMode), "Select an inspection mode.");
         if (ModelState.IsValid)
@@ -167,15 +103,12 @@ public sealed class EditModel(
             try
             {
                 var associations = ParsePrincipalAssociations();
-                await administration.SaveAsync(new(actor, ContactId, ExpectedVersion, Name, ContactPerson, Email, Telephone, Address, Postcode, Active, Roles, PrincipalCode, PrincipalInspectionMode, associations, OperationKey, LeaseToken ?? string.Empty, GuidanceTemplate, GuidanceTemplateVersion,
+                await administration.SaveAsync(new(actor, ContactId, ExpectedVersion, Name, ContactPerson, Email, Telephone, Address, Postcode, Active, Roles, PrincipalCode, PrincipalInspectionMode, associations, OperationKey, GuidanceTemplate, GuidanceTemplateVersion,
                     Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Contact.NotesOnEveryCase), cancellationToken);
                 TempData["AdministrationStatus"] = "The contact was saved.";
                 return RedirectToPage("Index");
             }
             catch (ContactDirectoryException exception) { ModelState.AddModelError(string.Empty, ContactErrorMessage(exception.Error)); }
-            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, HeldByAnother); }
-            catch (EditScopeExpiredException) { ModelState.AddModelError(string.Empty, "Your edit session expired. Reload the contact."); }
-            catch (EditScopeVersionConflictException) { ModelState.AddModelError(string.Empty, "This contact changed. Reload it before making further changes."); }
             catch (ArgumentException exception)
             {
                 // A named field error is shown against its own control; every
@@ -194,68 +127,6 @@ public sealed class EditModel(
         return Page();
     }
 
-    public async Task<IActionResult> OnPostCancelAsync(Guid id, CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (!TargetsContact(id)) return BadRequest();
-        ContactId = id;
-        if (!string.IsNullOrEmpty(LeaseToken))
-        {
-            try { await editScopes.ReleaseAsync(new(EditScopeKind.Contact, ContactId, actor, OperationKey, LeaseToken), cancellationToken); }
-            catch (Exception exception) when (exception is EditScopeExpiredException or EditScopeConflictException) { }
-        }
-        return RedirectToPage("Index");
-    }
-
-    /// <summary>
-    /// The release a leaving page beacons. It is not an operator action: it
-    /// answers 204 whether or not a scope was still there to release, so a
-    /// duplicate beacon and a beacon that lost a race with Cancel are both
-    /// ordinary outcomes. Antiforgery is validated as it is for every post.
-    /// </summary>
-    public async Task<IActionResult> OnPostReleaseScopeBeaconAsync(Guid id, CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (!TargetsContact(id)) return BadRequest();
-        ContactId = id;
-        if (ContactId == Guid.Empty || string.IsNullOrWhiteSpace(LeaseToken)) return new NoContentResult();
-        try
-        {
-            await editScopes.ReleaseAsync(
-                new(EditScopeKind.Contact, ContactId, actor, NewOperationKey(), LeaseToken),
-                cancellationToken);
-        }
-        catch (Exception exception)
-            when (exception is EditScopeExpiredException or EditScopeConflictException)
-        {
-            // The scope has already gone or has already been re-claimed by a
-            // newer window of this operator's own session.
-        }
-        return new NoContentResult();
-    }
-
-    public async Task<IActionResult> OnPostHeartbeatEditAsync(Guid id, CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (!TargetsContact(id)) return BadRequest();
-        ContactId = id;
-        if (ContactId == Guid.Empty || string.IsNullOrWhiteSpace(LeaseToken))
-        {
-            return new ConflictObjectResult("Editing this contact has ended. Reload it before making further changes.");
-        }
-
-        try
-        {
-            await editScopes.HeartbeatAsync(
-                new(EditScopeKind.Contact, ContactId, actor, LeaseToken), cancellationToken);
-            return new OkResult();
-        }
-        catch (EditScopeExpiredException)
-        {
-            return new ConflictObjectResult("Editing this contact has ended. Reload it before making further changes.");
-        }
-    }
-
     public async Task<IActionResult> OnPostUpdateReportSettingsAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return Forbid();
@@ -267,9 +138,7 @@ public sealed class EditModel(
             nameof(AdditionalReportRecipients),
             nameof(PrincipalExpectedVersion),
             nameof(ExpectedVersion),
-            nameof(LeaseToken),
             nameof(ReportSettingsOperationKey));
-        if (!IsEditing) ModelState.AddModelError(string.Empty, "Select Edit contact before changing principal settings.");
         var expectedVersion = PrincipalExpectedVersion;
         if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
         if (!IsOperationKeyValid(ReportSettingsOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
@@ -283,15 +152,12 @@ public sealed class EditModel(
                 await updatePrincipalReportSettings.ExecuteAsync(new(
                     Principal!.Id, expectedVersion, actor, ReportSettingsOperationKey!,
                     "Updated report settings", ReportGenerationPolicy, recipients,
-                    ExpectedVersion, LeaseToken,
+                    ExpectedVersion,
                     Posted(nameof(NotesOnEveryCase)) ? NotesOnEveryCase : Principal.NotesOnEveryCase), cancellationToken);
                 TempData["AdministrationStatus"] = "The principal's report settings were updated.";
                 return RedirectToPage(new { id = ContactId });
             }
-            catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalErrorMessage(exception.Error)); }
-            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, HeldByAnother); }
-            catch (EditScopeExpiredException) { ModelState.AddModelError(string.Empty, "Your edit session expired. Reload the contact."); }
-            catch (EditScopeVersionConflictException) { ModelState.AddModelError(string.Empty, "This contact changed. Reload it before making further changes."); }
+            catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The settings were not accepted."); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
@@ -311,9 +177,7 @@ public sealed class EditModel(
             nameof(LocationPostcode),
             nameof(PrincipalExpectedVersion),
             nameof(ExpectedVersion),
-            nameof(LeaseToken),
             nameof(LocationOperationKey));
-        if (!IsEditing) ModelState.AddModelError(string.Empty, "Select Edit contact before changing principal settings.");
         var expectedVersion = PrincipalExpectedVersion;
         if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
         if (!IsOperationKeyValid(LocationOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
@@ -323,14 +187,11 @@ public sealed class EditModel(
             try
             {
                 await updatePrincipalDefaultInspectionLocation.ExecuteAsync(new(actor, Principal!.Id, expectedVersion, LocationOperationKey!, LocationIsImageBasedAssessment ? InspectionAddressEvidenceKind.ImageBasedAssessment : InspectionAddressEvidenceKind.PhysicalAddress, LocationLabel, LocationAddress, LocationPostcode, "manual", null, null,
-                    ExpectedVersion, LeaseToken), cancellationToken);
+                    ExpectedVersion), cancellationToken);
                 TempData["AdministrationStatus"] = "The principal's default inspection location was updated.";
                 return RedirectToPage(new { id = ContactId });
             }
-            catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalErrorMessage(exception.Error)); }
-            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, HeldByAnother); }
-            catch (EditScopeExpiredException) { ModelState.AddModelError(string.Empty, "Your edit session expired. Reload the contact."); }
-            catch (EditScopeVersionConflictException) { ModelState.AddModelError(string.Empty, "This contact changed. Reload it before making further changes."); }
+            catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The default location was not accepted."); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
@@ -353,9 +214,7 @@ public sealed class EditModel(
             nameof(ReplacementReason),
             nameof(ReplacementExpectedVersion),
             nameof(ExpectedVersion),
-            nameof(LeaseToken),
             nameof(ReplacementOperationKey));
-        if (!IsEditing) ModelState.AddModelError(string.Empty, "Select Edit contact before changing principal settings.");
         var expectedVersion = ReplacementExpectedVersion;
         if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
         if (!IsOperationKeyValid(ReplacementOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
@@ -365,14 +224,11 @@ public sealed class EditModel(
             try
             {
                 await replacePrincipal.ExecuteAsync(new(Principal!.Id, expectedVersion, SuccessorCode, actor, ReplacementOperationKey, ReplacementReason,
-                    ExpectedVersion, LeaseToken), cancellationToken);
+                    ExpectedVersion), cancellationToken);
                 TempData["AdministrationStatus"] = "The predecessor was disabled and its linked successor was created.";
                 return RedirectToPage("Index");
             }
-            catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalErrorMessage(exception.Error)); }
-            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, HeldByAnother); }
-            catch (EditScopeExpiredException) { ModelState.AddModelError(string.Empty, "Your edit session expired. Reload the contact."); }
-            catch (EditScopeVersionConflictException) { ModelState.AddModelError(string.Empty, "This contact changed. Reload it before making further changes."); }
+            catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The replacement details were not accepted."); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
@@ -389,9 +245,7 @@ public sealed class EditModel(
             nameof(CredentialReason),
             nameof(CredentialVersion),
             nameof(ExpectedVersion),
-            nameof(LeaseToken),
             nameof(CredentialOperationKey));
-        if (!IsEditing) ModelState.AddModelError(string.Empty, "Select Edit contact before changing principal settings.");
         var submittedVersion = CredentialVersion;
         if (!await LoadPrincipalAsync(actor, cancellationToken)) return NotFound();
         if (!IsOperationKeyValid(CredentialOperationKey)) ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
@@ -400,7 +254,7 @@ public sealed class EditModel(
             try
             {
                 var request = new PrincipalCredentialCommandRequest(Principal!.Id, submittedVersion, actor, CredentialOperationKey!, CredentialReason,
-                    ExpectedVersion, LeaseToken);
+                    ExpectedVersion);
                 if (action == "issue")
                 {
                     var result = await issueCredential.ExecuteAsync(request, cancellationToken);
@@ -432,9 +286,7 @@ public sealed class EditModel(
                     _ => "The API key change was not accepted."
                 });
             }
-            catch (EditScopeConflictException) { ModelState.AddModelError(string.Empty, HeldByAnother); }
-            catch (EditScopeExpiredException) { ModelState.AddModelError(string.Empty, "Your edit session expired. Reload the contact."); }
-            catch (EditScopeVersionConflictException) { ModelState.AddModelError(string.Empty, "This contact changed. Reload it before making further changes."); }
+            catch (OrganizationAdministrationException exception) { ModelState.AddModelError(string.Empty, PrincipalAdministrationErrorMessage(exception)); }
             catch (ArgumentException) { ModelState.AddModelError(string.Empty, "The API key change was not accepted."); }
             catch (StaffAuthorizationException) { return Forbid(); }
         }
@@ -527,6 +379,13 @@ public sealed class EditModel(
 
     public static string RoleLabel(ContactRole role) => role switch { ContactRole.Principal => "Principal", ContactRole.ClaimSource => "Claim Source", ContactRole.Repairer => "Repairer", ContactRole.Storage => "Storage", ContactRole.ThirdPartyEngineer => "Third Party Engineer", _ => role.ToString() };
     private static string ContactErrorMessage(ContactDirectoryError error) => error switch { ContactDirectoryError.DuplicateOrganizationName => "A contact with that organisation name already exists. Select it before adding a role.", ContactDirectoryError.DuplicatePrincipalCode => "That principal code already exists.", ContactDirectoryError.InvalidPrincipalAssociation => "A contact cannot link to itself as a principal, and only non-principal types can link to principals.", ContactDirectoryError.StaleVersion => "The contact changed after you opened it. Reload it and try again.", _ => "The contact could not be saved." };
+    private string PrincipalAdministrationErrorMessage(OrganizationAdministrationException exception) =>
+        exception.Error == OrganizationAdministrationError.StaleVersion
+            && Contact is { } contact
+            && ExpectedVersion != contact.Version
+                ? "This contact changed. Reload it before making further changes."
+                : PrincipalErrorMessage(exception.Error);
+
     private static string PrincipalErrorMessage(OrganizationAdministrationError error) => error switch
     {
         OrganizationAdministrationError.PrincipalNotFound => "The principal no longer exists.",

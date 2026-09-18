@@ -125,18 +125,13 @@ public sealed partial class StaffSignInSecurityTests
             var user = await scope.ServiceProvider.GetRequiredService<PegasusDbContext>().Users
                 .AsNoTracking()
                 .SingleAsync(item => item.Id == subjectId);
-            var lease = await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-                new(EditScopeKind.StaffAccount, subjectId, user.Version, administrator,
-                    "force-logout-next-request"),
-                default);
             await scope.ServiceProvider.GetRequiredService<IForceStaffLogout>().ExecuteAsync(
                 new(
                     administrator,
                     subjectId,
                     "Security recovery",
                     "force-logout-next-request",
-                    user.Version,
-                    lease.Token),
+                    user.Version),
                 default);
         }
 

@@ -129,14 +129,8 @@ public sealed class EfPrincipalCredentialStore(
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
             ?? throw new PrincipalCredentialException(PrincipalCredentialError.PrincipalNotFound);
-        var contact = await EfOrganizationAdministration.RequirePrincipalContactScopeAsync(
-            context,
-            principalEntity,
-            request.ExpectedContactVersion,
-            request.Actor,
-            request.EditLeaseToken,
-            UtcNow(),
-            cancellationToken);
+        var contact = await EfOrganizationAdministration.RequirePrincipalContactVersionAsync(
+            context, principalEntity, request.ExpectedContactVersion, cancellationToken);
         var entity = await context.PrincipalApiCredentials
             .SingleOrDefaultAsync(item => item.PrincipalId == request.PrincipalId, cancellationToken);
         var before = entity is null ? null : ToRecord(entity);
@@ -169,7 +163,7 @@ public sealed class EfPrincipalCredentialStore(
             before,
             planned);
         AddReceipt(context, request.OperationKey, commandKind, requestHash, planned, now);
-        EfOrganizationAdministration.CompletePrincipalContactScope(context, contact);
+        EfOrganizationAdministration.AdvancePrincipalContactVersion(contact);
         await SaveChangesAsync(context, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(planned, false);
@@ -201,21 +195,15 @@ public sealed class EfPrincipalCredentialStore(
                     .AsNoTracking()
                     .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, token)
                     ?? throw new PrincipalCredentialException(PrincipalCredentialError.PrincipalNotFound);
-                var contact = await EfOrganizationAdministration.RequirePrincipalContactScopeAsync(
-                    context,
-                    principalEntity,
-                    request.ExpectedContactVersion,
-                    request.Actor,
-                    request.EditLeaseToken,
-                    UtcNow(),
-                    token);
+                var contact = await EfOrganizationAdministration.RequirePrincipalContactVersionAsync(
+                    context, principalEntity, request.ExpectedContactVersion, token);
                 var before = entity is null ? null : ToRecord(entity);
                 var now = UtcNow();
                 var planned = plan(before, now);
                 Apply(entity!, planned);
                 AddHistory(context, eventKind, request, now, before, planned);
                 AddReceipt(context, request.OperationKey, commandKind, requestHash, planned, now);
-                EfOrganizationAdministration.CompletePrincipalContactScope(context, contact);
+                EfOrganizationAdministration.AdvancePrincipalContactVersion(contact);
                 await SaveChangesAsync(context, token);
                 await transaction.CommitAsync(token);
                 return planned;

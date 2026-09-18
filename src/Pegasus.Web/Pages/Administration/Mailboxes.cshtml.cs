@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
-using Pegasus.Core.Workflow;
 using Pegasus.Web.Mcp;
 
 namespace Pegasus.Web.Pages.Administration;
@@ -21,9 +20,7 @@ public sealed class MailboxesModel(
     ICheckApprovedMailboxAccess checkApprovedMailboxAccess,
     TimeProvider timeProvider,
     ListApprovedOutlookCategories listCategories,
-    UpdateApprovedOutlookCategory updateCategory,
-    IEditScopeLeases editScopes,
-    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder)
+    UpdateApprovedOutlookCategory updateCategory)
     : AdministrationPageModel
 {
     public IReadOnlyList<ApprovedMailbox> Mailboxes { get; private set; } = [];
@@ -48,42 +45,11 @@ public sealed class MailboxesModel(
 
     public bool IsNewCategoryEditorOpen { get; private set; }
 
-    /// <summary>
-    /// The default-sender dialog opens only from its own handlers. The bound
-    /// form object exists on every POST, so its presence cannot decide this.
-    /// </summary>
+    /// <summary>The default-sender dialog is reopened after a failed save.</summary>
     public bool IsDefaultEditorOpen { get; private set; }
 
     private DefaultMailboxFormInput? ActiveDefaultForm =>
         IsDefaultEditorOpen ? DefaultMailboxForm : null;
-
-    public EditScopeLease? MailboxEditLease { get; private set; }
-
-    /// <summary>
-    /// The mailbox policy this operator is already editing in another
-    /// window's per-row Settings editor, offered with the take-over that
-    /// ends the other window's claim. Set only by
-    /// <see cref="OnPostEditMailboxAsync"/>'s refusal; the default-sender
-    /// dialog's own refusal is tracked separately by
-    /// <see cref="TakeOverDefaultMailboxId"/>, since a lease held on a
-    /// different mailbox than the one the dialog currently has selected must
-    /// never be offered as a take-over here.
-    /// </summary>
-    public Guid TakeOverMailboxId { get; private set; }
-
-    /// <summary>
-    /// The mailbox policy this operator is already editing elsewhere, as
-    /// discovered by the default-sender dialog's own claim attempt. The
-    /// dialog offers Take over only when this equals the mailbox the dialog
-    /// currently has selected (<see cref="DefaultEditingMailboxId"/>'s
-    /// parsed selection) — otherwise a stale value here (e.g. from a lease
-    /// held on some other mailbox) must not relabel Continue as Take over
-    /// for a mailbox nobody has refused.
-    /// </summary>
-    public Guid TakeOverDefaultMailboxId { get; private set; }
-
-    /// <summary>The same for an Outlook category.</summary>
-    public Guid TakeOverCategoryId { get; private set; }
 
     [BindProperty]
     public MailboxFormInput? MailboxForm { get; set; }
@@ -94,7 +60,10 @@ public sealed class MailboxesModel(
     [BindProperty]
     public CategoryFormInput? CategoryForm { get; set; }
 
-    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetAsync(
+        Guid? mailboxId,
+        int? expectedVersion,
+        CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
         {
@@ -103,161 +72,32 @@ public sealed class MailboxesModel(
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
         await LoadAsync(actor, cancellationToken);
+        if (mailboxId is { } selectedMailboxId)
+        {
+            var mailbox = Mailboxes.SingleOrDefault(item => item.Id == selectedMailboxId);
+            if (mailbox is null) return NotFound();
+            if (expectedVersion != mailbox.Version)
+            {
+                ModelState.AddModelError(string.Empty,
+                    "The mailbox policy changed. Reload the page and open Settings again.");
+            }
+            else
+            {
+                MailboxForm = new()
+                {
+                    MailboxId = mailbox.Id,
+                    Address = mailbox.Address,
+                    SelectedRouteScopes = mailbox.RouteScopes.Select(item => item.ToString()).ToArray(),
+                    SelectedState = mailbox.State.ToString(),
+                    ExpectedVersion = mailbox.Version,
+                    OperationKey = NewOperationKey(),
+                    VerifiedEncodedMessageSizeLimit = mailbox.VerifiedEncodedMessageSizeLimit
+                };
+            }
+        }
         PrepareFormState();
         return Page();
     }
-
-    public async Task<IActionResult> OnPostEditMailboxAsync(
-        Guid mailboxId,
-        int expectedVersion,
-        bool takeOver,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
-        await LoadAsync(actor, cancellationToken);
-        var mailbox = Mailboxes.SingleOrDefault(item => item.Id == mailboxId);
-        if (mailbox is null || mailbox.Version != expectedVersion)
-        {
-            ModelState.AddModelError(string.Empty,
-                "The mailbox policy changed after this page was loaded. Review it and retry.");
-            return Page();
-        }
-
-        try
-        {
-            MailboxEditLease = await editScopes.ClaimAsync(
-                new(EditScopeKind.ApprovedMailbox, mailbox.Id, mailbox.Version, actor,
-                    $"approved-mailbox-edit:{Guid.NewGuid():N}")
-                {
-                    TakeOver = takeOver
-                },
-                cancellationToken);
-            MailboxForm = new()
-            {
-                MailboxId = mailbox.Id,
-                Address = mailbox.Address,
-                SelectedRouteScopes = mailbox.RouteScopes.Select(item => item.ToString()).ToArray(),
-                SelectedState = mailbox.State.ToString(),
-                ExpectedVersion = mailbox.Version,
-                OperationKey = NewOperationKey(),
-                VerifiedEncodedMessageSizeLimit = mailbox.VerifiedEncodedMessageSizeLimit,
-                EditLeaseToken = MailboxEditLease.Token
-            };
-        }
-        catch (EditScopeHeldElsewhereException)
-        {
-            TakeOverMailboxId = mailboxId;
-            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(MailboxRecordName));
-        }
-        catch (EditScopeConflictException)
-        {
-            ModelState.AddModelError(string.Empty,
-                await EditConflictMessageAsync(EditScopeKind.ApprovedMailbox, mailboxId, actor, MailboxRecordName, cancellationToken));
-        }
-        catch (EditScopeVersionConflictException)
-        {
-            ModelState.AddModelError(string.Empty,
-                "The mailbox policy changed while you were working. Reload and try again.");
-        }
-
-        return Page();
-    }
-
-    public async Task<IActionResult> OnPostCancelMailboxEditAsync(
-        Guid mailboxId,
-        string editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            await editScopes.ReleaseAsync(
-                new(EditScopeKind.ApprovedMailbox, mailboxId, actor,
-                    $"approved-mailbox-edit-release:{Guid.NewGuid():N}", editLeaseToken),
-                cancellationToken);
-        }
-        catch (EditScopeExpiredException)
-        {
-            // An expired scope has no pending record mutation to cancel.
-        }
-
-        return RedirectToPage();
-    }
-
-    public Task<IActionResult> OnPostHeartbeatMailboxEditAsync(
-        Guid mailboxId,
-        string? editLeaseToken,
-        CancellationToken cancellationToken) =>
-        HeartbeatEditAsync(
-            EditScopeKind.ApprovedMailbox,
-            mailboxId,
-            editLeaseToken,
-            "mailbox policy",
-            cancellationToken);
-
-    public async Task<IActionResult> OnPostEditDefaultAsync(bool takeOver, CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
-        await LoadAsync(actor, cancellationToken);
-        IsDefaultEditorOpen = true;
-        var input = RequireForm(DefaultMailboxForm, value => DefaultMailboxForm = value);
-        if (!TryParseMailboxSelection(input.SelectedMailbox, out var mailboxId, out var expectedVersion))
-        {
-            ModelState.AddModelError(nameof(DefaultMailboxFormInput.SelectedMailbox),
-                "Select an eligible staff-send mailbox.");
-            return Page();
-        }
-
-        try
-        {
-            var lease = await editScopes.ClaimAsync(
-                new(EditScopeKind.ApprovedMailbox, mailboxId, expectedVersion, actor,
-                    $"approved-mailbox-default-edit:{Guid.NewGuid():N}")
-                {
-                    TakeOver = takeOver
-                },
-                cancellationToken);
-            input.EditLeaseToken = lease.Token;
-            input.OperationKey = NewOperationKey();
-        }
-        catch (EditScopeHeldElsewhereException)
-        {
-            TakeOverDefaultMailboxId = mailboxId;
-            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(MailboxRecordName));
-        }
-        catch (EditScopeConflictException)
-        {
-            ModelState.AddModelError(string.Empty,
-                await EditConflictMessageAsync(EditScopeKind.ApprovedMailbox, mailboxId, actor, MailboxRecordName, cancellationToken));
-        }
-        catch (EditScopeVersionConflictException)
-        {
-            ModelState.AddModelError(string.Empty,
-                "The selected mailbox changed while you were working. Reload and try again.");
-        }
-
-        return Page();
-    }
-
-    public async Task<IActionResult> OnPostCancelDefaultEditAsync(
-        Guid mailboxId,
-        string editLeaseToken,
-        CancellationToken cancellationToken) =>
-        await OnPostCancelMailboxEditAsync(mailboxId, editLeaseToken, cancellationToken);
 
     public async Task<IActionResult> OnPostUpdateAsync(CancellationToken cancellationToken)
     {
@@ -364,10 +204,7 @@ public sealed class MailboxesModel(
                         resolution?.InboxFolderIdentity ?? existingMailbox?.InboxFolderIdentity,
                         resolution?.SentFolderIdentity ?? existingMailbox?.SentFolderIdentity,
                         resolution?.FolderBindings ?? existingMailbox?.FolderBindings,
-                        input.VerifiedEncodedMessageSizeLimit)
-                    {
-                        EditLeaseToken = input.EditLeaseToken
-                    },
+                        input.VerifiedEncodedMessageSizeLimit),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
                     $"The mailbox policy for {updated.Address} was saved.";
@@ -376,19 +213,6 @@ public sealed class MailboxesModel(
             catch (ApprovedMailboxUpdateException exception)
             {
                 ModelState.AddModelError(string.Empty, MailboxErrorMessage(exception));
-            }
-            catch (EditScopeConflictException)
-            {
-                ModelState.AddModelError(string.Empty,
-                    await EditConflictMessageAsync(EditScopeKind.ApprovedMailbox, input.MailboxId, actor, "mailbox policy", cancellationToken));
-            }
-            catch (EditScopeExpiredException)
-            {
-                ModelState.AddModelError(string.Empty, "Editing expired before this change was saved. Reload and try again.");
-            }
-            catch (EditScopeVersionConflictException)
-            {
-                ModelState.AddModelError(string.Empty, "The mailbox policy changed while you were working. Reload and try again.");
             }
             catch (ArgumentException)
             {
@@ -461,10 +285,7 @@ public sealed class MailboxesModel(
                         mailbox.InboxFolderIdentity,
                         mailbox.SentFolderIdentity,
                         resolution!.FolderBindings ?? [],
-                        mailbox.VerifiedEncodedMessageSizeLimit)
-                    {
-                        EditLeaseToken = input.EditLeaseToken
-                    },
+                        mailbox.VerifiedEncodedMessageSizeLimit),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
                     $"{updated.FolderBindings.Count} logical folder bindings were saved for {updated.Address}.";
@@ -474,17 +295,7 @@ public sealed class MailboxesModel(
             {
                 ModelState.AddModelError(string.Empty, MailboxErrorMessage(exception));
             }
-            catch (EditScopeConflictException)
-            {
-                ModelState.AddModelError(string.Empty,
-                    await EditConflictMessageAsync(EditScopeKind.ApprovedMailbox, mailbox!.Id, actor, "mailbox policy", cancellationToken));
-            }
-            catch (EditScopeExpiredException)
-            {
-                ModelState.AddModelError(string.Empty, "Editing expired before this change was saved. Reload and try again.");
-            }
-            }
-
+        }
         await LoadAsync(actor, cancellationToken);
         PrepareFormState();
         return Page();
@@ -524,10 +335,7 @@ public sealed class MailboxesModel(
                         input.ExpectedPreviousDefaultMailboxId,
                         input.ExpectedPreviousDefaultMailboxVersion,
                         actor,
-                        input.OperationKey)
-                    {
-                        EditLeaseToken = input.EditLeaseToken
-                    },
+                        input.OperationKey),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
                     $"{selected.Address} is the default Compose sender.";
@@ -535,16 +343,10 @@ public sealed class MailboxesModel(
             }
             catch (ApprovedMailboxUpdateException exception)
             {
-                ModelState.AddModelError(string.Empty, MailboxErrorMessage(exception));
-            }
-            catch (EditScopeConflictException)
-            {
                 ModelState.AddModelError(string.Empty,
-                    await EditConflictMessageAsync(EditScopeKind.ApprovedMailbox, mailboxId, actor, "mailbox policy", cancellationToken));
-            }
-            catch (EditScopeExpiredException)
-            {
-                ModelState.AddModelError(string.Empty, "Editing expired before this change was saved. Reload and try again.");
+                    exception.Error == ApprovedMailboxUpdateError.VersionConflict
+                        ? "The selected mailbox changed. Select it again before saving."
+                        : MailboxErrorMessage(exception));
             }
             catch (ArgumentException)
             {
@@ -558,106 +360,6 @@ public sealed class MailboxesModel(
         PrepareFormState();
         return Page();
     }
-
-    public async Task<IActionResult> OnPostEditCategoryAsync(
-        Guid categoryId,
-        int expectedVersion,
-        bool takeOver,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedOutlookCategories);
-        await LoadAsync(actor, cancellationToken);
-        var category = Categories.SingleOrDefault(item => item.Id == categoryId);
-        if (category is null || category.Version != expectedVersion)
-        {
-            ModelState.AddModelError(string.Empty,
-                "The Outlook category changed after this page was loaded. Review it and retry.");
-            return Page();
-        }
-
-        try
-        {
-            var lease = await editScopes.ClaimAsync(
-                new(EditScopeKind.ApprovedOutlookCategory, category.Id, category.Version, actor,
-                    $"outlook-category-edit:{Guid.NewGuid():N}")
-                {
-                    TakeOver = takeOver
-                },
-                cancellationToken);
-            CategoryForm = new()
-            {
-                CategoryId = category.Id,
-                DisplayName = category.DisplayName,
-                SelectedState = category.State.ToString(),
-                ExpectedVersion = category.Version,
-                OperationKey = NewOperationKey(),
-                EditLeaseToken = lease.Token
-            };
-        }
-        catch (EditScopeHeldElsewhereException)
-        {
-            TakeOverCategoryId = categoryId;
-            ModelState.AddModelError(string.Empty, EditModeDisplay.HeldElsewhere(CategoryRecordName));
-        }
-        catch (EditScopeConflictException)
-        {
-            ModelState.AddModelError(string.Empty,
-                await EditConflictMessageAsync(
-                    EditScopeKind.ApprovedOutlookCategory,
-                    categoryId,
-                    actor,
-                    CategoryRecordName,
-                    cancellationToken));
-        }
-        catch (EditScopeVersionConflictException)
-        {
-            ModelState.AddModelError(string.Empty,
-                "The Outlook category changed while you were working. Reload and try again.");
-        }
-
-        return Page();
-    }
-
-    public async Task<IActionResult> OnPostCancelCategoryEditAsync(
-        Guid categoryId,
-        string editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            await editScopes.ReleaseAsync(
-                new(EditScopeKind.ApprovedOutlookCategory, categoryId, actor,
-                    $"outlook-category-edit-release:{Guid.NewGuid():N}", editLeaseToken),
-                cancellationToken);
-        }
-        catch (EditScopeExpiredException)
-        {
-            // A stale scope cannot protect a further mutation.
-        }
-
-        return RedirectToPage();
-    }
-
-    public Task<IActionResult> OnPostHeartbeatCategoryEditAsync(
-        Guid categoryId,
-        string? editLeaseToken,
-        CancellationToken cancellationToken) =>
-        HeartbeatEditAsync(
-            EditScopeKind.ApprovedOutlookCategory,
-            categoryId,
-            editLeaseToken,
-            "Outlook category",
-            cancellationToken);
 
     public async Task<IActionResult> OnPostSaveCategoryAsync(
         CancellationToken cancellationToken)
@@ -696,10 +398,7 @@ public sealed class MailboxesModel(
                         state,
                         input.ExpectedVersion,
                         actor,
-                        input.OperationKey)
-                    {
-                        EditLeaseToken = input.EditLeaseToken
-                    },
+                        input.OperationKey),
                     cancellationToken);
                 TempData["AdministrationStatus"] =
                     $"The mail category {saved.DisplayName} was saved.";
@@ -708,24 +407,6 @@ public sealed class MailboxesModel(
             catch (ApprovedOutlookCategoryUpdateException exception)
             {
                 ModelState.AddModelError(string.Empty, CategoryErrorMessage(exception));
-            }
-            catch (EditScopeConflictException)
-            {
-                ModelState.AddModelError(string.Empty,
-                    await EditConflictMessageAsync(
-                        EditScopeKind.ApprovedOutlookCategory,
-                        input.CategoryId,
-                        actor,
-                        "Outlook category",
-                        cancellationToken));
-            }
-            catch (EditScopeExpiredException)
-            {
-                ModelState.AddModelError(string.Empty, "Editing expired before this change was saved. Reload and try again.");
-            }
-            catch (EditScopeVersionConflictException)
-            {
-                ModelState.AddModelError(string.Empty, "The Outlook category changed while you were working. Reload and try again.");
             }
             catch (ArgumentException)
             {
@@ -748,20 +429,12 @@ public sealed class MailboxesModel(
 
     public bool IsEditingMailbox(ApprovedMailbox mailbox) =>
         MailboxForm is { ExpectedVersion: > 0 } input
-        && input.MailboxId == mailbox.Id
-        && !string.IsNullOrWhiteSpace(input.EditLeaseToken);
+        && input.MailboxId == mailbox.Id;
 
-    public string EditLeaseTokenFor(ApprovedMailbox mailbox) =>
-        IsEditingMailbox(mailbox) ? MailboxForm!.EditLeaseToken : string.Empty;
-
-    public bool IsEditingDefaultMailbox =>
-        ActiveDefaultForm is { EditLeaseToken.Length: > 0 };
-
-    public Guid DefaultEditingMailboxId =>
-        ActiveDefaultForm is { } input
-        && TryParseMailboxSelection(input.SelectedMailbox, out var mailboxId, out _)
-            ? mailboxId
-            : Guid.Empty;
+    public int ExpectedVersionFor(ApprovedMailbox mailbox) =>
+        MailboxForm is { ExpectedVersion: > 0 } input && input.MailboxId == mailbox.Id
+            ? input.ExpectedVersion
+            : mailbox.Version;
 
     public string OperationKeyFor(ApprovedMailbox mailbox) =>
         MailboxForm is { ExpectedVersion: > 0 } input && input.MailboxId == mailbox.Id
@@ -826,7 +499,15 @@ public sealed class MailboxesModel(
     }
 
     public string DefaultMailboxOperationKey =>
-        DefaultMailboxForm?.OperationKey ?? NewOperationKey();
+        DefaultMailboxForm is { } input && IsOperationKeyValid(input.OperationKey)
+            ? input.OperationKey
+            : NewOperationKey();
+
+    public Guid? ExpectedPreviousDefaultMailboxIdFor(ApprovedMailbox? currentDefault) =>
+        DefaultMailboxForm is { } input ? input.ExpectedPreviousDefaultMailboxId : currentDefault?.Id;
+
+    public int? ExpectedPreviousDefaultMailboxVersionFor(ApprovedMailbox? currentDefault) =>
+        DefaultMailboxForm is { } input ? input.ExpectedPreviousDefaultMailboxVersion : currentDefault?.Version;
 
     public string NewAddress =>
         MailboxForm is { ExpectedVersion: 0 } input ? input.Address : string.Empty;
@@ -872,13 +553,10 @@ public sealed class MailboxesModel(
             ? input.DisplayName
             : category.DisplayName;
 
-    public bool IsEditingCategory(ApprovedOutlookCategory category) =>
-        CategoryForm is { ExpectedVersion: > 0 } input
-        && input.CategoryId == category.Id
-        && !string.IsNullOrWhiteSpace(input.EditLeaseToken);
-
-    public string CategoryEditLeaseTokenFor(ApprovedOutlookCategory category) =>
-        IsEditingCategory(category) ? CategoryForm!.EditLeaseToken : string.Empty;
+    public int ExpectedCategoryVersionFor(ApprovedOutlookCategory category) =>
+        CategoryForm is { ExpectedVersion: > 0 } input && input.CategoryId == category.Id
+            ? input.ExpectedVersion
+            : category.Version;
 
     public string CategoryOperationKeyFor(ApprovedOutlookCategory category) =>
         CategoryForm is { ExpectedVersion: > 0 } input && input.CategoryId == category.Id
@@ -984,119 +662,6 @@ public sealed class MailboxesModel(
         }
     }
 
-    private async Task<string> EditConflictMessageAsync(
-        EditScopeKind scopeKind,
-        Guid recordId,
-        ActionActor actor,
-        string recordName,
-        CancellationToken cancellationToken)
-    {
-        var active = await editScopes.GetActiveAsync(scopeKind, recordId, actor, cancellationToken);
-        if (active is null)
-        {
-            return $"Another member of staff is editing this {recordName}. Reload to try again.";
-        }
-
-        var isSelf = EditScopeAuthority.IsHolder(active.HolderKind, active.Holder, actor);
-        var holder = isSelf
-            ? CaseEditAuthorityHolder.Unnamed
-            : await describeEditAuthorityHolder.ExecuteAsync(
-                active.HolderKind,
-                active.Holder,
-                actor,
-                cancellationToken);
-        return EditModeDisplay.HeldBy(recordName, holder, isSelf);
-    }
-
-    /// <summary>The records as an operator reading an ownership sentence names them.</summary>
-    private const string MailboxRecordName = "mailbox policy";
-
-    private const string CategoryRecordName = "Outlook category";
-
-    /// <summary>
-    /// The release a leaving page beacons. It is not an operator action: it
-    /// answers 204 whether or not a scope was still there to release, so a
-    /// duplicate beacon and a beacon that lost a race with Cancel are both
-    /// ordinary outcomes. Antiforgery is validated as it is for every post.
-    /// </summary>
-    public Task<IActionResult> OnPostReleaseMailboxScopeBeaconAsync(
-        Guid mailboxId,
-        string? editLeaseToken,
-        CancellationToken cancellationToken) =>
-        ReleaseScopeBeaconAsync(
-            EditScopeKind.ApprovedMailbox,
-            mailboxId,
-            editLeaseToken,
-            "approved-mailbox-edit-beacon",
-            cancellationToken);
-
-    public Task<IActionResult> OnPostReleaseCategoryScopeBeaconAsync(
-        Guid categoryId,
-        string? editLeaseToken,
-        CancellationToken cancellationToken) =>
-        ReleaseScopeBeaconAsync(
-            EditScopeKind.ApprovedOutlookCategory,
-            categoryId,
-            editLeaseToken,
-            "outlook-category-edit-beacon",
-            cancellationToken);
-
-    private async Task<IActionResult> ReleaseScopeBeaconAsync(
-        EditScopeKind scopeKind,
-        Guid recordId,
-        string? editLeaseToken,
-        string operationName,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-        if (recordId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
-        {
-            return new NoContentResult();
-        }
-
-        try
-        {
-            await editScopes.ReleaseAsync(
-                new(scopeKind, recordId, actor, $"{operationName}:{Guid.NewGuid():N}", editLeaseToken),
-                cancellationToken);
-        }
-        catch (Exception exception)
-            when (exception is EditScopeExpiredException or EditScopeConflictException)
-        {
-            // The scope has already gone or has already been re-claimed by a
-            // newer window of this operator's own session.
-        }
-        return new NoContentResult();
-    }
-
-    private async Task<IActionResult> HeartbeatEditAsync(
-        EditScopeKind scopeKind,
-        Guid recordId,
-        string? editLeaseToken,
-        string recordName,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor)) return Forbid();
-        if (recordId == Guid.Empty || string.IsNullOrWhiteSpace(editLeaseToken))
-        {
-            return new ConflictObjectResult($"Editing this {recordName} has ended. Reload it before making further changes.");
-        }
-
-        try
-        {
-            await editScopes.HeartbeatAsync(
-                new(scopeKind, recordId, actor, editLeaseToken), cancellationToken);
-            return new OkResult();
-        }
-        catch (EditScopeExpiredException)
-        {
-            return new ConflictObjectResult($"Editing this {recordName} has ended. Reload it before making further changes.");
-        }
-    }
-
     private async Task LoadAsync(ActionActor actor, CancellationToken cancellationToken)
     {
         AutomationComposed =
@@ -1109,26 +674,17 @@ public sealed class MailboxesModel(
 
     private void PrepareFormState()
     {
-        if (MailboxForm is { ExpectedVersion: > 0 } mailboxInput)
+        if (MailboxForm is { } mailboxInput && !IsOperationKeyValid(mailboxInput.OperationKey))
         {
-            var current = Mailboxes.SingleOrDefault(item => item.Id == mailboxInput.MailboxId);
-            if (current is not null)
-            {
-                mailboxInput.ExpectedVersion = current.Version;
-            }
             mailboxInput.OperationKey = NewOperationKey();
         }
-        if (DefaultMailboxForm is { } defaultMailboxInput)
+        if (DefaultMailboxForm is { } defaultMailboxInput
+            && !IsOperationKeyValid(defaultMailboxInput.OperationKey))
         {
             defaultMailboxInput.OperationKey = NewOperationKey();
         }
-        if (CategoryForm is { ExpectedVersion: > 0 } categoryInput)
+        if (CategoryForm is { } categoryInput && !IsOperationKeyValid(categoryInput.OperationKey))
         {
-            var current = Categories.SingleOrDefault(item => item.Id == categoryInput.CategoryId);
-            if (current is not null)
-            {
-                categoryInput.ExpectedVersion = current.Version;
-            }
             categoryInput.OperationKey = NewOperationKey();
         }
 
@@ -1136,12 +692,18 @@ public sealed class MailboxesModel(
             && newMailbox.MailboxId != Guid.Empty
             ? newMailbox.MailboxId
             : Guid.NewGuid();
-        NewMailboxOperationKey = NewOperationKey();
+        NewMailboxOperationKey = MailboxForm is { ExpectedVersion: 0 } newMailboxForm
+            && IsOperationKeyValid(newMailboxForm.OperationKey)
+            ? newMailboxForm.OperationKey
+            : NewOperationKey();
         NewCategoryId = CategoryForm is { ExpectedVersion: 0 } newCategory
             && newCategory.CategoryId != Guid.Empty
             ? newCategory.CategoryId
             : Guid.NewGuid();
-        NewCategoryOperationKey = NewOperationKey();
+        NewCategoryOperationKey = CategoryForm is { ExpectedVersion: 0 } newCategoryForm
+            && IsOperationKeyValid(newCategoryForm.OperationKey)
+            ? newCategoryForm.OperationKey
+            : NewOperationKey();
     }
 
     private static string MailboxErrorMessage(ApprovedMailboxUpdateException exception) =>
@@ -1153,7 +715,7 @@ public sealed class MailboxesModel(
                 "That mailbox address already has a policy. Update the existing row instead.",
             ApprovedMailboxUpdateError.VersionConflict =>
                 "The mailbox policy changed after this form was loaded. " +
-                "Your change was not applied; review the current row and retry.",
+                "Your change was not applied; reload and review the current row before retrying.",
             ApprovedMailboxUpdateError.OperationConflict =>
                 "This form was already used for another mailbox change. Review the current row and retry.",
             ApprovedMailboxUpdateError.MissingMailboxIdentity =>
@@ -1179,7 +741,7 @@ public sealed class MailboxesModel(
         ApprovedOutlookCategoryUpdateError.DuplicateDisplayName =>
             "That display name is already configured.",
         ApprovedOutlookCategoryUpdateError.VersionConflict =>
-            "The category policy changed. Review it and retry.",
+            "The category policy changed. Your change was not applied; reload and review the current row before retrying.",
         ApprovedOutlookCategoryUpdateError.OperationConflict =>
             "This form was already used for another change. Review and retry.",
         ApprovedOutlookCategoryUpdateError.NotFound =>
@@ -1230,8 +792,6 @@ public sealed class MailboxesModel(
 
         public string OperationKey { get; set; } = string.Empty;
 
-        public string EditLeaseToken { get; set; } = string.Empty;
-
         [Range(1, long.MaxValue)]
         public long? VerifiedEncodedMessageSizeLimit { get; set; }
     }
@@ -1248,7 +808,6 @@ public sealed class MailboxesModel(
 
         public string OperationKey { get; set; } = string.Empty;
 
-        public string EditLeaseToken { get; set; } = string.Empty;
     }
 
     [ValidateNever]
@@ -1268,6 +827,5 @@ public sealed class MailboxesModel(
 
         public string OperationKey { get; set; } = string.Empty;
 
-        public string EditLeaseToken { get; set; } = string.Empty;
     }
 }

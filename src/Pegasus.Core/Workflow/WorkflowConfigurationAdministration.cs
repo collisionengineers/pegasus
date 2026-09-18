@@ -15,7 +15,6 @@ public sealed record UpdateWorkflowConfigurationRequest(
     public int HeldTargetDays { get; init; } = 7;
     public int ReviewTargetDays { get; init; } = 1;
     public int AiDraftTargetDays { get; init; } = 1;
-    public string EditLeaseToken { get; init; } = string.Empty;
 
     /// <summary>
     /// The five due targets with the name each validation message uses, so the
@@ -40,7 +39,6 @@ public interface IWorkflowConfigurationStore : ICaseWorkflowConfiguration
 
 public sealed class GetWorkflowConfiguration(IWorkflowConfigurationStore store)
 {
-    public static readonly Guid RecordId = Guid.Parse("6fb87d95-8b35-41d1-8873-5fa6c7d87c50");
     private readonly IWorkflowConfigurationStore _store =
         store ?? throw new ArgumentNullException(nameof(store));
 

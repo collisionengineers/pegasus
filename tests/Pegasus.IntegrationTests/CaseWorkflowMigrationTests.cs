@@ -10,9 +10,44 @@ public sealed class CaseWorkflowMigrationTests
 {
     private const string PreviousMigration = "20260729152105_WorkflowTriageEmailEvidence";
     private const string WorkflowMigration = "20260729160000_CaseWorkflowRuntime";
+    private const string EditScopeRemovalPredecessor = "20260917161519_RemovePublicUploadLinks";
+    private const string EditScopeRemovalMigration = "20260918090000_RemoveAdministrationEditScopes";
     private const string PrePublicUploadRemovalMigration = "20260917153000_CaseClaimSourceContactOverride";
     private const string ReviewCaseId = "60000000-0000-0000-0000-000000000001";
     private const string NotReadyCaseId = "60000000-0000-0000-0000-000000000002";
+
+    [Fact]
+    public async Task AdministrationEditScopeCleanupRemovesOnlyRetiredKindsAndFreshMigrationAppliesIt()
+    {
+        await using (var database = await LocalDbTestDatabase.CreateAsync(migrate: false))
+        {
+            await using var context = await database.CreateContextAsync();
+            await context.Database.MigrateAsync(EditScopeRemovalPredecessor);
+            await database.ExecuteAsync(AdministrationEditScopesSql);
+            await context.Database.MigrateAsync();
+
+            Assert.Equal(0, await database.ScalarAsync<int>(
+                "SELECT COUNT(*) FROM dbo.EditScopes WHERE ScopeKind IN " +
+                "(N'Contact', N'StaffAccount', N'ValuationPreset', N'ApprovedMailbox', " +
+                "N'ApprovedOutlookCategory', N'NamedConfiguration', N'LabourRateCard')"));
+            Assert.Equal(1, await database.ScalarAsync<int>(
+                "SELECT COUNT(*) FROM dbo.EditScopes WHERE ScopeKind = N'Triage'"));
+            Assert.Equal(1, await database.ScalarAsync<int>(
+                "SELECT COUNT(*) FROM dbo.EditScopes WHERE ScopeKind = N'ImageIntake'"));
+            Assert.Equal(2, await database.ScalarAsync<int>(
+                "SELECT COUNT(*) FROM dbo.EditScopes"));
+        }
+
+        await using var freshDatabase = await LocalDbTestDatabase.CreateAsync(
+            migrate: true,
+            useTemplate: false);
+        await using var freshContext = await freshDatabase.CreateContextAsync();
+        Assert.Equal(LocalDbSchemaOrigin.Migrated, freshDatabase.SchemaOrigin);
+        Assert.Contains(
+            EditScopeRemovalMigration,
+            await freshContext.Database.GetAppliedMigrationsAsync());
+        Assert.Empty(await freshContext.Database.GetPendingMigrationsAsync());
+    }
 
     [Fact]
     public async Task SqlServerUpgradeBackfillsExistingReviewAndNotReadyCasesWithRequiredTokens()
@@ -258,10 +293,31 @@ public sealed class CaseWorkflowMigrationTests
                 "20260917150000_RemoveCaseSequenceCeiling",
                 "20260917152000_CaseDueByStaffOverride",
                 "20260917153000_CaseClaimSourceContactOverride",
-                "20260917161519_RemovePublicUploadLinks"
+                "20260917161519_RemovePublicUploadLinks",
+                "20260918090000_RemoveAdministrationEditScopes"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }
+
+    private const string AdministrationEditScopesSql =
+        """
+        INSERT INTO [dbo].[EditScopes]
+            ([ScopeKind], [RecordId], [HolderKind], [Holder], [TokenHash],
+             [ExpectedVersion], [Generation], [ExpiresAtUtc])
+        SELECT [ScopeKind], [RecordId], N'Staff', N'administration-migration-test',
+               REPLICATE(N'A', 64), 0, 1, '2031-05-06T10:30:00+00:00'
+        FROM (VALUES
+            (N'Contact', CONVERT(uniqueidentifier, '81000000-0000-0000-0000-000000000001')),
+            (N'StaffAccount', CONVERT(uniqueidentifier, '81000000-0000-0000-0000-000000000002')),
+            (N'ValuationPreset', CONVERT(uniqueidentifier, '81000000-0000-0000-0000-000000000003')),
+            (N'ApprovedMailbox', CONVERT(uniqueidentifier, '81000000-0000-0000-0000-000000000004')),
+            (N'ApprovedOutlookCategory', CONVERT(uniqueidentifier, '81000000-0000-0000-0000-000000000005')),
+            (N'NamedConfiguration', CONVERT(uniqueidentifier, '81000000-0000-0000-0000-000000000006')),
+            (N'LabourRateCard', CONVERT(uniqueidentifier, '81000000-0000-0000-0000-000000000007')),
+            (N'Triage', CONVERT(uniqueidentifier, '81000000-0000-0000-0000-000000000008')),
+            (N'ImageIntake', CONVERT(uniqueidentifier, '81000000-0000-0000-0000-000000000009'))
+        ) AS scopes([ScopeKind], [RecordId]);
+        """;
 
     /// <summary>
     /// Seed rows for an upgrade test. The two staff-confirmation columns exist

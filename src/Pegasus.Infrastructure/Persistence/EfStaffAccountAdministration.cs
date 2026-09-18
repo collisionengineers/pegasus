@@ -123,11 +123,8 @@ public sealed class EfStaffAccountAdministration(
         }
 
         var user = await FindUserAsync(request.StaffId, cancellationToken);
+        RequireExpectedVersion(user, request.ExpectedVersion);
         var role = await GetRoleAsync(user);
-        await EfEditScopeStore.RequireAsync(
-            context, EditScopeKind.StaffAccount, user.Id, user.Version,
-            request.ExpectedVersion, request.Actor, request.EditLeaseToken,
-            timeProvider.GetUtcNow(), cancellationToken);
         if (user.IsEnabled
             && role == StaffRole.Administrator
             && await CountEnabledAdministratorsAsync(cancellationToken) <= 1)
@@ -171,7 +168,6 @@ public sealed class EfStaffAccountAdministration(
             request.OperationKey,
             "staff_account_disabled",
             now);
-        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         await context.SaveChangesAsync(cancellationToken);
         await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -229,17 +225,8 @@ public sealed class EfStaffAccountAdministration(
         }
 
         var user = await FindUserAsync(request.StaffId, cancellationToken);
+        RequireExpectedVersion(user, request.ExpectedVersion);
         var currentRole = await GetRoleAsync(user);
-        await EfEditScopeStore.RequireAsync(
-            context,
-            EditScopeKind.StaffAccount,
-            user.Id,
-            user.Version,
-            request.ExpectedVersion,
-            request.Actor,
-            request.EditLeaseToken,
-            timeProvider.GetUtcNow(),
-            cancellationToken);
         if (user.IsEnabled
             && currentRole == StaffRole.Administrator
             && request.Role != StaffRole.Administrator
@@ -311,7 +298,6 @@ public sealed class EfStaffAccountAdministration(
                 cancellationToken);
         }
 
-        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         await context.SaveChangesAsync(cancellationToken);
         if (settingsChanged)
         {
@@ -352,11 +338,8 @@ public sealed class EfStaffAccountAdministration(
         }
 
         var user = await FindUserAsync(request.StaffId, cancellationToken);
+        RequireExpectedVersion(user, request.ExpectedVersion);
         var role = await GetRoleAsync(user);
-        await EfEditScopeStore.RequireAsync(
-            context, EditScopeKind.StaffAccount, user.Id, user.Version,
-            request.ExpectedVersion, request.Actor, request.EditLeaseToken,
-            timeProvider.GetUtcNow(), cancellationToken);
         var before = Snapshot(user, role);
         user.IsEnabled = true;
         user.Version++;
@@ -381,7 +364,6 @@ public sealed class EfStaffAccountAdministration(
             request.Reason);
         await EfEditScopeStore.ClearForActorAsync(
             context, ActionActor.Staff(user.Id, [role]), cancellationToken);
-        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         await context.SaveChangesAsync(cancellationToken);
         await InvalidateChangedSignatoriesAsync(now, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -405,11 +387,8 @@ public sealed class EfStaffAccountAdministration(
         }
 
         var user = await FindUserAsync(request.StaffId, cancellationToken);
+        RequireExpectedVersion(user, request.ExpectedVersion);
         var role = await GetRoleAsync(user);
-        await EfEditScopeStore.RequireAsync(
-            context, EditScopeKind.StaffAccount, user.Id, user.Version,
-            request.ExpectedVersion, request.Actor, request.EditLeaseToken,
-            timeProvider.GetUtcNow(), cancellationToken);
         var before = Snapshot(user, role);
         user.Version++;
         ThrowIfFailed(await userManager.UpdateSecurityStampAsync(user));
@@ -436,7 +415,6 @@ public sealed class EfStaffAccountAdministration(
             now);
         await EfEditScopeStore.ClearForActorAsync(
             context, ActionActor.Staff(user.Id, [role]), cancellationToken);
-        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(user.Id, revoked.Authorizations, revoked.Tokens, WasReplay: false);
@@ -463,12 +441,9 @@ public sealed class EfStaffAccountAdministration(
                 StaffAccountAdministrationError.DisabledAccount);
         }
 
-        var temporaryPassword = GenerateTemporaryPassword();
+        RequireExpectedVersion(user, request.ExpectedVersion);
         var role = await GetRoleAsync(user);
-        await EfEditScopeStore.RequireAsync(
-            context, EditScopeKind.StaffAccount, user.Id, user.Version,
-            request.ExpectedVersion, request.Actor, request.EditLeaseToken,
-            timeProvider.GetUtcNow(), cancellationToken);
+        var temporaryPassword = GenerateTemporaryPassword();
         var before = Snapshot(user, role);
         user.Version++;
         user.PasswordHash = userManager.PasswordHasher.HashPassword(user, temporaryPassword);
@@ -497,7 +472,6 @@ public sealed class EfStaffAccountAdministration(
             now);
         await EfEditScopeStore.ClearForActorAsync(
             context, ActionActor.Staff(user.Id, [role]), cancellationToken);
-        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
@@ -530,11 +504,8 @@ public sealed class EfStaffAccountAdministration(
         }
 
         var user = await FindUserAsync(request.StaffId, cancellationToken);
+        RequireExpectedVersion(user, request.ExpectedVersion);
         var role = await GetRoleAsync(user);
-        await EfEditScopeStore.RequireAsync(
-            context, EditScopeKind.StaffAccount, user.Id, user.Version,
-            request.ExpectedVersion, request.Actor, request.EditLeaseToken,
-            timeProvider.GetUtcNow(), cancellationToken);
         if (user.IsEnabled
             && role == StaffRole.Administrator
             && await CountEnabledAdministratorsAsync(cancellationToken) <= 1)
@@ -578,7 +549,6 @@ public sealed class EfStaffAccountAdministration(
             request.OperationKey,
             "staff_account_deleted",
             now);
-        EfEditScopeStore.Complete(context, EditScopeKind.StaffAccount, user.Id);
         context.Users.Remove(user);
         await context.SaveChangesAsync(cancellationToken);
         await InvalidateChangedSignatoriesAsync(now, cancellationToken);
@@ -1003,6 +973,15 @@ public sealed class EfStaffAccountAdministration(
 
     private static StaffAccountAdministrationException OperationConflict() =>
         new(StaffAccountAdministrationError.OperationConflict);
+
+    private static void RequireExpectedVersion(PegasusIdentityUser user, long expectedVersion)
+    {
+        if (user.Version != expectedVersion)
+        {
+            throw new StaffAccountAdministrationException(
+                StaffAccountAdministrationError.StaleVersion);
+        }
+    }
 
     private static bool IsConcurrencyConflict(Exception exception)
     {

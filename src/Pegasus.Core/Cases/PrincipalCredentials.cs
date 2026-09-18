@@ -57,8 +57,7 @@ public sealed record PrincipalCredentialCommandRequest(
     ActionActor Actor,
     string OperationKey,
     string? Reason,
-    long ExpectedContactVersion,
-    string EditLeaseToken);
+    long ExpectedContactVersion);
 
 /// <summary>
 /// <see cref="Secret"/> is the clear secret, present exactly once: the first
@@ -362,11 +361,7 @@ public static class PrincipalCredentialPolicy
             Reason = OrganizationAdministrationPolicy.NormalizeOptionalText(
                 request.Reason,
                 OrganizationAdministrationPolicy.MaximumReasonLength,
-                nameof(request.Reason)),
-            EditLeaseToken = OrganizationAdministrationPolicy.NormalizeRequiredText(
-                request.EditLeaseToken,
-                200,
-                nameof(request.EditLeaseToken))
+                nameof(request.Reason))
         };
     }
 

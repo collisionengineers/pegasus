@@ -1060,14 +1060,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
             var account = await scope.ServiceProvider.GetRequiredService<IGetStaffAccount>().ExecuteAsync(
                 new(administrator, DevelopmentOfflineIdentity.AdministratorId), CancellationToken.None);
             var staffAccount = account?.Account ?? throw new InvalidOperationException("The seeded staff account was not found.");
-            var lease = await scope.ServiceProvider.GetRequiredService<IEditScopeLeases>().ClaimAsync(
-                new(
-                    EditScopeKind.StaffAccount,
-                    DevelopmentOfflineIdentity.AdministratorId,
-                    staffAccount.Version,
-                    administrator,
-                    "seed-glass-credential"),
-                CancellationToken.None);
             await scope.ServiceProvider.GetRequiredService<IPerUserExternalCredentialAdministration>()
                 .ReplaceAsync(
                     administrator,
@@ -1075,7 +1067,6 @@ public sealed class GlassRepairEstimateCallbackWebTests
                     ExternalCredentialProvider.GlassRepairEstimate,
                     expectedCredentialVersion: 0,
                     expectedStaffAccountVersion: staffAccount.Version,
-                    editLeaseToken: lease.Token,
                     FixtureAccount,
                     FixtureSecret,
                     enabled: true,

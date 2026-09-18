@@ -3,25 +3,20 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.Workflow;
 
 /// <summary>
-/// The mutable non-Case records which use the common edit ownership
-/// boundary. A scope is always one record, never a page or a collection.
+/// The mutable Triage and Image Intake records which use the common edit
+/// ownership boundary. A scope is always one record, never a page or a
+/// collection.
 /// </summary>
 public enum EditScopeKind
 {
-    Triage,
-    ImageIntake,
-    Contact,
-    StaffAccount,
-    ValuationPreset,
-    ApprovedMailbox,
-    ApprovedOutlookCategory,
-    NamedConfiguration,
-    LabourRateCard
+    Triage = 0,
+    ImageIntake = 1
 }
 
 /// <summary>
-/// A short-lived authorised claim on one mutable non-Case record. The opaque token
-/// is returned only to the claimant; persistence retains only its digest.
+/// A short-lived authorised claim on one mutable Triage or Image Intake
+/// record. The opaque token is returned only to the claimant; persistence
+/// retains only its digest.
 /// </summary>
 public sealed record EditScopeLease(
     EditScopeKind ScopeKind,
@@ -133,9 +128,8 @@ public sealed class EditScopeExpiredException(EditScopeKind scopeKind, Guid reco
 }
 
 /// <summary>
-/// The policy shared by non-Case record scopes. Its duration and heartbeat
-/// deliberately use the Case editor values: staff see one ownership model
-/// across the application, while Case persistence remains its own owner.
+/// The policy shared by Triage and Image intake edit scopes. Case persistence
+/// remains its own owner.
 /// </summary>
 public static class EditScopeAuthority
 {
@@ -144,12 +138,6 @@ public static class EditScopeAuthority
         var right = scopeKind switch
         {
             EditScopeKind.Triage or EditScopeKind.ImageIntake => StaffAccessRight.PerformCasework,
-            EditScopeKind.Contact => StaffAccessRight.ManageOrganizationsAndPrincipals,
-            EditScopeKind.StaffAccount => StaffAccessRight.ManageStaffAccounts,
-            EditScopeKind.ApprovedMailbox => StaffAccessRight.ManageApprovedMailboxes,
-            EditScopeKind.ApprovedOutlookCategory => StaffAccessRight.ManageApprovedOutlookCategories,
-            EditScopeKind.ValuationPreset or EditScopeKind.NamedConfiguration or EditScopeKind.LabourRateCard
-                => StaffAccessRight.ManageWorkflowConfiguration,
             _ => throw new ArgumentOutOfRangeException(nameof(scopeKind))
         };
         StaffAuthorization.Require(actor, right);
@@ -216,8 +204,8 @@ public interface IEditScopeLeases
 
 /// <summary>
 /// Account administration invokes this when a staff session is revoked or an
-/// account is disabled, so a dead session cannot retain an edit scope until
-/// ordinary expiry.
+/// account is disabled, so the actor cannot retain a Triage or Image Intake
+/// scope until ordinary expiry.
 /// </summary>
 public interface IEditScopeRevocations
 {

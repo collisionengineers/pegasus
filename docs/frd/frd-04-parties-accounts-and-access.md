@@ -181,10 +181,11 @@ sessions and tokens. The next request sees the current authority. Delete
 removes active access, the role and credential material, but keeps the
 minimal actor identity that business history and printed reports need. It
 never deletes a Case. Disable and Delete act at once from the Settings
-dialog, with no confirmation. Force logout also clears the account's record
-edit scopes ([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)), so
-an old token cannot later change a Triage item, a Vehicle images record or
-an administration record. The Case edit lease is handled by the Case
+dialog, with no confirmation. Force logout also clears the account's Triage
+and Image Intake edit scopes
+([FRD-14](frd-14-record-edit-leases.md#record-edit-scopes)), so an old token
+cannot later change either record type. Administration saves use
+expected-version checks. The Case edit lease is handled by the Case
 workflow ([FRD-14](frd-14-record-edit-leases.md#case-edit-lease)).
 
 Glass's credentials are protected per Engineer, provider and generation.

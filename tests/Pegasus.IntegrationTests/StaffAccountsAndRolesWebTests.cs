@@ -69,7 +69,6 @@ public sealed class StaffAccountsAndRolesWebTests
             ["printedName"] = administrator.SignOff.PrintedName ?? string.Empty,
             ["qualifications"] = administrator.SignOff.Qualifications ?? string.Empty,
             ["expectedVersion"] = Field(editHtml, "expectedVersion"),
-            ["editLeaseToken"] = Field(editHtml, "editLeaseToken"),
             ["operationKey"] = Field(editHtml, "operationKey"),
             ["__RequestVerificationToken"] = Field(editHtml, "__RequestVerificationToken")
         };
@@ -97,7 +96,7 @@ public sealed class StaffAccountsAndRolesWebTests
     }
 
     [Fact]
-    public async Task SettingsHeartbeatReturnsOkAndInvalidScopeReturnsConflict()
+    public async Task SettingsSaveRejectsAStaleAccountVersion()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -111,27 +110,22 @@ public sealed class StaffAccountsAndRolesWebTests
             + "&expectedVersion=" + administrator.Version;
         using var editResponse = await client.GetAsync(path);
         var editHtml = await editResponse.Content.ReadAsStringAsync();
-        var antiForgery = Field(editHtml, "__RequestVerificationToken");
-
-        using var renewed = await client.PostAsync(
-            AreaRoute + "?handler=HeartbeatSettings",
+        var refused = await client.PostAsync(
+            AreaRoute + "?handler=Settings",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["staffId"] = administrator.Id.ToString("D"),
-                ["editLeaseToken"] = Field(editHtml, "editLeaseToken"),
-                ["__RequestVerificationToken"] = antiForgery
+                ["role"] = administrator.Role.ToString(),
+                ["isSignOffEngineer"] = administrator.SignOff.IsSignOffEngineer ? "true" : "false",
+                ["printedName"] = administrator.SignOff.PrintedName ?? string.Empty,
+                ["qualifications"] = administrator.SignOff.Qualifications ?? string.Empty,
+                ["expectedVersion"] = (administrator.Version + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ["operationKey"] = Field(editHtml, "operationKey"),
+                ["__RequestVerificationToken"] = Field(editHtml, "__RequestVerificationToken")
             }));
-        Assert.Equal(HttpStatusCode.OK, renewed.StatusCode);
-
-        using var refused = await client.PostAsync(
-            AreaRoute + "?handler=HeartbeatSettings",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["staffId"] = administrator.Id.ToString("D"),
-                ["editLeaseToken"] = string.Empty,
-                ["__RequestVerificationToken"] = antiForgery
-            }));
-        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+        Assert.Contains("The staff account changed. Reload and try again.",
+            await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     // The settings dialog auto-opens (data-dialog-open-on-load) and carries
@@ -187,7 +181,6 @@ public sealed class StaffAccountsAndRolesWebTests
             {
                 ["staffId"] = staffId,
                 ["expectedVersion"] = Field(html, "expectedVersion"),
-                ["editLeaseToken"] = Field(html, "editLeaseToken"),
                 ["operationKey"] = Field(html, "operationKey"),
                 ["__RequestVerificationToken"] = Field(html, "__RequestVerificationToken")
             }));
