@@ -1,0 +1,30 @@
+@page
+@model Pegasus.Web.Pages.ReleaseNotesModel
+@{
+    ViewData["Title"] = OperatorLabels.Shell.ReleaseNotes;
+}
+<partial name="Shared/_PageHeader" />
+<div class="stack" data-release-notes>
+    @foreach (var note in Model.Notes)
+    {
+        <section class="panel release-note" aria-labelledby="release-note-@note.Id" data-release-note="@note.Id">
+            <div class="panel-head">
+                <h2 id="release-note-@note.Id">@note.Title</h2>
+                <span class="meta">
+                    <time datetime="@note.PublishedAtUtc?.ToString("O")">@OperatorLabels.OfficeTime(note.PublishedAtUtc, OperatorLabels.CaseWorkspace.AbsentValue)</time>
+                    @if (!string.IsNullOrWhiteSpace(note.Version))
+                    {
+                        <text> · </text><span class="mono">@note.Version</span>
+                    }
+                </span>
+            </div>
+            <div class="panel-body release-note__body">
+                <partial name="Shared/_ReleaseNoteBody" model="@note.Body" />
+            </div>
+        </section>
+    }
+    @if (Model.Notes.Count == 0)
+    {
+        <section class="panel"><div class="panel-body"><p class="empty-state" role="status">@OperatorLabels.ReleaseNotes.None</p></div></section>
+    }
+</div>
