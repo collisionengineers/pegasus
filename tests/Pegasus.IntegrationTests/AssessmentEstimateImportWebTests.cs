@@ -110,13 +110,14 @@ public sealed partial class AssessmentEstimateImportWebTests
     public async Task SelectingTheSameEstimateAgainReusesTheStoredSourceAndDraft()
     {
         var caseId = Guid.NewGuid();
+        var fixture = AudatexEstimateFixture.Build();
         var store = new RecordingStores(caseId);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
         using var imported = await client.PostAsync($"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
-            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), AudatexEstimateFixture.Build()));
+            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), fixture));
         Assert.Equal(HttpStatusCode.Redirect, imported.StatusCode);
         var estimateId = store.LastCreatedEstimateId;
         var importedVersion = store.WorkflowVersion;
@@ -128,7 +129,7 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         using var replay = await client.PostAsync(
             $"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate",
-            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), AudatexEstimateFixture.Build(),
+            ImportForm(AntiforgeryValue(html), caseId, NewOperationKey(), fixture,
                 editLeaseToken: InputValue(html, "editLeaseToken"),
                 expectedVersion: long.Parse(InputValue(html, "expectedVersion"), CultureInfo.InvariantCulture)));
 
@@ -397,7 +398,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Single(store.AddedDocuments);
         Assert.Empty(store.SavedEstimates);
-        Assert.Single(store.LeaseClaims);
+        Assert.Equal(2, store.LeaseClaims.Count); // The stored source consumes the first lease before parsing.
         Assert.Contains(store.RetainedDocuments, file =>
             file.Version.FileName == "estimate.pdf"
             && file.Version.CustodyStatus == DocumentCustodyStatus.Confirmed);
@@ -436,13 +437,14 @@ public sealed partial class AssessmentEstimateImportWebTests
     public async Task AReplacementLeaseConflictAfterStorageLeavesNoDraft()
     {
         var caseId = Guid.NewGuid();
+        var fixture = AudatexEstimateFixture.Build();
         var store = new RecordingStores(caseId) { FailLeaseClaimAt = 2 };
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
         var html = await EnterEditModeAsync(client, caseId);
         var form = ImportForm(
-            AntiforgeryValue(html), caseId, NewOperationKey(), AudatexEstimateFixture.Build(),
+            AntiforgeryValue(html), caseId, NewOperationKey(), fixture,
             editLeaseToken: InputValue(html, "editLeaseToken"));
 
         using var response = await client.PostAsync(
@@ -460,7 +462,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Contains("source was retained", afterHtml, StringComparison.OrdinalIgnoreCase);
 
         using var retryForm = ImportForm(AntiforgeryValue(afterHtml), caseId, NewOperationKey(),
-            AudatexEstimateFixture.Build(),
+            fixture,
             expectedVersion: long.Parse(InputValue(afterHtml, "expectedVersion"), CultureInfo.InvariantCulture));
         using var retry = await client.PostAsync($"/Cases/{caseId:D}?handler=ImportEstimate&section=estimate", retryForm);
 
@@ -1374,7 +1376,7 @@ public sealed partial class AssessmentEstimateImportWebTests
                 services.AddSingleton<IGetCaseVehicleSection>(store);
                 services.AddSingleton<IGetCaseValuationSection>(store);
                 services.AddSingleton<IGetCaseNotesSection>(store);
-                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(state: store.AssessmentState));
+                services.AddSingleton<IGetAssessmentAccess>(new MutableAssessmentAccess(store));
                 services.AddSingleton<IGetAssessmentWorkspace>(store);
                 services.AddSingleton<IRepairSpecificationStore>(store);
                 services.AddSingleton<IAddCaseDocument>(store);
@@ -1560,9 +1562,17 @@ public sealed partial class AssessmentEstimateImportWebTests
     [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ValueRegex();
 
+    private sealed class MutableAssessmentAccess(RecordingStores store) : IGetAssessmentAccess
+    {
+        public Task<AssessmentAccessState?> ExecuteAsync(
+            GetAssessmentAccessQuery query,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<AssessmentAccessState?>(new(store.AssessmentState));
+    }
+
     /// <summary>
-    /// One recording fake for the four substituted seams, so the tests can
-    /// assert exactly what the page handed to each store.
+    /// One recording fake for the substituted stores, so the tests can assert
+    /// exactly what the page handed to each one.
     /// </summary>
     private sealed class RecordingStores(Guid caseId)
         : IGetCase, IGetCasePageFrame, IGetCaseVehicleSection, IGetCaseValuationSection,
