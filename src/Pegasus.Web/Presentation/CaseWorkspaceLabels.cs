@@ -42,6 +42,9 @@ public static class CaseWorkspaceLabels
         public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
         public const string Figures = "Figures";
         public const string MatterLine = "Matter line";
+        public const string Claim = "Claim";
+        public const string OriginalReport = "Original report";
+        public const string OnTheReport = "On the report";
         /// <summary>The nature of the incident the matter line opens with; every Case Pegasus handles is one.</summary>
         public const string NatureOfIncident = "Road Traffic Accident";
 
@@ -127,6 +130,15 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.SettlementSalvageOwnerRetains] = "Owner retains salvage",
             [AssessmentVocabulary.SettlementSalvageValueAgreed] = "Salvage value agreed",
             [AssessmentVocabulary.SettlementSalvageSettled] = "Salvage settled"
+        };
+
+        /// <summary>An Audit's original report (v28 P51), Case data beside the claim.</summary>
+        public static IReadOnlyDictionary<string, string> OriginalReport { get; } = new Dictionary<string, string>
+        {
+            [AssessmentVocabulary.OriginalReportAssessor] = "Assessor",
+            [AssessmentVocabulary.OriginalReportDate] = "Report date",
+            [AssessmentVocabulary.OriginalReportRoadworthiness] = "Roadworthiness",
+            [AssessmentVocabulary.OriginalReportOutcome] = "Repairable status"
         };
 
         public static IReadOnlyDictionary<string, string> Report { get; } = new Dictionary<string, string>

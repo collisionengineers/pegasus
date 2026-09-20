@@ -55,6 +55,12 @@
     function linkFor(key) {
         return links().find(function (link) { return link.getAttribute('data-section-link') === key; });
     }
+    // A host nested under another (Damage and Valuation inside Vehicle, v28
+    // P26) has no link of its own: its parent's link speaks for it.
+    function ownerKey(key) {
+        var host = sectionFor(key);
+        return host && host.getAttribute('data-section-parent') ? host.getAttribute('data-section-parent') : key;
+    }
 
     // Keep anchors aligned when the ribbon changes height, including swaps.
     function measure() {
@@ -109,12 +115,13 @@
             var key = host.getAttribute('data-section');
             host.setAttribute('role', 'tabpanel');
             host.setAttribute('aria-labelledby', 'case-section-tab-' + key);
-            host.classList.toggle('is-active', key === activeKey);
+            host.classList.toggle('is-active', ownerKey(key) === activeKey);
         });
     }
     function selectTab(key) {
         navigationVersion += 1;
         pendingAnchor = null;
+        key = ownerKey(key);
         if (!linkFor(key)) {
             return;
         }
@@ -316,14 +323,14 @@
             return;
         }
         var line = readingLine() + 16;
-        var current = hosts[0].getAttribute('data-section');
+        var current = ownerKey(hosts[0].getAttribute('data-section'));
         hosts.forEach(function (host) {
             if (host.getBoundingClientRect().top <= line) {
-                current = host.getAttribute('data-section');
+                current = ownerKey(host.getAttribute('data-section'));
             }
         });
         if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 40) {
-            current = hosts[hosts.length - 1].getAttribute('data-section');
+            current = ownerKey(hosts[hosts.length - 1].getAttribute('data-section'));
         }
         activeKey = current;
         links().forEach(function (link) {

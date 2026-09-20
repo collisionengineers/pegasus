@@ -1914,13 +1914,15 @@ public static class OperatorLabels
         /// </summary>
         public static readonly IReadOnlyList<CaseSection> Sections =
         [
-            new("overview", "Overview", "icon-layout-dashboard"),
+            new("overview", "Case details", "icon-layout-dashboard"),
+            new("claim", "Claim", "icon-clipboard-list"),
+            new("original-report", "Original report", "icon-file-text"),
             new("inspection", "Inspection details", "icon-map-pin"),
             new("vehicle", "Vehicle", "icon-car"),
             new("damage", "Damage", "icon-alert-triangle"),
             new("valuation", "Valuation", "icon-file-text"),
             new("estimate", "Estimate", "icon-list"),
-            new("settlement", "Settlement", "icon-check-circle"),
+            new("settlement", "Decisions", "icon-check-circle"),
             new("report", "Report", "icon-file"),
             new("files", "Files", "icon-folder"),
             new("notes", "Notes", "icon-history")
@@ -2044,7 +2046,7 @@ public static class OperatorLabels
                 _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),
             };
 
-            public const string Settlement = "Settlement";
+            public const string Settlement = "Decisions";
             public const string Outcome = "Outcome";
             public const string SalvageCategory = "Salvage category";
             public const string SalvageValue = "Salvage value";

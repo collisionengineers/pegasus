@@ -238,6 +238,8 @@ public sealed partial class DetailsModel(
     /// </summary>
     public bool SectionIsDeferred(string key) =>
         !string.Equals(key, Section, StringComparison.Ordinal)
+        // A nested section's parent renders with it, so the reader lands on both.
+        && !string.Equals(key, SectionLinkKey, StringComparison.Ordinal)
         && LazySectionViews.ContainsKey(key)
         && (LeaseToken is null || string.Equals(key, "files", StringComparison.Ordinal));
 
@@ -1428,7 +1430,7 @@ public sealed partial class DetailsModel(
                 // control shows confirmed values only). Posting that empty
                 // control is "not decided yet", never a clear of the proposal.
                 var settlementFields = assessmentFields
-                    .Where(field => EditorLabels.Settlement.ContainsKey(field.Key)
+                    .Where(field => (EditorLabels.Settlement.ContainsKey(field.Key) || EditorLabels.OriginalReport.ContainsKey(field.Key))
                         && !(string.IsNullOrWhiteSpace(field.Value)
                             && assessment?.Field(field.Key) is { RecordedByKind: ActorKind.Automation, IsConfirmed: false }))
                     .ToDictionary(field => field.Key, field => field.Value, StringComparer.Ordinal);

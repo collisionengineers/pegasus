@@ -543,7 +543,7 @@ public sealed class CaseEditModeWebTests
         // Inspection details sections render in either mode, the value box
         // and the control sharing each cell.
         Assert.Equal(1, Occurrences(editing, "id=\"section-overview\""));
-        Assert.Equal(1, Occurrences(editing, ">Overview</h2>"));
+        Assert.Equal(1, Occurrences(editing, ">Case details</h2>"));
         Assert.DoesNotContain("Edit Case data", editing, StringComparison.Ordinal);
         Assert.Equal(1, Occurrences(editing, CaseWorkspaceLabels.Inspection.SectionTitle + "</h2>"));
         // The editor's groups are the read view's groups.
@@ -565,7 +565,7 @@ public sealed class CaseEditModeWebTests
         var reading = await ReadCaseAsync(new RecordingCaseDetailsStore());
 
         Assert.Equal(1, Occurrences(reading, "id=\"section-overview\""));
-        Assert.Equal(1, Occurrences(reading, ">Overview</h2>"));
+        Assert.Equal(1, Occurrences(reading, ">Case details</h2>"));
         Assert.Equal(1, Occurrences(reading, CaseWorkspaceLabels.Inspection.SectionTitle + "</h2>"));
         Assert.DoesNotContain("name=\"vehicleRegistration\"", reading, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"case-edit-form\"", reading, StringComparison.Ordinal);

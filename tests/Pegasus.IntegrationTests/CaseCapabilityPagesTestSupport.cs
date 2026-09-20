@@ -533,7 +533,12 @@ internal static partial class CaseWebTestSupport
 
     internal static string[] CaseSectionKeys =>
         [.. Pegasus.Web.Presentation.OperatorLabels.CaseWorkspace.Sections
-            .Select(section => section.Key)];
+            .Select(section => section.Key)
+            .Where(key => key != "original-report")];
+
+    /// <summary>The section links an Inspection Case shows: no Original report, and Damage and Valuation read inside Vehicle (v28 P26).</summary>
+    internal static string[] CaseSectionLinkKeys =>
+        [.. CaseSectionKeys.Where(key => key is not ("damage" or "valuation"))];
 
     /// <summary>The hosts the first response leaves for the frame to fetch.</summary>
 

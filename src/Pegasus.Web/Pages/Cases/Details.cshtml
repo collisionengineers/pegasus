@@ -373,11 +373,11 @@
         </div>
         <div class="section-row">
             <nav class="section-nav" aria-label="@OperatorLabels.CaseWorkspace.SectionNav" data-section-nav>
-                @foreach (var entry in OperatorLabels.CaseWorkspace.Sections)
+                @foreach (var entry in OperatorLabels.CaseWorkspace.Sections.Where(entry => Model.SectionIsShown(entry.Key)))
                 {
                     <a class="section-link" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
                        asp-route-section="@entry.Key" asp-fragment="section-@entry.Key" data-section-link="@entry.Key"
-                       aria-current="@(Model.Section == entry.Key ? "true" : "false")">
+                       aria-current="@(Model.SectionLinkKey == entry.Key ? "true" : "false")">
                         <svg class="icon" aria-hidden="true"><use href="#@entry.Icon" /></svg>
                         <span>@entry.Label</span>
                     </a>
@@ -418,6 +418,10 @@
                as the reader approaches it; the fragment is the section itself. *@
             @foreach (var entry in OperatorLabels.CaseWorkspace.Sections)
             {
+                if (entry.Key == "original-report" && !Model.IsAuditCase)
+                {
+                    continue;
+                }
                 if (Model.SectionIsDeferred(entry.Key))
                 {
                     <section class="record-section panel section-placeholder @Model.ActiveTabClass(entry.Key)" id="section-@entry.Key"
@@ -430,6 +434,12 @@
                 {
                     case "overview":
                         <partial name="Cases/Shared/_CaseOverview" model="Model" />
+                        break;
+                    case "claim":
+                        <partial name="Cases/Shared/_CaseClaim" model="Model" />
+                        break;
+                    case "original-report":
+                        <partial name="Cases/Shared/_CaseOriginalReport" model="Model" />
                         break;
                     case "inspection":
                         <partial name="Cases/Shared/_CaseInspectionAddress" model="Model" />

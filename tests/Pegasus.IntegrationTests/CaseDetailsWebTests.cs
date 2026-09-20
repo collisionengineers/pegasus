@@ -96,7 +96,7 @@ public sealed class CaseDetailsWebTests
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
 
         Assert.Equal(CaseSectionKeys, HostOrder(html));
-        Assert.Equal(CaseSectionKeys, JumpLinkOrder(html));
+        Assert.Equal(CaseSectionLinkKeys, JumpLinkOrder(html));
 
         // The four sections that have a body below the fold are served as
         // fragments; every other host, including the Engineer shells,
@@ -118,6 +118,8 @@ public sealed class CaseDetailsWebTests
     [InlineData("?section=overview", "overview")]
     [InlineData("?section=engineer-notes", "overview")]
     [InlineData("?section=vehicle", "vehicle")]
+    [InlineData("?section=damage", "vehicle")]
+    [InlineData("?section=valuation", "vehicle")]
     [InlineData("?section=estimate", "estimate")]
     [InlineData("?section=files", "files")]
     [InlineData("?section=notes", "notes")]

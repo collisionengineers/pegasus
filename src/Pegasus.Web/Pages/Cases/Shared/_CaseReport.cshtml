@@ -69,7 +69,6 @@
     var reportDateText = DateOnly.TryParseExact(Model.Assessment?.Field(AssessmentVocabulary.ReportDate)?.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var reportDateValue)
         ? reportDateValue.ToString("d MMM yyyy", CultureInfo.InvariantCulture)
         : null;
-    bool SwitchOn(string path) => string.Equals(Model.AssessmentEditorValue(path), "true", StringComparison.OrdinalIgnoreCase);
 }
 
 <section class="record-section panel @Model.CollapsedClass("case.report") @Model.ActiveTabClass("report") @(Model.IsEditing && !Model.SectionIsEditable("report") ? "is-locked" : null)" id="section-report" data-section="report" data-collapse="case.report" aria-labelledby="section-report-title" data-report>
@@ -262,27 +261,6 @@
         }
 
         <div class="fg g4">
-            <div class="fc" data-field="signOffEngineerId">
-                @if (editing)
-                {
-                    <label for="f-sign-off-engineer">@Words.SignOffEngineer</label>
-                }
-                else
-                {
-                    <span class="lbl">@Words.SignOffEngineer</span>
-                }
-                <div class="fv">@Model.SignOffEngineerDisplayName</div>
-                @if (editing)
-                {
-                    <select id="f-sign-off-engineer" class="fi" name="signOffEngineerId" form="case-edit-form">
-                        <option value="" disabled selected="@(Model.SelectedSignOffEngineerId is null)"></option>
-                        @foreach (var engineer in Model.EligibleSignOffEngineers)
-                        {
-                            <option value="@engineer.StaffId" selected="@(engineer.StaffId == Model.SelectedSignOffEngineerId)">@engineer.PrintedName</option>
-                        }
-                    </select>
-                }
-            </div>
             <div class="fc" data-field="reportDate">
                 @if (editing)
                 {
@@ -303,31 +281,6 @@
                 await Field(AssessmentVocabulary.ReportDateOverride, labels[AssessmentVocabulary.ReportDateOverride]);
                 await Field(AssessmentVocabulary.EngineersComments, labels[AssessmentVocabulary.EngineersComments], multi: true, extraClass: "span3");
             }
-            @* The three content switches: a checkbox posts "true" ahead of its
-               hidden "false", so an unticked switch still records No. *@
-            <div class="fc span4" data-field="report-content">
-                <span class="lbl">@Words.ReportContent</span>
-                <div class="fv" data-report-content>@Model.ReportContentSummary</div>
-                @if (editing)
-                {
-                    <div class="fi chk switches" data-report-switches>
-                        @foreach (var (path, label) in new[]
-                        {
-                            (AssessmentVocabulary.ReportDiscloseGuideSource, Words.DiscloseGuideSource),
-                            (AssessmentVocabulary.ReportValuationCommentary, Words.ValuationCommentary),
-                            (AssessmentVocabulary.ReportIncludeUnrelatedDamage, Words.UnrelatedDamage)
-                        })
-                        {
-                            var name = CaseWorkspaceLabels.Editors.FormName(path);
-                            <label class="choice">
-                                <input type="checkbox" name="@name" value="true" form="case-edit-form" checked="@(SwitchOn(path) ? "checked" : null)" data-report-switch="@path" />
-                                <input type="hidden" name="@name" value="false" form="case-edit-form" />
-                                <span>@label</span>
-                            </label>
-                        }
-                    </div>
-                }
-            </div>
             @* The valuation commentary itself, beside the switch that prints it:
                the Engineer's words, frozen into the report when the switch is on. *@
             @{ await Field(AssessmentVocabulary.ReportValuationCommentaryText, Words.ValuationCommentary, multi: true, extraClass: "span4"); }

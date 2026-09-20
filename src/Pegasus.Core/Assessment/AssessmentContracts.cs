@@ -117,6 +117,10 @@ public static class AssessmentVocabulary
     public const string SettlementHireStart = "settlement.hire_start";
     public const string SettlementHireDailyCost = "settlement.hire_daily_cost";
     public const string SettlementDiminution = "settlement.diminution";
+    public const string OriginalReportAssessor = "original_report.assessor";
+    public const string OriginalReportDate = "original_report.report_date";
+    public const string OriginalReportRoadworthiness = "original_report.roadworthiness";
+    public const string OriginalReportOutcome = "original_report.outcome";
     public const string SettlementSalvageAt = "settlement.salvage.at";
     public const string SettlementSalvageAgent = "settlement.salvage.agent";
     public const string SettlementSalvageAgentReference = "settlement.salvage.agent_reference";
@@ -292,6 +296,13 @@ public static class AssessmentVocabulary
         new(SettlementHireStart, AssessmentFieldType.Date, 10, IsFinding: false),
         new(SettlementHireDailyCost, AssessmentFieldType.Money, 20, IsFinding: false),
         new(SettlementDiminution, AssessmentFieldType.Money, 20, IsFinding: false),
+        // An Audit's original report (v28 P51): who wrote it, when, and what it found.
+        new(OriginalReportAssessor, AssessmentFieldType.Text, 200, IsFinding: false),
+        new(OriginalReportDate, AssessmentFieldType.Date, 10, IsFinding: false),
+        new(OriginalReportRoadworthiness, AssessmentFieldType.Enumerated, 20, IsFinding: false,
+            Codes: ["roadworthy", "unroadworthy"]),
+        new(OriginalReportOutcome, AssessmentFieldType.Enumerated, 20, IsFinding: false,
+            Codes: ["repairable", "total_loss", "cash_in_lieu", "contract_repair"]),
         new(SettlementSalvageAt, AssessmentFieldType.Text, 400, IsFinding: false),
         new(SettlementSalvageAgent, AssessmentFieldType.Text, 200, IsFinding: false),
         new(SettlementSalvageAgentReference, AssessmentFieldType.Text, 100, IsFinding: false),

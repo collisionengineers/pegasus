@@ -38,12 +38,9 @@
     var dueBy = workflow.DueWork?.DueBy
         ?? Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Inspection.Deadline)?.Value;
     var circumstances = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Accident.Circumstances)?.Value;
-    var claimantContact = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.ContactNumber)?.Value;
-    var claimantAddress = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.Address)?.Value;
     var contactName = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.Name)?.Value;
     var contactEmail = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.EmailAddress)?.Value;
     var contactPhone = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.PhoneNumber)?.Value;
-    var vatStatus = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Instruction.VatStatus)?.Value;
     // The matter line (v28 P12): the nature of the incident, the claimant and
     // the incident date as one derived sentence, following its fields on save.
     var matterLine = string.Join(": ", new[]
@@ -65,7 +62,7 @@
 
 <section class="record-section panel @Model.CollapsedClass("case.overview") @Model.ActiveTabClass("overview") @(Model.IsEditing && !Model.SectionIsEditable("overview") ? "is-locked" : null)" id="section-overview" data-section="overview" data-collapse="case.overview" aria-labelledby="section-overview-title">
     <div class="panel-head">
-        <h2 id="section-overview-title">Overview</h2>
+        <h2 id="section-overview-title">Case details</h2>
         <div class="panel-actions">
             <partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" />
         </div>
@@ -170,6 +167,26 @@
                     <div class="fc ro idn"><span class="lbl">@Frame.Received<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</div></div>
                     <div class="fc">@{ Lbl("f-due-by", Frame.Due); }<div class="@ValueClass(dueBy?.ToString("d MMM yyyy"))">@Value(dueBy?.ToString("d MMM yyyy"))</div>@if (mayEdit){<input id="f-due-by" class="fi" name="dueBy" form="case-edit-form" type="date" value="@dueBy?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
                     <div class="fc ro"><span class="lbl">@Frame.MatterLine</span><div class="fv derived @(matterLine.Length == 0 ? "empty" : null)" data-matter-line>@(matterLine.Length == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : matterLine)</div></div>
+                    @* The Sign-off Engineer (v28 P38): decided with the Case, not the report. *@
+                    <div class="fc" data-field="signOffEngineerId">
+                        @if (Model.SectionIsEditable("report") && data is not null)
+                        {
+                            <label for="f-sign-off-engineer">@CaseWorkspaceLabels.Report.SignOffEngineer</label>
+                            <div class="fv">@Model.SignOffEngineerDisplayName</div>
+                            <select id="f-sign-off-engineer" class="fi" name="signOffEngineerId" form="case-edit-form">
+                                <option value="" disabled selected="@(Model.SelectedSignOffEngineerId is null)"></option>
+                                @foreach (var engineer in Model.EligibleSignOffEngineers)
+                                {
+                                    <option value="@engineer.StaffId" selected="@(engineer.StaffId == Model.SelectedSignOffEngineerId)">@engineer.PrintedName</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <span class="lbl">@CaseWorkspaceLabels.Report.SignOffEngineer</span>
+                            <div class="fv">@Model.SignOffEngineerDisplayName</div>
+                        }
+                    </div>
                     @if (workflow.ReportSentEvidence is { } sentEvidence)
                     {
                         @* Inherited scope: the mailbox address and the authoritative time, never the retained identifiers. *@
@@ -208,13 +225,6 @@
                     }
                 </div>
             </div>
-            <div class="sub-panel @Model.CollapsedClass("case.overview.claimant")" data-collapse="case.overview.claimant"><h3>Claimant <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.claimant")" /></h3>
-                <div class="fg">
-                    <div class="fc">@{ Lbl("f-claimant", OperatorLabels.CaseWorkspace.RibbonClaimant); }<div class="@ValueClass(claimant)">@Value(claimant)</div>@if (mayEdit){<input id="f-claimant" class="fi" name="claimantName" form="case-edit-form" maxlength="300" value="@claimant" />}</div>
-                    <div class="fc">@{ Lbl("f-claimant-contact", Frame.Contact); }<div class="@ValueClass(claimantContact)">@Value(claimantContact)</div>@if (mayEdit){<input id="f-claimant-contact" class="fi" name="claimantContactNumber" form="case-edit-form" maxlength="100" value="@claimantContact" />}</div>
-                    <div class="fc">@{ Lbl("f-claimant-address", Frame.Address); }<div class="@ValueClass(claimantAddress)">@Value(claimantAddress)</div>@if (mayEdit){<input id="f-claimant-address" class="fi" name="claimantAddress" form="case-edit-form" maxlength="1000" value="@claimantAddress" />}</div>
-                    <div class="fc">@{ Lbl("f-vat-status", Frame.VatStatus); }<div class="@ValueClass(vatStatus)">@Value(vatStatus)</div>@if (mayEdit){<input id="f-vat-status" class="fi" name="vatStatus" form="case-edit-form" maxlength="100" value="@vatStatus" />}</div>
-                </div>
             </div>
         </div>
         @* The Case's own contact: who to speak to, distinct from the claimant. *@
