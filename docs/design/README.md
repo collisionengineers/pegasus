@@ -74,8 +74,8 @@ The `.app-shell` grid is a 220px sticky `.app-rail` beside the `.app-column`.
 The rail is the dark `--nav` gradient with a 3px `--red` top stripe. Its
 content, top to bottom:
 
-- **Brand** — the unchanged `pegasus-lockup` mark at 52px beside "PEGASUS" and the line
-  "Case management".
+- **Brand** — the refined Pegasus mark (`images/pegasus-mark-refined-128.png`, no wordmark
+  inside the image) at 52px beside "PEGASUS" and the line "Case management" (v28 P1).
 - **Nav label "Work"**, then the links in order: Work Centre (`/`), Inbox
   [count], Upload, Cases (`/cases`) [count], Search (`/search`), Operations
   [count].
@@ -258,7 +258,7 @@ RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
 
 | Mark | Upstream source & SHA-256 | Runtime destination & SHA-256 | Mapping & usage |
 | --- | --- | --- | --- |
-| `pegasus-lockup.png` | `PegasusDesign/assets/icons/pegasus-lockup.png`<br>`C8F3551841AACA26AAE4F959B263DBB2409EB44A327207F8078D85A1F33668A7` | `src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png`<br>`938C22B0F0FC621DC6FADD57748BA858CD1235292581AE47705A4ED336140EF0` | Rail brand and sign-in card. |
+| `pegasus-lockup.png` | `PegasusDesign/assets/icons/pegasus-lockup.png`<br>`C8F3551841AACA26AAE4F959B263DBB2409EB44A327207F8078D85A1F33668A7` | `src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png`<br>`938C22B0F0FC621DC6FADD57748BA858CD1235292581AE47705A4ED336140EF0` | Retired by v28 P1: the rail and the sign-in card carry `images/pegasus-mark-refined-128.png` and `-256.png`. |
 | `accounts.png` | `PegasusDesign/assets/icons/accounts.png`<br>`AFFA12B7C8609B253AAFB38304F503F83B868DD817902B53ADDFAE65A3E353A1` | `src/Pegasus.Web/wwwroot/images/marks/accounts.png`<br>`A8D467B827E0F19A6066640FA98A75D3673DA8A8C7642C4190D59BD5EDB718D5` | Administration → Staff accounts & roles. |
 | `roles.png` | `PegasusDesign/assets/icons/roles.png`<br>`D3B970330A7DDFE1BE3BD92AF8C8B682B63E2270BF5537F3D5CE60EA6B0A97C0` | `src/Pegasus.Web/wwwroot/images/marks/roles.png`<br>`D942967041CFB7A7460015572B658AC483121272F7CFC0194F68A123B71BEBF0` | No integrated surface; proposed for the wave-5 removal ticket. |
 | `access.png` | `PegasusDesign/assets/icons/access.png`<br>`371C4EF84A9E91F8E6509ACCFF045C68121147C22CDCD12D6D6509EF244CEC7F` | `src/Pegasus.Web/wwwroot/images/marks/access.png`<br>`70C98AE7591D467CA455BC481EA37963C67CBB1A8571A7EF823049054DB08C4D` | No integrated surface; proposed for the wave-5 removal ticket. |
@@ -279,7 +279,8 @@ RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
   and urgent emphasis.
 - Product states are distinct: amber for incomplete/pending and the
   exceptions group, restrained navy for **Review**, blue for informational
-  and in-progress external work, green only for confirmed completion, red for
+  and in-progress external work, green for an operation or outcome that
+  succeeded (Case created, Linked, Sent, Saved, Approved, Roadworthy), red for one that did not (Failed, Could not be read, Unavailable, Rejected, Unroadworthy), and red for
   danger and blocked, neutral for everything else.
 - State is never conveyed by colour alone; every `.status` chip carries text.
 - 3px corners, 1px hairline borders, `--shadow` only where the prototype
@@ -501,8 +502,9 @@ Current consumers:
 - embedded by `src/Pegasus.Infrastructure` for the integrated report renderer;
 - copied byte-for-byte to the Web runtime and embedded by
   `src/Pegasus.Web/Pages/Shared/_LayoutAuth.cshtml` as the `auth-brand` of
-  the sign-in card. `_Layout.cshtml` does **not** use it; the authenticated
-  rail carries the `pegasus-lockup` mark.
+  the sign-in card until v28 P1; the sign-in card and the authenticated rail
+  now carry the refined mark (`pegasus-mark-refined-256.png` at 96px,
+  `pegasus-mark-refined-128.png` at 52px).
 
 Rules:
 
@@ -717,6 +719,13 @@ Approved necessary copy includes:
 > Created in error cannot be reopened. Create and link the replacement case.
 
 > Unlinking this email cancels case <reference>.
+
+> Error. Contact an administrator.
+
+The last is the operator's own wording (18 September 2026) for Get valuation
+on a source that answered with nothing. Received-mail chasing categories read
+"Update Request", also the operator's wording; "provider" never appears in
+operator copy (Principal is the word), except the Provider API's own name.
 
 Permanent consequences must be visible without hover or colour alone. Illustrative text must not fabricate operational input.
 

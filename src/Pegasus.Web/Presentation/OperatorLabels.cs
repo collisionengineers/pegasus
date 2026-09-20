@@ -161,7 +161,7 @@ public static class OperatorLabels
         CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => "With Engineer",
         CaseLifecycleState.PostReportComplete => "Completed",
         CaseLifecycleState.Query => "Query",
-        CaseLifecycleState.ProviderCancelled => "Closed · Provider cancelled",
+        CaseLifecycleState.ProviderCancelled => "Closed · Cancelled",
         CaseLifecycleState.CollisionEngineersRejected => "Closed · Collision Engineers rejected",
         CaseLifecycleState.CreatedInError => "Closed · Created in error",
         CaseLifecycleState.SourceEmailUnlinked => "Closed · E-mail unlinked",
@@ -176,7 +176,7 @@ public static class OperatorLabels
     public static string CaseClosure(CaseClosureOutcome outcome) => outcome switch
     {
         CaseClosureOutcome.PostReportComplete => "Completed",
-        CaseClosureOutcome.ProviderCancelled => "Provider cancelled",
+        CaseClosureOutcome.ProviderCancelled => "Cancelled",
         CaseClosureOutcome.CollisionEngineersRejected => "Collision Engineers rejected",
         CaseClosureOutcome.CreatedInError => "Created in error",
         CaseClosureOutcome.SourceEmailUnlinked => "E-mail unlinked",
@@ -296,6 +296,17 @@ public static class OperatorLabels
         public const string ClaimSources = "Claim sources";
         // C08 shell administration areas end
     }
+
+    /// <summary>
+    /// A received-mail subtype in operator words. The two chasing subtypes are
+    /// one category to the operator, "Update Request" (18 September 2026), and
+    /// "provider" never appears on the front end.
+    /// </summary>
+    private static string SubtypeWord(string subtype) => subtype switch
+    {
+        "client-chasing-for-update" or "provider-chasing-for-update" => "Update Request",
+        _ => HumanizeSlug(subtype).Replace("Provider", "Principal", StringComparison.Ordinal)
+    };
 
     /// <summary>The freshness words the shell and every page header share.</summary>
     public static class Freshness
@@ -1377,7 +1388,7 @@ public static class OperatorLabels
             ? $"Sent · {family}"
             : family;
         return category.Subtype is { } subtype
-            ? $"{prefixed} · {HumanizeSlug(subtype)}"
+            ? $"{prefixed} · {SubtypeWord(subtype)}"
             : prefixed;
     }
 
@@ -2222,13 +2233,6 @@ public static class OperatorLabels
         };
 
         /// <summary>The chip tone for an outcome: green when it became work, amber when a person must act, red when processing failed.</summary>
-        public static string OutcomeTone(IntakeLogOutcome outcome) => outcome switch
-        {
-            IntakeLogOutcome.CaseCreated or IntakeLogOutcome.VehicleImages or IntakeLogOutcome.Triage => "green",
-            IntakeLogOutcome.ProcessingFailed or IntakeLogOutcome.AllocationFailed or IntakeLogOutcome.OcrFailed => "red",
-            IntakeLogOutcome.Closed => "neutral",
-            _ => "amber"
-        };
 
         /// <summary>The page a produced record opens.</summary>
         public static string BecameHref(IntakeLogBecame became) => became.Kind switch

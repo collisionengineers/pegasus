@@ -56,13 +56,13 @@
         "loading" or "refreshing" => "neutral",
         "stale" => "amber",
         "partial" or "limit reached" => "amber",
-        "unavailable" => "neutral",
+        "unavailable" => "red",
         "failed" or "technical failure" or "error" => "red",
 
         // Access and mutation
         "denied" or "unauthenticated" => "red",
         "disabled" => "neutral",
-        "approved" or "enabled" => "navy",
+        "enabled" => "navy",
         "conflict" or "stale version" => "red",
         "lease lost" => "red",
         "lease held" or "editing" => "navy",
@@ -91,6 +91,24 @@
         "review required" => "amber",
         "needs attention" or "not configured" => "amber",
         "active" => "navy",
+
+        // Tone by meaning (v28 P2, 18 September 2026): green for an operation
+        // or outcome that succeeded, red for one that did not, amber for
+        // waiting on someone or something, navy for in hand, neutral for
+        // settled. One table owns this; pages pass the label, never a tone.
+        "case created" or "linked" or "linked to case" or "email linked" or "reply linked"
+            or "vehicle images" or "triage"
+            or "sent" or "report sent" or "delivered" or "saved" or "stored" or "document stored"
+            or "approved" or "accepted" or "applied" or "resolved" or "registered" or "connected"
+            or "configured" or "succeeded" or "passed" or "roadworthy" => "green",
+        "could not be read" or "case not created" or "rejected" or "refused" or "overdue"
+            or "unroadworthy" or "failure" => "red",
+        "query" or "creating case" or "not yet processed" or "draft" or "password change required"
+            or "overridden" or "today" => "amber",
+        "repairable" => "blue",
+        "dismissed" or "staff closed" or "no recorded activity" => "neutral",
+        _ when key.StartsWith("awaiting ", StringComparison.Ordinal) || key.EndsWith(" preparing", StringComparison.Ordinal) => "amber",
+        _ when key.EndsWith(" failed", StringComparison.Ordinal) || key.StartsWith("failed ", StringComparison.Ordinal) => "red",
 
         // Every other state, including the D3 "Closed · <outcome>" terminals,
         // is settled or absent and reads neutral.
