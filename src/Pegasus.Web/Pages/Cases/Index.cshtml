@@ -181,6 +181,9 @@ else
                                         case IndexModel.CellKind.Late:
                                             <td class="nowrap cases-late">@cell.Text</td>
                                             break;
+                                        case IndexModel.CellKind.Date:
+                                            <td class="nowrap">@cell.Text</td>
+                                            break;
                                         case IndexModel.CellKind.Chip:
                                             <td>
                                                 <partial name="Shared/_StatusChip" model="@cell.Text"

@@ -203,13 +203,12 @@ public sealed class ShellAndStatusPageWebTests
     }
 
     /// <summary>
-    /// v26 shell (shot s30): a signed-in person refused a Manage route reads
-    /// the refusal inside the shell they already have — the area as the
-    /// eyebrow, "Access denied", one sentence — because the rail offers a
-    /// User nothing this page has declined.
+    /// v28 P6-D: a signed-in person refused a Manage route reads the refusal
+    /// in the navless frame with the rest of the error family — the area as
+    /// the eyebrow, "Access denied", one sentence and Return to Work Centre.
     /// </summary>
     [Fact]
-    public async Task AccessDeniedOnAManageRouteRendersInsideTheShellAndNamesTheArea()
+    public async Task AccessDeniedOnAManageRouteRendersInTheNavlessFrameAndNamesTheArea()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -218,8 +217,9 @@ public sealed class ShellAndStatusPageWebTests
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains("aria-label=\"Primary\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("auth-card", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("aria-label=\"Primary\"", html, StringComparison.Ordinal);
+        Assert.Contains("auth-card", html, StringComparison.Ordinal);
+        Assert.Contains("Return to Work Centre", html, StringComparison.Ordinal);
         Assert.Contains("<p class=\"eyebrow\">Administration</p>", html, StringComparison.Ordinal);
         Assert.Contains("<h1>Access denied</h1>", html, StringComparison.Ordinal);
         Assert.Contains("Administration is available to Administrators only.", html, StringComparison.Ordinal);
