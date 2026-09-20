@@ -41,6 +41,13 @@ public static class CaseWorkspaceLabels
         public const string Archived = "Archived";
         public const string ReturnToEngineerToEdit = "Return the Case to the Engineer to edit";
         public const string Figures = "Figures";
+        public const string MatterLine = "Matter line";
+        /// <summary>The nature of the incident the matter line opens with; every Case Pegasus handles is one.</summary>
+        public const string NatureOfIncident = "Road Traffic Accident";
+
+        /// <summary>"Repairs 62% of value", the ribbon's repair-cost share (v28 P25).</summary>
+        public static string RepairsOfValue(int percent) =>
+            string.Create(System.Globalization.CultureInfo.InvariantCulture, $"Repairs {percent}% of value");
         public const string NextAction = "Next action";
         public const string RepairCostIncVat = "Repair cost inc VAT";
         public const string EngineersValue = "Engineer's Value";

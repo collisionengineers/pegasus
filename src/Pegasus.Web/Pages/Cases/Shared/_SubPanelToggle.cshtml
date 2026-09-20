@@ -1,0 +1,11 @@
+@* The fold chevron of a headed sub-card (v28 P45): the same control the
+   section heads use, bound by site.js through [data-collapse] on the card. *@
+@model Pegasus.Web.Pages.Cases.SubPanelToggle
+<button type="button" class="icon-button panel-collapse" data-collapse-toggle
+        aria-expanded="@(Model.Collapsed ? "false" : "true")"
+        aria-label="@(Model.Collapsed ? CaseWorkspaceLabels.Frame.ExpandSection : CaseWorkspaceLabels.Frame.CollapseSection)"
+        data-label-collapse="@CaseWorkspaceLabels.Frame.CollapseSection"
+        data-label-expand="@CaseWorkspaceLabels.Frame.ExpandSection"
+        title="@CaseWorkspaceLabels.Frame.CollapseSection">
+    <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg>
+</button>
