@@ -98,18 +98,18 @@ public sealed class EngineerActivityReportTests
         ]);
 
         Assert.Equal(
-            "Recorded send actor,Queries received for assigned Engineer,Reports sent by recorded actor\r\n"
-            + "engineer.one,5,3\r\n"
-            + "\"Smith, \"\"J\"\"\",1,0\r\n",
+            "Recorded send actor,Queries received for assigned Engineer,Disputes,Amendment requests,Reports sent by recorded actor,Audit reports sent,Received to sent\r\n"
+            + "engineer.one,5,0,0,3,0,\r\n"
+            + "\"Smith, \"\"J\"\"\",1,0,0,0,0,\r\n",
             csv);
-        Assert.Equal("Recorded send actor,Queries received for assigned Engineer,Reports sent by recorded actor\r\n", EngineerActivityReportCsv.ToCsv([]));
+        Assert.Equal("Recorded send actor,Queries received for assigned Engineer,Disputes,Amendment requests,Reports sent by recorded actor,Audit reports sent,Received to sent\r\n", EngineerActivityReportCsv.ToCsv([]));
     }
 
     [Fact]
     public void CsvMakesFormulaLookingNamesLiteral()
     {
         var csv = EngineerActivityReportCsv.ToCsv([new(Guid.NewGuid(), "=SUM(A1:A2)", 0, 0)]);
-        Assert.Contains("'=SUM(A1:A2),0,0\r\n", csv, StringComparison.Ordinal);
+        Assert.Contains("'=SUM(A1:A2),0,0,0,0,0,\r\n", csv, StringComparison.Ordinal);
     }
 
     private static ActionActor Administrator() =>

@@ -110,6 +110,24 @@ internal sealed class EfV1ActivityReportQueries(
                     x.operation.ActorSubjectId))
             .ToListAsync(cancellationToken);
 
+        // MI-02: the agreed fee on each Case whose report was produced in the
+        // period, counted once per Case however many artifacts it produced.
+        var feeCaseIds = artifacts.Select(x => x.CaseId).Distinct().ToArray();
+        var agreedFees = feeCaseIds.Length == 0
+            ? new Dictionary<Guid, decimal>()
+            : (await db.CaseAssessmentFields.AsNoTracking()
+                .Where(field => feeCaseIds.Contains(field.CaseId)
+                    && field.FieldPath == Pegasus.Core.Assessment.AssessmentVocabulary.AgreedFee)
+                .Select(field => new { field.CaseId, field.Value })
+                .ToListAsync(cancellationToken))
+                .Select(field => (field.CaseId, Parsed: decimal.TryParse(
+                    field.Value,
+                    System.Globalization.NumberStyles.Number,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var fee) ? fee : (decimal?)null))
+                .Where(field => field.Parsed is not null)
+                .ToDictionary(field => field.CaseId, field => field.Parsed!.Value);
+
         var receiptIds = artifacts.Select(x => x.OriginIntakeReceiptId)
             .Concat(readyTransitions.Select(x => x.OriginIntakeReceiptId))
             .Concat(sent.Select(x => x.OriginIntakeReceiptId))
@@ -170,7 +188,8 @@ internal sealed class EfV1ActivityReportQueries(
                 sent.Where(x => x.PrincipalId == key.PrincipalId).ToList(),
                 triage.Where(x => x.PrincipalId == key.PrincipalId).ToList(),
                 held.Where(x => x.PrincipalId == key.PrincipalId).ToList(),
-                received))
+                received,
+                agreedFees))
             .OrderBy(x => x.PrincipalCode, StringComparer.OrdinalIgnoreCase)
             .ThenBy(x => x.PrincipalId)
             .ToList();
@@ -183,7 +202,8 @@ internal sealed class EfV1ActivityReportQueries(
         List<SentRow> sent,
         List<TriageRow> triage,
         List<HeldRow> held,
-        Dictionary<Guid, DateTimeOffset> received)
+        Dictionary<Guid, DateTimeOffset> received,
+        Dictionary<Guid, decimal> agreedFees)
     {
         var confirmed = artifacts.Where(IsConfirmed).ToList();
         var generatedArtifactDurations = confirmed
@@ -235,7 +255,8 @@ internal sealed class EfV1ActivityReportQueries(
             held.Count,
             held.Select(x => x.HeldAtUtc).Min(),
             held.Count(x => x.HeldAtUtc is null),
-            types);
+            types,
+            confirmed.Select(x => x.CaseId).Distinct().Sum(caseId => agreedFees.GetValueOrDefault(caseId)));
     }
 
     private static bool IsConfirmed(ArtifactRow artifact) =>
