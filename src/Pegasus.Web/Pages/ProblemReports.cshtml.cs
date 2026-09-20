@@ -38,6 +38,15 @@ public sealed class ProblemReportsModel(
             return Forbid();
         }
 
+        // Without script the form carries no address; the page it came from is
+        // the Referer, used only when it is one of ours.
+        var referer = Request.Headers.Referer.ToString();
+        var fromReferer = Uri.TryCreate(referer, UriKind.Absolute, out var refererUri)
+            && string.Equals(refererUri.Host, Request.Host.Host, StringComparison.OrdinalIgnoreCase)
+            ? refererUri.PathAndQuery
+            : null;
+        returnUrl = string.IsNullOrEmpty(returnUrl) ? fromReferer : returnUrl;
+        route = string.IsNullOrEmpty(route) ? fromReferer : route;
         var back = !string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl) ? returnUrl : "/";
         ProblemReport report;
         try
