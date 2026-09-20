@@ -30,7 +30,8 @@ estimates by
 
 `/Administration` carries **Accounts**, **Contacts**, **Workflow
 configuration**, **Mail settings**, **Valuation presets**, **Service
-health**, **Logs**, **Reports**, **Release notes** and **AI jobs**. Automation appears only when
+health**, **Logs**, **Reports**, **Release notes**, **Problem reports** and **AI
+jobs**. Automation appears only when
 its capability is composed. Its Automation & AI page carries the Send to AI
 connector settings
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#send-to-ai-connector-settings)).
@@ -157,6 +158,15 @@ beginning with `- ` form a list. Publishing makes the note the shell's
 What's new dialog for everyone ([FRD-12](frd-12-operator-experience.md#shell-and-routes)).
 A stale save is refused without overwriting the newer draft.
 
+### Problem reports
+
+**Problem reports** lists every report kept, newest first: when, who, the
+page, the Case, what the person wrote, its status (Sent with a link to the
+issue, or Not sent with the reason) and **Retry** on a report that was not
+sent. Retry raises the same report again; a sent report is never raised
+twice. Nothing on the page edits a report
+([ADR-0055](../adr/0055-github-issues-as-the-problem-report-sink.md)).
+
 ## States and transitions
 
 Every area renders one of: loading, empty, current, stale (with the
@@ -176,7 +186,7 @@ checks the expected version inside its mutation transaction.
 
 ## Acceptance evidence
 
-Acceptance covers the ten areas and their routes, the on-click actions
+Acceptance covers the eleven areas and their routes, the on-click actions
 without confirmation, the Action logs actor resolution and filter, the Intake
 log columns and actions, the six workflow settings and their ranges, and the
 three MI reports with their CSVs. Authenticated Web tests cover server-owned

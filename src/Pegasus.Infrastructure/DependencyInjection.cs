@@ -429,6 +429,10 @@ public static class DependencyInjection
         services.AddScoped<Pegasus.Core.ReleaseNotes.IReleaseNoteStore, EfReleaseNoteStore>();
         services.AddScoped<Pegasus.Core.ReleaseNotes.ReleaseNoteAdministration>();
         services.AddScoped<Pegasus.Core.ReleaseNotes.IMyReleaseNotes, Pegasus.Core.ReleaseNotes.MyReleaseNotes>();
+        services.AddScoped<Pegasus.Core.Support.IProblemReportStore, EfProblemReportStore>();
+        services.AddScoped<Pegasus.Core.Support.ReportProblem>();
+        services.AddScoped<Pegasus.Core.Support.RetryProblemReport>();
+        services.AddScoped<Pegasus.Core.Support.ListProblemReports>();
         services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseArchiveStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());
