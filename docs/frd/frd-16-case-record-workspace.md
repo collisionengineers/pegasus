@@ -105,8 +105,10 @@ values as a non-destructive conflict. A Case save needs no reason; its
 history line names the changed fields. Holds, releases, corrections and a
 return to engineering record a reason.
 
-**Sections**, in order: **Overview**, **Inspection**, **Vehicle**, **Damage**,
-**Valuation**, **Estimate**, **Settlement**, **Report**, **Files**, **Notes**.
+**Sections**, in order: **Case details**, **Claim**, **Original report** (an
+Audit Case only), **Inspection details**, **Vehicle** (with **Damage** and
+**Valuation** inside it, each its own foldable panel under the Vehicle link),
+**Estimate**, **Decisions**, **Report**, **Files**, **Notes**.
 Every section can always be read. The Engineer sections (Damage, Valuation,
 Estimate, Settlement, Report) are editable in Not ready, Review and With
 Engineer by staff with `PerformCasework`, and read-only in Held and after
@@ -158,8 +160,8 @@ Audit with no original report at all, neither a filed report nor one kept
 from the instruction email, also lists **Original report missing**, sourced
 from Audit.
 
-Then the Case, Principal and Claimant columns of cells, each a card that
-folds and stays folded per browser. Identity cells read with a lock while
+Then the Case and Principal cards, each folding and staying folded per
+browser; the Sign-off Engineer is decided on the Case card. Identity cells read with a lock while
 the rest edits; the Case card carries the derived Matter line and, once a
 report has been sent, when and from which mailbox. The Claim source is chosen from the active
 Claim Source contacts. A Notes band shows the Principal's and the Claim
@@ -167,6 +169,20 @@ source's Notes on every Case, read-only and absent when the record has none
 ([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
 beside this Case's own Principal and Claim source notes. Then Accident
 circumstances beside Notes from client.
+
+### Claim
+
+The claimant's cells four across — name, contact, address, VAT status — and,
+beside them, the Engineer's decision on the claimant's VAT registration,
+which the Decisions section no longer repeats.
+
+### Original report
+
+On an Audit Case only: who wrote the original report (the assessors Core's
+third-party report profiles know are offered, any other is typed), its date,
+its roadworthiness and its repairable status. They are Case data, edited in
+the page-wide session; a filed original report's extraction is their source
+once wired (v28 P51, ruled 20 September 2026).
 
 ### Inspection
 
