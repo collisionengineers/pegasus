@@ -296,6 +296,7 @@ public static class OperatorLabels
         public const string ClaimSources = "Claim sources";
         // C08 shell administration areas end
         public const string ReleaseNotes = "Release notes";
+        public const string ProblemReports = "Problem reports";
     }
 
     /// <summary>Release notes (FRD-12 What's new; FRD-17): the labels, statuses and acknowledgements.</summary>
@@ -310,6 +311,27 @@ public static class OperatorLabels
         public const string Published = "Release note published.";
         public const string Conflict = "The release note changed before this edit was saved. Reload and try again.";
     }
+
+    /// <summary>Report a problem (FRD-12; FRD-17): the dialog, the outcomes and the Administrator's list.</summary>
+    public static class ProblemReports
+    {
+        public const string WhatHappened = "What happened";
+        public const string Send = "Send";
+        public const string Retry = "Retry";
+        public const string None = "No problem reports";
+        public const string Kept = "The report was kept but could not be sent.";
+        public const string Sent = "Sent";
+        public const string NotSent = "Not sent";
+
+        public static string Reported(int issueNumber) =>
+            string.Create(CultureInfo.InvariantCulture, $"Reported as #{issueNumber}.");
+    }
+
+    public static string ProblemReportStatus(Pegasus.Core.Support.ProblemReportStatus status) => status switch
+    {
+        Pegasus.Core.Support.ProblemReportStatus.Sent => ProblemReports.Sent,
+        _ => ProblemReports.NotSent
+    };
 
     public static string ReleaseNoteStatus(Pegasus.Core.ReleaseNotes.ReleaseNoteStatus status) => status switch
     {
@@ -352,6 +374,7 @@ public static class OperatorLabels
         public const string AdministrationDenied = "Administration is available to Administrators only.";
         public const string WhatsNew = "What’s new";
         public const string GotIt = "Got it";
+        public const string ReportProblem = "Report a problem";
         public const string ReleaseNotes = "Release notes";
 
         /// <summary>"Notifications · 3 unread", the bell's accessible name while anything is unread.</summary>

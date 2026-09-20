@@ -213,6 +213,16 @@
                             </button>
                         </div>
                     }
+                    @if (TempData["ProblemReportError"] is string problemReportError)
+                    {
+                        <div class="notice notice--warning mb-2" role="alert" data-problem-notice>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>@problemReportError</span>
+                            <button type="button" class="dismiss" data-dismiss aria-label="Dismiss">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                            </button>
+                        </div>
+                    }
                     @RenderBody()
                 </div>
             </main>
