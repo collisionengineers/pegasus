@@ -11,7 +11,7 @@ Each state is the running application's own HTML for the route shown, saved with
 | State | Live route | Open | Screenshots |
 | --- | --- | --- | --- |
 | Create case, manual | `/Cases/Create` | [frame](../../../current/pegasus_cases_index_v28.html#create-case) · [page](../../../current/states/create-case.html) | [1580](../../../current/v28-shots/s15-create-case-1580.png) · [1440](../../../current/v28-shots/s15-create-case-1440.png) · [760](../../../current/v28-shots/s15-create-case-760.png) |
-| Create case from a received instruction | `/Cases/Create?receiptId=74e58afe-48b3-4fa7-b5c8-b9d9e2b065d1` | [frame](../../../current/pegasus_cases_index_v28.html#create-case-from-receipt) · [page](../../../current/states/create-case-from-receipt.html) | [1580](../../../current/v28-shots/s16-create-case-from-receipt-1580.png) · [1440](../../../current/v28-shots/s16-create-case-from-receipt-1440.png) · [760](../../../current/v28-shots/s16-create-case-from-receipt-760.png) |
+| Create case from a received instruction | `/Cases/Create?receiptId=4bef3544-cad7-4e38-aa8f-725754a99306` | [frame](../../../current/pegasus_cases_index_v28.html#create-case-from-receipt) · [page](../../../current/states/create-case-from-receipt.html) | [1580](../../../current/v28-shots/s16-create-case-from-receipt-1580.png) · [1440](../../../current/v28-shots/s16-create-case-from-receipt-1440.png) · [760](../../../current/v28-shots/s16-create-case-from-receipt-760.png) |
 
 ## Not captured
 

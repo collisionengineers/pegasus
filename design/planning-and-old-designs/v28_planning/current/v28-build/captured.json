@@ -15,13 +15,13 @@
   "id": "work-centre-selected-triage",
   "family": "work_centre",
   "label": "Triage item selected",
-  "live": "/?scope=office&selected=b1cae944-6c1e-40f3-a0ce-1b2c79d85f1b"
+  "live": "/?scope=office&selected=78da3cb3-01fb-4d8c-801c-85f93855b44f"
  },
  {
   "id": "work-centre-selected-unidentified",
   "family": "work_centre",
   "label": "Unidentified item selected",
-  "live": "/?scope=office&selected=4d9ce89f-df77-44ea-bf2a-26805e6dcd33"
+  "live": "/?scope=office&selected=fe35ab69-545c-4047-8541-c92e645274e7"
  },
  {
   "id": "work-centre-kind-unidentified",
@@ -63,7 +63,7 @@
   "id": "cases-with-engineer-selected",
   "family": "cases_index",
   "label": "With Engineer, row selected",
-  "live": "/Cases?tab=with_engineer&selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f"
+  "live": "/Cases?tab=with_engineer&selected=47f25921-e2ae-4c2c-8be3-405a12746f5f"
  },
  {
   "id": "cases-complete",
@@ -93,31 +93,31 @@
   "id": "create-case-from-receipt",
   "family": "cases_index",
   "label": "Create case from a received instruction",
-  "live": "/Cases/Create?receiptId=74e58afe-48b3-4fa7-b5c8-b9d9e2b065d1"
+  "live": "/Cases/Create?receiptId=4bef3544-cad7-4e38-aa8f-725754a99306"
  },
  {
   "id": "case-record",
   "family": "case_record",
   "label": "Read",
-  "live": "/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f"
+  "live": "/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f"
  },
  {
   "id": "case-record-editing",
   "family": "case_record",
   "label": "Page-wide edit session",
-  "live": "/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f"
+  "live": "/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f"
  },
  {
   "id": "case-record-new-estimate",
   "family": "case_record",
   "label": "Edit session, new estimate being entered",
-  "live": "/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=estimate&estimate=new"
+  "live": "/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f?section=estimate&estimate=new"
  },
  {
   "id": "case-record-eva-send",
   "family": "case_record",
   "label": "EVA send",
-  "live": "/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f/Eva/Send"
+  "live": "/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f/Eva/Send"
  },
  {
   "id": "cases-triage",
@@ -129,13 +129,13 @@
   "id": "cases-triage-selected",
   "family": "triage_unidentified",
   "label": "Cases, Triage tab, row selected",
-  "live": "/Cases?tab=triage&selected=b1cae944-6c1e-40f3-a0ce-1b2c79d85f1b"
+  "live": "/Cases?tab=triage&selected=78da3cb3-01fb-4d8c-801c-85f93855b44f"
  },
  {
   "id": "triage-record",
   "family": "triage_unidentified",
   "label": "Triage record",
-  "live": "/Triage/b1cae944-6c1e-40f3-a0ce-1b2c79d85f1b"
+  "live": "/Triage/78da3cb3-01fb-4d8c-801c-85f93855b44f"
  },
  {
   "id": "cases-unidentified",
@@ -147,7 +147,7 @@
   "id": "cases-unidentified-selected",
   "family": "triage_unidentified",
   "label": "Cases, Unidentified tab, row selected",
-  "live": "/Cases?tab=unidentified&selected=4d9ce89f-df77-44ea-bf2a-26805e6dcd33"
+  "live": "/Cases?tab=unidentified&selected=fe35ab69-545c-4047-8541-c92e645274e7"
  },
  {
   "id": "cases-unidentified-closed",
@@ -159,19 +159,19 @@
   "id": "unidentified-record",
   "family": "triage_unidentified",
   "label": "Unidentified record, document",
-  "live": "/Unidentified/4d9ce89f-df77-44ea-bf2a-26805e6dcd33"
+  "live": "/Unidentified/fe35ab69-545c-4047-8541-c92e645274e7"
  },
  {
   "id": "unidentified-record-upload-group",
   "family": "triage_unidentified",
   "label": "Unidentified record, uploaded image group, Register images",
-  "live": "/Unidentified/f4f71937-f4a7-406b-8abb-4b2dd74c026a?action=register-image"
+  "live": "/Unidentified/81fe0b5a-6e46-4995-b470-9feb5d2feb54?action=register-image"
  },
  {
   "id": "unidentified-record-mailbox-group",
   "family": "triage_unidentified",
   "label": "Unidentified record, mailbox image group, Add to an existing case",
-  "live": "/Unidentified/7c8c1a34-0834-4378-a6d5-a34944fcda94?action=add-existing-case"
+  "live": "/Unidentified/7c187d69-01c4-4313-9ff3-22afa24380b4?action=add-existing-case"
  },
  {
   "id": "cases-awaiting",
@@ -183,13 +183,13 @@
   "id": "cases-awaiting-selected",
   "family": "image_intake",
   "label": "Cases, Awaiting instruction tab, row selected",
-  "live": "/Cases?tab=awaiting&selected=fa414157-57f9-4e25-ae40-217b49202981"
+  "live": "/Cases?tab=awaiting&selected=7fad92cc-cad2-4caf-8e69-9010a3769f3a"
  },
  {
   "id": "image-intake-record",
   "family": "image_intake",
   "label": "Image intake record",
-  "live": "/VehicleImages/fa414157-57f9-4e25-ae40-217b49202981"
+  "live": "/VehicleImages/7fad92cc-cad2-4caf-8e69-9010a3769f3a"
  },
  {
   "id": "inbox",
@@ -201,7 +201,7 @@
   "id": "inbox-selected",
   "family": "mail_upload",
   "label": "Inbox, message selected",
-  "live": "/Inbox?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728&selected=5e78329b-3ec5-4d89-9c6a-41c8ef1b2401"
+  "live": "/Inbox?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728&selected=0c6ff7c1-b0c0-48c1-803b-dcc531f91f6e"
  },
  {
   "id": "inbox-receiving-work",
@@ -219,7 +219,7 @@
   "id": "mail-message",
   "family": "mail_upload",
   "label": "Message record",
-  "live": "/Inbox/5e78329b-3ec5-4d89-9c6a-41c8ef1b2401?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728"
+  "live": "/Inbox/0c6ff7c1-b0c0-48c1-803b-dcc531f91f6e?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728"
  },
  {
   "id": "mail-compose",
@@ -243,25 +243,25 @@
   "id": "upload-group-status",
   "family": "mail_upload",
   "label": "Upload group status, images awaiting a decision",
-  "live": "/Upload/Group/43a50498-9c87-4302-99ab-6f7316023587"
+  "live": "/Upload/Group/96b2fc42-af32-42b2-8fa9-9476d4deb851"
  },
  {
   "id": "search",
   "family": "search_operations",
   "label": "Search, no filters",
-  "live": "/Search?selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f"
+  "live": "/Search?selected=47f25921-e2ae-4c2c-8be3-405a12746f5f"
  },
  {
   "id": "search-results",
   "family": "search_operations",
   "label": "Search by registration",
-  "live": "/Search?Registration=AB12CDE&selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f"
+  "live": "/Search?Registration=AB12CDE&selected=47f25921-e2ae-4c2c-8be3-405a12746f5f"
  },
  {
   "id": "search-selected",
   "family": "search_operations",
   "label": "Search, Case selected",
-  "live": "/Search?page=1&selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f"
+  "live": "/Search?page=1&selected=47f25921-e2ae-4c2c-8be3-405a12746f5f"
  },
  {
   "id": "search-no-match",
@@ -291,7 +291,7 @@
   "id": "admin-account-settings",
   "family": "administration",
   "label": "Staff accounts, one account's settings opened",
-  "live": "/Administration/Accounts?editStaffId=283aec53-e6dc-44b4-b5c7-5cc0bae9bec9&expectedVersion=0"
+  "live": "/Administration/Accounts?editStaffId=84c8c80e-f43e-4d31-bea1-674a168ae325&expectedVersion=0"
  },
  {
   "id": "admin-glass-login",

@@ -1,14 +1,296 @@
 [
-  { "name": "work-centre", "state": "work-centre", "query": "", "shows": "P1 refined mark; P6-E Updated stated once" },
-  { "name": "sign-in", "state": "sign-in", "query": "", "shows": "P1 refined mark on the navless frame" },
-  { "name": "case-record", "state": "case-record", "query": "", "shows": "P4 lifecycle strip removed; P2 Roadworthy green" },
-  { "name": "case-record-editing", "state": "case-record-editing", "query": "", "shows": "P4 lifecycle strip removed in the edit session" },
-  { "name": "case-record-damage", "state": "case-record", "query": "scroll=section-damage", "shows": "P5 damage areas, read" },
-  { "name": "case-record-editing-damage", "state": "case-record-editing", "query": "scroll=section-damage", "shows": "P5 damage areas, editing, with guides and hint" },
-  { "name": "cases-triage-selected", "state": "cases-triage-selected", "query": "", "shows": "P3 Principal in place of Provider" },
-  { "name": "cases-with-engineer-selected", "state": "cases-with-engineer-selected", "query": "", "shows": "P6-F dates stay on one line" },
-  { "name": "admin-logs-intake", "state": "admin-logs-intake", "query": "", "shows": "P2 outcome tones" },
-  { "name": "admin-hub", "state": "admin-hub", "query": "", "shows": "P6-H hub icons match the nav" },
-  { "name": "access-denied", "state": "access-denied", "query": "", "shows": "P6-D navless Access denied" },
-  { "name": "upload-group-status", "state": "upload-group-status", "query": "", "shows": "P2 tones on upload outcomes" }
+  {
+    "name": "work-centre",
+    "state": "work-centre",
+    "query": "",
+    "shows": "P1 refined mark; P6-E Updated stated once"
+  },
+  {
+    "name": "sign-in",
+    "state": "sign-in",
+    "query": "",
+    "shows": "P1 refined mark on the navless frame"
+  },
+  {
+    "name": "case-record",
+    "state": "case-record",
+    "query": "",
+    "shows": "P4 lifecycle strip removed; P2 Roadworthy green"
+  },
+  {
+    "name": "case-record-editing",
+    "state": "case-record-editing",
+    "query": "",
+    "shows": "P4 lifecycle strip removed and P7 no Lifecycle actions container in the edit session"
+  },
+  {
+    "name": "case-record-damage",
+    "state": "case-record",
+    "query": "scroll=section-damage",
+    "shows": "P5 damage areas, read"
+  },
+  {
+    "name": "case-record-editing-damage",
+    "state": "case-record-editing",
+    "query": "scroll=section-damage",
+    "shows": "P5 damage areas, editing, with guides, hint and Reset"
+  },
+  {
+    "name": "cases-triage-selected",
+    "state": "cases-triage-selected",
+    "query": "",
+    "shows": "P3 Principal in place of Provider"
+  },
+  {
+    "name": "cases-with-engineer-selected",
+    "state": "cases-with-engineer-selected",
+    "query": "",
+    "shows": "P6-F dates stay on one line"
+  },
+  {
+    "name": "admin-logs-intake",
+    "state": "admin-logs-intake",
+    "query": "",
+    "shows": "P2 outcome tones"
+  },
+  {
+    "name": "admin-hub",
+    "state": "admin-hub",
+    "query": "",
+    "shows": "P6-H hub icons match the nav"
+  },
+  {
+    "name": "access-denied",
+    "state": "access-denied",
+    "query": "",
+    "shows": "P6-D navless Access denied"
+  },
+  {
+    "name": "upload-group-status",
+    "state": "upload-group-status",
+    "query": "",
+    "shows": "P11 Upload received reworked; P2 tones"
+  },
+  {
+    "name": "case-record-valuation",
+    "state": "case-record",
+    "query": "scroll=section-valuation",
+    "shows": "P8 read mode: no Cazana card until a guide is recorded"
+  },
+  {
+    "name": "case-record-editing-valuation",
+    "state": "case-record-editing",
+    "query": "scroll=section-valuation",
+    "shows": "P8 Cazana as an entry card; Get valuation a button at the bottom centre"
+  },
+  {
+    "name": "case-record-estimate-more",
+    "state": "case-record",
+    "query": "scroll=section-estimate&click=%5Bdata-estimate-more%5D%20summary",
+    "shows": "P9 Print Estimate and Compare under More"
+  },
+  {
+    "name": "case-record-compare-dialog",
+    "state": "case-record",
+    "query": "dialog=compare-estimates-dialog",
+    "shows": "The live Compare estimates dialog, reachable from More (baseline behaviour, shown for P9)"
+  },
+  {
+    "name": "upload-group-status-discard",
+    "state": "upload-group-status",
+    "query": "click=.v28-upload__discard%20summary",
+    "shows": "P11 Discard this submission opened"
+  },
+  {
+    "name": "case-record-editing-estimate",
+    "state": "case-record-editing",
+    "query": "scroll=section-estimate",
+    "shows": "P10 Use estimate available; P9 More while editing; P36 the Glass's button"
+  },
+  {
+    "name": "admin-accounts",
+    "state": "admin-accounts",
+    "query": "",
+    "shows": "P2 Active is green"
+  },
+  {
+    "name": "case-record-claim",
+    "state": "case-record",
+    "query": "scroll=section-claim",
+    "shows": "P26 nine-section map: Case details then Claim; P12 Matter line; P25 ribbon badges"
+  },
+  {
+    "name": "case-record-editing-decisions",
+    "state": "case-record-editing",
+    "query": "scroll=section-settlement",
+    "shows": "P29 decisions as radio groups in the renamed Decisions section: one answer each"
+  },
+  {
+    "name": "case-record-editing-estimate-head",
+    "state": "case-record-editing",
+    "query": "scroll=section-estimate",
+    "shows": "Repair Spec header: one labour rate control, no name, days or notes; P20, P17, P12, P16 side by side, P34 and P35 bars"
+  },
+  {
+    "name": "case-record-editing-report",
+    "state": "case-record-editing",
+    "query": "scroll=section-report",
+    "shows": "P24 Report and Fee tabs; P30 Report wording editor"
+  },
+  {
+    "name": "case-record-report-wording",
+    "state": "case-record",
+    "query": "scroll=section-report",
+    "shows": "P30 Report wording in read mode"
+  },
+  {
+    "name": "case-record-editing-notes",
+    "state": "case-record-editing",
+    "query": "scroll=section-notes",
+    "shows": "P28 Queries on Notes"
+  },
+  {
+    "name": "case-record-compare-rich",
+    "state": "case-record",
+    "query": "dialog=compare-estimates-dialog",
+    "shows": "P19 Compare with From and To"
+  },
+  {
+    "name": "repair-spec-scaled",
+    "state": "case-record-editing",
+    "query": "scroll=v28-target&demo=scale",
+    "shows": "P34 Target % of value, previewing the lowest the floors allow"
+  },
+  {
+    "name": "repair-spec-contract",
+    "state": "case-record-editing",
+    "query": "scroll=v28-contract&demo=contract",
+    "shows": "P35 Contract repair agreed; Outcome follows in Decisions"
+  },
+  {
+    "name": "repair-spec-glass-open",
+    "state": "case-record-editing",
+    "query": "scroll=section-estimate&glass=open",
+    "shows": "P36 Glass's session open: Resume and the session line"
+  },
+  {
+    "name": "repair-spec-glass-waiting",
+    "state": "case-record-editing",
+    "query": "scroll=section-estimate&glass=waiting",
+    "shows": "P36 Glass's estimate held: Complete import"
+  },
+  {
+    "name": "repair-spec-glass-failed",
+    "state": "case-record-editing",
+    "query": "scroll=section-estimate&glass=failed",
+    "shows": "P36 Glass's session failed"
+  },
+  {
+    "name": "repair-spec-glass-recorded",
+    "state": "case-record",
+    "query": "scroll=section-estimate&glass=recorded",
+    "shows": "P36 Glass's estimate recorded, read mode"
+  },
+  {
+    "name": "case-record-editing-valuation-pick",
+    "state": "case-record-editing",
+    "query": "scroll=section-valuation",
+    "shows": "P8 no Basis radio; a card is chosen by clicking it"
+  },
+  {
+    "name": "case-record-vehicle-head",
+    "state": "case-record",
+    "query": "scroll=section-vehicle",
+    "shows": "P6-I the Vehicle head at its normal height"
+  },
+  {
+    "name": "repair-spec-floor-offpattern",
+    "state": "case-record-editing",
+    "query": "scroll=v28-target",
+    "shows": "P34 price floor 65 %; P48 Material column with the estimate figure on the line; P37 off-pattern rule armed"
+  },
+  {
+    "name": "repair-spec-versions",
+    "state": "case-record-editing",
+    "query": "scroll=section-estimate&demo=versions",
+    "shows": "P43 Versions dialog: the working draft, v1 and v2 with how each came about, Sent on report, Compare with current and Restore"
+  },
+  {
+    "name": "repair-spec-origin",
+    "state": "case-record",
+    "query": "scroll=section-estimate",
+    "shows": "P43 the origin line under the tabs, read mode; P42 Print Estimate opens the Repair Spec document"
+  },
+  {
+    "name": "report-produce-preview",
+    "state": "case-record-editing",
+    "query": "scroll=section-report&demo=produce",
+    "shows": "P42 Produce PDF: the report as it will print, with Report, Repair Spec and Images"
+  },
+  {
+    "name": "report-produce-spec",
+    "state": "case-record-editing",
+    "query": "scroll=section-report&demo=spec",
+    "shows": "P42 the Repair Spec document, the one Print Estimate opens"
+  },
+  {
+    "name": "report-wording-drag-attach",
+    "state": "case-record-editing",
+    "query": "scroll=section-report",
+    "shows": "P30 drag grips on the wording blocks; P22 Attach offers Repair Spec; P40 report date stamps on generate; P50 no images panels on Report"
+  },
+  {
+    "name": "images-working",
+    "state": "case-record-editing",
+    "query": "demo=images",
+    "shows": "P41 rotate, full page, remove, grip and Add images on every tile; P50 the report role and order on the tile, the count on the tab; P27 include"
+  },
+  {
+    "name": "case-details-editing",
+    "state": "case-record-editing",
+    "query": "scroll=section-overview",
+    "shows": "P38 Sign-off Engineer on Case details (the assigned Engineer stays the ribbon’s fact); P45 sub-cards fold"
+  },
+  {
+    "name": "case-details-read",
+    "state": "case-record",
+    "query": "scroll=section-overview",
+    "shows": "P45 sub-card fold toggles in read mode; the Case type cell is the live one (P49 dropped)"
+  },
+  {
+    "name": "decisions-reserve-salvage",
+    "state": "case-record-editing",
+    "query": "scroll=section-settlement",
+    "shows": "P29 salvage not applicable line with its reason; the computed repair reserve beside the typed field"
+  },
+  {
+    "name": "vehicle-unrelated-valuation-switches",
+    "state": "case-record-editing",
+    "query": "scroll=section-vehicle",
+    "shows": "P38 unrelated damage on Vehicle; the report content switches on Valuation"
+  },
+  {
+    "name": "stale-banner",
+    "state": "case-record",
+    "query": "demo=stale",
+    "shows": "P47 page-wide stale banner under the ribbon"
+  },
+  {
+    "name": "images-read-roles",
+    "state": "case-record",
+    "query": "demo=images",
+    "shows": "P50 read mode: each tile says its report role; the Report section has no images panels; the section is Files"
+  },
+  {
+    "name": "audit-original-report",
+    "state": "case-record-editing",
+    "query": "demo=audit",
+    "shows": "P51 Original report on an Audit Case (the demo makes the fixture read as a.QDOS31001, Case type Audit): assessor, report date, roadworthiness and repairable status while editing"
+  },
+  {
+    "name": "audit-original-report-read",
+    "state": "case-record",
+    "query": "demo=audit",
+    "shows": "P51 Original report in read mode on an Audit Case"
+  }
 ]

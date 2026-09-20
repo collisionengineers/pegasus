@@ -10,7 +10,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const current = resolve(here, '..');
 const manifest = JSON.parse(readFileSync(join(here, 'manifest.json'), 'utf8'));
 const captured = JSON.parse(readFileSync(join(here, 'captured.json'), 'utf8'));
-const presets = JSON.parse(readFileSync(join(here, 'shots.json'), 'utf8'));
+const presets = [
+  ...JSON.parse(readFileSync(join(here, 'shots.json'), 'utf8')),
+  // Proposal presets carry a query of their own; a plain proposal shot of a state adds nothing to the picker.
+  ...JSON.parse(readFileSync(join(here, 'proposal-shots.json'), 'utf8')).filter((shot, index, all) => shot.query && !JSON.parse(readFileSync(join(here, 'shots.json'), 'utf8')).some((b) => b.state === shot.state && b.query === shot.query)).map((shot) => ({ ...shot, label: 'Proposal: ' + shot.shows.split(';')[0] })),
+];
 
 const escape = (text) => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 

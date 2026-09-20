@@ -3,53 +3,53 @@ window.V28_ROUTES = {
  "exact": {
   "": "work-centre",
   "?scope=mine": "work-centre-mine",
-  "?scope=office&selected=b1cae944-6c1e-40f3-a0ce-1b2c79d85f1b": "work-centre-selected-triage",
-  "?scope=office&selected=4d9ce89f-df77-44ea-bf2a-26805e6dcd33": "work-centre-selected-unidentified",
+  "?scope=office&selected=78da3cb3-01fb-4d8c-801c-85f93855b44f": "work-centre-selected-triage",
+  "?scope=office&selected=fe35ab69-545c-4047-8541-c92e645274e7": "work-centre-selected-unidentified",
   "?kind=unidentified&scope=office": "work-centre-kind-unidentified",
   "?kind=review&scope=office": "work-centre-kind-review",
   "?notifications=1": "work-centre-notifications",
   "/cases": "cases-not-ready",
   "/cases?tab=review": "cases-review",
   "/cases?tab=with_engineer": "cases-with-engineer",
-  "/cases?selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f&tab=with_engineer": "cases-with-engineer-selected",
+  "/cases?selected=47f25921-e2ae-4c2c-8be3-405a12746f5f&tab=with_engineer": "cases-with-engineer-selected",
   "/cases?tab=complete": "cases-complete",
   "/cases?tab=query": "cases-query",
   "/cases?tab=held": "cases-held",
   "/cases/create": "create-case",
-  "/cases/create?receiptid=74e58afe-48b3-4fa7-b5c8-b9d9e2b065d1": "create-case-from-receipt",
-  "/cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f": "case-record",
-  "/cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f/eva/send": "case-record-eva-send",
+  "/cases/create?receiptid=4bef3544-cad7-4e38-aa8f-725754a99306": "create-case-from-receipt",
+  "/cases/47f25921-e2ae-4c2c-8be3-405a12746f5f": "case-record",
+  "/cases/47f25921-e2ae-4c2c-8be3-405a12746f5f/eva/send": "case-record-eva-send",
   "/cases?tab=triage": "cases-triage",
-  "/cases?selected=b1cae944-6c1e-40f3-a0ce-1b2c79d85f1b&tab=triage": "cases-triage-selected",
-  "/triage/b1cae944-6c1e-40f3-a0ce-1b2c79d85f1b": "triage-record",
+  "/cases?selected=78da3cb3-01fb-4d8c-801c-85f93855b44f&tab=triage": "cases-triage-selected",
+  "/triage/78da3cb3-01fb-4d8c-801c-85f93855b44f": "triage-record",
   "/cases?tab=unidentified": "cases-unidentified",
-  "/cases?selected=4d9ce89f-df77-44ea-bf2a-26805e6dcd33&tab=unidentified": "cases-unidentified-selected",
+  "/cases?selected=fe35ab69-545c-4047-8541-c92e645274e7&tab=unidentified": "cases-unidentified-selected",
   "/cases?show=closed&tab=unidentified": "cases-unidentified-closed",
-  "/unidentified/4d9ce89f-df77-44ea-bf2a-26805e6dcd33": "unidentified-record",
-  "/unidentified/f4f71937-f4a7-406b-8abb-4b2dd74c026a?action=register-image": "unidentified-record-upload-group",
-  "/unidentified/7c8c1a34-0834-4378-a6d5-a34944fcda94?action=add-existing-case": "unidentified-record-mailbox-group",
+  "/unidentified/fe35ab69-545c-4047-8541-c92e645274e7": "unidentified-record",
+  "/unidentified/81fe0b5a-6e46-4995-b470-9feb5d2feb54?action=register-image": "unidentified-record-upload-group",
+  "/unidentified/7c187d69-01c4-4313-9ff3-22afa24380b4?action=add-existing-case": "unidentified-record-mailbox-group",
   "/cases?tab=awaiting": "cases-awaiting",
-  "/cases?selected=fa414157-57f9-4e25-ae40-217b49202981&tab=awaiting": "cases-awaiting-selected",
-  "/vehicleimages/fa414157-57f9-4e25-ae40-217b49202981": "image-intake-record",
+  "/cases?selected=7fad92cc-cad2-4caf-8e69-9010a3769f3a&tab=awaiting": "cases-awaiting-selected",
+  "/vehicleimages/7fad92cc-cad2-4caf-8e69-9010a3769f3a": "image-intake-record",
   "/inbox": "inbox",
-  "/inbox?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728&selected=5e78329b-3ec5-4d89-9c6a-41c8ef1b2401": "inbox-selected",
+  "/inbox?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728&selected=0c6ff7c1-b0c0-48c1-803b-dcc531f91f6e": "inbox-selected",
   "/inbox?queue=receiving-work": "inbox-receiving-work",
   "/inbox?sort=oldest": "inbox-oldest",
-  "/inbox/5e78329b-3ec5-4d89-9c6a-41c8ef1b2401?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728": "mail-message",
-  "/inbox/5e78329b-3ec5-4d89-9c6a-41c8ef1b2401": "mail-message",
+  "/inbox/0c6ff7c1-b0c0-48c1-803b-dcc531f91f6e?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728": "mail-message",
+  "/inbox/0c6ff7c1-b0c0-48c1-803b-dcc531f91f6e": "mail-message",
   "/inbox/compose": "mail-compose",
   "/inbox/compose?casereference=qdos31001": "mail-compose-for-case",
   "/upload": "upload",
-  "/upload/group/43a50498-9c87-4302-99ab-6f7316023587": "upload-group-status",
-  "/search?selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f": "search",
+  "/upload/group/96b2fc42-af32-42b2-8fa9-9476d4deb851": "upload-group-status",
+  "/search?selected=47f25921-e2ae-4c2c-8be3-405a12746f5f": "search",
   "/search": "search",
-  "/search?registration=ab12cde&selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f": "search-results",
-  "/search?page=1&selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f": "search-selected",
+  "/search?registration=ab12cde&selected=47f25921-e2ae-4c2c-8be3-405a12746f5f": "search-results",
+  "/search?page=1&selected=47f25921-e2ae-4c2c-8be3-405a12746f5f": "search-selected",
   "/search?registration=zz99zzz": "search-no-match",
   "/operations": "operations",
   "/administration": "admin-hub",
   "/administration/accounts": "admin-accounts",
-  "/administration/accounts?editstaffid=283aec53-e6dc-44b4-b5c7-5cc0bae9bec9&expectedversion=0": "admin-account-settings",
+  "/administration/accounts?editstaffid=84c8c80e-f43e-4d31-bea1-674a168ae325&expectedversion=0": "admin-account-settings",
   "/administration/glass/d47fbbae-ea22-4ca6-b983-01e2ed1fbd13": "admin-glass-login",
   "/administration/contacts": "admin-contacts",
   "/administration/contacts/edit/00000000-0000-4000-8000-00000000d003": "admin-contact-edit",
@@ -143,13 +143,13 @@ window.V28_ROUTES = {
     {
      "id": "work-centre-selected-triage",
      "label": "Triage item selected",
-     "live": "/?scope=office&selected=b1cae944-6c1e-40f3-a0ce-1b2c79d85f1b",
+     "live": "/?scope=office&selected=78da3cb3-01fb-4d8c-801c-85f93855b44f",
      "note": ""
     },
     {
      "id": "work-centre-selected-unidentified",
      "label": "Unidentified item selected",
-     "live": "/?scope=office&selected=4d9ce89f-df77-44ea-bf2a-26805e6dcd33",
+     "live": "/?scope=office&selected=fe35ab69-545c-4047-8541-c92e645274e7",
      "note": ""
     },
     {
@@ -198,7 +198,7 @@ window.V28_ROUTES = {
     {
      "id": "cases-with-engineer-selected",
      "label": "With Engineer, row selected",
-     "live": "/Cases?tab=with_engineer&selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f",
+     "live": "/Cases?tab=with_engineer&selected=47f25921-e2ae-4c2c-8be3-405a12746f5f",
      "note": ""
     },
     {
@@ -228,7 +228,7 @@ window.V28_ROUTES = {
     {
      "id": "create-case-from-receipt",
      "label": "Create case from a received instruction",
-     "live": "/Cases/Create?receiptId=74e58afe-48b3-4fa7-b5c8-b9d9e2b065d1",
+     "live": "/Cases/Create?receiptId=4bef3544-cad7-4e38-aa8f-725754a99306",
      "note": ""
     }
    ]
@@ -241,25 +241,25 @@ window.V28_ROUTES = {
     {
      "id": "case-record",
      "label": "Read",
-     "live": "/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f",
+     "live": "/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f",
      "note": ""
     },
     {
      "id": "case-record-editing",
      "label": "Page-wide edit session",
-     "live": "/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f",
+     "live": "/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f",
      "note": ""
     },
     {
      "id": "case-record-new-estimate",
      "label": "Edit session, new estimate being entered",
-     "live": "/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f?section=estimate&estimate=new",
+     "live": "/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f?section=estimate&estimate=new",
      "note": ""
     },
     {
      "id": "case-record-eva-send",
      "label": "EVA send",
-     "live": "/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f/Eva/Send",
+     "live": "/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f/Eva/Send",
      "note": ""
     }
    ]
@@ -278,13 +278,13 @@ window.V28_ROUTES = {
     {
      "id": "cases-triage-selected",
      "label": "Cases, Triage tab, row selected",
-     "live": "/Cases?tab=triage&selected=b1cae944-6c1e-40f3-a0ce-1b2c79d85f1b",
+     "live": "/Cases?tab=triage&selected=78da3cb3-01fb-4d8c-801c-85f93855b44f",
      "note": ""
     },
     {
      "id": "triage-record",
      "label": "Triage record",
-     "live": "/Triage/b1cae944-6c1e-40f3-a0ce-1b2c79d85f1b",
+     "live": "/Triage/78da3cb3-01fb-4d8c-801c-85f93855b44f",
      "note": ""
     },
     {
@@ -296,7 +296,7 @@ window.V28_ROUTES = {
     {
      "id": "cases-unidentified-selected",
      "label": "Cases, Unidentified tab, row selected",
-     "live": "/Cases?tab=unidentified&selected=4d9ce89f-df77-44ea-bf2a-26805e6dcd33",
+     "live": "/Cases?tab=unidentified&selected=fe35ab69-545c-4047-8541-c92e645274e7",
      "note": ""
     },
     {
@@ -308,19 +308,19 @@ window.V28_ROUTES = {
     {
      "id": "unidentified-record",
      "label": "Unidentified record, document",
-     "live": "/Unidentified/4d9ce89f-df77-44ea-bf2a-26805e6dcd33",
+     "live": "/Unidentified/fe35ab69-545c-4047-8541-c92e645274e7",
      "note": ""
     },
     {
      "id": "unidentified-record-upload-group",
      "label": "Unidentified record, uploaded image group, Register images",
-     "live": "/Unidentified/f4f71937-f4a7-406b-8abb-4b2dd74c026a?action=register-image",
+     "live": "/Unidentified/81fe0b5a-6e46-4995-b470-9feb5d2feb54?action=register-image",
      "note": ""
     },
     {
      "id": "unidentified-record-mailbox-group",
      "label": "Unidentified record, mailbox image group, Add to an existing case",
-     "live": "/Unidentified/7c8c1a34-0834-4378-a6d5-a34944fcda94?action=add-existing-case",
+     "live": "/Unidentified/7c187d69-01c4-4313-9ff3-22afa24380b4?action=add-existing-case",
      "note": ""
     }
    ]
@@ -339,13 +339,13 @@ window.V28_ROUTES = {
     {
      "id": "cases-awaiting-selected",
      "label": "Cases, Awaiting instruction tab, row selected",
-     "live": "/Cases?tab=awaiting&selected=fa414157-57f9-4e25-ae40-217b49202981",
+     "live": "/Cases?tab=awaiting&selected=7fad92cc-cad2-4caf-8e69-9010a3769f3a",
      "note": ""
     },
     {
      "id": "image-intake-record",
      "label": "Image intake record",
-     "live": "/VehicleImages/fa414157-57f9-4e25-ae40-217b49202981",
+     "live": "/VehicleImages/7fad92cc-cad2-4caf-8e69-9010a3769f3a",
      "note": ""
     }
    ]
@@ -364,7 +364,7 @@ window.V28_ROUTES = {
     {
      "id": "inbox-selected",
      "label": "Inbox, message selected",
-     "live": "/Inbox?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728&selected=5e78329b-3ec5-4d89-9c6a-41c8ef1b2401",
+     "live": "/Inbox?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728&selected=0c6ff7c1-b0c0-48c1-803b-dcc531f91f6e",
      "note": ""
     },
     {
@@ -382,7 +382,7 @@ window.V28_ROUTES = {
     {
      "id": "mail-message",
      "label": "Message record",
-     "live": "/Inbox/5e78329b-3ec5-4d89-9c6a-41c8ef1b2401?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728",
+     "live": "/Inbox/0c6ff7c1-b0c0-48c1-803b-dcc531f91f6e?mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728",
      "note": ""
     },
     {
@@ -406,7 +406,7 @@ window.V28_ROUTES = {
     {
      "id": "upload-group-status",
      "label": "Upload group status, images awaiting a decision",
-     "live": "/Upload/Group/43a50498-9c87-4302-99ab-6f7316023587",
+     "live": "/Upload/Group/96b2fc42-af32-42b2-8fa9-9476d4deb851",
      "note": ""
     }
    ]
@@ -419,19 +419,19 @@ window.V28_ROUTES = {
     {
      "id": "search",
      "label": "Search, no filters",
-     "live": "/Search?selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f",
+     "live": "/Search?selected=47f25921-e2ae-4c2c-8be3-405a12746f5f",
      "note": ""
     },
     {
      "id": "search-results",
      "label": "Search by registration",
-     "live": "/Search?Registration=AB12CDE&selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f",
+     "live": "/Search?Registration=AB12CDE&selected=47f25921-e2ae-4c2c-8be3-405a12746f5f",
      "note": ""
     },
     {
      "id": "search-selected",
      "label": "Search, Case selected",
-     "live": "/Search?page=1&selected=f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f",
+     "live": "/Search?page=1&selected=47f25921-e2ae-4c2c-8be3-405a12746f5f",
      "note": ""
     },
     {
@@ -468,7 +468,7 @@ window.V28_ROUTES = {
     {
      "id": "admin-account-settings",
      "label": "Staff accounts, one account's settings opened",
-     "live": "/Administration/Accounts?editStaffId=283aec53-e6dc-44b4-b5c7-5cc0bae9bec9&expectedVersion=0",
+     "live": "/Administration/Accounts?editStaffId=84c8c80e-f43e-4d31-bea1-674a168ae325&expectedVersion=0",
      "note": ""
     },
     {

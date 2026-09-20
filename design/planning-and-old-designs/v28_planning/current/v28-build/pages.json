@@ -36,14 +36,14 @@
       { "title": "States", "link": "states/README.md" }, { "title": "Panels (sections)", "link": "panels/README.md" },
       { "title": "Dialogs", "link": "dialogs/README.md" }, { "title": "EVA handoff", "link": "eva-handoff/README.md" },
       { "title": "Create audit", "link": "../create-audit/README.md" } ],
-    "intro": "The record is one Case worked through the application's own edit session by `v28-build/enrich.mjs`: overview notes, repairer and storage, vehicle details, tyres and belts, two recorded damage zones, one Glass's guide entered by hand, one hand-entered estimate, a repairable outcome and an Engineer's comment. Sections that load as the reader approaches them live are mounted in the saved page the same way `case-workspace.js` mounts them.",
+    "intro": "The record is one Case worked through the application's own edit session by `v28-build/enrich.mjs`: overview notes, repairer and storage, vehicle details, tyres and belts, two recorded damage zones, one Glass's guide entered by hand and applied as the Engineer's Value, two hand-entered estimates, four images of which two are in the report as Close-up and Overview, a repairable outcome and an Engineer's comment. Sections that load as the reader approaches them live are mounted in the saved page the same way `case-workspace.js` mounts them.",
     "states": ["case-record", "case-record-editing", "case-record-new-estimate", "case-record-eva-send"],
     "presets": ["case-record-tabs-layout"],
     "notCaptured": [
       "Review, Not ready, Held, Query and closed Cases; the fixture Case is With Engineer.",
       "A colleague holding the edit session, Take over, and the refused-save panel (\"Your change was not applied\").",
-      "An applied Engineer's Value, a generated report or fee note, prepared delivery, and Case documents. Report generation needs sign-off data the fixture lacks.",
-      "An imported or Glass's-sourced estimate, Send to AI, and estimate comparison.",
+      "A generated report or fee note, prepared delivery, and Case documents other than images. Report generation needs sign-off data the fixture lacks.",
+      "An imported or Glass's-sourced estimate, and Send to AI.",
       "The save-before-finishing dialog, which the live script raises only when the form is dirty. Edit a field in the edit-session state and press Cancel to see it."
     ] },
 

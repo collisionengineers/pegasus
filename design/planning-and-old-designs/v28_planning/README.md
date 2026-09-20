@@ -19,6 +19,11 @@ nothing. Every state is the running application's own server-rendered HTML,
 saved with the live CSS and JS, and checked element for element against the
 running application. See [`current/v28-notes.md`](current/v28-notes.md).
 
+- [`pegasus_case_dashboard_2026-09-15.html`](pegasus_case_dashboard_2026-09-15.html):
+  the operator's reference file. The Case record proposals take their ideas
+  from it; none of its markup or styling is used. This copy (3,201 lines) is a
+  later build than the one v27's inventory read (2,705 lines); the fifth pass
+  of 20 September inventoried the difference.
 - [`current/working-log.md`](current/working-log.md): the running record of
   changes and the choices made.
 - [`current/`](current/README.md): the nine family files, the captured state

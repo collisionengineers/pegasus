@@ -28,18 +28,20 @@ const extras = existsSync(join(here, 'shots.json')) ? JSON.parse(readFileSync(jo
 // named p<nn>-... so the two sets never overwrite each other.
 const proposalShots = existsSync(join(here, 'proposal-shots.json')) ? JSON.parse(readFileSync(join(here, 'proposal-shots.json'), 'utf8')) : [];
 const which = process.env.SET || 'all'; // all | baseline | proposals
+// A shot's number is its place in its own full list, so a filtered run writes
+// the same file names as a full one.
+const baselineShots = [...captured.map((state) => ({ name: state.id, state: state.id, query: '' })), ...extras]
+  .map((shot, index) => ({ ...shot, number: index + 1 }));
 const shots = [
-  ...(which === 'proposals' ? [] : [...captured.map((state) => ({ name: state.id, state: state.id, query: '' })), ...extras]),
-  ...(which === 'baseline' ? [] : proposalShots.map((shot) => ({ ...shot, proposal: true }))),
+  ...(which === 'proposals' ? [] : baselineShots),
+  ...(which === 'baseline' ? [] : proposalShots.map((shot, index) => ({ ...shot, proposal: true, number: index + 1 }))),
 ].filter((shot) => !only || only.has(shot.name));
 
 const page = await launch();
 const problems = [];
-let number = 0;
-let proposalNumber = 0;
 for (const shot of shots) {
-  number = shot.proposal ? number : number + 1;
-  if (shot.proposal) proposalNumber += 1;
+  const number = shot.number;
+  const proposalNumber = shot.number;
   const layer = shot.proposal ? 'proposals=on' : 'proposals=off';
   const url = pathToFileURL(join(current, 'states', shot.state + '.html')).href + '?' + layer + (shot.query ? '&' + shot.query : '');
   for (const width of widths) {

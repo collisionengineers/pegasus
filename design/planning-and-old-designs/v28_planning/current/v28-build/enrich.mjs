@@ -95,12 +95,34 @@ console.log('valuation:', await page.eval(`(() => {
 try { await page.eval(`document.querySelector('[data-valuation-save="glasses"]').click()`); } catch { /* navigates */ }
 await sleep(3500);
 
-// Estimate: one hand-entered estimate through the live New estimate editor.
+// Engineer's Value: applied from the recorded guide by the live Apply button,
+// so Settlement, the Figures aside and the proposals that read it have a figure.
 await openEdit();
-const hasEstimate = await page.eval(`!document.querySelector('#section-estimate .estimate-empty')`);
-if (!hasEstimate) {
+console.log('apply:', await page.eval(`(() => {
+  const section = document.getElementById('section-valuation');
+  const applied = [...section.querySelectorAll('.lbl, dt, span')].some((e) => /Applied Engineer/i.test(e.textContent) && /\\u00a3[0-9]/.test((e.parentElement || e).textContent));
+  if (applied) return 'already applied';
+  const button = [...section.querySelectorAll('button')].find((b) => /Apply as Engineer/.test(b.textContent));
+  if (!button) return 'no Apply button';
+  button.click();
+  return 'pressed';
+})()`));
+await sleep(4000);
+
+// Estimates: two hand-entered estimates through the live New estimate editor.
+// The application offers Compare only once a Case holds two.
+const ESTIMATES = [
+  { name: 'Example Bodyshop estimate', days: '4', rate: '48.00', paint: '185.00',
+    line: { op: 'Replace', text: 'Rear bumper cover', part: 'EX-1001', qty: '1', pounds: '412.50', labour: '2.5', paintHours: '3.0' } },
+  { name: 'Example Bodyshop supplementary', days: '5', rate: '48.00', paint: '210.00',
+    line: { op: 'Replace', text: 'Rear bumper cover and reinforcement', part: 'EX-1002', qty: '1', pounds: '538.00', labour: '3.5', paintHours: '3.0' } },
+];
+for (const wanted of ESTIMATES) {
+  await openEdit();
+  const names = await page.eval(`[...document.querySelectorAll('#section-estimate [data-estimate-tab]')].map((t) => t.textContent.replace(/[ \\t\\n\\r]+/g, ' ').trim()).join(' | ')`);
+  if (names.includes(wanted.name)) { console.log('estimate already there:', wanted.name); continue; }
   await page.goto(`${base}/Cases/${info.caseId}?section=estimate&estimate=new`, 3000);
-  console.log('estimate:', await page.eval(`(() => {
+  console.log('estimate:', await page.eval(`((wanted) => {
     const section = document.getElementById('section-estimate');
     const set = (name, value, index) => {
       const all = section.querySelectorAll('[name="' + name + '"]');
@@ -110,28 +132,98 @@ if (!hasEstimate) {
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
     };
-    set('estimateName', 'Example Bodyshop estimate');
-    set('estimateRepairDays', '4');
-    set('estimateLabourRate', '48.00');
-    set('estimatePaintMaterials', '185.00');
+    set('estimateName', wanted.name);
+    set('estimateRepairDays', wanted.days);
+    set('estimateLabourRate', wanted.rate);
+    set('estimatePaintMaterials', wanted.paint);
     const last = section.querySelectorAll('[name="lineDescription"]').length - 1;
-    set('lineOperation', 'Replace', last);
-    set('lineDescription', 'Rear bumper cover', last);
-    set('linePartNumber', 'EX-1001', last);
-    set('lineQuantity', '1', last);
-    set('linePartPounds', '412.50', last);
-    set('lineLabourHours', '2.5', last);
-    set('linePaintHours', '3.0', last);
-    return 'entered in row ' + last;
-  })()`));
+    set('lineOperation', wanted.line.op, last);
+    set('lineDescription', wanted.line.text, last);
+    set('linePartNumber', wanted.line.part, last);
+    set('lineQuantity', wanted.line.qty, last);
+    set('linePartPounds', wanted.line.pounds, last);
+    set('lineLabourHours', wanted.line.labour, last);
+    set('linePaintHours', wanted.line.paintHours, last);
+    return wanted.name + ' entered in row ' + last;
+  })(${JSON.stringify(wanted)})`));
   try { await page.eval(`document.querySelector('[data-estimate-save]').click()`); } catch { /* navigates */ }
   await sleep(4000);
-  console.log('  ', await page.eval(`[...document.querySelectorAll('.notice, .field-error, .validation-summary')].map((e) => e.textContent.replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 4).join(' || ').slice(0, 300)`));
+  console.log('  ', await page.eval(`[...document.querySelectorAll('.notice')].map((e) => e.textContent.replace(/[ \\t\\n\\r]+/g, ' ').trim()).filter((t) => /estimate/i.test(t)).slice(0, 2).join(' || ').slice(0, 200)`));
 }
+
+// Images: the fixture host seeds four retained images (fifth pass); two are
+// tagged through the live tag picker so the report strip has a Close-up and an
+// Overview and the record can show image ordering and the two-per-page sheet.
+for (const [index, tag] of [[0, 'Close-up'], [1, 'Overview']]) {
+  await openEdit();
+  await page.goto(`${base}/Cases/${info.caseId}?section=files`, 2500);
+  const outcome = await page.eval(`(() => {
+    const tab = [...document.querySelectorAll('#section-files [role="tab"]')].find((t) => /^Images/.test(t.textContent.trim()));
+    if (tab) tab.click();
+    const tiles = [...document.querySelectorAll('#section-files .image-tile')];
+    const tile = tiles[${index}]; if (!tile) return 'no tile ' + ${index} + ' of ' + tiles.length;
+    if (tile.querySelector('.tag-option[aria-pressed="true"]')) return 'already tagged';
+    const option = [...tile.querySelectorAll('.tag-option')].find((b) => b.textContent.trim() === ${JSON.stringify(tag)});
+    if (!option) return 'no option ' + ${JSON.stringify(tag)};
+    option.click();
+    return 'clicked ' + ${JSON.stringify(tag)} + ' on tile ' + ${index} + ' of ' + tiles.length;
+  })()`);
+  console.log('image tag:', outcome);
+  await sleep(3500);
+}
+
+// Two images go into the report through the live viewer's "Include in report"
+// tick (staged as Supporting and saved by the ribbon Save). Only then does the
+// Report section render the preparation cards whose role select sets the
+// Close-up and the Overview, saved by a second Save.
+await openEdit();
+await page.goto(`${base}/Cases/${info.caseId}?section=files`, 2500);
+console.log('include in report:', await page.eval(`(async () => {
+  const tab = [...document.querySelectorAll('#section-files [role="tab"]')].find((t) => /^Images/.test(t.textContent.trim()));
+  if (tab) tab.click();
+  const tiles = [...document.querySelectorAll('#section-files .image-tile a[data-evidence-item]')];
+  if (tiles.length < 2) return 'only ' + tiles.length + ' tiles';
+  if ([...document.querySelectorAll('#section-files .image-tile')].filter((t) => t.getAttribute('data-preparation-role') !== 'NotUsed').length >= 2) return 'already included';
+  const done = [];
+  for (const tile of tiles.slice(0, 2)) {
+    tile.click();
+    await new Promise((r) => setTimeout(r, 800));
+    const box = document.querySelector('[data-viewer-in-report]');
+    if (box && !box.checked) { box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true })); done.push(tile.getAttribute('data-file-name')); }
+    const close = document.querySelector('[data-viewer-close]'); if (close) close.click();
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return 'ticked ' + done.join(', ');
+})()`));
+try { await page.eval(`[...document.querySelectorAll('button')].find((b) => b.hasAttribute('data-case-save')).click()`); } catch { /* navigates */ }
+await sleep(3500);
+
+// Report roles: the first image becomes the Close-up and the second the
+// Overview through the live preparation cards on the Report section, staged
+// into the Case form and saved by the ribbon Save, so two images are in the
+// report and the readiness list loses those two items.
+await openEdit();
+console.log('report roles:', await page.eval(`(() => {
+  const cards = [...document.querySelectorAll('#section-report [data-preparation-card]')];
+  if (cards.length < 2) return 'only ' + cards.length + ' preparation cards';
+  // The role follows the tile's tag, so the tag and the report role agree.
+  const byTag = (tag) => cards.find((card) => { const tile = document.querySelector('#section-files .image-tile[data-image-tile="' + card.getAttribute('data-preparation-occurrence') + '"] [data-tag]'); return tile && tile.getAttribute('data-tag') === tag; });
+  const closeCard = byTag('Close-up') || cards[0], overviewCard = byTag('Overview') || cards[1];
+  const set = (card, wanted) => {
+    const select = card.querySelector('[data-preparation-role-select]'); if (!select) return 'no select';
+    const option = [...select.options].find((o) => wanted.test(o.textContent) || wanted.test(o.value));
+    if (!option) return 'no option in ' + [...select.options].map((o) => o.value).join(',');
+    if (select.value === option.value) return 'already ' + option.value;
+    select.value = option.value; select.dispatchEvent(new Event('change', { bubbles: true })); return option.value;
+  };
+  return set(closeCard, /close/i) + ' / ' + set(overviewCard, /overview/i);
+})()`));
+try { await page.eval(`[...document.querySelectorAll('button')].find((b) => b.hasAttribute('data-case-save')).click()`); } catch { /* navigates */ }
+await sleep(3500);
 
 // Leave the record out of edit mode so the capture browser can claim it.
 await page.goto(`${base}/Cases/${info.caseId}`);
-try { await page.eval(`document.getElementById('case-finish-editing-form') && document.getElementById('case-finish-editing-form').requestSubmit()`); } catch { /* navigates */ }
+try { await page.eval(`document.getElementById('case-finish-editing-form') && document.getElementById('case-finish-editing-form').submit()`); } catch { /* navigates */ }
 await sleep(2500);
 console.log('editing after release:', await page.eval(`!!document.querySelector('input[name="editLeaseToken"]')`));
 await page.close();

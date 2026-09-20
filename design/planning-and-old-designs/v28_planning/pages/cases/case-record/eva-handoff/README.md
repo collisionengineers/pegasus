@@ -10,7 +10,7 @@ Each state is the running application's own HTML for the route shown, saved with
 
 | State | Live route | Open | Screenshots |
 | --- | --- | --- | --- |
-| EVA send | `/Cases/f3dbeb86-4ab8-4d5b-ade3-dea35c995b1f/Eva/Send` | [frame](../../../../current/pegasus_case_record_v28.html#case-record-eva-send) · [page](../../../../current/states/case-record-eva-send.html) | [1580](../../../../current/v28-shots/s20-case-record-eva-send-1580.png) · [1440](../../../../current/v28-shots/s20-case-record-eva-send-1440.png) · [760](../../../../current/v28-shots/s20-case-record-eva-send-760.png) |
+| EVA send | `/Cases/47f25921-e2ae-4c2c-8be3-405a12746f5f/Eva/Send` | [frame](../../../../current/pegasus_case_record_v28.html#case-record-eva-send) · [page](../../../../current/states/case-record-eva-send.html) | [1580](../../../../current/v28-shots/s20-case-record-eva-send-1580.png) · [1440](../../../../current/v28-shots/s20-case-record-eva-send-1440.png) · [760](../../../../current/v28-shots/s20-case-record-eva-send-760.png) |
 
 ## Not captured
 

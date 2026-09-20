@@ -16,7 +16,11 @@
   if (new URLSearchParams(window.location.search).get('proposals') !== 'off' && document.currentScript) {
     var mockFolder = document.currentScript.src.replace(/[^/]*$/, '');
     document.write('<link rel="stylesheet" href="' + mockFolder + 'proposals.css" />'
-      + '<script src="' + mockFolder + 'proposals.js"><\/script>');
+      + '<link rel="stylesheet" href="' + mockFolder + 'proposals-record.css" />'
+      + '<link rel="stylesheet" href="' + mockFolder + 'proposals-record-2.css" />'
+      + '<script src="' + mockFolder + 'proposals.js"><\/script>'
+      + '<script src="' + mockFolder + 'proposals-record.js"><\/script>'
+      + '<script src="' + mockFolder + 'proposals-record-2.js"><\/script>');
   }
 
   // (1) No server: background requests never settle, so nothing reports a
@@ -155,8 +159,12 @@
     }
     var click = params.get('click');
     if (click) {
-      var control = document.querySelector(click);
-      if (control) control.click();
+      // With a scroll preset too, the click waits for the section jump, which
+      // would otherwise close a menu the click had just opened.
+      setTimeout(function () {
+        var control = document.querySelector(click);
+        if (control) control.click();
+      }, params.get('scroll') ? 600 : 0);
     }
     var scroll = params.get('scroll');
     if (scroll) {

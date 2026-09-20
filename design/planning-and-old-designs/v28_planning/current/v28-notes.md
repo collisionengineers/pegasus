@@ -66,7 +66,8 @@ are taken at 1580x1000, 1440x900 and 760x1000.
 
 ## 5. Known limits
 
-- **Coverage follows the fixture.** One Case (With Engineer), one Triage, three
+- **Coverage follows the fixture.** One Case (With Engineer, two estimates,
+  four images of which two are in the report), one Triage, three
   Unidentified items, one image intake, one unprocessed mail message. Queues
   with nothing in them show their real empty state. Each page folder has a
   "Not captured" list naming what the fixture cannot reach.
@@ -133,8 +134,11 @@ LIVE=1 node selfcheck.mjs
 ## 9. Proposals
 
 From 18 September the round is a collaboration on top of the capture. The
-captured pages are never edited; every change is in `assets/mock/proposals.js`
-and `assets/mock/proposals.css`. The family files default to **Proposals** and
+captured pages are never edited; every change is in the layer:
+`assets/mock/proposals.js` and `.css` (P1 to P11),
+`assets/mock/proposals-record.js` and `.css` (the Case record, P12 to P36), and
+`assets/mock/proposals-record-2.js` and `.css` (the fifth pass, P37 to P51 and the
+corrections; P49 was dropped). The family files default to **Proposals** and
 switch to **Baseline**; on a state page `?proposals=off` is the baseline and
 `?skip=P4` turns one proposal off. [`working-log.md`](working-log.md) has the
 request, the choices and the Stage 2 consequence of each.
@@ -145,26 +149,129 @@ request, the choices and the Stage 2 consequence of each.
 | P2 | Status colour by meaning: green succeeded, red did not, amber waiting, navy in hand, neutral settled | p03, p09, p12 | asked for 18 September; the label table is a proposal |
 | P3 | "Provider" never appears: "Cancelled", "Principal" | p07 | asked for 18 September |
 | P4 | The lifecycle strip on Overview is removed | p03, p04 | asked for 18 September |
-| P5 | Damage by area: v27 variant C with the eight areas | p05, p06 | chosen 18 September |
+| P5 | Damage by area: v27 variant C with the eight areas, with Reset | p05, p06 | chosen 18 September |
 | P6 | Baseline issues D to H, where a mockup can show them | p01, p08, p10, p11 | asked for 18 September |
+| P7 | The Lifecycle actions container on Overview is removed; Return to Review is already in the Actions menu | p04 | asked for 18 September |
+| P8 | Cazana drawn like the other guide sources; Get valuation a real button at the bottom centre of each card; no Basis radio, a card is chosen by clicking it | p13, p14, p33 | asked for 18 September; extended the same day |
+| P9 | "Estimate PDF" becomes "Print Estimate" and sits with Compare under More; Compare greyed out with one estimate | p15, p16 | asked for 18 September |
+| P10 | The "Use estimate · …" lock chip is removed and Use estimate is simply available | p18 | asked for 18 September; revised the same day |
+| P11 | Upload received reworked: files first, the decision beside them, Discard folded away last | p12, p17 | asked for 18 September |
+| P12 to P30 | The nineteen v27 features, rebuilt on the live record: composed sentences, CAP, salvage slider, reason bank, Delete all and Undo, regional uplift, provenance chips, richer Compare, Supplementary, address book, Attach, re-send naming, Report and Fee tabs, ribbon badges, nine-section map, click to include, Queries, decisions as radio groups, Report wording | p20 to p26 | asked for 18 September; table in the working log |
+| P31 to P35 | Repair Spec: the Estimate section renamed; notes, days and name removed with rename on the tab; one labour rate control; Target % of value slider; Contract repair agreed | p22, p27, p28 | asked for 18 September; P34 and P35 cross FRD-11 |
+| P36 | The live Glass's slot and session states, drawn from the partial because the fixture has no Glass's login | p18, p29 to p32 | live behaviour, not a proposal |
+| P6-I | A panel head's "not yet" line no longer takes empty-state padding, so the Vehicle head is the height of every other | p34 | live defect found 18 September |
+| P34 (corrected) | The price floor reads 65 %, the reference file's figure; Apply and Remove scaling freeze a version and write a System note | p35 | corrected 20 September |
+| P30 (extended) | Wording blocks drag by a grip as well as moving by the buttons; a computed Repair reserve cell sits beside the typed field on Decisions | p40, p44 | asked for 20 September |
+| P29 (extended) | When the outcome is not Total loss a "Salvage: not applicable" line says why the rows are gone, and the change is logged | p44 | asked for 20 September |
+| P22 (corrected) | Attach offers Repair Spec, the document Print Estimate opens, in place of "Breakdown"; each attachment carries a tooltip | p40 | corrected 20 September |
+| P37 | Off-pattern cells read amber with a tooltip and the roll-up carries their amount as specialist; nothing is cleared | p35 | asked for 20 September; Core already computes the anomalies |
+| P38 | Placements: claimant VAT status on Claim, the report content switches on Valuation, unrelated damage on Vehicle, Sign-off Engineer beside an Assigned engineer cell on Case details | p42, p45 | asked for 20 September |
+| P39 | Sign-off Engineer follows the assigned Engineer when that Engineer is an eligible sign-off account | — | asked for 20 September; the fixture has no eligible account, so it cannot be shown |
+| P40 | Generate report (and Produce PDF) stamp today's date into an empty Report date | p40 | asked for 20 September |
+| P41 | Working images: rotate, Full page, remove with Undo, drag to reorder mirrored to the Report strip, Add images by picker or drop, Full page and Remove on the viewer | p41 | asked for 20 September |
+| P42 | Produce PDF: a preview of the report as it will print with Report, Repair Spec and Images documents; Print Estimate opens the Repair Spec one | p38, p39 | asked for 20 September |
+| P43 | Versions history: every import, scale, clear, restore and send freezes the outgoing draft with how it came about; Sent on report; Compare with current; Restore; an origin line under the tabs | p36, p37 | asked for 20 September |
+| P44 | Every act the layer performs writes a System note to the Notes timeline | — | asked for 20 September |
+| P45 | Sub-cards fold with the live collapse toggle and are remembered like the sections | p42, p43 | asked for 20 September |
+| P47 | A page-wide stale banner under the ribbon while the report is stale | p46 | asked for 20 September |
+| P48 | Materials per line: a Material £ column; the estimate figure becomes the column total | p35 | asked for 20 September; a Core change |
+| P49 | Product type select | — | **dropped 20 September**: Case type stays Inspection or Audit, fixed at creation (FRD-01, ADR-0051); every Audit is `a.`, AP is gone; Commercial and Diminution routes stay deferred |
+| P51 | Original report: a section for an Audit Case naming the assessor (the firms Core's third-party report profiles know), the report date, its roadworthiness and its repairable status; shown on an Audit Case (standalone, or linked by Create audit) | p48, p49 | asked for 20 September |
+| P50 | One place for an image: its report role and order sit on its tile on the Images tab with the P41 tools and the count; the Report section's "Images in report" strip and preparation cards are hidden. The Files section keeps its live name, since it also holds Documents and Correspondence | p41, p47 | asked for 20 September |
 
 ### Open under the proposals
 
-- **P2.** Confirm the label table in the working log, in particular that
-  Active and Enabled stay navy, that "Could not be read" and "Unavailable" go
-  red, and that `design/README.md`'s "green is confirmed completion only"
-  widens to "an operation or outcome that succeeded".
-- **P3.** "Principal chasing for update" beside "Client chasing for update":
-  confirm both categories stand, or name the one that goes.
-- **P5.** v27's G1: is the disc stored with its derived areas, or only the
-  areas. The mockup assumes the disc is stored. Also whether the report's
-  narrative says "LH Rear" or "left rear".
-- **P6.** Issue C needs a ticket, not a drawing. "Lease expires HH:mm" on the
-  AI jobs table needs the operator's wording. The Administration panel marks
-  in `images/marks` are unused; confirm they go from `design/README.md`.
+Settled 18 September: P2 (Active and Enabled green, the two reds), P3 (one
+"Update Request" category), P5 (LH / RH), P8 (an error that says to contact an
+administrator), P9 (Compare greyed out; Print opens the preview).
 
-### Not yet carried over from v27
+- **P5.** Reset returns to what the record held on opening. Confirm, or say it
+  should clear the vehicle. v27's G1 is still open: is the disc stored with its
+  derived areas, or only the areas.
+- **P6.** Issue C is noted for later planning. "Lease expires HH:mm" on the AI
+  jobs table was read as "keep the live wording"; confirm. The nine panel marks
+  under `images/marks` are unused; confirm they go from `design/README.md`.
+- **P8 and P3.** "Error. Contact an administrator." and "Update Request" are new
+  copy in the operator's words; confirm the exact wording.
+- **P31.** Whether "New estimate", "Print Estimate" and Settlement's "From current
+  estimate" follow the rename to Repair Spec.
+- **P34 and P35.** They put target-% scaling and the agreed contract sum on the
+  record, which FRD-11 reserves to Core and to Send to AI. Confirm the rule
+  changes, and the floors (£50 an hour, 50 % of price).
+- **P25.** The badges crowd the ribbon at 1440. Badges, or untruncated facts.
+- **P26.** Damage and Valuation lose their own heads inside Vehicle. Confirm.
+- **P30.** Crosses FRD-11's fixed-template rule. Confirm the rule changes.
+- **P21 to P23.** Drawn on a delivery form the fixture cannot reach. Seeding a
+  generated report would let them be checked against a running page.
+- **P36.** The Glass's slot is drawn from the live partial, not captured, so it
+  sits outside the parity check. Enabling a Glass's login on the fixture
+  account would let the real thing be captured.
+- **P29.** Corrected 19 September to radio groups, with the unset state offered
+  as "Not recorded". Confirm that wording for the empty option.
+- **P32.** Estimate notes, Repair days and Estimate name are hidden, not
+  deleted, so nothing is lost on save. Confirm the three fields go from the
+  record altogether, or stay somewhere.
+- **P48.** Materials move from the estimate to each line. Confirm the Core change:
+  a `Materials` amount per line, the estimate's paint materials becoming the sum.
+- **P49.** Settled 20 September: dropped. The instruction types are Inspection,
+  Inspection + Audit (Create audit makes the linked Audit Case) and standalone
+  Audit, as FRD-01 has them; no product select, no AP, Commercial and
+  Diminution deferred. P51 keys off the Case being an Audit.
+- **P43.** Which acts freeze a version in Stage 2, and whether "Sent on report"
+  reads from the report's recorded estimate dependency.
+- **P51.** Stage 2 has a source for every cell: Core's third-party report
+  extraction records the issuer, report date, roadworthiness and outcome
+  (`ThirdPartyReportContracts.cs`), and FRD-09's standalone Audit states an
+  `originalReportVerdict`. Confirm the cells fill from the extracted original
+  report when one is filed, with the chip saying so, and stay hand-entered
+  otherwise. Confirm the firm list is the profile list plus Other.
+- **P50.** The section is "Files" again because it holds Documents and
+  Correspondence too; say if another name is wanted (the live button says
+  "Add evidence"). The Report section keeps no image surface at all; confirm
+  the report's image order is then the tile order plus each Supporting order.
+- **P41.** Whether a removed image is Not used (the live role) or leaves the
+  Case; the mockup hides it and offers Undo. Whether Full page is a report role
+  or a flag on the Supporting image.
+- **P39.** The fixture has no eligible sign-off account, so the rule is wired
+  but not shown. Flagging an account on the fixture would let it be captured.
+- **Settled 20 September (finalisation).** P5: Reset returns the areas to the
+  values held when the edit opened; Core stores the eight areas only. P32:
+  Estimate notes and Repair days are deleted; the name stays, edited on the
+  tab. P41: Remove sets the role to Not used and the file stays on the Case;
+  Full page is a flag on an included image. P31: everything says Repair Spec.
+  P48: materials move to the line (additive migration). P30, P34 and P35:
+  Engineer-owned on the record; FRD-11 is rewritten in Stage 2. P51: cells
+  fill from the extracted original report when one is filed, hand-entered
+  otherwise; the firm list is the profile list plus Other.
+- **Copy sweep, 20 September.** Read against `docs/design/README.md` ("No
+  explanatory copy", banned words, one fact one home): the P41 two-per-page
+  note and the P37 tooltip sentence are gone (the cell is named Off-pattern);
+  the P29 line is a label and a value ("Salvage · Not applicable"); the P44
+  history rows state the act without a consequence clause; the P30 wording
+  chips no longer use the banned word "composed" ("tracks fields", "from
+  Estimate", "edited"); P38 no longer repeats the assigned Engineer on Case
+  details, since the ribbon owns that fact. Still to decide by the operator:
+  the live AI jobs wording "Lease expires HH:mm" uses a banned word.
+- **After PR 792 and PR 793 (18 September, merged in the finalisation).** The
+  captured `case-record-estimate-import*` states and P36's Complete import
+  predate PR 793: an estimate upload now imports in one act, so P43 freezes v1
+  at import and the origin line reads "Imported … from …". Sign-off
+  eligibility (P38, P39) is enabled + flagged + signature after PR 792, with
+  no role test; `access-denied-user-role.html` is superseded by it.
+- **Declined 20 September.** Take over and ask to release, inline padlocks,
+  an assigned-engineer select, Engineer's value in two places, the
+  average-mileage shortcut, import overwrite after a confirm, WhatsApp as a
+  channel, implicit reopen after send, and the autosave edit model are not
+  wanted; they stay in the reference file only.
+- **Already live.** The section link following the reader as the page scrolls
+  and the sections' fold state remembered per browser are live behaviour, so
+  neither is a proposal.
 
-v27 never went to Stage 2 and none of its proposals is live. P1 and P5 are
-the first two brought into v28. The rest, listed in the working log, can be
-added to the layer one at a time on instruction.
+### Carried over from v27
+
+v27 never went to Stage 2 and none of its proposals is live. The nineteen the
+operator listed on 18 September are now P12 to P30, with P1 (the mark) and P5
+(damage by area). v27's `offpattern`, `place`, `signoff` and `reportdate`
+switches are P37 to P40 since 20 September. Of its needs-a-decision-first list
+nothing is built: the product type select was drawn as P49 and dropped the
+same day on the operator's ruling.

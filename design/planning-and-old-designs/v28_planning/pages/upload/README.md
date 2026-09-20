@@ -10,7 +10,7 @@ Each state is the running application's own HTML for the route shown, saved with
 | State | Live route | Open | Screenshots |
 | --- | --- | --- | --- |
 | Upload | `/Upload` | [frame](../../current/pegasus_mail_upload_v28.html#upload) · [page](../../current/states/upload.html) | [1580](../../current/v28-shots/s40-upload-1580.png) · [1440](../../current/v28-shots/s40-upload-1440.png) · [760](../../current/v28-shots/s40-upload-760.png) |
-| Upload group status, images awaiting a decision | `/Upload/Group/43a50498-9c87-4302-99ab-6f7316023587` | [frame](../../current/pegasus_mail_upload_v28.html#upload-group-status) · [page](../../current/states/upload-group-status.html) | [1580](../../current/v28-shots/s41-upload-group-status-1580.png) · [1440](../../current/v28-shots/s41-upload-group-status-1440.png) · [760](../../current/v28-shots/s41-upload-group-status-760.png) |
+| Upload group status, images awaiting a decision | `/Upload/Group/96b2fc42-af32-42b2-8fa9-9476d4deb851` | [frame](../../current/pegasus_mail_upload_v28.html#upload-group-status) · [page](../../current/states/upload-group-status.html) | [1580](../../current/v28-shots/s41-upload-group-status-1580.png) · [1440](../../current/v28-shots/s41-upload-group-status-1440.png) · [760](../../current/v28-shots/s41-upload-group-status-760.png) |
 
 ## Not captured
 

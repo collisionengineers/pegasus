@@ -48,7 +48,7 @@
   // matched whole, lower-cased; the first rule that matches wins.
   var TONES = [
     ['red', /(^| )(failed|failure|could not be read|not created|unavailable|denied|rejected|refused|blocked|error|overdue|lost|conflict|unroadworthy)( |$)|storage failed|lookup failed/],
-    ['green', /^(case created|linked|linked to case|e-mail linked|reply linked|complete|completed|sent|report sent|delivered|saved|stored|document stored|approved|accepted|applied|resolved|registered|vehicle images registered|connected|configured|succeeded|success|roadworthy|passed)$/],
+    ['green', /^(case created|linked|linked to case|e-mail linked|reply linked|complete|completed|sent|report sent|delivered|saved|stored|document stored|approved|accepted|applied|resolved|registered|vehicle images registered|connected|configured|succeeded|success|roadworthy|passed|active|enabled)$/],
     ['amber', /^(query|creating case|not yet processed|awaiting .*|pending|draft|not configured|password change required|overridden|today|chase due)$|: preparing$/],
     ['neutral', /^(cancelled|closed|archived|dismissed|created in error|staff-closed|disabled|no recorded activity)$|^closed /]
   ];
@@ -74,7 +74,11 @@
   function p3Provider() {
     replaceText(document.body, /\bProvider cancelled\b/g, 'Cancelled');
     replaceText(document.body, /\bProvider cancellation\b/g, 'Cancelled');
-    replaceText(document.body, /\bProvider chasing for update\b/g, 'Principal chasing for update');
+    // One category where there were two (operator, 18 September).
+    $$('option').forEach(function (option) {
+      if (/Client chasing for update/.test(option.textContent)) { option.setAttribute('data-v28-removed', 'P3'); option.hidden = true; option.disabled = true; }
+    });
+    replaceText(document.body, /\b(Provider|Principal|Client) chasing for update\b/g, 'Update Request');
     replaceText(document.body, /\bWork Provider\b/g, 'Principal');
     replaceText(document.body, /\bProviders\b/g, 'Principals');
     replaceText(document.body, /\bProvider\b/g, 'Principal');
@@ -186,6 +190,8 @@
       marks = [{ id: 'm1', x: Math.round((marks[0].x + marks[1].x) / 2), y: Math.round((marks[0].y + marks[1].y) / 2), r: 40, severity: marks[0].severity, note: marks[0].note }];
     }
     var sequence = marks.length + 1;
+    // What the record held when the page opened; Reset returns to it.
+    var recorded = JSON.parse(JSON.stringify(marks));
 
     var layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     layer.setAttribute('class', 'damage-marks'); layer.setAttribute('data-damage-marks', '');
@@ -194,7 +200,12 @@
     hint.className = 'v28-damage-hint'; hint.setAttribute('data-damage-hint', '');
     hint.innerHTML = '<span>Press and drag on the vehicle to size the damaged area · drag a disc to move it</span><strong data-damage-readout></strong>';
     hint.hidden = !editable;
+    var reset = document.createElement('button');
+    reset.type = 'button'; reset.className = 'btn btn--small v28-damage-reset'; reset.setAttribute('data-damage-reset', '');
+    reset.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>Reset</span>';
+    reset.hidden = !editable;
     svg.parentNode.insertBefore(hint, svg.nextSibling);
+    hint.parentNode.insertBefore(reset, hint.nextSibling);
 
     function svgPoint(event) {
       var point = svg.createSVGPoint(); point.x = event.clientX; point.y = event.clientY;
@@ -302,6 +313,9 @@
         var index = event.target.getAttribute('data-mark-note');
         if (index !== null) marks[+index].note = event.target.value;
       });
+      reset.addEventListener('click', function () {
+        marks = JSON.parse(JSON.stringify(recorded)); sequence = marks.length + 1; render();
+      });
       list.addEventListener('click', function (event) {
         var button = event.target.closest('[data-mark-remove]');
         if (button) { marks.splice(+button.getAttribute('data-mark-remove'), 1); render(); }
@@ -310,8 +324,200 @@
     render();
   }
 
+
+  // ---- P7 · No Lifecycle actions container on Overview -------------------
+  // Return to Review is already an item of the ribbon's Actions menu; the
+  // second copy in its own panel goes.
+  function p7Lifecycle() {
+    $$('[data-lifecycle-actions]').forEach(function (panel) {
+      panel.setAttribute('data-v28-removed', 'P7'); panel.hidden = true;
+    });
+  }
+
+  // ---- P8 · Valuation cards -----------------------------------------------
+  // Cazana is drawn like Glass's, Brego and Super CAP: an entry card while
+  // editing, nothing at all in read until a guide is recorded. Get valuation
+  // is a real button at the bottom centre of each card.
+  function p8Valuation() {
+    var section = document.getElementById('section-valuation');
+    if (!section) return;
+    var seam = section.querySelector('[data-valuation-seam]');
+    var template = section.querySelector('.valuation-card.entry[data-valuation-entry="brego"]')
+      || section.querySelector('.valuation-card.entry:not([data-valuation-entry="glasses"])');
+    if (seam && template) {
+      var card = template.cloneNode(true);
+      card.setAttribute('data-valuation-entry', 'cazana');
+      card.setAttribute('data-valuation-card', 'cazana');
+      card.setAttribute('data-valuation-source-card', 'Cazana');
+      card.setAttribute('data-v28-proposal', 'P8');
+      card.setAttribute('action', (card.getAttribute('action') || '').replace(/Brego/g, 'Cazana'));
+      var title = card.querySelector('h3 span'); if (title) title.textContent = 'Cazana';
+      $$('[name="source"]', card).forEach(function (input) { input.value = 'Cazana'; });
+      $$('[data-valuation-source]', card).forEach(function (button) {
+        button.setAttribute('data-valuation-source', 'cazana');
+        button.setAttribute('formaction', (button.getAttribute('formaction') || '').replace(/Brego/g, 'Cazana'));
+      });
+      $$('[data-valuation-save]', card).forEach(function (button) { button.setAttribute('data-valuation-save', 'cazana'); });
+      $$('[data-valuation-retail], [data-valuation-trade]', card).forEach(function (input) { input.value = ''; });
+      $$('label', card).forEach(function (label) { label.removeAttribute('for'); });
+      seam.parentNode.insertBefore(card, seam);
+    }
+    if (seam) { seam.setAttribute('data-v28-removed', 'P8'); seam.hidden = true; }
+    $$('.valuation-card.entry', section).forEach(function (entry) {
+      var get = entry.querySelector('h3 [data-valuation-source]');
+      var actions = entry.querySelector('.entry-actions');
+      if (!get || !actions) return;
+      get.classList.remove('btn--ghost');
+      get.setAttribute('data-v28-proposal', 'P8');
+      actions.classList.add('v28-entry-actions');
+      actions.insertBefore(get, actions.firstChild);
+    });
+  }
+
+  // ---- P9 · Estimate: Print Estimate and Compare under More --------------
+  function p9Estimate() {
+    var section = document.getElementById('section-estimate');
+    if (!section) return;
+    var print = section.querySelector('[data-estimate-actions] a[data-document-preview]');
+    var more = section.querySelector('[data-estimate-more] .menu-body');
+    if (print && !more) {
+      // Live renders More only when it has something to hold.
+      var tools = section.querySelector('.panel-head [data-estimate-expand]');
+      if (!tools) return;
+      var menu = document.createElement('details');
+      menu.className = 'menu'; menu.setAttribute('data-menu', ''); menu.setAttribute('data-estimate-more', ''); menu.setAttribute('data-v28-proposal', 'P9');
+      menu.innerHTML = '<summary class="btn btn--small"><span>More</span><svg class="icon" aria-hidden="true"><use href="#icon-chevron-down" /></svg></summary><div class="menu-body"></div>';
+      tools.parentNode.insertBefore(menu, tools);
+      more = menu.querySelector('.menu-body');
+    }
+    if (!print || !more) return;
+    var holder = print.parentNode;
+    print.classList.remove('btn--small');
+    print.setAttribute('data-v28-proposal', 'P9');
+    print.setAttribute('data-file-name', 'Print Estimate');
+    var label = print.querySelector('span'); if (label) label.textContent = 'Print Estimate';
+    var icon = print.querySelector('use'); if (icon) icon.setAttribute('href', '#icon-file-text');
+    var compare = more.querySelector('[data-estimate-compare]');
+    more.insertBefore(print, compare || null);
+    if (holder && !holder.querySelector('a, button')) { holder.setAttribute('data-v28-removed', 'P9'); holder.hidden = true; }
+  }
+
+
+  // ---- P8b · Get valuation on a source with no connection ----------------
+  // It answers with an error that says to contact an administrator. Glass's
+  // has a connection, so its button is left to the application.
+  function p8GetValuationError() {
+    $$('#section-valuation .valuation-card.entry').forEach(function (card) {
+      if (card.getAttribute('data-valuation-entry') === 'glasses') return;
+      var button = card.querySelector('[data-valuation-source]');
+      if (!button) return;
+      button.addEventListener('click', function (event) {
+        event.preventDefault(); event.stopPropagation();
+        var old = card.querySelector('[data-v28-valuation-error]'); if (old) old.remove();
+        var notice = document.createElement('div');
+        notice.className = 'notice notice--danger'; notice.setAttribute('role', 'alert'); notice.setAttribute('data-v28-valuation-error', '');
+        notice.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg><span>Error. Contact an administrator.</span>';
+        card.insertBefore(notice, card.querySelector('.entry-actions'));
+      }, true);
+    });
+  }
+
+  // ---- P9b · Compare shows greyed out until a Case has two estimates -----
+  function p9CompareDisabled() {
+    var body = document.querySelector('#section-estimate [data-estimate-more] .menu-body');
+    if (!body || body.querySelector('[data-estimate-compare]')) return;
+    var button = document.createElement('button');
+    button.type = 'button'; button.className = 'btn'; button.disabled = true;
+    button.setAttribute('data-estimate-compare', ''); button.setAttribute('data-v28-proposal', 'P9');
+    button.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg><span>Compare</span>';
+    body.appendChild(button);
+  }
+
+  // ---- P10 · The "Use estimate · ..." lock chip goes ----------------------
+  // Use estimate is simply available: a missing repairer VAT status does not
+  // block it (operator, 18 September: the gate "seems like nonsense").
+  function p10UseEstimateChip() {
+    $$('[data-estimate-use-condition]').forEach(function (chip) {
+      var button = document.createElement('button');
+      button.type = 'submit'; button.className = 'btn btn--small'; button.setAttribute('formaction', '/Cases/Details?handler=UseEstimate'); button.setAttribute('formmethod', 'post');
+      button.setAttribute('data-v28-proposal', 'P10');
+      button.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg><span>Use estimate</span>';
+      var useForm = document.createElement('form'); useForm.setAttribute('method', 'post');
+      useForm.setAttribute('action', '/Cases/Details?handler=UseEstimate'); useForm.style.display = 'contents';
+      useForm.appendChild(button); chip.parentNode.insertBefore(useForm, chip);
+      chip.setAttribute('data-v28-removed', 'P10'); chip.hidden = true;
+    });
+  }
+
+  // ---- P11 · Upload received, reworked ------------------------------------
+  // Same content and the same words. What was uploaded comes first and is
+  // legible; the decision sits beside it; discarding is last and folded away.
+  function p11UploadReceived() {
+    var decision = document.getElementById('group-decision-title');
+    var files = document.getElementById('group-status-title');
+    if (!decision || !files) return;
+    var decisionPanel = decision.closest('.panel');
+    var filesPanel = files.closest('.panel');
+    var discardTitle = document.getElementById('group-discard-title');
+    var discardPanel = discardTitle && discardTitle.closest('.panel');
+    var stack = filesPanel.parentNode;
+
+    var layout = document.createElement('div');
+    layout.className = 'v28-upload'; layout.setAttribute('data-v28-proposal', 'P11');
+    var side = document.createElement('div'); side.className = 'stack v28-upload__side';
+    stack.insertBefore(layout, stack.firstChild);
+    layout.appendChild(filesPanel); layout.appendChild(side);
+    side.appendChild(decisionPanel);
+
+    // Files: a count in the head, proper thumbnails, the outcome beside each.
+    var rows = $$('.file-row', filesPanel);
+    var head = filesPanel.querySelector('.panel-head');
+    if (head && rows.length) {
+      var meta = document.createElement('span'); meta.className = 'meta';
+      meta.textContent = rows.length + (rows.length === 1 ? ' file' : ' files');
+      head.appendChild(meta);
+    }
+    filesPanel.classList.add('v28-upload__files');
+
+    // Decision: compact fields, the three ways out on one row.
+    decisionPanel.classList.add('v28-upload__decision');
+    var register = decisionPanel.querySelector('form[action*="RegisterGroup"]');
+    var cancel = $$('a.btn', decisionPanel).filter(function (a) { return a.textContent.trim() === 'Cancel'; })[0];
+    var attach = decisionPanel.querySelector('details.upload-attach');
+    if (register && cancel) {
+      var row = register.querySelector('.button-row');
+      var emptied = cancel.parentNode;
+      row.appendChild(cancel);
+      if (emptied && !emptied.children.length) emptied.remove();
+    }
+    // The attach form stays a sibling of the register form: forms cannot nest.
+    if (attach) attach.classList.add('v28-upload__attach');
+    var reg = document.getElementById('group-registration');
+    if (reg) reg.classList.add('mono');
+
+    // Discard: last, closed until asked for, and visibly destructive.
+    if (discardPanel) {
+      var fold = document.createElement('details');
+      fold.className = 'panel v28-upload__discard';
+      var summaryEl = document.createElement('summary'); summaryEl.className = 'panel-head';
+      summaryEl.appendChild(discardPanel.querySelector('.panel-head h2'));
+      // The live summary.panel-head rule supplies the plus and minus marker.
+      fold.appendChild(summaryEl);
+      fold.appendChild(discardPanel.querySelector('.panel-body'));
+      var box = fold.querySelector('#group-discard-confirmation');
+      var label = fold.querySelector('label[for="group-discard-confirmation"]');
+      if (box && label) { label.classList.add('choice'); label.insertBefore(box, label.firstChild); label.insertBefore(document.createTextNode(' '), box.nextSibling); }
+      var go = fold.querySelector('button[type="submit"]');
+      if (go) { go.classList.remove('btn--ghost'); go.classList.add('btn--danger'); }
+      side.appendChild(fold);
+      discardPanel.remove();
+    }
+  }
+
   var PROPOSALS = [['P1', p1Logo], ['P2', p2Tones], ['P3', p3Provider], ['P4', p4Stepper], ['P5', p5Damage],
-    ['P6', function () { p6AccessDenied(); p6UpdatedOnce(); p6DatesStayWhole(); p6Dates(); p6HubIcons(); }]];
+    ['P6', function () { p6AccessDenied(); p6UpdatedOnce(); p6DatesStayWhole(); p6Dates(); p6HubIcons(); }],
+    ['P7', p7Lifecycle], ['P8', function () { p8Valuation(); p8GetValuationError(); }],
+    ['P9', function () { p9Estimate(); p9CompareDisabled(); }], ['P10', p10UseEstimateChip], ['P11', p11UploadReceived]];
   function run() {
     PROPOSALS.forEach(function (proposal) {
       if (!on(proposal[0])) return;

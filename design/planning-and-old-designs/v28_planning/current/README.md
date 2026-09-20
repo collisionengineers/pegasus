@@ -54,8 +54,10 @@ that posts to the server shows a short note naming the route instead.
 
 - `states/`: one offline page per captured state (73).
 - `assets/`: the live CSS, JS, fonts and images as served, plus `mock/shim.js`,
-  the generated `mock/routes.js`, and the proposals layer (`mock/proposals.js`,
-  `mock/proposals.css`, the refined mark).
+  the generated `mock/routes.js`, and the proposals layer: `mock/proposals.js`
+  and `.css` (P1 to P11), `mock/proposals-record.js` and `.css` (the Case record
+  features, P12 to P36), `mock/proposals-record-2.js` and `.css` (the fifth
+  pass, P37 to P51; P49 dropped), and the refined mark.
 - `v28-build/`: the tooling, kept so the round is reproducible. `manifest.json`
   lists the states, `enrich.mjs` works the seeded Case through the live edit
   session, `capture.mjs` saves the pages, `frames.mjs` writes the family files,
