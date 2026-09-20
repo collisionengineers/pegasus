@@ -221,8 +221,8 @@
                 </button>
             </div>
             <div class="dialog-body stack">
-                <input type="hidden" name="returnUrl" value="@returnUrl" />
-                <input type="hidden" name="route" value="@returnUrl" />
+                <input type="hidden" name="returnUrl" value="" data-problem-return />
+                <input type="hidden" name="route" value="" data-problem-route />
                 <input type="hidden" name="traceId" value="@(System.Diagnostics.Activity.Current?.Id ?? Context.TraceIdentifier)" />
                 <input type="hidden" name="caseReference" value="" data-problem-case />
                 <input type="hidden" name="viewport" value="" data-problem-viewport />

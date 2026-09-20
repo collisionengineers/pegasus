@@ -2868,6 +2868,9 @@ window.pegasusPreferences = (function () {
                 var input = form.querySelector(selector);
                 if (input) { input.value = value; }
             };
+            var here = window.location.pathname + window.location.search;
+            set('[data-problem-route]', here);
+            set('[data-problem-return]', here);
             set('[data-problem-viewport]', window.innerWidth + 'x' + window.innerHeight);
             set('[data-problem-editing]', document.querySelector('.case-record.is-editing') ? 'true' : 'false');
             set('[data-problem-errors]', JSON.stringify(read()));
