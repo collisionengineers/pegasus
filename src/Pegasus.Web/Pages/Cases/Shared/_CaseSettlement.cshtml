@@ -121,7 +121,7 @@
             }
         </div>
 
-        <div class="sub-panel"><h3>@SettlementLabels.CostsHireDelays</h3>
+        <div class="sub-panel @Model.CollapsedClass("case.settlement.costs")" data-collapse="case.settlement.costs"><h3>@SettlementLabels.CostsHireDelays <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.settlement.costs")" /></h3>
             <div class="fg g4">
                 @{ await Field(AssessmentVocabulary.SettlementReserve, labels[AssessmentVocabulary.SettlementReserve]);
                     await Field(AssessmentVocabulary.SettlementDiminution, labels[AssessmentVocabulary.SettlementDiminution]);
@@ -136,7 +136,7 @@
             </div>
         </div>
 
-        <div class="sub-panel" data-shown-when="total-loss" hidden="@(isTotalLoss ? null : "hidden")"><h3>@SettlementLabels.Salvage</h3>
+        <div class="sub-panel @Model.CollapsedClass("case.settlement.salvage")" data-shown-when="total-loss" hidden="@(isTotalLoss ? null : "hidden")" data-collapse="case.settlement.salvage"><h3>@SettlementLabels.Salvage <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.settlement.salvage")" /></h3>
             <div class="fg g4">
                 @{ await Field(AssessmentVocabulary.SettlementSalvageAt, labels[AssessmentVocabulary.SettlementSalvageAt]);
                     await Field(AssessmentVocabulary.SettlementSalvageAgent, labels[AssessmentVocabulary.SettlementSalvageAgent]);

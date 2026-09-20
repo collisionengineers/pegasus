@@ -1,5 +1,5 @@
 @*
-    Overview (v26): the workflow stepper, outstanding requirements, the
+    Overview (v26, trimmed by v28 P4 and P7): outstanding requirements, the
     Lifecycle actions sub-panel, the three fact columns (Case / Principal /
     Claimant), the Notes band (record notes beside this Case's notes) and the
     accident band. One geometry for read and edit (v25 decision 2): every fact
@@ -31,32 +31,6 @@
     string Value(string? text) => string.IsNullOrWhiteSpace(text) ? OperatorLabels.CaseWorkspace.AbsentValue : text;
     string ValueClass(string? text) => string.IsNullOrWhiteSpace(text) ? "fv empty" : "fv";
 
-    // The stepper speaks the display vocabulary (D3): Report preparation and
-    // Post report both read "With Engineer", Post-report complete reads
-    // "Complete". Core's states are untouched.
-    var stage = state switch
-    {
-        CaseLifecycleState.Review => 1,
-        CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => 2,
-        CaseLifecycleState.PostReportComplete or CaseLifecycleState.Query => 3,
-        _ => 0
-    };
-    (string Label, string Icon)[] steps =
-    [
-        ("Not ready", "icon-alert-circle"),
-        ("Review", "icon-eye"),
-        ("With Engineer", "icon-user"),
-        ("Complete", "icon-check")
-    ];
-
-    var offersReturnToReview = mayEdit
-        && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
-    var offersUnlinkEvidence = mayEdit
-        && workflow.ReportSentEvidence is not null
-        && state is not CaseLifecycleState.Held
-        && !CaseLifecycleRules.IsTerminal(state);
-    var offersArchive = Model.IsEditing && CaseLifecycleRules.IsTerminal(state) && workflow.Archive is null;
-    var offersLifecyclePanel = offersReturnToReview || offersUnlinkEvidence || offersArchive;
 
     var claimant = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.Name)?.Value ?? (data is null ? summary.Claimant : null);
     var claimNumber = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claim.Number)?.Value ?? (data is null ? summary.ClaimNumber : null);
@@ -70,6 +44,14 @@
     var contactEmail = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.EmailAddress)?.Value;
     var contactPhone = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Contact.PhoneNumber)?.Value;
     var vatStatus = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Instruction.VatStatus)?.Value;
+    // The matter line (v28 P12): the nature of the incident, the claimant and
+    // the incident date as one derived sentence, following its fields on save.
+    var matterLine = string.Join(": ", new[]
+    {
+        Frame.NatureOfIncident,
+        claimant,
+        incidentDate?.ToString("d MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture)
+    }.Where(part => !string.IsNullOrWhiteSpace(part)));
     var claimSource = caseNotes?.ClaimSource;
     var claimSourceContact = claimSource is null
         ? null
@@ -129,25 +111,6 @@
             </div>
         }
 
-        <ol class="stepper" aria-label="Case workflow">
-            @for (var index = 0; index < steps.Length; index++)
-            {
-                var current = index == stage;
-                var complete = index < stage;
-                <li class="@(complete ? "done" : current ? "now" : null)">
-                    <svg class="icon" aria-hidden="true"><use href="#@(complete ? "icon-check" : steps[index].Icon)" /></svg>
-                    <span>@steps[index].Label</span>
-                </li>
-            }
-        </ol>
-        @if (state == CaseLifecycleState.Held)
-        {
-            <div class="workflow-exception">
-                <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
-                <strong>@Model.StateChipText</strong>
-            </div>
-        }
-
         @if (requirements.Count > 0)
         {
             <div class="sub-panel blockers" data-outstanding-requirements>
@@ -173,42 +136,6 @@
         @* The remaining Core lifecycle actions: return to Review and the
            correction of a wrongly linked report-Sent item. Archiving ends a
            terminal case's editability. Offered only in edit context. *@
-        @if (offersLifecyclePanel || workflow.ReportSentEvidence is not null)
-        {
-            <div class="sub-panel" data-lifecycle-actions>
-                <h3>@Frame.LifecycleActions</h3>
-                @if (offersLifecyclePanel)
-                {
-                    <div class="button-row">
-                        @if (offersReturnToReview)
-                        {
-                            <button type="button" class="btn btn--small" data-dialog-open="case-return-review-dialog">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-left" /></svg>
-                                <span>@Frame.ReturnToReview</span>
-                            </button>
-                        }
-                        @if (offersUnlinkEvidence)
-                        {
-                            <button type="button" class="btn btn--small" data-dialog-open="case-unlink-evidence-dialog">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
-                                <span>@Frame.UnlinkReportEvidence</span>
-                            </button>
-                        }
-                        @if (offersArchive)
-                        {
-                            <button type="button" class="btn btn--small" data-dialog-open="case-archive-dialog">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
-                                <span>@Frame.ArchiveCase</span>
-                            </button>
-                        }
-                    </div>
-                }
-                @if (workflow.ReportSentEvidence is { } sentEvidence)
-                {
-                    @* Inherited scope: the mailbox address and the
-                       authoritative time, never the retained identifiers. *@
-                    <div class="fc ro mt-2"><span class="lbl">@Frame.ReportSent</span><div class="fv">@sentEvidence.MailboxIdentity · @OperatorLabels.OfficeTime(sentEvidence.SentAtUtc)</div></div>
-                }
             </div>
         }
 
@@ -234,7 +161,7 @@
         }
 
         <div class="overview-grid">
-            <div class="sub-panel"><h3>Case</h3>
+            <div class="sub-panel @Model.CollapsedClass("case.overview.case")" data-collapse="case.overview.case"><h3>Case <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.case")" /></h3>
                 <div class="fg g2">
                     <div class="fc ro idn"><span class="lbl">@Frame.CaseType<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@OperatorLabels.CaseTypeName(summary.CaseType)</div></div>
                     <div class="fc ro idn"><span class="lbl">@Frame.OurRef<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv mono">@workflow.Identity.Reference</div></div>
@@ -242,9 +169,15 @@
                     <div class="fc">@{ Lbl("f-incident-date", Frame.IncidentDate); }<div class="@ValueClass(incidentDate?.ToString("d MMM yyyy"))">@Value(incidentDate?.ToString("d MMM yyyy"))</div>@if (mayEdit){<input id="f-incident-date" class="fi" name="incidentDate" form="case-edit-form" type="date" value="@incidentDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
                     <div class="fc ro idn"><span class="lbl">@Frame.Received<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</div></div>
                     <div class="fc">@{ Lbl("f-due-by", Frame.Due); }<div class="@ValueClass(dueBy?.ToString("d MMM yyyy"))">@Value(dueBy?.ToString("d MMM yyyy"))</div>@if (mayEdit){<input id="f-due-by" class="fi" name="dueBy" form="case-edit-form" type="date" value="@dueBy?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />}</div>
+                    <div class="fc ro"><span class="lbl">@Frame.MatterLine</span><div class="fv derived @(matterLine.Length == 0 ? "empty" : null)" data-matter-line>@(matterLine.Length == 0 ? OperatorLabels.CaseWorkspace.AbsentValue : matterLine)</div></div>
+                    @if (workflow.ReportSentEvidence is { } sentEvidence)
+                    {
+                        @* Inherited scope: the mailbox address and the authoritative time, never the retained identifiers. *@
+                        <div class="fc ro"><span class="lbl">@Frame.ReportSent</span><div class="fv">@sentEvidence.MailboxIdentity · @OperatorLabels.OfficeTime(sentEvidence.SentAtUtc)</div></div>
+                    }
                 </div>
             </div>
-            <div class="sub-panel"><h3>Principal</h3>
+            <div class="sub-panel @Model.CollapsedClass("case.overview.principal")" data-collapse="case.overview.principal"><h3>Principal <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.principal")" /></h3>
                 <div class="fg">
                     <div class="fc ro idn"><span class="lbl">@OperatorLabels.CaseWorkspace.RibbonPrincipal<svg class="icon lk" aria-hidden="true"><use href="#icon-lock" /></svg></span><div class="fv">@workflow.Identity.PrincipalCode</div></div>
                     @* The claim source is chosen from the active Claim source
@@ -275,7 +208,7 @@
                     }
                 </div>
             </div>
-            <div class="sub-panel"><h3>Claimant</h3>
+            <div class="sub-panel @Model.CollapsedClass("case.overview.claimant")" data-collapse="case.overview.claimant"><h3>Claimant <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.claimant")" /></h3>
                 <div class="fg">
                     <div class="fc">@{ Lbl("f-claimant", OperatorLabels.CaseWorkspace.RibbonClaimant); }<div class="@ValueClass(claimant)">@Value(claimant)</div>@if (mayEdit){<input id="f-claimant" class="fi" name="claimantName" form="case-edit-form" maxlength="300" value="@claimant" />}</div>
                     <div class="fc">@{ Lbl("f-claimant-contact", Frame.Contact); }<div class="@ValueClass(claimantContact)">@Value(claimantContact)</div>@if (mayEdit){<input id="f-claimant-contact" class="fi" name="claimantContactNumber" form="case-edit-form" maxlength="100" value="@claimantContact" />}</div>
@@ -285,7 +218,7 @@
             </div>
         </div>
         @* The Case's own contact: who to speak to, distinct from the claimant. *@
-        <div class="sub-panel"><h3>Case contact</h3>
+        <div class="sub-panel @Model.CollapsedClass("case.overview.contact")" data-collapse="case.overview.contact"><h3>Case contact <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.contact")" /></h3>
             <div class="fg g3">
                 <div class="fc">@{ Lbl("f-contact-name", Frame.ContactName); }<div class="@ValueClass(contactName)">@Value(contactName)</div>@if (mayEdit){<input id="f-contact-name" class="fi" name="contactName" form="case-edit-form" maxlength="300" value="@contactName" />}</div>
                 <div class="fc">@{ Lbl("f-contact-email", Frame.ContactEmail); }<div class="@ValueClass(contactEmail)">@Value(contactEmail)</div>@if (mayEdit){<input id="f-contact-email" class="fi" name="contactEmailAddress" form="case-edit-form" type="email" maxlength="300" value="@contactEmail" />}</div>
@@ -296,7 +229,7 @@
         @* The Notes band (13 September): the Principal record's and the Claim
            source record's notes on every Case, read live and locked, absent
            when the record has none, beside this Case's own notes. *@
-        <div class="sub-panel notes-band" data-notes-band><h3>@Frame.Notes</h3>
+        <div class="sub-panel notes-band @Model.CollapsedClass("case.overview.notes")" data-notes-band data-collapse="case.overview.notes"><h3>@Frame.Notes <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.overview.notes")" /></h3>
             <div class="fg g2">
                 @if (!string.IsNullOrWhiteSpace(notes.PrincipalNotes))
                 {

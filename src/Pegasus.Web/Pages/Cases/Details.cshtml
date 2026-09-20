@@ -66,6 +66,8 @@
         && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
     var canReturnToEngineer = editing && (isComplete || isQuery);
     var canArchive = editing && isClosed && workflow.Archive is null;
+    var canUnlinkEvidence = editingCaseData && workflow.ReportSentEvidence is not null
+        && state is not CaseLifecycleState.Held && !isClosed;
     // Review point 12: the adverse dispositions Core will accept for this
     // state, decided in the page model from Core's own closure rules.
     var closureOutcomes = Model.AvailableClosureOutcomes;
@@ -74,7 +76,7 @@
     var offersCreateAudit = Model.CanCreateAudit;
     // The menu shows outside an edit session only when an item that needs
     // no lease is available (Send to EVA); everything else joins it inside.
-    var offersActionsMenu = canSendToEva || canHandToEngineer || canConfirmReportSent || canMarkCompleted
+    var offersActionsMenu = canUnlinkEvidence || canSendToEva || canHandToEngineer || canConfirmReportSent || canMarkCompleted
         || canReturnToReview || canReturnToEngineer || canArchive || offersHoldGroup
         || offersCreateAudit || offersAdverseClosure;
     ViewData["WorkingSetRecord"] = new WorkingSetRecord(
@@ -147,6 +149,25 @@
                     @if (Model.CaseTypeChip is { } caseTypeChip)
                     {
                         <span class="status status--navy status--plain" data-case-type-chip>@caseTypeChip</span>
+                    }
+                    @* The Engineer's decisions read on the ribbon (v28 P25): the
+                       outcome, the roadworthiness, and the repair cost as a
+                       share of the value once both are known. *@
+                    @if (outcome is not null)
+                    {
+                        var outcomeText = outcome == "total_loss" && !string.IsNullOrWhiteSpace(salvageCategory)
+                            ? $"Total loss · Cat {salvageCategory}"
+                            : OperatorLabels.Humanise(outcome);
+                        <span class="status @(outcome == "total_loss" ? "status--red" : "status--blue")" data-outcome-chip>@outcomeText</span>
+                    }
+                    @if (legalStatus is not null)
+                    {
+                        <span class="status @(legalStatus == "unroadworthy" ? "status--red" : "status--green")" data-legal-chip>@OperatorLabels.Humanise(legalStatus)</span>
+                    }
+                    @if (repairCost is { } ribbonCost && engineerValue is { } ribbonValue && ribbonValue > 0)
+                    {
+                        var share = (int)Math.Round(ribbonCost / ribbonValue * 100);
+                        <span class="status @(share >= 80 ? "status--red" : share >= 66 ? "status--amber" : "status--green")" data-repairs-of-value-chip>@Frame.RepairsOfValue(share)</span>
                     }
                     @if (workflow.Archive is not null)
                     {
@@ -290,6 +311,13 @@
                                 <button type="button" class="btn" data-dialog-open="case-archive-dialog">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
                                     <span>@Frame.ArchiveCase</span>
+                                </button>
+                            }
+                            @if (canUnlinkEvidence)
+                            {
+                                <button type="button" class="btn" data-dialog-open="case-unlink-evidence-dialog">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-unlink" /></svg>
+                                    <span>@Frame.UnlinkReportEvidence</span>
                                 </button>
                             }
                             @if (offersHoldGroup || offersCreateAudit)
@@ -440,22 +468,6 @@
             <section class="panel context-card" data-figures>
                 <div class="panel-head"><h2>@Frame.Figures</h2></div>
                 <div class="panel-body">
-                    @if (outcome is not null || legalStatus is not null)
-                    {
-                        <div class="fig-chips">
-                            @if (outcome is not null)
-                            {
-                                var outcomeText = outcome == "total_loss" && !string.IsNullOrWhiteSpace(salvageCategory)
-                                    ? $"Total loss · Cat {salvageCategory}"
-                                    : OperatorLabels.Humanise(outcome);
-                                <span class="status @(outcome == "total_loss" ? "status--red" : "status--blue")" data-outcome-chip>@outcomeText</span>
-                            }
-                            @if (legalStatus is not null)
-                            {
-                                <span class="status @(legalStatus == "unroadworthy" ? "status--amber" : "status--neutral")" data-legal-chip>@OperatorLabels.Humanise(legalStatus)</span>
-                            }
-                        </div>
-                    }
                     <dl class="figures">
                         <div class="figure figure--big"><dt>@Frame.RepairCostIncVat</dt><dd class="mono">@(repairCost is { } cost ? FormatMoney(cost) : "—")</dd></div>
                         <div class="figure"><dt>@Frame.EngineersValue</dt><dd class="mono">@(engineerValue is { } ev ? FormatMoney(ev) : "—")</dd></div>

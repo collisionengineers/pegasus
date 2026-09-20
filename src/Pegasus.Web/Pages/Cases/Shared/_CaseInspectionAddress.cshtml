@@ -162,7 +162,7 @@
             </div>
         </div>
 
-        <div class="sub-panel" data-inspection-repairer><h3>@OperatorLabels.CaseWorkspace.Repairer</h3>
+        <div class="sub-panel @Model.CollapsedClass("case.inspection.repairer")" data-inspection-repairer data-collapse="case.inspection.repairer"><h3>@OperatorLabels.CaseWorkspace.Repairer <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.inspection.repairer")" /></h3>
             <div class="fg g4">
                 <div class="fc">
                     @{ Lbl("repairer-directory", OperatorLabels.CaseWorkspace.RepairerDirectory); }
@@ -202,7 +202,7 @@
             </div>
         </div>
 
-        <div class="sub-panel" data-inspection-storage><h3>@InspectionLabels.Storage</h3>
+        <div class="sub-panel @Model.CollapsedClass("case.inspection.storage")" data-inspection-storage data-collapse="case.inspection.storage"><h3>@InspectionLabels.Storage <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.inspection.storage")" /></h3>
             <div class="fg g4">
                 <div class="fc span2">
                     @{ Lbl("storage-location", OperatorLabels.CaseWorkspace.StorageLocation); }

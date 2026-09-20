@@ -547,7 +547,7 @@ public sealed class CaseEditModeWebTests
         Assert.DoesNotContain("Edit Case data", editing, StringComparison.Ordinal);
         Assert.Equal(1, Occurrences(editing, CaseWorkspaceLabels.Inspection.SectionTitle + "</h2>"));
         // The editor's groups are the read view's groups.
-        foreach (var group in new[] { ">Case</h3>", ">Principal</h3>", ">Claimant</h3>" })
+        foreach (var group in new[] { "<h3>Case <", "<h3>Principal <", "<h3>Claimant <" })
         {
             Assert.Equal(1, Occurrences(editing, group));
         }
