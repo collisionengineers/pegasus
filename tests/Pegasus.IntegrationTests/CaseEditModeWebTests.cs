@@ -47,8 +47,9 @@ public sealed class CaseEditModeWebTests
 
     [Theory]
     [InlineData("Engineer", false, true)]
-    [InlineData("User", false, false)]
+    [InlineData("User", false, true)]
     [InlineData("Engineer", true, false)]
+    [InlineData("User", true, false)]
     public async Task WorkspaceSaveUsesCoreFindingAndEligibleSignOffAuthority(
         string role, bool forgeSignOffAccount, bool reachesStore)
     {
@@ -82,7 +83,7 @@ public sealed class CaseEditModeWebTests
         AssertPrg(claim, store.CaseId);
         var editing = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         var outcomeName = CaseWorkspaceLabels.Editors.FormName(AssessmentVocabulary.Outcome);
-        Assert.Equal(role == "Engineer", editing.Contains($"name=\"{outcomeName}\"", StringComparison.Ordinal));
+        Assert.True(editing.Contains($"name=\"{outcomeName}\"", StringComparison.Ordinal));
         var field = forgeSignOffAccount ? "signOffEngineerId" : outcomeName;
         var value = forgeSignOffAccount
             ? Pegasus.Web.Authentication.DevelopmentOfflineIdentity.AdministratorId.ToString("D") : "repairable";

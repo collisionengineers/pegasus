@@ -355,9 +355,8 @@ public partial class IndexModel(
         _ => null
     };
 
-    /// <summary>Engineers open on Mine; Administrators and Users on Office (P2).</summary>
-    private static NeedsAttentionScope DefaultScope(ActionActor actor) =>
-        actor.Roles.Contains(StaffRole.Engineer) ? NeedsAttentionScope.Mine : NeedsAttentionScope.Office;
+    /// <summary>Every staff role opens on Office; Mine remains an explicit scope (P2).</summary>
+    private static NeedsAttentionScope DefaultScope() => NeedsAttentionScope.Office;
 
     /// <summary>Loads the full-page and fragment models through one set of reads.</summary>
     private async Task<IActionResult?> LoadAsync(
@@ -379,7 +378,7 @@ public partial class IndexModel(
         NowUtc = timeProvider.GetUtcNow();
         var namedScope = ParseScope(scope);
         ScopeNamed = namedScope is not null;
-        Scope = namedScope ?? DefaultScope(actor);
+        Scope = namedScope ?? DefaultScope();
         Kinds = NeedsAttentionPresentation.ParseKinds(kind);
         CurrentPage = Math.Max(1, page);
         NewCasesPage = Math.Max(1, newPage);
@@ -490,8 +489,7 @@ public partial class IndexModel(
 
             var accounts = await staffAccounts.ListAsync(0, 100, cancellationToken);
             var engineers = accounts.Accounts
-                .Where(account => account.IsEnabled
-                    && StaffRoleCapabilities.MeetsRequirement(account.Role, StaffRole.Engineer))
+                .Where(account => account.IsEnabled)
                 .Select(account => new WorkCentreEngineer(account.Id, account.UserName))
                 .ToArray();
             var current = details.Workflow.AssignedEngineerId is { } engineerId
@@ -505,7 +503,7 @@ public partial class IndexModel(
                 details.Summary.Principal,
                 current,
                 engineers,
-                actor.IsInRole(StaffRole.Engineer) && CaseLifecycleRules.CanAssignToSelf(details.Workflow));
+                CaseLifecycleRules.CanAssignToSelf(details.Workflow));
         }
         catch (Exception exception) when (exception is not StaffAuthorizationException && !cancellationToken.IsCancellationRequested)
         {

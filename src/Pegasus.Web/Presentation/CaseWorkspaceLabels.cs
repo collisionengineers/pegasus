@@ -753,7 +753,7 @@ public static class CaseWorkspaceLabels
 
     /// <summary>
     /// The Estimate section's Glass's surface: the control that opens the
-    /// provider's estimator, the Engineer's own session for this Case, and the
+    /// provider's estimator, the staff member's own session for this Case, and the
     /// outcomes the provider's return can land on. The state words are the one
     /// operator-facing vocabulary for
     /// <see cref="GlassRepairEstimateSessionState"/>, so the Case section and

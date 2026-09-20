@@ -50,7 +50,7 @@ public sealed class CaseEngineerSectionsWebTests
             AllowAutoRedirect = false,
             BaseAddress = new Uri("https://localhost")
         });
-        client.DefaultRequestHeaders.Add("X-Test-Roles", "Engineer");
+        client.DefaultRequestHeaders.Add("X-Test-Roles", "User");
 
         using var response = await client.GetAsync($"/Cases/{source.CaseId:D}?section=estimate");
 
@@ -84,12 +84,12 @@ public sealed class CaseEngineerSectionsWebTests
     }
 
     /// <summary>
-    /// GET ?estimate=new must not depend on either the
-    /// actor being an Engineer or the assessment being open to render the
-    /// (read-only) editor panel.
+    /// GET ?estimate=new must not depend on the actor's role or the assessment
+    /// being open to render the (read-only) editor panel; a Held Case offers
+    /// no import to anyone.
     /// </summary>
     [Theory]
-    [InlineData("User", CaseLifecycleState.ReportPreparation)]
+    [InlineData("User", CaseLifecycleState.Held)]
     [InlineData("Engineer", CaseLifecycleState.Held)]
     public async Task NewEstimateGetRendersReadOnlyEditorWhenNotEditable(string role, CaseLifecycleState state)
     {

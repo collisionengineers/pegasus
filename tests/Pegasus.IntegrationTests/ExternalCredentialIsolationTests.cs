@@ -26,8 +26,8 @@ public sealed class ExternalCredentialIsolationTests
             var otherEngineerId = Guid.NewGuid();
             await CreateEnabledUsersAsync(database, administratorId, engineerId, otherEngineerId);
             var administrator = ActionActor.Staff(administratorId, [StaffRole.Administrator]);
-            var engineer = ActionActor.Staff(engineerId, [StaffRole.Engineer]);
-            var otherEngineer = ActionActor.Staff(otherEngineerId, [StaffRole.Engineer]);
+            var engineer = ActionActor.Staff(engineerId, [StaffRole.User]);
+            var otherEngineer = ActionActor.Staff(otherEngineerId, [StaffRole.User]);
 
             await using (var context = await database.CreateContextAsync())
             {
@@ -102,7 +102,7 @@ public sealed class ExternalCredentialIsolationTests
             new EphemeralDataProtectionProvider(),
             TimeProvider.System);
         var administrator = ActionActor.Staff(administratorId, [StaffRole.Administrator]);
-        var engineer = ActionActor.Staff(engineerId, [StaffRole.Engineer]);
+        var engineer = ActionActor.Staff(engineerId, [StaffRole.User]);
         var first = await store.ReplaceAsync(
             administrator,
             engineerId,
@@ -263,7 +263,7 @@ public sealed class ExternalCredentialIsolationTests
         Assert.DoesNotContain("replaced-second-secret", serializedStatuses, StringComparison.Ordinal);
         Assert.DoesNotContain("disabled-secret", serializedStatuses, StringComparison.Ordinal);
 
-        var engineer = ActionActor.Staff(engineerId, [StaffRole.Engineer]);
+        var engineer = ActionActor.Staff(engineerId, [StaffRole.User]);
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => store.GetManyAsync(
             engineer,
             requestedIds,
