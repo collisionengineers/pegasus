@@ -63,6 +63,10 @@ public static class DependencyInjection
         services.AddScoped<ListActionLogs>();
         services.AddScoped<IV1ActivityReportQueries, EfV1ActivityReportQueries>();
         services.AddScoped<GetV1ActivityReport>();
+        services.AddScoped<IMonthlyReportActivityQueries, EfMonthlyReportActivityQueries>();
+        services.AddScoped<GetMonthlyReportActivity>();
+        services.AddSingleton<IWorkbookWriter, Pegasus.Infrastructure.Reports.OpenXmlWorkbookWriter>();
+        services.AddScoped<ExportAdministrationReports>();
         services.AddScoped<IAdministrationAiJobQueries, EfAdministrationAiJobQueries>();
         services.AddScoped<GetAdministrationAiJobs>();
         services.AddScoped<IAdministrationHealthMetricsQueries, EfAdministrationHealthMetricsQueries>();

@@ -12,12 +12,22 @@ namespace Pegasus.Web.Pages.Administration;
 public sealed class ReportsModel(
     GetEngineerActivityReport engineerReport,
     GetV1ActivityReport principalActivityReport,
+    GetMonthlyReportActivity monthlyActivity,
+    ExportAdministrationReports export,
     IStaffAccountQueries staffAccounts,
     TimeProvider timeProvider) : AdministrationPageModel
 {
+    public const string WorkbookMediaType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
     [BindProperty(SupportsGet = true, Name = "from")] public DateTime? From { get; set; }
     [BindProperty(SupportsGet = true, Name = "to")] public DateTime? To { get; set; }
     [BindProperty(SupportsGet = true, Name = "engineerId")] public Guid? EngineerId { get; set; }
+
+    /// <summary>MI-01's sort: <c>person</c>, <c>queries</c> or <c>reports</c>; anything else is the default order.</summary>
+    [BindProperty(SupportsGet = true, Name = "sort")] public string? Sort { get; set; }
+
+    /// <summary>MI-01's direction: <c>desc</c> or anything else for ascending.</summary>
+    [BindProperty(SupportsGet = true, Name = "dir")] public string? Direction { get; set; }
 
     public EngineerActivityReport EngineerResult { get; private set; } = new(default, default, []);
     public IReadOnlyList<StaffAccountSummary> People { get; private set; } = [];
@@ -28,6 +38,24 @@ public sealed class ReportsModel(
     /// as an unavailable state rather than a false zero.
     /// </summary>
     public PrincipalReportActivityReport? PrincipalActivity { get; private set; }
+
+    /// <summary>MI-02's month breakdown; <see langword="null"/> when its query failed.</summary>
+    public IReadOnlyList<MonthlyReportActivity>? Monthly { get; private set; }
+
+    public bool Descending => string.Equals(Direction, "desc", StringComparison.OrdinalIgnoreCase);
+
+    public int MostReportsSent => EngineerResult.Rows.Count == 0 ? 0 : EngineerResult.Rows.Max(row => row.ReportsSent);
+
+    public int MostQueriesReceived => EngineerResult.Rows.Count == 0 ? 0 : EngineerResult.Rows.Max(row => row.QueriesReceived);
+
+    public string SortDirectionFor(string column) =>
+        string.Equals(Sort, column, StringComparison.OrdinalIgnoreCase) && !Descending ? "desc" : "asc";
+
+    public string SortArrow(string column) =>
+        string.Equals(Sort, column, StringComparison.OrdinalIgnoreCase) ? (Descending ? "↓" : "↑") : string.Empty;
+
+    public string? AriaSort(string column) =>
+        string.Equals(Sort, column, StringComparison.OrdinalIgnoreCase) ? (Descending ? "descending" : "ascending") : null;
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
         await LoadAsync(cancellationToken) ? Page() : Forbid();
@@ -59,15 +87,27 @@ public sealed class ReportsModel(
             "turnaround.csv");
     }
 
+    /// <summary>Every report for the period as one workbook, a sheet each plus the month breakdown.</summary>
+    public async Task<IActionResult> OnGetWorkbookAsync(CancellationToken cancellationToken)
+    {
+        if (!await LoadAsync(cancellationToken)) return Forbid();
+        if (!TryGetActor(out var actor)) return Forbid();
+        var bytes = export.Execute(actor, EngineerResult, PrincipalActivity, Monthly ?? []);
+        var from = LondonCalendar.DateAt(EngineerResult.FromUtc).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var to = LondonCalendar.DateAt(EngineerResult.ToUtc).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        return File(bytes, WorkbookMediaType, $"administration-reports-{from}-{to}.xlsx");
+    }
+
     private async Task<bool> LoadAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor)) return false;
         var to = To is { } localTo ? LondonCalendar.ToUtc(localTo) : timeProvider.GetUtcNow();
         var from = From is { } localFrom ? LondonCalendar.ToUtc(localFrom) : to.AddDays(-31);
-        // The per-Principal report is factory-backed and independent. The
-        // account list and Engineer report share the scoped staff context, so
-        // they remain serial while this separate report is in flight.
+        // The per-Principal and month reads are factory-backed and independent.
+        // The account list and Engineer report share the scoped staff context,
+        // so they remain serial while those separate reads are in flight.
         var principalTask = principalActivityReport.ExecuteAsync(actor, from, to, cancellationToken);
+        var monthlyTask = monthlyActivity.ExecuteAsync(actor, from, to, cancellationToken);
         try
         {
             var people = await staffAccounts.ListAsync(0, 100, cancellationToken);
@@ -77,6 +117,7 @@ public sealed class ReportsModel(
                 .ThenBy(account => account.Id)
                 .ToArray();
             EngineerResult = await engineerReport.ExecuteAsync(actor, from, to, EngineerId, cancellationToken);
+            EngineerResult = EngineerResult with { Rows = Sorted(EngineerResult.Rows) };
             From ??= LondonCalendar.TimeAt(EngineerResult.FromUtc);
             To ??= LondonCalendar.TimeAt(EngineerResult.ToUtc);
         }
@@ -99,7 +140,30 @@ public sealed class ReportsModel(
             PrincipalActivity = null;
         }
 
+        try
+        {
+            Monthly = await monthlyTask;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            // As above: one period filter, reported once.
+        }
+
         return true;
+    }
+
+    private EngineerActivityRow[] Sorted(IReadOnlyList<EngineerActivityRow> rows)
+    {
+        IOrderedEnumerable<EngineerActivityRow> ordered = Sort?.ToLowerInvariant() switch
+        {
+            "queries" => Descending ? rows.OrderByDescending(row => row.QueriesReceived) : rows.OrderBy(row => row.QueriesReceived),
+            "reports" => Descending ? rows.OrderByDescending(row => row.ReportsSent) : rows.OrderBy(row => row.ReportsSent),
+            "person" => Descending
+                ? rows.OrderByDescending(row => row.DisplayName, StringComparer.OrdinalIgnoreCase)
+                : rows.OrderBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase),
+            _ => rows.OrderBy(row => 0)
+        };
+        return ordered.ThenBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase).ThenBy(row => row.EngineerId).ToArray();
     }
 
     /// <summary>
@@ -108,13 +172,14 @@ public sealed class ReportsModel(
     /// </summary>
     private static string ReportsByPrincipalCsv(PrincipalReportActivityReport? report)
     {
-        var builder = new StringBuilder("Principal,Reports produced,Reports sent,Report types").Append("\r\n");
+        var builder = new StringBuilder("Principal,Reports produced,Reports sent,Agreed fees,Report types").Append("\r\n");
         if (report is null) return builder.ToString();
         foreach (var row in report.Rows.Where(row => row.GeneratedArtifacts > 0 || row.Sent > 0))
         {
             builder.Append(EngineerActivityReportCsv.EscapeField(row.PrincipalCode)).Append(',')
                 .Append(row.GeneratedArtifacts).Append(',')
                 .Append(row.Sent).Append(',')
+                .Append(row.AgreedFeeTotal.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
                 .Append(EngineerActivityReportCsv.EscapeField(string.Join(
                     "; ",
                     row.ArtifactTypes

@@ -63,6 +63,64 @@ public sealed class EngineerActivityReportPersistenceTests
         Assert.Equal([new EngineerActivityCounts(engineerB, 2, 1)], onlyB);
     }
 
+    /// <summary>
+    /// MI-01's query types, Audit uplift and the Engineer's own turnaround: a
+    /// dispute and an amendment request are counted inside the queries; a
+    /// report sent on an Audit Case counts as an Audit report; the send's
+    /// generation names the Case whose origin receipt gives the turnaround.
+    /// </summary>
+    [Fact]
+    public async Task CountsQueryTypesAuditReportsAndTheEngineersTurnaround()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var engineer = Guid.NewGuid();
+        var estate = await SeedEstateAsync(database);
+        var inspection = await estate.SeedCaseAsync(engineer, null, 1);
+        var audit = await estate.SeedCaseAsync(engineer, null, 2, "Audit");
+        var inspectionGeneration = Guid.NewGuid();
+        var auditGeneration = Guid.NewGuid();
+        await using (var context = await database.CreateContextAsync())
+        {
+            context.AddRange(
+                Generation(inspectionGeneration, inspection, From.AddDays(1)),
+                Generation(auditGeneration, audit, From.AddDays(2)));
+            var inspectionSend = SentOperation(engineer, From.AddDays(2));
+            inspectionSend.ContextId = inspectionGeneration;
+            var auditSend = SentOperation(engineer, From.AddDays(4));
+            auditSend.ContextId = auditGeneration;
+            context.Set<StaffMailSendOperationEntity>().AddRange(inspectionSend, auditSend);
+            context.IntakeReceipts.AddRange(
+                Query(From.AddDays(1), "post-report-emails", inspection, active: true, subtype: "query"),
+                Query(From.AddDays(2), "post-report-emails", inspection, active: true, subtype: "dispute"),
+                Query(From.AddDays(3), "post-report-emails", audit, active: true, subtype: "amendment-request"));
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IEngineerActivityQueries>();
+        var row = Assert.Single(await queries.GetAsync(From, To, engineer, CancellationToken.None));
+
+        Assert.Equal(2, row.ReportsSent);
+        Assert.Equal(1, row.AuditReportsSent);
+        Assert.Equal(3, row.QueriesReceived);
+        Assert.Equal(1, row.Disputes);
+        Assert.Equal(1, row.AmendmentRequests);
+        // Both Cases were received at From; sent two and four days later.
+        Assert.Equal(TimeSpan.FromDays(3), row.AverageReceivedToSent);
+    }
+
+    private static CaseReportGenerationEntity Generation(Guid id, Guid caseId, DateTimeOffset generatedAtUtc) => new()
+    {
+        Id = id,
+        CaseId = caseId,
+        SnapshotHash = new string('a', 64),
+        SnapshotJson = "{}",
+        TemplateVersion = "1",
+        RendererVersion = "1",
+        State = "Generated",
+        GeneratedAtUtc = generatedAtUtc
+    };
+
     [Fact]
     public async Task AnEngineerWithNoActivityInThePeriodIsAbsent()
     {
@@ -109,7 +167,8 @@ public sealed class EngineerActivityReportPersistenceTests
         DateTimeOffset receivedAtUtc,
         string family,
         Guid caseId,
-        bool active)
+        bool active,
+        string? subtype = null)
     {
         var id = Guid.NewGuid();
         return new()
@@ -137,6 +196,7 @@ public sealed class EngineerActivityReportPersistenceTests
                 Outcome = "classified",
                 Direction = "received",
                 Family = family,
+                Subtype = subtype,
                 AmbiguousCandidatesJson = "[]",
                 PredicatesJson = "[]",
                 Reason = "report test",
@@ -190,7 +250,7 @@ public sealed class EngineerActivityReportPersistenceTests
 
     private sealed record Estate(LocalDbTestDatabase Database, Guid PrincipalId, Guid LineageId)
     {
-        public async Task<Guid> SeedCaseAsync(Guid? engineerId, Guid? signatoryId, int sequence)
+        public async Task<Guid> SeedCaseAsync(Guid? engineerId, Guid? signatoryId, int sequence, string type = "Inspection")
         {
             await using var context = await Database.CreateContextAsync();
             var receiptId = Guid.NewGuid();
@@ -224,7 +284,7 @@ public sealed class EngineerActivityReportPersistenceTests
                     Year = 2031,
                     Sequence = sequence,
                     Reference = $"EVA3100{sequence}",
-                    Type = "Inspection",
+                    Type = type,
                     InitialState = "Review",
                     CustodyState = "Confirmed",
                     OriginIntakeReceiptId = receiptId,
