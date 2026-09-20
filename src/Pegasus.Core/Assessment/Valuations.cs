@@ -191,9 +191,9 @@ public static class ValuationPolicy
 
     /// <summary>
     /// Recording or correcting a valuation is ordinary casework. An
-    /// Engineer's Value row is not: it carries the confirmed
-    /// <c>assessment.values.engineer</c> professional finding, so it takes
-    /// that field's own authority rule from its single owner.
+    /// Engineer's Value row carries the confirmed
+    /// <c>assessment.values.engineer</c> professional finding, so every staff
+    /// actor who records it passes that field's shared confirmation rule.
     /// </summary>
     private static void RequireActor(ActionActor actor, ValuationDetails details)
     {

@@ -25,7 +25,7 @@
     var caseId = Model.Case!.Workflow.CaseId;
     var caseVersion = Model.Case.Workflow.Version;
     // The section edits only inside the page-wide session (v26 J); an
-    // estimate edits only while it is a Draft this Engineer may change.
+    // estimate edits only while it is a Draft this staff member may change.
     var editing = Model.SectionIsEditable("estimate");
     var estimate = Model.SelectedEstimate;
     var editable = editing && Model.SelectedEstimateIsEditable;
@@ -56,7 +56,7 @@
     string MoneyOrAbsent(decimal? value) => value is { } present ? Money(present) : OperatorLabels.CaseWorkspace.AbsentValue;
 
     // What the line's Source column says: a line an import brought in, one
-    // the Engineer changed since, or one keyed by hand.
+    // a staff member changed since, or one keyed by hand.
     string LineSource(CaseEstimateLineRecord line) =>
         line.AmendedBy is not null ? EstimateLabels.SourceAmended
         : line.Origin is not null || line.SourceDocumentIdentity is not null ? EstimateLabels.SourceImported
@@ -200,7 +200,7 @@
                 </form>
             }
             @* The one Glass's slot (v26 G) — Glass's while the
-               account is free, Resume while this Engineer's session holds it;
+               account is free, Resume while this staff member's session holds it;
                absent without an enabled account, and absent while the account
                is held from another Case. The estimator opens in its own
                window (case-workspace.js names it; target is the no-script
@@ -243,7 +243,7 @@
                 </a>
             }
             @{
-                var offersNewEstimate = editing && Model.ActorIsEngineer && Model.AssessmentCanOpen;
+                var offersNewEstimate = editing && Model.AssessmentCanOpen;
                 var offersCompare = Model.Estimates.Count >= 2;
             }
             @if (offersNewEstimate || offersCompare)
@@ -321,7 +321,7 @@
             <div class="empty estimate-empty" data-estimate-empty>@EngineerLabels.NoEstimatesRecorded</div>
         }
 
-        @* The Glass's session line: only while this Engineer's session holds
+        @* The Glass's session line: only while this staff member's session holds
            the account or has failed, or while the account is held from
            another Case (v26 § Glass's). *@
         @if (Model.GlassSessionElsewhere is { } elsewhere)

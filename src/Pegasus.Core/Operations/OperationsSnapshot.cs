@@ -164,12 +164,11 @@ public sealed class GetOperationsBadge(
 /// </summary>
 public static class NeedsAttentionPolicy
 {
-    /// <summary>An Engineer may take an unassigned Case or Triage straight from the list (P8).</summary>
+    /// <summary>A staff member may take an unassigned Case or Triage straight from the list (P8).</summary>
     public static bool CanTake(NeedsAttentionKind kind, ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
         return actor.Kind == ActorKind.Staff
-            && actor.IsInRole(StaffRole.Engineer)
             && kind is NeedsAttentionKind.UnassignedEngineer or NeedsAttentionKind.Triage;
     }
 

@@ -482,7 +482,7 @@ public sealed record EstimateTotals(
 
 /// <summary>
 /// Validation and actor rules for named estimates. Staff work is a staff
-/// Engineer act (<see cref="RepairSpecificationPolicy.RequireEngineer"/>);
+/// authenticated-staff act (<see cref="RepairSpecificationPolicy.RequireStaffAuthor"/>);
 /// the Automation actor may only create or update <c>AiDraft</c> estimates
 /// that cite the Estimate job they fulfil (FRD-10 § AI job and estimate
 /// tools), and only a Draft is editable — an accepted estimate is duplicated,
@@ -728,7 +728,7 @@ public static class EstimatePolicy
         ArgumentNullException.ThrowIfNull(request.Lines);
         if (request.ExistingLineIds is { } identities)
         {
-            RepairSpecificationPolicy.RequireEngineer(request.Actor);
+            RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
             var suppliedIds = identities.OfType<Guid>().ToArray();
             if (identities.Count != request.Lines.Count || suppliedIds.Contains(Guid.Empty)
                 || suppliedIds.Distinct().Count() != suppliedIds.Length
@@ -753,7 +753,7 @@ public static class EstimatePolicy
             case ActorKind.Automation:
                 break;
             default:
-                RepairSpecificationPolicy.RequireEngineer(request.Actor);
+                RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
                 break;
         }
         return request with
@@ -769,7 +769,7 @@ public static class EstimatePolicy
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         if (actor.Kind != ActorKind.Automation)
         {
-            RepairSpecificationPolicy.RequireEngineer(actor);
+            RepairSpecificationPolicy.RequireStaffAuthor(actor);
         }
     }
 
@@ -920,7 +920,7 @@ public static class EstimatePolicy
     public static void ValidateSetCurrent(RepairSpecificationVersion estimate, ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(estimate);
-        RepairSpecificationPolicy.RequireEngineer(actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(actor);
         switch (estimate.State)
         {
             case RepairSpecificationState.Draft:
@@ -1091,7 +1091,7 @@ public sealed class DuplicateEstimate(IRepairSpecificationStore store) : IDuplic
         CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         return store.DuplicateEstimateAsync(request, cancellationToken);
     }
 }
@@ -1103,7 +1103,7 @@ public sealed class DiscardEstimate(IRepairSpecificationStore store) : IDiscardE
         CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         return store.DiscardEstimateAsync(request, cancellationToken);
     }
 }
@@ -1111,8 +1111,8 @@ public sealed class DiscardEstimate(IRepairSpecificationStore store) : IDiscardE
 /// <summary>
 /// The staff act that consumes an Estimate job's result: once the AI draft
 /// is Current, the Draft-ready job it cites is confirmed Completed
-/// (FRD-27 § AI Job List). A job in any other state is left as it is — the
-/// Engineer's choice of estimate never depends on the ledger.
+/// (FRD-27 § AI Job List). A job in any other state is left as it is — a
+/// staff member's choice of estimate never depends on the ledger.
 /// </summary>
 public sealed class SetCurrentEstimate(
     IRepairSpecificationStore store,
@@ -1125,7 +1125,7 @@ public sealed class SetCurrentEstimate(
         CancellationToken cancellationToken)
     {
         CaseLifecycleRules.ValidateMutation(request);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         var current = await store.SetCurrentEstimateAsync(request, cancellationToken);
         if (current.AiJobId is not { } jobId)
         {
