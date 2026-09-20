@@ -295,7 +295,27 @@ public static class OperatorLabels
         public const string ValuationPresets = "Valuation presets";
         public const string ClaimSources = "Claim sources";
         // C08 shell administration areas end
+        public const string ReleaseNotes = "Release notes";
     }
+
+    /// <summary>Release notes (FRD-12 What's new; FRD-17): the labels, statuses and acknowledgements.</summary>
+    public static class ReleaseNotes
+    {
+        public const string New = "New release note";
+        public const string Draft = "Draft";
+        public const string None = "No release notes";
+        public const string SaveDraft = "Save draft";
+        public const string Publish = "Publish";
+        public const string Saved = "Release note saved.";
+        public const string Published = "Release note published.";
+        public const string Conflict = "The release note changed before this edit was saved. Reload and try again.";
+    }
+
+    public static string ReleaseNoteStatus(Pegasus.Core.ReleaseNotes.ReleaseNoteStatus status) => status switch
+    {
+        Pegasus.Core.ReleaseNotes.ReleaseNoteStatus.Published => "Published",
+        _ => "Draft"
+    };
 
     /// <summary>The freshness words the shell and every page header share.</summary>
     public static class Freshness
@@ -330,6 +350,9 @@ public static class OperatorLabels
         public const string AccessDenied = "Access denied";
         public const string AccessDeniedSentence = "Your account does not have access to this page.";
         public const string AdministrationDenied = "Administration is available to Administrators only.";
+        public const string WhatsNew = "What’s new";
+        public const string GotIt = "Got it";
+        public const string ReleaseNotes = "Release notes";
 
         /// <summary>"Notifications · 3 unread", the bell's accessible name while anything is unread.</summary>
         public static string BellLabel(int unread) =>
