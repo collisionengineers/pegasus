@@ -284,8 +284,8 @@ Recorded 20 September 2026 as the slices were built; each is one PR from
 | Slice | Proposals | Branch / PR | State |
 | --- | --- | --- | --- |
 | A · Shell and global | P1, P2, P3, P6 D–I, P8 | `task/v28-shell`, PR 797 | built, 124 web tests green, CI running |
-| B1 · Case details | P4, P7, P12, P25, P45 (P47 was already live) | `task/v28-case-details` | built, 147 web tests green |
-| B2 · Section map | P26 (Case details, Claim, Decisions; Damage and Valuation nested under Vehicle), P38 (VAT registered on Claim, report switches on Valuation, Sign-off Engineer on Case details; unrelated damage stays in the nested Damage panel), P51 (Original report section on an Audit Case, hand-entered; the extraction fill is a follow-up) | `task/v28-case-details` | built, tests running |
+| B1 · Case details | P4, P7, P12, P25, P45 (P47 was already live) | `task/v28-case-details`, PR 798 | built, 147 web tests green |
+| B2 · Section map | P26 (Case details, Claim, Decisions; Damage and Valuation nested under Vehicle), P38 (VAT registered on Claim, report switches on Valuation, Sign-off Engineer on Case details; unrelated damage stays in the nested Damage panel), P51 (Original report section on an Audit Case, hand-entered; the extraction fill is a follow-up) | `task/v28-case-details`, PR 798 | built, 121 web tests green, CI running |
 | C · Vehicle, Damage, Valuation | P5, P8 cards, P13, P24 | — | not started |
 | D · Repair Spec | P9, P10, P16–P20, P31–P37, P43, P44, P48 | — | not started |
 | E · Decisions | P14, P15, P29, P30 reserve, P35 | — | not started |
