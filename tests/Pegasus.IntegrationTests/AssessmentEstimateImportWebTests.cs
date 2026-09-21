@@ -488,7 +488,7 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         var html = await EnterEditModeAsync(client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
         Assert.Contains("data-estimate-use", html, StringComparison.Ordinal);
-        Assert.Contains("Use estimate", html, StringComparison.Ordinal);
+        Assert.Contains("Use repair spec", html, StringComparison.Ordinal);
         var operationKey = NewOperationKey();
 
         using var response = await client.PostAsync(
@@ -512,7 +512,7 @@ public sealed partial class AssessmentEstimateImportWebTests
 
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate={draft.SpecificationId:D}");
         Assert.Contains(
-            "The estimate is now the case's current estimate.",
+            "The repair spec is now the case's current repair spec.",
             WebUtility.HtmlDecode(afterHtml),
             StringComparison.Ordinal);
         Assert.Contains("data-case-editing=\"true\"", afterHtml, StringComparison.Ordinal);
@@ -559,7 +559,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var client = CreateEngineerClient(factory);
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate&estimate=new");
-        Assert.Contains("New estimate", html, StringComparison.Ordinal);
+        Assert.Contains("New repair spec", html, StringComparison.Ordinal);
         var operationKey = NewOperationKey();
 
         using var response = await client.PostAsync(
@@ -572,12 +572,11 @@ public sealed partial class AssessmentEstimateImportWebTests
                     ("editLeaseToken", RecordingStores.HeldLeaseToken),
                     ("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
                     ("estimateName", "Repair alternative"),
-                    ("estimateRepairDays", "3"),
                     ("estimateLabourRate", "48.50"),
-                    ("estimatePaintMaterials", "120.00"),
+                    ("estimateRegionalUplift", "true"),
+                    ("estimateRegionalUplift", "false"),
                     ("estimateOtherCosts", "75.00"),
                     ("estimateVatPercent", "20"),
-                    ("estimateNotes", "Bumper and paint."),
                     ("lineOperation", "Replace"),
                     ("lineDescription", "Front bumper"),
                     ("linePartNumber", "51 11 8 067"),
@@ -585,30 +584,33 @@ public sealed partial class AssessmentEstimateImportWebTests
                     ("lineLabourHours", "2.0"),
                     ("linePaintHours", "1.5"),
                     ("linePartPounds", "620.20"),
+                    ("lineMaterials", "120.00"),
                     ("lineOperation", string.Empty),
                     ("lineDescription", string.Empty),
                     ("linePartNumber", string.Empty),
                     ("lineQuantity", string.Empty),
                     ("lineLabourHours", string.Empty),
                     ("linePaintHours", string.Empty),
-                    ("linePartPounds", string.Empty))));
+                    ("linePartPounds", string.Empty),
+                    ("lineMaterials", string.Empty))));
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var saved = Assert.Single(store.SavedEstimates);
         Assert.Null(saved.EstimateId);
         Assert.Equal("Repair alternative", saved.Details.Name);
-        Assert.Equal(3, saved.Details.RepairDays);
+        Assert.True(saved.Details.RegionalUplift);
         Assert.Equal(48.50m, saved.Details.LabourRate);
         // B04: one hourly rate prices panel and paint hours alike, so the
         // editor neither offers nor carries a second paint rate.
         Assert.DoesNotContain("estimatePaintLabourRate", html, StringComparison.Ordinal);
-        Assert.Equal(120.00m, saved.Details.PaintMaterials);
         Assert.Equal(75.00m, saved.Details.OtherCosts);
         Assert.Equal(20m, saved.Details.VatPercent);
         Assert.Equal(RepairSpecificationSourceRoute.Manual, saved.Source.Route);
         var line = Assert.Single(saved.Lines!);
         Assert.Equal("new_part", line.Type);
         Assert.Equal("Front bumper", line.Description);
+        // Materials sit on the line (v28 P48).
+        Assert.Equal(120.00m, line.Materials);
         Assert.Equal(2.0m, line.WorkUnits);
         Assert.Equal(1.5m, line.PaintWorkUnits);
         Assert.Equal(1, line.Quantity);
@@ -751,28 +753,20 @@ public sealed partial class AssessmentEstimateImportWebTests
             EstimateVatCategories.Parts | EstimateVatCategories.Materials,
             saved.Details.Vat.Categories);
         Assert.True(saved.Details.Vat.CategoriesOverridden);
-        Assert.False(saved.Details.Vat.BlocksAcceptance);
+        Assert.False(saved.Details.Vat.TreatmentPending);
         Assert.Equal(EstimateDiscounts.None, saved.Details.Discounts);
 
-        // Unblocked, so the reload offers the live control rather than the
-        // gated one.
         var reloaded = await GetHtmlAsync(
             client, $"/Cases/{caseId:D}?section=estimate&estimate={store.LastCreatedEstimateId:D}");
         Assert.Contains("handler=SetCurrentEstimate", reloaded, StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            CaseWorkspaceLabels.EstimateVat.UnknownStatusCondition,
-            reloaded,
-            StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// B08: Core refuses to make an estimate Current while its repairer VAT
-    /// status is unrecorded, so the screen never offers the control that would
-    /// be refused — it renders the workspace's gated shape naming the
-    /// condition.
+    /// v28 P10: an unrecorded repairer VAT status no longer gates Use repair
+    /// spec. The control is offered; the totals simply carry no VAT.
     /// </summary>
     [Fact]
-    public async Task AnUnrecordedRepairerVatStatusGatesUseEstimateWithItsCondition()
+    public async Task AnUnrecordedRepairerVatStatusDoesNotGateUseRepairSpec()
     {
         var caseId = Guid.NewGuid();
         var seeded = DraftSpecification(caseId);
@@ -782,28 +776,12 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var factory = Compose(baseFactory, store);
         using var client = CreateEngineerClient(factory);
 
-        Assert.True(draft.Details.VatPolicy.BlocksAcceptance);
+        Assert.True(draft.Details.VatPolicy.TreatmentPending);
         var html = await EnterEditModeAsync(
             client, caseId, $"?section=estimate&estimate={draft.SpecificationId:D}");
 
-        // v26: the condition is stated once as a plain pill beside where the
-        // control would be — absent, not disabled, and never a tooltip.
-        var pillAt = html.IndexOf("data-estimate-use-condition", StringComparison.Ordinal);
-        Assert.True(pillAt >= 0, "The Use estimate condition pill must render.");
-        var pill = html[pillAt..html.IndexOf("</span>", html.IndexOf("<span>", pillAt, StringComparison.Ordinal), StringComparison.Ordinal)];
-        Assert.Contains(CaseWorkspaceLabels.EstimateVat.UnknownStatusCondition, pill, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-condition=", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=SetCurrentEstimate", html, StringComparison.Ordinal);
-
-        // The same estimate with its status recorded offers the live control.
-        store.CurrentDraft = seeded;
-        var recordedHtml = await GetHtmlAsync(
-            client, $"/Cases/{caseId:D}?section=estimate&estimate={seeded.SpecificationId:D}");
-        Assert.Contains("handler=SetCurrentEstimate", recordedHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            CaseWorkspaceLabels.EstimateVat.UnknownStatusCondition,
-            recordedHtml,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("data-estimate-use-condition", html, StringComparison.Ordinal);
+        Assert.Contains("handler=SetCurrentEstimate", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -848,7 +826,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         var end = html.IndexOf("</section>", start, StringComparison.Ordinal);
         Assert.True(end > start);
         var dialog = html[start..end];
-        Assert.Contains("<h2 id=\"compare-estimates-dialog-title\" tabindex=\"-1\">Compare estimates</h2>", dialog, StringComparison.Ordinal);
+        Assert.Contains("<h2 id=\"compare-estimates-dialog-title\" tabindex=\"-1\">Compare repair specs</h2>", dialog, StringComparison.Ordinal);
         Assert.Contains("Repairer draft", dialog, StringComparison.Ordinal);
         Assert.Contains("Engineer current", dialog, StringComparison.Ordinal);
         // The state reads as a chip: Current for the accepted current estimate.
@@ -879,7 +857,9 @@ public sealed partial class AssessmentEstimateImportWebTests
             $"/Cases/{caseId:D}?section=estimate&estimate={draft.SpecificationId:D}&dialog=compare-estimates");
 
         Assert.DoesNotContain("compare-estimates-dialog", html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">Compare</", html, StringComparison.Ordinal);
+        // v28 P9: Compare stays findable under More, greyed out until a second spec exists.
+        Assert.Contains("disabled data-estimate-compare", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("dialog=compare-estimates", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -915,7 +895,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         Assert.Equal(2, store.LeaseClaims.Count);
 
         var afterHtml = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=estimate");
-        Assert.Contains("The estimate was duplicated.", afterHtml, StringComparison.Ordinal);
+        Assert.Contains("The repair spec was duplicated.", afterHtml, StringComparison.Ordinal);
         Assert.Contains("data-case-editing=\"true\"", afterHtml, StringComparison.Ordinal);
     }
 
@@ -956,12 +936,9 @@ public sealed partial class AssessmentEstimateImportWebTests
             new("estimateId", seeded.SpecificationId.ToString("D")),
             new("expectedVersion", RecordingStores.CaseVersion.ToString(CultureInfo.InvariantCulture)),
             new("estimateName", details.Name),
-            new("estimateRepairDays", details.RepairDays!.Value.ToString(CultureInfo.InvariantCulture)),
             new("estimateLabourRate", details.LabourRate!.Value.ToString(CultureInfo.InvariantCulture)),
-            new("estimatePaintMaterials", details.PaintMaterials!.Value.ToString(CultureInfo.InvariantCulture)),
             new("estimateOtherCosts", details.OtherCosts!.Value.ToString(CultureInfo.InvariantCulture)),
             new("estimateVatPercent", details.VatPercent.ToString(CultureInfo.InvariantCulture)),
-            new("estimateNotes", details.Notes ?? string.Empty),
         };
         fields.AddRange(HeaderFields(details.VatPolicy, details.AppliedDiscounts));
         foreach (var line in seeded.Lines.OrderBy(line => line.Position))
@@ -979,6 +956,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             fields.Add(new("lineLabourHours", line.WorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
             fields.Add(new("linePaintHours", line.PaintWorkUnits?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
             fields.Add(new("linePartPounds", amount));
+            fields.Add(new("lineMaterials", line.Materials?.ToString(CultureInfo.InvariantCulture) ?? string.Empty));
         }
 
         using var saveResponse = await client.PostAsync(
@@ -1075,8 +1053,7 @@ public sealed partial class AssessmentEstimateImportWebTests
             null,
             null,
             null,
-            new(
-                "Imported estimate", 3, 52.50m, 25m, 110m, 20m, "Typed from the repairer's e-mail.",
+            new("Imported estimate", 52.50m, 110m, 20m,
                 new EstimateDiscounts(0.125m, 0.05m, 0.1m, 0.025m),
                 new EstimateVatPolicy(
                     RepairerVatStatus.NotRegistered,
@@ -1109,7 +1086,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         null,
         null,
         null,
-        new("Estimate 1", null, null, null, null, 20m, null,
+        new("Estimate 1", null, null, 20m,
             Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)));
 
     private static WebApplicationFactory<Program> Compose(

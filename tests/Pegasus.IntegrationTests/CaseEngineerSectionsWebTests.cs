@@ -69,9 +69,9 @@ public sealed class CaseEngineerSectionsWebTests
 
         if (!AssessmentPolicy.IsWritableState(state))
         {
-            Assert.DoesNotContain("New estimate", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("New repair spec", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Import estimate", html, StringComparison.Ordinal);
-            Assert.DoesNotContain("Save estimate", html, StringComparison.Ordinal);
+            Assert.DoesNotContain("Save repair spec", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Send to Claude", html, StringComparison.Ordinal);
             Assert.DoesNotContain("Generate report draft", html, StringComparison.Ordinal);
         }
@@ -286,7 +286,7 @@ public sealed class CaseEngineerSectionsWebTests
             DateTimeOffset.UtcNow,
             null,
             null,
-            new("Estimate 1", 3, 50m, 100m, 25m, 20m, "Recorded notes"),
+            new("Estimate 1", 50m, 25m, 20m),
             true);
     }
 

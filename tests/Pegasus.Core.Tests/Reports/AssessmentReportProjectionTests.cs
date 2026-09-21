@@ -243,7 +243,7 @@ public sealed class AssessmentReportProjectionTests
     [Fact]
     public void TheCurrentEstimateSuppliesTheCanonicalBreakdownAndTheLists()
     {
-        var estimate = CurrentEstimate(new("Repairer", 2, 45m, 60m, 15m, 5m, null, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)));
+        var estimate = CurrentEstimate(new("Repairer", 45m, 15m, 5m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)), materials: 60m);
         var input = ReadyInput() with { CurrentEstimate = estimate };
 
         var result = AssessmentReportProjection.Project(input);
@@ -267,7 +267,6 @@ public sealed class AssessmentReportProjectionTests
         Assert.Equal(["Bonnet"], result.Snapshot.NewParts);
         Assert.Equal(["Repair wing"], result.Snapshot.Repairs);
         Assert.Equal(["Paint wing"], result.Snapshot.Operations);
-        Assert.Equal(2, result.Snapshot.Settlement.RepairDays);
         result.Snapshot.Validate();
     }
 
@@ -281,13 +280,13 @@ public sealed class AssessmentReportProjectionTests
     public void TheReportsCostsAreThePrintedBreakdownRowForRow()
     {
         var estimate = CurrentEstimate(new EstimateDetails(
-            "Repairer", 2, 45m, 60m, 15m, 20m, null,
+            "Repairer", 45m, 15m, 20m,
             new EstimateDiscounts(0.1m, 0.05m, 0.125m, 0.025m),
             new EstimateVatPolicy(
                 RepairerVatStatus.NotRegistered,
                 EstimateVatCategories.Parts | EstimateVatCategories.Materials,
                 false),
-            null));
+            null), materials: 60m);
 
         var costs = AssessmentReportProjection
             .Project(ReadyInput() with { CurrentEstimate = estimate })
@@ -322,7 +321,7 @@ public sealed class AssessmentReportProjectionTests
             .Project(ReadyInput() with
             {
                 CurrentEstimate = CurrentEstimate(
-                    new("Repairer", 2, 45m, 60m, 15m, 20m, null, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered))),
+                    new("Repairer", 45m, 15m, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)), materials: 60m),
             })
             .Snapshot!.Costs;
 
@@ -460,16 +459,11 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Fact]
-    public void CaseSettlementAndReportUseTheSameFiguresAndEstimateRepairDays()
+    public void CaseSettlementAndReportUseTheSameFigures()
     {
         var input = ReadyInput();
-        var currentEstimate = input.CurrentEstimate!;
         input = input with
         {
-            CurrentEstimate = currentEstimate with
-            {
-                Details = currentEstimate.Details with { RepairDays = 3 },
-            },
             Assessment = input.Assessment with
             {
                 Fields = [.. input.Assessment.Fields, Field(AssessmentVocabulary.SalvageValue, "500.00")],
@@ -481,7 +475,6 @@ public sealed class AssessmentReportProjectionTests
 
         Assert.NotNull(settlement);
         Assert.Equal(4_330m, settlement.Equity);
-        Assert.Equal(3, settlement.RepairDays);
         Assert.Equal(report.Snapshot!.Settlement, settlement);
     }
 
@@ -541,7 +534,7 @@ public sealed class AssessmentReportProjectionTests
     [Fact]
     public void ACurrentEstimateWithoutALabourRateIsNotReady()
     {
-        var estimate = CurrentEstimate(new("Repairer", null, null, null, null, 20m, null));
+        var estimate = CurrentEstimate(new("Repairer", null, null, 20m));
 
         var result = AssessmentReportProjection.Project(
             ReadyInput() with { CurrentEstimate = estimate });
@@ -561,20 +554,20 @@ public sealed class AssessmentReportProjectionTests
         [
             Line(1, "repair", "Nearside door") with { WorkUnits = 5m, Price = null },
             Line(2, "new_part", "Door skin") with { WorkUnits = null, Price = 50m, Quantity = 1 },
-            Line(3, "paint_blend", "Blend nearside wing") with { WorkUnits = null, Price = null },
+            Line(3, "paint_blend", "Blend nearside wing") with { WorkUnits = null, Price = null, Materials = 20m },
         ],
         null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null,
-        new EstimateDetails("Repairer", null, 30m, 20m, 5m, 20m, null, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+        new EstimateDetails("Repairer", 30m, 5m, 20m, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
         IsCurrent: true));
 
-    private static RepairSpecificationVersion CurrentEstimate(EstimateDetails details) => AcceptedEstimate(
+    private static RepairSpecificationVersion CurrentEstimate(EstimateDetails details, decimal? materials = null) => AcceptedEstimate(
         new(
         Guid.NewGuid(), Guid.NewGuid(), 2, RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         [
             Line(1, "new_part", "Bonnet") with { WorkUnits = null, Price = 310m, Quantity = 1 },
             Line(2, "repair", "Repair wing") with { WorkUnits = 3m },
-            Line(3, "paint_repair", "Paint wing") with { WorkUnits = null, PaintWorkUnits = 2.5m },
+            Line(3, "paint_repair", "Paint wing") with { WorkUnits = null, PaintWorkUnits = 2.5m, Materials = materials },
         ],
         null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null, details, IsCurrent: true));
 

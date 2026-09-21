@@ -404,19 +404,6 @@ public sealed partial class DetailsModel(
         && (SelectedEstimate.State == RepairSpecificationState.Draft
             || SelectedEstimate.State == RepairSpecificationState.Accepted);
 
-    /// <summary>
-    /// The condition that stops the selected estimate being made Current, or
-    /// null when nothing does. Core owns the refusal
-    /// (<see cref="EstimatePolicy.ValidateSetCurrent"/>) and only a Draft is
-    /// held to it; this names the same condition on the disabled control so
-    /// the screen never presents a button the save would refuse.
-    /// </summary>
-    public string? UseEstimateCondition =>
-        SelectedEstimate is { State: RepairSpecificationState.Draft } draft
-        && draft.Details.VatPolicy.BlocksAcceptance
-            ? EstimateVatLabels.UnknownStatusCondition
-            : null;
-
     public EstimateTotals EditorTotals
     {
         get
@@ -424,12 +411,9 @@ public sealed partial class DetailsModel(
             var details = EditorDetails ?? SelectedEstimate?.Details
                 ?? new EstimateDetails(
                     Name: Labels.CaseWorkspace.EngineerSections.Estimate,
-                    RepairDays: null,
                     LabourRate: null,
-                    PaintMaterials: null,
                     OtherCosts: null,
-                    VatPercent: EstimatePolicy.DefaultVatPercent,
-                    Notes: null);
+                    VatPercent: EstimatePolicy.DefaultVatPercent);
             return EstimateTotals.Compute(new(
                 SelectedEstimate?.SpecificationId ?? Guid.Empty,
                 SelectedEstimate?.CaseId ?? Guid.Empty,
@@ -460,7 +444,8 @@ public sealed partial class DetailsModel(
                     ParseNumber(line.PaintHours),
                     string.IsNullOrWhiteSpace(line.Quantity)
                         ? null
-                        : (int?)ParseNumber(line.Quantity)))],
+                        : (int?)ParseNumber(line.Quantity),
+                    ParseNumber(line.Materials)))],
                 null,
                 SelectedEstimate?.CreatedBy ?? string.Empty,
                 SelectedEstimate?.CreatedAtUtc ?? DateTimeOffset.UtcNow,
@@ -472,6 +457,33 @@ public sealed partial class DetailsModel(
                 SelectedEstimate?.IsCurrent ?? false,
                 SelectedEstimate?.AiJobId,
                 SelectedEstimate?.DiscardReason));
+        }
+    }
+
+    /// <summary>
+    /// The addresses whose postcode suggests the regional uplift (v28 P17),
+    /// each named with its outward code: the repairer's, the claimant's and
+    /// the storage location's.
+    /// </summary>
+    public IReadOnlyList<string> RegionalUpliftSuggestions
+    {
+        get
+        {
+            var data = Case?.Data;
+            if (data is null)
+            {
+                return [];
+            }
+            var candidates = new (string Label, string? Address)[]
+            {
+                (Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate.Repairer, Accepted(data.Inspection.Address)?.Value),
+                (Labels.CaseWorkspace.RibbonClaimant, Accepted(data.Claimant.Address)?.Value),
+                (Pegasus.Web.Presentation.CaseWorkspaceLabels.Inspection.Storage, Accepted(data.Inspection.StorageLocation)?.Value),
+            };
+            return candidates
+                .Where(candidate => RegionalUpliftPolicy.Suggests(candidate.Address))
+                .Select(candidate => $"{candidate.Label} ({RegionalUpliftPolicy.OutwardCode(candidate.Address)})")
+                .ToArray();
         }
     }
 
@@ -949,13 +961,10 @@ public sealed partial class DetailsModel(
             EditingNewEstimate = true;
             EditorDetails = new EstimateDetails(
                 Name: Labels.CaseWorkspace.EngineerSections.NewEstimate,
-                RepairDays: null,
                 LabourRate: null,
-                PaintMaterials: null,
                 OtherCosts: null,
-                VatPercent: EstimatePolicy.DefaultVatPercent,
-                Notes: null);
-            EditorLines = [new EstimateEditorLine("", null, null, null, null, null, null)];
+                VatPercent: EstimatePolicy.DefaultVatPercent);
+            EditorLines = [new EstimateEditorLine("", null, null, null, null, null, null, null)];
             return;
         }
 
@@ -980,6 +989,7 @@ public sealed partial class DetailsModel(
                 line.WorkUnits?.ToString(CultureInfo.InvariantCulture),
                 line.PaintWorkUnits?.ToString(CultureInfo.InvariantCulture),
                 line.Price?.ToString("0.##", CultureInfo.InvariantCulture),
+                line.Materials?.ToString("0.##", CultureInfo.InvariantCulture),
                 line.Id))
             .ToList();
     }
@@ -2290,7 +2300,7 @@ public sealed partial class DetailsModel(
                     expectedVersion.Value,
                     actor,
                     operationKey,
-                    estimateId is null ? "Estimate created" : "Estimate saved",
+                    estimateId is null ? "Repair spec created" : "Repair spec saved",
                     editLeaseToken!,
                     estimateId,
                     details,
@@ -2305,7 +2315,7 @@ public sealed partial class DetailsModel(
             RecordEditorCommit("case-estimate-form", operationKey, expectedVersion.Value);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
-            TempData["CaseStatus"] = "The estimate was saved.";
+            TempData["CaseStatus"] = "The repair spec was saved.";
             return RedirectToEstimate(id, saved.SpecificationId.ToString("D"));
         }
         catch (StaffAuthorizationException)
@@ -2330,7 +2340,11 @@ public sealed partial class DetailsModel(
     {
         var editor = ReadEditorPost();
         IReadOnlyList<EstimateEditorLine> rows = editor.Rows;
-        if (Request.Form.TryGetValue("removeLine", out var removed)
+        if (Request.Form.TryGetValue("clearLines", out var cleared) && cleared.ToString() == "true")
+        {
+            rows = [];
+        }
+        else if (Request.Form.TryGetValue("removeLine", out var removed)
             && int.TryParse(removed.ToString(), out var removeAt)
             && removeAt >= 0 && removeAt < rows.Count)
         {
@@ -2338,7 +2352,7 @@ public sealed partial class DetailsModel(
         }
         else
         {
-            rows = [.. rows, new EstimateEditorLine("", null, null, null, null, null, null)];
+            rows = [.. rows, new EstimateEditorLine("", null, null, null, null, null, null, null)];
         }
 
         return await RedrawEditorAsync(id, editor.EstimateId, editor, rows, cancellationToken);
@@ -2369,7 +2383,7 @@ public sealed partial class DetailsModel(
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
-            TempData["CaseStatus"] = "The estimate was duplicated.";
+            TempData["CaseStatus"] = "The repair spec was duplicated.";
             return RedirectToEstimate(id, copy.SpecificationId.ToString("D"));
         }
         catch (StaffAuthorizationException)
@@ -2404,7 +2418,7 @@ public sealed partial class DetailsModel(
         }
         if (string.IsNullOrWhiteSpace(reason))
         {
-            TempData["CaseError"] = "Give the reason this estimate is deleted.";
+            TempData["CaseError"] = "Give the reason this repair spec is deleted.";
             return RedirectToEstimate(id, estimateId.ToString("D"));
         }
 
@@ -2415,7 +2429,7 @@ public sealed partial class DetailsModel(
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
-            TempData["CaseStatus"] = "The estimate was discarded.";
+            TempData["CaseStatus"] = "The repair spec was discarded.";
             return RedirectToEstimate(id);
         }
         catch (StaffAuthorizationException)
@@ -2458,7 +2472,7 @@ public sealed partial class DetailsModel(
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);
-            TempData["CaseStatus"] = "The estimate is now the case's current estimate.";
+            TempData["CaseStatus"] = "The repair spec is now the case's current repair spec.";
             return RedirectToEstimate(id, estimateId.ToString("D"));
         }
         catch (StaffAuthorizationException)
@@ -2771,7 +2785,7 @@ public sealed partial class DetailsModel(
         }
         if (!actor.IsInRole(StaffRole.Engineer))
         {
-            TempData["CaseError"] = "Only an Engineer can change an estimate.";
+            TempData["CaseError"] = "Only an Engineer can change a repair spec.";
             return RedirectToEstimate(id);
         }
         if (access.IsReadOnly)
@@ -2827,18 +2841,16 @@ public sealed partial class DetailsModel(
         // Redrawing a row must not change what the totals mean: the header
         // is read back on exactly the terms the save reads it.
         EditorDetails = EditorDetailsFrom(editor, SelectedEstimate);
-        EditorLines = rows.Count > 0 ? rows : [new EstimateEditorLine("", null, null, null, null, null, null)];
+        EditorLines = rows.Count > 0 ? rows : [new EstimateEditorLine("", null, null, null, null, null, null, null)];
         return Page();
     }
 
     private sealed record EstimateEditorPost(
         string? Name,
-        int? RepairDays,
         decimal? LabourRate,
-        decimal? PaintMaterials,
+        bool RegionalUplift,
         decimal? OtherCosts,
         decimal? VatPercent,
-        string? Notes,
         RepairerVatStatus VatStatus,
         EstimateVatCategories VatCategories,
         EstimateDiscounts Discounts,
@@ -2880,14 +2892,12 @@ public sealed partial class DetailsModel(
     private static EstimateDetails EditorDetailsFrom(
         EstimateEditorPost editor, RepairSpecificationVersion? existing) => EstimatePolicy.RetainEditorRate(new(
         editor.Name ?? string.Empty,
-        editor.RepairDays,
         editor.LabourRate,
-        editor.PaintMaterials,
         editor.OtherCosts,
         editor.VatPercent ?? EstimatePolicy.DefaultVatPercent,
-        editor.Notes,
         editor.Discounts,
-        editor.VatPolicy), existing?.Details);
+        editor.VatPolicy,
+        RegionalUplift: editor.RegionalUplift), existing?.Details);
 
     private EstimateEditorPost ReadEditorPost()
     {
@@ -2898,12 +2908,6 @@ public sealed partial class DetailsModel(
                 : decimal.TryParse(value.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
                     ? parsed
                     : decimal.MinusOne;
-        static int? Days(string? value) =>
-            string.IsNullOrWhiteSpace(value)
-                ? null
-                : int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-                    ? parsed
-                    : -1;
         // A discount is typed as a percentage and held as a fraction. A blank
         // box is no discount; anything unreadable stays negative through the
         // conversion, so EstimatePolicy.ValidateDiscounts' [0,1] rule refuses
@@ -2923,6 +2927,7 @@ public sealed partial class DetailsModel(
         var labourHoursValues = form["lineLabourHours"].ToArray();
         var paintHoursValues = form["linePaintHours"].ToArray();
         var partPoundsValues = form["linePartPounds"].ToArray();
+        var materialsValues = form["lineMaterials"].ToArray();
         var rows = new List<EstimateEditorLine>(operations.Length);
         var lines = new List<EstimateLineInput>(operations.Length);
         var existingLineIds = new List<Guid?>(operations.Length);
@@ -2938,18 +2943,20 @@ public sealed partial class DetailsModel(
             var labourHours = Field(labourHoursValues, index);
             var paintHours = Field(paintHoursValues, index);
             var partPounds = Field(partPoundsValues, index);
+            var lineMaterials = Field(materialsValues, index);
             var existingLineId = Guid.TryParse(Field(postedLineIds, index), out var parsedLineId)
                 ? parsedLineId
                 : (Guid?)null;
             rows.Add(new EstimateEditorLine(
-                operation, description, partNumber, quantity, labourHours, paintHours, partPounds, existingLineId));
+                operation, description, partNumber, quantity, labourHours, paintHours, partPounds, lineMaterials, existingLineId));
 
             var isEmpty = string.IsNullOrWhiteSpace(description)
                 && string.IsNullOrWhiteSpace(partNumber)
                 && string.IsNullOrWhiteSpace(quantity)
                 && string.IsNullOrWhiteSpace(labourHours)
                 && string.IsNullOrWhiteSpace(paintHours)
-                && string.IsNullOrWhiteSpace(partPounds);
+                && string.IsNullOrWhiteSpace(partPounds)
+                && string.IsNullOrWhiteSpace(lineMaterials);
             if (isEmpty)
             {
                 continue;
@@ -2960,6 +2967,7 @@ public sealed partial class DetailsModel(
             var workUnits = Money(labourHours);
             var paintWorkUnits = Money(paintHours);
             var price = Money(partPounds);
+            var materials = Money(lineMaterials);
             int? parsedQuantity = null;
             if (!string.IsNullOrWhiteSpace(quantity))
             {
@@ -2975,10 +2983,12 @@ public sealed partial class DetailsModel(
                 || workUnits == decimal.MinusOne
                 || paintWorkUnits == decimal.MinusOne
                 || price == decimal.MinusOne
+                || materials == decimal.MinusOne
                 || parsedQuantity == -1
                 || workUnits is < 0
                 || paintWorkUnits is < 0
-                || price is < 0)
+                || price is < 0
+                || materials is < 0)
             {
                 linesAreValid = false;
                 continue;
@@ -2997,7 +3007,8 @@ public sealed partial class DetailsModel(
                 null,
                 null,
                 paintWorkUnits,
-                parsedQuantity));
+                parsedQuantity,
+                materials));
         }
 
         Guid? estimateId = Guid.TryParse(form["estimateId"].ToString(), out var parsedId)
@@ -3015,12 +3026,10 @@ public sealed partial class DetailsModel(
 
         return new(
             form["estimateName"].ToString(),
-            Days(form["estimateRepairDays"].ToString()),
             Money(form["estimateLabourRate"].ToString()),
-            Money(form["estimatePaintMaterials"].ToString()),
+            Checked("estimateRegionalUplift"),
             Money(form["estimateOtherCosts"].ToString()),
             Money(form["estimateVatPercent"].ToString()),
-            form["estimateNotes"].ToString(),
             // Enum.TryParse accepts any number, so a posted value that is not
             // one of the three named states falls back to Unknown rather than
             // reaching Core as an undefined status.
@@ -3531,4 +3540,5 @@ public sealed record EstimateEditorLine(
     string? LabourHours,
     string? PaintHours,
     string? PartPounds,
+    string? Materials,
     Guid? ExistingLineId = null);

@@ -71,7 +71,7 @@ internal static class EstimateDocumentLayout
         IdentityTable(column.Item(), snapshot);
         LineTable(column.Item(), snapshot.Lines);
 
-        if (snapshot.PaintMaterials is not null || snapshot.OtherCosts is not null)
+        if (snapshot.OtherCosts is not null)
         {
             Section(column, "Adjustments", section => section.Item().ShowEntire().Table(table =>
             {
@@ -82,15 +82,10 @@ internal static class EstimateDocumentLayout
                 });
                 HeaderCell(table.Cell(), "Recorded adjustment");
                 HeaderCell(table.Cell(), "Amount", alignRight: true);
-                if (snapshot.PaintMaterials is { } materials)
-                {
-                    BodyCell(table.Cell(), false).Text("Additional materials");
-                    BodyCell(table.Cell(), false).AlignRight().Text(Money(materials));
-                }
                 if (snapshot.OtherCosts is { } costs)
                 {
-                    BodyCell(table.Cell(), true).Text("Additional costs");
-                    BodyCell(table.Cell(), true).AlignRight().Text(Money(costs));
+                    BodyCell(table.Cell(), false).Text("Additional costs");
+                    BodyCell(table.Cell(), false).AlignRight().Text(Money(costs));
                 }
             }));
         }

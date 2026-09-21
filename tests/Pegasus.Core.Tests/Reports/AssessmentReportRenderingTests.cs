@@ -132,7 +132,7 @@ public sealed class AssessmentReportRenderingTests
                 Line(3, "specialist_fixed", "Tyre", workUnits: 4m, price: 180m),
             ],
             null, "engineer", RecordedAtUtc, null, null, null, null,
-            new("Estimate", null, 60m, null, null, 20m, null,
+            new("Estimate", 60m, null, 20m,
                 Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)));
         var costs = ReportRepairCosts.For(draft with
         {
@@ -157,7 +157,7 @@ public sealed class AssessmentReportRenderingTests
                 Line(2, "specialist_wu", "Calibration", workUnits: 1m, price: null),
             ],
             null, "engineer", RecordedAtUtc, null, null, null, null,
-            new("Estimate", null, 60m, null, null, 20m, null,
+            new("Estimate", 60m, null, 20m,
                 Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)));
         var versionThreeEquivalent = draft with
         {
@@ -446,10 +446,10 @@ public sealed class AssessmentReportRenderingTests
             new(RepairSpecificationSourceRoute.Manual, null, null, null),
             [
                 Line(1, "repair", "Nearside door", workUnits: 5m, price: null),
-                Line(2, "new_part", "Door skin", workUnits: null, price: 50m),
+                Line(2, "new_part", "Door skin", workUnits: null, price: 50m) with { Materials = 20m },
             ],
             null, "engineer-1", RecordedAtUtc, "engineer-1", RecordedAtUtc, null, null,
-            new EstimateDetails("Repairer", null, 30m, 20m, 5m, vatPercent, null, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+            new EstimateDetails("Repairer", 30m, 5m, vatPercent, Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
             IsCurrent: true);
         return ReportRepairCosts.For(draft with
         {
@@ -470,7 +470,7 @@ public sealed class AssessmentReportRenderingTests
         "repair_kit", "not_fitted", "Door scratch", 75m, "Red paint");
 
     internal static ReportSettlement Settlement() => new(
-        250m, 100m, true, 6_000m, 4_125m, 4, "Parts delay", "None", 20m, 80m,
+        250m, 100m, true, 6_000m, 4_125m, "Parts delay", "None", 20m, 80m,
         new(2026, 8, 4), 35m, 200m, "Repairer", "Salvage Co", "SAL-1", true, false, true,
         new(2026, 8, 20));
 

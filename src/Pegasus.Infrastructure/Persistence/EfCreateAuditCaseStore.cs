@@ -322,9 +322,8 @@ public sealed class EfCreateAuditCaseStore(
             AcceptedBy = source.AcceptedBy,
             AcceptedAtUtc = source.AcceptedAtUtc,
             Name = source.Name,
-            RepairDays = source.RepairDays,
             LabourRate = source.LabourRate,
-            PaintMaterials = source.PaintMaterials,
+            RegionalUplift = source.RegionalUplift,
             OtherCosts = source.OtherCosts,
             RateCardId = source.RateCardId,
             RateCardVersion = source.RateCardVersion,
@@ -340,7 +339,6 @@ public sealed class EfCreateAuditCaseStore(
             VatOverrideReason = source.VatOverrideReason,
             CalculationBreakdownJson = source.CalculationBreakdownJson,
             VatPercent = source.VatPercent,
-            Notes = source.Notes,
             IsCurrent = source.IsCurrent,
             LastOperationKey = $"{request.OperationKey}:estimate"
         };

@@ -684,7 +684,7 @@ internal static class AssessmentReportLayout
     [
         ("Excess", OptionalMoney(settlement.Excess)), ("Betterment", OptionalMoney(settlement.Betterment)),
         ("Claimant VAT Registered", Flag(settlement.ClaimantVatRegistered)), ("Reserve", OptionalMoney(settlement.Reserve)),
-        ("Equity", Money(settlement.Equity)), ("Repair Duration", settlement.RepairDays is { } days ? $"{days} days" : "—"),
+        ("Equity", Money(settlement.Equity)),
         ("Repair Delays", settlement.RepairDelays ?? "—"), ("Report Delay", settlement.ReportDelay ?? "—"),
         ("Storage Per Day", OptionalMoney(settlement.StoragePerDay)), ("Recovery", OptionalMoney(settlement.Recovery)),
         ("Hire Start", Date(settlement.HireStart)), ("Hire Daily Cost", OptionalMoney(settlement.HireDailyCost)),

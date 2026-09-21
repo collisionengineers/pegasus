@@ -296,7 +296,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260917161519_RemovePublicUploadLinks",
                 "20260918090000_RemoveAdministrationEditScopes",
                 "20260921060711_CapValuationSource",
-                "20260921070000_DamageImpactsAsAreas"
+                "20260921070000_DamageImpactsAsAreas",
+                "20260921070455_RepairSpecHeaderByLine"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

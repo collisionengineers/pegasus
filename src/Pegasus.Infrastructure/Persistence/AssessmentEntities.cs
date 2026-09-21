@@ -87,9 +87,8 @@ internal sealed class CaseRepairSpecificationEntity
     // Named estimate header. Exactly one row per case carries
     // IsCurrent; the Current estimate is the one the report costs from.
     public required string Name { get; set; }
-    public int? RepairDays { get; set; }
     public decimal? LabourRate { get; set; }
-    public decimal? PaintMaterials { get; set; }
+    public bool RegionalUplift { get; set; }
     public decimal? OtherCosts { get; set; }
     public Guid? RateCardId { get; set; }
     public long? RateCardVersion { get; set; }
@@ -105,7 +104,6 @@ internal sealed class CaseRepairSpecificationEntity
     public string? VatOverrideReason { get; set; }
     public string? CalculationBreakdownJson { get; set; }
     public decimal VatPercent { get; set; }
-    public string? Notes { get; set; }
     public bool IsCurrent { get; set; }
     public Guid? AiJobId { get; set; }
     public string? DiscardedBy { get; set; }

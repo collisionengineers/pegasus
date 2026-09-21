@@ -119,7 +119,6 @@ public sealed record ReportSettlement(
     bool? ClaimantVatRegistered,
     decimal? Reserve,
     decimal Equity,
-    int? RepairDays,
     string? RepairDelays,
     string? ReportDelay,
     decimal? StoragePerDay,

@@ -50,7 +50,8 @@ internal sealed record EstimateLineToolInput(
     string? EvidenceLabel = null,
     string? Justification = null,
     decimal? PaintWorkUnits = null,
-    int? Quantity = null);
+    int? Quantity = null,
+    decimal? Materials = null);
 
 internal sealed record EstimateTotalsToolItem(
     decimal Parts,
@@ -71,12 +72,10 @@ internal sealed record EstimateToolItem(
     string SourceRoute,
     bool IsCurrent,
     Guid? AiJobId,
-    int? RepairDays,
     decimal? LabourRate,
-    decimal? PaintMaterials,
+    bool RegionalUplift,
     decimal? OtherCosts,
     decimal VatPercent,
-    string? Notes,
     IReadOnlyList<EstimateLineToolItem> Lines,
     EstimateTotalsToolItem Totals,
     string CreatedBy,
@@ -245,12 +244,9 @@ internal sealed class AssessmentMcpTools(
         [Description("Estimate name shown on its tab (at most 100 characters).")] string name,
         [Description("The ordered estimate lines; the whole collection is replaced.")] IReadOnlyList<EstimateLineToolInput> lines,
         [Description("Existing AI-draft estimate to replace; omit to create a new one.")] Guid? estimateId = null,
-        [Description("Repair days.")] int? repairDays = null,
         [Description("One hourly rate for both panel and paint labour.")] decimal? labourRate = null,
-        [Description("Paint materials amount.")] decimal? paintMaterials = null,
         [Description("Other costs amount.")] decimal? otherCosts = null,
         [Description("VAT percentage, 0 to 100; defaults to 20.")] decimal? vatPercent = null,
-        [Description("Free-text notes (at most 4000 characters).")] string? notes = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(
@@ -283,12 +279,9 @@ internal sealed class AssessmentMcpTools(
                         estimateId,
                         new(
                             name,
-                            repairDays,
                             labourRate,
-                            paintMaterials,
                             otherCosts,
-                            vatPercent ?? EstimatePolicy.DefaultVatPercent,
-                            notes),
+                            vatPercent ?? EstimatePolicy.DefaultVatPercent),
                         lines.Select(MapLineInput).ToArray(),
                         new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
                         aiJobId),
@@ -642,7 +635,8 @@ internal sealed class AssessmentMcpTools(
         line.EvidenceLabel,
         line.Justification,
         line.PaintWorkUnits,
-        line.Quantity);
+        line.Quantity,
+        line.Materials);
 
     private static EstimateToolItem MapEstimate(RepairSpecificationVersion estimate)
     {
@@ -656,12 +650,10 @@ internal sealed class AssessmentMcpTools(
             estimate.Source.Route.ToString(),
             estimate.IsCurrent,
             estimate.AiJobId,
-            details.RepairDays,
             details.HourlyRate,
-            details.PaintMaterials,
+            details.RegionalUplift,
             details.OtherCosts,
             details.VatPercent,
-            details.Notes,
             estimate.Lines.Select(MapLine).ToArray(),
             new(
                 totals.Printed.Parts,
