@@ -53,6 +53,9 @@ internal sealed class DocumentOccurrenceEntity
     public long PreparationVersion { get; set; }
     public string? PreparedBy { get; set; }
     public DateTimeOffset? PreparedAtUtc { get; set; }
+
+    /// <summary>Whether this image prints on a page of its own (v28 P41).</summary>
+    public bool PreparationFullPage { get; set; }
 }
 
 /// <summary>

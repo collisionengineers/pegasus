@@ -183,6 +183,9 @@ A fee-note preview shows the recorded fee and description without saving
 anything. Native Hand to Engineer opens engineering work without an EVA
 export; EVA is optional and never gates report readiness.
 
+The report prints its images two to a page in the order the Engineer set,
+and an image flagged Full page on a page of its own (v28 P41).
+
 A report generated without an overridden report date is dated the day it was
 generated, and that date is written into the Case's own record so the screen
 and the document agree (v28 P40). A date already recorded is never

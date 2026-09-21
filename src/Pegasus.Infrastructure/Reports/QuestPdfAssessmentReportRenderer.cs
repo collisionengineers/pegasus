@@ -49,7 +49,7 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
         var images = kind == CaseReportArtifactKind.FeeNote
             ? new PreparedReportImages([], [], ReportResources.Logo())
             : new PreparedReportImages(
-                snapshot.OrderedPhotos.Select(PreparePhoto).ToArray(),
+                snapshot.OrderedPhotos.Select(photo => new PreparedReportPhoto(PreparePhoto(photo), photo.FullPage)).ToArray(),
                 PrepareSignature(snapshot.Signatory),
                 ReportResources.Logo());
         return AssessmentReportLayout.Compose(snapshot, kind, images).GeneratePdf();
