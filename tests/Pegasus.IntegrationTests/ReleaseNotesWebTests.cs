@@ -1,6 +1,11 @@
+using System.Data.Common;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -141,9 +146,124 @@ public sealed partial class ReleaseNotesWebTests
         Assert.Equal(HttpStatusCode.OK, stale.StatusCode);
         var stalePage = await stale.Content.ReadAsStringAsync();
         Assert.Contains("changed before this edit was saved", stalePage, StringComparison.Ordinal);
+        Assert.Equal(rowVersion, InputValue(stalePage, "ExpectedRowVersion"));
+
+        using var staleSaveRetry = await administrator.PostAsync($"{EditPage}/{id}?handler=Save", Form(stalePage, new()
+        {
+            ["Id"] = id, ["ExpectedRowVersion"] = InputValue(stalePage, "ExpectedRowVersion"), ["OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["Title"] = "Third", ["Body"] = "Three"
+        }));
+        Assert.Equal(HttpStatusCode.OK, staleSaveRetry.StatusCode);
+        var staleSaveRetryPage = await staleSaveRetry.Content.ReadAsStringAsync();
+        Assert.Contains("changed before this edit was saved", staleSaveRetryPage, StringComparison.Ordinal);
+        Assert.Equal(rowVersion, InputValue(staleSaveRetryPage, "ExpectedRowVersion"));
+
+        using var stalePublishRetry = await administrator.PostAsync($"{EditPage}/{id}?handler=Publish", Form(staleSaveRetryPage, new()
+        {
+            ["Id"] = id, ["ExpectedRowVersion"] = InputValue(staleSaveRetryPage, "ExpectedRowVersion"), ["OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["Title"] = "Third", ["Body"] = "Three"
+        }));
+        Assert.Equal(HttpStatusCode.OK, stalePublishRetry.StatusCode);
+        var stalePublishRetryPage = await stalePublishRetry.Content.ReadAsStringAsync();
+        Assert.Contains("changed before this edit was saved", stalePublishRetryPage, StringComparison.Ordinal);
+        Assert.Equal(rowVersion, InputValue(stalePublishRetryPage, "ExpectedRowVersion"));
 
         var reloaded = await GetHtmlAsync(administrator, $"{EditPage}/{id}");
         Assert.Contains("value=\"Second\"", reloaded, StringComparison.Ordinal);
+        Assert.DoesNotContain("value=\"Third\"", reloaded, StringComparison.Ordinal);
+        Assert.Contains("data-release-note-form", reloaded, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnAcknowledgementPersistenceFailureIsNotReportedAsSuccess()
+    {
+        var interceptor = new NonDuplicateAcknowledgementFailureInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: true,
+            commandInterceptor: interceptor);
+        using var administrator = CreateClient(factory);
+        using var user = CreateClient(factory, "User", Reader);
+        var id = await PublishNoteAsync(administrator, "Persistence failure");
+        var home = await GetHtmlAsync(user, "/");
+
+        interceptor.Arm();
+        using var failed = await user.PostAsync($"/ReleaseNotes?handler=Acknowledge&id={id}", Form(home, new()
+        {
+            ["returnUrl"] = "/Cases"
+        }));
+        Assert.Equal(HttpStatusCode.InternalServerError, failed.StatusCode);
+        Assert.True(interceptor.InterceptedCount > 0);
+        Assert.Contains("whats-new-dialog", await GetHtmlAsync(user, "/"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ConcurrentAcknowledgementsRemainIdempotentWhenOneInsertLosesTheRace()
+    {
+        var interceptor = new DuplicateAcknowledgementRaceInterceptor();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: true,
+            commandInterceptor: interceptor);
+        using var administrator = CreateClient(factory);
+        using var user = CreateClient(factory, "User", Reader);
+        var id = await PublishNoteAsync(administrator, "Duplicate race");
+        var home = await GetHtmlAsync(user, "/");
+
+        interceptor.Arm();
+        var first = user.PostAsync($"/ReleaseNotes?handler=Acknowledge&id={id}", Form(home, new()
+        {
+            ["returnUrl"] = "/Cases"
+        }));
+        var second = user.PostAsync($"/ReleaseNotes?handler=Acknowledge&id={id}", Form(home, new()
+        {
+            ["returnUrl"] = "/Cases"
+        }));
+        var responses = await Task.WhenAll(first, second);
+        foreach (var response in responses)
+        {
+            using (response)
+            {
+                Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+                Assert.Equal("/Cases", response.Headers.Location!.OriginalString);
+            }
+        }
+        Assert.Equal(2, interceptor.ExistenceChecks);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.Equal(1, await context.Set<ReleaseNoteAcknowledgementEntity>()
+            .CountAsync(item => item.StaffId == Reader && item.ReleaseNoteId == id));
+    }
+
+    private static async Task<Guid> PublishNoteAsync(HttpClient administrator, string title)
+    {
+        var newForm = await GetHtmlAsync(administrator, EditPage);
+        using var saved = await administrator.PostAsync($"{EditPage}?handler=Save", Form(newForm, new()
+        {
+            ["Id"] = string.Empty,
+            ["ExpectedRowVersion"] = "0",
+            ["OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["Title"] = title,
+            ["Body"] = "A release note body."
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, saved.StatusCode);
+
+        var draftPage = await GetHtmlAsync(administrator, saved.Headers.Location!.OriginalString);
+        var id = InputValue(draftPage, "Id");
+        using var published = await administrator.PostAsync($"{EditPage}/{id}?handler=Publish", Form(draftPage, new()
+        {
+            ["Id"] = id,
+            ["ExpectedRowVersion"] = InputValue(draftPage, "ExpectedRowVersion"),
+            ["OperationKey"] = Guid.NewGuid().ToString("N"),
+            ["Title"] = title,
+            ["Body"] = InputValue(draftPage, "Body", textarea: true)
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, published.StatusCode);
+        return Guid.Parse(id);
     }
 
     private static HttpClient CreateClient(IntakeWebApplicationFactory factory, string? role = null, Guid? subject = null)
@@ -192,5 +312,90 @@ public sealed partial class ReleaseNotesWebTests
         Assert.True(input.Success, $"No input named {name}.");
         var value = Regex.Match(input.Value, "value=\"(?<value>[^\"]*)\"", RegexOptions.IgnoreCase);
         return WebUtility.HtmlDecode(value.Groups["value"].Value);
+    }
+
+    private sealed class NonDuplicateAcknowledgementFailureInterceptor : DbCommandInterceptor
+    {
+        private int interceptedCount;
+
+        public int InterceptedCount => Volatile.Read(ref interceptedCount);
+
+        public void Arm() => Interlocked.Exchange(ref _armed, 1);
+
+        private int _armed;
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (Volatile.Read(ref _armed) == 1
+                && eventData.CommandSource == CommandSource.SaveChanges
+                && command.CommandText.Contains("[ReleaseNoteAcknowledgements]", StringComparison.Ordinal))
+            {
+                Interlocked.Increment(ref interceptedCount);
+                throw new InvalidOperationException("Simulated non-duplicate acknowledgement database failure.");
+            }
+
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    private sealed class DuplicateAcknowledgementRaceInterceptor : DbCommandInterceptor
+    {
+        private readonly object sync = new();
+        private TaskCompletionSource<bool> checksReleased = CompletedSource();
+        private bool armed;
+        private int checks;
+
+        public int ExistenceChecks => Volatile.Read(ref checks);
+
+        public void Arm()
+        {
+            lock (sync)
+            {
+                checks = 0;
+                armed = true;
+                checksReleased = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+        }
+
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+            DbCommand command,
+            CommandExecutedEventData eventData,
+            DbDataReader result,
+            CancellationToken cancellationToken = default)
+        {
+            Task? release = null;
+            lock (sync)
+            {
+                if (armed
+                    && eventData.CommandSource == CommandSource.LinqQuery
+                    && command.CommandText.Contains("[ReleaseNoteAcknowledgements]", StringComparison.Ordinal))
+                {
+                    checks++;
+                    release = checksReleased.Task;
+                    if (checks == 2)
+                    {
+                        checksReleased.TrySetResult(true);
+                    }
+                }
+            }
+
+            if (release is not null)
+            {
+                await release.WaitAsync(cancellationToken);
+            }
+
+            return result;
+        }
+
+        private static TaskCompletionSource<bool> CompletedSource()
+        {
+            var source = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            source.SetResult(true);
+            return source;
+        }
     }
 }

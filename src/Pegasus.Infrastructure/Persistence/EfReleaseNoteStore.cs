@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.ReleaseNotes;
 
@@ -136,10 +137,23 @@ internal sealed class EfReleaseNoteStore(IDbContextFactory<PegasusDbContext> con
         {
             await context.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (IsDuplicateKey(exception))
         {
             // Two tabs acknowledged at once; the row is there, which is all that was asked.
         }
+    }
+
+    private static bool IsDuplicateKey(DbUpdateException exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException { Number: 2601 or 2627 })
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static IQueryable<ReleaseNoteEntity> Published(PegasusDbContext context) =>
