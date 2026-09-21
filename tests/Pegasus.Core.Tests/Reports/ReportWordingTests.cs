@@ -244,13 +244,49 @@ public sealed class ReportWordingTests
             snapshot.PrintedWording.Select(block => block.Key));
     }
 
+    /// <summary>
+    /// A frozen snapshot prints the Engineer's own words, and composes the
+    /// blocks they never touched from the facts frozen beside them — so the
+    /// narrative can never disagree with the figures on the same page.
+    /// </summary>
     [Fact]
-    public void AFrozenSnapshotPrintsTheBlocksItHolds()
+    public void AFrozenSnapshotPrintsTheChangesItHoldsOverItsOwnFacts()
     {
-        var held = new ReportWordingBlock("manual:1", "Access", "Inspected at the repairer.", 0, Manual: true);
-        var snapshot = Repairable() with { Wording = [held] };
+        var snapshot = Repairable() with
+        {
+            Wording =
+            [
+                new("manual:1", "Access", "Inspected at the repairer.", 99, Manual: true),
+                new(ReportWordingComposition.VehicleHistoryCheck, null, null, null, Included: false),
+            ],
+        };
 
-        Assert.Equal([held], snapshot.PrintedWording);
+        var printed = snapshot.PrintedWording;
+        Assert.Equal("Access", printed[^1].Title);
+        Assert.True(printed[^1].Manual);
+        Assert.DoesNotContain(printed, block => block.Key == ReportWordingComposition.VehicleHistoryCheck);
+        Assert.Equal(
+            "The vehicle has suffered Moderate collision/impact damage to the Right Rear.",
+            printed[0].Text);
+    }
+
+    /// <summary>
+    /// A change to a frozen fact recomposes the block that reads it, so a
+    /// snapshot never prints a sentence its own facts contradict.
+    /// </summary>
+    [Fact]
+    public void AComposedBlockFollowsTheSnapshotsOwnFacts()
+    {
+        var snapshot = Repairable() with
+        {
+            Content = Repairable().Content with { IncludeValuationCommentary = true },
+            ValuationCommentary = "Low mileage for its age.",
+        };
+
+        Assert.Equal(
+            "Low mileage for its age.",
+            snapshot.PrintedWording
+                .Single(block => block.Key == ReportWordingComposition.ValuationCommentary).Text);
     }
 
     [Fact]
