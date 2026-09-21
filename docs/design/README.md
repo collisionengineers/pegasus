@@ -500,11 +500,11 @@ SHA-256: E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2
 Current consumers:
 
 - embedded by `src/Pegasus.Infrastructure` for the integrated report renderer;
-- copied byte-for-byte to the Web runtime and embedded by
-  `src/Pegasus.Web/Pages/Shared/_LayoutAuth.cshtml` as the `auth-brand` of
-  the sign-in card until v28 P1; the sign-in card and the authenticated rail
-  now carry the refined mark (`pegasus-mark-refined-256.png` at 96px,
-  `pegasus-mark-refined-128.png` at 52px).
+- the refined marks are copied byte-for-byte to the Web runtime and embedded by
+  `src/Pegasus.Web/Pages/Shared/_LayoutAuth.cshtml` as the `auth-brand` of the
+  sign-in card and by `_Layout.cshtml` in the authenticated rail
+  (`pegasus-mark-refined-256.png` at 96px, `pegasus-mark-refined-128.png` at
+  52px); the primary logo is not a Web shell consumer.
 
 Rules:
 
@@ -513,7 +513,7 @@ Rules:
 - Never recolour the master or invent another mark.
 - Copy or optimise it for a runtime only through a reviewed source-to-runtime
   mapping with checksum proof.
-- No second logo variant exists.
+- No ungoverned logo variant exists.
 
 The upstream source directory may be absent from a clean checkout. The
 checksum-pinned repository copy is the durable source.
@@ -522,7 +522,9 @@ checksum-pinned repository copy is the durable source.
 
 | Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
 | --- | --- | --- | --- |
-| Primary logo | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte copy embedded by `_LayoutAuth.cshtml` as the `auth-brand` of the sign-in card. |
+| Primary logo | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte governed copy retained for the renderer boundary; it is not embedded by the Web shell. |
+| Refined rail mark (128px) | `docs/design/brand/logos/pegasus-mark-refined-128.png`<br>`1D6758A5F9D90EA4539DBB498BF0171A93C23B85E9C3868BDDC7D6ABC724A1CB` | `src/Pegasus.Web/wwwroot/images/pegasus-mark-refined-128.png`<br>`1D6758A5F9D90EA4539DBB498BF0171A93C23B85E9C3868BDDC7D6ABC724A1CB` | Byte-for-byte copy embedded by `_Layout.cshtml` in the authenticated rail. |
+| Refined auth mark (256px) | `docs/design/brand/logos/pegasus-mark-refined-256.png`<br>`E3C9712DE05E18D93BD21857F3961A8832941D91D942FA1E34F513944B545E1D` | `src/Pegasus.Web/wwwroot/images/pegasus-mark-refined-256.png`<br>`E3C9712DE05E18D93BD21857F3961A8832941D91D942FA1E34F513944B545E1D` | Byte-for-byte copy embedded by `_LayoutAuth.cshtml` as the `auth-brand` of the sign-in card. |
 
 ### Icons
 
@@ -958,7 +960,7 @@ prove acceptance.
 | Shell | This file | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml`, `_ShellDialogs`, `RailCountsPageFilter.cs` |
 | Tokens and vocabulary | This file | `src/Pegasus.Web/wwwroot/css/site.css`, `site.js` |
 | Font | This file | `src/Pegasus.Web/wwwroot/fonts/inter/` |
-| Master logo | `docs/design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core and the checksummed Web copy embedded by `_LayoutAuth.cshtml` |
+| Master logo | `docs/design/brand/logos/logo_no_margin.png`, checksum above | Embedded by the Infrastructure report adapter; the Web shell uses the refined mark mappings above |
 | Renderer templates/style | Repository renderer asset sources | Embedded by `src/Pegasus.Infrastructure`; Core owns report policy and accepted presentation values |
 | Engineer signatures | Repository renderer signature sources; the Sign-off Engineer account setting holds the signature image | Rendered as the Case's sign-off tuple by the renderer; none is Web decorative imagery |
 | Retired renderer/skills/AI source | Git history and accepted integration records | No separate caller, runtime, or policy owner |
