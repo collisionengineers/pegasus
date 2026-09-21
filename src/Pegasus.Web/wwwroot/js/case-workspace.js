@@ -2117,6 +2117,57 @@
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
 })();
 
+// --- report: the Report and Fee tabs (v28 P24) -------------------------------
+// Two panes of one section. The server renders both, so a browser without
+// script reads the fee note under the report; this shows the tabs and keeps
+// one pane at a time.
+(function () {
+    'use strict';
+
+    function bind(root) {
+        root.querySelectorAll('[data-report-tabs]').forEach(function (tabs) {
+            if (tabs.dataset.reportTabsBound === 'true') {
+                return;
+            }
+            tabs.dataset.reportTabsBound = 'true';
+            var section = tabs.closest('[data-report]') || document;
+            var panes = Array.prototype.slice.call(section.querySelectorAll('[data-report-pane]'));
+            var buttons = Array.prototype.slice.call(tabs.querySelectorAll('[data-report-tab]'));
+            if (!panes.length || !buttons.length) {
+                return;
+            }
+            tabs.hidden = false;
+            function show(name) {
+                panes.forEach(function (pane) {
+                    pane.hidden = pane.getAttribute('data-report-pane') !== name;
+                });
+                buttons.forEach(function (button) {
+                    var on = button.getAttribute('data-report-tab') === name;
+                    button.setAttribute('aria-selected', on ? 'true' : 'false');
+                    button.setAttribute('tabindex', on ? '0' : '-1');
+                });
+            }
+            tabs.addEventListener('click', function (event) {
+                var button = event.target.closest('[data-report-tab]');
+                if (button) { show(button.getAttribute('data-report-tab')); }
+            });
+            tabs.addEventListener('keydown', function (event) {
+                var at = buttons.indexOf(document.activeElement);
+                if (at < 0 || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) { return; }
+                event.preventDefault();
+                var to = buttons[(at + (event.key === 'ArrowRight' ? 1 : buttons.length - 1)) % buttons.length];
+                show(to.getAttribute('data-report-tab'));
+                to.focus();
+            });
+            show('report');
+        });
+    }
+
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
+
+
 // --- settlement: the Decisions strip -----------------------------------------
 // The outcome and roadworthiness selects show and hide the rows that only
 // apply to them; Accept copies an AI proposal into the row's own control.

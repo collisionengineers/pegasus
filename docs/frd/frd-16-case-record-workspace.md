@@ -356,7 +356,13 @@ greyed out until the Case holds two specs (P9). Previewing the document
 does not save or discard pending edits. The section also
 carries **Send to AI**, which creates an `AI-10` `Estimate` job
 ([AI Job List](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)),
-disabled without an Engineer's Value. Report-draft generation and preview sit
+disabled without an Engineer's Value. The Report section reads in two tabs (v28 P24): **Report**, everything the
+report itself carries, and **Fee**, the fee note the agreed fee makes — the
+fee, the VAT the report charges on it and their total, beside the agreed fee
+and its description lines, with the generated fee note to download. Without
+script both panes stand.
+
+Report-draft generation and preview sit
 on the Report section
 ([FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#report-generation-entry-point)).
 

@@ -69,6 +69,9 @@
     var reportDateText = DateOnly.TryParseExact(Model.Assessment?.Field(AssessmentVocabulary.ReportDate)?.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var reportDateValue)
         ? reportDateValue.ToString("d MMM yyyy", CultureInfo.InvariantCulture)
         : null;
+    var feeNote = Model.FeeNote;
+    var culture = CultureInfo.GetCultureInfo("en-GB");
+    string FeeMoney(decimal value) => "£" + value.ToString("N2", culture);
 }
 
 <section class="record-section panel @Model.CollapsedClass("case.report") @Model.ActiveTabClass("report") @(Model.IsEditing && !Model.SectionIsEditable("report") ? "is-locked" : null)" id="section-report" data-section="report" data-collapse="case.report" aria-labelledby="section-report-title" data-report>
@@ -145,6 +148,44 @@
         </div>
     </div>
     <div class="panel-body stack">
+        @* P24: the section reads in two tabs. Report is everything the
+           report itself carries; Fee is the fee note the agreed fee makes.
+           Without script both panes stand, so nothing is out of reach. *@
+        <div class="report-tabs" role="tablist" aria-label="@EngineerLabels.Report" data-report-tabs hidden>
+            <button type="button" class="report-tab" role="tab" aria-selected="true" aria-controls="report-pane-report" data-report-tab="report">@Words.ReportTab</button>
+            <button type="button" class="report-tab" role="tab" aria-selected="false" aria-controls="report-pane-fee" data-report-tab="fee">@Words.FeeTab</button>
+        </div>
+        <div id="report-pane-fee" class="stack" role="tabpanel" aria-label="@Words.FeeTab" data-report-pane="fee">
+            <dl class="detail-list" data-report-fee-note>
+                @if (feeNote is { } fee)
+                {
+                    <div><dt>@Words.FeeNet</dt><dd class="mono">@FeeMoney(fee.Net)</dd></div>
+                    <div><dt>@Words.FeeVat</dt><dd class="mono">@FeeMoney(fee.Vat)</dd></div>
+                    <div><dt>@Words.FeeTotal</dt><dd class="mono"><b>@FeeMoney(fee.Total)</b></dd></div>
+                }
+                else
+                {
+                    <div><dt>@Words.FeeNet</dt><dd class="empty">@Words.NoAgreedFee</dd></div>
+                }
+            </dl>
+            <div class="fg g4" data-report-fee-fields>
+                @{ await Field(AssessmentVocabulary.AgreedFee, labels[AssessmentVocabulary.AgreedFee]);
+                    await Field(AssessmentVocabulary.FeeDescriptionLines, labels[AssessmentVocabulary.FeeDescriptionLines], multi: true, extraClass: "span3");
+                }
+            </div>
+            @if (feeNoteArtifact is { Status: CaseReportArtifactStatus.Confirmed } confirmedFeeNote && generation is not null)
+            {
+                <div class="cluster">
+                    <a class="btn btn--small" asp-page="/Cases/Details" asp-page-handler="GeneratedArtifact"
+                       asp-route-id="@caseId" asp-route-generationId="@generation.Id"
+                       asp-route-artifactId="@confirmedFeeNote.Id" target="_blank" rel="noopener" data-report-fee-artifact>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
+                        <span>@ReportLabels.DownloadFeeNote</span>
+                    </a>
+                </div>
+            }
+        </div>
+        <div id="report-pane-report" class="stack" role="tabpanel" aria-label="@Words.ReportTab" data-report-pane="report">
         @if (!Model.AssessmentIsReadOnly && Model.ReportDraftNotReady)
         {
             <div class="notice notice--warning" role="status" data-dismissable data-report-not-ready>
@@ -276,9 +317,7 @@
                     <input id="f-report-date" class="fi" type="date" name="reportDate" form="case-edit-form" value="@reportDate" />
                 }
             </div>
-            @{ await Field(AssessmentVocabulary.AgreedFee, labels[AssessmentVocabulary.AgreedFee]);
-                await Field(AssessmentVocabulary.FeeDescriptionLines, labels[AssessmentVocabulary.FeeDescriptionLines], multi: true);
-                await Field(AssessmentVocabulary.ReportDateOverride, labels[AssessmentVocabulary.ReportDateOverride]);
+            @{ await Field(AssessmentVocabulary.ReportDateOverride, labels[AssessmentVocabulary.ReportDateOverride]);
                 await Field(AssessmentVocabulary.EngineersComments, labels[AssessmentVocabulary.EngineersComments], multi: true, extraClass: "span3");
             }
             @* The valuation commentary itself, beside the switch that prints it:
@@ -331,6 +370,7 @@
                          model="ReportImagePreparationView.Report(Model)" />
             </div>
         }
+        </div>
     </div>
 </section>
 
