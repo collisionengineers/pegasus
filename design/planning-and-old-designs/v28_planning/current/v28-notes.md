@@ -286,11 +286,25 @@ Recorded 20 September 2026 as the slices were built; each is one PR from
 | A · Shell and global | P1, P2, P3, P6 D–I, P8 | `task/v28-shell`, PR 797 | built, 124 web tests green, CI running |
 | B1 · Case details | P4, P7, P12, P25, P45 (P47 was already live) | `task/v28-case-details`, PR 798 | built, 147 web tests green |
 | B2 · Section map | P26 (Case details, Claim, Decisions; Damage and Valuation nested under Vehicle), P38 (VAT registered on Claim, report switches on Valuation, Sign-off Engineer on Case details; unrelated damage stays in the nested Damage panel), P51 (Original report section on an Audit Case, hand-entered; the extraction fill is a follow-up) | `task/v28-case-details`, PR 798 | built, 121 web tests green, CI running |
-| C · Vehicle, Damage, Valuation | P5, P8 cards, P13, P24 | — | not started |
-| D · Repair Spec | P9, P10, P16–P20, P31–P37, P43, P44, P48 | — | not started |
-| E · Decisions | P14, P15, P29, P30 reserve, P35 | — | not started |
-| F · Report, images, delivery | P21–P24, P27, P30, P39–P42, P50 | — | not started |
-| G · Upload and queries | P11, P28 | — | not started |
+| C · Vehicle, Damage, Valuation | P5 (eight areas, Reset), P8 cards, P13 (CAP), P24 chips | `task/v28-vehicle`, PR 799 | built; two migrations (Cap source, impacts as areas) |
+| D · Repair Spec | P9, P10, P16–P20, P31–P37, P43, P44, P48 | `task/v28-repair-spec`, PR 800 | built; header-by-line and snapshot migrations |
+| E · Decisions | P14, P15, P29, P30 reserve, P35 | `task/v28-decisions`, PR 801 | built; reason-bank migration |
+| F1 · Report and Fee tabs | P24 tabs, P40 report date, P39 (already live) | `task/v28-report`, PR 802 | built; no schema change |
+| G · Upload | P11 | `task/v28-upload`, PR 804 | built; P28 deferred, see below |
+| F3 · Images | P27, P41, P50 | `task/v28-images`, PR 805 | built; Full page migration |
+| F4 · Report wording | P30 blocks | `task/v28-wording`, PR 806 | built; wording-blocks migration |
+| F2 · Delivery | P21, P22, P23, P42 | `task/v28-delivery`, PR 807 | built; no schema change |
+
+The F slices were split because the Report section is where everything else
+lands: the tabs and the report date first, then the images once they had one
+home, then the wording the report prints, then what the delivery carries.
+Each slice is stacked on the one before it, so 799 → 800 → 801 → 802 → 804 →
+805 → 806 → 807 merge in that order behind 797 and 798.
+
+**P28 (Queries panel) is deferred.** The captured mockup shows an empty panel
+and the round recorded no interface contract for it: what a query is, who
+raises one, who answers it and when it closes. Shipping the panel without
+that would be a closed gate. It waits on the operator's definition.
 
 Beside the slices, the same day delivered the operator's three additions:
 release notes (PR 794), problem reports (PR 795, stacked on 794) and the
