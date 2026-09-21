@@ -218,17 +218,15 @@ public static class AssessmentReportProjection
             Guides: input.Guides ?? ReportGuideSources.None,
             ValuationCommentary: input.ValuationCommentary,
             ReportDateOverridden: reportDateOverridden,
-            IncludeFeeNote: input.IncludeFeeNote);
+            IncludeFeeNote: input.IncludeFeeNote,
+            // v28 P30: the Engineer's changes to the report's wording are
+            // frozen with the rest of the snapshot, so a generation prints
+            // their words as they stood and a later edit changes nothing
+            // already issued. What a block they never touched says is
+            // composed from the frozen facts beside it.
+            Wording: input.Wording);
 
-        // v28 P30: what the report says is frozen with the rest of the
-        // snapshot, so a generation prints the Engineer's wording as it stood
-        // and a later edit changes nothing already issued.
-        return new(
-            snapshot with
-            {
-                Wording = ReportWordingComposition.Compose(snapshot, input.Wording ?? []),
-            },
-            []);
+        return new(snapshot, []);
     }
 
     private static string RequiredReviewValue(string? value, string name) =>

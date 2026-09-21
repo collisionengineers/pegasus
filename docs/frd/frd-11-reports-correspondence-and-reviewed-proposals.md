@@ -84,10 +84,12 @@ Supplementary Damage block is the Current repair specification's own
 statement, and the Vehicle History Check block is the recorded check
 verbatim.
 
-A generation freezes the blocks it printed, so an issued report renders the
-same way again and a later edit changes nothing already issued. A generation
-frozen before the blocks existed holds none, and composes them from its own
-frozen facts.
+A generation freezes the Engineer's changes with the rest of its facts, so an
+issued report renders the same way again and a later edit changes nothing
+already issued. A block the Engineer never wrote composes from the facts that
+generation froze, so the narrative can never contradict the figures printed
+beside it. A generation frozen before the blocks existed holds no changes and
+composes every block.
 
 ### Audit report parity
 
@@ -153,9 +155,9 @@ approve before issue.
 **What a generation freezes.** The Case version, signatory account and
 signature digest, Current estimate identity, version and breakdown, accepted
 Engineer value and applied valuation identity, content switches, report date
-or override, the wording blocks it printed with their headings and order,
-fee, source documents with their Box identities, and each prepared image's
-role, order, rotation and crop.
+or override, the Engineer's changes to the report's wording — headings,
+wording, order and what is off the report — fee, source documents with their
+Box identities, and each prepared image's role, order, rotation and crop.
 
 ### Companion documents and what a delivery attaches
 

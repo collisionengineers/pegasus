@@ -239,7 +239,9 @@ public sealed class CaseAssetPreparationWebTests
         Assert.DoesNotContain("handler=ResetAssetPreparation", leased, StringComparison.Ordinal);
         // A missing closing quote used to swallow the preview URL into the
         // crop-height attribute, leaving the browser crop editor without a source.
-        Assert.Matches("data-preparation-crop-height=\"[0-9.]+\"\\s+data-preparation-preview=\"/Cases/", leased);
+        Assert.Matches(
+            "data-preparation-crop-height=\"[0-9.]+\"\\s+data-preparation-full-page=\"(true|false)\"\\s+data-preparation-preview=\"/Cases/",
+            leased);
 
         using var response = await workspace.Client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=Save",
@@ -563,15 +565,19 @@ public sealed class CaseAssetPreparationWebTests
             .Skip(1)
     ];
 
-    /// <summary>One occurrence's card within a section.</summary>
+    /// <summary>
+    /// One occurrence's tile within a section. v28 P50 moved the report role
+    /// and its tools onto the image tile itself, so a card is the tile's own
+    /// list item.
+    /// </summary>
     private static string Card(string panel, Guid occurrenceId)
     {
         var marker = panel.IndexOf($"data-preparation-occurrence=\"{occurrenceId:D}\"", StringComparison.Ordinal);
         Assert.True(marker >= 0, $"The card for '{occurrenceId:D}' is not rendered.");
-        var start = panel.LastIndexOf("<article", marker, StringComparison.Ordinal);
-        var end = panel.IndexOf("</article>", marker, StringComparison.Ordinal);
-        Assert.True(end > start, $"The card for '{occurrenceId:D}' is not closed.");
-        return panel[start..(end + "</article>".Length)];
+        var start = panel.LastIndexOf("<li", marker, StringComparison.Ordinal);
+        var end = panel.IndexOf("</li>", marker, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, $"The card for '{occurrenceId:D}' is not closed.");
+        return panel[start..(end + "</li>".Length)];
     }
 
     /// <summary>
