@@ -72,7 +72,8 @@ public sealed record RepairSpecificationVersion(
     bool IsCurrent = false,
     Guid? AiJobId = null,
     string? DiscardReason = null,
-    EstimateTotals? RecordedTotals = null);
+    EstimateTotals? RecordedTotals = null,
+    RepairSpecificationSupplementary? Supplementary = null);
 
 public sealed record RepairSpecificationDisplayLists(
     IReadOnlyList<string> NewParts,

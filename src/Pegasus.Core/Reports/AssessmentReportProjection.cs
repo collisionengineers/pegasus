@@ -197,6 +197,9 @@ public static class AssessmentReportProjection
                 "check_labour", "paint_new", "paint_repair", "paint_blend", "paint_prep",
                 "specialist_fixed", "specialist_wu"),
             Damage: BuildDamage(fields),
+            SupplementaryStatement: input.CurrentEstimate?.Supplementary is { ExplainOnReport: true } supplementary
+                ? supplementary.Statement
+                : null,
             Settlement: BuildSettlement(assessment, input.CurrentEstimate)
                 ?? throw new InvalidDataException("A ready report has incomplete accepted settlement inputs."),
             HistoryCheck: Field(assessment, AssessmentVocabulary.HistoryCheck)!,
@@ -355,7 +358,8 @@ public static class AssessmentReportProjection
             ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageMoved)),
             ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageOwnerRetains)),
             ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageValueAgreed)),
-            ParseDate(Field(fields, AssessmentVocabulary.SettlementSalvageSettled)));
+            ParseDate(Field(fields, AssessmentVocabulary.SettlementSalvageSettled)),
+            ParseMoney(Field(fields, AssessmentVocabulary.SettlementContractSum)));
     }
 
     /// <summary>

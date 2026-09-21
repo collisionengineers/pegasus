@@ -89,6 +89,22 @@ yet represented by an estimate. Pending custody becomes selectable only when
 its confirmation completes. Replaying the original upload does not revive
 its old lease or assume another Case-version increment.
 
+**Engineer acts on a Draft (v28, ruled 20 September 2026).** Target % of
+value scales a Draft down under the Engineer's hand: one factor lowers every
+part price, every materials figure and the labour rate, each to its floor
+(£50 an hour and 65 % of price unless the Engineer sets others); hours never
+move. Apply freezes the outgoing draft, saves the scaled specification and
+freezes it again as the scaled version; Remove scaling returns the Draft to
+the version frozen before. A contract repair's agreed sum is Case data the
+Engineer records beside the specification; recording it sets the outcome to
+Contract repair, and a different sum is a scaling target. Every import,
+scale, removal, restore and sent report freezes a numbered version with how
+it came about; Restore makes a frozen version the Draft after freezing the
+outgoing one; the version a sent report used is marked. Compare reads any
+two of a Case's specifications line by line; a specification may name the
+one it supplements, with a reason, and the composed supplementary statement
+prints on the report when the Engineer says so. Send to AI proposes only.
+
 **Corrections and projections.** A correction creates a new reasoned version
 that keeps and supersedes the earlier accepted one. Accepted rows and their
 evidence are never edited in place. A Case with no unambiguous current

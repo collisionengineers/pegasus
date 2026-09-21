@@ -965,6 +965,12 @@ public sealed record SaveEstimateRequest(
 {
     public Guid? SelectedRateCardId { get; init; }
     public long? SelectedRateCardVersion { get; init; }
+
+    /// <summary>The history event an act records instead of the plain save (v28 P44): scaled, scaling removed, restored.</summary>
+    public string? EventType { get; init; }
+
+    /// <summary>What this specification says about the one it supplements (v28 P20); null clears it.</summary>
+    public RepairSpecificationSupplementary? Supplementary { get; init; }
 }
 
 public sealed record DuplicateEstimateRequest(

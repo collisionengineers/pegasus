@@ -150,12 +150,37 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.DiscardedBy).HasMaxLength(200);
             entity.Property(item => item.DiscardReason).HasMaxLength(500);
             entity.Property(item => item.LastOperationKey).HasMaxLength(100);
+            entity.Property(item => item.SupplementaryReason).HasMaxLength(20);
+            entity.Property(item => item.SupplementaryStatement).HasMaxLength(4000);
             entity.HasIndex(item => new { item.CaseId, item.Version }).IsUnique();
             entity.HasIndex(item => new { item.CaseId, item.CreationOperationKey }).IsUnique();
             entity.HasIndex(item => item.CaseId)
                 .IsUnique()
                 .HasFilter("[IsCurrent] = 1");
             entity.HasIndex(item => item.AiJobId);
+            entity.HasOne(item => item.Case)
+                .WithMany()
+                .HasForeignKey(item => item.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<CaseRepairSpecificationSnapshotEntity>(entity =>
+        {
+            var kinds = string.Join(", ", Enum.GetNames<RepairSpecificationSnapshotKind>().Select(SqlLiteral));
+            entity.ToTable("CaseRepairSpecificationSnapshots", table =>
+            {
+                table.HasCheckConstraint("CK_CaseRepairSpecificationSnapshots_Kind", $"[Kind] IN ({kinds})");
+                table.HasCheckConstraint("CK_CaseRepairSpecificationSnapshots_Number", "[Number] > 0");
+            });
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
+            entity.Property(item => item.Kind).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.Origin).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ContentHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.Gross).HasPrecision(18, 2);
+            entity.HasIndex(item => new { item.SpecificationId, item.Number }).IsUnique();
+            entity.HasIndex(item => item.CaseId);
             entity.HasOne(item => item.Case)
                 .WithMany()
                 .HasForeignKey(item => item.CaseId)

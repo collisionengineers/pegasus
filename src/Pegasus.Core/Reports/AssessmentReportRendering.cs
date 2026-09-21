@@ -132,7 +132,8 @@ public sealed record ReportSettlement(
     bool? SalvageMoved,
     bool? SalvageOwnerRetains,
     bool? SalvageValueAgreed,
-    DateOnly? SalvageSettled);
+    DateOnly? SalvageSettled,
+    decimal? ContractSum = null);
 
 /// <summary>
 /// One prepared report image: the confirmed custody bytes plus the report
@@ -383,7 +384,8 @@ public sealed record AssessmentReportSnapshot(
     string? ValuationCommentary = null,
     bool ReportDateOverridden = false,
     string PayloadVersion = AssessmentReportContract.TemplateVersion,
-    bool IncludeFeeNote = false)
+    bool IncludeFeeNote = false,
+    string? SupplementaryStatement = null)
 {
     /// <summary>
     /// Whether the accepted Glass's guide-disclosure sentence prints: the
