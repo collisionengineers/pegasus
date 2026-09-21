@@ -60,6 +60,35 @@ been accepted, such as a category treatment, storage paragraph,
 statement-of-truth text, qualification or signature, is unavailable. The
 renderer never fills a gap with a placeholder or a guess.
 
+### Report wording blocks
+
+The report's narrative is composed from the Engineer's wording blocks, in
+their order (v28 P30). The blocks are Nature of Incident, Engineer's
+Comments, Supplementary Damage, Valuation Commentary, Unrelated Damage,
+Vehicle History Check, Pre-Incident Condition, Settlement and Salvage, and
+that is their order until the Engineer moves one. The Damage and Tyres tables
+are not wording: they follow the Nature of Incident block.
+
+A block tracks the Case's own facts until the Engineer writes wording in its
+place. The Engineer may rename a block, move it, take it off the report, put
+it back, and add a paragraph of their own. Wording that reads the same as the
+composed sentence is no change, so the block keeps tracking its fields. The
+Engineer's changes are held per Case and written by the one Case save.
+
+The composed sentences remain the accepted report wording and nothing else:
+the mileage statement by its recorded source, the salvage paragraph by the
+recorded category, the settlement paragraph by the recorded outcome. A
+recorded value the wording does not cover, such as an unrecognised mileage
+source, fails before rendering rather than printing around it. The
+Supplementary Damage block is the Current repair specification's own
+statement, and the Vehicle History Check block is the recorded check
+verbatim.
+
+A generation freezes the blocks it printed, so an issued report renders the
+same way again and a later edit changes nothing already issued. A generation
+frozen before the blocks existed holds none, and composes them from its own
+frozen facts.
+
 ### Audit report parity
 
 Audit and Inspection + Audit are active. An Audit report uses the same
@@ -124,8 +153,9 @@ approve before issue.
 **What a generation freezes.** The Case version, signatory account and
 signature digest, Current estimate identity, version and breakdown, accepted
 Engineer value and applied valuation identity, content switches, report date
-or override, narrative, fee, source documents with their Box identities, and
-each prepared image's role, order, rotation and crop.
+or override, the wording blocks it printed with their headings and order,
+fee, source documents with their Box identities, and each prepared image's
+role, order, rotation and crop.
 
 **Report and fee note.** They are separately addressable files in custody.
 The operator generating the report chooses whether the fee note is a separate

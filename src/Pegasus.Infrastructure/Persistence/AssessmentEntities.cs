@@ -151,6 +151,26 @@ internal sealed class UnroadworthyReasonEntity
     public DateTimeOffset CreatedAtUtc { get; set; }
 }
 
+/// <summary>
+/// One Engineer change to a report wording block (v28 P30). A Case holds a
+/// row only for a block whose heading, wording, order or presence the
+/// Engineer changed, plus one per paragraph they wrote themselves.
+/// </summary>
+internal sealed class CaseReportWordingEntity
+{
+    public Guid Id { get; set; }
+    public Guid CaseId { get; set; }
+    public CaseEntity Case { get; set; } = null!;
+    public required string BlockKey { get; set; }
+    public string? Title { get; set; }
+    public string? Text { get; set; }
+    public int? Order { get; set; }
+    public bool Included { get; set; }
+    public bool Manual { get; set; }
+    public required string UpdatedBy { get; set; }
+    public DateTimeOffset UpdatedAtUtc { get; set; }
+}
+
 internal sealed class CaseValuationEntity
 {
     public Guid Id { get; set; }

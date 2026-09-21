@@ -65,7 +65,8 @@ public sealed record AssessmentReportProjectionInput(
     ReportSignatory? Signatory = null,
     ReportGuideSources? Guides = null,
     string? ValuationCommentary = null,
-    bool IncludeFeeNote = false);
+    bool IncludeFeeNote = false,
+    IReadOnlyList<CaseReportWording>? Wording = null);
 
 /// <summary>
 /// Either a snapshot ready to render, or the enumerated reasons it is not —
@@ -219,7 +220,15 @@ public static class AssessmentReportProjection
             ReportDateOverridden: reportDateOverridden,
             IncludeFeeNote: input.IncludeFeeNote);
 
-        return new(snapshot, []);
+        // v28 P30: what the report says is frozen with the rest of the
+        // snapshot, so a generation prints the Engineer's wording as it stood
+        // and a later edit changes nothing already issued.
+        return new(
+            snapshot with
+            {
+                Wording = ReportWordingComposition.Compose(snapshot, input.Wording ?? []),
+            },
+            []);
     }
 
     private static string RequiredReviewValue(string? value, string name) =>

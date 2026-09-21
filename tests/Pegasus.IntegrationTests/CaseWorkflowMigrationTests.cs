@@ -300,7 +300,8 @@ public sealed class CaseWorkflowMigrationTests
                 "20260921070455_RepairSpecHeaderByLine",
                 "20260921073633_RepairSpecificationSnapshots",
                 "20260921081236_UnroadworthyReasonBank",
-                "20260921084154_ReportImageFullPage"
+                "20260921084154_ReportImageFullPage",
+                "20260921090527_ReportWordingBlocks"
             ],
             await context.Database.GetPendingMigrationsAsync());
     }

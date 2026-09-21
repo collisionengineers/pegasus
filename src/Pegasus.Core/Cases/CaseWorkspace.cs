@@ -5,6 +5,7 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Notifications;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Cases;
@@ -236,6 +237,16 @@ public sealed record CaseWorkspaceReport(
     DateOnly? ReportDate);
 
 /// <summary>
+/// The Engineer's changes to the report's narrative blocks (v28 P30): a
+/// renamed heading, wording written in place of the composed sentence, a new
+/// order, a block taken off the report, and paragraphs the Engineer added.
+/// The submitted set replaces the Case's own, so a block put back to tracking
+/// its fields is simply absent from it.
+/// </summary>
+public sealed record CaseWorkspaceReportWording(
+    IReadOnlyList<CaseReportWording>? Blocks);
+
+/// <summary>
 /// The two factual completeness controls. There is no Confirm requirement and
 /// no review flag: readiness is evaluated from these persisted facts by the one
 /// Core policy inside the save's own transaction, never from a posted boolean.
@@ -282,12 +293,15 @@ public sealed record SaveCaseWorkspaceRequest(
 
     public CaseWorkspaceReport? Report { get; init; }
 
+    public CaseWorkspaceReportWording? ReportWording { get; init; }
+
     public CaseWorkspaceCompleteness? Completeness { get; init; }
 
     public bool IsEmpty =>
         Overview is null && Inspection is null && Vehicle is null && Damage is null
         && ImagePreparation is null
         && Valuation is null && Estimate is null && Settlement is null && Report is null
+        && ReportWording is null
         && Completeness is null;
 }
 
@@ -379,7 +393,8 @@ public static class CaseWorkspaceChangeSummary
         IReadOnlyDictionary<string, object?> afterFields,
         bool estimateChanged,
         int imagesPrepared,
-        string? reason)
+        string? reason,
+        bool wordingChanged = false)
     {
         ArgumentNullException.ThrowIfNull(before);
         ArgumentNullException.ThrowIfNull(after);
@@ -429,6 +444,11 @@ public static class CaseWorkspaceChangeSummary
         if (imagesPrepared > 0)
         {
             parts.Add(imagesPrepared == 1 ? "1 image prepared" : $"{imagesPrepared} images prepared");
+        }
+
+        if (wordingChanged)
+        {
+            parts.Add("Report wording");
         }
 
         var summary = parts.Count == 0 ? "No field changed" : string.Join(", ", parts);
@@ -534,9 +554,36 @@ public static class CaseWorkspacePolicy
                 nameof(request));
         }
 
-        return request.Estimate is { } estimate
-            ? request with { Estimate = ValidateEstimate(estimate, request.Actor) }
+        var validated = request.ReportWording is { } wording
+            ? request with { ReportWording = new(ValidateWording(wording.Blocks ?? [])) }
             : request;
+
+        return validated.Estimate is { } estimate
+            ? validated with { Estimate = ValidateEstimate(estimate, validated.Actor) }
+            : validated;
+    }
+
+    /// <summary>
+    /// Every submitted wording block in the one shape the report prints, with
+    /// a key named twice refused rather than letting the submission order
+    /// decide which change is kept.
+    /// </summary>
+    private static List<CaseReportWording> ValidateWording(
+        IReadOnlyList<CaseReportWording> blocks)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var validated = new List<CaseReportWording>(blocks.Count);
+        foreach (var block in blocks)
+        {
+            var normalized = ReportWordingComposition.Validate(block);
+            if (!seen.Add(normalized.Key))
+            {
+                throw new InvalidOperationException(
+                    $"The report wording block '{normalized.Key}' was submitted more than once.");
+            }
+            validated.Add(normalized);
+        }
+        return validated;
     }
 
     /// <summary>

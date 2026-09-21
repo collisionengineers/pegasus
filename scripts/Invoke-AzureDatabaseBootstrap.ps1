@@ -495,6 +495,15 @@ function Get-MigrationPermissionMatrix {
         }
         $expected.Add("$role|D|DELETE|CaseFieldProposals")
     }
+    # 20260921090527_ReportWordingBlocks: the Engineer's changes to the report's
+    # narrative blocks (v28 P30). Web writes them with the Case save, the Worker
+    # reads them when it renders a report, and nothing deletes one.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|CaseReportWordings")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|CaseReportWordings')
+    $expected.Add('pegasus_worker_runtime_role|G|SELECT|CaseReportWordings')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|CaseReportWordings')
     # 20260921090000_UnroadworthyReasonBank: the firm's own unroadworthy reason
     # wordings (v28 P15). Web reads and appends; the Worker never sees them.
     foreach ($permission in @('SELECT', 'INSERT')) {

@@ -386,8 +386,19 @@ public sealed record AssessmentReportSnapshot(
     bool ReportDateOverridden = false,
     string PayloadVersion = AssessmentReportContract.TemplateVersion,
     bool IncludeFeeNote = false,
-    string? SupplementaryStatement = null)
+    string? SupplementaryStatement = null,
+    IReadOnlyList<ReportWordingBlock>? Wording = null)
 {
+    /// <summary>
+    /// The narrative the report prints, in the Engineer's order (v28 P30).
+    /// A snapshot frozen before the blocks existed holds none, and composes
+    /// them from its own frozen facts instead, so an older generation still
+    /// renders from itself and never reads the Case again.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyList<ReportWordingBlock> PrintedWording =>
+        Wording is { Count: > 0 } held ? held : ReportWordingComposition.Compose(this, []);
+
     /// <summary>
     /// Whether the accepted Glass's guide-disclosure sentence prints: the
     /// operator turned "Disclose guide source" on <em>and</em> a Glass's

@@ -2208,6 +2208,89 @@
 })();
 
 
+
+// --- report: the wording blocks (v28 P30) ------------------------------------
+// Every block posts through the record's one Save form. The tools here only
+// move a row, put the composed sentence back, or add a paragraph, each by
+// writing a control the form already carries.
+(function () {
+    'use strict';
+
+    function bind(root) {
+        root.querySelectorAll('[data-report-wording]').forEach(function (panel) {
+            if (panel.dataset.wordingBound === 'true') {
+                return;
+            }
+            panel.dataset.wordingBound = 'true';
+            var list = panel.querySelector('[data-wording-list]');
+            var template = panel.querySelector('[data-wording-template]');
+            if (!list) {
+                return;
+            }
+            var added = 0;
+
+            function rows() {
+                return Array.prototype.slice.call(list.querySelectorAll('[data-wording-row]'));
+            }
+            // The order a block carries is its place in the list, so the print
+            // order and the window order cannot disagree.
+            function renumber() {
+                rows().forEach(function (row, at) {
+                    var order = row.querySelector('[data-wording-order]');
+                    if (order) { order.value = String(at); }
+                });
+            }
+            function move(row, delta) {
+                var all = rows(), at = all.indexOf(row), swap = all[at + delta];
+                if (!swap) { return; }
+                if (delta < 0) { list.insertBefore(row, swap); } else { list.insertBefore(swap, row); }
+                renumber();
+            }
+
+            panel.addEventListener('click', function (event) {
+                var row = event.target.closest('[data-wording-row]');
+                if (row && event.target.closest('[data-wording-up]')) {
+                    event.preventDefault(); move(row, -1); return;
+                }
+                if (row && event.target.closest('[data-wording-down]')) {
+                    event.preventDefault(); move(row, 1); return;
+                }
+                if (row && event.target.closest('[data-wording-recompose]')) {
+                    event.preventDefault();
+                    var text = row.querySelector('[data-wording-text]');
+                    if (text) {
+                        text.value = row.getAttribute('data-wording-composed') || '';
+                        text.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    return;
+                }
+                if (!event.target.closest('[data-wording-new]') || !template) { return; }
+                event.preventDefault();
+                added += 1;
+                var slot = rows().length;
+                var key = 'manual:' + Date.now().toString(36) + '-' + added;
+                var holder = document.createElement('div');
+                holder.innerHTML = template.innerHTML.split('__i__').join(String(slot)).split('__key__').join(key);
+                var fresh = holder.querySelector('[data-wording-row]');
+                if (!fresh) { return; }
+                list.appendChild(fresh);
+                renumber();
+                var title = fresh.querySelector('.wbt');
+                if (title) { title.focus(); title.select(); }
+            });
+
+            panel.addEventListener('change', function (event) {
+                var box = event.target.closest('[data-wording-included]');
+                var row = box ? box.closest('[data-wording-row]') : null;
+                if (row) { row.classList.toggle('is-off', !box.checked); }
+            });
+        });
+    }
+
+    bind(document);
+    (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);
+})();
+
 // --- report: the Report and Fee tabs (v28 P24) -------------------------------
 // Two panes of one section. The server renders both, so a browser without
 // script reads the fee note under the report; this shows the tabs and keeps
