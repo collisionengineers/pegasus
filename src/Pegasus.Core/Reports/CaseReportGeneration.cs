@@ -32,16 +32,23 @@ public interface ICaseReportGenerationQueries
 }
 
 /// <summary>
-/// The two separately addressable artifacts one accepted snapshot produces.
-/// Each is generated on its own request; neither is rendered speculatively.
-/// A report frozen with <see cref="AssessmentReportSnapshot.IncludeFeeNote"/>
-/// carries the fee note inside <see cref="AssessmentReport"/> itself, so the
-/// separate <see cref="FeeNote"/> document is not asked for as well.
+/// The separately addressable artifacts one accepted snapshot produces. Each
+/// is generated on its own request; none is rendered speculatively. A report
+/// frozen with <see cref="AssessmentReportSnapshot.IncludeFeeNote"/> carries
+/// the fee note inside <see cref="AssessmentReport"/> itself, so the separate
+/// <see cref="FeeNote"/> document is not asked for as well.
+///
+/// <see cref="RepairSpecification"/> and <see cref="ImagePack"/> are the two
+/// companion documents a delivery may attach (v28 P22). The specification is
+/// the estimate document the generation pinned; the image pack is the
+/// included images alone, two to a page.
 /// </summary>
 public enum CaseReportArtifactKind
 {
     AssessmentReport,
     FeeNote,
+    RepairSpecification,
+    ImagePack,
 }
 
 /// <summary>
@@ -655,6 +662,7 @@ public sealed class GenerateCaseReport(
     ICaseReportGenerationStore store,
     ICaseReportContentSource contentSource,
     IAssessmentReportRenderer renderer,
+    IRenderCaseEstimateDocument repairSpecificationDocuments,
     ICaseArtifactCustody custody,
     ICaseArtifactCustodyStatus custodyStatus,
     TimeProvider timeProvider) : IGenerateCaseReport
@@ -716,19 +724,11 @@ public sealed class GenerateCaseReport(
             }
         }
 
-        var report = await contentSource
-            .ComposeAsync(generation.Snapshot, request.Actor, cancellationToken)
-            .ConfigureAwait(false);
-        report.Validate();
-
-        RenderedReportArtifact rendered;
-        using (var render = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
-        {
-            render.CancelAfter(AssessmentReportRenderPolicy.RenderTimeout);
-            rendered = await new GenerateAssessmentReportDraft(renderer)
-                .ExecuteAsync(report, artifactKind, render.Token)
+        var rendered = artifactKind == CaseReportArtifactKind.RepairSpecification
+            ? await RenderRepairSpecificationAsync(request, generation, cancellationToken)
+                .ConfigureAwait(false)
+            : await RenderFromSnapshotAsync(request, generation, artifactKind, cancellationToken)
                 .ConfigureAwait(false);
-        }
 
         await using var content = new MemoryStream(rendered.Pdf, writable: false);
         var retained = await custody.RetainAsync(
@@ -772,6 +772,55 @@ public sealed class GenerateCaseReport(
                 : CaseReportGenerationOutcome.Pending,
             recorded,
             []);
+    }
+
+    private async Task<RenderedReportArtifact> RenderFromSnapshotAsync(
+        GenerateCaseReportRequest request,
+        CaseReportGenerationRecord generation,
+        CaseReportArtifactKind kind,
+        CancellationToken cancellationToken)
+    {
+        var report = await contentSource
+            .ComposeAsync(generation.Snapshot, request.Actor, cancellationToken)
+            .ConfigureAwait(false);
+        report.Validate();
+
+        using var render = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        render.CancelAfter(AssessmentReportRenderPolicy.RenderTimeout);
+        return await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(report, kind, render.Token)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The repair specification a delivery attaches (v28 P22) is the document
+    /// the specification section already prints, rendered from the estimate
+    /// this generation pinned. An estimate that has moved on since, or one
+    /// that cannot be printed, fails the artifact closed rather than
+    /// attaching a specification the report never priced.
+    /// </summary>
+    private async Task<RenderedReportArtifact> RenderRepairSpecificationAsync(
+        GenerateCaseReportRequest request,
+        CaseReportGenerationRecord generation,
+        CancellationToken cancellationToken)
+    {
+        var pinned = generation.Snapshot;
+        var document = await repairSpecificationDocuments
+            .ExecuteAsync(request.CaseId, pinned.CurrentEstimateId, request.Actor, cancellationToken)
+            .ConfigureAwait(false);
+        if (document.Outcome != RenderCaseEstimateDocumentOutcome.Rendered || document.Artifact is null)
+        {
+            throw new ReportRenderRejectedException(document.Reasons.Count > 0
+                ? string.Join(" ", document.Reasons)
+                : "The repair specification this generation pinned cannot be printed.");
+        }
+        if (document.EstimateVersion != pinned.CurrentEstimateVersion)
+        {
+            throw new ReportRenderRejectedException(
+                $"The repair specification is at version {document.EstimateVersion}, "
+                + $"not the version {pinned.CurrentEstimateVersion} this generation pinned.");
+        }
+        return document.Artifact;
     }
 
     /// <summary>

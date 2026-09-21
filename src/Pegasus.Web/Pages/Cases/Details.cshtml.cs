@@ -56,6 +56,7 @@ public sealed partial class DetailsModel(
     ISendPreparedCaseReport sendPreparedReport,
     ICaseReportDeliveryPreparationStore deliveryPreparations,
     IReportRecipientSuggestionQueries reportRecipientSuggestions,
+    ICaseReportSendHistoryQueries reportSendHistory,
     IListCaseEstimates listEstimates,
     LabourRateCardAdministration labourRateCards,
     ISaveEstimate saveEstimate,
@@ -552,6 +553,12 @@ public sealed partial class DetailsModel(
     /// </summary>
     public IReadOnlyList<ReportWordingBlock> ReportWording { get; private set; } = [];
 
+    /// <summary>The addresses the delivery form offers beside its fields (v28 P21).</summary>
+    public IReadOnlyList<ReportRecipientCandidate> ReportAddressBook { get; private set; } = [];
+
+    /// <summary>What the Case's report has already been sent (v28 P23).</summary>
+    public CaseReportSendHistory ReportSendHistory { get; private set; } = CaseReportSendHistory.None;
+
     /// <summary>
     /// What each offered block says when nobody has written their own, so
     /// Recompose puts the composed sentence back without a round trip.
@@ -636,6 +643,10 @@ public sealed partial class DetailsModel(
     public string GenerateReportOperationKey { get; private set; } = NewOperationKey();
 
     public string GenerateFeeNoteOperationKey { get; private set; } = NewOperationKey();
+
+    public string GenerateRepairSpecOperationKey { get; private set; } = NewOperationKey();
+
+    public string GenerateImagePackOperationKey { get; private set; } = NewOperationKey();
 
     public string PrepareDeliveryOperationKey { get; private set; } = NewOperationKey();
 
@@ -991,6 +1002,12 @@ public sealed partial class DetailsModel(
         DeliveryRecipientSuggestions = CurrentReportGeneration is null
             ? null
             : await reportRecipientSuggestions.GetAsync(id, cancellationToken);
+        ReportAddressBook = DeliveryRecipientSuggestions is { } addressBook
+            ? CaseReportDeliveryPolicy.AddressBook(addressBook)
+            : [];
+        ReportSendHistory = CurrentReportGeneration is null
+            ? CaseReportSendHistory.None
+            : await reportSendHistory.GetAsync(id, cancellationToken);
         await EvaluateEngineerSectionConditionsAsync(cancellationToken);
         await LoadGlassSessionAsync(id, actor, cancellationToken);
         OpenDialog = dialog switch
@@ -1793,17 +1810,28 @@ public sealed partial class DetailsModel(
         Guid id,
         bool includeFeeNote,
         CancellationToken cancellationToken) =>
-        PreviewReportDraftAsync(id, includeFeeNote, cancellationToken);
+        PreviewReportDraftAsync(id, includeFeeNote, CaseReportArtifactKind.AssessmentReport, cancellationToken);
 
     public Task<IActionResult> OnPostPreviewReportDraftAsync(
         Guid id,
         bool includeFeeNote,
         CancellationToken cancellationToken) =>
-        PreviewReportDraftAsync(id, includeFeeNote, cancellationToken);
+        PreviewReportDraftAsync(id, includeFeeNote, CaseReportArtifactKind.AssessmentReport, cancellationToken);
+
+    /// <summary>
+    /// The included images as they would print (v28 P42): the same working
+    /// snapshot the report preview renders, as the image pack alone. Nothing
+    /// is persisted; a Case with no image in the report has none to show.
+    /// </summary>
+    public Task<IActionResult> OnGetPreviewImagePackAsync(
+        Guid id,
+        CancellationToken cancellationToken) =>
+        PreviewReportDraftAsync(id, includeFeeNote: false, CaseReportArtifactKind.ImagePack, cancellationToken);
 
     private async Task<IActionResult> PreviewReportDraftAsync(
         Guid id,
         bool includeFeeNote,
+        CaseReportArtifactKind kind,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -1811,10 +1839,21 @@ public sealed partial class DetailsModel(
             return Forbid();
         }
 
-        var result = await HttpContext.RequestServices
-            .GetRequiredService<GenerateCaseAssessmentReportDraft>()
-            .ExecuteAsync(
-            id, actor, CaseReportArtifactKind.AssessmentReport, includeFeeNote, cancellationToken);
+        GenerateCaseAssessmentReportDraftResult result;
+        try
+        {
+            result = await HttpContext.RequestServices
+                .GetRequiredService<GenerateCaseAssessmentReportDraft>()
+                .ExecuteAsync(id, actor, kind, includeFeeNote, cancellationToken);
+        }
+        catch (ReportRenderRejectedException exception)
+        {
+            // An image pack of a Case whose report uses no image is refused
+            // rather than rendered empty.
+            return Request.Headers.ContainsKey("X-Pegasus-Document-Preview")
+                ? EnhancedPreviewRefusal(exception.Message)
+                : RedirectToReport(id);
+        }
         switch (result.Outcome)
         {
             case GenerateCaseAssessmentReportDraftOutcome.NotFound:
@@ -1835,7 +1874,7 @@ public sealed partial class DetailsModel(
                 // only once the draft actually rendered, at most once per
                 // Case, artifact kind, staff member and day.
                 await reportGenerations.RecordDraftPreviewedAsync(
-                    new(actor, id, CaseReportArtifactKind.AssessmentReport, DateTimeOffset.UtcNow),
+                    new(actor, id, kind, DateTimeOffset.UtcNow),
                     cancellationToken);
                 return File(result.Draft!.Pdf, "application/pdf");
         }
@@ -1928,6 +1967,36 @@ public sealed partial class DetailsModel(
             CaseReportArtifactKind.FeeNote, includeFeeNote: false,
             targetGenerationId, cancellationToken);
 
+    /// <summary>
+    /// The two companion documents a delivery may attach (v28 P22). Each is a
+    /// separate artifact of the generation that is already confirmed, so it
+    /// carries that generation's own facts: the Repair Spec is the estimate
+    /// the generation pinned, the images are the ones its report prints.
+    /// </summary>
+    public Task<IActionResult> OnPostGenerateRepairSpecAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        long expectedCaseVersion,
+        Guid targetGenerationId,
+        CancellationToken cancellationToken) =>
+        GenerateArtifactAsync(
+            id, operationKey, editLeaseToken, expectedCaseVersion,
+            CaseReportArtifactKind.RepairSpecification, includeFeeNote: false,
+            targetGenerationId, cancellationToken);
+
+    public Task<IActionResult> OnPostGenerateImagePackAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        long expectedCaseVersion,
+        Guid targetGenerationId,
+        CancellationToken cancellationToken) =>
+        GenerateArtifactAsync(
+            id, operationKey, editLeaseToken, expectedCaseVersion,
+            CaseReportArtifactKind.ImagePack, includeFeeNote: false,
+            targetGenerationId, cancellationToken);
+
     private async Task<IActionResult> GenerateArtifactAsync(
         Guid id,
         string operationKey,
@@ -1961,9 +2030,13 @@ public sealed partial class DetailsModel(
                     editLeaseToken!,
                     operationKey,
                     kind,
-                    kind == CaseReportArtifactKind.AssessmentReport
-                        ? "Generate the immutable case report"
-                        : "Generate the immutable fee note",
+                    kind switch
+                    {
+                        CaseReportArtifactKind.AssessmentReport => "Generate the immutable case report",
+                        CaseReportArtifactKind.FeeNote => "Generate the immutable fee note",
+                        CaseReportArtifactKind.RepairSpecification => "Generate the immutable Repair Spec",
+                        _ => "Generate the immutable images",
+                    },
                     includeFeeNote,
                     targetGenerationId),
                 cancellationToken);
@@ -2004,9 +2077,16 @@ public sealed partial class DetailsModel(
                 return RedirectToReport(id);
             default:
                 ClearLeaseState();
-                TempData["CaseStatus"] = kind == CaseReportArtifactKind.AssessmentReport
-                    ? Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ReportGenerated
-                    : Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.FeeNoteGenerated;
+                TempData["CaseStatus"] = kind switch
+                {
+                    CaseReportArtifactKind.AssessmentReport =>
+                        Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ReportGenerated,
+                    CaseReportArtifactKind.FeeNote =>
+                        Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.FeeNoteGenerated,
+                    CaseReportArtifactKind.RepairSpecification =>
+                        Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.RepairSpecGenerated,
+                    _ => Pegasus.Web.Presentation.CaseWorkspaceLabels.ReportDelivery.ImagesGenerated,
+                };
                 return RedirectToReport(id);
         }
     }
@@ -2052,6 +2132,7 @@ public sealed partial class DetailsModel(
         long expectedGenerationVersion,
         string[]? toRecipients,
         string[]? ccRecipients,
+        CaseReportArtifactKind[]? attach,
         CancellationToken cancellationToken)
     {
         var guard = await GuardReportCommandAsync(id, operationKey, editLeaseToken, cancellationToken);
@@ -2075,7 +2156,8 @@ public sealed partial class DetailsModel(
                     generationId,
                     expectedGenerationVersion,
                     operationKey,
-                    new(toRecipients ?? [], ccRecipients ?? [])),
+                    new(toRecipients ?? [], ccRecipients ?? []),
+                    attach),
                 cancellationToken);
         }
         catch (StaffAuthorizationException)

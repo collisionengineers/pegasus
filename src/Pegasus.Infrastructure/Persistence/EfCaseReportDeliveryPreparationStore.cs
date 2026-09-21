@@ -26,6 +26,9 @@ public sealed class EfCaseReportDeliveryPreparationStore(
 
     private static readonly JsonSerializerOptions PayloadJsonOptions = new(JsonSerializerDefaults.Web);
 
+    /// <summary>The options the generation store wrote its frozen snapshot with.</summary>
+    private static readonly JsonSerializerOptions SnapshotJsonOptions = new(JsonSerializerDefaults.Web);
+
     public async Task<CaseReportDeliveryPreparationRecord> PrepareAsync(
         PrepareCaseReportDeliveryCommand command, CancellationToken cancellationToken)
     {
@@ -58,7 +61,21 @@ public sealed class EfCaseReportDeliveryPreparationStore(
             request.ExpectedGenerationVersion);
         var artifacts = CaseReportDeliveryPolicy.Attachments(
             generation.Id,
-            await ArtifactsAsync(context, generation.Id, cancellationToken).ConfigureAwait(false));
+            await ArtifactsAsync(context, generation.Id, cancellationToken).ConfigureAwait(false),
+            request.Attach);
+
+        // v28 P23: the report's own name and the covering line are read from
+        // the generation this delivery pins and from what the Case has
+        // already sent, then frozen with the rest of the preparation.
+        var pinned = JsonSerializer.Deserialize<CaseReportGenerationSnapshot>(
+            generation.SnapshotJson, SnapshotJsonOptions)
+            ?? throw new InvalidDataException(
+                $"The frozen snapshot of case report generation '{generation.Id}' is unreadable.");
+        var reportFileName = CaseReportDeliveryNaming.ReportName(
+            pinned.CaseReference,
+            pinned.Report.Vehicle.Registration,
+            OutcomeWords(pinned.Report.Outcome),
+            command.SendHistory.SentCount);
 
         var payload = new Payload(
             request.CaseId,
@@ -70,7 +87,9 @@ public sealed class EfCaseReportDeliveryPreparationStore(
             command.Addressing.To,
             command.Addressing.Cc,
             command.Addressing.Subject,
-            command.RecipientSuggestionFingerprint);
+            command.RecipientSuggestionFingerprint,
+            reportFileName,
+            CaseReportDeliveryNaming.Message(command.SendHistory));
         var payloadJson = JsonSerializer.Serialize(payload, PayloadJsonOptions);
         var payloadHash = HashOf(payloadJson);
 
@@ -211,7 +230,9 @@ public sealed class EfCaseReportDeliveryPreparationStore(
                 payload.Artifacts,
                 payload.PreparedBy.ToActor(),
                 entity.PreparedAtUtc,
-                payload.RecipientSuggestionFingerprint),
+                payload.RecipientSuggestionFingerprint,
+                payload.ReportFileName,
+                payload.CoveringMessage),
             new CaseReportDeliveryAddressing(payload.To, payload.Cc, payload.Subject),
             // The frozen Case version travels in the payload; the live one is
             // the row this read just joined. The send boundary compares them.
@@ -301,6 +322,15 @@ public sealed class EfCaseReportDeliveryPreparationStore(
     /// a conflict. The preparing actor's kind and roles travel here because
     /// the row keeps only the subject identifier.
     /// </summary>
+    /// <summary>The outcome as the attached report's name reads it.</summary>
+    private static string OutcomeWords(AssessmentReportOutcome outcome) => outcome switch
+    {
+        AssessmentReportOutcome.TotalLoss => "Total loss",
+        AssessmentReportOutcome.CashInLieu => "Cash in lieu",
+        AssessmentReportOutcome.ContractRepair => "Contract repair",
+        _ => "Repairable",
+    };
+
     private sealed record Payload(
         Guid CaseId,
         long CaseVersion,
@@ -311,5 +341,7 @@ public sealed class EfCaseReportDeliveryPreparationStore(
         IReadOnlyList<StaffMailRecipient> To,
         IReadOnlyList<StaffMailRecipient> Cc,
         string Subject,
-        string RecipientSuggestionFingerprint);
+        string RecipientSuggestionFingerprint,
+        string ReportFileName = "",
+        string CoveringMessage = "");
 }

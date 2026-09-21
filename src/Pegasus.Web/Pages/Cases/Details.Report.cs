@@ -147,6 +147,19 @@ public sealed partial class DetailsModel
         }
     }
 
+    /// <summary>
+    /// The name the report would be attached under and the covering line it
+    /// would carry (v28 P23), read from the same policy the preparation
+    /// freezes, so the form states what pressing Prepare delivery will send.
+    /// </summary>
+    public string ReportDeliveryFileName => CaseReportDeliveryNaming.ReportName(
+        Case?.Summary.Reference ?? "—",
+        Case?.Summary.Registration,
+        RecordedOutcome is { } outcome ? CodeWords(outcome) : null,
+        ReportSendHistory.SentCount) + ".pdf";
+
+    public string ReportDeliveryMessage => CaseReportDeliveryNaming.Message(ReportSendHistory);
+
     /// <summary>The recorded outcome code, confirmed or proposed, else null.</summary>
     public string? RecordedOutcome => Assessment?.Field(AssessmentVocabulary.Outcome)?.Value;
 

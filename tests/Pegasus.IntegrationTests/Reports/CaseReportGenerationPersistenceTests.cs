@@ -1315,6 +1315,7 @@ public sealed class CaseReportGenerationPersistenceTests
                 new RecordingStore(store ?? Store, Sequence),
                 new FakeContentSource(this),
                 renderer,
+                new RefusingRepairSpecificationDocuments(),
                 custody,
                 custodyStatus ?? new RecordingCustodyStatus(),
                 new FixedTimeProvider(StartUtc));
@@ -1419,7 +1420,19 @@ public sealed class CaseReportGenerationPersistenceTests
                         generation.Version,
                         "prepare-report"),
                     new([new StaffMailRecipient("digital@collisionengineers.co.uk", "pegasustest")], [], "Case report"),
-                    new string('a', 64)), default);
+                    new string('a', 64),
+                    CaseReportSendHistory.None), default);
+
+        /// <summary>
+        /// These generations never ask for the repair specification document,
+        /// so a call here would mean a companion took the snapshot route.
+        /// </summary>
+        private sealed class RefusingRepairSpecificationDocuments : IRenderCaseEstimateDocument
+        {
+            public Task<RenderCaseEstimateDocumentResult> ExecuteAsync(
+                Guid caseId, Guid estimateId, ActionActor actor, CancellationToken cancellationToken = default) =>
+                throw new InvalidOperationException("No repair specification document was expected.");
+        }
 
         public Task RequireDeliveryReadyAsync(CaseReportDeliveryPreparationRecord record) =>
             new ReportSendReadiness(new EfCaseReportDeliveryPreparationStore(Factory, Clock)).RequireReadyAsync(

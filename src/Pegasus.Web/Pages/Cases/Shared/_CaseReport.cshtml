@@ -61,11 +61,30 @@
     var previewHref = Url.Page("/Cases/Details", "PreviewReportDraft", new { id = caseId, includeFeeNote = false })!;
     var tiles = Model.ReportImageTiles;
     var inReport = tiles.Count(tile => tile.Preparation.Role != CaseAssetReportRole.NotUsed);
+    // A delivery may attach a subset of the generation's documents (v28 P22),
+    // so what it needs is a confirmed report, not every artifact confirmed.
     var canPrepareDelivery = editing
         && generation is not null
         && preparation is null
         && generation.State == CaseReportGenerationState.Confirmed
-        && generation.Artifacts.All(artifact => artifact.Status == CaseReportArtifactStatus.Confirmed);
+        && reportArtifact?.Status == CaseReportArtifactStatus.Confirmed;
+    var repairSpecArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
+        artifact.Kind == CaseReportArtifactKind.RepairSpecification);
+    var imagePackArtifact = generation?.Artifacts.FirstOrDefault(artifact =>
+        artifact.Kind == CaseReportArtifactKind.ImagePack);
+    var canGenerateCompanion = editing && generation is { State: CaseReportGenerationState.Confirmed };
+    var attachable = generation is null
+        ? Array.Empty<(CaseReportArtifactKind Kind, string Label)>()
+        : new[]
+        {
+            (CaseReportArtifactKind.AssessmentReport, ReportLabels.AttachReport),
+            (CaseReportArtifactKind.FeeNote, ReportLabels.AttachFeeNote),
+            (CaseReportArtifactKind.RepairSpecification, ReportLabels.AttachRepairSpec),
+            (CaseReportArtifactKind.ImagePack, ReportLabels.AttachImages),
+        }.Where(item => generation.Artifacts.Any(artifact =>
+            artifact.Kind == item.Item1 && artifact.Status == CaseReportArtifactStatus.Confirmed)).ToArray();
+    var specificationId = Model.AcceptedSpecification?.SpecificationId;
+    var imagePackHref = Url.Page("/Cases/Details", "PreviewImagePack", new { id = caseId })!;
     var reportDate = Model.AssessmentEditorValue(AssessmentVocabulary.ReportDate);
     var reportDateText = DateOnly.TryParseExact(Model.Assessment?.Field(AssessmentVocabulary.ReportDate)?.Value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var reportDateValue)
         ? reportDateValue.ToString("d MMM yyyy", CultureInfo.InvariantCulture)
@@ -119,6 +138,54 @@
                                 <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                                 <span>@Words.PreviewDraft</span>
                             </a>
+                        }
+                        @if (canPreview && specificationId is { } currentSpecification)
+                        {
+                            @* P42: the Repair Spec as it will print, the same
+                               document the specification section opens. *@
+                            <a class="btn" asp-page="/Cases/Details" asp-page-handler="EstimateDocument"
+                               asp-route-id="@caseId" asp-route-estimateId="@currentSpecification"
+                               target="_blank" rel="noopener" data-document-preview data-no-inplace
+                               data-report-preview-spec>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                                <span>@ReportLabels.PreviewRepairSpec</span>
+                            </a>
+                        }
+                        @if (canPreview && inReport > 0)
+                        {
+                            <a class="btn" href="@imagePackHref" target="_blank" rel="noopener"
+                               data-document-preview data-no-inplace data-report-preview-images>
+                                <svg class="icon" aria-hidden="true"><use href="#icon-images" /></svg>
+                                <span>@ReportLabels.PreviewImages</span>
+                            </a>
+                        }
+                        @if (canGenerateCompanion && repairSpecArtifact is null)
+                        {
+                            <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateRepairSpec"
+                                  asp-route-id="@caseId" asp-route-section="report">
+                                <input type="hidden" name="operationKey" value="@Model.GenerateRepairSpecOperationKey" />
+                                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
+                                <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
+                                <button type="submit" class="btn" data-generate-repair-spec>
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-file-text" /></svg>
+                                    <span>@ReportLabels.GenerateRepairSpec</span>
+                                </button>
+                            </form>
+                        }
+                        @if (canGenerateCompanion && imagePackArtifact is null && inReport > 0)
+                        {
+                            <form method="post" asp-page="/Cases/Details" asp-page-handler="GenerateImagePack"
+                                  asp-route-id="@caseId" asp-route-section="report">
+                                <input type="hidden" name="operationKey" value="@Model.GenerateImagePackOperationKey" />
+                                <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                                <input type="hidden" name="expectedCaseVersion" value="@workflow.Version" />
+                                <input type="hidden" name="targetGenerationId" value="@generation!.Id" />
+                                <button type="submit" class="btn" data-generate-image-pack>
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-images" /></svg>
+                                    <span>@ReportLabels.GenerateImages</span>
+                                </button>
+                            </form>
                         }
                         @if (canGenerateFeeNote)
                         {
@@ -223,11 +290,15 @@
                                asp-route-id="@caseId" asp-route-generationId="@generation.Id"
                                asp-route-artifactId="@artifact.Id" target="_blank" rel="noopener" data-report-artifact="@artifact.Kind">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg>
-                                <span>@(artifact.Kind == CaseReportArtifactKind.FeeNote
-                                        ? ReportLabels.DownloadFeeNote
-                                        : generation.Snapshot.Report.IncludeFeeNote
+                                <span>@(artifact.Kind switch
+                                    {
+                                        CaseReportArtifactKind.FeeNote => ReportLabels.DownloadFeeNote,
+                                        CaseReportArtifactKind.RepairSpecification => ReportLabels.DownloadRepairSpec,
+                                        CaseReportArtifactKind.ImagePack => ReportLabels.DownloadImages,
+                                        _ => generation.Snapshot.Report.IncludeFeeNote
                                             ? ReportLabels.DownloadReportWithFeeNote
-                                            : ReportLabels.DownloadReport)</span>
+                                            : ReportLabels.DownloadReport,
+                                    })</span>
                             </a>
                         }
                     }
@@ -259,11 +330,22 @@
                     <input type="hidden" name="generationId" value="@generation.Id" />
                     <input type="hidden" name="expectedGenerationVersion" value="@generation.Version" />
                     <span class="lg">@Words.ReviewedRecipients</span>
+                    @* P21: the addresses this Case already knows, offered by the
+                       browser's own picker on every recipient field. *@
+                    @if (Model.ReportAddressBook.Count > 0)
+                    {
+                        <datalist id="report-address-book" data-report-address-book>
+                            @foreach (var candidate in Model.ReportAddressBook)
+                            {
+                                <option value="@candidate.Address" label="@candidate.Source"></option>
+                            }
+                        </datalist>
+                    }
                     <span class="lbl">To</span>
                     <div id="report-recipient-to" class="stack">
                         @foreach (var recipient in suggestedRecipients.To.DefaultIfEmpty(string.Empty))
                         {
-                            <input name="toRecipients" type="email" value="@recipient" autocomplete="email" aria-label="Report recipient" />
+                            <input name="toRecipients" type="email" value="@recipient" autocomplete="email" list="report-address-book" aria-label="Report recipient" />
                         }
                     </div>
                     <button type="button" class="btn btn--small" data-add-report-recipient="report-recipient-to" data-report-recipient-name="toRecipients">@Words.AddTo</button>
@@ -271,10 +353,41 @@
                     <div id="report-recipient-cc" class="stack">
                         @foreach (var recipient in suggestedRecipients.Cc.DefaultIfEmpty(string.Empty))
                         {
-                            <input name="ccRecipients" type="email" value="@recipient" autocomplete="email" aria-label="Report copy recipient" />
+                            <input name="ccRecipients" type="email" value="@recipient" autocomplete="email" list="report-address-book" aria-label="Report copy recipient" />
                         }
                     </div>
                     <button type="button" class="btn btn--small" data-add-report-recipient="report-recipient-cc" data-report-recipient-name="ccRecipients">@Words.AddCc</button>
+                    @* P22: which of this generation's documents the delivery
+                       attaches. A document the generation does not hold is not
+                       offered; the report is always attached. *@
+                    @if (attachable.Length > 0)
+                    {
+                        <span class="lbl">@ReportLabels.Attach</span>
+                        <div class="cluster" data-report-attach>
+                            @foreach (var (attachKind, attachLabel) in attachable)
+                            {
+                                var attachId = "report-attach-" + attachKind.ToString().ToLowerInvariant();
+                                var always = attachKind == CaseReportArtifactKind.AssessmentReport;
+                                <label class="choice" for="@attachId">
+                                    <input type="checkbox" id="@attachId" name="attach" value="@attachKind"
+                                           checked="@(always || attachKind == CaseReportArtifactKind.FeeNote)"
+                                           disabled="@always" data-report-attach-choice="@attachKind" />
+                                    <span>@attachLabel</span>
+                                </label>
+                                @if (always)
+                                {
+                                    <input type="hidden" name="attach" value="@attachKind" />
+                                }
+                            }
+                        </div>
+                    }
+                    @* P23: what the attached report will be called and the line
+                       that covers it, read from the same policy the preparation
+                       freezes when this form is submitted. *@
+                    <span class="lbl">@ReportLabels.FileName</span>
+                    <div class="fv mono" data-report-file-name>@Model.ReportDeliveryFileName</div>
+                    <span class="lbl">@ReportLabels.Message</span>
+                    <div class="fv derived multi" data-report-message>@Model.ReportDeliveryMessage</div>
                     <button type="submit" class="btn btn--small btn--primary">
                         <svg class="icon" aria-hidden="true"><use href="#icon-send" /></svg>
                         <span>@ReportLabels.PrepareDelivery</span>
@@ -285,6 +398,12 @@
             {
                 <dl class="detail-list" data-report-delivery>
                     <div><dt>@ReportLabels.DeliveryPrepared</dt><dd>@string.Join(", ", preparation.Addressing.To.Select(recipient => recipient.Address))</dd></div>
+                    <div><dt>@ReportLabels.Attach</dt><dd data-report-prepared-attachments>@string.Join(", ", preparation.Preparation.Artifacts.Select(artifact => artifact.FileName))</dd></div>
+                    @if (!string.IsNullOrWhiteSpace(preparation.Preparation.ReportFileName))
+                    {
+                        <div><dt>@ReportLabels.FileName</dt><dd class="mono" data-report-prepared-file-name>@(preparation.Preparation.ReportFileName).pdf</dd></div>
+                        <div><dt>@ReportLabels.Message</dt><dd data-report-prepared-message>@preparation.Preparation.CoveringMessage</dd></div>
+                    }
                     @if (preparation.Addressing.Cc.Count > 0)
                     {
                         <div><dt>Cc</dt><dd>@string.Join(", ", preparation.Addressing.Cc.Select(recipient => recipient.Address))</dd></div>

@@ -37,8 +37,14 @@ internal sealed class QuestPdfAssessmentReportRenderer(ReportRenderGate gate) : 
         ArgumentNullException.ThrowIfNull(snapshot);
         ReportResources.RegisterFonts();
         AssessmentReportRenderPolicy.RequireBoundedImages(snapshot.Photos);
-        var feeNote = kind == CaseReportArtifactKind.FeeNote;
-        var fileName = $"{ReportChrome.Slug(snapshot.OurReference)}_{(feeNote ? "fee_note" : "assessment")}.pdf";
+        var suffix = kind switch
+        {
+            CaseReportArtifactKind.FeeNote => "fee_note",
+            CaseReportArtifactKind.ImagePack => "images",
+            CaseReportArtifactKind.AssessmentReport => "assessment",
+            _ => throw new ReportRenderRejectedException($"Unsupported report artifact kind '{kind}'."),
+        };
+        var fileName = $"{ReportChrome.Slug(snapshot.OurReference)}_{suffix}.pdf";
         var pdf = await gate.RunAsync(() => Render(snapshot, kind), cancellationToken)
             .ConfigureAwait(false);
         return Artifact(fileName, pdf);

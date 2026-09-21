@@ -254,6 +254,7 @@ public static class DependencyInjection
         services.AddScoped<IEvaSubmissionQueries, EfEvaSubmissionQueries>();
         services.AddScoped<IAutomaticEvaReviewSubmissionStore, EfAutomaticEvaReviewSubmissionStore>();
         services.AddScoped<IReportRecipientSuggestionQueries, EfReportRecipientSuggestionQueries>();
+        services.AddScoped<ICaseReportSendHistoryQueries, EfCaseReportSendHistoryQueries>();
         services.AddScoped<EfStaffAccountAdministration>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
         // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.

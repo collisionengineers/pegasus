@@ -877,6 +877,26 @@ public static class CaseWorkspaceLabels
         /// </summary>
         public const string SendUnknown = "The send result is not yet known.";
         public const string SendFailed = "The report send failed.";
+
+        // v28 P22, P23 and P42: the companion documents a delivery attaches,
+        // the naming it carries and the previews that show them.
+        public const string GenerateRepairSpec = "Generate Repair Spec";
+        public const string GenerateImages = "Generate images";
+        public const string RepairSpecGenerated = "The Repair Spec was generated.";
+        public const string ImagesGenerated = "The images were generated.";
+        public const string DownloadRepairSpec = "Repair Spec";
+        public const string DownloadImages = "Images";
+        public const string PreviewRepairSpec = "Preview Repair Spec";
+        public const string PreviewImages = "Preview images";
+        public const string Attach = "Attach";
+        public const string AttachReport = "Report";
+        public const string AttachFeeNote = "Fee note";
+        public const string AttachRepairSpec = "Repair Spec";
+        public const string AttachImages = "Images";
+        public const string FileName = "File name";
+        public const string Message = "Message";
+        public const string AddressBook = "Addresses";
+        public const string AddCcCandidate = "Cc";
     }
 
     /// <summary>

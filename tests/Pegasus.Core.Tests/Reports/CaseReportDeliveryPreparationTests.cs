@@ -197,7 +197,7 @@ public sealed class CaseReportDeliveryPreparationTests
     public async Task DeliveryIsAStaffActAndRefusesOtherActors()
     {
         await Assert.ThrowsAsync<StaffAuthorizationException>(() => new PrepareCaseReportDelivery(
-                new RefusingStore(), new RefusingSuggestions())
+                new RefusingStore(), new NoSendHistory(), new RefusingSuggestions())
             .ExecuteAsync(
                 new(ActionActor.SystemWorker("delivery-test"), Guid.NewGuid(), 1, "lease", Guid.NewGuid(), 1,
                     "prepare-1"),
@@ -211,7 +211,7 @@ public sealed class CaseReportDeliveryPreparationTests
     public async Task PreparationRequiresItsIdentifiersAndFailsClosedOnAMissingCase()
     {
         var prepare = new PrepareCaseReportDelivery(
-            new RefusingStore(), new FixedSuggestions(Suggestions(["handler@principal.example"])));
+            new RefusingStore(), new NoSendHistory(), new FixedSuggestions(Suggestions(["handler@principal.example"])));
         var actor = Staff();
 
         await Assert.ThrowsAsync<ArgumentException>(() => prepare.ExecuteAsync(
@@ -448,6 +448,13 @@ public sealed class CaseReportDeliveryPreparationTests
     private static readonly Guid CaseId = Guid.NewGuid();
     private static readonly Guid GenerationId = Guid.NewGuid();
     private static readonly Guid PreparationId = Guid.NewGuid();
+
+    /// <summary>A Case whose report has never been sent.</summary>
+    private sealed class NoSendHistory : ICaseReportSendHistoryQueries
+    {
+        public Task<CaseReportSendHistory> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult(CaseReportSendHistory.None);
+    }
 
     private sealed class RefusingStore : ICaseReportDeliveryPreparationStore
     {

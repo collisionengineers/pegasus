@@ -52,9 +52,15 @@ internal static class AssessmentReportLayout
         var feeNote = kind switch
         {
             CaseReportArtifactKind.FeeNote => true,
-            CaseReportArtifactKind.AssessmentReport => false,
+            CaseReportArtifactKind.AssessmentReport or CaseReportArtifactKind.ImagePack => false,
             _ => throw new ReportRenderRejectedException($"Unsupported report artifact kind '{kind}'."),
         };
+        var imagePack = kind == CaseReportArtifactKind.ImagePack;
+        if (imagePack && images.Photos.Count == 0)
+        {
+            throw new ReportRenderRejectedException(
+                "An image pack needs at least one image the report uses.");
+        }
         return Document.Create(container =>
         {
             void AddPages(bool pageIsFeeNote)
@@ -79,6 +85,10 @@ internal static class AssessmentReportLayout
                         {
                             FeeNote(column, snapshot, images.Logo);
                         }
+                        else if (imagePack)
+                        {
+                            ImagePack(column, snapshot, images);
+                        }
                         else
                         {
                             Report(column, snapshot, images);
@@ -97,6 +107,29 @@ internal static class AssessmentReportLayout
                 AddPages(pageIsFeeNote: true);
             }
         });
+    }
+
+    // ---- Image pack (v28 P22) ----------------------------------------------
+
+    /// <summary>
+    /// The included images alone, in the Engineer's order, two to a page with
+    /// a Full page image on a page of its own — the same grid the report
+    /// prints, under the report's own letterhead so the document says which
+    /// Case it belongs to. It carries no narrative, no figures and no
+    /// statement of truth: it is the report's images, sent beside it.
+    /// </summary>
+    private static void ImagePack(
+        ColumnDescriptor column, AssessmentReportSnapshot snapshot, PreparedReportImages images)
+    {
+        Letterhead(column, images.Logo, references => references.Column(lines =>
+        {
+            Reference(lines, "Date:", Date(snapshot.ReportDate));
+            Reference(lines, "Our Ref:", snapshot.OurReference);
+            Reference(lines, "Your Ref:", snapshot.YourReference);
+        }));
+
+        Title(column, "Vehicle Images", italic: true);
+        Section(column, "Vehicle Images", section => PhotoGrid(section.Item(), images.Photos));
     }
 
     // ---- Assessment report -------------------------------------------------
