@@ -231,6 +231,13 @@
 #section-settlement .reason-bank .btn{font-size:11.5px;text-align:left}
 #section-settlement [data-settlement-computed-reserve] .fv{font-size:12px}
 
+#section-report .report-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);padding-bottom:0}
+#section-report .report-tab{appearance:none;border:1px solid transparent;border-bottom:0;background:none;color:var(--muted);font:600 12.5px var(--font);padding:6px 12px;border-radius:var(--radius) var(--radius) 0 0;cursor:pointer}
+#section-report .report-tab:hover{color:var(--navy)}
+#section-report .report-tab[aria-selected="true"]{border-color:var(--line);background:#fff;color:var(--ink);box-shadow:inset 0 -3px var(--navy)}
+#section-report .report-tab:focus-visible{outline:2px solid var(--navy);outline-offset:-2px}
+#section-report [data-report-fee-note] dd.empty{color:var(--quiet)}
+
 /* ==== estimate ==== */
 /* ---- Estimate (v26 § Estimate) ---------------------------------------------- */
 #section-estimate .estimate-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}
