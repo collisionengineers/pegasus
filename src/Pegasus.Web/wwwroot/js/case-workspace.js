@@ -1821,7 +1821,8 @@
             return;
         }
         var tick = bar.querySelector('[data-contract-agreed]');
-        var sum = bar.querySelector('[data-contract-sum]');
+        var sum = document.getElementById(bar.getAttribute('data-estimate-contract-sum-control') || '');
+        var read = bar.querySelector('[data-contract-sum-read]');
         var outcome = document.getElementById(bar.getAttribute('data-estimate-outcome-control') || '');
         var grossCell = form.querySelector('[data-estimate-gross]');
         var previous = outcome ? outcome.value : '';
@@ -1837,7 +1838,6 @@
         }
         if (tick) {
             tick.addEventListener('change', function () {
-                if (sum) { sum.disabled = !tick.checked; }
                 if (tick.checked) {
                     if (outcome && outcome.value !== 'contract_repair') { previous = outcome.value; }
                     if (sum && !sum.value) { sum.value = gross().toFixed(2); sum.dispatchEvent(new Event('input', { bubbles: true })); }
@@ -1846,9 +1846,16 @@
                     if (sum) { sum.value = ''; sum.dispatchEvent(new Event('input', { bubbles: true })); }
                     setOutcome(false);
                 }
+                paintSum();
             });
         }
+        function paintSum() {
+            if (!read) { return; }
+            var agreed = sum ? parseFloat(sum.value) : NaN;
+            read.textContent = isNaN(agreed) || !sum.value ? '\u2014' : '\u00a3' + agreed.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
         if (sum) {
+            sum.addEventListener('input', paintSum);
             sum.addEventListener('change', function () {
                 var agreed = parseFloat(sum.value) || 0;
                 var scale = form.querySelector('[data-estimate-scale]');
