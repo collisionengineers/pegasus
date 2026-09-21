@@ -706,10 +706,10 @@
                         @* Contract repair (v28 P35): the agreed sum is Case data
                            saved with the page-wide Save; ticking sets the outcome
                            in Decisions and seeds the sum from the specification. *@
-                        <div class="bar est-contract" data-estimate-contract data-estimate-outcome-control="f-assessment-outcome">
+                        <div class="bar est-contract" data-estimate-contract data-estimate-outcome-control="f-assessment-outcome" data-estimate-contract-sum-control="f-settlement-contract-sum">
                             <span class="bl">@EstimateLabels.ContractRepair</span>
                             <label class="choice"><input type="checkbox" checked="@(outcomeIsContract ? "checked" : null)" data-contract-agreed /><span>@EstimateLabels.ContractRepairAgreed</span></label>
-                            <span class="dsc"><label for="estimate-contract-sum">@EstimateLabels.AgreedTotalSum</label><input id="estimate-contract-sum" class="fi mono" name="@CaseWorkspaceLabels.Editors.FormName(contractPath)" form="case-edit-form" type="number" min="0" step="0.01" inputmode="decimal" value="@contractSumText" disabled="@(outcomeIsContract ? null : "disabled")" data-contract-sum /></span>
+                            <span class="dsc"><span class="lbl">@EstimateLabels.AgreedTotalSum</span><b class="mono" data-contract-sum-read>@(contractSum is { } shown ? Money(shown) : OperatorLabels.CaseWorkspace.AbsentValue)</b></span>
                             @if (outcomeIsContract && contractSum is { } agreed && Math.Abs(printed.Gross - agreed) > 0.5m)
                             {
                                 <span class="status status--amber status--plain" data-contract-mismatch>@(printed.Gross > agreed ? EstimateLabels.SpecAboveAgreed(Money(printed.Gross)) : EstimateLabels.SpecBelowAgreed(Money(printed.Gross)))</span>
