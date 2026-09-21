@@ -41,7 +41,8 @@ public sealed class AssessmentReportProjectionTests
         Assert.Equal("Secure bumper", snapshot.Vehicle.TemporaryRepairMethod);
         Assert.Equal(25m, snapshot.Vehicle.TemporaryRepairCost);
         var impact = Assert.Single(snapshot.Damage.Impacts);
-        Assert.Equal(new ReportImpact("Right rear", "Moderate", "Quarter panel", "right_rear"), impact);
+        Assert.Equal(("RH Rear", "Moderate", "Quarter panel"), (impact.Areas, impact.Severity, impact.Note));
+        Assert.Equal(["right_rear"], impact.Codes);
         Assert.Equal("OK", snapshot.Damage.RightFrontTyre);
         Assert.Equal("Worn", snapshot.Damage.LeftFrontTyre);
         Assert.Equal("Damaged", snapshot.Damage.RightRearTyre);
@@ -627,7 +628,7 @@ public sealed class AssessmentReportProjectionTests
             Field(AssessmentVocabulary.IncidentAssessed, "2026-08-03"),
             Field(AssessmentVocabulary.ImpactSeverity, "moderate"),
             Field(AssessmentVocabulary.ImpactLocation, "right_rear"),
-            Field(AssessmentVocabulary.DamageImpacts, "[{\"zone\":\"right_rear\",\"severity\":\"moderate\",\"note\":\"Quarter panel\"}]"),
+            Field(AssessmentVocabulary.DamageImpacts, "[{\"areas\":[\"right_rear\"],\"severity\":\"moderate\",\"note\":\"Quarter panel\"}]"),
             Field(AssessmentVocabulary.DamageTyreRightFront, "ok"),
             Field(AssessmentVocabulary.DamageTyreLeftFront, "worn"),
             Field(AssessmentVocabulary.DamageTyreRightRear, "damaged"),

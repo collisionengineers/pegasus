@@ -212,12 +212,15 @@ field.
 
 ### Damage
 
-Damage shows the **Plan** clicker: a top-down silhouette drawn as the panels
-over the 19 panel and 4 wheel zones, with Underside, Interior and Mechanical
-chips, five graded severity fills with a legend, and numbered markers that
-match the recorded-zones list. Hovering names a zone only while editable.
-Below it sits the zone list with severity and note per zone, and the other
-damage facts. The field set is owned by
+Damage shows the **plan**: a top-down silhouette drawn as the panels, with
+one numbered disc per recorded damage, Underside, Interior and Mechanical
+chips, and five graded severity fills with a legend. While editable, dashed
+band guides show the eight areas, pressing and dragging on the vehicle sizes
+a disc, dragging a disc moves it, the readout names the area under the
+pointer, and Reset returns the damage to the values held when the edit
+opened. Beside it sits the recorded-areas list numbered like the discs, with
+the areas, severity and note per damage, and the other damage facts. The
+field set is owned by
 [FRD-24](frd-24-engineer-findings-damage-valuation-and-settlement.md#damage-record).
 
 ### Valuation

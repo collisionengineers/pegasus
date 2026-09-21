@@ -289,10 +289,10 @@ public static class AssessmentReportProjection
     {
         var impacts = AssessmentPolicy.ParseImpacts(Field(fields, AssessmentVocabulary.DamageImpacts))
             .Select(impact => new ReportImpact(
-                AssessmentReportPresentation.DamageZone(impact.Zone),
+                AssessmentReportPresentation.DamageAreas(impact.Areas),
                 AssessmentReportPresentation.DamageSeverity(impact.Severity),
                 impact.Note,
-                impact.Zone))
+                impact.Areas))
             .ToArray();
         return new(
             impacts,

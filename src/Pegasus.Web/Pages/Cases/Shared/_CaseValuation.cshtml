@@ -31,7 +31,8 @@
     var calculation = editable ? Model.DefaultCalculation : applied?.Calculation;
     var appliedAdditions = applied?.Calculation.Additions ?? [];
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "valuation");
-    var guideSources = new[] { ValuationSource.Glasses, ValuationSource.Brego, ValuationSource.SuperCap };
+    // The five guide sources, each an entry card (v28 P8, P13): Cazana is drawn like the rest.
+    var guideSources = new[] { ValuationSource.Glasses, ValuationSource.Brego, ValuationSource.SuperCap, ValuationSource.Cap, ValuationSource.Cazana };
     // While editing the three guide sources are entry cards; their recorded
     // cards stand behind the entry (latest first) rather than beside it.
     var listedGuides = editable
@@ -141,7 +142,9 @@
                             <span>@ValuationLabels.SourceLabel(source)</span>
                             @if (recorded is not null)
                             {
-                                <label class="pick">
+                                @* The card is chosen by clicking it (v28 P8); the radio
+                                   remains the posted control, and reachable without script. *@
+                                <label class="pick sr-only">
                                     <input type="radio" name="selection.GuideValuationId" value="@recorded.ValuationId"
                                            form="case-valuation-form" checked="@(entrySelected ? "checked" : null)"
                                            data-valuation-basis
@@ -150,7 +153,6 @@
                                     @ValuationLabels.Basis
                                 </label>
                             }
-                            <button type="submit" formaction="@GetValuationAction(source)" class="btn btn--small btn--ghost" data-valuation-source="@slug"><span>@ValuationLabels.GetValuation</span></button>
                         </h3>
                         <div class="figs">
                             <label>@ValuationLabels.Retail<input class="fi mono" type="number" min="0" step="0.01" name="retailValue" required value="@retail?.ToString("0.00", CultureInfo.InvariantCulture)" data-valuation-retail /></label>
@@ -161,6 +163,7 @@
                             <label>@ValuationLabels.Mileage<input class="fi mono" type="number" min="0" name="mileage" required value="@mileage?.ToString(CultureInfo.InvariantCulture)" data-valuation-mileage /></label>
                         </div>
                         <div class="entry-actions">
+                            <button type="submit" formaction="@GetValuationAction(source)" class="btn btn--small" data-valuation-source="@slug"><span>@ValuationLabels.GetValuation</span></button>
                             <button type="submit" class="btn btn--small btn--primary" data-valuation-save="@slug"><span>@Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame.Save</span></button>
                         </div>
                     </form>
@@ -189,7 +192,7 @@
                         }
                         @if (editable)
                         {
-                            <label class="pick">
+                            <label class="pick sr-only">
                                 <input type="radio" name="selection.GuideValuationId" value="@valuation.ValuationId"
                                        form="case-valuation-form" checked="@(selected ? "checked" : null)"
                                        data-valuation-basis
@@ -228,10 +231,6 @@
                     <div class="meta">No valuations recorded.</div>
                 </div>
             }
-            <div class="valuation-card seam" data-valuation-seam>
-                <h3><span>@ValuationLabels.SourceLabel(ValuationSource.Cazana)</span></h3>
-                <span class="gated"><svg class="icon" aria-hidden="true"><use href="#icon-lock" /></svg>@ValuationLabels.CazanaSeam</span>
-            </div>
         </div>
 
         @if (editable)

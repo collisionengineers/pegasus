@@ -235,7 +235,7 @@ public sealed class CaseWorkspacePersistenceTests
         var crop = new CaseAssetCrop(.1m, .2m, .5m, .6m);
         var request = Request(harness, initial.Version, lease.Token, "save-workspace-crop") with
         {
-            Damage = new([new("left_front_wing", "light", "Scuffed")], null),
+            Damage = new([new(["left_front"], "light", "Scuffed")], null),
             ImagePreparation = new([new(occurrenceId, 99, CaseAssetReportRole.Overview, null, CaseAssetRotation.Clockwise90, crop)])
         };
         await Assert.ThrowsAsync<CaseAssetPreparationVersionConflictException>(() => harness.WorkspaceStore.SaveAsync(request, default));
@@ -283,7 +283,7 @@ public sealed class CaseWorkspacePersistenceTests
                         [AssessmentVocabulary.VehicleCondition] = "good",
                         [AssessmentVocabulary.HistoryCheck] = "History clear"
                     }),
-                Damage = new([new("left_front_wing", "light", "Scuffed")], new Dictionary<string, string?>(StringComparer.Ordinal)
+                Damage = new([new(["left_front"], "light", "Scuffed")], new Dictionary<string, string?>(StringComparer.Ordinal)
                 {
                     [AssessmentVocabulary.DamageTyreRightFront] = "damaged",
                     [AssessmentVocabulary.DamageBeltLeftRear] = "deployed",
@@ -323,7 +323,7 @@ public sealed class CaseWorkspacePersistenceTests
         Assert.Equal("20.00", result.Assessment.Field(AssessmentVocabulary.SettlementStoragePerDay)?.Value);
         Assert.Equal("120.00", result.Assessment.Field(AssessmentVocabulary.CostRecoveryCharge)?.Value);
         // The headline impact location is derived from the impacts, never
-        // written directly, and a detailed region rolls up to its parent.
+        // written directly.
         Assert.Equal(
             "left_front",
             result.Assessment.Fields.Single(field => field.Path == AssessmentVocabulary.ImpactLocation).Value);
@@ -803,7 +803,7 @@ public sealed class CaseWorkspacePersistenceTests
                 Request(harness, initial.Version + 5, lease.Token, "workspace-stale") with
                 {
                     Overview = Overview("Never written"),
-                    Damage = new([new("front", "heavy", "Never written")], null)
+                    Damage = new([new(["front"], "heavy", "Never written")], null)
                 },
                 CancellationToken.None));
 

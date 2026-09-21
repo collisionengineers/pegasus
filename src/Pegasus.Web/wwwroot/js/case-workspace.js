@@ -969,15 +969,18 @@
 // shared one-geometry cells alone.
 
 
-// --- damage -----------------------------------------------------------------
-// --- damage: the Plan clicker (v26 § Damage clicker) ------------------------
-// The diagram, the chips, the recorded-zones list and the derived cells are
-// one view of the impacts JSON the Save reads from the hidden input. The
-// page renders all of it server-side; this keeps them in step while the
-// section edits and only names/highlights zones then (D21: absent, not
-// disabled, outside an edit session).
+// --- damage: damage by area (v28 P5) ---------------------------------------
+// The discs on the plan, the three chips, the recorded-areas list and the
+// derived cells are one view of the impacts JSON the Save reads from the
+// hidden input. The page renders all of it server-side; this keeps them in
+// step while the section edits: pressing and dragging on the vehicle sizes a
+// disc, dragging a disc moves it, and the areas under a disc follow Core's
+// bands. Reset returns to the values held when the edit opened. Outside a
+// session nothing is live (D21: absent, not disabled).
 (function () {
     'use strict';
+
+    var SVG_NS = 'http://www.w3.org/2000/svg';
 
     function bind(root) {
         Array.prototype.slice.call(root.querySelectorAll('[data-damage-editor]')).forEach(function (editor) {
@@ -988,8 +991,11 @@
 
             var editable = editor.getAttribute('data-damage-editable') === 'true';
             var input = editor.querySelector('[data-damage-input]');
+            var svg = editor.querySelector('svg.damage-diagram');
+            var layer = editor.querySelector('[data-damage-marks]');
             var readout = editor.querySelector('[data-damage-readout]');
             var list = editor.querySelector('[data-damage-impact-list]');
+            var reset = editor.querySelector('[data-damage-reset]');
             var locationCell = editor.querySelector('[data-damage-location]');
             var severityCell = editor.querySelector('[data-damage-severity]');
             var countCell = editor.querySelector('[data-damage-count]');
@@ -999,23 +1005,46 @@
                 none: editor.getAttribute('data-damage-none') || 'No damage recorded.',
                 noNote: editor.getAttribute('data-damage-no-note') || 'No note',
                 note: editor.getAttribute('data-damage-note-label') || 'Note',
-                remove: editor.getAttribute('data-damage-remove-label') || 'Remove'
+                remove: editor.getAttribute('data-damage-remove-label') || 'Remove',
+                severity: editor.getAttribute('data-damage-grade-label') || 'Severity'
             };
-            var zones, severities, impacts;
-            try { zones = JSON.parse(editor.getAttribute('data-damage-zones') || '{}'); } catch (_) { zones = {}; }
+            var vocabulary, severities, impacts;
+            try { vocabulary = JSON.parse(editor.getAttribute('data-damage-areas') || '{}'); } catch (_) { vocabulary = {}; }
             try { severities = JSON.parse(editor.getAttribute('data-damage-severities') || '[]'); } catch (_) { severities = []; }
             try {
                 impacts = JSON.parse(input ? input.value : (editor.getAttribute('data-damage-impacts') || '[]'));
                 if (!Array.isArray(impacts)) { impacts = []; }
             } catch (_) { impacts = []; }
+            var planAreas = vocabulary.plan || [];
+            var otherAreas = vocabulary.other || [];
+            var names = vocabulary.names || {};
+            var box = vocabulary.box || { x: 0, y: 0, w: 1, h: 1 };
+            var bands = vocabulary.bands || { front: 0.34, rear: 0.72, left: 0.372, right: 0.628 };
+            var baseRadius = (vocabulary.radius || 0.12) * box.w;
+            var order = planAreas.concat(otherAreas);
 
-            function zoneName(code) {
-                var zone = zones[code];
-                return zone ? zone.n : String(code || '').replace(/_/g, ' ');
+            // Each recorded damage keeps its disc beside its areas. The disc the
+            // page drew is read back, so the opening view is the recorded one
+            // and Reset can return to it.
+            var marks = impacts.map(function (item, index) {
+                var drawn = layer ? layer.querySelector('[data-mark="' + index + '"] circle.area') : null;
+                return {
+                    areas: Array.isArray(item.areas) ? item.areas.slice() : [],
+                    severity: item.severity || 'moderate',
+                    note: item.note || '',
+                    disc: drawn ? { x: +drawn.getAttribute('cx'), y: +drawn.getAttribute('cy'), r: +drawn.getAttribute('r') } : null
+                };
+            });
+            var opening = JSON.parse(JSON.stringify(marks));
+
+            function areaName(code) {
+                return names[code] || String(code || '').replace(/_/g, ' ');
             }
-            function zoneLocation(code) {
-                var zone = zones[code];
-                return zone ? zone.l : zoneName(code);
+            function areaNames(areas) {
+                return areas.map(areaName).join(', ');
+            }
+            function sortAreas(areas) {
+                return areas.slice().sort(function (a, b) { return order.indexOf(a) - order.indexOf(b); });
             }
             function severityName(code) {
                 var found = severities.filter(function (item) { return item.k === code; })[0];
@@ -1024,69 +1053,136 @@
             function severityRank(code) {
                 return severities.map(function (item) { return item.k; }).indexOf(code);
             }
-            function impact(code) {
-                return impacts.filter(function (item) { return item.zone === code; })[0];
+            function otherMark(code) {
+                return marks.filter(function (mark) { return mark.areas.length === 1 && mark.areas[0] === code; })[0];
             }
-            function zoneElements() {
-                return Array.prototype.slice.call(editor.querySelectorAll('[data-damage-zone]'));
+            function format(value) {
+                return String(Math.round(value * 10) / 10);
             }
 
             function persist() {
                 if (input) {
-                    input.value = JSON.stringify(impacts);
+                    input.value = JSON.stringify(marks.map(function (mark) {
+                        return { areas: mark.areas, severity: mark.severity, note: mark.note };
+                    }));
                     input.dispatchEvent(new Event('input', { bubbles: true }));
                 }
             }
 
-            function paintZones() {
-                var order = {};
-                impacts.forEach(function (item, index) { order[item.zone] = index + 1; });
-                zoneElements().forEach(function (element) {
-                    var recorded = impact(element.getAttribute('data-damage-zone'));
-                    element.classList.toggle('is-damaged', !!recorded);
-                    if (recorded) {
-                        element.setAttribute('data-sev', recorded.severity);
-                    } else {
-                        element.removeAttribute('data-sev');
-                    }
-                });
-                editor.querySelectorAll('[data-damage-marker]').forEach(function (marker) {
-                    var number = order[marker.getAttribute('data-damage-marker')];
-                    marker.classList.toggle('is-hidden', !number);
-                    var text = marker.querySelector('text');
-                    if (text && number) {
-                        text.textContent = String(number);
-                    }
+            // --- the plan: points, the vehicle and Core's bands
+            function svgPoint(event) {
+                var point = svg.createSVGPoint();
+                point.x = event.clientX;
+                point.y = event.clientY;
+                var mapped = point.matrixTransform(svg.getScreenCTM().inverse());
+                return { x: mapped.x, y: mapped.y };
+            }
+            function onVehicle(x, y) {
+                var point = svg.createSVGPoint();
+                point.x = x;
+                point.y = y;
+                var body = svg.querySelector('.dv-body');
+                if (body && body.isPointInFill(point)) {
+                    return true;
+                }
+                return Array.prototype.slice.call(svg.querySelectorAll('.dv-wheel, .dv-mirror')).some(function (rect) {
+                    var rx = +rect.getAttribute('x');
+                    var ry = +rect.getAttribute('y');
+                    return x >= rx && x <= rx + +rect.getAttribute('width') && y >= ry && y <= ry + +rect.getAttribute('height');
                 });
             }
+            function areaAt(x, y) {
+                if (!onVehicle(x, y)) {
+                    return null;
+                }
+                var ux = (x - box.x) / box.w;
+                var uy = (y - box.y) / box.h;
+                var band = uy < bands.front ? 'front' : uy > bands.rear ? 'rear' : 'side';
+                var lateral = ux < bands.left ? 'left' : ux > bands.right ? 'right' : 'centre';
+                if (band === 'side') {
+                    return (lateral === 'centre' ? (ux < 0.5 ? 'left' : 'right') : lateral) + '_side';
+                }
+                return lateral === 'centre' ? band : lateral + '_' + band;
+            }
+            function areasUnder(disc) {
+                var points = [[disc.x, disc.y]];
+                for (var step = 0; step < 8; step++) {
+                    points.push([disc.x + disc.r * Math.cos(step * Math.PI / 4), disc.y + disc.r * Math.sin(step * Math.PI / 4)]);
+                }
+                var found = [];
+                points.forEach(function (point) {
+                    var area = areaAt(point[0], point[1]);
+                    if (area && found.indexOf(area) < 0) { found.push(area); }
+                });
+                return sortAreas(found);
+            }
 
+            // --- painting
+            function circle(className, x, y, r) {
+                var element = document.createElementNS(SVG_NS, 'circle');
+                element.setAttribute('class', className);
+                element.setAttribute('cx', format(x));
+                element.setAttribute('cy', format(y));
+                element.setAttribute('r', format(r));
+                return element;
+            }
+            function paintMarks() {
+                if (!layer) {
+                    return;
+                }
+                while (layer.firstChild) { layer.removeChild(layer.firstChild); }
+                marks.forEach(function (mark, index) {
+                    if (!mark.disc) {
+                        return;
+                    }
+                    var group = document.createElementNS(SVG_NS, 'g');
+                    group.setAttribute('class', 'dm');
+                    group.setAttribute('data-mark', String(index));
+                    group.setAttribute('data-sev', mark.severity);
+                    group.appendChild(circle('area', mark.disc.x, mark.disc.y, mark.disc.r));
+                    group.appendChild(circle('n', mark.disc.x, mark.disc.y, 8));
+                    var text = document.createElementNS(SVG_NS, 'text');
+                    text.setAttribute('x', format(mark.disc.x));
+                    text.setAttribute('y', format(mark.disc.y + 3.2));
+                    text.setAttribute('text-anchor', 'middle');
+                    text.textContent = String(index + 1);
+                    group.appendChild(text);
+                    layer.appendChild(group);
+                });
+            }
+            function paintChips() {
+                editor.querySelectorAll('[data-damage-area]').forEach(function (chip) {
+                    var recorded = !!otherMark(chip.getAttribute('data-damage-area'));
+                    chip.classList.toggle('is-damaged', recorded);
+                    chip.setAttribute('aria-pressed', recorded ? 'true' : 'false');
+                });
+            }
             function paintDerived() {
                 if (countCell) {
-                    countCell.textContent = String(impacts.length);
+                    countCell.textContent = String(marks.length);
                 }
                 if (locationCell) {
-                    var headlines = [];
-                    impacts.forEach(function (item) {
-                        var location = zoneLocation(item.zone);
-                        if (headlines.indexOf(location) < 0) { headlines.push(location); }
+                    var all = [];
+                    marks.forEach(function (mark) {
+                        mark.areas.forEach(function (area) { if (all.indexOf(area) < 0) { all.push(area); } });
                     });
-                    locationCell.textContent = headlines.length === 0
+                    var recorded = sortAreas(all).map(areaName);
+                    locationCell.textContent = recorded.length === 0
                         ? words.absent
-                        : headlines.length === 1
-                            ? headlines[0]
-                            : words.multiple + ' · ' + headlines.join(', ');
+                        : recorded.length === 1
+                            ? recorded[0]
+                            : words.multiple + ' · ' + recorded.join(', ');
                 }
                 if (severityCell) {
                     var best = null;
-                    impacts.forEach(function (item) {
-                        if (best === null || severityRank(item.severity) > severityRank(best)) {
-                            best = item.severity;
+                    marks.forEach(function (mark) {
+                        if (best === null || severityRank(mark.severity) > severityRank(best)) {
+                            best = mark.severity;
                         }
                     });
                     severityCell.textContent = best === null ? words.absent : severityName(best);
                 }
             }
-
             function cell(className, contents) {
                 var span = document.createElement('span');
                 span.className = 'fc';
@@ -1096,13 +1192,12 @@
                 span.appendChild(value);
                 return span;
             }
-
             function renderList() {
                 if (!list) {
                     return;
                 }
                 list.innerHTML = '';
-                if (impacts.length === 0) {
+                if (marks.length === 0) {
                     var empty = document.createElement('li');
                     empty.className = 'muted';
                     empty.setAttribute('data-damage-empty', '');
@@ -1110,10 +1205,10 @@
                     list.appendChild(empty);
                     return;
                 }
-                impacts.forEach(function (item, index) {
+                marks.forEach(function (mark, index) {
                     var row = document.createElement('li');
                     row.className = 'impact-row';
-                    row.setAttribute('data-damage-row', item.zone);
+                    row.setAttribute('data-damage-row', String(index));
 
                     var name = document.createElement('span');
                     name.className = 'zc';
@@ -1121,35 +1216,35 @@
                     badge.className = 'zn';
                     badge.textContent = String(index + 1);
                     name.appendChild(badge);
-                    name.appendChild(document.createTextNode(zoneName(item.zone)));
+                    name.appendChild(document.createTextNode(areaNames(mark.areas)));
                     row.appendChild(name);
 
-                    var severityCellRow = cell('fv', severityName(item.severity));
+                    var severityCellRow = cell('fv', severityName(mark.severity));
                     if (editable) {
                         var select = document.createElement('select');
                         select.className = 'fi';
                         select.setAttribute('data-damage-row-severity', '');
-                        select.setAttribute('aria-label', zoneName(item.zone) + ' severity');
+                        select.setAttribute('aria-label', areaNames(mark.areas) + ' ' + words.severity.toLowerCase());
                         severities.forEach(function (severity) {
                             var option = document.createElement('option');
                             option.value = severity.k;
                             option.textContent = severity.n;
-                            option.selected = severity.k === item.severity;
+                            option.selected = severity.k === mark.severity;
                             select.appendChild(option);
                         });
                         severityCellRow.appendChild(select);
                     }
                     row.appendChild(severityCellRow);
 
-                    var noteCellRow = cell('fv' + (item.note ? '' : ' empty'), item.note || words.noNote);
+                    var noteCellRow = cell('fv' + (mark.note ? '' : ' empty'), mark.note || words.noNote);
                     if (editable) {
                         var note = document.createElement('input');
                         note.className = 'fi';
                         note.maxLength = 200;
-                        note.value = item.note || '';
+                        note.value = mark.note || '';
                         note.placeholder = words.note;
                         note.setAttribute('data-damage-row-note', '');
-                        note.setAttribute('aria-label', zoneName(item.zone) + ' ' + words.note.toLowerCase());
+                        note.setAttribute('aria-label', areaNames(mark.areas) + ' ' + words.note.toLowerCase());
                         noteCellRow.appendChild(note);
                     }
                     row.appendChild(noteCellRow);
@@ -1159,74 +1254,144 @@
                         remove.type = 'button';
                         remove.className = 'del';
                         remove.setAttribute('data-damage-row-remove', '');
-                        remove.setAttribute('aria-label', words.remove + ' ' + zoneName(item.zone));
+                        remove.setAttribute('aria-label', words.remove + ' ' + areaNames(mark.areas));
                         remove.textContent = '×';
                         row.appendChild(remove);
                     }
                     list.appendChild(row);
                 });
             }
-
             function render() {
-                paintZones();
+                paintMarks();
+                paintChips();
                 paintDerived();
                 renderList();
             }
-
-            function hover(code) {
-                if (!editable) {
-                    return;
+            function hover(index) {
+                if (layer) {
+                    layer.querySelectorAll('[data-mark]').forEach(function (group) {
+                        group.classList.toggle('is-hover', index !== null && group.getAttribute('data-mark') === String(index));
+                    });
                 }
-                if (readout) {
-                    readout.textContent = code ? zoneName(code) : '';
-                }
-                zoneElements().forEach(function (element) {
-                    element.classList.toggle('is-hover', !!code && element.getAttribute('data-damage-zone') === code);
-                });
                 if (list) {
                     list.querySelectorAll('[data-damage-row]').forEach(function (row) {
-                        row.classList.toggle('is-hover', !!code && row.getAttribute('data-damage-row') === code);
+                        row.classList.toggle('is-hover', index !== null && row.getAttribute('data-damage-row') === String(index));
                     });
                 }
             }
 
-            function toggle(code) {
+            function toggleOther(code) {
                 if (!editable) {
                     return;
                 }
-                if (impact(code)) {
-                    impacts = impacts.filter(function (item) { return item.zone !== code; });
+                var existing = otherMark(code);
+                if (existing) {
+                    marks.splice(marks.indexOf(existing), 1);
                 } else {
-                    impacts.push({ zone: code, severity: 'moderate', note: '' });
+                    marks.push({ areas: [code], severity: 'moderate', note: '', disc: null });
                 }
                 render();
                 persist();
             }
-
-            // The zones: click toggles, hover names, keyboard as buttons.
-            zoneElements().forEach(function (element) {
-                var code = element.getAttribute('data-damage-zone');
-                var isSvg = element.namespaceURI === 'http://www.w3.org/2000/svg';
-                if (editable && isSvg) {
-                    element.setAttribute('role', 'button');
-                    element.setAttribute('tabindex', '0');
-                    element.setAttribute('aria-label', zoneName(code));
-                }
-                element.addEventListener('click', function () { toggle(code); });
-                element.addEventListener('keydown', function (event) {
-                    if (!editable || (event.key !== 'Enter' && event.key !== ' ')) {
-                        return;
-                    }
-                    event.preventDefault();
-                    toggle(code);
-                });
-                element.addEventListener('mouseenter', function () { hover(code); });
-                element.addEventListener('mouseleave', function () { hover(null); });
-                element.addEventListener('focus', function () { hover(code); });
-                element.addEventListener('blur', function () { hover(null); });
+            editor.querySelectorAll('[data-damage-area]').forEach(function (chip) {
+                chip.addEventListener('click', function () { toggleOther(chip.getAttribute('data-damage-area')); });
             });
 
-            // The list: severity and note write back; hover lights the zone.
+            // The plan: pressing and dragging sizes a new disc, dragging a
+            // disc moves it, and the readout names the area under the pointer.
+            if (editable && svg && layer) {
+                var drawing = null;
+                svg.addEventListener('pointerdown', function (event) {
+                    var point = svgPoint(event);
+                    var hit = event.target.closest ? event.target.closest('[data-mark]') : null;
+                    if (hit) {
+                        var moved = marks[+hit.getAttribute('data-mark')];
+                        if (!moved || !moved.disc) {
+                            return;
+                        }
+                        drawing = {
+                            mark: moved,
+                            move: true,
+                            dx: moved.disc.x - point.x,
+                            dy: moved.disc.y - point.y,
+                            was: { disc: JSON.parse(JSON.stringify(moved.disc)), areas: moved.areas.slice() }
+                        };
+                    } else {
+                        var area = areaAt(point.x, point.y);
+                        if (!area) {
+                            return;
+                        }
+                        var mark = { areas: [area], severity: 'moderate', note: '', disc: { x: point.x, y: point.y, r: 12 } };
+                        marks.push(mark);
+                        drawing = { mark: mark, move: false };
+                    }
+                    event.preventDefault();
+                    svg.setPointerCapture(event.pointerId);
+                    render();
+                });
+                svg.addEventListener('pointermove', function (event) {
+                    var point = svgPoint(event);
+                    if (!drawing) {
+                        if (readout) {
+                            var under = areaAt(point.x, point.y);
+                            readout.textContent = under ? areaName(under) : '';
+                        }
+                        return;
+                    }
+                    if (drawing.move) {
+                        drawing.mark.disc.x = point.x + drawing.dx;
+                        drawing.mark.disc.y = point.y + drawing.dy;
+                    } else {
+                        drawing.mark.disc.r = Math.max(10, Math.hypot(point.x - drawing.mark.disc.x, point.y - drawing.mark.disc.y));
+                    }
+                    var areas = areasUnder(drawing.mark.disc);
+                    if (areas.length) {
+                        drawing.mark.areas = areas;
+                    }
+                    render();
+                });
+                var finish = function () {
+                    if (!drawing) {
+                        return;
+                    }
+                    // A disc dragged off the vehicle names nothing: a moved one
+                    // returns, a new one is not recorded.
+                    if (!areasUnder(drawing.mark.disc).length) {
+                        if (drawing.move) {
+                            drawing.mark.disc = drawing.was.disc;
+                            drawing.mark.areas = drawing.was.areas;
+                        } else {
+                            marks.splice(marks.indexOf(drawing.mark), 1);
+                        }
+                    }
+                    drawing = null;
+                    render();
+                    persist();
+                };
+                svg.addEventListener('pointerup', finish);
+                svg.addEventListener('pointercancel', finish);
+                svg.addEventListener('pointerleave', function () {
+                    if (readout && !drawing) { readout.textContent = ''; }
+                });
+                layer.addEventListener('mouseover', function (event) {
+                    var group = event.target.closest ? event.target.closest('[data-mark]') : null;
+                    hover(group ? +group.getAttribute('data-mark') : null);
+                });
+                layer.addEventListener('mouseleave', function () { hover(null); });
+            }
+            if (reset) {
+                reset.addEventListener('click', function () {
+                    marks = JSON.parse(JSON.stringify(opening));
+                    render();
+                    persist();
+                });
+            }
+            if (!baseRadius) {
+                baseRadius = 12;
+            }
+
+            // The list: severity and note write back; remove takes the damage
+            // away; hover lights its disc.
             if (list) {
                 list.addEventListener('change', function (event) {
                     var select = event.target.closest('[data-damage-row-severity]');
@@ -1234,10 +1399,10 @@
                         return;
                     }
                     var row = select.closest('[data-damage-row]');
-                    var recorded = row && impact(row.getAttribute('data-damage-row'));
+                    var recorded = row && marks[+row.getAttribute('data-damage-row')];
                     if (recorded) {
                         recorded.severity = select.value;
-                        paintZones();
+                        paintMarks();
                         paintDerived();
                         persist();
                     }
@@ -1248,7 +1413,7 @@
                         return;
                     }
                     var row = note.closest('[data-damage-row]');
-                    var recorded = row && impact(row.getAttribute('data-damage-row'));
+                    var recorded = row && marks[+row.getAttribute('data-damage-row')];
                     if (recorded) {
                         recorded.note = note.value;
                         persist();
@@ -1256,24 +1421,24 @@
                 });
                 list.addEventListener('click', function (event) {
                     var remove = event.target.closest('[data-damage-row-remove]');
-                    if (!remove) {
+                    if (!remove || !editable) {
                         return;
                     }
                     var row = remove.closest('[data-damage-row]');
                     if (row) {
-                        toggle(row.getAttribute('data-damage-row'));
+                        marks.splice(+row.getAttribute('data-damage-row'), 1);
+                        render();
+                        persist();
                     }
                 });
                 list.addEventListener('mouseover', function (event) {
                     var row = event.target.closest('[data-damage-row]');
-                    hover(row ? row.getAttribute('data-damage-row') : null);
+                    hover(row ? +row.getAttribute('data-damage-row') : null);
                 });
                 list.addEventListener('mouseleave', function () { hover(null); });
             }
-
-            // The server rendered the list and the cells; painting the zones
-            // and the markers is what script adds on load.
-            paintZones();
+            // The server rendered the discs, the chips, the list and the cells;
+            // nothing is painted on load.
         });
     }
 
