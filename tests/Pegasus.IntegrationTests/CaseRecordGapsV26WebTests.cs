@@ -510,7 +510,8 @@ public sealed class CaseRecordGapsV26WebTests
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
 
-        Assert.Contains("Case workflow", html, StringComparison.Ordinal);
+        // The workflow strip is gone (v28 P4): the ribbon's state chip says where the Case is.
+        Assert.DoesNotContain("Case workflow", html, StringComparison.Ordinal);
         Assert.Contains("Review", html, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ConfirmCompleteness", html, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Confirm completeness", html, StringComparison.OrdinalIgnoreCase);

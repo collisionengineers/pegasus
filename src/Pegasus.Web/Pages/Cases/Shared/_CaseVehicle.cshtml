@@ -258,7 +258,7 @@
 
         @* The history check is prose about the vehicle rather than one of its
            facts, so it reads as its own area under the grid. *@
-        <div class="sub-panel vehicle-history @Model.CollapsedClass("case.vehicle.history")" data-vehicle-history data-collapse="case.vehicle.history"><h3>@VehicleLabels.History <span class="rt">@OperatorLabels.CaseWorkspace.ExperianSeamCondition</span> <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.vehicle.history")" /></h3>
+        <div class="sub-panel vehicle-history @Model.CollapsedClass("case.vehicle.history")" data-collapse="case.vehicle.history" data-vehicle-history><h3>@VehicleLabels.History <span class="rt">@OperatorLabels.CaseWorkspace.ExperianSeamCondition</span> <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.vehicle.history")" /></h3>
             <div class="fc">
                 @{ Lbl(canEditHistory, "edit-vehicle-history", VehicleLabels.History); }
                 <div class="@ValueClass(Model.AssessmentEditorValue(AssessmentVocabulary.HistoryCheck)) multi">@Model.AssessmentValue(AssessmentVocabulary.HistoryCheck)</div>
