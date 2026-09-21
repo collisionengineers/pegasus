@@ -776,6 +776,33 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("/Account/SignOut", html, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task CompoundOutcomeLabelsStayExactAndGreenInRowsAndSelectedPreview()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        await StoreOutcomeReceiptAsync(factory, FirstMailboxId, FirstMailboxId + "-0", IntakeDecision.CaseCreated);
+        await StoreOutcomeReceiptAsync(factory, FirstMailboxId, FirstMailboxId + "-1", IntakeDecision.ImageIntakeRegistered);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var outcomes = new[]
+        {
+            (MessageId: ids[1], Label: "Ready for case allocation"),
+            (MessageId: ids[0], Label: "Vehicle images registered")
+        };
+        foreach (var outcome in outcomes)
+        {
+            var html = await GetHtmlAsync(client, $"/Inbox?selected={outcome.MessageId:D}");
+            var row = MailRow(html, outcome.MessageId);
+            Assert.Contains($">{outcome.Label}<", row, StringComparison.Ordinal);
+            Assert.Contains("class=\"status status--green\"", row, StringComparison.Ordinal);
+
+            var preview = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
+            Assert.Contains($">{outcome.Label}<", preview, StringComparison.Ordinal);
+            Assert.Contains("class=\"status status--green\"", preview, StringComparison.Ordinal);
+        }
+    }
+
     /// <summary>
     /// The list's scope rail (Inbox, 13 September): one count per scope, no Unread
     /// scope and a Dismissed scope last, the sort toggle as a server-side flip, and
@@ -2072,6 +2099,17 @@ public sealed class MailWorkspaceWebTests
         return text[from..to];
     }
 
+    private static string MailRow(string html, Guid messageId)
+    {
+        var marker = $"data-mail-row=\"{messageId:D}\"";
+        var markerIndex = html.IndexOf(marker, StringComparison.Ordinal);
+        Assert.True(markerIndex >= 0, $"The retained message row {messageId:D} was not rendered.");
+        var start = html.LastIndexOf("<div class=\"row-button", markerIndex, StringComparison.Ordinal);
+        var end = html.IndexOf("</div>", markerIndex, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start, $"The retained message row {messageId:D} was incomplete.");
+        return html[start..end];
+    }
+
     private static string AssociationAction(string html, string handler)
     {
         var match = Regex.Match(
@@ -2374,10 +2412,17 @@ public sealed class MailWorkspaceWebTests
             .ToArrayAsync();
     }
 
-    private static async Task StoreForwardedRouteAsync(
+    private static Task StoreForwardedRouteAsync(
         IntakeWebApplicationFactory factory,
         string mailboxId,
-        string messageId)
+        string messageId) =>
+        StoreOutcomeReceiptAsync(factory, mailboxId, messageId, IntakeDecision.NeedsSorting);
+
+    private static async Task StoreOutcomeReceiptAsync(
+        IntakeWebApplicationFactory factory,
+        string mailboxId,
+        string messageId,
+        IntakeDecision decision)
     {
         await using var scope = factory.Services.CreateAsyncScope();
         await scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>().StoreAsync(
@@ -2390,7 +2435,7 @@ public sealed class MailWorkspaceWebTests
                 ReceivedAtUtc: NowUtc,
                 ProcessedAtUtc: NowUtc,
                 Actor: "system-worker:approved-inbox-poller",
-                Decision: IntakeDecision.NeedsSorting,
+                Decision: decision,
                 DecisionReason: "Fixture evaluation.",
                 Evidence: [],
                 Fields: [],
