@@ -301,6 +301,10 @@ public sealed class EfRepairSpecificationStore(
         else if (request.SelectedRateCardVersion is not null)
             throw new ArgumentException("Select a labour-rate card for the specified version.");
         ApplyDetails(entity, request.Details);
+        entity.SupplementaryOfSpecificationId = request.Supplementary?.OfSpecificationId;
+        entity.SupplementaryReason = request.Supplementary?.Reason;
+        entity.SupplementaryExplainOnReport = request.Supplementary?.ExplainOnReport ?? false;
+        entity.SupplementaryStatement = request.Supplementary?.Statement;
         AddLines(context, entity, request.Lines, request.Actor, now);
         if (importedDocument)
         {
@@ -313,6 +317,13 @@ public sealed class EfRepairSpecificationStore(
             }
         }
         RecordBreakdown(entity);
+        if (importedDocument)
+        {
+            // v1 of an imported specification is the import itself (v28 P43).
+            EfRepairSpecificationSnapshotStore.Freeze(
+                context, Map(entity), request.Actor, RepairSpecificationSnapshotKind.Imported,
+                "Imported " + Pegasus.Core.Assessment.RepairSpecificationRouteWords.Of(request.Source.Route), now);
+        }
         if (editingCurrent)
         {
             // Editing the current estimate changes the breakdown a frozen
@@ -321,7 +332,7 @@ public sealed class EfRepairSpecificationStore(
                 context, request.CaseId, "current_estimate_saved", now, cancellationToken);
         }
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
-            eventType, requestHash, new { entity.Id, entity.Version, entity.Name, Lines = request.Lines.Count }, now);
+            request.EventType ?? eventType, requestHash, new { entity.Id, entity.Version, entity.Name, Lines = request.Lines.Count }, now);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
@@ -943,7 +954,11 @@ public sealed class EfRepairSpecificationStore(
                     details.VatPolicy,
                     breakdown.VatPercent,
                     breakdown.CalculationPolicyVersion,
-                    []));
+                    []),
+            entity.SupplementaryOfSpecificationId is { } supplementaryOf
+                ? new(supplementaryOf, entity.SupplementaryReason ?? string.Empty,
+                    entity.SupplementaryExplainOnReport, entity.SupplementaryStatement ?? string.Empty)
+                : null);
     }
 
     /// <summary>

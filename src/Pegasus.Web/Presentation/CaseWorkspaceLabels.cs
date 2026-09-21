@@ -123,6 +123,7 @@ public static class CaseWorkspaceLabels
             [AssessmentVocabulary.SettlementHireStart] = "Hire start",
             [AssessmentVocabulary.SettlementHireDailyCost] = "Hire daily cost",
             [AssessmentVocabulary.SettlementDiminution] = "Diminution",
+            [AssessmentVocabulary.SettlementContractSum] = "Agreed contract sum",
             [AssessmentVocabulary.SettlementSalvageAt] = "Salvage location",
             [AssessmentVocabulary.SettlementSalvageAgent] = "Salvage agent",
             [AssessmentVocabulary.SettlementSalvageAgentReference] = "Salvage agent reference",
@@ -328,6 +329,48 @@ public static class CaseWorkspaceLabels
         public const string Suggested = "Suggested";
         public const string LondonAndHomeCounties = "London & Home Counties";
         public const string Rename = "Rename";
+        public const string TargetPercentOfValue = "Target % of value";
+        public const string Scaled = "Scaled";
+        public const string Preview = "Preview";
+        public const string Apply = "Apply";
+        public const string RemoveScaling = "Remove scaling";
+        public const string Floors = "Floors";
+        public const string FloorLabour = "labour \u00a3/h";
+        public const string FloorPrices = "prices %";
+        public const string AsEstimated = "as estimated";
+        public const string ContractRepair = "Contract repair";
+        public const string ContractRepairAgreed = "Contract repair agreed";
+        public const string AgreedTotalSum = "agreed total sum \u00a3";
+        public const string Versions = "Versions";
+        public const string VersionsTitle = "Repair Spec versions";
+        public const string Version = "Version";
+        public const string When = "When";
+        public const string HowItCameAbout = "How it came about";
+        public const string Lines = "Lines";
+        public const string Rate = "Rate";
+        public const string TotalIncVat = "Total inc VAT";
+        public const string SentOnReport = "Sent on report";
+        public const string Working = "Working";
+        public const string TheDraftBeingEdited = "The draft being edited";
+        public const string Restore = "Restore";
+        public const string Now = "now";
+        public const string From = "From";
+        public const string To = "To";
+        public const string Change = "Change";
+        public const string Added = "Added";
+        public const string Changed = "Changed";
+        public const string Removed = "Removed";
+        public const string Net = "net";
+        public const string Supplementary = "Supplementary";
+        public const string ChangesVs = "Changes vs";
+        public const string ExplainOnReport = "Explain the change on the report";
+        public const string SupplementaryDamage = "Supplementary damage";
+        public const string Choose = "Choose\u2026";
+
+        public static string VersionsCount(int count) => $"{Versions} ({count})";
+        public static string SpecAboveAgreed(string gross) => $"Spec {gross} above agreed";
+        public static string SpecBelowAgreed(string gross) => $"Spec {gross} below agreed";
+        public static string LinesCount(int count) => count == 1 ? "1 line" : $"{count} lines";
 
         public static string LinesRemoved(int count) => count == 1 ? LineRemoved : $"{count} lines removed";
 

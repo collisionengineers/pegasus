@@ -63,6 +63,10 @@ public sealed partial class DetailsModel(
     ISetCurrentEstimate setCurrentEstimate,
     IRepairSpecificationStore repairSpecifications,
     IImportRawEstimate importRawEstimate,
+    IRepairSpecificationSnapshotStore specificationSnapshots,
+    IScaleRepairSpecification scaleRepairSpecification,
+    IRemoveRepairSpecificationScaling removeRepairSpecificationScaling,
+    IRestoreRepairSpecificationSnapshot restoreRepairSpecificationSnapshot,
     IAddCaseDocument addCaseDocument,
     ICaseAssetPreparationQueries caseAssetPreparationQueries,
     IAcquireCaseEditLease acquireLease,
@@ -574,6 +578,28 @@ public sealed partial class DetailsModel(
 
     public string UseEstimateOperationKey { get; private set; } = NewOperationKey();
 
+    public string RestoreOperationKey { get; private set; } = NewOperationKey();
+
+    /// <summary>The selected specification's frozen versions, oldest first (v28 P43).</summary>
+    public IReadOnlyList<RepairSpecificationSnapshot> SelectedEstimateSnapshots { get; private set; } = [];
+
+    /// <summary>Whether the selected specification stands scaled: its latest version is the scaled one (v28 P34).</summary>
+    public bool SelectedEstimateIsScaled =>
+        SelectedEstimateSnapshots.Count > 0
+        && SelectedEstimateSnapshots[^1].Kind == RepairSpecificationSnapshotKind.Scaled;
+
+    /// <summary>The two specifications Compare reads, when the query names both (v28 P19).</summary>
+    public RepairSpecificationVersion? ComparisonFrom { get; private set; }
+
+    public RepairSpecificationVersion? ComparisonTo { get; private set; }
+
+    public RepairSpecificationComparison.Diff? Comparison { get; private set; }
+
+    /// <summary>The specification the selected one supplements, and their differences (v28 P20).</summary>
+    public RepairSpecificationVersion? SupplementaryBase { get; private set; }
+
+    public RepairSpecificationComparison.Diff? SupplementaryDiff { get; private set; }
+
     public string SendOperationKey { get; private set; } = NewOperationKey();
 
     public string ReportDraftOperationKey { get; private set; } = NewOperationKey();
@@ -884,6 +910,25 @@ public sealed partial class DetailsModel(
         Estimates = await listEstimates.ExecuteAsync(id, cancellationToken);
         LabourRateCards = await labourRateCards.ListAsync(actor, cancellationToken);
         ApplyEstimateSelection(estimate);
+        if (SelectedEstimate is not null)
+        {
+            SelectedEstimateSnapshots = await specificationSnapshots.ListAsync(id, SelectedEstimate.SpecificationId, cancellationToken);
+            if (SelectedEstimate.Supplementary is { } supplementary)
+            {
+                SupplementaryBase = Estimates.FirstOrDefault(item => item.SpecificationId == supplementary.OfSpecificationId);
+                SupplementaryDiff = SupplementaryBase is null
+                    ? null
+                    : RepairSpecificationComparison.Compare(SupplementaryBase, SelectedEstimate);
+            }
+        }
+        if (Guid.TryParse(Request.Query["from"], out var fromId) && Guid.TryParse(Request.Query["to"], out var toId) && fromId != toId)
+        {
+            ComparisonFrom = Estimates.FirstOrDefault(item => item.SpecificationId == fromId);
+            ComparisonTo = Estimates.FirstOrDefault(item => item.SpecificationId == toId);
+            Comparison = ComparisonFrom is null || ComparisonTo is null
+                ? null
+                : RepairSpecificationComparison.Compare(ComparisonFrom, ComparisonTo);
+        }
         if (AssessmentCanOpen)
         {
             var inputs = await reportSnapshotSource.GetAsync(id, actor, cancellationToken);
@@ -909,6 +954,7 @@ public sealed partial class DetailsModel(
             "import-estimate" when ImportCondition is null => "import-estimate",
             "send-to-claude" when SendToClaudeCondition is null => "send-to-claude",
             "compare-estimates" when Estimates.Count >= 2 => "compare-estimates",
+            "versions" when SelectedEstimate is not null => "versions",
             "delete-estimate" when SelectedEstimateIsEditable
                 && SelectedEstimate is { IsCurrent: false } => "delete-estimate",
             _ => null
@@ -2012,6 +2058,18 @@ public sealed partial class DetailsModel(
             return RedirectToReport(id);
         }
 
+        if (operation.State is StaffMailState.Sent or StaffMailState.Submitted)
+        {
+            // The version the report went out with is frozen and marked (v28 P43).
+            var current = await repairSpecifications.GetCurrentAcceptedAsync(id, cancellationToken);
+            if (current is not null)
+            {
+                await specificationSnapshots.FreezeAsync(
+                    new(id, current.SpecificationId, actor, RepairSpecificationSnapshotKind.Sent, "As sent on the report"),
+                    cancellationToken);
+            }
+        }
+
         switch (operation.State)
         {
             case StaffMailState.Sent:
@@ -2309,7 +2367,8 @@ public sealed partial class DetailsModel(
                     ExistingLineIds: editor.ExistingLineIds)
                 {
                     SelectedRateCardId = selectedRateCard.Id,
-                    SelectedRateCardVersion = selectedRateCard.Version
+                    SelectedRateCardVersion = selectedRateCard.Version,
+                    Supplementary = await ReadSupplementaryAsync(id, existing, details, editor.Lines, cancellationToken),
                 },
                 cancellationToken);
             RecordEditorCommit("case-estimate-form", operationKey, expectedVersion.Value);
@@ -2356,6 +2415,193 @@ public sealed partial class DetailsModel(
         }
 
         return await RedrawEditorAsync(id, editor.EstimateId, editor, rows, cancellationToken);
+    }
+
+    /// <summary>
+    /// What the editor said about the specification this one supplements
+    /// (v28 P20): the base, the reason and whether the report explains it.
+    /// The statement is composed from the base and the lines as posted, so
+    /// the record and the report say the same thing.
+    /// </summary>
+    private async Task<RepairSpecificationSupplementary?> ReadSupplementaryAsync(
+        Guid caseId,
+        RepairSpecificationVersion? existing,
+        EstimateDetails details,
+        IReadOnlyList<EstimateLineInput> lines,
+        CancellationToken cancellationToken)
+    {
+        if (!Guid.TryParse(Request.Form["supplementaryOf"], out var baseId) || baseId == Guid.Empty)
+        {
+            return null;
+        }
+        var reason = Request.Form["supplementaryReason"].ToString();
+        if (RepairSpecificationComparison.SupplementaryReasons.All(item => item.Code != reason))
+        {
+            reason = RepairSpecificationComparison.SupplementaryReasons[0].Code;
+        }
+        var baseSpecification = await repairSpecifications.GetVersionAsync(caseId, baseId, cancellationToken);
+        if (baseSpecification is null || baseSpecification.SpecificationId == existing?.SpecificationId)
+        {
+            return null;
+        }
+        var provisional = new RepairSpecificationVersion(
+            existing?.SpecificationId ?? Guid.Empty, caseId, existing?.Version ?? 1, RepairSpecificationState.Draft,
+            existing?.Source ?? new(RepairSpecificationSourceRoute.Manual, null, null, null),
+            [.. lines.Select((line, index) => new CaseEstimateLineRecord(
+                Guid.Empty, index + 1, line.Type, line.GuideCode, line.Description, line.WorkUnits, line.Price,
+                line.Unpriced, line.PartNumber, line.Betterment, line.Status, line.EvidenceLabel, line.Justification,
+                ActorKind.Staff, string.Empty, DateTimeOffset.UtcNow, null, null,
+                line.PaintWorkUnits, line.Quantity, line.Materials))],
+            null, string.Empty, DateTimeOffset.UtcNow, null, null, null, null, details);
+        var diff = RepairSpecificationComparison.Compare(baseSpecification, provisional);
+        var explain = bool.TryParse(Request.Form["supplementaryExplain"].FirstOrDefault(), out var flag) && flag;
+        return new(baseId, reason, explain, RepairSpecificationComparison.SupplementaryStatement(diff, reason));
+    }
+
+    /// <summary>
+    /// Apply (v28 P34): the posted editor is saved first, so nothing typed is
+    /// lost, then the saved specification is scaled to the target.
+    /// </summary>
+    public async Task<IActionResult> OnPostScaleEstimateAsync(
+        Guid id,
+        long? expectedVersion,
+        string operationKey,
+        string? editLeaseToken,
+        Guid? estimateId,
+        decimal? targetPercent,
+        decimal? targetGross,
+        decimal? floorRate,
+        decimal? floorPrice,
+        CancellationToken cancellationToken)
+    {
+        var editor = ReadEditorPost();
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (expectedVersion is null || estimateId is null || editor.Lines is null)
+        {
+            TempData["CaseError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id, estimateId?.ToString("D"));
+        }
+        try
+        {
+            var existing = await ResolveEstimateAsync(id, estimateId, cancellationToken);
+            var selectedRateCard = ParseSelectedRateCard();
+            var saved = await saveEstimate.ExecuteAsync(
+                new(id, expectedVersion.Value, actor, operationKey, "Repair spec saved", editLeaseToken!, estimateId,
+                    EditorDetailsFrom(editor, existing), editor.Lines,
+                    new(RepairSpecificationSourceRoute.Manual, null, null, null), ExistingLineIds: editor.ExistingLineIds)
+                {
+                    SelectedRateCardId = selectedRateCard.Id,
+                    SelectedRateCardVersion = selectedRateCard.Version,
+                    Supplementary = existing?.Supplementary,
+                },
+                cancellationToken);
+            var target = targetGross
+                ?? (targetPercent is { } percent && EngineerValue is { } value ? value * percent / 100m : (decimal?)null)
+                ?? throw new ArgumentException("A target is required: a percentage of the Engineer's Value or a sum.");
+            var floors = new ScalingFloors(floorRate ?? ScalingFloors.Default.LabourRatePerHour, floorPrice ?? ScalingFloors.Default.PricePercent);
+            var current = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+            await scaleRepairSpecification.ExecuteAsync(
+                new(id, current!.Workflow.Version, actor, operationKey + ":scale", editLeaseToken!, saved.SpecificationId, target, floors, targetPercent),
+                cancellationToken);
+            ClearLeaseState();
+            await ReclaimLeaseAsync(id, cancellationToken);
+            TempData["CaseStatus"] = "The repair spec was scaled.";
+            return RedirectToEstimate(id, saved.SpecificationId.ToString("D"));
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The repair spec was not scaled. Retry the operation.");
+            return RedirectToEstimate(id, estimateId?.ToString("D"));
+        }
+    }
+
+    /// <summary>Remove scaling (v28 P34): the specification returns to the version frozen before the last Apply.</summary>
+    public async Task<IActionResult> OnPostRemoveEstimateScalingAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        Guid estimateId,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        try
+        {
+            await removeRepairSpecificationScaling.ExecuteAsync(
+                new(id, currentCaseVersion, actor, operationKey, editLeaseToken!, estimateId),
+                cancellationToken);
+            ClearLeaseState();
+            await ReclaimLeaseAsync(id, cancellationToken);
+            TempData["CaseStatus"] = "The scaling was removed.";
+            return RedirectToEstimate(id, estimateId.ToString("D"));
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The scaling was not removed. Retry the operation.");
+            return RedirectToEstimate(id, estimateId.ToString("D"));
+        }
+    }
+
+    /// <summary>Restore (v28 P43): a frozen version becomes the draft; the outgoing draft is frozen first.</summary>
+    public async Task<IActionResult> OnPostRestoreEstimateSnapshotAsync(
+        Guid id,
+        string operationKey,
+        string? editLeaseToken,
+        Guid estimateId,
+        Guid snapshotId,
+        CancellationToken cancellationToken)
+    {
+        var guard = await GuardEstimateEditAsync(id, operationKey, editLeaseToken, cancellationToken);
+        if (guard is not null)
+        {
+            return guard;
+        }
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        try
+        {
+            await restoreRepairSpecificationSnapshot.ExecuteAsync(
+                new(id, currentCaseVersion, actor, operationKey, editLeaseToken!, estimateId, snapshotId),
+                cancellationToken);
+            ClearLeaseState();
+            await ReclaimLeaseAsync(id, cancellationToken);
+            TempData["CaseStatus"] = "The version was restored.";
+            return RedirectToEstimate(id, estimateId.ToString("D"));
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(exception, "The version was not restored. Retry the operation.");
+            return RedirectToEstimate(id, estimateId.ToString("D"));
+        }
     }
 
     /// <summary>Creates an Engineer's working copy of the selected estimate.</summary>

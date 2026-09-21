@@ -176,7 +176,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260918090000_RemoveAdministrationEditScopes",
                 "20260921060711_CapValuationSource",
                 "20260921070000_DamageImpactsAsAreas",
-                "20260921070455_RepairSpecHeaderByLine"
+                "20260921070455_RepairSpecHeaderByLine",
+                "20260921073633_RepairSpecificationSnapshots"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

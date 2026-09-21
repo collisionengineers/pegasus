@@ -1057,6 +1057,9 @@ public static class OperatorLabels
         "triage_response_linked" => "Reply linked",
         "case_report_draft_previewed" => "Report draft viewed",
         "case_report_artifact_downloaded" => "Report downloaded",
+        "estimate_scaled" => "Repair spec scaled",
+        "estimate_scaling_removed" => "Scaling removed",
+        "estimate_restored" => "Repair spec restored",
         _ => Humanise(eventType)
     };
 

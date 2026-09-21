@@ -1742,6 +1742,145 @@
         appendPhantom();
     }
 
+    // Target % of value (v28 P34): the readout previews what Apply will do,
+    // from the editor's own rows and the floors, by the same bisection Core
+    // runs. Apply posts; the server scales the saved spec.
+    function bindScale(form) {
+        var bar = form.querySelector('[data-estimate-scale]');
+        if (!bar) {
+            return;
+        }
+        var range = bar.querySelector('[data-scale-range]');
+        var percent = bar.querySelector('[data-scale-percent]');
+        var gross = bar.querySelector('[data-scale-gross]');
+        var read = bar.querySelector('[data-scale-read]');
+        var preview = bar.querySelector('[data-scale-preview]');
+        var apply = bar.querySelector('[data-scale-apply]');
+        var floorRate = bar.querySelector('[data-scale-floor-rate]');
+        var floorPrice = bar.querySelector('[data-scale-floor-price]');
+        var value = parseFloat(bar.getAttribute('data-estimate-engineer-value')) || 0;
+        var vat = parseFloat(bar.getAttribute('data-estimate-vat')) || 0;
+        if (!range || !percent || !value) {
+            return;
+        }
+        function number(element) { return element ? (parseFloat(element.value) || 0) : 0; }
+        function money(n) { return '£' + n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+        function rows() {
+            return Array.prototype.slice.call(form.querySelectorAll('tr[data-estimate-line]')).map(function (tr) {
+                var get = function (name) { return tr.querySelector('[name="' + name + '"]'); };
+                var op = (get('lineOperation') || {}).value || '';
+                return { op: op, qty: number(get('lineQuantity')) || 1, unit: number(get('linePartPounds')), hours: number(get('lineLabourHours')), paint: number(get('linePaintHours')), materials: number(get('lineMaterials')) };
+            });
+        }
+        function vatOn(id) { var box = form.querySelector('#' + id); return !!(box && box.checked); }
+        function grossAt(k) {
+            var fp = Math.max(number(floorPrice) / 100, k);
+            var baseRate = number(form.querySelector('#estimate-labour-rate'));
+            var uplift = form.querySelector('#estimate-regional-uplift');
+            if (uplift && uplift.checked) { baseRate = baseRate * 1.15; }
+            var rate = Math.max(Math.min(number(floorRate), baseRate), baseRate * k);
+            var parts = 0, labour = 0, materials = 0, specialist = number(form.querySelector('#estimate-other'));
+            rows().forEach(function (r) {
+                var amount = r.qty * r.unit * fp;
+                if (r.op === 'Replace') { parts += amount; } else { specialist += amount; }
+                labour += (r.hours + r.paint) * rate;
+                materials += r.materials * fp;
+            });
+            var net = parts + labour + materials + specialist;
+            var taxable = (vatOn('estimateVatParts') ? parts : 0) + (vatOn('estimateVatLabour') ? labour : 0) + (vatOn('estimateVatMaterials') ? materials : 0) + (vatOn('estimateVatSpecialist') ? specialist : 0);
+            return { gross: net + taxable * vat / 100, fp: fp };
+        }
+        function show(target) {
+            var top = grossAt(1).gross, bottom = grossAt(0).gross;
+            target = Math.max(bottom, Math.min(top, target));
+            var lo = 0, hi = 1;
+            for (var i = 0; i < 40; i++) { var mid = (lo + hi) / 2; if (grossAt(mid).gross > target) { hi = mid; } else { lo = mid; } }
+            var at = grossAt((lo + hi) / 2);
+            var share = value ? at.gross / value * 100 : 0;
+            if (read) { read.textContent = money(top) + ' \u2192 ' + money(at.gross) + ' (' + share.toFixed(1) + '%) \u00b7 prices \u00d7' + at.fp.toFixed(2); }
+            if (gross) { gross.value = at.gross.toFixed(2); }
+            if (preview) { preview.hidden = false; }
+            if (apply) { apply.hidden = false; }
+        }
+        function fromPercent(p) { if (value && p > 0) { show(value * p / 100); } }
+        var top = grossAt(1).gross;
+        range.value = percent.value = Math.min(100, Math.round(top / value * 100));
+        range.addEventListener('input', function () { percent.value = range.value; fromPercent(parseFloat(range.value)); });
+        percent.addEventListener('change', function () { range.value = percent.value; fromPercent(parseFloat(percent.value)); });
+        if (floorRate) { floorRate.addEventListener('change', function () { fromPercent(parseFloat(percent.value)); }); }
+        if (floorPrice) { floorPrice.addEventListener('change', function () { fromPercent(parseFloat(percent.value)); }); }
+        bar.pegasusScaleTo = show;
+    }
+
+    // Contract repair (v28 P35): the tick is the outcome in Decisions; ticking
+    // seeds the agreed sum from the specification, a different sum sets the
+    // scaling target.
+    function bindContract(form) {
+        var bar = form.querySelector('[data-estimate-contract]');
+        if (!bar) {
+            return;
+        }
+        var tick = bar.querySelector('[data-contract-agreed]');
+        var sum = bar.querySelector('[data-contract-sum]');
+        var outcome = document.getElementById(bar.getAttribute('data-estimate-outcome-control') || '');
+        var grossCell = form.querySelector('[data-estimate-gross]');
+        var previous = outcome ? outcome.value : '';
+        function gross() { return grossCell ? (parseFloat((grossCell.textContent || '').replace(/[^0-9.]/g, '')) || 0) : 0; }
+        function setOutcome(contract) {
+            if (!outcome) { return; }
+            var wanted = contract ? 'contract_repair' : previous;
+            if (outcome.value !== wanted) {
+                outcome.value = wanted;
+                outcome.dispatchEvent(new Event('input', { bubbles: true }));
+                outcome.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        }
+        if (tick) {
+            tick.addEventListener('change', function () {
+                if (sum) { sum.disabled = !tick.checked; }
+                if (tick.checked) {
+                    if (outcome && outcome.value !== 'contract_repair') { previous = outcome.value; }
+                    if (sum && !sum.value) { sum.value = gross().toFixed(2); sum.dispatchEvent(new Event('input', { bubbles: true })); }
+                    setOutcome(true);
+                } else {
+                    if (sum) { sum.value = ''; sum.dispatchEvent(new Event('input', { bubbles: true })); }
+                    setOutcome(false);
+                }
+            });
+        }
+        if (sum) {
+            sum.addEventListener('change', function () {
+                var agreed = parseFloat(sum.value) || 0;
+                var scale = form.querySelector('[data-estimate-scale]');
+                if (agreed > 0 && scale && scale.pegasusScaleTo && Math.abs(agreed - gross()) > 0.005) {
+                    scale.pegasusScaleTo(agreed);
+                }
+            });
+        }
+        if (outcome) {
+            outcome.addEventListener('change', function () {
+                var is = outcome.value === 'contract_repair';
+                if (tick && tick.checked !== is) { tick.checked = is; if (sum) { sum.disabled = !is; if (is && !sum.value) { sum.value = gross().toFixed(2); } } }
+            });
+        }
+    }
+
+    // Compare (v28 P19): choosing From and To reloads the dialog with both.
+    function bindCompare(section) {
+        var form = section.querySelector('[data-estimate-compare-form]');
+        if (!form) {
+            return;
+        }
+        form.querySelectorAll('select').forEach(function (select) {
+            select.addEventListener('change', function () {
+                var from = form.querySelector('[name="from"]').value, to = form.querySelector('[name="to"]').value;
+                if (from && to && from !== to) { form.requestSubmit(); }
+            });
+        });
+        var go = form.querySelector('[data-estimate-compare-go]');
+        if (go) { go.hidden = true; }
+    }
+
     // The one labour rate control (v28 P33): choosing a card fills the
     // figure; typing a figure keeps the entered rate.
     function bindRate(form) {
@@ -1923,7 +2062,10 @@
                 bindVat(form);
                 bindRate(form);
                 bindRename(section, form);
+                bindScale(form);
+                bindContract(form);
             }
+            bindCompare(document);
         });
         bindRange(root);
     }
