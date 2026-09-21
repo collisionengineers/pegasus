@@ -2129,6 +2129,133 @@
         return row ? row.querySelector('select.fi, input.fi, textarea.fi') : null;
     }
 
+    // P29: the codes as a radio group. The select stays the posted control —
+    // the show-and-hide rules read it — so the group drives it and the select
+    // is hidden only once this runs.
+    function bindRadios(section) {
+        section.querySelectorAll('[data-decision-radios]').forEach(function (group) {
+            var row = group.closest('.dec');
+            var select = control(row);
+            if (!select) {
+                return;
+            }
+            group.hidden = false;
+            select.classList.add('is-driven');
+            var buttons = Array.prototype.slice.call(group.querySelectorAll('[data-radio-value]'));
+            function paint() {
+                var at = 0;
+                buttons.forEach(function (button, index) {
+                    var on = button.getAttribute('data-radio-value') === select.value;
+                    button.setAttribute('aria-checked', on ? 'true' : 'false');
+                    if (on) { at = index; }
+                });
+                buttons.forEach(function (button, index) {
+                    button.setAttribute('tabindex', index === at ? '0' : '-1');
+                });
+            }
+            function choose(button, focus) {
+                select.value = button.getAttribute('data-radio-value');
+                select.dispatchEvent(new Event('input', { bubbles: true }));
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                paint();
+                if (focus) { button.focus(); }
+            }
+            group.addEventListener('click', function (event) {
+                var button = event.target.closest('[data-radio-value]');
+                if (button) { choose(button, false); }
+            });
+            group.addEventListener('keydown', function (event) {
+                var at = buttons.indexOf(document.activeElement);
+                if (at < 0) { return; }
+                var to = null;
+                if (event.key === 'ArrowRight' || event.key === 'ArrowDown') { to = (at + 1) % buttons.length; }
+                else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') { to = (at - 1 + buttons.length) % buttons.length; }
+                else if (event.key === 'Home') { to = 0; }
+                else if (event.key === 'End') { to = buttons.length - 1; }
+                else if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); choose(buttons[at], true); return; }
+                if (to === null) { return; }
+                event.preventDefault();
+                choose(buttons[to], true);
+            });
+            select.addEventListener('change', paint);
+            paint();
+        });
+    }
+
+    // P14: the salvage value as a share of the Engineer's Value. The money
+    // field stays the posted control; the slider and the snaps write into it.
+    function bindSalvageShare(section) {
+        var share = section.querySelector('[data-salvage-share]');
+        var row = share ? share.closest('.dec') : null;
+        var field = row ? row.querySelector('input.fi') : null;
+        var range = share ? share.querySelector('[data-salvage-range]') : null;
+        if (!share || !field || !range) {
+            return;
+        }
+        var value = parseFloat(share.getAttribute('data-engineer-value')) || 0;
+        var read = share.querySelector('[data-salvage-read]');
+        var snaps = Array.prototype.slice.call(share.querySelectorAll('[data-salvage-snap]'));
+        function money(amount) {
+            return '£' + amount.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        function paint(percent) {
+            if (read) { read.textContent = '= ' + (Math.round(percent * 10) / 10) + '% of ' + money(value); }
+            snaps.forEach(function (snap) {
+                snap.classList.toggle('on', Math.abs(percent - parseFloat(snap.getAttribute('data-salvage-snap'))) < 0.5);
+            });
+        }
+        function fromField() {
+            var amount = parseFloat(field.value) || 0;
+            var percent = value > 0 ? amount / value * 100 : 0;
+            range.value = String(Math.max(0, Math.min(100, Math.round(percent))));
+            paint(percent);
+        }
+        function fromRange() {
+            var percent = parseFloat(range.value) || 0;
+            field.value = (value * percent / 100).toFixed(2);
+            field.dispatchEvent(new Event('input', { bubbles: true }));
+            paint(percent);
+        }
+        range.addEventListener('input', fromRange);
+        field.addEventListener('input', fromField);
+        share.addEventListener('click', function (event) {
+            var snap = event.target.closest('[data-salvage-snap]');
+            if (!snap) { return; }
+            range.value = snap.getAttribute('data-salvage-snap');
+            fromRange();
+        });
+        fromField();
+    }
+
+    // P15: a bank wording joins the typed reason; Save this wording posts the
+    // reason as it stands to the firm's bank.
+    function bindReasonBank(section) {
+        var bank = section.querySelector('[data-reason-bank]');
+        var row = section.querySelector('[data-decision="assessment.unroadworthy_reason"]');
+        var area = row ? row.querySelector('textarea.fi') : null;
+        if (!bank || !area) {
+            return;
+        }
+        bank.addEventListener('click', function (event) {
+            var pick = event.target.closest('[data-bank-wording]');
+            if (pick) {
+                var wording = pick.getAttribute('data-bank-wording');
+                var text = (area.value || '').trim();
+                if (text.toLowerCase().indexOf(wording.toLowerCase()) < 0) {
+                    area.value = text.length === 0
+                        ? wording.charAt(0).toUpperCase() + wording.slice(1)
+                        : text.replace(/\.$/, '') + ' and ' + wording;
+                    area.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                return;
+            }
+            if (event.target.closest('[data-bank-save]')) {
+                var field = document.querySelector('[data-bank-wording-field]');
+                if (field) { field.value = area.value || ''; }
+            }
+        });
+    }
+
     function bind(root) {
         root.querySelectorAll('[data-settlement]').forEach(function (section) {
             if (section.dataset.settlementBound === 'true') {
@@ -2138,10 +2265,18 @@
 
             var outcome = control(section.querySelector('[data-decision="assessment.outcome"]'));
             var legal = control(section.querySelector('[data-decision="assessment.legal_status"]'));
+            bindRadios(section);
+            bindSalvageShare(section);
+            bindReasonBank(section);
 
             function show(when, on) {
                 section.querySelectorAll('[data-shown-when="' + when + '"]').forEach(function (element) {
                     element.hidden = !on;
+                });
+                // P29: the line that says the salvage rows do not apply is the
+                // other half of the same rule.
+                section.querySelectorAll('[data-hidden-when="' + when + '"]').forEach(function (element) {
+                    element.hidden = on;
                 });
             }
             // An awaiting AI proposal leaves its control empty until accepted,

@@ -473,6 +473,8 @@ public static class DependencyInjection
         services.AddScoped<ISaveCaseWorkspace, SaveCaseWorkspace>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
         services.AddScoped<IRepairSpecificationSnapshotStore, EfRepairSpecificationSnapshotStore>();
+        services.AddScoped<IUnroadworthyReasonBankStore, EfUnroadworthyReasonBankStore>();
+        services.AddScoped<ISaveUnroadworthyReason, SaveUnroadworthyReason>();
         services.AddScoped<IScaleRepairSpecification, ScaleRepairSpecification>();
         services.AddScoped<IRemoveRepairSpecificationScaling, RemoveRepairSpecificationScaling>();
         services.AddScoped<IRestoreRepairSpecificationSnapshot, RestoreRepairSpecificationSnapshot>();

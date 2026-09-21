@@ -64,6 +64,8 @@ public sealed partial class DetailsModel(
     IRepairSpecificationStore repairSpecifications,
     IImportRawEstimate importRawEstimate,
     IRepairSpecificationSnapshotStore specificationSnapshots,
+    IUnroadworthyReasonBankStore unroadworthyReasonBank,
+    ISaveUnroadworthyReason saveUnroadworthyReason,
     IScaleRepairSpecification scaleRepairSpecification,
     IRemoveRepairSpecificationScaling removeRepairSpecificationScaling,
     IRestoreRepairSpecificationSnapshot restoreRepairSpecificationSnapshot,
@@ -580,6 +582,17 @@ public sealed partial class DetailsModel(
 
     public string RestoreOperationKey { get; private set; } = NewOperationKey();
 
+    /// <summary>
+    /// The unroadworthy reason wordings offered on this Case (v28 P15): the
+    /// standard ones, then the Principal's own, in the order they were saved.
+    /// </summary>
+    public IReadOnlyList<string> UnroadworthyReasonWordings { get; private set; } =
+        UnroadworthyReasonBank.Standard;
+
+    /// <summary>The repair reserve the Current repair specification implies (v28 P30), or null.</summary>
+    public decimal? ComputedRepairReserve =>
+        SettlementPolicy.ComputedRepairReserve(RepairCostIncVat, RecordedOutcome);
+
     /// <summary>The selected specification's frozen versions, oldest first (v28 P43).</summary>
     public IReadOnlyList<RepairSpecificationSnapshot> SelectedEstimateSnapshots { get; private set; } = [];
 
@@ -910,6 +923,12 @@ public sealed partial class DetailsModel(
         Estimates = await listEstimates.ExecuteAsync(id, cancellationToken);
         LabourRateCards = await labourRateCards.ListAsync(actor, cancellationToken);
         ApplyEstimateSelection(estimate);
+        if (Case is not null)
+        {
+            var saved = await unroadworthyReasonBank.ListAsync(
+                Case.Workflow.Identity.PrincipalCode, cancellationToken);
+            UnroadworthyReasonWordings = [.. UnroadworthyReasonBank.Standard, .. saved.Select(item => item.Text)];
+        }
         if (SelectedEstimate is not null)
         {
             SelectedEstimateSnapshots = await specificationSnapshots.ListAsync(id, SelectedEstimate.SpecificationId, cancellationToken);
@@ -2602,6 +2621,46 @@ public sealed partial class DetailsModel(
             TempData["CaseError"] = MutationRefusalMessage(exception, "The version was not restored. Retry the operation.");
             return RedirectToEstimate(id, estimateId.ToString("D"));
         }
+    }
+
+    /// <summary>
+    /// Saves the typed unroadworthy reason wording to the Principal's bank
+    /// (v28 P15). The reason itself is Case data, saved with the page-wide
+    /// Save; this only adds the wording to the firm's list.
+    /// </summary>
+    public async Task<IActionResult> OnPostSaveUnroadworthyReasonAsync(
+        Guid id,
+        string? wording,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+        try
+        {
+            var saved = await saveUnroadworthyReason.ExecuteAsync(
+                new(details.Workflow.Identity.PrincipalCode, wording ?? string.Empty, actor),
+                cancellationToken);
+            TempData["CaseStatus"] = saved is null
+                ? "The bank already offers that wording."
+                : "The wording was saved to the bank.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        {
+            TempData["CaseError"] = MutationRefusalMessage(
+                exception, "The wording was not saved to the bank. Retry the operation.");
+        }
+        return RedirectToSection(id, "settlement");
     }
 
     /// <summary>Creates an Engineer's working copy of the selected estimate.</summary>
