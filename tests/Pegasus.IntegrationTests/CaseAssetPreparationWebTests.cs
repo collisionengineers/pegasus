@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Text;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -347,16 +348,14 @@ public sealed class CaseAssetPreparationWebTests
         ("preparationEdits[0].cropWidth", "0.5"),
         ("preparationEdits[0].cropHeight", "0.6")
     ];
-
     /// <summary>
-    /// The Report section states the prepared set in the report's own order —
-    /// Close-up, Overview, then Supporting by order — and omits the images the
-    /// report does not use. v26: that set is the preparation cards, shown
-    /// inside the edit session; the "Images in report" strip above them names
-    /// every readable image, the unused one switched off, in both modes.
+    /// v28 P50: an image has one place. Its report role, its order and the
+    /// tools that change them are on its tile under Files, with the count of
+    /// what the report uses beneath the grid; the Report section carries no
+    /// image surface at all.
     /// </summary>
     [Fact]
-    public async Task TheReportSectionStatesThePreparedSetInReportOrderAndOmitsUnusedImages()
+    public async Task TheImageTileCarriesItsReportRoleAndTheReportSectionCarriesNoImages()
     {
         var fixture = new PreparedImages();
         var store = fixture.Store();
@@ -367,41 +366,33 @@ public sealed class CaseAssetPreparationWebTests
 
         var html = await workspace.GetWorkspaceAsync();
         var panel = Section(html, "section-report-title");
-        var cards = ReportImageCards(panel);
+        Assert.DoesNotContain("data-report-images", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-report-preparation", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain(CloseUpFileName, panel, StringComparison.Ordinal);
 
-        var order = new[]
+        var files = await GetFilesFragmentAsync(workspace, html);
+        var tiles = ImageGrid(files);
+        // Every readable image is a tile, the unused one among them, each
+        // carrying the role select, the order cell and the P41 tools.
+        foreach (var fileName in new[]
         {
-            CloseUpFileName, OverviewFileName, FirstSupportingFileName, SecondSupportingFileName
+            CloseUpFileName, OverviewFileName, FirstSupportingFileName, SecondSupportingFileName, UnusedFileName
+        })
+        {
+            Assert.Contains(fileName, tiles, StringComparison.Ordinal);
         }
-            .Select(fileName => cards.IndexOf(fileName, StringComparison.Ordinal))
-            .ToArray();
-        Assert.All(order, position => Assert.True(position >= 0, "Every prepared image is named on the report cards."));
-        Assert.Equal(order.OrderBy(position => position), order);
-        Assert.DoesNotContain(UnusedFileName, cards, StringComparison.Ordinal);
-
-        var visible = WebUtility.HtmlDecode(VisibleText(cards));
-        Assert.Contains(ReportImageLabels.RotationLabel(CaseAssetRotation.Clockwise90), visible, StringComparison.Ordinal);
-        Assert.Contains(ReportImageLabels.CropLabel(fixture.OverviewCrop), visible, StringComparison.Ordinal);
-        Assert.Contains(ReportImageLabels.FullFrame, visible, StringComparison.Ordinal);
-
-        // The strip: every image, four of them in the report, the unused one off.
-        var strip = ReportImageStrip(panel);
-        Assert.Contains(UnusedFileName, strip, StringComparison.Ordinal);
-        Assert.Contains(
-            $"data-report-image=\"{fixture.UnusedOccurrenceId:D}\" data-report-image-role=\"{CaseAssetReportRole.NotUsed}\"",
-            strip,
-            StringComparison.Ordinal);
-        Assert.Contains("data-report-image-count>4 of 5 ", panel, StringComparison.Ordinal);
+        Assert.Equal(5, Regex.Count(tiles, "data-preparation-role-select"));
+        Assert.Equal(5, Regex.Count(tiles, "data-image-full-page"));
+        Assert.Equal(5, Regex.Count(tiles, "data-image-remove"));
+        Assert.Equal(5, Regex.Count(tiles, "data-preparation-full-page="));
+        Assert.Contains("data-image-report-count>4 of 5 in report<", files, StringComparison.Ordinal);
     }
-
     /// <summary>
-    /// B08 / v26: while this browser holds no edit lease the Report section
-    /// draws no preparation card at all, and the "Images in report" strip
-    /// names the images with nothing that could change one — no control, no
-    /// toggle hook and no drag hook.
+    /// Without the Case's edit lease a tile states the report role it holds
+    /// and offers nothing that would change it: no select, no tool, no form.
     /// </summary>
     [Fact]
-    public async Task TheReportCardsCarryNoControlWithoutTheLease()
+    public async Task TheImageTilesCarryNoReportControlWithoutTheLease()
     {
         var fixture = new PreparedImages();
         var store = fixture.Store();
@@ -421,21 +412,17 @@ public sealed class CaseAssetPreparationWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
-        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=report");
-        var panel = Section(html, "section-report-title");
-        var strip = ReportImageStrip(panel);
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=files");
+        var tiles = ImageGrid(html);
 
-        Assert.DoesNotContain("data-report-preparation", panel, StringComparison.Ordinal);
-        Assert.Empty(ReportImageCards(panel));
-        Assert.Contains(CloseUpFileName, strip, StringComparison.Ordinal);
-        Assert.Contains(FirstSupportingFileName, strip, StringComparison.Ordinal);
-        Assert.DoesNotContain("<form", strip, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<button", strip, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<select", strip, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("<input", strip, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("draggable", strip, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("data-report-image-toggle", strip, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-preparation-", panel, StringComparison.Ordinal);
+        Assert.Contains("data-image-report-read", tiles, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-preparation-role-select", tiles, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-image-full-page", tiles, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-image-remove", tiles, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=SaveAssetPreparation", tiles, StringComparison.Ordinal);
+
+        var panel = Section(html, "section-report-title");
+        Assert.DoesNotContain("data-report-images", panel, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -445,7 +432,7 @@ public sealed class CaseAssetPreparationWebTests
     /// are all saved with the Case.
     /// </summary>
     [Fact]
-    public async Task TheEditableCardsStagePreparationForTheSingleCaseSave()
+    public async Task TheEditableTilesStagePreparationForTheSingleCaseSave()
     {
         var fixture = new PreparedImages();
         var store = fixture.Store();
@@ -480,11 +467,10 @@ public sealed class CaseAssetPreparationWebTests
             Assert.Contains(hook, tiles, StringComparison.Ordinal);
         }
         Assert.DoesNotContain("handler=SaveAssetPreparation", tiles, StringComparison.Ordinal);
-        Assert.DoesNotContain("data-preparation-role-select", tiles, StringComparison.Ordinal);
 
-        foreach (var panel in new[] { Section(leased, "section-report-title") })
+        foreach (var panel in new[] { tiles })
         {
-            Assert.Contains("data-report-images=", panel, StringComparison.Ordinal);
+            Assert.Contains("data-preparation-card", panel, StringComparison.Ordinal);
             foreach (var occurrenceId in new[]
             {
                 fixture.CloseUpOccurrenceId,
@@ -550,17 +536,6 @@ public sealed class CaseAssetPreparationWebTests
             cards.Append(panel[start..end]);
             index = end;
         }
-    }
-
-    /// <summary>The Report section's "Images in report" strip (v26) and nothing around it.</summary>
-    private static string ReportImageStrip(string panel)
-    {
-        var marker = panel.IndexOf("data-report-images-strip", StringComparison.Ordinal);
-        Assert.True(marker >= 0, "The Images in report strip is not rendered.");
-        var start = panel.LastIndexOf("<div", marker, StringComparison.Ordinal);
-        var end = panel.IndexOf("</div>", marker, StringComparison.Ordinal);
-        Assert.True(end > start, "The Images in report strip is not closed.");
-        return panel[start..end];
     }
 
     /// <summary>

@@ -253,6 +253,7 @@ public sealed class EfCaseAssetPreparationStore(
             }
 
             occurrence.PreparationRole = nameof(CaseAssetReportRole.NotUsed);
+            occurrence.PreparationFullPage = false;
             occurrence.RotationDegrees = 0;
             occurrence.CropLeft = null;
             occurrence.CropTop = null;
@@ -406,6 +407,8 @@ public sealed class EfCaseAssetPreparationStore(
             }
 
             occurrence.PreparationRole = final.Role.ToString();
+            occurrence.PreparationFullPage = final.Role != CaseAssetReportRole.NotUsed
+                && editsByOccurrence[occurrence.Id].FullPage;
             occurrence.RotationDegrees = (short)final.Rotation;
             WriteCrop(occurrence, final.Crop);
             occurrence.PreparationVersion = checked(occurrence.PreparationVersion + 1);
@@ -484,7 +487,8 @@ public sealed class EfCaseAssetPreparationStore(
             ToCrop(occurrence),
             occurrence.PreparationVersion,
             occurrence.PreparedBy,
-            occurrence.PreparedAtUtc);
+            occurrence.PreparedAtUtc,
+            occurrence.PreparationFullPage);
 
     private static DocumentVersion ToDocumentVersion(DocumentVersionEntity value) =>
         new(
