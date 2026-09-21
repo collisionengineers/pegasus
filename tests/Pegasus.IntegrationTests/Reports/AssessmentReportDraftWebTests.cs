@@ -479,10 +479,10 @@ public sealed partial class AssessmentReportDraftWebTests
         new(RepairSpecificationSourceRoute.Manual, null, null, null),
         [
             EstimateLine(1, "repair", "Nearside door", 5m, null),
-            EstimateLine(2, "new_part", "Door skin", null, 50m),
+            EstimateLine(2, "new_part", "Door skin", null, 50m) with { Materials = 20m },
         ],
         null, "engineer-1", ReportFixtureAtUtc, "engineer-1", ReportFixtureAtUtc, null, null,
-        new EstimateDetails("Repairer", null, 30m, 20m, 5m, 20m, null), IsCurrent: true);
+        new EstimateDetails("Repairer", 30m, 5m, 20m), IsCurrent: true);
         return draft with
         {
             State = RepairSpecificationState.Accepted,

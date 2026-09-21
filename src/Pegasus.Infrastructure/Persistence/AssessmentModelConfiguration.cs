@@ -139,7 +139,6 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.SupersessionReason).HasMaxLength(500);
             entity.Property(item => item.Name).HasMaxLength(EstimatePolicy.MaximumNameLength).IsRequired();
             entity.Property(item => item.LabourRate).HasPrecision(18, 2);
-            entity.Property(item => item.PaintMaterials).HasPrecision(18, 2);
             entity.Property(item => item.OtherCosts).HasPrecision(18, 2);
             entity.Property(item => item.PartsDiscountPercent).HasPrecision(7, 4);
             entity.Property(item => item.MaterialsDiscountPercent).HasPrecision(7, 4);
@@ -148,7 +147,6 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.RepairerVatStatus).HasMaxLength(20);
             entity.Property(item => item.VatOverrideReason).HasMaxLength(500);
             entity.Property(item => item.VatPercent).HasPrecision(5, 2);
-            entity.Property(item => item.Notes).HasMaxLength(EstimatePolicy.MaximumNotesLength);
             entity.Property(item => item.DiscardedBy).HasMaxLength(200);
             entity.Property(item => item.DiscardReason).HasMaxLength(500);
             entity.Property(item => item.LastOperationKey).HasMaxLength(100);

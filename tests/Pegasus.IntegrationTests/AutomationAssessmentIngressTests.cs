@@ -975,7 +975,7 @@ public sealed class AutomationAssessmentIngressTests
         {
             new { type = "new_part", description = "Door skin", price = 220.40, quantity = 1 },
             new { type = "repair", description = "Repair nearside door", workUnits = 2.5 },
-            new { type = "paint_repair", description = "Paint door", paintWorkUnits = 1.5 }
+            new { type = "paint_repair", description = "Paint door", paintWorkUnits = 1.5, materials = 25 }
         };
 
         // Without the job the save is refused before anything is written.
@@ -1021,7 +1021,6 @@ public sealed class AutomationAssessmentIngressTests
                     aiJobId = jobId,
                     name = "Claude draft",
                     labourRate = 40,
-                    paintMaterials = 25,
                     vatPercent = 20,
                     lines
                 })))
@@ -1063,11 +1062,14 @@ public sealed class AutomationAssessmentIngressTests
             var saved = await store.GetVersionAsync(caseId, estimateId, CancellationToken.None);
             Assert.NotNull(saved);
             Assert.Equal(RepairerVatStatus.Unknown, saved.Details.VatPolicy.RepairerStatus);
-            Assert.True(saved.Details.VatPolicy.BlocksAcceptance);
+            Assert.True(saved.Details.VatPolicy.TreatmentPending);
+            // v28 P10: the unknown VAT status is no refusal; the unconfirmed
+            // AI lines still are.
             var refusal = Assert.Throws<InvalidOperationException>(() =>
                 EstimatePolicy.ValidateSetCurrent(
                     saved, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer])));
-            Assert.Contains("VAT status", refusal.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("VAT status", refusal.Message, StringComparison.Ordinal);
+            Assert.Contains("confirmed", refusal.Message, StringComparison.Ordinal);
         }
 
         Assert.Equal(1, await factory.Database.ScalarAsync<int>(

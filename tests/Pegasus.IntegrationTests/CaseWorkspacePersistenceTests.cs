@@ -1061,7 +1061,7 @@ public sealed class CaseWorkspacePersistenceTests
             {
                 Estimate = new(
                     null,
-                    new("Estimate 1", 3, 45m, 120m, 0m, 20m, null),
+                    new("Estimate 1", 45m, 0m, 20m),
                     [new(
                         "new_part",
                         null,

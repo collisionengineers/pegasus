@@ -98,11 +98,9 @@ public sealed class EfRepairSpecificationStore(
                 ? predecessor?.Name ?? DefaultName(nextVersion)
                 : request.Name.Trim(),
             VatPercent = predecessor?.VatPercent ?? EstimatePolicy.DefaultVatPercent,
-            RepairDays = predecessor?.RepairDays,
             LabourRate = predecessor?.LabourRate,
-            PaintMaterials = predecessor?.PaintMaterials,
+            RegionalUplift = predecessor?.RegionalUplift ?? false,
             OtherCosts = predecessor?.OtherCosts,
-            Notes = predecessor?.Notes,
         };
         context.CaseRepairSpecifications.Add(entity);
         if (predecessor is not null)
@@ -638,7 +636,6 @@ public sealed class EfRepairSpecificationStore(
         ArgumentNullException.ThrowIfNull(entity);
         ArgumentNullException.ThrowIfNull(details);
         entity.Name = details.Name;
-        entity.RepairDays = details.RepairDays;
         // A header change invalidates the breakdown the row last recorded.
         // Every path that has the lines to recompute it calls RecordBreakdown
         // straight after; one that does not leaves no stale figures behind.
@@ -650,10 +647,9 @@ public sealed class EfRepairSpecificationStore(
         entity.LabourRate = details.Rate?.HourlyRate ?? details.LabourRate;
         entity.RateCardId = details.Rate?.RateCardId;
         entity.RateCardVersion = details.Rate?.RateCardVersion;
-        entity.PaintMaterials = details.PaintMaterials;
+        entity.RegionalUplift = details.RegionalUplift;
         entity.OtherCosts = details.OtherCosts;
         entity.VatPercent = details.VatPercent;
-        entity.Notes = details.Notes;
 
         // Discounts are fractions in Core and percentages in the column the
         // schema named; four decimal places survive the conversion exactly.
@@ -721,9 +717,8 @@ public sealed class EfRepairSpecificationStore(
                 entity.RateCardId, entity.RateCardVersion, entity.LabourRate ?? 0m);
 
         return new(
-            entity.Name, entity.RepairDays, entity.LabourRate,
-            entity.PaintMaterials, entity.OtherCosts, entity.VatPercent, entity.Notes,
-            discounts, vat, rate);
+            entity.Name, entity.LabourRate, entity.OtherCosts, entity.VatPercent,
+            discounts, vat, rate, entity.RegionalUplift);
     }
 
     private static EstimateVatCategories Category(bool? applicable, EstimateVatCategories category) =>

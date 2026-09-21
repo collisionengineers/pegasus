@@ -147,7 +147,7 @@ public sealed class GlassEstimatePdfParserTests
         var calculation = EstimateTotals.Compute(new(Guid.NewGuid(), Guid.NewGuid(), 1, RepairSpecificationState.Draft,
             new(parsed.Route, "oracle-source", parsed.SourceVersion, hash), recorded, null, "oracle-check",
             DateTimeOffset.UnixEpoch, null, null, null, null,
-            new("Oracle reconciliation", null, rate, null, null, 20m, null,
+            new("Oracle reconciliation", rate, null, 20m,
                 Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered))));
         Assert.Equal(Number(net), calculation.Printed.Net);
         Assert.Equal(Number(gross), calculation.Printed.Gross);

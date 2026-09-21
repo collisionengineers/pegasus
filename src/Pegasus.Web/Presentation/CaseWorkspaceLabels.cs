@@ -272,13 +272,12 @@ public static class CaseWorkspaceLabels
         public const string LabourHours = "Labour hours";
         public const string RepairCostOfValue = "Repair cost of value";
         public const string ExceedsEngineersValue = "Exceeds Engineer's Value";
-        public const string FromCurrentEstimate = "From current estimate";
+        public const string FromCurrentEstimate = "From current repair spec";
         public const string CurrentEstimate = "current estimate";
         public const string ApplyInValuationMeta = "Apply in Valuation";
         public const string CostsHireDelays = "Costs, hire & delays";
         public const string Salvage = "Salvage";
         public const string StorageCharge = "Storage charge";
-        public const string RepairDays = "Repair days";
         public const string AwaitingReview = "awaiting review";
         public const string AiProposal = "AI proposal";
     }
@@ -320,7 +319,27 @@ public static class CaseWorkspaceLabels
         public const string ExpandEstimate = "Expand estimate";
         public const string CloseFullScreen = "Close full screen";
         public const string Discard = "Discard";
-        public const string DiscardEstimate = "Discard estimate";
+        public const string DiscardEstimate = "Discard repair spec";
+        public const string PrintRepairSpec = "Print Repair Spec";
+        public const string Undo = "Undo";
+        public const string LineRemoved = "Line removed";
+        public const string OffPattern = "Off-pattern";
+        public const string UpliftPercent = "+ 15 %";
+        public const string Suggested = "Suggested";
+        public const string LondonAndHomeCounties = "London & Home Counties";
+        public const string Rename = "Rename";
+
+        public static string LinesRemoved(int count) => count == 1 ? LineRemoved : $"{count} lines removed";
+
+        /// <summary>The import a line came in on, as its Source chip reads it (v28 P18).</summary>
+        public static string ImportedFrom(RepairSpecificationSourceRoute route) => route switch
+        {
+            RepairSpecificationSourceRoute.AudatexPdf => SourceImported + " \u00b7 AX",
+            RepairSpecificationSourceRoute.Glasses => SourceImported + " \u00b7 GL",
+            RepairSpecificationSourceRoute.Json => SourceImported + " \u00b7 JSON",
+            RepairSpecificationSourceRoute.ApprovedAiProposal or RepairSpecificationSourceRoute.AiDraft => SourceImported + " \u00b7 AI",
+            _ => SourceImported
+        };
         public const string Blend = "Blend";
         public const string LabourRateCard = "Labour-rate card";
         public const string KeepEnteredRate = "Keep entered rate";
@@ -569,6 +588,7 @@ public static class CaseWorkspaceLabels
         public const string Specialist = "Specialist";
         public const string Net = "Net";
         public const string Gross = "Gross";
+        public const string OffPatternItems = "Off-pattern items (treated as specialist)";
     }
 
     /// <summary>
@@ -583,7 +603,6 @@ public static class CaseWorkspaceLabels
         public const string RepairerStatus = "Repairer VAT status";
         public const string ChargedOn = "VAT charged on";
         public const string NoCategories = "Nothing";
-        public const string UnknownStatusCondition = "No repairer VAT status recorded";
 
         /// <summary>
         /// The four categories of <see cref="EstimateVatCategories.All"/>, in

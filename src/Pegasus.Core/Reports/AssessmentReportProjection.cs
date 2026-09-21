@@ -342,7 +342,6 @@ public static class AssessmentReportProjection
             ParseFlag(Field(fields, AssessmentVocabulary.SettlementClaimantVatRegistered)),
             ParseMoney(Field(fields, AssessmentVocabulary.SettlementReserve)),
             engineerValue - (costs.Total - (betterment ?? 0m)) - (salvage ?? 0m),
-            currentEstimate.Details.RepairDays,
             Field(fields, AssessmentVocabulary.SettlementRepairDelays),
             Field(fields, AssessmentVocabulary.SettlementReportDelay),
             ParseMoney(Field(fields, AssessmentVocabulary.SettlementStoragePerDay)),

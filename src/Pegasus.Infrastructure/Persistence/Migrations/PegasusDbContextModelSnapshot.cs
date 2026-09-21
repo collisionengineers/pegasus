@@ -2433,10 +2433,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("Notes")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
                     b.Property<decimal?>("OtherCosts")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
@@ -2444,10 +2440,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<decimal?>("OverallDiscountPercent")
                         .HasPrecision(7, 4)
                         .HasColumnType("decimal(7,4)");
-
-                    b.Property<decimal?>("PaintMaterials")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal?>("PartsDiscountPercent")
                         .HasPrecision(7, 4)
@@ -2462,8 +2454,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<long?>("RateCardVersion")
                         .HasColumnType("bigint");
 
-                    b.Property<int?>("RepairDays")
-                        .HasColumnType("int");
+                    b.Property<bool>("RegionalUplift")
+                        .HasColumnType("bit");
 
                     b.Property<bool?>("RepairerVatRegistered")
                         .HasColumnType("bit");

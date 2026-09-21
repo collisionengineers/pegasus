@@ -183,7 +183,7 @@ A fee-note preview shows the recorded fee and description without saving
 anything. Native Hand to Engineer opens engineering work without an EVA
 export; EVA is optional and never gates report readiness.
 
-The Estimate section offers **Estimate PDF**, an unretained Estimate
+The Repair Spec section offers **Print Repair Spec**, an unretained Estimate
 document in the house style for any saved estimate version from
 `EstimateTotals`. Viewing it records `case_estimate_document_previewed`. It
 is not a report, approval, delivery or correspondence.

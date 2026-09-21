@@ -15,7 +15,6 @@ public sealed class EstimateDocumentRenderingTests
         var estimate = Estimate(
             Details(
                 rate: 50m,
-                paintMaterials: 12.34m,
                 otherCosts: 8.76m,
                 vat: EstimateVatPolicy.For(RepairerVatStatus.Unknown)),
             Line("new_part", 1, description: null, guideCode: "PANEL", partNumber: "PN-42",
@@ -26,7 +25,7 @@ public sealed class EstimateDocumentRenderingTests
             estimate, "QDOS26001", "CLAIM-1", new(2026, 9, 16),
             "Alex Example", "Ford Focus", "AB12 CDE");
 
-        Assert.Equal(12.34m, snapshot.PaintMaterials);
+        Assert.Equal(3.21m, snapshot.Totals.Printed.Materials);
         Assert.Equal(8.76m, snapshot.OtherCosts);
         Assert.True(snapshot.VatTreatmentPending);
         Assert.Equal(1, snapshot.UnpricedItemCount);
@@ -228,10 +227,9 @@ public sealed class EstimateDocumentRenderingTests
 
     private static EstimateDetails Details(
         decimal? rate,
-        decimal? paintMaterials = null,
         decimal? otherCosts = null,
         EstimateVatPolicy? vat = null) => new(
-        "Estimate 1", 3, rate, paintMaterials, otherCosts, 20m, null,
+        "Estimate 1", rate, otherCosts, 20m,
         EstimateDiscounts.None,
         vat ?? EstimateVatPolicy.For(RepairerVatStatus.Registered));
 

@@ -333,15 +333,27 @@ a distinct `Close-up` first, `Overview` second, optional supporting images in
 explicit order, and non-destructive crops that leave the retained source and
 its hash untouched.
 
-The Estimate section carries the estimate set (`EXT-09`): named estimates
-with source, repair days, the selected labour-rate-card snapshot, VAT
-categories, lines and totals. One estimate is Current and drives the report.
-Each version's card prices panel, paint and Specialist work-unit hours. The
-VAT rule and the Use as Current gate are owned by
-[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report).
-No comparison or savings figure is shown. In both read and edit modes, every
-saved version with lines carries **Estimate PDF** in its actions row.
-Previewing it does not save or discard pending edits. The section also
+The Repair Spec section (v28 P31: the word "Estimate" stays for an imported
+repairer's document) carries the repair specification set (`EXT-09`): named
+specs with source, the one labour rate — a rate card or a typed figure in
+one control (P33), lifted by the regional uplift (P17, + 15 %, suggested
+when the repairer, claimant or storage postcode is in London or the Home
+Counties) — VAT categories, lines with a Material amount each (P48; the
+Materials total is the column's sum) and totals. There are no repair days
+and no notes on a spec (P32); a spec is renamed by double-clicking its tab.
+One spec is Current and drives the report. Each version's rate prices
+panel, paint and Specialist work-unit hours. The VAT rule is owned by
+[FRD-11](frd-11-reports-correspondence-and-reviewed-proposals.md#estimate-vat-on-the-rendered-report);
+an unknown repairer VAT status never gates **Use repair spec** (P10). Lines
+an import brought in read `imported · AX`, `GL`, `JSON` or `AI` on their
+Source chip (P18); a cell Core finds off-pattern reads amber and named
+Off-pattern, and the rollup carries the off-pattern amount as specialist
+(P37). **Delete all lines** sits beside Add line and asks first; a removed
+line or lines can be put back from the toast for eight seconds (P16). No
+comparison or savings figure is shown. The More menu holds New repair spec
+(editing), **Print Repair Spec** for a saved spec with lines, and Compare,
+greyed out until the Case holds two specs (P9). Previewing the document
+does not save or discard pending edits. The section also
 carries **Send to AI**, which creates an `AI-10` `Estimate` job
 ([AI Job List](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list)),
 disabled without an Engineer's Value. Report-draft generation and preview sit
