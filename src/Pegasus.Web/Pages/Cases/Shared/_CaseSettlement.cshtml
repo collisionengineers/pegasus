@@ -118,6 +118,9 @@
         <div class="fg g4">
             @{ await Field(AssessmentVocabulary.SettlementExcess, labels[AssessmentVocabulary.SettlementExcess]);
                 await Field(AssessmentVocabulary.SettlementBetterment, labels[AssessmentVocabulary.SettlementBetterment]);
+                @* The agreed contract sum (v28 P35) is a decision, recorded
+                   here; the Repair Spec bar ties to this one control. *@
+                await Field(AssessmentVocabulary.SettlementContractSum, labels[AssessmentVocabulary.SettlementContractSum]);
             }
         </div>
 
