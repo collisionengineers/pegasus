@@ -97,17 +97,21 @@ public sealed class EditModel(ReleaseNoteAdministration administration) : Admini
         catch (ReleaseNoteConflictException)
         {
             ModelState.AddModelError(string.Empty, OperatorLabels.ReleaseNotes.Conflict);
+            return await ReloadAsync(actor, cancellationToken, preserveExpectedRowVersion: true);
         }
 
         return await ReloadAsync(actor, cancellationToken);
     }
 
-    private async Task<IActionResult> ReloadAsync(ActionActor actor, CancellationToken cancellationToken)
+    private async Task<IActionResult> ReloadAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken,
+        bool preserveExpectedRowVersion = false)
     {
         if (Id is { } id && id != Guid.Empty)
         {
             Note = await administration.GetAsync(actor, id, cancellationToken);
-            if (Note is not null)
+            if (Note is not null && !preserveExpectedRowVersion)
             {
                 ExpectedRowVersion = Note.RowVersion;
             }
