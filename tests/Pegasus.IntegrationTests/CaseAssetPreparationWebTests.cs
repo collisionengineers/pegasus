@@ -238,10 +238,12 @@ public sealed class CaseAssetPreparationWebTests
         Assert.DoesNotContain("handler=SaveAssetPreparation", leased, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=ResetAssetPreparation", leased, StringComparison.Ordinal);
         // A missing closing quote used to swallow the preview URL into the
-        // crop-height attribute, leaving the browser crop editor without a source.
+        // crop-height attribute, leaving the browser crop editor without a
+        // source. The metadata is the tile's own since v28 P50, so the guard
+        // reads the Files fragment the tile is rendered in.
         Assert.Matches(
             "data-preparation-crop-height=\"[0-9.]+\"\\s+data-preparation-full-page=\"(true|false)\"\\s+data-preparation-preview=\"/Cases/",
-            leased);
+            await GetFilesFragmentAsync(workspace, leased));
 
         using var response = await workspace.Client.PostAsync(
             $"/Cases/{store.CaseId:D}?handler=Save",
@@ -494,7 +496,8 @@ public sealed class CaseAssetPreparationWebTests
                     "data-preparation-crop-height=",
                     "data-preparation-role-select",
                     "data-preparation-rotate",
-                    "data-preparation-reset",
+                    "data-image-full-page",
+                    "data-image-remove",
                     "data-preparation-crop"
                 })
                 {
