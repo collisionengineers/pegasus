@@ -3006,12 +3006,6 @@
                     set(value.id, { rotation: current.rotation + number(button.getAttribute('data-preparation-rotate'), 0) });
                 });
             });
-            var reset = card.querySelector('[data-preparation-reset]');
-            if (reset) {
-                reset.addEventListener('click', function () {
-                    set(value.id, { role: 'NotUsed', order: null, rotation: 0, crop: { left: 0, top: 0, width: 1, height: 1 }, fullPage: false });
-                });
-            }
             // v28 P41: Full page is a flag on an image the report uses;
             // Remove sets the role to Not used and the file stays on the Case,
             // so Undo simply puts the role back.
