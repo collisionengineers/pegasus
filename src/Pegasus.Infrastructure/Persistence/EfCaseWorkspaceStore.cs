@@ -186,6 +186,10 @@ public sealed class EfCaseWorkspaceStore(
                 cancellationToken);
         }
 
+        var wordingChanged = request.ReportWording is { } wording
+            && await SaveReportWordingAsync(
+                context, request, wording.Blocks ?? [], now, cancellationToken);
+
         var (estimate, beforeLines, afterLines) = await SaveEstimateAsync(
             context,
             request,
@@ -299,7 +303,8 @@ public sealed class EfCaseWorkspaceStore(
                 estimateChanged: estimate is not null
                     && JsonSerializer.Serialize(beforeLines, JsonOptions) != JsonSerializer.Serialize(afterLines, JsonOptions),
                 imagesPrepared: preparedImages?.Count ?? 0,
-                request.Reason),
+                request.Reason,
+                wordingChanged),
             EventType,
             requestHash,
             beforeVersion,
@@ -498,6 +503,90 @@ public sealed class EfCaseWorkspaceStore(
             wasReplay);
     }
 
+    /// <summary>
+    /// The Engineer's changes to the report's narrative blocks (v28 P30). A
+    /// row is held only for a block whose heading, wording, order or presence
+    /// the Engineer changed, so a block left out of the submission is reset to
+    /// tracking its fields rather than deleted: the Case's row history is
+    /// append-and-amend, like every other Case-owned table.
+    /// </summary>
+    private static async Task<bool> SaveReportWordingAsync(
+        PegasusDbContext context,
+        SaveCaseWorkspaceRequest request,
+        IReadOnlyList<CaseReportWording> blocks,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var existing = await context.CaseReportWordings
+            .Where(item => item.CaseId == request.CaseId)
+            .ToListAsync(cancellationToken);
+        var submitted = blocks.ToDictionary(block => block.Key, StringComparer.Ordinal);
+        var changed = false;
+
+        foreach (var row in existing.Where(item => !submitted.ContainsKey(item.BlockKey)))
+        {
+            // A manual paragraph left out is one the Engineer deleted; a
+            // standard block left out tracks its fields again.
+            var included = !row.Manual;
+            if (row.Title is null && row.Text is null && row.Order is null && row.Included == included)
+            {
+                continue;
+            }
+            row.Title = null;
+            row.Text = null;
+            row.Order = null;
+            row.Included = included;
+            row.UpdatedBy = request.Actor.SubjectId;
+            row.UpdatedAtUtc = now;
+            changed = true;
+        }
+
+        foreach (var block in blocks)
+        {
+            var row = existing.SingleOrDefault(item =>
+                string.Equals(item.BlockKey, block.Key, StringComparison.Ordinal));
+            if (row is null)
+            {
+                // A block that changed nothing needs no row of its own.
+                if (block.Title is null && block.Text is null && block.Order is null
+                    && block.Included && !block.Manual)
+                {
+                    continue;
+                }
+                context.CaseReportWordings.Add(new CaseReportWordingEntity
+                {
+                    Id = Guid.NewGuid(),
+                    CaseId = request.CaseId,
+                    BlockKey = block.Key,
+                    Title = block.Title,
+                    Text = block.Text,
+                    Order = block.Order,
+                    Included = block.Included,
+                    Manual = block.Manual,
+                    UpdatedBy = request.Actor.SubjectId,
+                    UpdatedAtUtc = now,
+                });
+                changed = true;
+                continue;
+            }
+            if (row.Title == block.Title && row.Text == block.Text && row.Order == block.Order
+                && row.Included == block.Included && row.Manual == block.Manual)
+            {
+                continue;
+            }
+            row.Title = block.Title;
+            row.Text = block.Text;
+            row.Order = block.Order;
+            row.Included = block.Included;
+            row.Manual = block.Manual;
+            row.UpdatedBy = request.Actor.SubjectId;
+            row.UpdatedAtUtc = now;
+            changed = true;
+        }
+
+        return changed;
+    }
+
     private static CaseCompleteness Completeness(CaseDataSnapshotEntity snapshot) => new(
         snapshot.Case.InstructionComplete,
         snapshot.Case.ImagesComplete);
@@ -528,6 +617,7 @@ public sealed class EfCaseWorkspaceStore(
                 request.Estimate,
                 request.Settlement,
                 request.Report,
+                request.ReportWording,
                 request.Completeness
             },
             JsonOptions);

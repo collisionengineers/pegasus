@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
+using Pegasus.Core.Reports;
 using Pegasus.Core.AiWork;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -181,6 +182,22 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.Gross).HasPrecision(18, 2);
             entity.HasIndex(item => new { item.SpecificationId, item.Number }).IsUnique();
             entity.HasIndex(item => item.CaseId);
+            entity.HasOne(item => item.Case)
+                .WithMany()
+                .HasForeignKey(item => item.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<CaseReportWordingEntity>(entity =>
+        {
+            entity.ToTable("CaseReportWordings");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
+            entity.Property(item => item.BlockKey).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Title).HasMaxLength(ReportWordingComposition.MaximumTitleLength);
+            entity.Property(item => item.Text).HasMaxLength(ReportWordingComposition.MaximumTextLength);
+            entity.Property(item => item.UpdatedBy).HasMaxLength(200).IsRequired();
+            entity.HasIndex(item => new { item.CaseId, item.BlockKey }).IsUnique();
             entity.HasOne(item => item.Case)
                 .WithMany()
                 .HasForeignKey(item => item.CaseId)
