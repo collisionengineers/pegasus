@@ -56,9 +56,8 @@ This order supersedes the 2026-08-04 order (`Dashboard → Inbox → Upload →
 Queues → Cases → Administration`): the Dashboard becomes the Work Centre,
 Queues becomes Cases, the former Cases search becomes Search, and Operations
 returns as a routed workspace. `Triage`, `Unidentified`, `Audit`,
-`Not ready`, `Review` and `Held` keep their settled meanings; Triage and
-Unidentified are pre-Case records reached through the Cases rail, never Case
-states.
+`Not ready`, `Review` and `Held` keep their settled meanings. Triage is a Case
+type with a specialised lifecycle; Unidentified remains a pre-Case record.
 
 The common hierarchy of every authenticated page is:
 
@@ -131,7 +130,7 @@ head. With none the dialog says `No notifications`; a failed read says
 `Notifications unavailable.` Notifications older than 30 days drop off.
 
 The **working-set strip** sits under the utility bar and holds open records
-only: Cases and the pre-Case records (Triage, Unidentified, image record, a
+only: Cases (including Triage) and the pre-Case records (Unidentified, image record, a
 message) join it when opened and leave when closed. There is no Work Centre
 tab and no "+ Open" tab; records open from Cases, Search, the Inbox or Ctrl K,
 and with nothing open the strip is absent. The strip is fused with the record:

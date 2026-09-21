@@ -65,7 +65,7 @@ exclusion.
 | TRI-05 | Outcome-based completion and optional Reply with outcome correspondence | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-06 | Reopen and superseding-finding behavior with permanent history | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | TRI-07 | Optional later case link, unlink, and relink | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
-| TRI-08 | Dedicated Triage list and detail workspace | [Pre-Case records](frd/frd-15-work-centre-queues-and-search.md#pre-case-records) |
+| TRI-08 | Dedicated Triage queue and specialised Case workspace | [Cases: queues and filters](frd/frd-15-work-centre-queues-and-search.md#cases-queues-and-filters) |
 | TRI-09 | Optional Triage assignee, with no due date and no chasers | [Triage normal workflow](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) |
 | CASE-01 | Every active Case type travels end to end to handoff | [States and labels](frd/frd-13-case-lifecycle-and-workflow.md#states-and-labels) |
 | CASE-02 | Inspection cases | [Case types](frd/frd-01-case-identity-and-lifecycle.md#case-types) |

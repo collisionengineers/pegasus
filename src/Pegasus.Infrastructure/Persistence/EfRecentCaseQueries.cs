@@ -37,6 +37,7 @@ internal sealed class EfRecentCaseQueries(
                 on caseEntity.OriginIntakeReceiptId equals receiptCandidate.Id into receipts
             from receipt in receipts.DefaultIfEmpty()
             where caseEntity.CreatedAtUtc >= sinceUtc
+                && caseEntity.Type != "triage"
             select new Row(
                 RecentCaseRowKind.NewCase,
                 caseEntity.Id,

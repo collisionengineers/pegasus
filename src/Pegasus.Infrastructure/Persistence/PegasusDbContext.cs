@@ -729,9 +729,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         {
             entity.ToTable("ImageIntakes");
             entity.HasKey(item => item.Id);
-            entity.Property(item => item.SourceChannel).HasMaxLength(40).IsRequired();
-            entity.Property(item => item.ExternalReceiptToken).HasMaxLength(200).IsRequired();
-            entity.Property(item => item.SourceHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.SourceChannel).HasMaxLength(40);
+            entity.Property(item => item.ExternalReceiptToken).HasMaxLength(200);
+            entity.Property(item => item.SourceHash).HasMaxLength(64).IsFixedLength();
             entity.Property(item => item.NormalizedVehicleRegistration).HasMaxLength(20).IsRequired();
             entity.Property(item => item.ImageIntakeReference).HasMaxLength(30).IsRequired();
             entity.Property(item => item.CreatedByActorKind).HasMaxLength(40).IsRequired();
@@ -836,6 +836,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasOne<IntakeReceiptEntity>()
                 .WithMany()
                 .HasForeignKey(item => item.OriginReceiptId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.Case)
+                .WithOne()
+                .HasForeignKey<TriageEntity>(item => item.Id)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<CaseEntity>()
                 .WithMany()
@@ -1364,14 +1368,15 @@ internal sealed class ExternalWorkItemEntity
 internal sealed class TriageEntity : IApplicationManagedConcurrencyToken
 {
     public Guid Id { get; set; }
+    public CaseEntity Case { get; set; } = null!;
     public long Sequence { get; set; }
     public string Reference { get; set; } = string.Empty;
     public Guid? PrincipalId { get; set; }
-    public Guid OriginReceiptId { get; set; }
-    public required string SourceChannel { get; set; }
-    public required string ExternalReceiptToken { get; set; }
-    public required string SourceHash { get; set; }
-    public Guid EvaluationRevisionId { get; set; }
+    public Guid? OriginReceiptId { get; set; }
+    public string? SourceChannel { get; set; }
+    public string? ExternalReceiptToken { get; set; }
+    public string? SourceHash { get; set; }
+    public Guid? EvaluationRevisionId { get; set; }
     public required string NormalizedVehicleRegistration { get; set; }
     public required string State { get; set; }
     public Guid? AssigneeId { get; set; }

@@ -310,7 +310,7 @@ public sealed partial class QdosTriageIntegrationTests
                 final.History,
                 history => history.OperationKey == operationKey));
 
-        var caseId = await SeedMatchingFormalCaseAsync(factory.Services, final.Record.Origin.ReceiptId);
+        var caseId = await SeedMatchingFormalCaseAsync(factory.Services, final.Record.Origin!.ReceiptId);
         var pairing = services.GetRequiredService<ITriageCasePairing>();
         Assert.Equal(new TriageCasePairingResult(1, 1, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
         var paired = await GetTriageAsync(factory.Services, triageId);

@@ -46,7 +46,8 @@ public enum CaseType
 {
     Inspection,
     Audit,
-    InspectionAndAudit
+    InspectionAndAudit,
+    Triage
 }
 
 public enum AuditAssessment
@@ -127,6 +128,15 @@ public static class AuditIdentity
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(caseReference);
         return "a." + caseReference;
+    }
+}
+
+public static class TriageIdentity
+{
+    public static string Create(string caseReference)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(caseReference);
+        return "t." + caseReference;
     }
 }
 

@@ -551,7 +551,12 @@ public sealed partial class CreateModel(
             data.InstructionDate,
             data.InspectionAddress,
             data.InspectionDate);
-        foreach (var missing in InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft))
+        var missingFields = CaseType == CaseType.Triage
+            ? string.IsNullOrWhiteSpace(data.VehicleRegistration)
+                ? new[] { "Vehicle registration" }
+                : []
+            : InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
+        foreach (var missing in missingFields)
         {
             ModelState.AddModelError(string.Empty, $"{missing} is needed before a case can be created.");
         }

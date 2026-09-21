@@ -48,12 +48,12 @@ public sealed class TriageFromIntakeIntegrationTests
                 "VO75DFJ", Assert.Single(copy.Evidence, item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch),
                 ActionActor.SystemWorker("triage-recovery-fixture"), $"triage-recovery-create:{index}"), CancellationToken.None));
         }
-        var caseId = await QdosTriageIntegrationTests.SeedMatchingFormalCaseAsync(services, copies[1].Origin.ReceiptId);
+        var caseId = await QdosTriageIntegrationTests.SeedMatchingFormalCaseAsync(services, copies[1].Origin!.ReceiptId);
         await using var context = await services.GetRequiredService<IDbContextFactory<PegasusDbContext>>().CreateDbContextAsync();
         var originalPrincipal = (await context.Triage.AsNoTracking().SingleAsync(item => item.Id == first.Id)).PrincipalId;
         await context.Triage.Where(item => item.Id == first.Id)
             .ExecuteUpdateAsync(update => update.SetProperty(item => item.PrincipalId, (Guid?)null));
-        await context.InstructionDrafts.Where(item => item.IntakeReceiptId == copies[0].Origin.ReceiptId)
+        await context.InstructionDrafts.Where(item => item.IntakeReceiptId == copies[0].Origin!.ReceiptId)
             .ExecuteUpdateAsync(update => update.SetProperty(item => item.VehicleRegistration, "PG18BTY"));
         var eligible = Assert.Single(await store.ListAutomaticLinkCandidatesAsync(null, null, 1, CancellationToken.None));
         Assert.Equal(copies[1].Id, eligible.TriageId);
@@ -97,7 +97,7 @@ public sealed class TriageFromIntakeIntegrationTests
             await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
                 .GetAsync(triage.Id, CancellationToken.None));
 
-        Assert.Equal(receiptId, detail.Record.Origin.ReceiptId);
+        Assert.Equal(receiptId, detail.Record.Origin!.ReceiptId);
         Assert.Equal("VO75DFJ", detail.Record.NormalizedVehicleRegistration);
         Assert.Equal(TriageState.Open, detail.Record.State);
         var created = Assert.Single(detail.History, item => item.EventType == "triage_created");
@@ -274,7 +274,7 @@ public sealed class TriageFromIntakeIntegrationTests
             await after.ServiceProvider.GetRequiredService<ITriageQueries>()
                 .GetAsync(triage.Id, CancellationToken.None));
 
-        Assert.Equal(receiptId, detail.Record.Origin.ReceiptId);
+        Assert.Equal(receiptId, detail.Record.Origin!.ReceiptId);
         Assert.Equal("VN64WNG", detail.Record.NormalizedVehicleRegistration);
         Assert.Equal(TriageState.Open, detail.Record.State);
 

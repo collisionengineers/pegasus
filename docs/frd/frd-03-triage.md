@@ -4,8 +4,9 @@
 
 ## Short version
 
-- Triage is a separate pre-Case record for an assessment request. It has its
-  own `T-00001` style reference and never gets a Case/PO.
+- Triage is a Case type for an assessment request. It uses the normal
+  Principal/year Case sequence with a `t.` discriminator, for example
+  `t.QDOS26001`.
 - A Triage opens when a route classifies a request as Triage, a Principal
   declares one over the Provider API, or staff classify retained material.
 - It moves `Open` → `Awaiting information` → `Finding recorded` →
@@ -28,10 +29,13 @@ with no registration is held in Unidentified until one is known
 
 #### Normal workflow and completion evidence
 
-**Reference.** Each Triage gets the next global reference: `T-00001`,
-`T-00002` and so on. The sequence never resets by year or Principal and is
-never reused. A formal instruction later allocates a normal Case/PO and links
-the existing Triage. Triage itself allocates neither.
+**Case identity and reference.** A Triage is created only after an active
+Principal and registration are known. It is a Case and consumes the next
+number from that Principal lineage's current-year Case sequence. Its permanent
+reference is the allocated Case reference prefixed with `t.`, for example
+`t.QDOS26001`. The number is never reused. A later definitive Case consumes its
+own next number and may be linked to the Triage; it does not replace or
+automatically complete the Triage.
 
 **How a Triage starts.** One of three ways:
 
@@ -45,13 +49,13 @@ A declared Triage carries the Principal's declaration as its match evidence,
 stamped with that policy's key and version, and opens exactly like a
 classified one. Manual classification records the source, the route evidence
 available, the actor, time, reason and policy version. It never invents a
-Principal and never creates a Case/PO. Material whose route or category is
+Principal. Material whose route or category is
 not accepted stays `Unidentified`; it never becomes a Triage or a Case by
 fallback.
 
 **Automatic creation from intake** follows the same rule. When the route
 classification records a received message as a Triage request, Pegasus does
-not treat it as an instruction and allocates no Case/PO. The classification
+not treat it as an instruction, but creates a Triage Case. The classification
 decision itself is the match evidence, with its policy key and version on the
 record. A known registration opens the Triage as `Open`. No known
 registration registers the material as Unidentified with its reason and opens
@@ -71,10 +75,9 @@ in one chronological order. Notes are append-only. Each carries its author,
 time and text. A correction is a new note; notes cannot be edited or deleted
 on any screen or through any caller.
 
-**Files.** `Files` lists the retained request sources and their attachments,
-plus the vehicle images linked to the record, each with view and download.
-Triage has no separate file store and no upload action. Material reaches a
-Triage only through the accepted intake routes.
+**Files.** `Files` uses Case custody. It lists retained request sources and
+attachments, vehicle images and staff uploads, each with view and download.
+Triage has no separate file store.
 
 **Editing.** An existing Triage is read-only until a staff member presses
 Edit, which claims a scope for that one Triage record, not its queue or its
@@ -101,8 +104,10 @@ normal email evidence rules, but neither composing nor sending is a gate.
 `Cancelled` closes a Triage without a finding. Neither outcome turns a Triage
 finding into an instruction for a later Case.
 
-**Assignee and Case link.** A Triage may have an assignee. It has no due date
-and no chase schedule. It may link to at most one current Case; a Case may
+**Assignee, target and Case link.** A Triage may have an assignee. Its work
+target is derived from its creation time and the configured Triage target days,
+and appears in due/overdue work. A sent information request records its own
+chase due time; staff may also send a manual chaser. It may link to at most one current Case; a Case may
 have many Triages. Every staff role in the
 [staff role access matrix](frd-04-parties-accounts-and-access.md#staff-role-access-matrix)
 may unlink or relink with a reason. The prior and current Case, actor, time,
@@ -136,7 +141,7 @@ Recoverable failures are visible and do not block unrelated links.
 The automatic write rechecks the origin, evaluation, Principal, candidate
 uniqueness, target identity and versions inside its transaction. It records
 one SystemWorker link in both Triage and Case history. It keeps the Triage
-reference, findings and state, and allocates no Case/PO. Recovery never
+reference, findings and state, and allocates no further Case number. Recovery never
 reverses a deliberate staff unlink or reassignment. Manual linking keeps its
 staff authority, reason and current Case edit lease.
 

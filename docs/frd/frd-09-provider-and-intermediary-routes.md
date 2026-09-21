@@ -283,7 +283,7 @@ subject template, which states it nowhere else.
 ### Triage result contract
 
 A Provider API Triage submission returns the same result shape, with the same
-Principal-scoped access, as a regular Case submission, using the Triage `T-`
+Principal-scoped access, as a regular Case submission, using the Triage `t.`
 reference in place of a Case/PO. It does not allocate a formal Case just to
 fill that result. Receipt and processing state keep their ordinary meaning.
 A result is not proof that a response was emailed

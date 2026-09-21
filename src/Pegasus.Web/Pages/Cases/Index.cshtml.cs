@@ -21,8 +21,8 @@ namespace Pegasus.Web.Pages.Cases;
 /// row.
 /// </summary>
 /// <remarks>
-/// The rail groups are Workflow (Not ready, Review, With Engineer, Complete, Query),
-/// Pre-Case work (Triage, Awaiting instruction) and Exceptions (Held,
+/// The rail groups are Workflow (Not ready, Review, With Engineer, Complete, Query, Triage),
+/// Pre-Case work (Awaiting instruction) and Exceptions (Held,
 /// Unidentified). The Unidentified scope lists open items, with closed items
 /// behind its Show filter (received file D5); nothing here lists a Blocked
 /// receipt or links to a received item (received file D1, D2).
@@ -93,7 +93,7 @@ public sealed class IndexModel(
         new("with_engineer", OperatorLabels.CaseStage(CaseLifecycleState.ReportPreparation), WorkflowGroup, "icon-user"),
         new("complete", OperatorLabels.CaseStage(CaseLifecycleState.PostReportComplete), WorkflowGroup, "icon-check"),
         new("query", OperatorLabels.CaseStage(CaseLifecycleState.Query), WorkflowGroup, "icon-reply"),
-        new("triage", "Triage", PreCaseGroup, "icon-file-text"),
+        new("triage", "Triage", WorkflowGroup, "icon-file-text"),
         new("awaiting", "Awaiting instruction", PreCaseGroup, "icon-image"),
         new("held", OperatorLabels.CaseStage(CaseLifecycleState.Held), ExceptionsGroup, "icon-pause", IsException: true),
         new("unidentified", "Unidentified", ExceptionsGroup, "icon-alert-triangle", IsException: true)
@@ -815,7 +815,7 @@ public sealed class IndexModel(
                 new Cell(OperatorLabels.TriageState(item.State), CellKind.Chip)
             ],
             item.CreatedAtUtc,
-            $"/Triage/{item.Id:D}",
+            $"/Cases/{item.Id:D}",
             facts,
             Chip: OperatorLabels.TriageState(item.State));
     }

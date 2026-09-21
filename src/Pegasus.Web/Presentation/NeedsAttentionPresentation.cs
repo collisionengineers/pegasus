@@ -58,7 +58,7 @@ public static class NeedsAttentionPresentation
         NeedsAttentionKind.CaseChase or NeedsAttentionKind.HeldDecision
             or NeedsAttentionKind.ReviewCase or NeedsAttentionKind.UnassignedEngineer => "/Cases/Details",
         NeedsAttentionKind.Unidentified => "/Unidentified/Details",
-        NeedsAttentionKind.Triage => "/Triage/Details",
+        NeedsAttentionKind.Triage => "/Cases/Details",
         _ => "/Operations/Index"
     };
 

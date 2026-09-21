@@ -268,6 +268,7 @@ internal sealed class EfRecordEngineerFinding(
         "inspection" => CaseType.Inspection,
         "audit" => CaseType.Audit,
         "inspection_and_audit" => CaseType.InspectionAndAudit,
+        "triage" => CaseType.Triage,
         _ => throw new InvalidDataException($"Unknown persisted case type '{value}'.")
     };
 

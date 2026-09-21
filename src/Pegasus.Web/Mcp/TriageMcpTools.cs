@@ -110,8 +110,10 @@ internal sealed class TriageMcpTools(
                 AutomationMcpErrors.RequireId(triageId, "Triage identifier");
                 var detail = await getTriage.ExecuteAsync(new(triageId, context.Actor), cancellationToken)
                     ?? throw new McpException("The Triage record was not found.");
+                var origin = detail.Record.Origin
+                    ?? throw new McpException("This manually created Triage Case has no retained intake source.");
                 return await IntakeSourceMcpContent.DownloadAsync(getSourceMetadata, downloadSource,
-                    detail.Record.Origin.ReceiptId, context.Actor, maxInlineBytes,
+                    origin.ReceiptId, context.Actor, maxInlineBytes,
                     context.TraceIdentifier, cancellationToken);
             }), cancellationToken);
     }

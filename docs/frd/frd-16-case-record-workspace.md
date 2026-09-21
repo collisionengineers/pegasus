@@ -276,7 +276,7 @@ report while editing, and a filmstrip). Crop happens on the viewer stage. A
 crop is a stored rectangle: the tile and the report show the cropped region
 and Download returns the original.
 
-Images on pre-Case records (a vehicle-images record, a Triage or an
+Images on specialised records (a vehicle-images record, a Triage Case or an
 Unidentified item) carry the same crop, rotation and tags. Their rules are
 in [FRD-19](frd-19-image-led-intake-and-pairing.md#operator-surfaces).
 

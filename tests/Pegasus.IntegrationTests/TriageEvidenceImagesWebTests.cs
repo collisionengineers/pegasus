@@ -38,10 +38,10 @@ public sealed partial class QdosTriageIntegrationTests
             triageId = triage.Id;
             receiptId = Assert.IsType<TriageDetail>(
                 await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
-                    .GetAsync(triage.Id, CancellationToken.None)).Record.Origin.ReceiptId;
+                    .GetAsync(triage.Id, CancellationToken.None)).Record.Origin!.ReceiptId;
         }
 
-        using var response = await client.GetAsync($"/Triage/{triageId}");
+        using var response = await client.GetAsync($"/Cases/{triageId}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
 
@@ -74,7 +74,7 @@ public sealed partial class QdosTriageIntegrationTests
                     .ListAsync(null, CancellationToken.None)).Id;
         }
 
-        using var response = await client.GetAsync($"/Triage/{triageId}");
+        using var response = await client.GetAsync($"/Cases/{triageId}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
 

@@ -30,7 +30,7 @@ public sealed class TriageReplayTests
         var evidence = new IntakeEvidence(IntakeEvidenceSource.SystemDefault, IntakeEvidenceStrength.Strong,
             IntakeEvidenceFinding.AcceptedTriageMatch, created.NormalizedVehicleRegistration,
             "Accepted creation replay fixture.", "fixture-match", 1);
-        var request = new CreateTriageFromIntakeRequest(created.Origin, created.NormalizedVehicleRegistration,
+        var request = new CreateTriageFromIntakeRequest(created.Origin!, created.NormalizedVehicleRegistration,
             evidence, ActionActor.SystemWorker("creation-replay"), "creation-replay");
         Assert.Equal(created, await command.ExecuteAsync(request, CancellationToken.None));
         Assert.Single(store.PairingCandidates);

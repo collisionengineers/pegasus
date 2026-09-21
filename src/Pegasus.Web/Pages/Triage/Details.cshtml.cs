@@ -131,7 +131,9 @@ public sealed class DetailsModel(
     public Guid? SourceMessageId => RetainedMail?.Summary.Id;
 
     /// <summary>Open file: the retained original through the kept source route.</summary>
-    public string OpenFileHref => $"/Received/{Triage.Record.Origin.ReceiptId:D}/Source";
+    public string? OpenFileHref => Triage.Record.Origin is { } origin
+        ? $"/Received/{origin.ReceiptId:D}/Source"
+        : null;
 
     public string? AssigneeName { get; private set; }
 
@@ -584,9 +586,10 @@ public sealed class DetailsModel(
         // one. No rights guard here: GetTriage above already required the
         // same PerformCasework right from the same actor, so this cannot be
         // reached without it.
-        var receipt = await _getIntake.ExecuteAsync(
-            new(triage.Record.Origin.ReceiptId, actor),
-            cancellationToken);
+        var origin = triage.Record.Origin;
+        var receipt = origin is not null
+            ? await _getIntake.ExecuteAsync(new(origin.ReceiptId, actor), cancellationToken)
+            : null;
         EvidenceImages = receipt is null
             ? []
             : InstructionEvidenceImages.Servable(receipt.AssetRecords);
@@ -602,7 +605,7 @@ public sealed class DetailsModel(
             ? UnidentifiedMediaKindPolicy.Classify(
                 receipt.SourceIdentity.Channel,
                 receipt.MediaType) == UnidentifiedMediaKind.Email
-            : triage.Record.Origin.SourceIdentity.Channel == IntakeSourceChannel.Mailbox;
+            : origin?.SourceIdentity.Channel == IntakeSourceChannel.Mailbox;
         SourceIsEmail = sourceIsEmail;
         var roster = await engineerChoices.GetAsync(actor, cancellationToken);
         AssigneeName = triage.Record.AssigneeId is { } assigneeId
@@ -611,7 +614,7 @@ public sealed class DetailsModel(
         CanAssignToMe = TriageLifecycleRules.CanAssignToSelf(triage.Record)
             && NeedsAttentionPolicy.CanTake(NeedsAttentionKind.Triage, actor);
         ViewData["WorkingSetRecord"] = new WorkingSetRecord(
-            $"/Triage/{id:D}",
+            $"/Cases/{id:D}",
             WorkingSetRecord.Kinds.Triage,
             triage.Record.Reference ?? "Triage",
             triage.Record.NormalizedVehicleRegistration);
@@ -643,21 +646,21 @@ public sealed class DetailsModel(
             }
         }
 
-        if (triage.Record.Origin.SourceIdentity.Channel == IntakeSourceChannel.Mailbox
+        if (triage.Record.Origin is { SourceIdentity.Channel: IntakeSourceChannel.Mailbox } mailOrigin
             && _getRetainedMail is not null
             && _staffMailSend is not null
             && _approvedMailboxes is not null)
         {
             RetainedMail = await _getRetainedMail.ExecuteByOriginReceiptAsync(
                 actor,
-                triage.Record.Origin.ReceiptId,
+                mailOrigin.ReceiptId,
                 cancellationToken);
             if (RetainedMail is not null)
             {
                 if (_attachmentResolver is not null)
                 {
                     AvailableAttachments = await _attachmentResolver.ListIntakeAsync(
-                        actor, triage.Record.Origin.ReceiptId, cancellationToken);
+                        actor, mailOrigin.ReceiptId, cancellationToken);
                 }
                 ChaserOperation = await _staffMailSend.GetLatestForOriginalAsync(
                     actor,
@@ -986,7 +989,7 @@ public sealed class DetailsModel(
             return NotFound();
         }
 
-        if (triage.Record.Origin.SourceIdentity.Channel != IntakeSourceChannel.Mailbox)
+        if (triage.Record.Origin is not { SourceIdentity.Channel: IntakeSourceChannel.Mailbox } origin)
         {
             ModelState.AddModelError(string.Empty, "A chaser reply can only be sent for mailbox intake.");
             return await LoadAsync(id, actionActor, cancellationToken) ? Page() : NotFound();
@@ -1002,7 +1005,7 @@ public sealed class DetailsModel(
 
         var detail = await _getRetainedMail.ExecuteByOriginReceiptAsync(
             actionActor,
-            triage.Record.Origin.ReceiptId,
+            origin.ReceiptId,
             cancellationToken);
         if (detail is null)
         {
@@ -1165,14 +1168,14 @@ public sealed class DetailsModel(
             return NotFound();
         }
 
-        if (triage.Record.Origin.SourceIdentity.Channel != IntakeSourceChannel.Mailbox)
+        if (triage.Record.Origin is not { SourceIdentity.Channel: IntakeSourceChannel.Mailbox } origin)
         {
             return NotFound();
         }
 
         var detail = await _getRetainedMail.ExecuteByOriginReceiptAsync(
             actionActor,
-            triage.Record.Origin.ReceiptId,
+            origin.ReceiptId,
             cancellationToken);
         if (detail is null)
         {

@@ -30,7 +30,7 @@ public sealed partial class QdosTriageIntegrationTests
 
         var fixture = await SeedMailboxTriageAsync(factory);
 
-        using var response = await client.GetAsync($"/Triage/{fixture.TriageId}");
+        using var response = await client.GetAsync($"/Cases/{fixture.TriageId}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
 
@@ -51,7 +51,7 @@ public sealed partial class QdosTriageIntegrationTests
 
         var fixture = await SeedNonMailboxTriageAsync(factory);
 
-        using var response = await client.GetAsync($"/Triage/{fixture.TriageId}");
+        using var response = await client.GetAsync($"/Cases/{fixture.TriageId}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
 
@@ -72,7 +72,7 @@ public sealed partial class QdosTriageIntegrationTests
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=SendChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=SendChaser");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -102,7 +102,7 @@ public sealed partial class QdosTriageIntegrationTests
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=SendChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=SendChaser");
         request.Headers.Add("X-Test-Roleless", "1");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
@@ -131,10 +131,10 @@ public sealed partial class QdosTriageIntegrationTests
         });
 
         var fixture = await SeedMailboxTriageAsync(factory);
-        var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Triage/{fixture.TriageId}");
+        var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageId}");
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=SendChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=SendChaser");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -151,7 +151,7 @@ public sealed partial class QdosTriageIntegrationTests
         Assert.True(
             response.StatusCode == HttpStatusCode.Redirect,
             $"Expected redirect, received {(int)response.StatusCode}; validation: {ValidationFailure(responseHtml)}");
-        Assert.Equal($"/Triage/{fixture.TriageId:D}", response.Headers.Location?.OriginalString);
+        Assert.Equal($"/Cases/{fixture.TriageId:D}", response.Headers.Location?.OriginalString);
 
         Assert.Equal(1, send.SendCalls);
         var command = Assert.Single(send.Commands);
@@ -181,7 +181,7 @@ public sealed partial class QdosTriageIntegrationTests
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=SendChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=SendChaser");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -211,7 +211,7 @@ public sealed partial class QdosTriageIntegrationTests
         var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=SendChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=SendChaser");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -241,12 +241,12 @@ public sealed partial class QdosTriageIntegrationTests
         });
 
         var fixture = await SeedMailboxTriageAsync(factory);
-        var (firstKey, token) = await TriageChaserTokensAsync(client, $"/Triage/{fixture.TriageId}");
+        var (firstKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageId}");
 
         // First send establishes an active (Submitted) operation
         send.NextState = StaffMailState.Submitted;
         using (var firstRequest = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=SendChaser"))
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=SendChaser"))
         {
             firstRequest.Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -268,7 +268,7 @@ public sealed partial class QdosTriageIntegrationTests
         // Second send with a fresh operation key for the same retained message must observe the send conflict
         var freshKey = $"retained:{fixture.RetainedMessageId:N}:{Guid.NewGuid():N}";
         using (var secondRequest = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=SendChaser"))
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=SendChaser"))
         {
             secondRequest.Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -319,10 +319,10 @@ public sealed partial class QdosTriageIntegrationTests
         using var client = factory.CreateClient();
 
         var fixture = await SeedMailboxTriageAsync(factory);
-        var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Triage/{fixture.TriageId}");
+        var (operationKey, token) = await TriageChaserTokensAsync(client, $"/Cases/{fixture.TriageId}");
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=SendChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=SendChaser");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -377,7 +377,7 @@ public sealed partial class QdosTriageIntegrationTests
         send.SeedOperation(operation);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=ReconcileChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=ReconcileChaser");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -387,7 +387,7 @@ public sealed partial class QdosTriageIntegrationTests
         using var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        Assert.Equal($"/Triage/{fixture.TriageId:D}", response.Headers.Location?.OriginalString);
+        Assert.Equal($"/Cases/{fixture.TriageId:D}", response.Headers.Location?.OriginalString);
         Assert.Equal(1, send.ReconcileCalls);
     }
 
@@ -404,7 +404,7 @@ public sealed partial class QdosTriageIntegrationTests
         var operationId = Guid.NewGuid();
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{missingTriageId}?handler=ReconcileChaser");
+            HttpMethod.Post, $"/Cases/{missingTriageId}?handler=ReconcileChaser");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -450,7 +450,7 @@ public sealed partial class QdosTriageIntegrationTests
         send.SeedOperation(operation);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=ReconcileChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=ReconcileChaser");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -496,7 +496,7 @@ public sealed partial class QdosTriageIntegrationTests
         send.SeedOperation(operation);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=ReconcileChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=ReconcileChaser");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -542,7 +542,7 @@ public sealed partial class QdosTriageIntegrationTests
         send.SeedOperation(operation);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=ReconcileChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=ReconcileChaser");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -588,7 +588,7 @@ public sealed partial class QdosTriageIntegrationTests
         send.SeedOperation(operation);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=ReconcileChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=ReconcileChaser");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
@@ -634,7 +634,7 @@ public sealed partial class QdosTriageIntegrationTests
         send.SeedOperation(operation);
 
         using var request = new HttpRequestMessage(
-            HttpMethod.Post, $"/Triage/{fixture.TriageId}?handler=ReconcileChaser");
+            HttpMethod.Post, $"/Cases/{fixture.TriageId}?handler=ReconcileChaser");
         request.Content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,

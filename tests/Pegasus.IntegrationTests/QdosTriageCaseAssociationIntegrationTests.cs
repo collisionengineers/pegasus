@@ -23,7 +23,7 @@ public sealed partial class QdosTriageIntegrationTests
         var email = IntakeTestEvidence.CreateEngineerTriageRequest("triage-link-guards.eml");
         _ = await MailboxIntakeTestData.SubmitAndProcessAsync(factory.Services, email);
         var triage = (await GetOnlyTriageAsync(factory.Services)).Record;
-        var caseId = await SeedMatchingFormalCaseAsync(factory.Services, triage.Origin.ReceiptId);
+        var caseId = await SeedMatchingFormalCaseAsync(factory.Services, triage.Origin!.ReceiptId);
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var store = services.GetRequiredService<ITriageStore>();
@@ -49,7 +49,7 @@ public sealed partial class QdosTriageIntegrationTests
         await Assert.ThrowsAsync<CaseVersionConflictException>(() =>
             store.LinkAutomaticallyAsync(candidate, worker, CancellationToken.None));
         candidate = Assert.Single(await store.ListAutomaticLinkCandidatesAsync(null, null, 1, CancellationToken.None));
-        var competitorId = await SeedMatchingFormalCaseAsync(factory.Services, triage.Origin.ReceiptId, 2);
+        var competitorId = await SeedMatchingFormalCaseAsync(factory.Services, triage.Origin!.ReceiptId, 2);
         Assert.False(await store.LinkAutomaticallyAsync(candidate, worker, CancellationToken.None));
         Assert.Equal(new TriageCasePairingResult(0, 0, 0), await pairing.ReconcileAsync(1, CancellationToken.None));
 

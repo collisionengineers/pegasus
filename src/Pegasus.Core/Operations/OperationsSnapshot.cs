@@ -73,8 +73,8 @@ public sealed record NeedsAttentionPage(
     public int TotalPages => TotalCount == 0 ? 1 : (int)Math.Ceiling((double)TotalCount / PageSize);
 }
 
-/// <summary>The metric strip of four (Work Centre D7): Not ready, Review, Held, Unidentified.</summary>
-public sealed record WorkCentreMetrics(int NotReady, int Review, int Held, int Unidentified);
+/// <summary>The Work Centre headline counts. Triage is a Case type with its own lifecycle, so it is counted separately from ordinary Case stages.</summary>
+public sealed record WorkCentreMetrics(int NotReady, int Review, int Held, int Triage, int Unidentified);
 
 /// <summary>
 /// What the Work Centre shows.
@@ -101,7 +101,7 @@ public sealed record OperationsSnapshot(
 
     public NeedsAttentionScope Scope { get; init; } = NeedsAttentionScope.Office;
 
-    public WorkCentreMetrics Metrics { get; init; } = new(CaseStages.NotReady, CaseStages.Review, CaseStages.Held, UnidentifiedCount);
+    public WorkCentreMetrics Metrics { get; init; } = new(CaseStages.NotReady, CaseStages.Review, CaseStages.Held, TriageCount, UnidentifiedCount);
 }
 
 public interface IGetOperationsSnapshot
@@ -304,7 +304,7 @@ public sealed class GetOperationsSnapshot(
         {
             Attention = page,
             Scope = query.Scope,
-            Metrics = new(caseStages.NotReady, caseStages.Review, caseStages.Held, inputs.Unidentified.Count)
+            Metrics = new(caseStages.NotReady, caseStages.Review, caseStages.Held, inputs.TriageTotalCount, inputs.Unidentified.Count)
         };
     }
 
@@ -620,7 +620,7 @@ public sealed class GetOperationsSnapshot(
                 Received: record.CreatedAtUtc)
             {
                 OwnerStaffId = record.AssigneeId,
-                Route = $"/Triage/{record.Id:D}"
+                Route = $"/Cases/{record.Id:D}"
             });
         }
 

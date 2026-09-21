@@ -23,7 +23,7 @@ namespace Pegasus.Web.Presentation;
 /// for an unavailable tile. It is null for callers that do not expose incoming
 /// custody state.
 ///
-/// <paramref name="IntakeAssetId"/> marks a pre-Case image (image record, Triage,
+/// <paramref name="IntakeAssetId"/> marks an intake-linked image (image record, Triage Case,
 /// Unidentified): the viewer then offers Crop (Apply / Clear / Cancel) and the
 /// Tag select, and <paramref name="Preparation"/> is what is already recorded.
 /// <paramref name="IntakeReceiptId"/> is the receipt that asset belongs to, so a

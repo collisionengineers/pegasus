@@ -496,6 +496,7 @@ public static class OperatorLabels
         CaseType.Inspection => "Inspection",
         CaseType.Audit => "Audit",
         CaseType.InspectionAndAudit => "Inspection and audit",
+        CaseType.Triage => "Triage",
         _ => Humanise(type.ToString())
     };
 
@@ -2235,7 +2236,7 @@ public static class OperatorLabels
         {
             IntakeLogBecameKind.Case => $"/Cases/{became.Id:D}",
             IntakeLogBecameKind.Unidentified => $"/Unidentified/{became.Id:D}",
-            IntakeLogBecameKind.Triage => $"/Triage/{became.Id:D}",
+            IntakeLogBecameKind.Triage => $"/Cases/{became.Id:D}",
             IntakeLogBecameKind.ImageIntake => $"/VehicleImages/{became.Id:D}",
             _ => "/"
         };
@@ -2252,7 +2253,7 @@ public static class OperatorLabels
                 : null;
     }
 
-    /// <summary>Crop and tag on a pre-Case image (image record, Triage, Unidentified; v26).</summary>
+    /// <summary>Crop and tag on an intake-linked image (image record, Triage Case, Unidentified; v26).</summary>
     public static class PreCaseImages
     {
         public const string Crop = "Crop";

@@ -46,7 +46,7 @@ public sealed partial class QdosTriageIntegrationTests
             await GetEvaluationRevisionsAsync(factory.Database, receiptId));
 
         Assert.Equal(1, evaluation.Revision);
-        Assert.Equal(receiptId, detail.Record.Origin.ReceiptId);
+        Assert.Equal(receiptId, detail.Record.Origin!.ReceiptId);
         Assert.Equal(evaluation.Id, detail.Record.Origin.EvaluationRevisionId);
         Assert.Equal("VO75DFJ", detail.Record.NormalizedVehicleRegistration);
         Assert.Equal(TriageState.Open, detail.Record.State);
@@ -153,7 +153,7 @@ public sealed partial class QdosTriageIntegrationTests
         var triageId = triage.Record.Id;
         var actor = DevelopmentOfflineIdentity.AdministratorId.ToString("D");
 
-        using var detailResponse = await client.GetAsync($"/Triage/{triageId:D}");
+        using var detailResponse = await client.GetAsync($"/Cases/{triageId:D}");
         var detailHtml = await detailResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
         // The record is one container now: its registration and state are the
@@ -169,7 +169,7 @@ public sealed partial class QdosTriageIntegrationTests
         // them is printed any more.
         Assert.DoesNotContain("Source SHA-256", detailHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Evaluation revision", detailHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain(triage.Record.Origin.SourceHash, detailHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(triage.Record.Origin!.SourceHash, detailHtml, StringComparison.Ordinal);
 
         // Completion keeps its place with its condition named, rather than
         // disappearing until it happens to work.
@@ -461,7 +461,7 @@ public sealed partial class QdosTriageIntegrationTests
             nameof(Pegasus.Core.Identity.ActorKind.SystemWorker),
             triage.History[0].ActorKind);
 
-        using var finalResponse = await client.GetAsync($"/Triage/{triageId:D}");
+        using var finalResponse = await client.GetAsync($"/Cases/{triageId:D}");
         var finalHtml = await finalResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, finalResponse.StatusCode);
         // The panel is named "Notes"; its entries are still the one permanent,
@@ -497,7 +497,7 @@ public sealed partial class QdosTriageIntegrationTests
         // The mailbox route already names the instructing Principal, so the
         // dialog starts from that value rather than from `Not known`.
 
-        using var detailResponse = await client.GetAsync($"/Triage/{triageId:D}");
+        using var detailResponse = await client.GetAsync($"/Cases/{triageId:D}");
         var detailHtml = await detailResponse.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
         Assert.Contains(
@@ -591,13 +591,13 @@ public sealed partial class QdosTriageIntegrationTests
         fields.AddRange(additionalFields);
 
         using var response = await client.PostAsync(
-            $"/Triage/{triageId:D}?handler=Action",
+            $"/Cases/{triageId:D}?handler=Action",
             new FormUrlEncodedContent(fields));
         if (actionName is "link_case" or "unlink_case")
         {
             Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
             Assert.Equal(
-                $"/Triage/{triageId:D}",
+                $"/Cases/{triageId:D}",
                 response.Headers.Location?.OriginalString);
             using var redirected = await client.GetAsync(response.Headers.Location!);
             var redirectedHtml = await redirected.Content.ReadAsStringAsync();
@@ -617,7 +617,7 @@ public sealed partial class QdosTriageIntegrationTests
         string antiforgeryToken)
     {
         using var response = await client.PostAsync(
-            $"/Triage/{triageId:D}?handler=Edit",
+            $"/Cases/{triageId:D}?handler=Edit",
             new FormUrlEncodedContent(
             [
                 KeyValuePair.Create("__RequestVerificationToken", antiforgeryToken),

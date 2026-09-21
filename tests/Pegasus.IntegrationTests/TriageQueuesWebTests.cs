@@ -450,7 +450,7 @@ public sealed class TriageQueuesWebTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        const string triageReference = "T-00001";
+        const string triageReference = "t.QDOS31001";
         Assert.Equal(triageReference, triage.Reference);
         Assert.Contains(triageReference, html, StringComparison.Ordinal);
         Assert.Contains(registration, html, StringComparison.Ordinal);

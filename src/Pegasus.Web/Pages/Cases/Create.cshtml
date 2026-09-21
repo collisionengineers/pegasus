@@ -76,17 +76,18 @@
                         <select asp-for="CaseType">
                             <option value="@CaseType.Inspection">Inspection</option>
                             <option value="@CaseType.InspectionAndAudit">Inspection and Audit</option>
+                            <option value="@CaseType.Triage">Triage</option>
                         </select>
                         <span asp-validation-for="CaseType" class="field-error"></span>
                     </div>
                     <div class="field">
-                        <label class="req" asp-for="ClaimantName">Claimant</label>
-                        <input asp-for="ClaimantName" maxlength="300" required />
+                        <label asp-for="ClaimantName">Claimant</label>
+                        <input asp-for="ClaimantName" maxlength="300" />
                         <span asp-validation-for="ClaimantName" class="field-error"></span>
                     </div>
                     <div class="field">
-                        <label class="req" asp-for="ClaimNumber">Claim number</label>
-                        <input asp-for="ClaimNumber" maxlength="100" required />
+                        <label asp-for="ClaimNumber">Claim number</label>
+                        <input asp-for="ClaimNumber" maxlength="100" />
                         <span asp-validation-for="ClaimNumber" class="field-error"></span>
                     </div>
                     <div class="field">

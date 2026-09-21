@@ -29,7 +29,7 @@ historical observations, not competing requirements.
 `Audit`, `Triage`, `Unidentified` and `Image Intake` have distinct meanings. Use each term only for its own defined workflow.
 
 - `Audit` is standalone reviewed work with its own evidence and acceptance boundary; it is not a synonym for Triage or generic sorting.
-- `Triage` is a separate pre-Case assessment completed by deciding its outcome; Reply with outcome is optional email.
+- `Triage` is a Case type with a specialised assessment lifecycle, completed by deciding its outcome; Reply with outcome is optional email.
 - `Unidentified` is the receiving/intake outcome when evidence can be persisted safely but its identity, meaning, ownership, or destination cannot yet be established. Each item or inseparable group receives an immutable `U<n>` tracking reference and a required canonical reason; that reference is never a Case/PO, Audit, Image Intake, or principal identity.
 - `Image Intake` is the image-initiated pre-instruction outcome when a usable VRM exists but no unique formal instruction Case can be matched; it retains its VRM reference and is not Unidentified.
 - Material that cannot safely become a Case is not a separate outcome: unreadable material is an Unidentified item that could not be read, readable material that must not become a Case is an Unidentified item closed with a reason, and a retryable processing failure stays visible, retryable work.

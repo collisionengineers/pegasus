@@ -63,7 +63,11 @@ public sealed class CreateManualCase(
             data.InstructionDate,
             data.InspectionAddress,
             data.InspectionDate);
-        var missingIdentity = InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
+        var missingIdentity = request.CaseType == CaseType.Triage
+            ? string.IsNullOrWhiteSpace(data.VehicleRegistration)
+                ? ["Vehicle registration"]
+                : []
+            : InstructionDraftCompleteness.MissingIdentityCriticalFieldNames(draft);
         if (missingIdentity.Count > 0)
         {
             throw new InvalidOperationException(

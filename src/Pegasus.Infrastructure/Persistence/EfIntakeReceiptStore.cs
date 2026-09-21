@@ -1322,6 +1322,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         CaseType.Inspection => "inspection",
         CaseType.Audit => "audit",
         CaseType.InspectionAndAudit => "inspection_and_audit",
+        CaseType.Triage => "triage",
         _ => throw UnknownEnum(value)
     };
 
@@ -1330,6 +1331,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "inspection" => CaseType.Inspection,
         "audit" => CaseType.Audit,
         "inspection_and_audit" => CaseType.InspectionAndAudit,
+        "triage" => CaseType.Triage,
         _ => throw UnknownCode("case type", value)
     };
 

@@ -26,7 +26,7 @@ $preserve = @(
     'Principals', 'PrincipalSequenceLineages',
     'ProviderDomainEvidence', 'ProviderDomainPackages', 'ProviderReferences',
     'WorkflowConfigurations', 'LabourRateCards', 'ImageTags', 'SendToAiControl', 'SecurityEvents',
-    'CaseSequences', 'ImageIntakeSequences', 'TriageSequences', 'UnidentifiedSequences',
+    'CaseSequences', 'ImageIntakeSequences', 'UnidentifiedSequences',
     'ValuationPresets'
 )
 
@@ -75,7 +75,7 @@ $wipe | Where-Object { $_.Rows -gt 0 } | Format-Table TableName, Rows -AutoSize 
 
 if ($missing.Count -gt 0) { $connection.Close(); throw 'Preserve list has missing tables; refusing.' }
 
-$sequences = Invoke-Query "SELECT (SELECT MAX(LastAllocatedSequence) FROM CaseSequences) AS CaseSeq, (SELECT COUNT(*) FROM ImageIntakeSequences) AS ImageSeqRows, (SELECT MAX(LastAllocatedSequence) FROM TriageSequences) AS TriageSeq, (SELECT COUNT(*) FROM UnidentifiedSequences) AS UnidSeqRows"
+$sequences = Invoke-Query "SELECT (SELECT MAX(LastAllocatedSequence) FROM CaseSequences) AS CaseSeq, (SELECT COUNT(*) FROM ImageIntakeSequences) AS ImageSeqRows, (SELECT COUNT(*) FROM UnidentifiedSequences) AS UnidSeqRows"
 $sequences | Format-Table | Out-String | Write-Output
 
 $removedUserIds = @()
@@ -155,10 +155,6 @@ SELECT N'ImageIntakeSequences', NormalizedVehicleRegistration,
     CONVERT(nvarchar(20), LastAllocatedSequence)
 FROM dbo.ImageIntakeSequences
 UNION ALL
-SELECT N'TriageSequences', CONVERT(nvarchar(11), Id),
-    CONVERT(nvarchar(20), LastAllocatedSequence)
-FROM dbo.TriageSequences
-UNION ALL
 SELECT N'UnidentifiedSequences', CONVERT(nvarchar(11), Id),
     CONVERT(nvarchar(20), LastAllocatedSequence)
 FROM dbo.UnidentifiedSequences
@@ -236,7 +232,7 @@ $stillHasRows = @($after | Where-Object { $_.TableName -notin $preserveEffective
 Write-Output ("Wiped tables still holding rows: {0}" -f $stillHasRows.Count)
 $stillHasRows | Format-Table TableName, Rows | Out-String | Write-Output
 Write-Output ("Preserved rows after: {0}" -f (($after | Where-Object { $_.TableName -in $preserveEffective }) | Measure-Object -Property Rows -Sum).Sum)
-$sequencesAfter = Invoke-Query "SELECT (SELECT MAX(LastAllocatedSequence) FROM CaseSequences) AS CaseSeq, (SELECT COUNT(*) FROM ImageIntakeSequences) AS ImageSeqRows, (SELECT MAX(LastAllocatedSequence) FROM TriageSequences) AS TriageSeq, (SELECT COUNT(*) FROM UnidentifiedSequences) AS UnidSeqRows"
+$sequencesAfter = Invoke-Query "SELECT (SELECT MAX(LastAllocatedSequence) FROM CaseSequences) AS CaseSeq, (SELECT COUNT(*) FROM ImageIntakeSequences) AS ImageSeqRows, (SELECT COUNT(*) FROM UnidentifiedSequences) AS UnidSeqRows"
 $sequencesAfter | Format-Table | Out-String | Write-Output
 $sequencesAfterSnapshot = Invoke-Query $sequenceSnapshotSql
 $sequenceAfterValues = @($sequencesAfterSnapshot | Where-Object {

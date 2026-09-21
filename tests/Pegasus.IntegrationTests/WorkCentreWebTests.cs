@@ -51,8 +51,8 @@ public sealed class WorkCentreWebTests
         Assert.Contains("data-wc-group=\"later\"><h3>Later (1)</h3>", html, StringComparison.Ordinal);
         Assert.Contains("days overdue", html, StringComparison.Ordinal);
         Assert.Contains("wc-due--overdue", html, StringComparison.Ordinal);
-        // Four metrics, no Blocked (D7).
-        Assert.Equal(4, Regex.Count(html, "class=\"metric\" data-value="));
+        // Five metrics, including the distinct Triage Case lifecycle and no Blocked (D7).
+        Assert.Equal(5, Regex.Count(html, "class=\"metric\" data-value="));
         // The first row is the selected work; its chip is only in the Today pane.
         Assert.Contains("class=\"status status--red\"", html, StringComparison.Ordinal);
     }
@@ -428,7 +428,7 @@ public sealed class WorkCentreWebTests
             {
                 Attention = page,
                 Scope = query.Scope,
-                Metrics = new WorkCentreMetrics(1, 2, 3, 4)
+                Metrics = new WorkCentreMetrics(1, 2, 3, 4, 5)
             });
         }
     }

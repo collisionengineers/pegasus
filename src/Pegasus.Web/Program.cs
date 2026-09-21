@@ -967,6 +967,34 @@ if (!providerApiEnabled)
 
 app.UseHttpsRedirection();
 
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/Triage")
+        || context.Request.Path.StartsWithSegments("/_triage-case"))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    var segments = context.Request.Path.Value?
+        .Split('/', StringSplitOptions.RemoveEmptyEntries);
+    if (segments is ["Cases", var idSegment]
+        && Guid.TryParse(idSegment, out var caseId))
+    {
+        await using var scope = context.RequestServices.CreateAsyncScope();
+        var triage = await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
+            .GetAsync(caseId, context.RequestAborted);
+        if (triage is not null)
+        {
+            // This internal endpoint is deliberately unreachable from an external URL;
+            // only the canonical Case route is rewritten to it in this invocation.
+            context.Request.Path = $"/_triage-case/{caseId:D}";
+        }
+    }
+
+    await next(context);
+});
+
 app.UseRouting();
 app.Use(async (context, next) =>
 {

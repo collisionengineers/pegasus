@@ -62,8 +62,8 @@ zero, so the next allocation is `QDOSyy001`.
   `Organizations*`/`Principals*`, `ProviderDomain*`/
   `ProviderReferences`, `WorkflowConfigurations`, `SendToAiControl`,
   `SecurityEvents`, `ValuationPresets` (administrator-managed configuration),
-  and the four sequence tables, including `TriageSequences` (so no
-  case/image/Triage/unidentified reference is ever reused).
+  and the three sequence tables. Triage now shares `CaseSequences`, so no
+  case/image/Triage/unidentified reference is ever reused.
 - **Outlook and Box themselves** — the script only touches Azure Blob and
   Azure SQL; no Graph or Box API call exists in it.
 
@@ -125,8 +125,8 @@ messages whose occurrence identities the wipe removed.
 
 4. **Verify:** the script's own post-run output reports blobs remaining
    (expect 0) and "Wiped tables still holding rows" (expect 0), plus an
-   exact before/after comparison of every value in the four reference-sequence
-   tables (`CaseSequences`/`ImageIntakeSequences`/`TriageSequences`/
+  exact before/after comparison of every value in the three reference-sequence
+  tables (`CaseSequences`/`ImageIntakeSequences`/
    `UnidentifiedSequences`) and the `ValuationPresets` row count (expect 0
    changes). The expanded reset instead expects only its inventoried QDOS row
    to become zero and verifies that `alex` is the sole remaining account with

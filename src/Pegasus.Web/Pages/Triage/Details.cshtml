@@ -1,4 +1,4 @@
-@page "/Triage/{id:guid}"
+@page "/_triage-case/{id:guid}"
 @using Pegasus.Core.Triage
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Triage.DetailsModel
@@ -71,7 +71,7 @@
         <div class="ribbon-facts">
             <div class="ribbon-item ribbon-ref"><span class="ribbon-label">Triage</span><span class="ribbon-value mono">@reference</span></div>
             <div class="ribbon-item"><span class="ribbon-label">Registration</span><span class="ribbon-value mono">@record.NormalizedVehicleRegistration</span></div>
-            <div class="ribbon-item"><span class="ribbon-label">Source</span><span class="ribbon-value">@DetailsModel.SourceChannelLabel(record.Origin.SourceIdentity.Channel)</span></div>
+            <div class="ribbon-item"><span class="ribbon-label">Source</span><span class="ribbon-value">@(record.Origin is { } origin ? DetailsModel.SourceChannelLabel(origin.SourceIdentity.Channel) : "Manual")</span></div>
             <div class="ribbon-item"><span class="ribbon-label">Opened</span><span class="ribbon-value">@OperatorLabels.OfficeDate(Model.Triage.CreatedAtUtc)</span></div>
             <div class="ribbon-item"><span class="ribbon-label">Assignee</span><span class="ribbon-value">@(Model.AssigneeName ?? "Unassigned")</span></div>
         </div>
@@ -83,7 +83,7 @@
     <div class="record-bar triage-record-actions">
         @if (mutable && Model.CanAssignToMe)
         {
-            <form method="post" asp-page-handler="AssignToMe" asp-route-id="@record.Id" data-triage-assign-to-me>
+            <form method="post" action="/Cases/@record.Id?handler=AssignToMe" data-triage-assign-to-me>
                 <input type="hidden" name="expectedVersion" value="@record.Version" />
                 <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
                 <button type="submit" class="btn">
@@ -94,7 +94,7 @@
         }
         @if (!Model.IsEditing)
         {
-            <form method="post" asp-page-handler="Edit" asp-route-id="@record.Id" class="record-bar-end">
+            <form method="post" action="/Cases/@record.Id?handler=Edit" class="record-bar-end">
                 <input type="hidden" name="expectedVersion" value="@record.Version" />
                 @* Offered only to the operator whose own other window still holds
                    this record; taking over rotates the token so that window can
@@ -112,16 +112,16 @@
         }
         else
         {
-            <form method="post" asp-page-handler="CancelEdit" asp-route-id="@record.Id" class="record-bar-end">
+            <form method="post" action="/Cases/@record.Id?handler=CancelEdit" class="record-bar-end">
                 <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" />
                 <button type="submit" class="btn">Cancel</button>
             </form>
-            <form method="post" asp-page-handler="HeartbeatEdit" asp-route-id="@record.Id" data-edit-heartbeat data-edit-heartbeat-status="triage-edit-heartbeat-status" hidden>
+            <form method="post" action="/Cases/@record.Id?handler=HeartbeatEdit" data-edit-heartbeat data-edit-heartbeat-status="triage-edit-heartbeat-status" hidden>
                 <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" />
             </form>
             @* Beaconed as the page unloads so an operator who navigates away is
                not refused by their own lease when they come back. *@
-            <form method="post" asp-page-handler="ReleaseScopeBeacon" asp-route-id="@record.Id" data-edit-scope-release hidden>
+            <form method="post" action="/Cases/@record.Id?handler=ReleaseScopeBeacon" data-edit-scope-release hidden>
                 <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" />
             </form>
             <p id="triage-edit-heartbeat-status" class="notice notice--error" role="alert" hidden></p>
@@ -172,7 +172,7 @@
                        first (Core). *@
                     @if (formFinding is not null || (mutable && activeFindings.Count == 0))
                     {
-                        <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="stack">
+                        <form method="post" action="/Cases/@record.Id?handler=Action" class="stack">
                             <input type="hidden" name="expectedVersion" value="@record.Version" />
                             <input type="hidden" name="operationKey" value="@Model.OperationKey" />
                             @if (Model.IsEditing) { <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" /> }
@@ -304,7 +304,7 @@
                         </dl>
                         <dl class="definition">
                             <dt>Material</dt>
-                            <dd>@DetailsModel.SourceChannelLabel(record.Origin.SourceIdentity.Channel)</dd>
+                            <dd>@(record.Origin is { } sourceOrigin ? DetailsModel.SourceChannelLabel(sourceOrigin.SourceIdentity.Channel) : "Manual")</dd>
                         </dl>
                         <dl class="definition">
                             <dt>Received</dt>
@@ -358,21 +358,13 @@
                                 <span>Open message</span>
                             </a>
                         }
-                        @if (!Model.SourceIsEmail)
+                        @if (!Model.SourceIsEmail && Model.OpenFileHref is { } openFileHref)
                         {
-                            <a class="btn" href="@Model.OpenFileHref" target="_blank" rel="noopener" data-triage-action="open-file">
+                            <a class="btn" href="@openFileHref" target="_blank" rel="noopener" data-triage-action="open-file">
                                 <svg class="icon" aria-hidden="true"><use href="#icon-eye" /></svg>
                                 <span>Open file</span>
                             </a>
                         }
-                        @* Recording the known principal is casework, not a
-                           lifecycle transition (mirrors Image Intake), so this is
-                           never gated on `mutable` — a completed or cancelled
-                           Triage's principal remains correctable. *@
-                        <button type="button" class="btn" data-dialog-open="triage-principal-dialog">
-                            <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
-                            <span>@OperatorLabels.SetPrincipal</span>
-                        </button>
                     </div>
                 </div>
             </section>
@@ -391,14 +383,14 @@
                             // the coincidence GalleryImage documents.
                             var href = Url.Page(
                                 "/Intake/Asset",
-                                new { id = record.Origin.ReceiptId, assetId = asset.Id })!;
+                                new { id = record.Origin!.ReceiptId, assetId = asset.Id })!;
                             return new Pegasus.Web.Presentation.GalleryImage(
                                 href,
                                 href,
                                 asset.FileName,
                                 asset.MediaType,
                                 IntakeAssetId: asset.Id,
-                                IntakeReceiptId: record.Origin.ReceiptId,
+                                IntakeReceiptId: record.Origin!.ReceiptId,
                                 Preparation: Model.Preparations.GetValueOrDefault(asset.Id));
                         })
                         .ToArray();
@@ -430,7 +422,7 @@
                         @if (mutable)
                         {
                             var linkedResponse = Model.Triage.ResponseEvidence[0];
-                            <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="stack">
+                            <form method="post" action="/Cases/@record.Id?handler=Action" class="stack">
                                 <input type="hidden" name="expectedVersion" value="@record.Version" />
                                 <input type="hidden" name="operationKey" value="@Model.OperationKey" />
                                 @if (Model.IsEditing) { <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" /> }
@@ -450,7 +442,7 @@
                     }
                     @if (mutable && Model.Triage.ResponseEvidenceCandidates.Count > 0)
                     {
-                        <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="stack">
+                        <form method="post" action="/Cases/@record.Id?handler=Action" class="stack">
                             <input type="hidden" name="expectedVersion" value="@record.Version" />
                             <input type="hidden" name="operationKey" value="@Model.OperationKey" />
                             @if (Model.IsEditing) { <input type="hidden" name="editLeaseToken" value="@Model.EditLease!.Token" /> }
@@ -498,7 +490,7 @@
                         </div>
                         @if (chaserOp.State == Pegasus.Core.Operations.StaffMailState.Unknown)
                         {
-                            <form method="post" asp-page-handler="ReconcileChaser" asp-route-id="@record.Id" class="mb-2">
+                            <form method="post" action="/Cases/@record.Id?handler=ReconcileChaser" class="mb-2">
                                 <input type="hidden" name="operationId" value="@chaserOp.Id" />
                                 <input type="hidden" name="expectedOperationVersion" value="@chaserOp.Version" />
                                 <button type="submit" class="btn btn--small">
@@ -510,7 +502,7 @@
                     }
                     @if (mutable && !Model.ChaserOperationBlocked && Model.ChaserMailbox is not null)
                     {
-                        <form method="post" asp-page-handler="SendChaser" asp-route-id="@record.Id" class="stack">
+                        <form method="post" action="/Cases/@record.Id?handler=SendChaser" class="stack">
                             <input type="hidden" name="expectedVersion" value="@record.Version" />
                             <input type="hidden" name="operationKey" value="@Model.ChaserOperationKey" />
                             <div class="field">
@@ -578,7 +570,7 @@
             <div class="panel-body">
                 @if (mutable)
                 {
-                    <form method="post" asp-page-handler="Action" asp-route-id="@record.Id" class="stack">
+                    <form method="post" action="/Cases/@record.Id?handler=Action" class="stack">
                         <input type="hidden" name="actionName" value="note" />
                         <input type="hidden" name="expectedVersion" value="@record.Version" />
                         <input type="hidden" name="operationKey" value="@Model.OperationKey" />
@@ -634,7 +626,7 @@
                         <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                     </button>
                 </div>
-                <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
+                <form method="post" action="/Cases/@record.Id?handler=Action">
                     <input type="hidden" name="actionName" value="assign" />
                     <input type="hidden" name="expectedVersion" value="@record.Version" />
                     <input type="hidden" name="operationKey" value="@Model.OperationKey" />
@@ -666,7 +658,7 @@
         {
             ["DialogId"] = "triage-unassign-dialog",
             ["DialogTitle"] = "Unassign",
-            ["DialogActionUrl"] = Url.Page("/Triage/Details", "Action", new { id = record.Id }),
+            ["DialogActionUrl"] = $"/Cases/{record.Id:D}?handler=Action",
             ["DialogHiddenFields"] = new Dictionary<string, string?>(hiddenBase) { ["actionName"] = "unassign" }
         })" />
     }
@@ -677,7 +669,7 @@
         {
             ["DialogId"] = "triage-await-dialog",
             ["DialogTitle"] = "Await information",
-            ["DialogActionUrl"] = Url.Page("/Triage/Details", "Action", new { id = record.Id }),
+            ["DialogActionUrl"] = $"/Cases/{record.Id:D}?handler=Action",
             ["DialogHiddenFields"] = new Dictionary<string, string?>(hiddenBase) { ["actionName"] = "await_information" }
         })" />
     }
@@ -687,7 +679,7 @@
         {
             ["DialogId"] = "triage-complete-dialog",
             ["DialogTitle"] = "Complete Triage",
-            ["DialogActionUrl"] = Url.Page("/Triage/Details", "Action", new { id = record.Id }),
+            ["DialogActionUrl"] = $"/Cases/{record.Id:D}?handler=Action",
             ["DialogHiddenFields"] = new Dictionary<string, string?>(hiddenBase) { ["actionName"] = "complete" }
         })" />
     }
@@ -696,7 +688,7 @@
         ["DialogId"] = "triage-cancel-dialog",
         ["DialogTitle"] = "Cancel Triage",
         ["DialogConsequence"] = "Cancelled Triage can be reopened with a reason.",
-        ["DialogActionUrl"] = Url.Page("/Triage/Details", "Action", new { id = record.Id }),
+        ["DialogActionUrl"] = $"/Cases/{record.Id:D}?handler=Action",
         ["DialogHiddenFields"] = new Dictionary<string, string?>(hiddenBase) { ["actionName"] = "cancel" }
     })" />
 
@@ -710,7 +702,7 @@
                         <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
                     </button>
                 </div>
-                <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
+                <form method="post" action="/Cases/@record.Id?handler=Action">
                     <input type="hidden" name="expectedVersion" value="@record.Version" />
                     <input type="hidden" name="operationKey" value="@Model.OperationKey" />
                     <input type="hidden" name="actionName" value="link_case" />
@@ -739,7 +731,7 @@
         {
             ["DialogId"] = "triage-unlink-case-dialog",
             ["DialogTitle"] = "Unlink case",
-            ["DialogActionUrl"] = Url.Page("/Triage/Details", "Action", new { id = record.Id }),
+            ["DialogActionUrl"] = $"/Cases/{record.Id:D}?handler=Action",
             ["DialogHiddenFields"] = new Dictionary<string, string?>(hiddenBase)
             {
                 ["actionName"] = "unlink_case",
@@ -754,7 +746,7 @@ else
     {
         ["DialogId"] = "triage-reopen-dialog",
         ["DialogTitle"] = "Reopen",
-        ["DialogActionUrl"] = Url.Page("/Triage/Details", "Action", new { id = record.Id }),
+        ["DialogActionUrl"] = $"/Cases/{record.Id:D}?handler=Action",
         ["DialogHiddenFields"] = new Dictionary<string, string?>(hiddenBase) { ["actionName"] = "reopen" }
     })" />
 }
@@ -773,7 +765,7 @@ else
                 <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
             </button>
         </div>
-        <form method="post" asp-page-handler="Action" asp-route-id="@record.Id">
+        <form method="post" action="/Cases/@record.Id?handler=Action">
             <input type="hidden" name="actionName" value="set_principal" />
             <input type="hidden" name="expectedVersion" value="@record.Version" />
             <input type="hidden" name="operationKey" value="@Model.OperationKey" />

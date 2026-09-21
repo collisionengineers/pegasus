@@ -107,7 +107,9 @@ public sealed class EfManualCaseCreationStore(
             SequenceLineageId = principal.SequenceLineageId,
             Year = allocated.Year,
             Sequence = allocated.Sequence,
-            Reference = allocated.Reference,
+            Reference = request.CaseType == CaseType.Triage
+                ? TriageIdentity.Create(allocated.Reference)
+                : allocated.Reference,
             Type = ToCode(request.CaseType),
             InitialState = ToCode(initialState),
             CustodyState = ToCode(CaseCustodyState.Pending),
@@ -117,6 +119,39 @@ public sealed class EfManualCaseCreationStore(
             Version = 0
         };
         context.Cases.Add(caseEntity);
+        if (request.CaseType == CaseType.Triage)
+        {
+            var triage = new TriageEntity
+            {
+                Id = caseId,
+                Case = caseEntity,
+                Sequence = allocated.Sequence,
+                Reference = caseEntity.Reference,
+                PrincipalId = principal.Id,
+                NormalizedVehicleRegistration = request.Data.VehicleRegistration!.Trim().ToUpperInvariant(),
+                State = "open",
+                CreatedAtUtc = now,
+                CreationOperationKey = request.OperationKey,
+                Version = 0
+            };
+            context.Triage.Add(triage);
+            context.TriageHistory.Add(new()
+            {
+                Id = Guid.NewGuid(),
+                Triage = triage,
+                TriageId = caseId,
+                EventType = "triage_created",
+                Actor = request.Actor.SubjectId,
+                ActorKind = request.Actor.Kind.ToString(),
+                Reason = "Triage Case created manually.",
+                OperationKey = request.OperationKey,
+                RequestHash = fingerprint,
+                OccurredAtUtc = now,
+                BeforeVersion = -1,
+                AfterVersion = 0,
+                AfterState = "open"
+            });
+        }
 
         var snapshot = CaseDataSnapshotFactory.CreateManual(
             caseEntity, evaluation, now);
@@ -128,7 +163,7 @@ public sealed class EfManualCaseCreationStore(
             CaseMatchIndexProjector.Project(
                 caseEntity, snapshot.Fields, caseMatchPolicies ?? [], now));
 
-        var workflow = new CaseWorkflowEntity
+        var workflow = request.CaseType == CaseType.Triage ? null : new CaseWorkflowEntity
         {
             CaseId = caseId,
             Case = caseEntity,
@@ -136,33 +171,36 @@ public sealed class EfManualCaseCreationStore(
             StateEnteredAtUtc = now,
             Version = 0
         };
-        context.CaseWorkflows.Add(workflow);
-        if (initialState == CaseInitialState.Review)
+        if (workflow is not null)
         {
-            AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
-                context, workflow, workflow.Version, now);
-        }
-        else
-        {
-            context.CaseDueWork.Add(new()
+            context.CaseWorkflows.Add(workflow);
+            if (initialState == CaseInitialState.Review)
             {
-                CaseId = caseId,
-                Workflow = workflow,
-                MissingMaterialReason = "Details are incomplete",
-                DueBy = request.Data.InspectionDeadline,
-                State = CaseDueWorkState.Scheduled.ToString(),
-                NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, configuration.ChaseIntervalDays),
-                Version = 0
-            });
-        }
+                AutomaticEvaReviewSubmissionScheduling.AddForReviewTransition(
+                    context, workflow, workflow.Version, now);
+            }
+            else
+            {
+                context.CaseDueWork.Add(new()
+                {
+                    CaseId = caseId,
+                    Workflow = workflow,
+                    MissingMaterialReason = "Details are incomplete",
+                    DueBy = request.Data.InspectionDeadline,
+                    State = CaseDueWorkState.Scheduled.ToString(),
+                    NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(now, configuration.ChaseIntervalDays),
+                    Version = 0
+                });
+            }
 
-        await CaseGuidance.ApplyCreationAsync(
-            context,
-            workflow,
-            request.Data.ClaimSourceId,
-            now,
-            fingerprint,
-            cancellationToken);
+            await CaseGuidance.ApplyCreationAsync(
+                context,
+                workflow,
+                request.Data.ClaimSourceId,
+                now,
+                fingerprint,
+                cancellationToken);
+        }
 
         var custodyWorkId = Guid.NewGuid();
         context.ExternalWorkItems.Add(new()
@@ -184,7 +222,7 @@ public sealed class EfManualCaseCreationStore(
         // it cannot outlive a rolled-back creation; published by the use case
         // after the commit. Looked-up values remain suggestions.
         Guid? vehicleLookupWorkId = null;
-        if (vehicleLookupAvailability?.RequestsEnabled == true)
+        if (workflow is not null && vehicleLookupAvailability?.RequestsEnabled == true)
         {
             var registration = EfVehicleWorkflowStore.CurrentRegistration(
                 snapshot.Fields
@@ -202,25 +240,28 @@ public sealed class EfManualCaseCreationStore(
             }
         }
 
-        CaseMutationHistory.Add(
-            context,
-            workflow,
-            request.Actor,
-            request.OperationKey,
-            "Case created directly by staff.",
-            "manual_case_created",
-            fingerprint,
-            0,
-            0,
-            "null",
-            JsonSerializer.Serialize(new
-            {
-                CommandFingerprint = fingerprint,
-                Identity = Identity(caseEntity),
-                Completeness = completeness
-            }),
-            $"{CaseDataPolicy.EditPolicyKey}/v{CaseDataPolicy.EditPolicyVersion}",
-            now);
+        if (workflow is not null)
+        {
+            CaseMutationHistory.Add(
+                context,
+                workflow,
+                request.Actor,
+                request.OperationKey,
+                "Case created directly by staff.",
+                "manual_case_created",
+                fingerprint,
+                0,
+                0,
+                "null",
+                JsonSerializer.Serialize(new
+                {
+                    CommandFingerprint = fingerprint,
+                    Identity = Identity(caseEntity),
+                    Completeness = completeness
+                }),
+                $"{CaseDataPolicy.EditPolicyKey}/v{CaseDataPolicy.EditPolicyVersion}",
+                now);
+        }
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
@@ -312,6 +353,7 @@ public sealed class EfManualCaseCreationStore(
     {
         CaseType.Inspection => "inspection",
         CaseType.InspectionAndAudit => "inspection_and_audit",
+        CaseType.Triage => "triage",
         _ => throw new ArgumentOutOfRangeException(nameof(value))
     };
 

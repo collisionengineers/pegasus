@@ -285,7 +285,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         LabourRateCards
         RetainedInstructionAnalyses
         StaffMailSendOperations
-        TriageSequences
         UserExternalCredentials
         ValuationPresets
         """;
@@ -307,7 +306,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         LabourRateCards:SELECT,INSERT,UPDATE
         RetainedInstructionAnalyses:SELECT
         StaffMailSendOperations:SELECT,INSERT,UPDATE
-        TriageSequences:SELECT,INSERT,UPDATE
         UserExternalCredentials:SELECT,INSERT,UPDATE
         ValuationPresets:SELECT,INSERT,UPDATE
         """;
@@ -322,7 +320,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         IntakeSourceCandidates:SELECT,INSERT
         RetainedInstructionAnalyses:SELECT,INSERT,UPDATE
         StaffMailSendOperations:SELECT,INSERT,UPDATE
-        TriageSequences:SELECT,INSERT,UPDATE
         """;
 
     [Fact]
@@ -1032,9 +1029,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
             EXECUTE AS USER = N'pegasus_test_worker_runtime';
             UPDATE dbo.AutomaticEvaReviewSubmissions SET State = N'Completed' WHERE Id = '00000000-0000-0000-0000-000000000000';
-            UPDATE [dbo].[TriageSequences]
-            SET [LastAllocatedSequence] = 1
-            WHERE [Id] = 1;
             DELETE FROM [dbo].[DocumentContentCacheEntries]
             WHERE [Id] = '00000000-0000-0000-0000-000000000000';
             REVERT;
@@ -1042,8 +1036,6 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
 
         Assert.Equal(1, await database.ScalarAsync<int>(
             $"SELECT COUNT(*) FROM [dbo].[ContactRoles] WHERE [OrganizationId] = '{contactOrganizationId:D}'"));
-        Assert.Equal(1L, await database.ScalarAsync<long>(
-            "SELECT [LastAllocatedSequence] FROM [dbo].[TriageSequences] WHERE [Id] = 1"));
 
         await database.ExecuteAsync(
             $"""

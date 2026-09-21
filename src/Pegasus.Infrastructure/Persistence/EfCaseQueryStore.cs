@@ -680,9 +680,10 @@ public sealed class EfCaseQueryStore(
     }
 
     private static IQueryable<SearchRow> SearchRows(PegasusDbContext context) =>
-        from workflow in context.CaseWorkflows.AsNoTracking()
-        join caseEntity in context.Set<CaseEntity>().AsNoTracking()
-            on workflow.CaseId equals caseEntity.Id
+        from caseEntity in context.Set<CaseEntity>().AsNoTracking()
+        join workflowCandidate in context.CaseWorkflows.AsNoTracking()
+            on caseEntity.Id equals workflowCandidate.CaseId into workflows
+        from workflow in workflows.DefaultIfEmpty()
         join principal in context.Set<PrincipalEntity>().AsNoTracking()
             on caseEntity.PrincipalId equals principal.Id
         join receiptCandidate in context.Set<IntakeReceiptEntity>().AsNoTracking()
@@ -728,8 +729,8 @@ public sealed class EfCaseQueryStore(
             AuditReference = caseEntity.AuditReference,
             CaseType = caseEntity.Type,
             Principal = principal.Code,
-            State = workflow.State,
-            EngineerId = workflow.AssignedEngineerId,
+            State = workflow == null ? nameof(CaseLifecycleState.NotReady) : workflow.State,
+            EngineerId = workflow == null ? null : workflow.AssignedEngineerId,
             Registration = draft == null ? confirmedRegistration!.Value : draft.VehicleRegistration,
             Claimant = draft == null ? confirmedClaimant!.Value : draft.ClaimantName,
             ClaimNumber = draft == null ? confirmedClaimNumber!.Value : draft.ClaimNumber,
@@ -742,15 +743,15 @@ public sealed class EfCaseQueryStore(
             InstructionDate = draft == null ? null : draft.InstructionDate,
             Origin = receipt == null ? "manual" : receipt.SourceChannel,
             CreatedAtUtc = caseEntity.CreatedAtUtc,
-            NextChaseAtUtc = workflow.DueWork == null ? null : workflow.DueWork!.NextChaseAtUtc,
+            NextChaseAtUtc = workflow == null || workflow.DueWork == null ? null : workflow.DueWork!.NextChaseAtUtc,
             InstructionComplete = caseEntity.InstructionComplete,
             ImagesComplete = caseEntity.ImagesComplete,
-            HoldReviewOn = workflow.HoldReviewOn,
-            HeldAtUtc = workflow.HeldAtUtc,
-            StateEnteredAtUtc = workflow.StateEnteredAtUtc,
-            EditLeaseHolder = workflow.EditLeaseHolder,
-            EditLeaseHolderKind = workflow.EditLeaseHolderKind,
-            EditLeaseExpiresAtUtc = workflow.EditLeaseExpiresAtUtc
+            HoldReviewOn = workflow == null ? null : workflow.HoldReviewOn,
+            HeldAtUtc = workflow == null ? null : workflow.HeldAtUtc,
+            StateEnteredAtUtc = workflow == null ? null : workflow.StateEnteredAtUtc,
+            EditLeaseHolder = workflow == null ? null : workflow.EditLeaseHolder,
+            EditLeaseHolderKind = workflow == null ? null : workflow.EditLeaseHolderKind,
+            EditLeaseExpiresAtUtc = workflow == null ? null : workflow.EditLeaseExpiresAtUtc
         };
 
     private static async Task<IReadOnlyList<CaseDocument>> ReadDocumentsAsync(
@@ -1066,6 +1067,10 @@ public sealed class EfCaseQueryStore(
                 StringComparison.OrdinalIgnoreCase))
         {
             return CaseType.InspectionAndAudit;
+        }
+        if (string.Equals(value, "triage", StringComparison.OrdinalIgnoreCase))
+        {
+            return CaseType.Triage;
         }
 
         throw new InvalidDataException(

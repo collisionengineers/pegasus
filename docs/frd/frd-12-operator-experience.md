@@ -138,7 +138,7 @@ failure is logged.
 | `/` | Work Centre ([FRD-15](frd-15-work-centre-queues-and-search.md#work-centre)) | Dashboard |
 | `/Inbox`, `/Inbox/{id}` | Retained mail list and message ([FRD-20](frd-20-mailbox-workspace.md#inbox-scopes-and-filters)) | — |
 | `/Upload` | Staff upload ([FRD-18](frd-18-manual-upload.md#staff-upload-page)) | — |
-| `/Cases` | Queues: workflow, pre-Case work and exceptions ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)) | Queues (`/Triage`) |
+| `/Cases` | Queues: workflow (including Triage), pre-Case work and exceptions ([FRD-15](frd-15-work-centre-queues-and-search.md#cases-queues-and-filters)) | Queues and canonical Case workspaces (`/Cases/{id}`) |
 | `/Cases/{id}` | Case record, one page of ten sections; `?section=` jumps ([FRD-16](frd-16-case-record-workspace.md#case-workspace)) | Case workspace side-nav sections; the Assessment page |
 | `/Cases/{id}/Assessment` | Permanent redirect to `/Cases/{id}?section=estimate` | Engineer assessment page |
 | `/Search` | Advanced search ([FRD-15](frd-15-work-centre-queues-and-search.md#search)) | Cases list |

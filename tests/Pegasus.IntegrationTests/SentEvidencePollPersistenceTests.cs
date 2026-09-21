@@ -229,7 +229,7 @@ public sealed class SentEvidencePollPersistenceTests
             var summary = Assert.Single(await triageQueries.ListAsync(null, default));
             var created = Assert.IsType<TriageDetail>(
                 await triageQueries.GetAsync(summary.Id, default));
-            Assert.Equal(receiptId, created.Record.Origin.ReceiptId);
+            Assert.Equal(receiptId, created.Record.Origin!.ReceiptId);
             triageId = summary.Id;
         }
 

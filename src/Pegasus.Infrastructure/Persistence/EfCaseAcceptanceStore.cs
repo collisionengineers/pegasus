@@ -218,6 +218,8 @@ public sealed class EfCaseAcceptanceStore(
         var allocated = allocatedIdentity.Reference;
         var reference = request.CaseType == CaseType.Audit
             ? AuditIdentity.Create(allocated)
+            : request.CaseType == CaseType.Triage
+                ? TriageIdentity.Create(allocated)
             : allocated;
         // No second identity is allocated for an audit any more.
         string? auditReference = null;
@@ -571,6 +573,7 @@ public sealed class EfCaseAcceptanceStore(
         CaseType.Inspection => "inspection",
         CaseType.Audit => "audit",
         CaseType.InspectionAndAudit => "inspection_and_audit",
+        CaseType.Triage => "triage",
         _ => throw new InvalidOperationException($"Unknown CaseType value '{(int)value}'.")
     };
 

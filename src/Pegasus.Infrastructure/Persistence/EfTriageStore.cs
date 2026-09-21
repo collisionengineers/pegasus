@@ -8,6 +8,7 @@ using Pegasus.Core;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 
@@ -164,14 +165,6 @@ public sealed class EfTriageStore(
             : null;
     }
 
-    /// <summary>
-    /// The single seeded <c>TriageSequences</c> row. The Triage reference
-    /// sequence is global, so there is exactly one counter and it is never
-    /// partitioned by principal, vehicle or year.
-    /// </summary>
-    private const int TriageSequenceRowId = 1;
-
-
     public async Task<TriageRecord> CreateAsync(
         CreateTriageFromIntakeRequest request,
         CancellationToken cancellationToken)
@@ -205,12 +198,15 @@ public sealed class EfTriageStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
-        // The counter is the FIRST lock this transaction takes, before any
-        // read or write of a Triage row. Every creator therefore queues on the
-        // one counter row while holding nothing else, so two creators can
-        // never each hold Triage locks while waiting for the counter — which
-        // is the cycle that deadlocked when the counter was taken last.
-        var allocatedSequence = await AllocateSequenceAsync(context, cancellationToken);
+        var principal = await ResolveEstablishedPrincipalAsync(
+            context,
+            request.Origin.ReceiptId,
+            cancellationToken)
+            ?? throw new InvalidOperationException(
+                "A Triage Case requires an established active Principal before classification.");
+        var now = UtcNow();
+        var allocatedIdentity = await CaseIdentityAllocator.AllocateAsync(
+            context, principal, now, cancellationToken);
 
         // Re-probed under the counter, because a creation with this operation
         // key may have committed between the probe above and this lock. The
@@ -269,17 +265,34 @@ public sealed class EfTriageStore(
             throw new InvalidOperationException("The creating intake evaluation revision does not exist for the receipt.");
         }
 
-        var now = UtcNow();
-        var principalId = await ResolveEstablishedPrincipalAsync(
-            context,
-            request.Origin.ReceiptId,
-            cancellationToken);
+        var caseId = Guid.NewGuid();
+        var reference = TriageIdentity.Create(allocatedIdentity.Reference);
+        var caseEntity = new CaseEntity
+        {
+            Id = caseId,
+            PrincipalId = principal.Id,
+            Principal = principal,
+            SequenceLineageId = principal.SequenceLineageId,
+            Year = allocatedIdentity.Year,
+            Sequence = allocatedIdentity.Sequence,
+            Reference = reference,
+            Type = "triage",
+            InitialState = "not_ready",
+            CustodyState = "pending",
+            OriginIntakeReceiptId = request.Origin.ReceiptId,
+            InstructionComplete = true,
+            ImagesComplete = true,
+            CreatedAtUtc = now,
+            Version = 0
+        };
+        context.Cases.Add(caseEntity);
         var entity = new TriageEntity
         {
-            Id = Guid.NewGuid(),
-            Sequence = allocatedSequence,
-            Reference = TriageReferenceFormat.Format(allocatedSequence),
-            PrincipalId = principalId,
+            Id = caseId,
+            Case = caseEntity,
+            Sequence = allocatedIdentity.Sequence,
+            Reference = reference,
+            PrincipalId = principal.Id,
             OriginReceiptId = request.Origin.ReceiptId,
             SourceChannel = sourceChannel,
             ExternalReceiptToken = sourceToken,
@@ -292,6 +305,32 @@ public sealed class EfTriageStore(
             Version = 0
         };
         context.Triage.Add(entity);
+        var custodyWorkId = Guid.NewGuid();
+        context.ExternalWorkItems.Add(new()
+        {
+            Id = custodyWorkId,
+            Case = caseEntity,
+            CaseId = caseId,
+            Kind = ExternalWorkKinds.CreateCaseCustody,
+            OperationKey = $"triage-custody:{caseId:N}",
+            State = "pending",
+            AttemptCount = 0,
+            DueAtUtc = now,
+            CaseRootCreationToken = CustodyCreationOwner.Create()
+        });
+        context.CaseIntakeLinks.Add(new()
+        {
+            IntakeReceiptId = request.Origin.ReceiptId,
+            Case = caseEntity,
+            CaseId = caseId,
+            CustodyWorkId = custodyWorkId,
+            LinkedAtUtc = now,
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role)),
+            Reason = "Triage Case created from received material.",
+            OperationKey = operationKey
+        });
         AppendHistory(
             context,
             entity,
@@ -307,47 +346,6 @@ public sealed class EfTriageStore(
     }
 
     /// <summary>
-    /// Takes the next global Triage sequence from the one <c>TriageSequences</c>
-    /// row.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This must be the first statement of the enclosing transaction. The row
-    /// is read under an update lock held to commit, so it is the single point
-    /// every creator serializes on; taking it while already holding Triage
-    /// locks is what produced a deadlock cycle, and taking it first is what
-    /// removes the cycle rather than merely making it rarer.
-    /// </para>
-    /// <para>
-    /// The increment is pending until the caller saves, so a transaction that
-    /// returns early or fails releases the number rather than burning it. A
-    /// number lost to a committed-then-failed sequence of events simply leaves
-    /// a gap: the counter only moves forward and a reference is never reused.
-    /// The unique indexes on <c>Triage.Sequence</c> and <c>Triage.Reference</c>
-    /// remain the backstop — a duplicate would surface as a violation, never
-    /// as a silently reused reference.
-    /// </para>
-    /// </remarks>
-    private static async Task<long> AllocateSequenceAsync(
-        PegasusDbContext context,
-        CancellationToken cancellationToken)
-    {
-        var sequences = context.Set<TriageSequenceEntity>();
-        var sequence = context.Database.IsSqlServer()
-            ? await sequences
-                .FromSqlInterpolated($"""
-                    SELECT *
-                    FROM [TriageSequences] WITH (UPDLOCK, HOLDLOCK)
-                    WHERE [Id] = {TriageSequenceRowId}
-                """)
-                .SingleAsync(cancellationToken)
-            : await sequences.SingleAsync(
-                item => item.Id == TriageSequenceRowId,
-                cancellationToken);
-        return checked(++sequence.LastAllocatedSequence);
-    }
-
-    /// <summary>
     /// The principal the receipt already established, taken from the
     /// originating instruction draft's suggested principal code and accepted
     /// only when it resolves to exactly one active principal. Anything else —
@@ -355,7 +353,7 @@ public sealed class EfTriageStore(
     /// Triage without one, which the operator sees as `Not known`. Nothing is
     /// inferred from the vehicle registration or from a later linked Case.
     /// </summary>
-    private static async Task<Guid?> ResolveEstablishedPrincipalAsync(
+    private static async Task<PrincipalEntity?> ResolveEstablishedPrincipalAsync(
         PegasusDbContext context,
         Guid originReceiptId,
         CancellationToken cancellationToken)
@@ -370,9 +368,8 @@ public sealed class EfTriageStore(
         }
 
         var code = suggestedCode.Trim();
-        var candidates = await context.Principals.AsNoTracking()
+        var candidates = await context.Principals
             .Where(principal => principal.Code == code && principal.IsActive)
-            .Select(principal => principal.Id)
             .Take(2)
             .ToArrayAsync(cancellationToken);
         return candidates.Length == 1 ? candidates[0] : null;
@@ -1780,11 +1777,17 @@ public sealed class EfTriageStore(
 
     private static TriageRecord Map(TriageEntity entity) => new(
         entity.Id,
-        new(
-            entity.OriginReceiptId,
-            new(ParseSourceChannel(entity.SourceChannel), entity.ExternalReceiptToken),
-            entity.SourceHash,
-            entity.EvaluationRevisionId),
+        entity.OriginReceiptId is { } receiptId
+            && entity.SourceChannel is { } sourceChannel
+            && entity.ExternalReceiptToken is { } sourceToken
+            && entity.SourceHash is { } sourceHash
+            && entity.EvaluationRevisionId is { } evaluationId
+                ? new(
+                    receiptId,
+                    new(ParseSourceChannel(sourceChannel), sourceToken),
+                    sourceHash,
+                    evaluationId)
+                : null,
         entity.NormalizedVehicleRegistration,
         ParseState(entity.State),
         entity.AssigneeId,

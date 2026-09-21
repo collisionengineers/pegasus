@@ -340,6 +340,7 @@ internal sealed partial class EfIntakeAllocationStore(
         CaseType.Inspection => "inspection",
         CaseType.Audit => "audit",
         CaseType.InspectionAndAudit => "inspection_and_audit",
+        CaseType.Triage => "triage",
         _ => throw new ArgumentOutOfRangeException(nameof(value))
     };
 
@@ -348,6 +349,7 @@ internal sealed partial class EfIntakeAllocationStore(
         "inspection" => CaseType.Inspection,
         "audit" => CaseType.Audit,
         "inspection_and_audit" => CaseType.InspectionAndAudit,
+        "triage" => CaseType.Triage,
         _ => throw new InvalidDataException($"Unknown allocation case type '{value}'.")
     };
 

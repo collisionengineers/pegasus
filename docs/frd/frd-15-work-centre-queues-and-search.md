@@ -4,7 +4,7 @@
 
 ## Short version
 
-- The Work Centre (`/`) shows the whole office's work: four counts, one
+- The Work Centre (`/`) shows the whole office's work: five counts, one
   Needs attention list, a Today pane, New cases and AI jobs.
 - Every count comes from a Core query. A failed read shows "unavailable",
   never `0`.
@@ -18,7 +18,7 @@
 ## Purpose
 
 This document says how staff find the work that needs a person: the Work
-Centre, the Cases queues, the pre-Case records, Search, Operations and the
+Centre, the Cases queues, specialised records, Search, Operations and the
 freshness rules every count follows. Page shell and navigation are owned by
 [FRD-12](frd-12-operator-experience.md). The Case record is owned by
 [FRD-16](frd-16-case-record-workspace.md).
@@ -33,7 +33,7 @@ browser tab regains focus after 30 seconds away, and every five minutes. It
 never refreshes while a dialog is open or a field has focus. A refresh does
 not mark New cases as seen.
 
-**Metrics.** Four counts: Not ready, Review, Held, Unidentified. Each is an
+**Metrics.** Five counts: Not ready, Review, Held, Triage, Unidentified. Each is an
 exact link to its Cases tab (`/Cases?tab=…`) and counts everything regardless
 of paging. A failed read shows its unavailable state, never `0`.
 
@@ -114,8 +114,8 @@ reason with Open Case. Cancel stays on Operations.
 
 | Group | Queues |
 | --- | --- |
-| Workflow | Not ready, Review, With Engineer, Completed, Query |
-| Pre-Case work | Triage, Awaiting instruction |
+| Workflow | Not ready, Review, With Engineer, Completed, Query, Triage |
+| Pre-Case work | Awaiting instruction |
 | Exceptions | Held, Unidentified |
 
 `?tab=` selects the queue. Not ready contains only formal instructed Cases.
@@ -153,7 +153,7 @@ Unidentified tab shows **Open items** or, through its Show choice, **Closed
 items**, each closed row reading "Closed · reason". It lists Unidentified
 items only. There is no blocked row.
 
-### Pre-Case records
+### Specialised records
 
 **The Unidentified record** (`/Unidentified/{id}`) joins the working set. Its
 ribbon shows reference, received, kind, source and state (Open, Closed or
@@ -188,12 +188,12 @@ A received file has no page of its own
 Once linked, it reads **Linked to Case** in the Intake log and on its
 message, whatever decision first proposed a Case.
 
-**Triage detail** carries the determinations (roadworthiness, repair
+**The Triage Case workspace** is canonical at `/Cases/{id}` and carries the determinations (roadworthiness, repair
 outcome), the source facts, a `History` view that merges durable events with
 append-only attributable notes in time order, and a `Files` view of the
-retained sources, their attachments and the linked vehicle images with view
-and download. A correction is a new note. There is no note edit, no note
-delete and no upload action on Triage. Its retained source opens with **Open
+retained sources, their attachments, staff Case uploads and the linked vehicle images with view
+and download. A correction is a new note. There is no note edit or note
+delete. Its retained source opens with **Open
 message** when it came by e-mail, otherwise **Open file**. **Assign to me** is
 offered where the Triage has no assignee and the operator may take it.
 **Assign to Engineer** opens a compact dialog (engineer select, Assign and
@@ -210,7 +210,7 @@ transitions stay reachable where a handler exists.
 
 ### Search
 
-`/Search` carries the `UI-07` filters: Case/PO or Image reference,
+`/Search` carries the `UI-07` filters across every Case type, including Triage: Case/PO or Image reference,
 Registration, Claimant, Claim/provider reference, Principal, State, Engineer,
 Received from/to and Origin, with Search and Clear. Results are one table
 (Case/PO and Our ref, vehicle, claimant, principal, type, state, due).
