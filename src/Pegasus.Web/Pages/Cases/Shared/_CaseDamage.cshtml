@@ -1,14 +1,16 @@
 @*
-    Damage (v26 § Damage clicker, Plan variant decided 13 September). The
-    workbench is the top-down Plan silhouette drawn as the actual panels, the
-    recorded-zones list beside it, then the tyre and belt cells, the unrelated
-    damage cells and the derived narrative; the Case's images live only under
+    Damage (v28 P5, ruled 20 September 2026): damage by area. The workbench is
+    the top-down plan silhouette. While the section edits, pressing and
+    dragging on the vehicle sizes a disc and dragging a disc moves it; each
+    disc is one recorded damage naming the plan areas under it, with a
+    severity and a note. Underside, Interior and Mechanical are chips, each
+    recorded alone. Impact location and severity derive from the areas. Core
+    keeps the areas only: a disc is drawn from its areas (DamageAreaGeometry),
+    here and on the report. The page reads without script: the discs, the
+    list and the derived cells are rendered here from the recorded impacts,
+    and script keeps them in step while the section edits; Reset returns to
+    the values held when the edit opened. The Case's images live only under
     Files.
-    All three drive Core's one zone model (19 panels, 4 wheels, three chips);
-    the recorded impacts travel as the one hidden JSON field the Save reads.
-    The page reads without script: the list and the derived cells are
-    rendered here from the recorded impacts, and script keeps them in step as
-    zones are toggled while the section edits.
 *@
 @using System.Globalization
 @using System.Text.Json
@@ -28,33 +30,41 @@
     {
         impacts = AssessmentPolicy.ParseImpacts(rawImpacts);
     }
-    catch (JsonException)
+    catch (Exception exception) when (exception is JsonException or ArgumentException)
     {
         impacts = [];
     }
     var damageFields = CaseWorkspaceLabels.Editors.Damage;
     var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "damage");
-    // The vocabulary the clicker paints with, handed to script once so the
-    // browser holds no second copy of the zone or severity tables.
-    var zoneTable = JsonSerializer.Serialize(AssessmentVocabulary.DamageZones.ToDictionary(
-        entry => entry.Key,
-        entry => new { n = entry.Value.Display, l = DamageLabels.Location(entry.Value.ImpactLocation) }));
+    // The vocabulary and the plan the editor works with, handed to script once
+    // so the browser holds no second copy of the areas, the bands or the
+    // severity table.
+    var areaTable = JsonSerializer.Serialize(new
+    {
+        plan = AssessmentVocabulary.DamagePlanAreas,
+        other = AssessmentVocabulary.DamageOtherAreas,
+        names = AssessmentVocabulary.DamageAreas,
+        box = new { x = DamagePlanGeometry.PlanLeft, y = DamagePlanGeometry.PlanTop, w = DamagePlanGeometry.PlanWidth, h = DamagePlanGeometry.PlanHeight },
+        bands = new { front = DamageAreaGeometry.FrontBand, rear = DamageAreaGeometry.RearBand, left = DamageAreaGeometry.LeftBand, right = DamageAreaGeometry.RightBand },
+        radius = DamageAreaGeometry.BaseRadius
+    });
     var severityTable = JsonSerializer.Serialize(AssessmentVocabulary.DamageSeverities
         .OrderBy(entry => entry.Value.Rank)
         .Select(entry => new { k = entry.Key, n = entry.Value.Display }));
 
-    // The derived cells follow the clicker's own rule: one headline location
-    // reads as itself, more than one reads "Multiple · a, b"; the severity is
-    // the highest rank recorded.
-    var headlines = impacts
-        .Select(impact => AssessmentVocabulary.DamageZones.TryGetValue(impact.Zone, out var zone) ? zone.ImpactLocation : impact.Zone)
+    // The derived cells follow Core's rule: one distinct area reads as itself,
+    // more than one reads "Multiple · a, b"; the severity is the highest rank
+    // recorded.
+    var recordedAreas = impacts
+        .SelectMany(impact => impact.Areas)
         .Distinct(StringComparer.Ordinal)
+        .OrderBy(AssessmentVocabulary.DamageAreaOrder)
         .ToArray();
-    var locationText = headlines.Length == 0
+    var locationText = recordedAreas.Length == 0
         ? OperatorLabels.CaseWorkspace.AbsentValue
-        : headlines.Length == 1
-            ? DamageLabels.Location(headlines[0])
-            : DamageLabels.Multiple + " · " + string.Join(", ", headlines.Select(DamageLabels.Location));
+        : recordedAreas.Length == 1
+            ? DamageLabels.Location(recordedAreas[0])
+            : DamageLabels.Multiple + " · " + string.Join(", ", recordedAreas.Select(DamageLabels.Location));
     var severityText = impacts.Count == 0
         ? OperatorLabels.CaseWorkspace.AbsentValue
         : DamageLabels.SeverityWord(impacts
@@ -62,8 +72,8 @@
             .OrderByDescending(code => AssessmentVocabulary.DamageSeverities.TryGetValue(code, out var severity) ? severity.Rank : -1)
             .First());
 
-    string ZoneName(string code) =>
-        AssessmentVocabulary.DamageZones.TryGetValue(code, out var zone) ? zone.Display : DamageLabels.CodeWord(code);
+    string AreaNames(IReadOnlyList<string> codes) => string.Join(", ", codes.Select(DamageLabels.Location));
+    string Svg(double value) => value.ToString("0.#", CultureInfo.InvariantCulture);
     string DisplayValue(string path, string? value)
     {
         var definition = AssessmentVocabulary.Definitions[path];
@@ -80,9 +90,10 @@
 
 <section class="record-section record-section--nested panel @Model.CollapsedClass("case.damage") @Model.ActiveTabClass("damage") case-damage @(Model.IsEditing && !editable ? "is-locked" : null)" id="section-damage" data-section="damage" data-section-parent="vehicle" data-collapse="case.damage" aria-labelledby="section-damage-title"
          data-damage-editor data-damage-editable="@(editable ? "true" : "false")" data-damage-impacts="@rawImpacts"
-         data-damage-zones="@zoneTable" data-damage-severities="@severityTable" data-damage-multiple="@DamageLabels.Multiple"
+         data-damage-areas="@areaTable" data-damage-severities="@severityTable" data-damage-multiple="@DamageLabels.Multiple"
          data-damage-absent="@OperatorLabels.CaseWorkspace.AbsentValue" data-damage-none="@DamageLabels.NoDamageRecorded"
-         data-damage-no-note="@DamageLabels.NoNote" data-damage-note-label="@DamageLabels.Note" data-damage-remove-label="@DamageLabels.Remove">
+         data-damage-no-note="@DamageLabels.NoNote" data-damage-note-label="@DamageLabels.Note" data-damage-remove-label="@DamageLabels.Remove"
+         data-damage-grade-label="@DamageLabels.Severity">
     <div class="panel-head">
         <h2 id="section-damage-title">@EngineerLabels.Damage</h2>
         <div class="panel-actions"><partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" /></div>
@@ -123,31 +134,28 @@
                     {
                         <path class="dv-lamp dv-lamp--rear" d="@lamp" />
                     }
-                    <g class="damage-zones" clip-path="url(#damage-plan-clip)">
-                        @foreach (var zone in DamagePlanGeometry.Zones)
+                    @if (editable)
+                    {
+                        <g class="dm-guides" aria-hidden="true"><path d="@DamagePlanGeometry.GuidesPath" /></g>
+                    }
+                    <g class="damage-marks" data-damage-marks aria-hidden="true">
+                        @for (var index = 0; index < impacts.Count; index++)
                         {
-                            <path data-damage-zone="@zone.Code" d="@zone.Path"><title>@ZoneName(zone.Code)</title></path>
-                        }
-                    </g>
-                    <g class="damage-zones">
-                        @foreach (var wheel in DamagePlanGeometry.Wheels)
-                        {
-                            <rect data-damage-zone="@wheel.Code" x="@(wheel.CentreX - 8)" y="@(wheel.CentreY - 24)" width="16" height="48" rx="5"><title>@ZoneName(wheel.Code)</title></rect>
-                        }
-                    </g>
-                    <g class="damage-markers" aria-hidden="true">
-                        @foreach (var zone in DamagePlanGeometry.Zones)
-                        {
-                            <g class="damage-marker is-hidden" data-damage-marker="@zone.Code" transform="translate(@zone.MarkerX @zone.MarkerY)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
-                        }
-                        @foreach (var wheel in DamagePlanGeometry.Wheels)
-                        {
-                            <g class="damage-marker is-hidden" data-damage-marker="@wheel.Code" transform="translate(@wheel.CentreX @wheel.CentreY)"><circle r="8" /><text y="3.2" text-anchor="middle"></text></g>
+                            var disc = DamagePlanGeometry.Disc(impacts[index].Areas);
+                            if (disc is null)
+                            {
+                                continue;
+                            }
+                            <g class="dm" data-mark="@index" data-sev="@impacts[index].Severity"><circle class="area" cx="@Svg(disc.CentreX)" cy="@Svg(disc.CentreY)" r="@Svg(disc.Radius)" /><circle class="n" r="8" cx="@Svg(disc.CentreX)" cy="@Svg(disc.CentreY)" /><text x="@Svg(disc.CentreX)" y="@Svg(disc.CentreY + 3.2)" text-anchor="middle">@(index + 1)</text></g>
                         }
                     </g>
                     <text class="damage-diagram-label" x="120" y="431" text-anchor="middle">@DamageLabels.Rear</text>
                 </svg>
                 <div class="dv-readout" data-damage-readout aria-live="polite"></div>
+                @if (editable)
+                {
+                    <button type="button" class="btn btn--small" data-damage-reset><svg class="icon" aria-hidden="true"><use href="#icon-refresh-cw" /></svg><span>@DamageLabels.Reset</span></button>
+                }
                 <div class="dv-legend" aria-label="@DamageLabels.Severity">
                     @foreach (var severity in AssessmentVocabulary.DamageSeverities.OrderBy(entry => entry.Value.Rank))
                     {
@@ -155,9 +163,10 @@
                     }
                 </div>
                 <div class="damage-extra" aria-label="@DamageLabels.OtherAreas">
-                    @foreach (var extra in DamagePlanGeometry.ExtraZones)
+                    @foreach (var extra in AssessmentVocabulary.DamageOtherAreas)
                     {
-                        <button type="button" class="btn btn--small" data-damage-zone="@extra">@ZoneName(extra)</button>
+                        var recorded = impacts.Any(impact => impact.Areas.Contains(extra));
+                        <button type="button" class="btn btn--small @(recorded ? "is-damaged" : null)" data-damage-area="@extra" aria-pressed="@(recorded ? "true" : "false")">@DamageLabels.Location(extra)</button>
                     }
                 </div>
             </div>
@@ -165,9 +174,9 @@
                 <div class="fg g3">
                     <div class="fc ro"><span class="lbl">@EngineerLabels.ImpactLocation</span><div class="fv derived" data-damage-location>@locationText</div></div>
                     <div class="fc ro"><span class="lbl">@EngineerLabels.ImpactSeverity</span><div class="fv derived" data-damage-severity>@severityText</div></div>
-                    <div class="fc ro"><span class="lbl">@DamageLabels.RecordedZones</span><div class="fv" data-damage-count>@impacts.Count</div></div>
+                    <div class="fc ro"><span class="lbl">@DamageLabels.RecordedAreas</span><div class="fv" data-damage-count>@impacts.Count</div></div>
                 </div>
-                <ul class="impact-list" data-damage-impact-list aria-label="@DamageLabels.RecordedZones">
+                <ul class="impact-list" data-damage-impact-list aria-label="@DamageLabels.RecordedAreas">
                     @if (impacts.Count == 0)
                     {
                         <li class="muted" data-damage-empty>@DamageLabels.NoDamageRecorded</li>
@@ -175,8 +184,8 @@
                     @for (var index = 0; index < impacts.Count; index++)
                     {
                         var impact = impacts[index];
-                        <li class="impact-row" data-damage-row="@impact.Zone">
-                            <span class="zc"><i class="zn">@(index + 1)</i>@ZoneName(impact.Zone)</span>
+                        <li class="impact-row" data-damage-row="@index">
+                            <span class="zc"><i class="zn">@(index + 1)</i>@AreaNames(impact.Areas)</span>
                             <span class="fc">
                                 @if (editable)
                                 {
@@ -206,7 +215,7 @@
                             </span>
                             @if (editable)
                             {
-                                <button type="button" class="del" data-damage-row-remove aria-label="@DamageLabels.Remove @ZoneName(impact.Zone)">×</button>
+                                <button type="button" class="del" data-damage-row-remove aria-label="@DamageLabels.Remove @AreaNames(impact.Areas)">×</button>
                             }
                         </li>
                     }

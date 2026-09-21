@@ -213,7 +213,8 @@ public static class CaseWorkspaceLabels
         public const string DiagramLabel = "Vehicle damage diagram, plan view";
         public const string Front = "FRONT";
         public const string Rear = "REAR";
-        public const string RecordedZones = "Recorded zones";
+        public const string RecordedAreas = "Recorded areas";
+        public const string Reset = "Reset";
         public const string NoDamageRecorded = "No damage recorded.";
         public const string Severity = "Severity";
         public const string Note = "Note";
@@ -234,12 +235,11 @@ public static class CaseWorkspaceLabels
             return char.ToUpperInvariant(words[0]) + words[1..];
         }
 
-        /// <summary>The impact location as the derived cell prints it, from Core's headline codes.</summary>
+        /// <summary>An area, or the derived impact location, as the cells print it, from Core's names.</summary>
         public static string Location(string? code) =>
             code is null ? OperatorLabels.CaseWorkspace.AbsentValue
             : code == "multiple" ? Multiple
-            : AssessmentVocabulary.DamageZones.TryGetValue(code, out var zone) ? zone.Display
-            : code == "wheel" ? "Wheel"
+            : AssessmentVocabulary.DamageAreas.TryGetValue(code, out var name) ? name
             : CodeWord(code);
 
         public static string SeverityWord(string? code) =>
@@ -484,7 +484,6 @@ public static class CaseWorkspaceLabels
     {
         public const string SectionTitle = "Valuation";
         public static string NotConnected(ValuationSource source) => SourceLabel(source) + " is not connected";
-        public static string CazanaSeam => NotConnected(ValuationSource.Cazana);
         public const string AbsentGuideMonth = "Not recorded";
 
         // v26: the calculator (v25 decision 8) and the per-source Get valuation row.
@@ -527,6 +526,7 @@ public static class CaseWorkspaceLabels
             ValuationSource.AiMarketResearch => "AI market research",
             ValuationSource.Brego => "Brego",
             ValuationSource.SuperCap => "Super CAP",
+            ValuationSource.Cap => "CAP",
             _ => source.ToString(),
         };
 
@@ -538,6 +538,7 @@ public static class CaseWorkspaceLabels
             ValuationSource.EngineersValue => "engineers-value",
             ValuationSource.AiMarketResearch => "ai-market-research",
             ValuationSource.Brego => "brego",
+            ValuationSource.Cap => "cap",
             ValuationSource.SuperCap => "super-cap",
             _ => source.ToString().ToLowerInvariant(),
         };
