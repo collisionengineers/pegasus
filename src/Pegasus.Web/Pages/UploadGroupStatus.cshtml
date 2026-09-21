@@ -29,7 +29,10 @@
     <div class="validation-summary" role="alert">@confirmationError</div>
 }
 
-<div class="stack">
+@* P11 (asked for 18 September 2026): one layout, three places. Files in
+   this submission reads first and wide; the decision sits beside it;
+   discarding is last and folded shut. Below 1100px the two columns stack. *@
+<div class="stack upload-received">
     @* While the submission's decision is still open, the decision card below owns it. *@
     @if (!Model.OpenGroupDecision && Model.Decision is { } decision)
     {
@@ -70,10 +73,10 @@
     }
     else if (Model.CanDiscard)
     {
-        <section class="panel" aria-labelledby="group-discard-title" data-refresh-hold>
-            <div class="panel-head">
+        <details class="panel upload-received__discard" data-refresh-hold>
+            <summary class="panel-head">
                 <h2 id="group-discard-title">Discard this submission</h2>
-            </div>
+            </summary>
             <div class="panel-body stack">
                 <p>Discard every file in this upload. The retained source and processing record are kept.</p>
                 <form method="post" asp-page-handler="DiscardGroup" class="stack">
@@ -84,15 +87,14 @@
                         <input type="hidden" name="receiptVersions[@member.Key]" value="@member.Value" />
                     }
                     <div class="field">
-                        <input id="group-discard-confirmation" name="consequencesConfirmed" type="checkbox" value="true" required />
-                        <label for="group-discard-confirmation">I understand that this discards every file in the submission while retaining its source and processing record.</label>
+                        <label class="choice" for="group-discard-confirmation"><input id="group-discard-confirmation" name="consequencesConfirmed" type="checkbox" value="true" required /> I understand that this discards every file in the submission while retaining its source and processing record.</label>
                     </div>
                     <div class="button-row">
-                        <button type="submit" class="btn btn--ghost">Discard submission</button>
+                        <button type="submit" class="btn btn--danger">Discard submission</button>
                     </div>
                 </form>
             </div>
-        </section>
+        </details>
     }
     @if (Model.OpenGroupDecision)
     {
@@ -108,6 +110,7 @@
                         <div class="field">
                             <label for="group-registration">Vehicle registration</label>
                             <input id="group-registration"
+                                   class="mono"
                                    name="vehicleRegistration"
                                    type="text"
                                    maxlength="20"
@@ -121,6 +124,7 @@
                         </div>
                         <div class="button-row">
                             <button type="submit" class="btn btn--primary">Create a vehicle-image case</button>
+                            <a class="btn btn--ghost" asp-page="/Upload">Cancel</a>
                         </div>
                     </form>
                 }
@@ -183,9 +187,6 @@
                         </div>
                     </form>
                 </details>
-                <div class="button-row">
-                    <a class="btn btn--ghost" asp-page="/Upload">Cancel</a>
-                </div>
             </div>
         </section>
     }
@@ -194,6 +195,7 @@
              data-auto-refresh="@Model.AutomaticRefreshMilliseconds">
         <div class="panel-head">
             <h2 id="group-status-title">Files in this submission</h2>
+            <span class="meta" data-upload-file-count>@Model.Group.Members.Count @(Model.Group.Members.Count == 1 ? "file" : "files")</span>
         </div>
         <div class="panel-body">
             @if (Model.GroupRegistrationOutcome is { } groupOutcome)

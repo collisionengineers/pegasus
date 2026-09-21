@@ -174,3 +174,14 @@ nothing. Deployment and live evidence are separate tiers
   [FRD-19](frd-19-image-led-intake-and-pairing.md).
 - Operations: [operations](../operations.md) for deployed limit
   configuration.
+
+### The submission page's shape
+
+The group status page reads in one order (v28 P11, asked for 18 September
+2026): **Files in this submission** first and wide, with a file count in its
+head and a 132 px thumbnail per file; **This submission** beside it, carrying
+the registration, the reason, Create a vehicle-image case with Cancel on the
+same row, and Add to an existing case; and **Discard this submission** last,
+folded shut, its confirmation inline with its sentence and its button the
+danger variant. Below 1100 px the two columns stack. The words, the forms,
+the handlers and the decisions themselves are unchanged.
