@@ -157,6 +157,41 @@ or override, the wording blocks it printed with their headings and order,
 fee, source documents with their Box identities, and each prepared image's
 role, order, rotation and crop.
 
+### Companion documents and what a delivery attaches
+
+A generation may also hold two companion documents (v28 P22), each generated
+on its own request against a generation that is already confirmed, each a
+separately addressable artifact in custody:
+
+- the **Repair Spec**, which is the specification document the Case already
+  prints, rendered from the estimate that generation pinned. An estimate that
+  has moved on since, or one that cannot be printed, fails the artifact closed
+  rather than attaching a specification the report never priced;
+- the **images**, which are the images the report prints, alone, two to a
+  page with a Full page image on a page of its own, under the report's own
+  letterhead. A Case whose report uses no image has no pack to generate.
+
+A delivery attaches the documents the operator chose. Without a choice every
+artifact the generation holds attaches and a partly confirmed generation
+yields nothing; with a choice, exactly the chosen documents must be present
+and confirmed, so a companion still being filed never silently drops out of a
+delivery that asked for it and never blocks one that did not. The report is
+always attached. The preparation pins each chosen attachment by document,
+version, hash and length, and the send re-checks that every pinned attachment
+is still a confirmed artifact, byte for byte.
+
+**What a delivery is called (v28 P23).** The attached report is named for the
+people who read it — the Case's reference, the vehicle's registration and the
+outcome — and one dot is added for each report of this Case already sent, so
+a re-issue is distinguishable at a glance. Companion documents keep the names
+custody gave them. The delivery carries one covering line: a first report
+reads "Please find attached our report."; a later one says plainly that it
+supersedes the report dated the day the superseded generation carried. The
+report's name and the covering line are frozen with the preparation, so what
+was reviewed is what is sent, and custody keeps its own name for the same
+bytes. A send is a staff send that actually left the approved mailbox; a
+prepared-but-unsent delivery is not one.
+
 **Report and fee note.** They are separately addressable files in custody.
 The operator generating the report chooses whether the fee note is a separate
 document or the report's final pages. The snapshot records that choice, so a

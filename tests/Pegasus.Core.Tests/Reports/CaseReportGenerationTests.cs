@@ -556,9 +556,21 @@ public sealed class CaseReportGenerationTests
             store,
             new FakeContentSource(),
             renderer,
+            new RefusingRepairSpecificationDocuments(),
             custody,
             status ?? new RecordingCustodyStatus(),
             TimeProvider.System);
+    }
+
+    /// <summary>
+    /// The repair specification document is not asked for by these tests: a
+    /// call here would mean a companion artifact took the snapshot route.
+    /// </summary>
+    private sealed class RefusingRepairSpecificationDocuments : IRenderCaseEstimateDocument
+    {
+        public Task<RenderCaseEstimateDocumentResult> ExecuteAsync(
+            Guid caseId, Guid estimateId, ActionActor actor, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("No repair specification document was expected.");
     }
 
     private static GenerateCaseReportRequest Request(

@@ -97,7 +97,7 @@ public sealed class EfCaseReportGenerationStore(
         {
             throw new InvalidOperationException("The case report generation is unavailable.");
         }
-        if (request.Kind == CaseReportArtifactKind.FeeNote
+        if (request.Kind != CaseReportArtifactKind.AssessmentReport
             && request.TargetGenerationId is null)
         {
             throw new InvalidOperationException("The case report generation is unavailable.");
@@ -137,9 +137,9 @@ public sealed class EfCaseReportGenerationStore(
         var now = timeProvider.GetUtcNow();
         CaseMutationGuard.Require(
             workflow, request.Actor, request.ExpectedCaseVersion, request.LeaseToken, now);
-        if (request.Kind == CaseReportArtifactKind.FeeNote)
+        if (request.Kind != CaseReportArtifactKind.AssessmentReport)
         {
-            return await FreezeFeeNoteAsync(
+            return await FreezeCompanionAsync(
                 context, transaction, workflow, request, operationKey, now, cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -297,7 +297,7 @@ public sealed class EfCaseReportGenerationStore(
         return new(CaseReportFreezeOutcome.Frozen, frozen, artifact.Id, []);
     }
 
-    private static async Task<CaseReportFreezeResult> FreezeFeeNoteAsync(
+    private static async Task<CaseReportFreezeResult> FreezeCompanionAsync(
         PegasusDbContext context,
         Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction,
         CaseWorkflowEntity workflow,
@@ -320,7 +320,7 @@ public sealed class EfCaseReportGenerationStore(
         }
 
         var snapshot = DeserializeSnapshot(generation);
-        if (snapshot.Report.IncludeFeeNote)
+        if (request.Kind == CaseReportArtifactKind.FeeNote && snapshot.Report.IncludeFeeNote)
         {
             throw new InvalidOperationException("The generated artifact is unavailable.");
         }
@@ -337,10 +337,10 @@ public sealed class EfCaseReportGenerationStore(
             throw new InvalidOperationException("The case report generation is unavailable.");
         }
 
+        var kind = request.Kind.ToString();
         var existing = await context.Set<GeneratedCaseArtifactEntity>()
             .SingleOrDefaultAsync(
-                item => item.GenerationId == generation.Id
-                    && item.Kind == nameof(CaseReportArtifactKind.FeeNote),
+                item => item.GenerationId == generation.Id && item.Kind == kind,
                 cancellationToken)
             .ConfigureAwait(false);
         if (existing is not null)
@@ -365,7 +365,7 @@ public sealed class EfCaseReportGenerationStore(
         {
             Id = Guid.NewGuid(),
             GenerationId = generation.Id,
-            Kind = nameof(CaseReportArtifactKind.FeeNote),
+            Kind = kind,
             State = nameof(CaseReportArtifactStatus.Pending),
             OperationKey = operationKey,
         };
@@ -382,7 +382,7 @@ public sealed class EfCaseReportGenerationStore(
             {
                 GenerationId = generation.Id,
                 ArtifactId = artifact.Id,
-                Kind = nameof(CaseReportArtifactKind.FeeNote),
+                Kind = kind,
                 generation.SnapshotHash,
                 CaseVersion = workflow.Version,
                 snapshot.TemplateVersion,

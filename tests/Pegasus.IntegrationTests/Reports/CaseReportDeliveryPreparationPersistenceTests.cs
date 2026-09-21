@@ -298,7 +298,8 @@ public sealed class CaseReportDeliveryPreparationPersistenceTests
                 expectedGenerationVersion,
                 OperationKey),
             addressing ?? new([new("handler@principal.example", "Principal Handler")], [], "DVR-31001"),
-            new string('a', 64));
+            new string('a', 64),
+            CaseReportSendHistory.None);
 
         public ReportSendReadinessRequest ReadyRequest(CaseReportDeliveryPreparationRecord record) => new(
             Staff,

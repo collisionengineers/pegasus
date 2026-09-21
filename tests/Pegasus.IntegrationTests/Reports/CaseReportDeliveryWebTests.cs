@@ -411,6 +411,48 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Empty(send.Requests);
     }
 
+    /// <summary>
+    /// v28 P22: the delivery attaches the documents the operator ticked, and
+    /// the Attach choice reaches the preparation as the operator made it.
+    /// </summary>
+    [Fact]
+    public async Task PrepareDeliveryCarriesTheDocumentsTheOperatorChose()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var caseId = Guid.NewGuid();
+        var generationId = Guid.NewGuid();
+        var prepare = new RecordingPrepareDelivery(caseId, generationId);
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            prepareDelivery: prepare);
+        using var client = Client(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}?section=report");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}?handler=PrepareReportDelivery&section=report",
+            Form(
+                AntiforgeryValue(html),
+                ("id", caseId.ToString("D")),
+                ("operationKey", Guid.NewGuid().ToString("N")),
+                ("editLeaseToken", "held-report-lease"),
+                ("expectedCaseVersion", "0"),
+                ("generationId", generationId.ToString("D")),
+                ("expectedGenerationVersion", "13"),
+                ("toRecipients", "reviewed@recipient.example"),
+                ("attach", nameof(CaseReportArtifactKind.AssessmentReport)),
+                ("attach", nameof(CaseReportArtifactKind.ImagePack))));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var request = Assert.Single(prepare.Requests);
+        Assert.Equal(
+            [CaseReportArtifactKind.AssessmentReport, CaseReportArtifactKind.ImagePack],
+            request.Attach);
+    }
+
     [Theory]
     [InlineData(StaffMailState.Submitted)]
     [InlineData(StaffMailState.Unknown)]
