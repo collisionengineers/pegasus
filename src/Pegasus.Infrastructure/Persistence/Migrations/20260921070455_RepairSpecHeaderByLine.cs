@@ -30,17 +30,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                       ORDER BY CASE WHEN x.LineType IN ('paint_new', 'paint_repair', 'paint_blend', 'paint_prep') THEN 0 ELSE 1 END, x.Position);
                 """);
 
-            migrationBuilder.DropColumn(
-                name: "Notes",
-                table: "CaseRepairSpecifications");
-
-            migrationBuilder.DropColumn(
-                name: "PaintMaterials",
-                table: "CaseRepairSpecifications");
-
-            migrationBuilder.DropColumn(
-                name: "RepairDays",
-                table: "CaseRepairSpecifications");
+            // The three columns the record no longer carries are left in place,
+            // unused and nullable, so this release stays additive. Dropping
+            // them is a later release's act, once nothing has read them for a
+            // full cycle.
 
             migrationBuilder.AddColumn<bool>(
                 name: "RegionalUplift",
@@ -57,26 +50,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "RegionalUplift",
                 table: "CaseRepairSpecifications");
 
-            migrationBuilder.AddColumn<string>(
-                name: "Notes",
-                table: "CaseRepairSpecifications",
-                type: "nvarchar(4000)",
-                maxLength: 4000,
-                nullable: true);
-
-            migrationBuilder.AddColumn<decimal>(
-                name: "PaintMaterials",
-                table: "CaseRepairSpecifications",
-                type: "decimal(18,2)",
-                precision: 18,
-                scale: 2,
-                nullable: true);
-
-            migrationBuilder.AddColumn<int>(
-                name: "RepairDays",
-                table: "CaseRepairSpecifications",
-                type: "int",
-                nullable: true);
         }
     }
 }
