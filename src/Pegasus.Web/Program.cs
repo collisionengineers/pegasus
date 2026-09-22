@@ -758,6 +758,26 @@ builder.Services.AddScoped<IListAutomationActivity, ListAutomationActivity>();
 builder.Services.AddScoped<Pegasus.Core.Operations.IAutomationIngressStatusQueries, AutomationIngressStatusQueries>();
 builder.Services.AddScoped<Pegasus.Core.Operations.GetServiceHealth>();
 builder.Services.AddSingleton(new Pegasus.Core.ReleaseNotes.ApplicationBuild(productVersion, sourceSha));
+// Report a problem (ADR-0055): reports become issues on one repository when
+// the token and repository are configured; otherwise every report is kept
+// as Not sent with the reason, and an Administrator retries once connected.
+builder.Services.AddMemoryCache();
+builder.Services.AddHttpClient(Pegasus.Infrastructure.Support.GitHubIssueProblemReportSink.HttpClientName, client =>
+    client.Timeout = TimeSpan.FromSeconds(30));
+builder.Services.AddSingleton<Pegasus.Core.Support.IProblemReportSink>(provider =>
+{
+    var configuration = provider.GetRequiredService<IConfiguration>();
+    var options = Pegasus.Infrastructure.Support.GitHubProblemReportOptions.FromConfiguration(
+        configuration[Pegasus.Infrastructure.Support.GitHubProblemReportOptions.TokenKey],
+        configuration[Pegasus.Infrastructure.Support.GitHubProblemReportOptions.RepositoryKey],
+        configuration[Pegasus.Infrastructure.Support.GitHubProblemReportOptions.LabelsKey]);
+    return options is null
+        ? new Pegasus.Infrastructure.Support.UnconfiguredProblemReportSink()
+        : new Pegasus.Infrastructure.Support.GitHubIssueProblemReportSink(
+            options,
+            provider.GetRequiredService<IHttpClientFactory>().CreateClient(
+                Pegasus.Infrastructure.Support.GitHubIssueProblemReportSink.HttpClientName));
+});
 if (automationMcpOptions is not null)
 {
     builder.Services.AddPegasusAutomationMcp(

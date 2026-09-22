@@ -1,0 +1,102 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Pegasus.Core.Support;
+
+namespace Pegasus.Infrastructure.Support;
+
+/// <summary>
+/// Where problem reports go (ADR-0055): one repository's issues. The token is
+/// a fine-grained personal access token with Issues read and write on that
+/// repository only, read from configuration and never logged.
+/// </summary>
+public sealed record GitHubProblemReportOptions(string Token, string Repository, IReadOnlyList<string> Labels)
+{
+    public const string TokenKey = "GitHub:ProblemReports:Token";
+    public const string RepositoryKey = "GitHub:ProblemReports:Repository";
+    public const string LabelsKey = "GitHub:ProblemReports:Labels";
+
+    /// <summary>Both settings, or null when the sink is not configured; a half configuration is refused.</summary>
+    public static GitHubProblemReportOptions? FromConfiguration(string? token, string? repository, string? labels)
+    {
+        var hasToken = !string.IsNullOrWhiteSpace(token);
+        var hasRepository = !string.IsNullOrWhiteSpace(repository);
+        if (!hasToken && !hasRepository)
+        {
+            return null;
+        }
+
+        if (!hasToken || !hasRepository)
+        {
+            throw new InvalidOperationException(
+                $"{TokenKey} and {RepositoryKey} are configured together or not at all.");
+        }
+
+        var parts = repository!.Trim().Split('/');
+        if (parts.Length != 2 || parts.Any(part => part.Length == 0 || part.Any(character => !(char.IsLetterOrDigit(character) || character is '-' or '_' or '.'))))
+        {
+            throw new InvalidOperationException($"{RepositoryKey} is owner/name.");
+        }
+
+        var labelList = (labels ?? string.Empty)
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        return new GitHubProblemReportOptions(token!.Trim(), repository.Trim(), labelList);
+    }
+}
+
+public sealed class GitHubIssueProblemReportSink(GitHubProblemReportOptions options, HttpClient client) : IProblemReportSink
+{
+    public const string HttpClientName = nameof(GitHubIssueProblemReportSink);
+
+    private readonly GitHubProblemReportOptions _options = options ?? throw new ArgumentNullException(nameof(options));
+    private readonly HttpClient _client = client ?? throw new ArgumentNullException(nameof(client));
+
+    public async Task<ProblemReportDelivery> SendAsync(ProblemReport report, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"https://api.github.com/repos/{_options.Repository}/issues");
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.Token);
+        request.Headers.UserAgent.Add(new ProductInfoHeaderValue("Pegasus", report.Snapshot.Version));
+        request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
+        request.Content = JsonContent.Create(new IssueRequest(
+            ProblemReportPolicy.Title(report),
+            ProblemReportPolicy.Body(report),
+            _options.Labels));
+
+        using var response = await _client.SendAsync(request, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"GitHub refused the issue with {(int)response.StatusCode} {response.ReasonPhrase}.");
+        }
+
+        var issue = await response.Content.ReadFromJsonAsync<IssueResponse>(cancellationToken)
+            ?? throw new InvalidDataException("GitHub returned no issue.");
+        if (issue.Number <= 0 || string.IsNullOrWhiteSpace(issue.HtmlUrl))
+        {
+            throw new InvalidDataException("GitHub returned an issue without a number or address.");
+        }
+
+        return new ProblemReportDelivery(issue.Number, issue.HtmlUrl);
+    }
+
+    private sealed record IssueRequest(
+        [property: JsonPropertyName("title")] string Title,
+        [property: JsonPropertyName("body")] string Body,
+        [property: JsonPropertyName("labels")] IReadOnlyList<string> Labels);
+
+    private sealed record IssueResponse(
+        [property: JsonPropertyName("number")] int Number,
+        [property: JsonPropertyName("html_url")] string? HtmlUrl);
+}
+
+/// <summary>The sink when no repository is configured: every report stays Not sent, with the reason.</summary>
+public sealed class UnconfiguredProblemReportSink : IProblemReportSink
+{
+    public const string Reason = "Problem reports are not connected to a repository.";
+
+    public Task<ProblemReportDelivery> SendAsync(ProblemReport report, CancellationToken cancellationToken) =>
+        Task.FromException<ProblemReportDelivery>(new InvalidOperationException(Reason));
+}

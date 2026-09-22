@@ -1,4 +1,4 @@
-using System.Data.Common;
+﻿using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
@@ -1061,6 +1061,44 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         {
             await context.Database.ExecuteSqlRawAsync("REVERT;");
         }
+
+        var visibleHistoryBeforeBinding = await new EfCaseQueryStore(harness.Factory, harness.Clock)
+            .ListHistoryAsync(caseId, default);
+        var bound = await harness.RepairSpecifications.BindSourceHashReplayAsync(
+            caseId,
+            "import-store-source-replay",
+            hash,
+            imported.SpecificationId,
+            engineer,
+            default);
+        Assert.Equal(imported.SpecificationId, bound.EstimateId);
+        var exactReplay = await harness.RepairSpecifications.ProbeSourceHashReplayAsync(
+            caseId, "import-store-source-replay", hash.ToUpperInvariant(), default);
+        Assert.Equal(imported.SpecificationId, exactReplay!.EstimateId);
+        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
+            harness.RepairSpecifications.ProbeSourceHashReplayAsync(
+                caseId, "import-store-source-replay", new string('a', 64), default));
+        var visibleHistoryAfterBinding = await new EfCaseQueryStore(harness.Factory, harness.Clock)
+            .ListHistoryAsync(caseId, default);
+        Assert.Equal(visibleHistoryBeforeBinding.Count, visibleHistoryAfterBinding.Count);
+        await using (var verifyContext = await harness.Factory.CreateDbContextAsync())
+        {
+            Assert.Equal(
+                1,
+                await verifyContext.CaseWorkflows.AsNoTracking()
+                    .Where(row => row.CaseId == caseId)
+                    .Select(row => row.Version)
+                    .SingleAsync());
+            var bindingAfter = await verifyContext.ActionHistory.AsNoTracking()
+                .Where(row => row.AggregateType == "case"
+                    && row.AggregateId == caseId.ToString("D")
+                    && row.CorrelationId == "import-store-source-replay"
+                    && row.EventKind == "estimate_source_replay_bound")
+                .Select(row => row.AfterJson)
+                .SingleAsync();
+            Assert.Contains(imported.SpecificationId.ToString("D"), bindingAfter, StringComparison.OrdinalIgnoreCase);
+        }
+
         var live = await harness.AcquireLeaseAsync(caseId, 1, engineer, "import-store-replay-lease");
         var replay = await harness.RepairSpecifications.SaveImportedEstimateAsync(request with
         {
@@ -1080,6 +1118,52 @@ public sealed partial class AssessmentPersistenceIntegrationTests
         Assert.All(accepted.Lines, line => Assert.Equal(engineer.SubjectId, line.ConfirmedBy));
         Assert.Single(await harness.RepairSpecifications.ListEstimatesAsync(caseId, default));
         Assert.Equal(2, (await context.CaseWorkflows.AsNoTracking().SingleAsync(row => row.CaseId == caseId)).Version);
+    }
+
+    [Fact]
+    public async Task SourceHashReplayRejectsOperationKeyUsedToSetCurrentEstimate()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var caseId = (await harness.AcceptAsync("import-store-collision-case")).Identity.CaseId;
+        var engineer = harness.EngineerActor;
+        var lease = await harness.AcquireLeaseAsync(caseId, 0, engineer, "import-store-collision-lease");
+        var xml = System.Text.Encoding.UTF8.GetBytes(GlassEstimateXmlParserTests.GlassExport.BuildXml());
+        var parsed = new Pegasus.Infrastructure.Glass.GlassEstimateXmlParser().Parse(xml);
+        var hash = Convert.ToHexStringLower(SHA256.HashData(xml));
+        var request = new SaveEstimateRequest(
+            caseId, 0, engineer, "import-store-collision-import", ImportRawEstimate.ImportReason,
+            lease.Token, null,
+            new("Glass's 1", 40m, null, 20m,
+                Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
+            parsed.Lines,
+            new(RepairSpecificationSourceRoute.Glasses, "estimate-import:collision", parsed.SourceVersion, hash));
+        var imported = await harness.RepairSpecifications.SaveImportedEstimateAsync(request, default);
+
+        const string collisionKey = "import-store-collision-set-current";
+        var live = await harness.AcquireLeaseAsync(caseId, 1, engineer, "import-store-collision-use-lease");
+        var jobs = new EfAiJobStore(harness.Factory, harness.Clock);
+        var use = new SetCurrentEstimate(
+            harness.RepairSpecifications,
+            jobs,
+            new ConfirmAiJob(jobs),
+            harness.Clock);
+        await use.ExecuteAsync(
+            new(caseId, live.Version, engineer, collisionKey, "Use the imported estimate.", live.Token, imported.SpecificationId),
+            default);
+
+        var creationReplay = await harness.RepairSpecifications.BindSourceHashReplayAsync(
+            caseId, request.OperationKey, hash, imported.SpecificationId, engineer, default);
+        Assert.Equal(imported.SpecificationId, creationReplay.EstimateId);
+        await Assert.ThrowsAsync<CaseOperationConflictException>(() =>
+            harness.RepairSpecifications.BindSourceHashReplayAsync(
+                caseId, collisionKey, hash, imported.SpecificationId, engineer, default));
+
+        await using var verify = await harness.Factory.CreateDbContextAsync();
+        Assert.False(await verify.ActionHistory.AnyAsync(item =>
+            item.AggregateType == "case"
+            && item.AggregateId == caseId.ToString("D")
+            && item.CorrelationId == collisionKey
+            && item.EventKind == "estimate_source_replay_bound"));
     }
 
     /// <summary>

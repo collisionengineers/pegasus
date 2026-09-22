@@ -6,6 +6,8 @@
     ViewData["AdminArea"] = "reports";
     var from = Model.From?.ToString("yyyy-MM-ddTHH:mm");
     var to = Model.To?.ToString("yyyy-MM-ddTHH:mm");
+    var invariant = System.Globalization.CultureInfo.InvariantCulture;
+    string Money(decimal value) => value.ToString("£#,##0.00", invariant);
 }
 @section Styles {
     <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
@@ -29,19 +31,49 @@
                     <div class="cluster">
                         <button class="btn btn--dark" type="submit">Apply</button>
                         <a class="btn" asp-page="/Administration/Reports" asp-page-handler="Csv" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId"><svg class="icon" aria-hidden="true"><use href="#icon-download" /></svg><span>Download CSV</span></a>
+                        <a class="btn" asp-page="/Administration/Reports" asp-page-handler="Workbook" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" data-report-workbook><svg class="icon" aria-hidden="true"><use href="#icon-file-spreadsheet" /></svg><span>Download workbook</span></a>
                     </div>
                 </form>
                 <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
-                <div class="metric-strip metric-strip--2 section-gap" aria-label="Engineer activity totals">
-                    <div class="metric"><span class="metric-label">Queries received</span><span class="metric-value">@Model.EngineerResult.Rows.Sum(row => row.QueriesReceived)</span></div>
-                    <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">@Model.EngineerResult.Rows.Sum(row => row.ReportsSent)</span></div>
+                <div class="metric-strip metric-strip--3 section-gap" aria-label="Engineer activity totals">
+                    <div class="metric"><span class="metric-label">Queries received</span><span class="metric-value">@(Model.EngineerActivityUnavailable ? "Unavailable" : Model.EngineerResult.Rows.Sum(row => row.QueriesReceived).ToString())</span></div>
+                    <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">@(Model.EngineerActivityUnavailable ? "Unavailable" : Model.EngineerResult.Rows.Sum(row => row.ReportsSent).ToString())</span></div>
+                    <div class="metric"><span class="metric-label">Audit reports sent</span><span class="metric-value">@(Model.EngineerActivityUnavailable ? "Unavailable" : Model.EngineerResult.Rows.Sum(row => row.AuditReportsSent).ToString())</span></div>
                 </div>
                 <div class="table-wrap section-gap">
-                    <table class="table table--compact">
-                        <thead><tr><th scope="col">Person</th><th scope="col" class="num">Queries received</th><th scope="col" class="num">Reports sent</th></tr></thead>
+                    <table class="table table--compact" data-engineer-activity>
+                        <thead>
+                            <tr>
+                                <th scope="col" aria-sort="@Model.AriaSort("person")"><a class="admin-report-sort" data-sort-toggle asp-page="/Administration/Reports" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" asp-route-sort="person" asp-route-dir="@Model.SortDirectionFor("person")">Person <span data-sort-arrow>@Model.SortArrow("person")</span></a></th>
+                                <th scope="col" class="num" aria-sort="@Model.AriaSort("queries")"><a class="admin-report-sort" data-sort-toggle asp-page="/Administration/Reports" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" asp-route-sort="queries" asp-route-dir="@Model.SortDirectionFor("queries")">Queries received <span data-sort-arrow>@Model.SortArrow("queries")</span></a></th>
+                                <th scope="col" class="num">Disputes</th>
+                                <th scope="col" class="num">Amendment requests</th>
+                                <th scope="col" class="num" aria-sort="@Model.AriaSort("reports")"><a class="admin-report-sort" data-sort-toggle asp-page="/Administration/Reports" asp-route-from="@from" asp-route-to="@to" asp-route-engineerId="@Model.EngineerId" asp-route-sort="reports" asp-route-dir="@Model.SortDirectionFor("reports")">Reports sent <span data-sort-arrow>@Model.SortArrow("reports")</span></a></th>
+                                <th scope="col" class="num">Audit reports sent</th>
+                                <th scope="col">Received to sent</th>
+                            </tr>
+                        </thead>
                         <tbody>
-                        @foreach (var row in Model.EngineerResult.Rows) { <tr><td>@row.DisplayName</td><td class="num tabular">@row.QueriesReceived</td><td class="num tabular">@row.ReportsSent</td></tr> }
-                        @if (Model.EngineerResult.Rows.Count == 0) { <tr><td colspan="3" class="muted">No engineer activity was recorded for this period.</td></tr> }
+                        @if (Model.EngineerActivityUnavailable)
+                        {
+                            <tr><td colspan="7" class="muted">Unavailable</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var row in Model.EngineerResult.Rows)
+                            {
+                                <tr>
+                                    <td>@row.DisplayName</td>
+                                    <td class="num"><span class="admin-report-measure"><meter min="0" max="@Math.Max(Model.MostQueriesReceived, 1)" value="@row.QueriesReceived" aria-hidden="true"></meter><span class="tabular">@row.QueriesReceived</span></span></td>
+                                    <td class="num tabular">@row.Disputes</td>
+                                    <td class="num tabular">@row.AmendmentRequests</td>
+                                    <td class="num"><span class="admin-report-measure"><meter min="0" max="@Math.Max(Model.MostReportsSent, 1)" value="@row.ReportsSent" aria-hidden="true"></meter><span class="tabular">@row.ReportsSent</span></span></td>
+                                    <td class="num tabular">@row.AuditReportsSent</td>
+                                    <td>@OperatorLabels.ReportTurnaround(row.AverageReceivedToSent, "—")</td>
+                                </tr>
+                            }
+                            @if (Model.EngineerResult.Rows.Count == 0) { <tr><td colspan="7" class="muted">No engineer activity was recorded for this period.</td></tr> }
+                        }
                         </tbody>
                     </table>
                 </div>
@@ -57,13 +89,14 @@
                 </div>
             </div>
             <div class="panel-body">
-                <div class="metric-strip metric-strip--2" aria-label="Reports by Principal totals">
+                <div class="metric-strip metric-strip--3" aria-label="Reports by Principal totals">
                     <div class="metric"><span class="metric-label">Reports produced</span><span class="metric-value">@(Model.PrincipalActivity is { } mi02Totals ? mi02Totals.Rows.Sum(row => row.GeneratedArtifacts).ToString() : "Unavailable")</span></div>
                     <div class="metric"><span class="metric-label">Reports sent</span><span class="metric-value">@(Model.PrincipalActivity is { } mi02SentTotals ? mi02SentTotals.Rows.Sum(row => row.Sent).ToString() : "Unavailable")</span></div>
+                    <div class="metric"><span class="metric-label">Agreed fees</span><span class="metric-value">@(Model.PrincipalActivity is { } mi02FeeTotals ? Money(mi02FeeTotals.Rows.Sum(row => row.AgreedFeeTotal)) : "Unavailable")</span></div>
                 </div>
                 <div class="table-wrap section-gap">
                     <table class="table table--compact">
-                        <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">Reports sent</th><th scope="col">Report types</th></tr></thead>
+                        <thead><tr><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">Reports sent</th><th scope="col" class="num">Agreed fees</th><th scope="col">Report types</th></tr></thead>
                         <tbody>
                         @if (Model.PrincipalActivity is { } mi02)
                         {
@@ -74,14 +107,42 @@
                                     <td class="mono">@row.PrincipalCode</td>
                                     <td class="num tabular">@row.GeneratedArtifacts</td>
                                     <td class="num tabular">@row.Sent</td>
+                                    <td class="num tabular">@Money(row.AgreedFeeTotal)</td>
                                     <td>@string.Join(", ", row.ArtifactTypes.Where(type => type.Generated > 0).Select(type => $"{OperatorLabels.ReportKind(type.Kind)} {type.Generated}"))</td>
                                 </tr>
                             }
-                            @if (mi02Rows.Length == 0) { <tr><td colspan="4" class="muted">No reports were recorded for this period.</td></tr> }
+                            @if (mi02Rows.Length == 0) { <tr><td colspan="5" class="muted">No reports were recorded for this period.</td></tr> }
                         }
                         else
                         {
-                            <tr><td colspan="4" class="muted">Unavailable</td></tr>
+                            <tr><td colspan="5" class="muted">Unavailable</td></tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+                <h3 id="mi02-months-title" class="section-gap">By month</h3>
+                <div class="table-wrap">
+                    <table class="table table--compact" aria-labelledby="mi02-months-title" data-reports-by-month>
+                        <thead><tr><th scope="col">Month</th><th scope="col">Principal</th><th scope="col" class="num">Reports produced</th><th scope="col" class="num">Fee notes produced</th><th scope="col" class="num">Reports sent</th><th scope="col" class="num">Agreed fees</th></tr></thead>
+                        <tbody>
+                        @if (Model.Monthly is { } months)
+                        {
+                            @foreach (var row in months)
+                            {
+                                <tr>
+                                    <td>@row.MonthLabel</td>
+                                    <td class="mono">@row.PrincipalCode</td>
+                                    <td class="num tabular">@row.ReportsGenerated</td>
+                                    <td class="num tabular">@row.FeeNotesGenerated</td>
+                                    <td class="num tabular">@row.Sent</td>
+                                    <td class="num tabular">@Money(row.AgreedFeeTotal)</td>
+                                </tr>
+                            }
+                            @if (months.Count == 0) { <tr><td colspan="6" class="muted">No reports were recorded for this period.</td></tr> }
+                        }
+                        else
+                        {
+                            <tr><td colspan="6" class="muted">Unavailable</td></tr>
                         }
                         </tbody>
                     </table>

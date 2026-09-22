@@ -284,6 +284,29 @@ public interface IRepairSpecificationStore
     /// <summary>Checks persisted current edit authority without consuming it.</summary>
     Task RequireImportAuthorityAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Checks the durable source-hash replay binding for an import operation
+    /// without changing Case state. A result means the caller can return the
+    /// already-imported estimate without retaining or opening another source.
+    /// </summary>
+    Task<EstimateImportResult?> ProbeSourceHashReplayAsync(
+        Guid caseId,
+        string operationKey,
+        string sourceSha256,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Atomically binds a source-hash replay operation key to its existing
+    /// estimate result. This is a no-op for Case version and edit-lease state.
+    /// </summary>
+    Task<EstimateImportResult> BindSourceHashReplayAsync(
+        Guid caseId,
+        string operationKey,
+        string sourceSha256,
+        Guid estimateId,
+        ActionActor actor,
+        CancellationToken cancellationToken);
+
     /// <summary>Only the canonical retained-document importer supplies these validated source-backed rows.</summary>
     Task<RepairSpecificationVersion> SaveImportedEstimateAsync(
         SaveEstimateRequest request, CancellationToken cancellationToken);
