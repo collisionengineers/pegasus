@@ -68,13 +68,13 @@ public sealed class AssessmentReportProjectionTests
         Assert.Equal(new DateOnly(2026, 8, 4), snapshot.Settlement.HireStart);
         Assert.Equal(35m, snapshot.Settlement.HireDailyCost);
         Assert.Equal(200m, snapshot.Settlement.Diminution);
-        Assert.Equal("Repairer", snapshot.Settlement.SalvageAt);
-        Assert.Equal("Salvage Co", snapshot.Settlement.SalvageAgent);
-        Assert.Equal("SAL-1", snapshot.Settlement.SalvageAgentReference);
-        Assert.True(snapshot.Settlement.SalvageMoved);
-        Assert.False(snapshot.Settlement.SalvageOwnerRetains);
-        Assert.True(snapshot.Settlement.SalvageValueAgreed);
-        Assert.Equal(new DateOnly(2026, 8, 20), snapshot.Settlement.SalvageSettled);
+        Assert.Null(snapshot.Settlement.SalvageAt);
+        Assert.Null(snapshot.Settlement.SalvageAgent);
+        Assert.Null(snapshot.Settlement.SalvageAgentReference);
+        Assert.Null(snapshot.Settlement.SalvageMoved);
+        Assert.Null(snapshot.Settlement.SalvageOwnerRetains);
+        Assert.Null(snapshot.Settlement.SalvageValueAgreed);
+        Assert.Null(snapshot.Settlement.SalvageSettled);
         Assert.Equal("Ed Mawdsley", snapshot.Signatory.PrintedName);
         Assert.Equal("ATA VDA AQP", snapshot.Signatory.Qualifications);
         Assert.Single(snapshot.Photos);
@@ -422,7 +422,7 @@ public sealed class AssessmentReportProjectionTests
         CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("th-TH");
         try
         {
-            var snapshot = AssessmentReportProjection.Project(ReadyInput()).Snapshot!;
+            var snapshot = AssessmentReportProjection.Project(TotalLossInput()).Snapshot!;
 
             Assert.Equal(new DateOnly(2027, 1, 2), snapshot.Vehicle.TaxExpiry);
             Assert.Equal(new DateOnly(2027, 3, 4), snapshot.Vehicle.MotExpiry);
@@ -484,13 +484,7 @@ public sealed class AssessmentReportProjectionTests
     [Fact]
     public void EquitySubtractsRepairAfterBettermentAndSalvageButNotExcess()
     {
-        var input = ReadyInput();
-        var fields = input.Assessment.Fields
-            .Append(Field(AssessmentVocabulary.SalvageValue, "500.00"))
-            .ToArray();
-
-        var result = AssessmentReportProjection.Project(
-            input with { Assessment = input.Assessment with { Fields = fields } });
+        var result = AssessmentReportProjection.Project(TotalLossInput());
 
         Assert.Equal(4_330m, result.Snapshot!.Settlement.Equity);
         Assert.Equal(250m, result.Snapshot.Settlement.Excess);
@@ -499,14 +493,7 @@ public sealed class AssessmentReportProjectionTests
     [Fact]
     public void CaseSettlementAndReportUseTheSameFigures()
     {
-        var input = ReadyInput();
-        input = input with
-        {
-            Assessment = input.Assessment with
-            {
-                Fields = [.. input.Assessment.Fields, Field(AssessmentVocabulary.SalvageValue, "500.00")],
-            },
-        };
+        var input = TotalLossInput();
 
         var settlement = AssessmentReportProjection.BuildSettlement(input.Assessment, input.CurrentEstimate);
         var report = AssessmentReportProjection.Project(input);
@@ -547,7 +534,7 @@ public sealed class AssessmentReportProjectionTests
     [InlineData(AssessmentVocabulary.SalvageValue)]
     public void UnconfirmedCalculationInputsDoNotBecomeAcceptedSettlementMoney(string path)
     {
-        var input = ReadyInput();
+        var input = path == AssessmentVocabulary.SalvageValue ? TotalLossInput() : ReadyInput();
         var fields = input.Assessment.Fields.Where(field => field.Path != path)
             .Append(Field(path, "500.00") with { ConfirmedBy = null, ConfirmedAtUtc = null })
             .ToArray();
@@ -747,6 +734,23 @@ public sealed class AssessmentReportProjectionTests
             Sources: [source],
             CurrentEstimate: DefaultCurrentEstimate(),
             Signatory: new ReportSignatory("Ed Mawdsley", "ATA VDA AQP", [1, 2, 3], "image/png"));
+    }
+
+    private static AssessmentReportProjectionInput TotalLossInput()
+    {
+        var input = ReadyInput();
+        return input with
+        {
+            Assessment = input.Assessment with
+            {
+                Fields =
+                [
+                    .. ReplaceField(input.Assessment.Fields, AssessmentVocabulary.Outcome, "total_loss"),
+                    Field(AssessmentVocabulary.SalvageCategory, "S"),
+                    Field(AssessmentVocabulary.SalvageValue, "500.00"),
+                ],
+            },
+        };
     }
 
     private static AssessmentFieldValue[] ReplaceField(
