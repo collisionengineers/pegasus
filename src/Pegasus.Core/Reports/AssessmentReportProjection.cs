@@ -333,12 +333,31 @@ public static class AssessmentReportProjection
             return null;
         }
 
+        if (string.Equals(
+                assessment.Field(AssessmentVocabulary.Outcome)?.Value,
+                "contract_repair",
+                StringComparison.Ordinal)
+            && assessment.Field(AssessmentVocabulary.SettlementContractSum) is not { IsConfirmed: true })
+        {
+            return null;
+        }
+
         var fields = assessment.Fields
             .Where(field => field.IsConfirmed)
             .ToDictionary(field => field.Path, field => (string?)field.Value, StringComparer.Ordinal);
         var costs = ReportRepairCosts.For(currentEstimate);
         var betterment = ParseMoney(Field(fields, AssessmentVocabulary.SettlementBetterment));
         var salvage = ParseMoney(Field(fields, AssessmentVocabulary.SalvageValue));
+        var contractSum = ParseMoney(Field(fields, AssessmentVocabulary.SettlementContractSum));
+        if (string.Equals(
+                Field(fields, AssessmentVocabulary.Outcome),
+                "contract_repair",
+                StringComparison.Ordinal)
+            && contractSum is null)
+        {
+            return null;
+        }
+
         return new(
             ParseMoney(Field(fields, AssessmentVocabulary.SettlementExcess)),
             betterment,
@@ -359,7 +378,7 @@ public static class AssessmentReportProjection
             ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageOwnerRetains)),
             ParseFlag(Field(fields, AssessmentVocabulary.SettlementSalvageValueAgreed)),
             ParseDate(Field(fields, AssessmentVocabulary.SettlementSalvageSettled)),
-            ParseMoney(Field(fields, AssessmentVocabulary.SettlementContractSum)));
+            contractSum);
     }
 
     /// <summary>

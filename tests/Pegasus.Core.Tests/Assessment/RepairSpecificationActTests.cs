@@ -1,5 +1,7 @@
+using System.Globalization;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Assessment;
 
@@ -152,85 +154,99 @@ public sealed class RepairSpecificationActTests
             Line("new_part", price: 500m),
             Line("repair", workUnits: 4m));
         var store = new RecordingStore(specification);
-        var snapshots = new RecordingSnapshots();
-        var target = EstimateTotals.Compute(specification).Printed.Gross * 0.7m;
+        var assessment = new RecordingAssessment(10_000m);
 
-        await new ScaleRepairSpecification(store, snapshots).ExecuteAsync(
-            new(CaseId, 3, Engineer, "op-scale", new string('l', 32), specification.SpecificationId, target, ScalingFloors.Default, 40m),
+        await new SaveAndScaleRepairSpecification(assessment, store).ExecuteAsync(
+            new(
+                new SaveEstimateRequest(
+                    CaseId, 3, Engineer, "op-scale", "Repair spec scaled", new string('l', 32),
+                    specification.SpecificationId, specification.Details,
+                    specification.Lines.Select(RepairSpecificationScaling.ToInput).ToArray(),
+                    specification.Source,
+                    ExistingLineIds: specification.Lines.Select(line => (Guid?)line.Id).ToArray()),
+                40m,
+                ScalingFloors.Default),
             CancellationToken.None);
 
-        Assert.Equal(
-            [RepairSpecificationSnapshotKind.BeforeScaling, RepairSpecificationSnapshotKind.Scaled],
-            snapshots.Frozen.Select(request => request.Kind));
-        var saved = Assert.Single(store.Saves);
-        Assert.Equal("estimate_scaled", saved.EventType);
-        Assert.Contains("Repair spec scaled:", saved.Reason, StringComparison.Ordinal);
-        Assert.Contains("(40.0 % of value)", saved.Reason, StringComparison.Ordinal);
+        var saved = Assert.Single(store.ScaleSaves);
+        Assert.Equal(40m, saved.TargetPercentOfValue);
+        Assert.Equal(10_000m, saved.EngineerValue);
+        Assert.Equal(ScalingFloors.Default, saved.Floors);
         // The saved lines keep every line identity, so nothing is re-created.
         Assert.Equal(
             specification.Lines.Select(line => (Guid?)line.Id),
-            saved.ExistingLineIds!);
+            saved.Save.ExistingLineIds!);
+    }
+
+    [Fact]
+    public async Task ContractTargetUsesThePersistedSumInsteadOfPostedPercentage()
+    {
+        var specification = Estimate(Header(rate: 80m), Line("new_part", price: 500m));
+        var store = new RecordingStore(specification);
+
+        await new SaveAndScaleRepairSpecification(new RecordingAssessment(10_000m, 4_500m), store).ExecuteAsync(
+            new(
+                new SaveEstimateRequest(
+                    CaseId, 3, Engineer, "op-contract-scale", "Repair spec scaled", new string('l', 32),
+                    specification.SpecificationId, specification.Details,
+                    specification.Lines.Select(RepairSpecificationScaling.ToInput).ToArray(),
+                    specification.Source),
+                1m,
+                ScalingFloors.Default,
+                ContractTarget: true),
+            CancellationToken.None);
+
+        Assert.Equal(45m, Assert.Single(store.ScaleSaves).TargetPercentOfValue);
+    }
+
+    [Fact]
+    public void ScalingASelectedRateCardProducesATypedRate()
+    {
+        var specification = Estimate(
+            Header(rate: 80m) with { Rate = new EstimateRateSnapshot(Guid.NewGuid(), 3, 80m) },
+            Line("repair", workUnits: 4m));
+
+        var result = RepairSpecificationScaling.Scale(specification, 1m, ScalingFloors.Default);
+
+        Assert.Null(result.Details.Rate);
+        Assert.Equal(50m, result.Details.BaseHourlyRate);
     }
 
     [Fact]
     public async Task RemoveScalingReturnsTheDraftToTheVersionFrozenBeforeTheLastApply()
     {
         var specification = Estimate(Header(rate: 40m), Line("new_part", price: 100m));
-        var original = Estimate(Header(rate: 80m), Line("new_part", price: 500m));
         var store = new RecordingStore(specification);
-        var snapshots = new RecordingSnapshots
-        {
-            Versions =
-            [
-                Snapshot(1, RepairSpecificationSnapshotKind.BeforeScaling, specification.SpecificationId, original),
-                Snapshot(2, RepairSpecificationSnapshotKind.Scaled, specification.SpecificationId, specification),
-            ],
-        };
 
-        await new RemoveRepairSpecificationScaling(store, snapshots).ExecuteAsync(
+        await new RemoveRepairSpecificationScaling(store).ExecuteAsync(
             new(CaseId, 3, Engineer, "op-remove", new string('l', 32), specification.SpecificationId),
             CancellationToken.None);
 
-        var saved = Assert.Single(store.Saves);
-        Assert.Equal("estimate_scaling_removed", saved.EventType);
-        Assert.Equal(80m, saved.Details.BaseHourlyRate);
-        Assert.Equal(500m, Assert.Single(saved.Lines).Price);
+        Assert.Equal(specification.SpecificationId, Assert.Single(store.Removals).SpecificationId);
 
         // Nothing to return to is a refusal, not a silent no-op.
-        snapshots.Versions = [];
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new RemoveRepairSpecificationScaling(store, snapshots).ExecuteAsync(
+            new RemoveRepairSpecificationScaling(store).ExecuteAsync(
                 new(CaseId, 3, Engineer, "op-remove-2", new string('l', 32), specification.SpecificationId),
                 CancellationToken.None));
     }
 
     [Fact]
-    public async Task RestoreFreezesTheOutgoingDraftFirstAndRefusesAnotherSpecificationsVersion()
+    public async Task RestoreDelegatesTheAtomicRestoreToTheStore()
     {
         var specification = Estimate(Header(rate: 40m), Line("new_part", price: 100m));
         var restored = Estimate(Header(rate: 62m), Line("new_part", price: 300m));
         var store = new RecordingStore(specification);
         var version = Snapshot(4, RepairSpecificationSnapshotKind.Imported, specification.SpecificationId, restored);
-        var snapshots = new RecordingSnapshots { Versions = [version] };
+        store.RestoreResult = restored;
 
-        await new RestoreRepairSpecificationSnapshot(store, snapshots).ExecuteAsync(
+        var result = await new RestoreRepairSpecificationSnapshot(store).ExecuteAsync(
             new(CaseId, 3, Engineer, "op-restore", new string('l', 32), specification.SpecificationId, version.Id),
             CancellationToken.None);
 
-        Assert.Equal(RepairSpecificationSnapshotKind.BeforeRestore, Assert.Single(snapshots.Frozen).Kind);
-        var saved = Assert.Single(store.Saves);
-        Assert.Equal("estimate_restored", saved.EventType);
-        Assert.Equal(62m, saved.Details.BaseHourlyRate);
-        Assert.Contains("Restored from v4", saved.Reason, StringComparison.Ordinal);
-        // A line the draft no longer holds is restored as a new line, not an edit of one.
-        Assert.Equal([null], saved.ExistingLineIds!);
-
-        var foreign = version with { Id = Guid.NewGuid(), SpecificationId = Guid.NewGuid() };
-        snapshots.Versions = [foreign];
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new RestoreRepairSpecificationSnapshot(store, snapshots).ExecuteAsync(
-                new(CaseId, 3, Engineer, "op-restore-2", new string('l', 32), specification.SpecificationId, foreign.Id),
-                CancellationToken.None));
+        Assert.Equal(version.Id, Assert.Single(store.Restores).SnapshotId);
+        Assert.Equal(62m, result.Details.BaseHourlyRate);
+        Assert.Empty(store.Saves);
     }
 
     [Fact]
@@ -238,15 +254,21 @@ public sealed class RepairSpecificationActTests
     {
         var specification = Estimate(Header(rate: 40m), Line("new_part", price: 100m));
         var store = new RecordingStore(specification);
-        var snapshots = new RecordingSnapshots();
         var user = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new ScaleRepairSpecification(store, snapshots).ExecuteAsync(
-                new(CaseId, 3, user, "op", new string('l', 32), specification.SpecificationId, 100m, ScalingFloors.Default),
+            new SaveAndScaleRepairSpecification(new RecordingAssessment(10_000m), store).ExecuteAsync(
+                new(
+                    new SaveEstimateRequest(
+                        CaseId, 3, user, "op", "Scale", new string('l', 32), specification.SpecificationId,
+                        specification.Details,
+                        specification.Lines.Select(RepairSpecificationScaling.ToInput).ToArray(),
+                        specification.Source),
+                    40m,
+                    ScalingFloors.Default),
                 CancellationToken.None));
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new RemoveRepairSpecificationScaling(store, snapshots).ExecuteAsync(
+            new RemoveRepairSpecificationScaling(store).ExecuteAsync(
                 new(CaseId, 3, user, "op", new string('l', 32), specification.SpecificationId),
                 CancellationToken.None));
         Assert.Empty(store.Saves);
@@ -276,6 +298,10 @@ public sealed class RepairSpecificationActTests
     private sealed class RecordingStore(RepairSpecificationVersion specification) : IRepairSpecificationStore
     {
         public List<SaveEstimateRequest> Saves { get; } = [];
+        public List<SaveAndScaleRepairSpecificationRequest> ScaleSaves { get; } = [];
+        public List<RemoveRepairSpecificationScalingRequest> Removals { get; } = [];
+        public List<RestoreRepairSpecificationSnapshotRequest> Restores { get; } = [];
+        public RepairSpecificationVersion RestoreResult { get; set; } = null!;
 
         public Task<RepairSpecificationVersion> SaveEstimateAsync(SaveEstimateRequest request, CancellationToken cancellationToken)
         {
@@ -289,6 +315,31 @@ public sealed class RepairSpecificationActTests
                     line.Justification, ActorKind.Staff, Engineer.SubjectId, Now, null, null,
                     line.PaintWorkUnits, line.Quantity, line.Materials))],
             });
+        }
+
+        public Task<RepairSpecificationVersion> SaveAndScaleAsync(
+            SaveAndScaleRepairSpecificationRequest request, CancellationToken cancellationToken)
+        {
+            ScaleSaves.Add(request);
+            return Task.FromResult(specification);
+        }
+
+        public Task<RepairSpecificationVersion> RemoveScalingAsync(
+            RemoveRepairSpecificationScalingRequest request, CancellationToken cancellationToken)
+        {
+            if (Removals.Count > 0)
+            {
+                throw new InvalidOperationException("The repair specification has no removable scaling.");
+            }
+            Removals.Add(request);
+            return Task.FromResult(specification);
+        }
+
+        public Task<RepairSpecificationVersion> RestoreSnapshotAsync(
+            RestoreRepairSpecificationSnapshotRequest request, CancellationToken cancellationToken)
+        {
+            Restores.Add(request);
+            return Task.FromResult(RestoreResult);
         }
 
         public Task<RepairSpecificationVersion?> GetVersionAsync(Guid caseId, Guid specificationId, CancellationToken cancellationToken) =>
@@ -320,25 +371,58 @@ public sealed class RepairSpecificationActTests
             throw new NotSupportedException();
     }
 
-    private sealed class RecordingSnapshots : IRepairSpecificationSnapshotStore
+    private sealed class RecordingAssessment(decimal engineerValue, decimal? contractSum = null) : ICaseAssessmentStore
     {
-        public List<FreezeRepairSpecificationRequest> Frozen { get; } = [];
+        public Task<CaseAssessmentProjection?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<CaseAssessmentProjection?>(Projection(caseId));
 
-        public IReadOnlyList<RepairSpecificationSnapshot> Versions { get; set; } = [];
-
-        public Task<RepairSpecificationSnapshot> FreezeAsync(FreezeRepairSpecificationRequest request, CancellationToken cancellationToken)
+        private CaseAssessmentProjection Projection(Guid caseId)
         {
-            Frozen.Add(request);
-            return Task.FromResult(new RepairSpecificationSnapshot(
-                Guid.NewGuid(), request.CaseId, request.SpecificationId, Versions.Count + Frozen.Count,
-                request.Kind, request.Origin, request.Actor.SubjectId, Now,
-                new("Repair spec", 40m, null, 20m), [], 0m, false));
+            var fields = new List<AssessmentFieldValue>
+            {
+                new(
+                    AssessmentVocabulary.ValueEngineer,
+                    engineerValue.ToString(CultureInfo.InvariantCulture),
+                    ActorKind.Staff,
+                    Engineer.SubjectId,
+                    Now,
+                    Engineer.SubjectId,
+                    Now),
+            };
+            if (contractSum is { } sum)
+            {
+                fields.Add(new(
+                    AssessmentVocabulary.Outcome,
+                    "contract_repair",
+                    ActorKind.Staff,
+                    Engineer.SubjectId,
+                    Now,
+                    Engineer.SubjectId,
+                    Now));
+                fields.Add(new(
+                    AssessmentVocabulary.SettlementContractSum,
+                    sum.ToString(CultureInfo.InvariantCulture),
+                    ActorKind.Staff,
+                    Engineer.SubjectId,
+                    Now,
+                    Engineer.SubjectId,
+                    Now));
+            }
+
+            return new(
+                caseId,
+                "CASE-1",
+                3,
+                CaseLifecycleState.Review,
+                null,
+                fields,
+                [],
+                new(null, null, null, null, null, null, "tbc", null, null, null, null));
         }
 
-        public Task<IReadOnlyList<RepairSpecificationSnapshot>> ListAsync(Guid caseId, Guid specificationId, CancellationToken cancellationToken) =>
-            Task.FromResult(Versions);
-
-        public Task<RepairSpecificationSnapshot?> GetAsync(Guid caseId, Guid snapshotId, CancellationToken cancellationToken) =>
-            Task.FromResult(Versions.FirstOrDefault(version => version.Id == snapshotId));
+        public Task<CaseAssessmentProjection> SaveAsync(
+            SaveAssessmentRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
+
 }

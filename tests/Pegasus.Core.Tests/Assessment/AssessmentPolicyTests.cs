@@ -555,6 +555,34 @@ public sealed class AssessmentPolicyTests
     }
 
     [Fact]
+    public void ContractRepairRequiresAConfirmedAgreedSum()
+    {
+        var missing = Projection([Field(AssessmentVocabulary.Outcome, "contract_repair")]);
+        Assert.Contains(
+            AssessmentPolicy.EvaluatePostReviewReadiness(missing),
+            item => item.Requirement == "Agreed contract sum");
+
+        var unconfirmed = Projection(
+            [
+                Field(AssessmentVocabulary.Outcome, "contract_repair"),
+                Field(AssessmentVocabulary.SettlementContractSum, "4500.00")
+                    with { ConfirmedBy = null, ConfirmedAtUtc = null },
+            ]);
+        Assert.Contains(
+            AssessmentPolicy.EvaluatePostReviewReadiness(unconfirmed),
+            item => item.Requirement == "Agreed contract sum");
+
+        var confirmed = Projection(
+            [
+                Field(AssessmentVocabulary.Outcome, "contract_repair"),
+                Field(AssessmentVocabulary.SettlementContractSum, "4500.00"),
+            ]);
+        Assert.DoesNotContain(
+            AssessmentPolicy.EvaluatePostReviewReadiness(confirmed),
+            item => item.Requirement == "Agreed contract sum");
+    }
+
+    [Fact]
     public void ReadinessNamesEachUnconfirmedValueIndividually()
     {
         var projection = Projection(

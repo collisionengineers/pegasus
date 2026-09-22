@@ -64,7 +64,7 @@ public sealed partial class DetailsModel(
     IRepairSpecificationStore repairSpecifications,
     IImportRawEstimate importRawEstimate,
     IRepairSpecificationSnapshotStore specificationSnapshots,
-    IScaleRepairSpecification scaleRepairSpecification,
+    ISaveAndScaleRepairSpecification saveAndScaleRepairSpecification,
     IRemoveRepairSpecificationScaling removeRepairSpecificationScaling,
     IRestoreRepairSpecificationSnapshot restoreRepairSpecificationSnapshot,
     IAddCaseDocument addCaseDocument,
@@ -480,7 +480,7 @@ public sealed partial class DetailsModel(
             }
             var candidates = new (string Label, string? Address)[]
             {
-                (Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate.Repairer, Accepted(data.Inspection.Address)?.Value),
+                (Pegasus.Web.Presentation.CaseWorkspaceLabels.Estimate.Repairer, Accepted(data.Inspection.RepairerAddress)?.Value),
                 (Labels.CaseWorkspace.RibbonClaimant, Accepted(data.Claimant.Address)?.Value),
                 (Pegasus.Web.Presentation.CaseWorkspaceLabels.Inspection.Storage, Accepted(data.Inspection.StorageLocation)?.Value),
             };
@@ -583,10 +583,12 @@ public sealed partial class DetailsModel(
     /// <summary>The selected specification's frozen versions, oldest first (v28 P43).</summary>
     public IReadOnlyList<RepairSpecificationSnapshot> SelectedEstimateSnapshots { get; private set; } = [];
 
-    /// <summary>Whether the selected specification stands scaled: its latest version is the scaled one (v28 P34).</summary>
+    /// <summary>Whether the selected specification's latest scaling state is scaled (v28 P34).</summary>
     public bool SelectedEstimateIsScaled =>
-        SelectedEstimateSnapshots.Count > 0
-        && SelectedEstimateSnapshots[^1].Kind == RepairSpecificationSnapshotKind.Scaled;
+        SelectedEstimateSnapshots
+            .Where(snapshot => snapshot.Kind is RepairSpecificationSnapshotKind.Scaled
+                or RepairSpecificationSnapshotKind.ScalingRemoved)
+            .MaxBy(snapshot => snapshot.Number)?.Kind == RepairSpecificationSnapshotKind.Scaled;
 
     /// <summary>The two specifications Compare reads, when the query names both (v28 P19).</summary>
     public RepairSpecificationVersion? ComparisonFrom { get; private set; }
@@ -670,7 +672,6 @@ public sealed partial class DetailsModel(
             : decimal.TryParse(value.Trim(), NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed)
                 ? parsed
                 : null;
-
     /// <summary>
     /// The values a refused editor submitted, held for comparison against the values the case now
     /// holds. There is no control that applies, merges, or forces them: the only way forward is to
@@ -2459,8 +2460,8 @@ public sealed partial class DetailsModel(
     }
 
     /// <summary>
-    /// Apply (v28 P34): the posted editor is saved first, so nothing typed is
-    /// lost, then the saved specification is scaled to the target.
+    /// Apply (v28 P34): the posted editor and scaling intent are one Core
+    /// operation, so the draft and both frozen versions commit together.
     /// </summary>
     public async Task<IActionResult> OnPostScaleEstimateAsync(
         Guid id,
@@ -2469,9 +2470,9 @@ public sealed partial class DetailsModel(
         string? editLeaseToken,
         Guid? estimateId,
         decimal? targetPercent,
-        decimal? targetGross,
         decimal? floorRate,
         decimal? floorPrice,
+        bool contractTarget,
         CancellationToken cancellationToken)
     {
         var editor = ReadEditorPost();
@@ -2492,24 +2493,29 @@ public sealed partial class DetailsModel(
         try
         {
             var existing = await ResolveEstimateAsync(id, estimateId, cancellationToken);
+            var details = EditorDetailsFrom(editor, existing);
+            var supplementary = await ReadSupplementaryAsync(id, existing, details, editor.Lines, cancellationToken);
             var selectedRateCard = ParseSelectedRateCard();
-            var saved = await saveEstimate.ExecuteAsync(
-                new(id, expectedVersion.Value, actor, operationKey, "Repair spec saved", editLeaseToken!, estimateId,
-                    EditorDetailsFrom(editor, existing), editor.Lines,
-                    new(RepairSpecificationSourceRoute.Manual, null, null, null), ExistingLineIds: editor.ExistingLineIds)
-                {
-                    SelectedRateCardId = selectedRateCard.Id,
-                    SelectedRateCardVersion = selectedRateCard.Version,
-                    Supplementary = existing?.Supplementary,
-                },
-                cancellationToken);
-            var target = targetGross
-                ?? (targetPercent is { } percent && EngineerValue is { } value ? value * percent / 100m : (decimal?)null)
-                ?? throw new ArgumentException("A target is required: a percentage of the Engineer's Value or a sum.");
+            if (targetPercent is null)
+            {
+                throw new ArgumentException("A target percentage of the Engineer's Value is required.");
+            }
             var floors = new ScalingFloors(floorRate ?? ScalingFloors.Default.LabourRatePerHour, floorPrice ?? ScalingFloors.Default.PricePercent);
-            var current = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
-            await scaleRepairSpecification.ExecuteAsync(
-                new(id, current!.Workflow.Version, actor, operationKey + ":scale", editLeaseToken!, saved.SpecificationId, target, floors, targetPercent),
+            var saved = await saveAndScaleRepairSpecification.ExecuteAsync(
+                new SaveAndScaleRepairSpecificationRequest(
+                    new SaveEstimateRequest(
+                        id, expectedVersion.Value, actor, operationKey, "Repair spec scaled", editLeaseToken!, estimateId,
+                        details, editor.Lines,
+                        new(RepairSpecificationSourceRoute.Manual, null, null, null),
+                        ExistingLineIds: editor.ExistingLineIds)
+                     {
+                         SelectedRateCardId = selectedRateCard.Id,
+                         SelectedRateCardVersion = selectedRateCard.Version,
+                         Supplementary = supplementary,
+                     },
+                     targetPercent.Value,
+                     floors,
+                     ContractTarget: contractTarget),
                 cancellationToken);
             ClearLeaseState();
             await ReclaimLeaseAsync(id, cancellationToken);

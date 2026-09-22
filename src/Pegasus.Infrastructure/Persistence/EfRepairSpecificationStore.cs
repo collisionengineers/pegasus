@@ -206,6 +206,310 @@ public sealed class EfRepairSpecificationStore(
         SaveEstimateRequest request, CancellationToken cancellationToken) =>
         PersistEstimateAsync(request, importedDocument: false, cancellationToken);
 
+    /// <summary>
+    /// The Estimate Apply command. The posted draft and both scaling snapshots
+    /// share this one serializable transaction and one operation key.
+    /// </summary>
+    public async Task<RepairSpecificationVersion> SaveAndScaleAsync(
+        SaveAndScaleRepairSpecificationRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Save.EstimateId is not { } specificationId)
+        {
+            throw new InvalidOperationException("Only an existing repair specification can be scaled.");
+        }
+        if (request.EngineerValue is not { } engineerValue || engineerValue <= 0m)
+        {
+            throw new InvalidOperationException("A confirmed Engineer's Value is required before scaling.");
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var replayHash = Hash(new
+        {
+            request.Save,
+            request.TargetPercentOfValue,
+            request.Floors,
+        });
+        if (await CaseOperationReplay.FindAsync(
+                context, request.Save.CaseId, request.Save.OperationKey, replayHash, cancellationToken))
+        {
+            return await ReplayedAsync(context, request.Save.CaseId, request.Save.OperationKey, cancellationToken);
+        }
+
+        var workflow = await RequiredWorkflowAsync(context, request.Save.CaseId, cancellationToken);
+        var now = Now();
+        var beforeEstimate = await ReadReportEstimateDependenciesAsync(
+            context, request.Save.CaseId, cancellationToken);
+        Guard(workflow, request.Save.ExpectedVersion, request.Save.Actor, request.Save.EditLeaseToken, now);
+        var entity = await RequiredEstimateAsync(context, request.Save.CaseId, specificationId, cancellationToken);
+        var existing = Map(entity);
+        EstimatePolicy.ValidateEditable(existing, request.Save.Actor);
+
+        var save = EstimatePolicy.ApplyEditorEvidence(request.Save, existing, now);
+        if (save.SelectedRateCardId is { } rateCardId)
+        {
+            var card = await context.LabourRateCards.AsNoTracking().SingleOrDefaultAsync(
+                item => item.Id == rateCardId, cancellationToken);
+            if (card is null || !card.Active || card.Version != save.SelectedRateCardVersion)
+            {
+                throw new InvalidOperationException(
+                    "The selected labour-rate card changed or is disabled. Select a current card.");
+            }
+            save = save with
+            {
+                Details = save.Details with
+                {
+                    LabourRate = card.PanelRate,
+                    Rate = new EstimateRateSnapshot(card.Id, card.Version, card.PanelRate),
+                },
+            };
+        }
+        else if (save.SelectedRateCardVersion is not null)
+        {
+            throw new ArgumentException("Select a labour-rate card for the specified version.");
+        }
+
+        context.CaseEstimateLines.RemoveRange(entity.Lines);
+        entity.Lines.Clear();
+        entity.SourceRoute = save.Source.Route.ToString();
+        entity.SourceArtifactReference = save.Source.ArtifactReference;
+        entity.SourceVersion = save.Source.SourceVersion;
+        entity.SourceSha256 = save.Source.Sha256;
+        entity.AiJobId = save.AiJobId ?? entity.AiJobId;
+        entity.LastOperationKey = save.OperationKey;
+        ApplyDetails(entity, save.Details);
+        entity.SupplementaryOfSpecificationId = save.Supplementary?.OfSpecificationId;
+        entity.SupplementaryReason = save.Supplementary?.Reason;
+        entity.SupplementaryExplainOnReport = save.Supplementary?.ExplainOnReport ?? false;
+        entity.SupplementaryStatement = save.Supplementary?.Statement;
+        AddLines(context, entity, save.Lines, save.Actor, now);
+        RecordBreakdown(entity);
+
+        var edited = Map(entity);
+        var result = RepairSpecificationScaling.Scale(
+            edited,
+            engineerValue * request.TargetPercentOfValue / 100m,
+            request.Floors);
+        var reason = RepairSpecificationWording.Scaled(result, request.TargetPercentOfValue);
+
+        var latest = await context.CaseRepairSpecificationSnapshots
+            .Where(item => item.SpecificationId == specificationId)
+            .OrderByDescending(item => item.Number)
+            .FirstOrDefaultAsync(cancellationToken);
+        var beforeScaling = EfRepairSpecificationSnapshotStore.Freeze(
+            context, edited, request.Save.Actor, RepairSpecificationSnapshotKind.BeforeScaling,
+            "Before scaling", now, latest);
+
+        context.CaseEstimateLines.RemoveRange(entity.Lines);
+        entity.Lines.Clear();
+        ApplyDetails(entity, result.Details);
+        AddLines(context, entity, result.Lines, request.Save.Actor, now);
+        RecordBreakdown(entity);
+        var scaled = Map(entity);
+        EfRepairSpecificationSnapshotStore.Freeze(
+            context, scaled, request.Save.Actor, RepairSpecificationSnapshotKind.Scaled,
+            reason, now, beforeScaling);
+        await MarkEstimateStaleIfNeededAsync(
+            context,
+            request.Save.CaseId,
+            beforeEstimate,
+            new(entity.Id, entity.Version),
+            now,
+            cancellationToken);
+        AddHistory(
+            context,
+            workflow,
+            request.Save.Actor,
+            request.Save.OperationKey,
+            reason,
+            "estimate_scaled",
+            replayHash,
+            new { entity.Id, entity.Version, entity.Name, Lines = entity.Lines.Count },
+            now);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(entity);
+    }
+
+    /// <summary>Restores a frozen version and both restore marks in one transaction.</summary>
+    public async Task<RepairSpecificationVersion> RestoreSnapshotAsync(
+        RestoreRepairSpecificationSnapshotRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var requestHash = Hash(request);
+        if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
+        {
+            return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
+        }
+
+        var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
+        var now = Now();
+        var beforeEstimate = await ReadReportEstimateDependenciesAsync(
+            context, request.CaseId, cancellationToken);
+        Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
+        var entity = await RequiredEstimateAsync(context, request.CaseId, request.SpecificationId, cancellationToken);
+        var specification = Map(entity);
+        EstimatePolicy.ValidateEditable(specification, request.Actor);
+        var versionRow = await context.CaseRepairSpecificationSnapshots
+            .SingleOrDefaultAsync(
+                item => item.CaseId == request.CaseId && item.Id == request.SnapshotId,
+                cancellationToken)
+            ?? throw new KeyNotFoundException("The version was not found.");
+        if (versionRow.SpecificationId != request.SpecificationId)
+        {
+            throw new InvalidOperationException("The version belongs to another repair specification.");
+        }
+
+        var version = EfRepairSpecificationSnapshotStore.Map(versionRow);
+        var latest = await context.CaseRepairSpecificationSnapshots
+            .Where(item => item.SpecificationId == request.SpecificationId)
+            .OrderByDescending(item => item.Number)
+            .FirstOrDefaultAsync(cancellationToken);
+        var beforeRestore = EfRepairSpecificationSnapshotStore.Freeze(
+            context,
+            specification,
+            request.Actor,
+            RepairSpecificationSnapshotKind.BeforeRestore,
+            $"Before v{version.Number} was restored",
+            now,
+            latest);
+
+        context.CaseEstimateLines.RemoveRange(entity.Lines);
+        entity.Lines.Clear();
+        ApplyDetails(entity, version.Details);
+        AddLines(
+            context,
+            entity,
+            version.Lines.Select(RepairSpecificationScaling.ToInput).ToArray(),
+            request.Actor,
+            now);
+        entity.LastOperationKey = request.OperationKey;
+        RecordBreakdown(entity);
+        var restored = Map(entity);
+        EfRepairSpecificationSnapshotStore.Freeze(
+            context,
+            restored,
+            request.Actor,
+            RepairSpecificationSnapshotKind.Restored,
+            $"Restored from v{version.Number} ({version.Origin})",
+            now,
+            beforeRestore);
+        await MarkEstimateStaleIfNeededAsync(
+            context,
+            request.CaseId,
+            beforeEstimate,
+            new(entity.Id, entity.Version),
+            now,
+            cancellationToken);
+        AddHistory(
+            context,
+            workflow,
+            request.Actor,
+            request.OperationKey,
+            $"Restored from v{version.Number} ({version.Origin})",
+            "estimate_restored",
+            requestHash,
+            new { entity.Id, entity.Version, entity.Name, Lines = entity.Lines.Count },
+            now);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(entity);
+    }
+
+    /// <summary>Restores the latest scale pair and records terminal removal in the same transaction.</summary>
+    public async Task<RepairSpecificationVersion> RemoveScalingAsync(
+        RemoveRepairSpecificationScalingRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var requestHash = Hash(request);
+        if (await CaseOperationReplay.FindAsync(context, request.CaseId, request.OperationKey, requestHash, cancellationToken))
+        {
+            return await ReplayedAsync(context, request.CaseId, request.OperationKey, cancellationToken);
+        }
+
+        var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
+        var latestScale = await context.CaseRepairSpecificationSnapshots
+            .Where(item => item.SpecificationId == request.SpecificationId
+                && (item.Kind == RepairSpecificationSnapshotKind.Scaled.ToString()
+                    || item.Kind == RepairSpecificationSnapshotKind.ScalingRemoved.ToString()))
+            .OrderByDescending(item => item.Number)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (latestScale is null || latestScale.Kind != RepairSpecificationSnapshotKind.Scaled.ToString())
+        {
+            throw new InvalidOperationException("The repair specification has no removable scaling.");
+        }
+        var beforeRow = await context.CaseRepairSpecificationSnapshots
+            .Where(item => item.SpecificationId == request.SpecificationId
+                && item.Kind == RepairSpecificationSnapshotKind.BeforeScaling.ToString()
+                && item.Number < latestScale.Number)
+            .OrderByDescending(item => item.Number)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("The repair specification has no version before scaling.");
+
+        var now = Now();
+        var beforeEstimate = await ReadReportEstimateDependenciesAsync(
+            context, request.CaseId, cancellationToken);
+        Guard(workflow, request.ExpectedVersion, request.Actor, request.EditLeaseToken, now);
+        var entity = await RequiredEstimateAsync(context, request.CaseId, request.SpecificationId, cancellationToken);
+        EstimatePolicy.ValidateEditable(Map(entity), request.Actor);
+        var before = EfRepairSpecificationSnapshotStore.Map(beforeRow);
+
+        context.CaseEstimateLines.RemoveRange(entity.Lines);
+        entity.Lines.Clear();
+        ApplyDetails(entity, before.Details);
+        AddLines(
+            context,
+            entity,
+            before.Lines.Select(RepairSpecificationScaling.ToInput).ToArray(),
+            request.Actor,
+            now);
+        entity.LastOperationKey = request.OperationKey;
+        RecordBreakdown(entity);
+        var restored = Map(entity);
+        EfRepairSpecificationSnapshotStore.Freeze(
+            context,
+            restored,
+            request.Actor,
+            RepairSpecificationSnapshotKind.ScalingRemoved,
+            "Scaling removed",
+            now,
+            latestScale);
+        await MarkEstimateStaleIfNeededAsync(
+            context,
+            request.CaseId,
+            beforeEstimate,
+            new(entity.Id, entity.Version),
+            now,
+            cancellationToken);
+        AddHistory(
+            context,
+            workflow,
+            request.Actor,
+            request.OperationKey,
+            "Scaling removed",
+            "estimate_scaling_removed",
+            requestHash,
+            new { entity.Id, entity.Version, entity.Name, Lines = entity.Lines.Count },
+            now);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(entity);
+    }
+
     public Task<RepairSpecificationVersion> SaveImportedEstimateAsync(
         SaveEstimateRequest request, CancellationToken cancellationToken) =>
         PersistEstimateAsync(EstimatePolicy.ValidateImportedSave(request), importedDocument: true, cancellationToken);
