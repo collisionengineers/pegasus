@@ -96,7 +96,6 @@
     var account = row.Account;
     var staffId = account.Id.ToString("D");
     var settingsId = "settings-" + staffId;
-    var signatoryAllowed = Model.SettingsPostRole is StaffRole.Administrator or StaffRole.Engineer;
     <div class="dialog-backdrop" data-dialog="@settingsId" data-dialog-open-on-load="true">
         <section class="dialog dialog--wide account-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="@settingsId-title">
             <div class="dialog-head"><h2 id="@settingsId-title" tabindex="-1" data-dialog-initial-focus>@account.UserName</h2><button type="button" class="dialog-close" data-dialog-close data-account-settings-cancel aria-label="Close"><svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg></button></div>
@@ -107,13 +106,13 @@
                     <dl class="fact-grid account-settings-facts"><div class="fact"><dt>Username</dt><dd class="mono">@account.UserName</dd></div><div class="fact"><dt>State</dt><dd>@OperatorLabels.StaffAccounts.State(account.IsEnabled)</dd></div></dl>
                     <div class="account-signoff-fields">
                         <div class="field"><label for="@settingsId-role">Role</label><select id="@settingsId-role" name="role" data-account-role disabled="@row.IsCurrentOperator">@foreach (var role in Enum.GetValues<StaffRole>()) { <option value="@role" selected="@(Model.SettingsPostRole == role)">@OperatorLabels.Humanise(role.ToString())</option> }</select>@if (row.IsCurrentOperator) { <input type="hidden" name="role" value="@Model.SettingsPostRole" /> }</div>
-                        <div class="field"><label for="@settingsId-signoff">Sign-off Engineer</label>@if (!signatoryAllowed) { <input type="hidden" name="isSignOffEngineer" value="false" /> }<select id="@settingsId-signoff" name="isSignOffEngineer" data-account-signoff disabled="@(!signatoryAllowed)"><option value="false" selected="@(!Model.SettingsPostIsSignOffEngineer)">No</option><option value="true" selected="@Model.SettingsPostIsSignOffEngineer">Yes</option></select></div>
+                        <div class="field"><label for="@settingsId-signoff">Sign-off Engineer</label><select id="@settingsId-signoff" name="isSignOffEngineer" data-account-signoff><option value="false" selected="@(!Model.SettingsPostIsSignOffEngineer)">No</option><option value="true" selected="@Model.SettingsPostIsSignOffEngineer">Yes</option></select></div>
                         <div class="field" data-account-signoff-field><label for="@settingsId-name">Printed name</label><input id="@settingsId-name" name="printedName" value="@Model.SettingsPostPrintedName" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffPrintedNameLength" /></div>
                         <div class="field" data-account-signoff-field><label for="@settingsId-qualifications">Qualifications</label><input id="@settingsId-qualifications" name="qualifications" value="@Model.SettingsPostQualifications" maxlength="@StaffAccountAdministrationPolicy.MaximumSignOffQualificationsLength" /></div>
                     </div>
                     <section class="account-settings-section" aria-labelledby="@settingsId-glass-title"><div class="settings-line"><div><strong id="@settingsId-glass-title">Glass's repair estimates</strong><span class="meta">Manage this account's login.</span></div><a class="btn" asp-page="/Administration/Glass/Index" asp-route-staffId="@account.Id" data-account-glass-login>Manage login</a></div></section>
                     <div class="field" data-account-signoff-field><label for="@settingsId-signature">@(account.SignOff.HasSignature ? "Replace signature" : "Signature image")</label><input id="@settingsId-signature" name="signature" type="file" accept="@SignOffSignaturePolicy.MediaType" /></div>
-                    <label class="choice" for="@settingsId-default" data-account-signoff-field><input id="@settingsId-default" name="isDefaultSignOffEngineer" type="checkbox" value="true" checked="@Model.SettingsPostIsDefault" data-account-default disabled="@(!signatoryAllowed)" /><span>Default sign-off Engineer</span></label>
+                    <label class="choice" for="@settingsId-default" data-account-signoff-field><input id="@settingsId-default" name="isDefaultSignOffEngineer" type="checkbox" value="true" checked="@Model.SettingsPostIsDefault" data-account-default /><span>Default sign-off Engineer</span></label>
                 </div>
                 <div class="dialog-foot"><button type="button" class="btn" data-dialog-close data-account-settings-cancel>Cancel</button><button type="submit" class="btn btn--primary">Save settings</button></div>
             </form>

@@ -339,17 +339,13 @@ public sealed class GlassRepairEstimateCallbackWebTests
     // --------------------------------------------------------------- the page
 
     /// <summary>
-    /// The control belongs to the operator's own Glass's account: without one,
-    /// or without the Engineer role, the Estimate section offers nothing —
-    /// absent, not disabled.
+    /// The control belongs to the operator's own Glass's account. Without an
+    /// enabled credential, the Estimate section offers nothing.
     /// </summary>
-    [Theory]
-    [InlineData(false, "Engineer")]
-    [InlineData(true, "User")]
-    public async Task TheGlassControlIsAbsentWithoutAnEnabledAccountAndForANonEngineer(
-        bool credentialed, string role)
+    [Fact]
+    public async Task TheGlassControlIsAbsentWithoutAnEnabledAccount()
     {
-        await using var workspace = await Workspace.CreateAsync(credentialed, role);
+        await using var workspace = await Workspace.CreateAsync(credentialed: false);
 
         var html = await workspace.CaseHtmlAsync();
 
@@ -367,7 +363,7 @@ public sealed class GlassRepairEstimateCallbackWebTests
     [Fact]
     public async Task TheProvidersReturnLandsTheDraftKeepsBothDocumentsAndCompletesTheSession()
     {
-        await using var workspace = await Workspace.CreateAsync();
+        await using var workspace = await Workspace.CreateAsync(role: StaffRoleNames.User);
         await workspace.ClaimLeaseAsync();
         var launchVersion = await workspace.CaseVersionAsync();
         var correlation = await workspace.LaunchAndReadCorrelationAsync();

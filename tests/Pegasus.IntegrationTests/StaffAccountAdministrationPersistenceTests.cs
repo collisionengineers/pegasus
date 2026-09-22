@@ -96,7 +96,8 @@ public sealed class StaffAccountAdministrationPersistenceTests
         await using var scope = database.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var userManager = services.GetRequiredService<UserManager<PegasusIdentityUser>>();
-        var valid = await CreateSignOffAccountAsync(userManager, "valid-sign-off", enabled: true, signed: true);
+        var valid = await CreateSignOffAccountAsync(
+            userManager, "valid-sign-off", enabled: true, signed: true, StaffRole.User);
         _ = await CreateSignOffAccountAsync(userManager, "disabled-sign-off", enabled: false, signed: true);
         _ = await CreateSignOffAccountAsync(userManager, "unsigned-sign-off", enabled: true, signed: false);
 
@@ -107,7 +108,7 @@ public sealed class StaffAccountAdministrationPersistenceTests
     }
 
     [Fact]
-    public async Task AdministratorAccountsAreEligibleForEngineerAssignment()
+    public async Task EveryEnabledStaffRoleIsEligibleForEngineerAssignment()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(
             configureServices: IdentityPersistenceTestServices.Configure);
@@ -118,15 +119,16 @@ public sealed class StaffAccountAdministrationPersistenceTests
             userManager, "administrator-engineer-choice", StaffRole.Administrator);
         var engineer = await CreateStaffAccountAsync(
             userManager, "engineer-choice", StaffRole.Engineer);
-        _ = await CreateStaffAccountAsync(userManager, "user-choice", StaffRole.User);
+        var user = await CreateStaffAccountAsync(userManager, "user-choice", StaffRole.User);
 
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
         var choices = await services.GetRequiredService<ICaseEngineerChoices>().GetAsync(actor, default);
         var administratorEligibility = await services.GetRequiredService<ICaseEngineerEligibility>()
             .GetAsync(administrator.Id, default);
 
-        Assert.Equal([administrator.Id, engineer.Id], choices.Select(choice => choice.StaffId));
-        Assert.True(administratorEligibility.HasEngineerRole);
+        Assert.Equal([administrator.Id, engineer.Id, user.Id], choices.Select(choice => choice.StaffId));
+        Assert.True(administratorEligibility.AccountExists);
+        Assert.True(administratorEligibility.IsEnabled);
     }
 
     [Fact]
@@ -259,7 +261,8 @@ public sealed class StaffAccountAdministrationPersistenceTests
         UserManager<PegasusIdentityUser> userManager,
         string userName,
         bool enabled,
-        bool signed)
+        bool signed,
+        StaffRole role = StaffRole.Engineer)
     {
         var user = new PegasusIdentityUser
         {
@@ -271,7 +274,7 @@ public sealed class StaffAccountAdministrationPersistenceTests
             SignOffSignature = signed ? [0x89, 0x50, 0x4e, 0x47] : null
         };
         Assert.True((await userManager.CreateAsync(user, "Password-1")).Succeeded);
-        Assert.True((await userManager.AddToRoleAsync(user, StaffRoleNames.Engineer)).Succeeded);
+        Assert.True((await userManager.AddToRoleAsync(user, role.ToString())).Succeeded);
         return user;
     }
 

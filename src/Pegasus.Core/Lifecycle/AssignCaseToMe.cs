@@ -38,7 +38,7 @@ public sealed class AssignCaseToMe(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var engineerId = CaseLifecycleRules.RequireSelfAssigningEngineer(request.Actor);
+        var engineerId = CaseLifecycleRules.RequireSelfAssigningStaff(request.Actor);
         var current = await CaseLifecycleRules.GetRequiredAsync(_queries, request.CaseId, cancellationToken);
         if (!await _queries.HasOperationAsync(request.CaseId, request.OperationKey, cancellationToken))
         {

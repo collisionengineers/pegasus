@@ -1,26 +1,23 @@
-# Sign in
+# Sign in and account
 
-- **Mockup route:** `pegasus_account_shell_v28.html` (`acc-page=signin|signedout|accessdenied|passwordchange-forced`) in [`../../current/`](../../current/README.md)
-- **Live source:** `src/Pegasus.Web/Pages/Account/SignIn.cshtml`, `SignOut.cshtml`, `AccessDenied.cshtml`, `PasswordChange.cshtml`
-
+- **Live source:** `src/Pegasus.Web/Pages/Account/SignIn.cshtml`, `src/Pegasus.Web/Pages/Account/SignOut.cshtml`, `src/Pegasus.Web/Pages/Account/PasswordChange.cshtml`, `src/Pegasus.Web/Pages/Shared/_LayoutAuth.cshtml`
 - [**How it works**](how-it-works.md)
-  - [Connector consent](connector-consent/README.md)
+- [Connector consent](connector-consent/README.md)
 
-## Screenshots
+Captured from a second local host that uses real sign-in with one throwaway User-role account, so the shell is also seen without the Manage group.
 
-- [s06-signin-1580.png](../../current/v28-shots/s06-signin-1580.png) · [1440](../../current/v28-shots/s06-signin-1440.png) · [760](../../current/v28-shots/s06-signin-760.png)
-- [s07-signedout-1580.png](../../current/v28-shots/s07-signedout-1580.png) · [1440](../../current/v28-shots/s07-signedout-1440.png) · [760](../../current/v28-shots/s07-signedout-760.png)
-- [s08-accessdenied-1580.png](../../current/v28-shots/s08-accessdenied-1580.png) · [1440](../../current/v28-shots/s08-accessdenied-1440.png) · [760](../../current/v28-shots/s08-accessdenied-760.png)
-- [s09-passwordchange-forced-1580.png](../../current/v28-shots/s09-passwordchange-forced-1580.png) · [1440](../../current/v28-shots/s09-passwordchange-forced-1440.png) · [760](../../current/v28-shots/s09-passwordchange-forced-760.png)
+## Captured states
 
-## Notes
+Each state is the running application's own HTML for the route shown, saved with the live CSS and JS. Nothing in it is transcribed.
 
-`PasswordChange.cshtml` is dual-layout: forced (`Model.Forced`) uses the
-navless `_LayoutAuth` frame captured here; voluntary (reached from the
-Account dialog while signed in) uses the ordinary `_Layout` app shell with
-the same form fields. Only the forced state is captured as its own screen —
-the voluntary state's form content is identical, and the app-shell chrome
-around it is already captured on every other page in this round, so
-re-showing it was judged non-additive for this pass. See
-[how-it-works.md](how-it-works.md) for the Access denied layout finding
-(sign-off item A in [`../../current/v28-notes.md`](../../current/v28-notes.md)).
+| State | Live route | Open | Screenshots |
+| --- | --- | --- | --- |
+| Sign in | `/Account/SignIn` | [frame](../../current/pegasus_account_shell_v28.html#sign-in) · [page](../../current/states/sign-in.html) | [1580](../../current/v28-shots/s63-sign-in-1580.png) · [1440](../../current/v28-shots/s63-sign-in-1440.png) · [760](../../current/v28-shots/s63-sign-in-760.png) |
+| Sign in, wrong password | `/Account/SignIn` | [frame](../../current/pegasus_account_shell_v28.html#sign-in-failed) · [page](../../current/states/sign-in-failed.html) | [1580](../../current/v28-shots/s64-sign-in-failed-1580.png) · [1440](../../current/v28-shots/s64-sign-in-failed-1440.png) · [760](../../current/v28-shots/s64-sign-in-failed-760.png) |
+| Shell for the User role (no Manage group) | `/` | [frame](../../current/pegasus_account_shell_v28.html#work-centre-user-role) · [page](../../current/states/work-centre-user-role.html) | [1580](../../current/v28-shots/s65-work-centre-user-role-1580.png) · [1440](../../current/v28-shots/s65-work-centre-user-role-1440.png) · [760](../../current/v28-shots/s65-work-centre-user-role-760.png) |
+| Signed out | `/Account/SignIn?signedOut=True` | [frame](../../current/pegasus_account_shell_v28.html#signed-out) · [page](../../current/states/signed-out.html) | [1580](../../current/v28-shots/s67-signed-out-1580.png) · [1440](../../current/v28-shots/s67-signed-out-1440.png) · [760](../../current/v28-shots/s67-signed-out-760.png) |
+| Change password, voluntary | `/Account/PasswordChange` | [frame](../../current/pegasus_account_shell_v28.html#password-change) · [page](../../current/states/password-change.html) | [1580](../../current/v28-shots/s68-password-change-1580.png) · [1440](../../current/v28-shots/s68-password-change-1440.png) · [760](../../current/v28-shots/s68-password-change-760.png) |
+
+## Not captured
+
+- The forced password change on first sign-in, lockout, and the rate-limited sign-in.

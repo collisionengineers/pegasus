@@ -97,13 +97,13 @@ public static class RepairSpecificationPolicy
     /// </summary>
     public const int PolicyVersion = 4;
 
-    public static void RequireEngineer(ActionActor actor)
+    public static void RequireStaffAuthor(ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
-        if (actor.Kind != ActorKind.Staff || !actor.IsInRole(StaffRole.Engineer))
+        if (actor.Kind != ActorKind.Staff)
         {
             throw new InvalidOperationException(
-                "Only an authenticated staff Engineer can change or accept a repair specification.");
+                "Only authenticated staff can change or accept a repair specification.");
         }
     }
 
@@ -190,7 +190,7 @@ public static class RepairSpecificationPolicy
     {
         ArgumentNullException.ThrowIfNull(specification);
         ArgumentNullException.ThrowIfNull(actor);
-        RequireEngineer(actor);
+        RequireStaffAuthor(actor);
         if (specification.State != RepairSpecificationState.Draft)
         {
             throw new InvalidOperationException("Only a draft repair specification can be accepted.");

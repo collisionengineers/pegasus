@@ -220,11 +220,11 @@ else
                             "Vehicle make");
                         Row(
                             "Incident date",
-                            draft?.DateOfIncident?.ToString("d MMM yyyy"),
+                            draft?.DateOfIncident?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture),
                             "Date of incident");
                         Row(
                             "Instruction date",
-                            draft?.InstructionDate?.ToString("d MMM yyyy"),
+                            draft?.InstructionDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture),
                             "Instruction date");
                     }
                 </div>

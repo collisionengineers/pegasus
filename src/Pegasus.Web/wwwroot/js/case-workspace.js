@@ -104,9 +104,12 @@
         links().forEach(function (link) {
             var key = link.getAttribute('data-section-link');
             var selected = key === activeKey;
+            var ownedPanelIds = sections()
+                .filter(function (host) { return ownerKey(host.getAttribute('data-section')) === key; })
+                .map(function (host) { return host.id; });
             link.id = 'case-section-tab-' + key;
             link.setAttribute('role', 'tab');
-            link.setAttribute('aria-controls', 'section-' + key);
+            link.setAttribute('aria-controls', ownedPanelIds.join(' '));
             link.setAttribute('aria-selected', selected ? 'true' : 'false');
             link.setAttribute('tabindex', selected ? '0' : '-1');
             link.setAttribute('aria-current', selected ? 'true' : 'false');
@@ -114,7 +117,7 @@
         sections().forEach(function (host) {
             var key = host.getAttribute('data-section');
             host.setAttribute('role', 'tabpanel');
-            host.setAttribute('aria-labelledby', 'case-section-tab-' + key);
+            host.setAttribute('aria-labelledby', 'case-section-tab-' + ownerKey(key));
             host.classList.toggle('is-active', ownerKey(key) === activeKey);
         });
     }
@@ -128,10 +131,11 @@
         activeKey = key;
         updateSectionFields();
         applyTabState();
-        var target = sectionFor(key);
-        if (target && target.hasAttribute('data-lazy')) {
-            mount(target, function () { applyTabState(); });
-        }
+        main.querySelectorAll('[data-lazy]').forEach(function (placeholder) {
+            if (ownerKey(placeholder.getAttribute('data-lazy')) === activeKey) {
+                mount(placeholder, function () { applyTabState(); });
+            }
+        });
         window.scrollTo({ top: 0, behavior: 'auto' });
     }
     function setLayout(value, persist) {
@@ -1018,10 +1022,13 @@
             var planAreas = vocabulary.plan || [];
             var otherAreas = vocabulary.other || [];
             var names = vocabulary.names || {};
+            var centres = vocabulary.centres || {};
+            var canonical = vocabulary.canonical || { w: 1, h: 2, margin: 0.08 };
             var box = vocabulary.box || { x: 0, y: 0, w: 1, h: 1 };
             var bands = vocabulary.bands || { front: 0.34, rear: 0.72, left: 0.372, right: 0.628 };
-            var baseRadius = (vocabulary.radius || 0.12) * box.w;
+            var baseRadius = vocabulary.radius || 0.12;
             var order = planAreas.concat(otherAreas);
+            var canonicalBox = { x: 0, y: 0, w: canonical.w, h: canonical.h };
 
             // Each recorded damage keeps its disc beside its areas. The disc the
             // page drew is read back, so the opening view is the recorded one
@@ -1104,17 +1111,90 @@
                 }
                 return lateral === 'centre' ? band : lateral + '_' + band;
             }
-            function areasUnder(disc) {
-                var points = [[disc.x, disc.y]];
-                for (var step = 0; step < 8; step++) {
-                    points.push([disc.x + disc.r * Math.cos(step * Math.PI / 4), disc.y + disc.r * Math.sin(step * Math.PI / 4)]);
+            function circleIntersectsArea(disc, left, top, right, bottom) {
+                var closestX = Math.max(left, Math.min(disc.x, right));
+                var closestY = Math.max(top, Math.min(disc.y, bottom));
+                var dx = disc.x - closestX;
+                var dy = disc.y - closestY;
+                // Strictly positive area: tangency at a band boundary does not
+                // record an area, matching DamageAreaGeometry in Core.
+                return dx * dx + dy * dy < disc.r * disc.r;
+            }
+            function areaBounds(area, target) {
+                var plan = target || box;
+                var left = plan.x;
+                var top = plan.y;
+                var right = plan.x + plan.w;
+                var bottom = plan.y + plan.h;
+                var front = top + bands.front * plan.h;
+                var rear = top + bands.rear * plan.h;
+                var leftBand = left + bands.left * plan.w;
+                var rightBand = left + bands.right * plan.w;
+                var middle = left + plan.w / 2;
+                switch (area) {
+                    case 'front': return [leftBand, top, rightBand, front];
+                    case 'left_front': return [left, top, leftBand, front];
+                    case 'right_front': return [rightBand, top, right, front];
+                    case 'left_side': return [left, front, middle, rear];
+                    case 'right_side': return [middle, front, right, rear];
+                    case 'rear': return [leftBand, rear, rightBand, bottom];
+                    case 'left_rear': return [left, rear, leftBand, bottom];
+                    case 'right_rear': return [rightBand, rear, right, bottom];
+                    default: return null;
                 }
-                var found = [];
-                points.forEach(function (point) {
-                    var area = areaAt(point[0], point[1]);
-                    if (area && found.indexOf(area) < 0) { found.push(area); }
-                });
-                return sortAreas(found);
+            }
+            function areasUnder(disc, target) {
+                return sortAreas(planAreas.filter(function (area) {
+                    var bounds = areaBounds(area, target);
+                    return bounds && circleIntersectsArea(disc, bounds[0], bounds[1], bounds[2], bounds[3]);
+                }));
+            }
+            function canonicalDisc(areas) {
+                var points = areas.map(function (area) {
+                    var centre = centres[area];
+                    return centre ? { x: centre.x * canonical.w, y: centre.y * canonical.h } : null;
+                }).filter(function (point) { return point !== null; });
+                if (!points.length) {
+                    return null;
+                }
+                var x = points.reduce(function (sum, point) { return sum + point.x; }, 0) / points.length;
+                var y = points.reduce(function (sum, point) { return sum + point.y; }, 0) / points.length;
+                var spread = points.reduce(function (max, point) {
+                    return Math.max(max, Math.hypot(point.x - x, point.y - y));
+                }, 0);
+                return { x: x, y: y, r: Math.max(baseRadius * canonical.w, spread + canonical.margin * canonical.w) };
+            }
+            function completePlanAreas(areas) {
+                var completed = sortAreas(areas);
+                while (true) {
+                    var disc = canonicalDisc(completed);
+                    var found = disc ? areasUnder(disc, canonicalBox) : [];
+                    var changed = false;
+                    found.forEach(function (area) {
+                        if (completed.indexOf(area) < 0) {
+                            completed.push(area);
+                            changed = true;
+                        }
+                    });
+                    if (!changed) {
+                        return sortAreas(completed);
+                    }
+                }
+            }
+            function renderedDisc(areas) {
+                var points = areas.map(function (area) {
+                    var centre = centres[area];
+                    return centre ? { x: box.x + centre.x * box.w, y: box.y + centre.y * box.h } : null;
+                }).filter(function (point) { return point !== null; });
+                if (!points.length) {
+                    return null;
+                }
+                var x = points.reduce(function (sum, point) { return sum + point.x; }, 0) / points.length;
+                var y = points.reduce(function (sum, point) { return sum + point.y; }, 0) / points.length;
+                var spread = points.reduce(function (max, point) {
+                    return Math.max(max, Math.hypot(point.x - x, point.y - y));
+                }, 0);
+                return { x: x, y: y, r: Math.max(baseRadius * box.w, spread + canonical.margin * box.w) };
             }
 
             // --- painting
@@ -1293,8 +1373,25 @@
                 render();
                 persist();
             }
+            function addPlanArea(code) {
+                if (!editable || planAreas.indexOf(code) < 0) {
+                    return;
+                }
+                marks.push({ areas: [code], severity: 'moderate', note: '', disc: renderedDisc([code]) });
+                render();
+                persist();
+            }
             editor.querySelectorAll('[data-damage-area]').forEach(function (chip) {
                 chip.addEventListener('click', function () { toggleOther(chip.getAttribute('data-damage-area')); });
+            });
+            editor.querySelectorAll('[data-damage-plan-area]').forEach(function (control) {
+                control.addEventListener('keydown', function (event) {
+                    if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') {
+                        return;
+                    }
+                    event.preventDefault();
+                    addPlanArea(control.getAttribute('data-damage-plan-area'));
+                });
             });
 
             // The plan: pressing and dragging sizes a new disc, dragging a
@@ -1346,7 +1443,7 @@
                     }
                     var areas = areasUnder(drawing.mark.disc);
                     if (areas.length) {
-                        drawing.mark.areas = areas;
+                        drawing.mark.areas = completePlanAreas(areas);
                     }
                     render();
                 });
@@ -1356,13 +1453,17 @@
                     }
                     // A disc dragged off the vehicle names nothing: a moved one
                     // returns, a new one is not recorded.
-                    if (!areasUnder(drawing.mark.disc).length) {
+                    var areas = areasUnder(drawing.mark.disc);
+                    if (!areas.length) {
                         if (drawing.move) {
                             drawing.mark.disc = drawing.was.disc;
                             drawing.mark.areas = drawing.was.areas;
                         } else {
                             marks.splice(marks.indexOf(drawing.mark), 1);
                         }
+                    } else {
+                        drawing.mark.areas = completePlanAreas(areas);
+                        drawing.mark.disc = renderedDisc(drawing.mark.areas);
                     }
                     drawing = null;
                     render();
@@ -1386,10 +1487,6 @@
                     persist();
                 });
             }
-            if (!baseRadius) {
-                baseRadius = 12;
-            }
-
             // The list: severity and note write back; remove takes the damage
             // away; hover lights its disc.
             if (list) {
@@ -1550,6 +1647,14 @@
             });
             // A click anywhere on a card picks it as the basis; a click on one
             // of an entry card's own controls is the operator typing, not choosing.
+            function selectCard(card) {
+                var radio = card.querySelector('[data-valuation-basis]');
+                if (!radio) {
+                    return;
+                }
+                radio.checked = true;
+                radio.dispatchEvent(new Event('change', { bubbles: true }));
+            }
             section.querySelectorAll('[data-valuation-card]').forEach(function (card) {
                 card.addEventListener('click', function (event) {
                     var radio = card.querySelector('[data-valuation-basis]');
@@ -1557,8 +1662,14 @@
                         || (event.target.closest && event.target.closest('input,button,select,label,a'))) {
                         return;
                     }
-                    radio.checked = true;
-                    radio.dispatchEvent(new Event('change', { bubbles: true }));
+                    selectCard(card);
+                });
+                card.addEventListener('keydown', function (event) {
+                    if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar')) {
+                        return;
+                    }
+                    event.preventDefault();
+                    selectCard(card);
                 });
             });
             paintAdditions();
@@ -2166,18 +2277,16 @@
         'report.include_unrelated_damage': ['unrelated damage', '']
     };
 
-    function bind(root) {
-        root.querySelectorAll('[data-report]').forEach(function (section) {
-            if (section.dataset.reportBound === 'true') {
+    function bindContent(root) {
+        root.querySelectorAll('[data-report-content]').forEach(function (summary) {
+            var group = summary.closest('[data-field="report-content"]');
+            if (!group || group.dataset.reportContentBound === 'true') {
                 return;
             }
-            section.dataset.reportBound = 'true';
-
-            // The read value stays in step with the three switches.
-            var summary = section.querySelector('[data-report-content]');
-            var switches = Array.prototype.slice.call(section.querySelectorAll('[data-report-switch]'));
+            group.dataset.reportContentBound = 'true';
+            var switches = Array.prototype.slice.call(group.querySelectorAll('[data-report-switch]'));
             function read() {
-                if (!summary || !switches.length) {
+                if (!switches.length) {
                     return;
                 }
                 var parts = [];
@@ -2189,6 +2298,15 @@
                 summary.textContent = parts.join(' · ');
             }
             switches.forEach(function (box) { box.addEventListener('change', read); });
+        });
+    }
+
+    function bindReport(root) {
+        root.querySelectorAll('[data-report]').forEach(function (section) {
+            if (section.dataset.reportPreviewBound === 'true') {
+                return;
+            }
+            section.dataset.reportPreviewBound = 'true';
 
             // The preview follows the Include fee note choice, and opens in
             // the page's document viewer when one is present.
@@ -2206,6 +2324,11 @@
                 feeNote.addEventListener('change', function () { preview.setAttribute('href', previewHref()); });
             }
         });
+    }
+
+    function bind(root) {
+        bindContent(root);
+        bindReport(root);
     }
     bind(document);
     (window.pegasusMountBinders = window.pegasusMountBinders || []).push(bind);

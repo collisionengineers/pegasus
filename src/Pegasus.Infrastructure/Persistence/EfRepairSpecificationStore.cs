@@ -34,7 +34,7 @@ public sealed class EfRepairSpecificationStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         var source = request.Source.Route == RepairSpecificationSourceRoute.LegacyUnresolved
             ? request.Source
             : RepairSpecificationPolicy.ValidateSource(request.Source);
@@ -127,7 +127,7 @@ public sealed class EfRepairSpecificationStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RepairSpecificationPolicy.RequireEngineer(request.Actor);
+        RepairSpecificationPolicy.RequireStaffAuthor(request.Actor);
         var source = RepairSpecificationPolicy.ValidateSource(request.Source);
         var basis = RepairSpecificationPolicy.ValidateCalculationBasis(request.CalculationBasis);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -662,7 +662,7 @@ public sealed class EfRepairSpecificationStore(
         var original = await RequiredEstimateAsync(context, request.CaseId, request.EstimateId, cancellationToken);
         EstimatePolicy.ValidateDuplicate(Map(original));
 
-        // A copy is the Engineer's own working estimate: it keeps the figures
+        // A copy is the staff member's own working estimate: it keeps the figures
         // and lines but not the document provenance or the AI job of the
         // original, and its name is bounded like any typed name.
         var name = original.Name + EstimatePolicy.CopySuffix;
@@ -1197,7 +1197,7 @@ public sealed class EfRepairSpecificationStore(
 
     /// <summary>
     /// A correction keeps the row's provenance — it is the same document's
-    /// line, corrected. A duplicate is the Engineer's own working estimate,
+    /// line, corrected. A duplicate is the staff member's own working estimate,
     /// so it keeps the figures and drops where they came from.
     /// </summary>
     private static CaseEstimateLineEntity CloneLine(
