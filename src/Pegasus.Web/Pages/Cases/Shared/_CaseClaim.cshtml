@@ -1,0 +1,81 @@
+@*
+    Claim (v28 P26): the claimant's cells, four across, in their own section
+    between Case details and Inspection details, with the Engineer's decision
+    on the claimant's VAT registration beside them (v28 P38), so one place says
+    who the claim is for and how VAT applies to them.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Core.Assessment
+@using Pegasus.Web.Pages
+@using Pegasus.Web.Presentation
+@using Frame = Pegasus.Web.Presentation.CaseWorkspaceLabels.Frame
+@{
+    var details = Model.Case!;
+    var data = details.Data;
+    var summary = details.Summary;
+    var mayEdit = Model.CanEditCaseData && data is not null;
+    var headTools = new Pegasus.Web.Pages.Cases.CaseSectionHeadView(Model, "claim");
+    var claimant = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.Name)?.Value ?? (data is null ? summary.Claimant : null);
+    var claimantContact = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.ContactNumber)?.Value;
+    var claimantAddress = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Claimant.Address)?.Value;
+    var vatStatus = Pegasus.Web.Pages.Cases.DetailsModel.Accepted(data?.Instruction.VatStatus)?.Value;
+    string Value(string? text) => string.IsNullOrWhiteSpace(text) ? OperatorLabels.CaseWorkspace.AbsentValue : text;
+    string ValueClass(string? text) => string.IsNullOrWhiteSpace(text) ? "fv empty" : "fv";
+    // The claimant's VAT registration is an Engineer decision (a Settlement
+    // field), placed beside the claimant it describes.
+    var vatPath = AssessmentVocabulary.SettlementClaimantVatRegistered;
+    var vatEditable = Model.SectionIsEditable("settlement") && Model.CanEditAssessmentField(vatPath);
+    var vatValue = Model.AssessmentEditorValue(vatPath);
+    var vatAbsent = string.IsNullOrWhiteSpace(Model.Assessment?.Field(vatPath)?.Value);
+    var vatName = CaseWorkspaceLabels.Editors.FormName(vatPath);
+}
+
+<section class="record-section panel @Model.CollapsedClass("case.claim") @Model.ActiveTabClass("claim") @(Model.IsEditing && !Model.SectionIsEditable("claim") ? "is-locked" : null)" id="section-claim" data-section="claim" data-collapse="case.claim" aria-labelledby="section-claim-title">
+    <div class="panel-head">
+        <h2 id="section-claim-title">@Frame.Claim</h2>
+        <div class="panel-actions"><partial name="Cases/Shared/_CaseSectionHeadTools" model="headTools" /></div>
+    </div>
+    <div class="panel-body stack">
+        <div class="sub-panel @Model.CollapsedClass("case.claim.claimant")" data-collapse="case.claim.claimant"><h3>Claimant <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.claim.claimant")" /></h3>
+            <div class="fg g4">
+                <div class="fc">@{ Lbl("f-claimant", OperatorLabels.CaseWorkspace.RibbonClaimant); }<div class="@ValueClass(claimant)">@Value(claimant)</div>@if (mayEdit){<input id="f-claimant" class="fi" name="claimantName" form="case-edit-form" maxlength="300" value="@claimant" />}</div>
+                <div class="fc">@{ Lbl("f-claimant-contact", Frame.Contact); }<div class="@ValueClass(claimantContact)">@Value(claimantContact)</div>@if (mayEdit){<input id="f-claimant-contact" class="fi" name="claimantContactNumber" form="case-edit-form" maxlength="100" value="@claimantContact" />}</div>
+                <div class="fc">@{ Lbl("f-claimant-address", Frame.Address); }<div class="@ValueClass(claimantAddress)">@Value(claimantAddress)</div>@if (mayEdit){<input id="f-claimant-address" class="fi" name="claimantAddress" form="case-edit-form" maxlength="1000" value="@claimantAddress" />}</div>
+                <div class="fc">@{ Lbl("f-vat-status", Frame.VatStatus); }<div class="@ValueClass(vatStatus)">@Value(vatStatus)</div>@if (mayEdit){<input id="f-vat-status" class="fi" name="vatStatus" form="case-edit-form" maxlength="100" value="@vatStatus" />}</div>
+                <div class="fc" data-field="@vatPath">
+                    @if (vatEditable)
+                    {
+                        <label for="f-settlement-claimant-vat-registered">@CaseWorkspaceLabels.Editors.Settlement[vatPath]</label>
+                    }
+                    else
+                    {
+                        <span class="lbl">@CaseWorkspaceLabels.Editors.Settlement[vatPath]</span>
+                    }
+                    <div class="fv @(vatAbsent ? "empty" : null)">@Model.AssessmentDisplay(vatPath)</div>
+                    @if (vatEditable)
+                    {
+                        <select id="f-settlement-claimant-vat-registered" class="fi" name="@vatName" form="case-edit-form">
+                            <option value="" selected="@(vatValue is null)"></option>
+                            <option value="true" selected="@(vatValue == "true")">Yes</option>
+                            <option value="false" selected="@(vatValue == "false")">No</option>
+                        </select>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@functions {
+    private void Lbl(string id, string text)
+    {
+        if (Model.CanEditCaseData && Model.Case!.Data is not null)
+        {
+            <label for="@id">@text</label>
+        }
+        else
+        {
+            <span class="lbl">@text</span>
+        }
+    }
+}

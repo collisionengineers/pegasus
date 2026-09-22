@@ -60,10 +60,20 @@ without discarding loaded values. Scroll is the no-script fallback.
 Every editable section head has its own **Edit**, which starts the one
 page-wide edit session without moving the page. When the state does not
 allow editing it shows one availability label instead. Each head also has a
-fold chevron.
+fold chevron, and every headed card inside a section has its own, remembered
+per browser like the sections.
 
-An aside beside the sections holds **Figures** (outcome and legal chips and
-three figures) and **Next action** (AI drafts ready on the Case with their
+The ribbon's chips carry the state, the Case type and, once recorded, the
+Engineer's decisions: the outcome (with the salvage category on a total
+loss), the roadworthiness, and the repair cost as a share of the Engineer's
+value (green under 66 %, amber to 79 %, red from 80 %). The Overview opens
+straight on the Case, Principal and Claimant cards: the Case card carries the
+derived **Matter line** (the incident's nature, the claimant and the incident
+date) and, once a report has been sent, when and from which mailbox. There is
+no workflow strip and no lifecycle panel; Return to Review, Unlink report
+evidence and Archive are items of the one Actions menu.
+
+An aside beside the sections holds **Figures** (three figures) and **Next action** (AI drafts ready on the Case with their
 per-kind action, and the next permitted action with a link to its section).
 Below 1441px the aside folds into a strip above the sections.
 
@@ -96,8 +106,10 @@ values as a non-destructive conflict. A Case save needs no reason; its
 history line names the changed fields. Holds, releases, corrections and a
 return to engineering record a reason.
 
-**Sections**, in order: **Overview**, **Inspection**, **Vehicle**, **Damage**,
-**Valuation**, **Estimate**, **Settlement**, **Report**, **Files**, **Notes**.
+**Sections**, in order: **Case details**, **Claim**, **Original report** (an
+Audit Case only), **Inspection details**, **Vehicle** (with **Damage** and
+**Valuation** inside it, each its own foldable panel under the Vehicle link),
+**Estimate**, **Decisions**, **Report**, **Files**, **Notes**.
 Every section can always be read. The Engineer sections (Damage, Valuation,
 Estimate, Settlement, Report) are editable by every enabled staff role in Not
 ready, Review and With Engineer under the normal edit authority, and read-only
@@ -141,9 +153,8 @@ EVA is available. The rules behind each action are in
 
 ### Overview
 
-Overview shows the workflow position (Not ready → Review → With Engineer →
-Completed ⇄ Query, with Held as an exception badge) and the outstanding
-requirements. Each requirement is a named unmet item from the instruction-
+Overview opens on the outstanding requirements; the workflow position is
+the ribbon's state chip, so there is no strip of stages. Each requirement is a named unmet item from the instruction-
 or image-completeness set, with title, source, reason and resolve action.
 There is never a percentage
 ([FRD-13](frd-13-case-lifecycle-and-workflow.md#readiness-and-review)). An
@@ -151,13 +162,29 @@ Audit with no original report at all, neither a filed report nor one kept
 from the instruction email, also lists **Original report missing**, sourced
 from Audit.
 
-Then the Case, Principal and Claimant columns of cells. Identity cells read
-with a lock while the rest edits. The Claim source is chosen from the active
+Then the Case and Principal cards, each folding and staying folded per
+browser; the Sign-off Engineer is decided on the Case card. Identity cells read with a lock while
+the rest edits; the Case card carries the derived Matter line and, once a
+report has been sent, when and from which mailbox. The Claim source is chosen from the active
 Claim Source contacts. A Notes band shows the Principal's and the Claim
 source's Notes on every Case, read-only and absent when the record has none
 ([FRD-04](frd-04-parties-accounts-and-access.md#contacts-administration)),
 beside this Case's own Principal and Claim source notes. Then Accident
 circumstances beside Notes from client.
+
+### Claim
+
+The claimant's cells four across — name, contact, address, VAT status — and,
+beside them, the Engineer's decision on the claimant's VAT registration,
+which the Decisions section no longer repeats.
+
+### Original report
+
+On an Audit Case only: who wrote the original report (the assessors Core's
+third-party report profiles know are offered, any other is typed), its date,
+its roadworthiness and its repairable status. They are Case data, edited in
+the page-wide session; a filed original report's extraction is their source
+once wired (v28 P51, ruled 20 September 2026).
 
 ### Inspection
 

@@ -66,6 +66,8 @@
         && state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport;
     var canReturnToEngineer = editing && (isComplete || isQuery);
     var canArchive = editing && isClosed && workflow.Archive is null;
+    var canUnlinkEvidence = editingCaseData && workflow.ReportSentEvidence is not null
+        && state is not CaseLifecycleState.Held && !isClosed;
     // Review point 12: the adverse dispositions Core will accept for this
     // state, decided in the page model from Core's own closure rules.
     var closureOutcomes = Model.AvailableClosureOutcomes;
@@ -74,7 +76,7 @@
     var offersCreateAudit = Model.CanCreateAudit;
     // The menu shows outside an edit session only when an item that needs
     // no lease is available (Send to EVA); everything else joins it inside.
-    var offersActionsMenu = canSendToEva || canHandToEngineer || canConfirmReportSent || canMarkCompleted
+    var offersActionsMenu = canUnlinkEvidence || canSendToEva || canHandToEngineer || canConfirmReportSent || canMarkCompleted
         || canReturnToReview || canReturnToEngineer || canArchive || offersHoldGroup
         || offersCreateAudit || offersAdverseClosure;
     ViewData["WorkingSetRecord"] = new WorkingSetRecord(
@@ -147,6 +149,25 @@
                     @if (Model.CaseTypeChip is { } caseTypeChip)
                     {
                         <span class="status status--navy status--plain" data-case-type-chip>@caseTypeChip</span>
+                    }
+                    @* The Engineer's decisions read on the ribbon (v28 P25): the
+                       outcome, the roadworthiness, and the repair cost as a
+                       share of the value once both are known. *@
+                    @if (outcome is not null)
+                    {
+                        var outcomeText = outcome == "total_loss" && !string.IsNullOrWhiteSpace(salvageCategory)
+                            ? $"Total loss · Cat {salvageCategory}"
+                            : OperatorLabels.Humanise(outcome);
+                        <span class="status @(outcome == "total_loss" ? "status--red" : "status--blue")" data-outcome-chip>@outcomeText</span>
+                    }
+                    @if (legalStatus is not null)
+                    {
+                        <span class="status @(legalStatus == "unroadworthy" ? "status--red" : "status--green")" data-legal-chip>@OperatorLabels.Humanise(legalStatus)</span>
+                    }
+                    @if (repairCost is { } ribbonCost && engineerValue is { } ribbonValue && ribbonValue > 0)
+                    {
+                        var share = (int)Math.Round(ribbonCost / ribbonValue * 100);
+                        <span class="status @(share >= 80 ? "status--red" : share >= 66 ? "status--amber" : "status--green")" data-repairs-of-value-chip>@Frame.RepairsOfValue(share)</span>
                     }
                     @if (workflow.Archive is not null)
                     {
@@ -292,6 +313,13 @@
                                     <span>@Frame.ArchiveCase</span>
                                 </button>
                             }
+                            @if (canUnlinkEvidence)
+                            {
+                                <button type="button" class="btn" data-dialog-open="case-unlink-evidence-dialog">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-unlink" /></svg>
+                                    <span>@Frame.UnlinkReportEvidence</span>
+                                </button>
+                            }
                             @if (offersHoldGroup || offersCreateAudit)
                             {
                                 @if (canHandToEngineer || canSendToEva || canConfirmReportSent || canMarkCompleted || canReturnToReview || canReturnToEngineer || canArchive)
@@ -345,11 +373,11 @@
         </div>
         <div class="section-row">
             <nav class="section-nav" aria-label="@OperatorLabels.CaseWorkspace.SectionNav" data-section-nav>
-                @foreach (var entry in OperatorLabels.CaseWorkspace.Sections)
+                @foreach (var entry in OperatorLabels.CaseWorkspace.Sections.Where(entry => Model.SectionIsShown(entry.Key)))
                 {
                     <a class="section-link" asp-page="/Cases/Details" asp-route-id="@workflow.CaseId"
                        asp-route-section="@entry.Key" asp-fragment="section-@entry.Key" data-section-link="@entry.Key"
-                       aria-current="@(Model.Section == entry.Key ? "true" : "false")">
+                       aria-current="@(Model.SectionLinkKey == entry.Key ? "true" : "false")">
                         <svg class="icon" aria-hidden="true"><use href="#@entry.Icon" /></svg>
                         <span>@entry.Label</span>
                     </a>
@@ -390,10 +418,15 @@
                as the reader approaches it; the fragment is the section itself. *@
             @foreach (var entry in OperatorLabels.CaseWorkspace.Sections)
             {
+                if (entry.Key == "original-report" && !Model.IsAuditCase)
+                {
+                    continue;
+                }
                 if (Model.SectionIsDeferred(entry.Key))
                 {
                     <section class="record-section panel section-placeholder @Model.ActiveTabClass(entry.Key)" id="section-@entry.Key"
                              data-section="@entry.Key" data-lazy="@entry.Key"
+                             data-section-parent="@(DetailsModel.IsNestedSection(entry.Key) ? "vehicle" : null)"
                              aria-label="@entry.Label"></section>
                     continue;
                 }
@@ -402,6 +435,12 @@
                 {
                     case "overview":
                         <partial name="Cases/Shared/_CaseOverview" model="Model" />
+                        break;
+                    case "claim":
+                        <partial name="Cases/Shared/_CaseClaim" model="Model" />
+                        break;
+                    case "original-report":
+                        <partial name="Cases/Shared/_CaseOriginalReport" model="Model" />
                         break;
                     case "inspection":
                         <partial name="Cases/Shared/_CaseInspectionAddress" model="Model" />
@@ -440,22 +479,6 @@
             <section class="panel context-card" data-figures>
                 <div class="panel-head"><h2>@Frame.Figures</h2></div>
                 <div class="panel-body">
-                    @if (outcome is not null || legalStatus is not null)
-                    {
-                        <div class="fig-chips">
-                            @if (outcome is not null)
-                            {
-                                var outcomeText = outcome == "total_loss" && !string.IsNullOrWhiteSpace(salvageCategory)
-                                    ? $"Total loss · Cat {salvageCategory}"
-                                    : OperatorLabels.Humanise(outcome);
-                                <span class="status @(outcome == "total_loss" ? "status--red" : "status--blue")" data-outcome-chip>@outcomeText</span>
-                            }
-                            @if (legalStatus is not null)
-                            {
-                                <span class="status @(legalStatus == "unroadworthy" ? "status--amber" : "status--neutral")" data-legal-chip>@OperatorLabels.Humanise(legalStatus)</span>
-                            }
-                        </div>
-                    }
                     <dl class="figures">
                         <div class="figure figure--big"><dt>@Frame.RepairCostIncVat</dt><dd class="mono">@(repairCost is { } cost ? FormatMoney(cost) : "—")</dd></div>
                         <div class="figure"><dt>@Frame.EngineersValue</dt><dd class="mono">@(engineerValue is { } ev ? FormatMoney(ev) : "—")</dd></div>

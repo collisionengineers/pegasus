@@ -196,7 +196,7 @@
             }
         </div>
 
-        <div class="sub-panel" data-vehicle-mileage><h3>@VehicleLabels.MileageAndCondition</h3>
+        <div class="sub-panel @Model.CollapsedClass("case.vehicle.mileage")" data-vehicle-mileage data-collapse="case.vehicle.mileage"><h3>@VehicleLabels.MileageAndCondition <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.vehicle.mileage")" /></h3>
             <div class="fg g4">
                 @* One mileage box, with the provenance the report's source code
                    is read from. The staff pick rides beside the box while it is
@@ -258,7 +258,7 @@
 
         @* The history check is prose about the vehicle rather than one of its
            facts, so it reads as its own area under the grid. *@
-        <div class="sub-panel vehicle-history" data-vehicle-history><h3>@VehicleLabels.History <span class="rt">@OperatorLabels.CaseWorkspace.ExperianSeamCondition</span></h3>
+        <div class="sub-panel vehicle-history @Model.CollapsedClass("case.vehicle.history")" data-collapse="case.vehicle.history" data-vehicle-history><h3>@VehicleLabels.History <span class="rt">@OperatorLabels.CaseWorkspace.ExperianSeamCondition</span> <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.vehicle.history")" /></h3>
             <div class="fc">
                 @{ Lbl(canEditHistory, "edit-vehicle-history", VehicleLabels.History); }
                 <div class="@ValueClass(Model.AssessmentEditorValue(AssessmentVocabulary.HistoryCheck)) multi">@Model.AssessmentValue(AssessmentVocabulary.HistoryCheck)</div>

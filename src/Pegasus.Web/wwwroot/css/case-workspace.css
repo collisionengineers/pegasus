@@ -42,22 +42,24 @@
 .fc .fv.derived{color:var(--muted)}
 
 /* Aside: Figures and Next action. */
-.fig-chips{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:6px;border-bottom:1px solid var(--line);margin-bottom:6px}
 .next-row{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px}
 .next-row+.next-row{margin-top:8px}
 .next-row.ai-next{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px}
 .next-row .src-tag{margin-right:4px}
 
 /* Overview */
-.stepper{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-.stepper li{min-height:40px;padding:6px 10px;display:flex;align-items:center;justify-content:center;gap:7px;border-right:1px solid var(--line);color:var(--muted);font-size:11px;font-weight:700}
-.stepper li:last-child{border-right:0}
-.stepper li.done{color:var(--green);background:#f7fbf8}
-.stepper li.now{color:var(--navy);background:var(--navy-bg);box-shadow:inset 0 -3px var(--navy)}
-.stepper .icon{width:13px;height:13px}
+/* Nested sections (v28 P26): Damage and Valuation read inside Vehicle, one rule apart. */
+.record-section--nested{margin-top:-4px;border-top-left-radius:0;border-top-right-radius:0;border-top:0}
+.record-section--nested>.panel-head>h2{font-size:12.5px}
+/* Sub-card folds (v28 P45): the card's own chevron, remembered like the sections. */
+.sub-panel>h3 .panel-collapse{margin-left:auto;width:24px;height:24px}
+.sub-panel>h3 .rt+.panel-collapse{margin-left:8px}
+.sub-panel.is-collapsed>*:not(h3){display:none}
+.sub-panel.is-collapsed>h3{margin-bottom:0}
+.sub-panel.is-collapsed>h3 .panel-collapse .icon{transform:rotate(-90deg)}
 .sub-panel.blockers{border-left:4px solid var(--amber);background:var(--amber-bg)}
 .sub-panel.blockers .blocker{background:#fff}
-.overview-grid{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:10px}
+.overview-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:10px}
 .accident{border:1px solid #bfcbd1;background:#f6f9fa;padding:10px 12px;border-radius:var(--radius)}
 .accident .fc .fv{background:transparent}
 .notes-band .fg.g2{column-gap:14px}
@@ -70,7 +72,7 @@
 .mono{font-family:var(--mono)}
 
 @media(max-width:1180px){.overview-grid{grid-template-columns:1fr 1fr}.notes-band .fg.g2{grid-template-columns:1fr}}
-@media(max-width:760px){.overview-grid{grid-template-columns:1fr}.stepper li{padding:6px 4px;gap:4px;font-size:10.5px;text-align:center}}
+@media(max-width:760px){.overview-grid{grid-template-columns:1fr}}
 /* A section head keeps its title whole; a long label in the actions truncates. */
 .case-record .record-section>.panel-head>h2{flex:0 0 auto}
 .case-record .record-section>.panel-head .panel-actions{min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:6px;flex:1 1 auto}

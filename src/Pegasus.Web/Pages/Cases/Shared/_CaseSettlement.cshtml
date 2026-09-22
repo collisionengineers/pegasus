@@ -121,7 +121,7 @@
             }
         </div>
 
-        <div class="sub-panel"><h3>@SettlementLabels.CostsHireDelays</h3>
+        <div class="sub-panel @Model.CollapsedClass("case.settlement.costs")" data-collapse="case.settlement.costs"><h3>@SettlementLabels.CostsHireDelays <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.settlement.costs")" /></h3>
             <div class="fg g4">
                 @{ await Field(AssessmentVocabulary.SettlementReserve, labels[AssessmentVocabulary.SettlementReserve]);
                     await Field(AssessmentVocabulary.SettlementDiminution, labels[AssessmentVocabulary.SettlementDiminution]);
@@ -129,14 +129,13 @@
                     await Field(AssessmentVocabulary.SettlementHireDailyCost, labels[AssessmentVocabulary.SettlementHireDailyCost]);
                     await Field(AssessmentVocabulary.SettlementRepairDelays, labels[AssessmentVocabulary.SettlementRepairDelays]);
                     await Field(AssessmentVocabulary.SettlementReportDelay, labels[AssessmentVocabulary.SettlementReportDelay]);
-                    await Field(AssessmentVocabulary.SettlementClaimantVatRegistered, labels[AssessmentVocabulary.SettlementClaimantVatRegistered]);
                 }
                 <div class="fc ro"><span class="lbl">@SettlementLabels.StorageCharge</span><div class="fv mono derived @(Model.AssessmentIsAbsent(AssessmentVocabulary.CostStorageCharge) ? "empty" : null)">@Model.AssessmentDisplay(AssessmentVocabulary.CostStorageCharge)</div></div>
                 <div class="fc ro"><span class="lbl">@SettlementLabels.RepairDays</span><div class="fv derived @(Model.AcceptedSpecification?.Details.RepairDays is null ? "empty" : null)">@(Model.AcceptedSpecification?.Details.RepairDays?.ToString(CultureInfo.InvariantCulture) ?? OperatorLabels.CaseWorkspace.AbsentValue)@if (Model.AcceptedSpecification?.Details.RepairDays is not null){<span class="src-tag">@SettlementLabels.CurrentEstimate</span>}</div></div>
             </div>
         </div>
 
-        <div class="sub-panel" data-shown-when="total-loss" hidden="@(isTotalLoss ? null : "hidden")"><h3>@SettlementLabels.Salvage</h3>
+        <div class="sub-panel @Model.CollapsedClass("case.settlement.salvage")" data-shown-when="total-loss" hidden="@(isTotalLoss ? null : "hidden")" data-collapse="case.settlement.salvage"><h3>@SettlementLabels.Salvage <partial name="Shared/_SubPanelToggle" model="@Model.SubPanel("case.settlement.salvage")" /></h3>
             <div class="fg g4">
                 @{ await Field(AssessmentVocabulary.SettlementSalvageAt, labels[AssessmentVocabulary.SettlementSalvageAt]);
                     await Field(AssessmentVocabulary.SettlementSalvageAgent, labels[AssessmentVocabulary.SettlementSalvageAgent]);
