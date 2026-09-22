@@ -239,14 +239,17 @@
                     }
                     else
                     {
-                        <input type="range" min="0" max="100" step="1" value="@(salvageShare is { } share0 ? Math.Round(share0).ToString(CultureInfo.InvariantCulture) : "0")"
-                               aria-label="@SettlementLabels.SalvageShare" data-salvage-range @(Model.CanEditAssessmentField(path) ? null : "disabled") />
-                        <span class="snaps">
-                            @foreach (var snap in salvageSnaps)
-                            {
-                                <button type="button" class="@(salvageShare is { } at && Math.Abs(at - snap) < 0.5m ? "on" : null)" data-salvage-snap="@snap">@snap%</button>
-                            }
-                        </span>
+                        @if (editable)
+                        {
+                            <input type="range" min="0" max="100" step="1" value="@(salvageShare is { } share0 ? Math.Round(share0).ToString(CultureInfo.InvariantCulture) : "0")"
+                                   aria-label="@SettlementLabels.SalvageShare" data-salvage-range />
+                            <span class="snaps">
+                                @foreach (var snap in salvageSnaps)
+                                {
+                                    <button type="button" class="@(salvageShare is { } at && Math.Abs(at - snap) < 0.5m ? "on" : null)" data-salvage-snap="@snap">@snap%</button>
+                                }
+                            </span>
+                        }
                         <span class="read mono" data-salvage-read>@(salvageShare is { } read ? SettlementLabels.ShareOfValue(read, engineerValueText) : string.Empty)</span>
                     }
                 </div>
