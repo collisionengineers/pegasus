@@ -134,6 +134,55 @@ public sealed partial class AssessmentReportRendererTests
     }
 
     [Fact]
+    public async Task TheImagePackPaginatesOrdinaryImagesInPairs()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var snapshot = ReadySnapshot();
+        var photo = snapshot.Photos.Single();
+        var photos = Enumerable.Range(0, 5)
+            .Select(index => photo with { CustodyReference = $"site-{index}.jpg", Order = index })
+            .ToArray();
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(snapshot with { Photos = photos }, CaseReportArtifactKind.ImagePack);
+
+        Assert.Equal(3, artifact.PageCount);
+    }
+
+    [Fact]
+    public async Task TheImagePackDoesNotLeaveAHeaderOnlyPageBeforeAFullPageImage()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+        var snapshot = ReadySnapshot();
+        var photo = snapshot.Photos.Single();
+        var fullPage = photo with { CustodyReference = "full.jpg", Order = 0, FullPage = true };
+        var ordinary = photo with { CustodyReference = "ordinary.jpg", Order = 1, FullPage = false };
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(snapshot with { Photos = [fullPage, ordinary] }, CaseReportArtifactKind.ImagePack);
+
+        Assert.Equal(2, artifact.PageCount);
+    }
+
+    [Fact]
+    public async Task AnImagePackNeverAppendsTheFeeNoteEvenWhenTheSnapshotIncludesIt()
+    {
+        await using var provider = RendererProvider();
+        var renderer = provider.GetRequiredService<IAssessmentReportRenderer>();
+
+        var artifact = await new GenerateAssessmentReportDraft(renderer)
+            .ExecuteAsync(ReadySnapshot() with { IncludeFeeNote = true }, CaseReportArtifactKind.ImagePack);
+
+        var text = string.Join(" ", PageTexts(artifact.Pdf));
+        Assert.Contains("Vehicle Images", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("FEE NOTE", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("TOTAL DUE", text, StringComparison.Ordinal);
+        Assert.DoesNotContain($"VAT No: {AssessmentReportContract.VatNumber}", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AnImagePackOfACaseWhoseReportUsesNoImageIsRefused()
     {
         await using var provider = RendererProvider();

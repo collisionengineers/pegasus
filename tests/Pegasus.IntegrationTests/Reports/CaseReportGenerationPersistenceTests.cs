@@ -804,6 +804,49 @@ public sealed class CaseReportGenerationPersistenceTests
         Assert.Equal(2, (await harness.GenerationRowsAsync()).Single().Artifacts.Count);
     }
 
+    [Theory]
+    [InlineData(CaseReportArtifactKind.FeeNote, CaseArtifactCustodyDisposition.Confirmed)]
+    [InlineData(CaseReportArtifactKind.FeeNote, CaseArtifactCustodyDisposition.Pending)]
+    [InlineData(CaseReportArtifactKind.RepairSpecification, CaseArtifactCustodyDisposition.Confirmed)]
+    [InlineData(CaseReportArtifactKind.RepairSpecification, CaseArtifactCustodyDisposition.Pending)]
+    [InlineData(CaseReportArtifactKind.ImagePack, CaseArtifactCustodyDisposition.Confirmed)]
+    [InlineData(CaseReportArtifactKind.ImagePack, CaseArtifactCustodyDisposition.Pending)]
+    public async Task EveryCompanionKindReplaysWithItsTargetGeneration(
+        CaseReportArtifactKind kind, CaseArtifactCustodyDisposition disposition)
+    {
+        await using var harness = await Harness.CreateAsync();
+        var report = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        var targetGenerationId = report.Generation!.Id;
+        var operationKey = $"case-report-{kind}-replay";
+        var documents = kind == CaseReportArtifactKind.RepairSpecification
+            ? Harness.RenderedRepairSpecificationDocumentsForTest()
+            : null;
+
+        var first = await harness.Generate(
+                new RecordingCustody(harness) { Disposition = disposition }, new RecordingRenderer(harness),
+                repairSpecificationDocuments: documents)
+            .ExecuteAsync(
+                harness.Request(kind, operationKey, targetGenerationId: targetGenerationId),
+                CancellationToken.None);
+        var replay = await harness.Generate(
+                new RecordingCustody(harness), new RecordingRenderer(harness),
+                repairSpecificationDocuments: documents)
+            .ExecuteAsync(
+                harness.Request(kind, operationKey, targetGenerationId: targetGenerationId),
+                CancellationToken.None);
+
+        var expectedOutcome = disposition == CaseArtifactCustodyDisposition.Confirmed
+            ? CaseReportGenerationOutcome.Generated
+            : CaseReportGenerationOutcome.Pending;
+        Assert.Equal(expectedOutcome, first.Outcome);
+        Assert.NotEqual(CaseReportGenerationOutcome.NotFound, replay.Outcome);
+        Assert.Equal(targetGenerationId, replay.Generation!.Id);
+        Assert.Equal(
+            operationKey,
+            Assert.Single(replay.Generation.Artifacts, artifact => artifact.Kind == kind).OperationKey);
+    }
+
     [Fact]
     public async Task ASecondOperationKeyCannotClaimAnExistingFeeNoteArtifact()
     {
@@ -1096,6 +1139,52 @@ public sealed class CaseReportGenerationPersistenceTests
                 CancellationToken.None));
     }
 
+    [Fact]
+    public async Task GeneratedReportKeepsCustodyNameUntilPreparationRenamesItAtSendBoundary()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var generated = await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+            .ExecuteAsync(harness.Request(), CancellationToken.None);
+        var generation = generated.Generation!;
+        var suggestions = new ReportRecipientSuggestions(
+            generation.Snapshot.CaseReference,
+            PrincipalReportRecipientSettings.Normalize(false, ["digital@collisionengineers.co.uk"]),
+            null);
+        var preparation = await harness.PrepareDeliveryAsync(
+            generation,
+            recipientSuggestionFingerprint: suggestions.Fingerprint);
+
+        var custodyAttachment = Assert.Single(preparation.Preparation.Artifacts);
+        Assert.Equal("AssessmentReport.pdf", custodyAttachment.FileName);
+
+        var store = new EfCaseReportDeliveryPreparationStore(harness.Factory, Harness.Clock);
+        var send = new RecordingReportSend();
+        var operation = await new SendPreparedCaseReport(
+            store,
+            new FixedRecipientSuggestions(suggestions),
+            new FixedApprovedMailboxes(TestMailbox()),
+            new ReportSendReadiness(store),
+            send)
+            .ExecuteAsync(
+                new(
+                    harness.StaffActor,
+                    harness.CaseId,
+                    preparation.Preparation.Id,
+                    preparation.Preparation.Version,
+                    "send-report"),
+                CancellationToken.None);
+
+        Assert.Equal(StaffMailState.Unknown, operation.State);
+        var command = Assert.Single(send.Commands);
+        var expectedReportName = CaseReportDeliveryNaming.ReportName(
+            generation.Snapshot.CaseReference,
+            generation.Snapshot.Report.Vehicle.Registration,
+            generation.Snapshot.Report.Outcome.ToString(),
+            0);
+        Assert.Equal(expectedReportName + ".pdf", Assert.Single(command.Mail.Attachments).FileName);
+        Assert.NotEqual(custodyAttachment.FileName, command.Mail.Attachments[0].FileName);
+    }
+
     /// <summary>
     /// A preview is a Case-history "viewed" event, never a
     /// "downloaded" one, and repeat previews the same staff day never grow
@@ -1311,14 +1400,18 @@ public sealed class CaseReportGenerationPersistenceTests
             RecordingCustody custody,
             IAssessmentReportRenderer renderer,
             RecordingCustodyStatus? custodyStatus = null,
-            EfCaseReportGenerationStore? store = null) => new(
-                new RecordingStore(store ?? Store, Sequence),
-                new FakeContentSource(this),
-                renderer,
-                new RefusingRepairSpecificationDocuments(),
+            EfCaseReportGenerationStore? store = null,
+            IRenderCaseEstimateDocument? repairSpecificationDocuments = null) => new(
+            new RecordingStore(store ?? Store, Sequence),
+            new FakeContentSource(this),
+            renderer,
+            repairSpecificationDocuments ?? new RefusingRepairSpecificationDocuments(),
                 custody,
                 custodyStatus ?? new RecordingCustodyStatus(),
                 new FixedTimeProvider(StartUtc));
+
+        public static IRenderCaseEstimateDocument RenderedRepairSpecificationDocumentsForTest() =>
+            new RenderedRepairSpecificationDocuments();
 
         public EfCaseReportGenerationStore StoreUsing(IDbContextFactory<PegasusDbContext> factory) =>
             new(factory, snapshotSource, new FakeDocumentReader(this), Clock);
@@ -1409,7 +1502,8 @@ public sealed class CaseReportGenerationPersistenceTests
         public Task<CaseReportDeliveryPreparationRecord> PrepareDeliveryAsync(
             CaseReportGenerationRecord generation,
             long expectedCaseVersion = 1,
-            string? leaseToken = null) =>
+            string? leaseToken = null,
+            string? recipientSuggestionFingerprint = null) =>
             new EfCaseReportDeliveryPreparationStore(Factory, Clock).PrepareAsync(
                 new(new(
                         StaffActor,
@@ -1420,7 +1514,7 @@ public sealed class CaseReportGenerationPersistenceTests
                         generation.Version,
                         "prepare-report"),
                     new([new StaffMailRecipient("digital@collisionengineers.co.uk", "pegasustest")], [], "Case report"),
-                    new string('a', 64),
+                    recipientSuggestionFingerprint ?? new string('a', 64),
                     CaseReportSendHistory.None), default);
 
         /// <summary>
@@ -1432,6 +1526,19 @@ public sealed class CaseReportGenerationPersistenceTests
             public Task<RenderCaseEstimateDocumentResult> ExecuteAsync(
                 Guid caseId, Guid estimateId, ActionActor actor, CancellationToken cancellationToken = default) =>
                 throw new InvalidOperationException("No repair specification document was expected.");
+        }
+
+        private sealed class RenderedRepairSpecificationDocuments : IRenderCaseEstimateDocument
+        {
+            public Task<RenderCaseEstimateDocumentResult> ExecuteAsync(
+                Guid caseId, Guid estimateId, ActionActor actor, CancellationToken cancellationToken = default) =>
+                Task.FromResult(new RenderCaseEstimateDocumentResult(
+                    RenderCaseEstimateDocumentOutcome.Rendered,
+                    new RenderedReportArtifact(
+                        "RPT31001_estimate.pdf", [1, 2, 3], 1,
+                        Convert.ToHexStringLower(SHA256.HashData([1, 2, 3])),
+                        AssessmentReportContract.TemplateVersion, "fake"),
+                    [], 2));
         }
 
         public Task RequireDeliveryReadyAsync(CaseReportDeliveryPreparationRecord record) =>
@@ -2146,6 +2253,78 @@ public sealed class CaseReportGenerationPersistenceTests
         {
             LastOperationKey = operationKey;
             return Task.FromResult<CaseArtifactCustodyResult?>(Result);
+        }
+    }
+
+    private static ApprovedMailbox TestMailbox() => new(
+        Guid.NewGuid(),
+        "reports@collisionengineers.example",
+        [ApprovedMailboxRouteScope.StaffSend, ApprovedMailboxRouteScope.SentEvidence],
+        ApprovedMailboxState.Approved,
+        "identity",
+        "inbox",
+        "sent",
+        IdentityIsBound: true,
+        ActivatedAtUtc: new DateTimeOffset(2026, 9, 7, 10, 0, 0, TimeSpan.Zero),
+        Version: 1,
+        FolderBindings: [],
+        Generation: 3);
+
+    private sealed class FixedRecipientSuggestions(ReportRecipientSuggestions suggestions)
+        : IReportRecipientSuggestionQueries
+    {
+        public Task<ReportRecipientSuggestions?> GetAsync(
+            Guid caseId, CancellationToken cancellationToken) =>
+            Task.FromResult<ReportRecipientSuggestions?>(suggestions);
+    }
+
+    private sealed class FixedApprovedMailboxes(params ApprovedMailbox[] mailboxes)
+        : IApprovedMailboxStore
+    {
+        public Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ApprovedMailbox>>(mailboxes);
+
+        public Task<ApprovedMailbox> UpdateAsync(
+            UpdateApprovedMailboxRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<ApprovedMailbox> SetDefaultAsync(
+            SetDefaultApprovedMailboxRequest request, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<bool> IsApprovedAsync(
+            string mailboxAddress,
+            ApprovedMailboxRouteScope routeScope,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(false);
+    }
+
+    private sealed class RecordingReportSend : IStaffReportSend
+    {
+        public List<StaffReportSendCommand> Commands { get; } = [];
+
+        public Task<StaffMailOperation> SendAsync(
+            StaffReportSendCommand command, CancellationToken cancellationToken)
+        {
+            Commands.Add(command);
+            return Task.FromResult(new StaffMailOperation(
+                Guid.NewGuid(),
+                StaffMailState.Unknown,
+                null,
+                1,
+                new DateTimeOffset(2026, 9, 7, 10, 0, 0, TimeSpan.Zero),
+                null,
+                null,
+                null,
+                command.Mail.ApprovedMailboxId,
+                command.Mail.ExpectedMailboxGeneration,
+                new string('d', 64),
+                null,
+                null,
+                command.Mail.Purpose,
+                command.Mail.ContextId,
+                command.Mail.ExpectedContextVersion,
+                null));
         }
     }
 

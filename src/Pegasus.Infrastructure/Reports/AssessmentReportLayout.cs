@@ -102,7 +102,7 @@ internal static class AssessmentReportLayout
             }
 
             AddPages(feeNote);
-            if (!feeNote && snapshot.IncludeFeeNote)
+            if (kind == CaseReportArtifactKind.AssessmentReport && snapshot.IncludeFeeNote)
             {
                 AddPages(pageIsFeeNote: true);
             }
@@ -112,11 +112,11 @@ internal static class AssessmentReportLayout
     // ---- Image pack (v28 P22) ----------------------------------------------
 
     /// <summary>
-    /// The included images alone, in the Engineer's order, two to a page with
-    /// a Full page image on a page of its own — the same grid the report
-    /// prints, under the report's own letterhead so the document says which
-    /// Case it belongs to. It carries no narrative, no figures and no
-    /// statement of truth: it is the report's images, sent beside it.
+    /// The included images alone, in the Engineer's order, two ordinary images
+    /// per page with a Full page image on a page of its own, under the report's
+    /// own letterhead so the document says which Case it belongs to. It carries
+    /// no narrative, no figures and no statement of truth: it is the report's
+    /// images, sent beside it.
     /// </summary>
     private static void ImagePack(
         ColumnDescriptor column, AssessmentReportSnapshot snapshot, PreparedReportImages images)
@@ -129,7 +129,7 @@ internal static class AssessmentReportLayout
         }));
 
         Title(column, "Vehicle Images", italic: true);
-        Section(column, "Vehicle Images", section => PhotoGrid(section.Item(), images.Photos));
+        Section(column, "Vehicle Images", section => ImagePackPhotos(section.Item(), images.Photos));
     }
 
     // ---- Assessment report -------------------------------------------------
@@ -547,13 +547,9 @@ internal static class AssessmentReportLayout
         });
 
     /// <summary>
-    /// The photo grid: two square frames per row, each printing the prepared
-    /// square, a row never split across pages. Order is the snapshot's:
-    /// Close-up first, Overview second, Supporting by its persisted order.
-    /// </summary>
-    /// <summary>
-    /// The report's images: two to a page in the order the Engineer set, and
-    /// an image flagged Full page on a page of its own (v28 P41).
+    /// The report's photo grid: two square frames per row, each printing the
+    /// prepared square. Order is the snapshot's: Close-up first, Overview
+    /// second, Supporting by its persisted order.
     /// </summary>
     private static void PhotoGrid(IContainer container, IReadOnlyList<PreparedReportPhoto> photos) => container.Column(grid =>
     {
@@ -595,6 +591,70 @@ internal static class AssessmentReportLayout
             }
         }
         Flush();
+    });
+
+    /// <summary>
+    /// The standalone image-pack paginator: each group starts on a fresh page
+    /// after the first, ordinary photos are paired, and Full page photos are
+    /// never grouped with another image.
+    /// </summary>
+    private static void ImagePackPhotos(IContainer container, IReadOnlyList<PreparedReportPhoto> photos) => container.Column(pack =>
+    {
+        pack.Spacing(4, Unit.Millimetre);
+        var ordinary = new List<PreparedReportPhoto>(2);
+        var hasGroup = false;
+
+        void StartGroup()
+        {
+            if (hasGroup)
+            {
+                pack.Item().PageBreak();
+            }
+
+            hasGroup = true;
+        }
+
+        void FlushOrdinary()
+        {
+            if (ordinary.Count == 0)
+            {
+                return;
+            }
+
+            StartGroup();
+            var first = ordinary[0];
+            var second = ordinary.Count > 1 ? ordinary[1] : null;
+            pack.Item().ShowEntire().Row(row =>
+            {
+                row.Spacing(4, Unit.Millimetre);
+                PhotoFrame(row.RelativeItem(), first.Content);
+                var right = row.RelativeItem();
+                if (second is not null)
+                {
+                    PhotoFrame(right, second.Content);
+                }
+            });
+            ordinary.Clear();
+        }
+
+        foreach (var photo in photos)
+        {
+            if (photo.FullPage)
+            {
+                FlushOrdinary();
+                StartGroup();
+                pack.Item().ShowEntire().Column(page => PhotoFrame(page.Item(), photo.Content));
+                continue;
+            }
+
+            ordinary.Add(photo);
+            if (ordinary.Count == 2)
+            {
+                FlushOrdinary();
+            }
+        }
+
+        FlushOrdinary();
     });
 
     private static void PhotoFrame(IContainer container, byte[] square) => container

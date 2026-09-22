@@ -120,7 +120,7 @@ public sealed class StaffReportSend(
             || command.Report.Actor.SubjectId != command.Mail.Actor.SubjectId
             || command.Report.GenerationId != command.Mail.ContextId
             || command.Report.ExpectedGenerationVersion != command.Mail.ExpectedContextVersion
-            || !command.Report.Artifacts.SequenceEqual(command.Mail.Attachments))
+            || !AttachmentsMatch(command.Report.Artifacts, command.Mail.Attachments))
         {
             throw new ArgumentException("The report readiness and staff mail command do not describe the same frozen send.", nameof(command));
         }
@@ -128,6 +128,22 @@ public sealed class StaffReportSend(
             command.Mail,
             token => readiness.RequireReadyAsync(command.Report, token),
             cancellationToken);
+    }
+
+    private static bool AttachmentsMatch(
+        IReadOnlyList<StaffMailAttachment> frozen,
+        IReadOnlyList<StaffMailAttachment> prepared)
+    {
+        return frozen.Count == prepared.Count
+            && frozen.Zip(prepared).All(pair =>
+                pair.First with { FileName = pair.Second.FileName } == pair.Second
+                && (string.Equals(pair.First.FileName, pair.Second.FileName, StringComparison.Ordinal)
+                    || (pair.First.FileName.EndsWith(
+                            "_assessment.pdf", StringComparison.OrdinalIgnoreCase)
+                        && pair.Second.FileName is { Length: > 4 } deliveryFileName
+                        && deliveryFileName.EndsWith(".pdf", StringComparison.Ordinal)
+                        && !string.IsNullOrWhiteSpace(
+                            deliveryFileName[..^".pdf".Length]))));
     }
 }
 

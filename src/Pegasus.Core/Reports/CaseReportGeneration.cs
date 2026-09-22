@@ -858,7 +858,14 @@ public sealed class GenerateCaseReport(
             cancellationToken);
 
     private static string FileNameOf(CaseReportGenerationRecord generation, CaseReportArtifactKind kind) =>
-        $"{Slug(generation.Snapshot.CaseReference)}_{(kind == CaseReportArtifactKind.FeeNote ? "fee_note" : "assessment")}.pdf";
+        $"{Slug(generation.Snapshot.CaseReference)}_{kind switch
+        {
+            CaseReportArtifactKind.AssessmentReport => "assessment",
+            CaseReportArtifactKind.FeeNote => "fee_note",
+            CaseReportArtifactKind.RepairSpecification => "repair_specification",
+            CaseReportArtifactKind.ImagePack => "images",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unsupported report artifact kind."),
+        }}.pdf";
 
     private static string Slug(string value) =>
         new(value.ToUpperInvariant().Select(character => char.IsLetterOrDigit(character) ? character : '_').ToArray());

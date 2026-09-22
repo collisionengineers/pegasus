@@ -411,9 +411,9 @@ public sealed class EfCaseReportGenerationStore(
         var snapshot = DeserializeSnapshot(generation);
         var expectedIncludeFeeNote = request.Kind == CaseReportArtifactKind.AssessmentReport
             && request.IncludeFeeNote;
-        var targetMatches = request.Kind == CaseReportArtifactKind.FeeNote
-            ? request.TargetGenerationId == generation.Id
-            : request.TargetGenerationId is null;
+        var targetMatches = request.Kind == CaseReportArtifactKind.AssessmentReport
+            ? request.TargetGenerationId is null
+            : request.TargetGenerationId == generation.Id;
         if (generation.CaseId != request.CaseId
             || !string.Equals(replay.Kind, request.Kind.ToString(), StringComparison.Ordinal)
             || snapshot.Report.IncludeFeeNote != expectedIncludeFeeNote
