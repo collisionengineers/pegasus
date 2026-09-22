@@ -390,6 +390,62 @@ public sealed class UploadConfirmationWebTests
         // Image members render thumbnails through the inline image route.
         Assert.Contains("/Image", groupPage, StringComparison.Ordinal);
         Assert.Contains("upload-thumb", groupPage, StringComparison.Ordinal);
+
+        var filesHeading = groupPage.IndexOf("id=\"group-status-title\"", StringComparison.Ordinal);
+        var decisionHeading = groupPage.IndexOf("id=\"group-decision-title\"", StringComparison.Ordinal);
+        var discardPanel = groupPage.IndexOf("id=\"group-discard-title\"", StringComparison.Ordinal);
+        var rightColumn = groupPage.IndexOf("class=\"upload-received__right\"", StringComparison.Ordinal);
+        Assert.True(filesHeading >= 0);
+        Assert.True(rightColumn > filesHeading && rightColumn < decisionHeading);
+        Assert.DoesNotContain("upload-received--files-only", groupPage, StringComparison.Ordinal);
+        Assert.True(decisionHeading > filesHeading);
+        Assert.True(discardPanel > decisionHeading);
+
+        var registrationSubmit = groupPage.IndexOf(
+            "form=\"group-registration-form\"", decisionHeading, StringComparison.Ordinal);
+        var cancelLink = groupPage.IndexOf(
+            ">Cancel</a>", decisionHeading, StringComparison.Ordinal);
+        Assert.True(registrationSubmit > decisionHeading);
+        Assert.True(cancelLink > registrationSubmit);
+        var actionRowStart = groupPage.LastIndexOf(
+            "<div class=\"button-row\">", registrationSubmit, StringComparison.Ordinal);
+        var actionRowEnd = groupPage.IndexOf("</div>", actionRowStart, StringComparison.Ordinal);
+        Assert.True(actionRowStart >= 0);
+        Assert.True(actionRowEnd > cancelLink);
+    }
+
+    [Fact]
+    public async Task AnUnmatchedEmailGroupShowsCancelWithoutImageRegistration()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var firstEmail = IntakeTestEvidence.CreateEmail(
+            "unmatched-group-first.eml",
+            "QDOS instruction\r\nClaimant Name: Group Claimant\r\nClaim Number: UNMATCHED-GROUP-01\r\nVehicle Registration: CD34 EFG");
+        var secondEmail = IntakeTestEvidence.CreateEmail(
+            "unmatched-group-second.eml",
+            "QDOS instruction\r\nClaimant Name: Group Claimant\r\nClaim Number: UNMATCHED-GROUP-02\r\nVehicle Registration: CD34 EFG");
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                (firstEmail.FileName, firstEmail.MediaType, firstEmail.Content),
+                (secondEmail.FileName, secondEmail.MediaType, secondEmail.Content)
+            ]);
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+
+        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+
+        var groupPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
+        Assert.Contains("id=\"group-decision-title\"", groupPage, StringComparison.Ordinal);
+        Assert.Contains("Add to an existing case", groupPage, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Upload\">Cancel</a>", groupPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"group-registration-form\"", groupPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Create a vehicle-image case", groupPage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -617,6 +673,8 @@ public sealed class UploadConfirmationWebTests
         var html = await IntakeWebDriver.GetHtmlAsync(pageClient, $"/Upload/Group/{groupId:D}");
 
         Assert.Contains("data-auto-refresh=\"2000\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("upload-received--files-only", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"group-discard-title\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"group-decision-title\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Add the submission to this case", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Create a vehicle-image case", html, StringComparison.Ordinal);
