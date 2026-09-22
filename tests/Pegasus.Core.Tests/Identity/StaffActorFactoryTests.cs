@@ -34,7 +34,7 @@ public sealed class StaffActorFactoryTests
     }
 
     [Fact]
-    public void AScalarAdministratorClaimRetainsOneRoleAndInheritsEngineerCapability()
+    public void AScalarAdministratorClaimRetainsOnlyItsStoredRole()
     {
         var staffId = Guid.NewGuid();
 
@@ -44,6 +44,8 @@ public sealed class StaffActorFactoryTests
             out var actor));
 
         Assert.Equal([StaffRole.Administrator], actor!.Roles);
-        Assert.True(actor.IsInRole(StaffRole.Engineer));
+        Assert.True(actor.IsInRole(StaffRole.Administrator));
+        Assert.False(actor.IsInRole(StaffRole.Engineer));
+        Assert.False(actor.IsInRole(StaffRole.User));
     }
 }

@@ -8,7 +8,7 @@ namespace Pegasus.Core.Assessment;
 /// <summary>
 /// One maintained valuation addition. The amount held here is the manager's
 /// suggestion, not a Case figure: selecting the preset copies its identity,
-/// version, label and suggested amount onto the Case, where the Engineer may
+/// version, label and suggested amount onto the Case, where staff may
 /// change the copied amount without ever editing this record.
 /// </summary>
 public sealed record ValuationPreset(
@@ -296,7 +296,7 @@ public interface IListAppliedValuations
 /// <summary>
 /// The one owner of valuation arithmetic and of the rules that decide which
 /// additions may be selected. The Case preview and the Apply command call
-/// exactly these members, so what the Engineer sees and what is recorded can
+/// exactly these members, so what staff see and what is recorded can
 /// never be two calculations.
 /// </summary>
 public static class ValuationCalculationPolicy

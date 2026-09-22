@@ -38,6 +38,8 @@ The Collision Engineers Engineer report is definitive for the Case.
 Roadworthiness (`Roadworthy` or `Unroadworthy`) and Assessment
 (`Repairable` or `Total loss`) are separate professional findings. Neither is
 derived from the other, and Triage findings never fill or change either one.
+Every enabled human staff role may record or correct these findings under the
+existing state, lease and version rules.
 
 **Corrections.** A correction never edits an accepted or issued finding in
 place. It creates a reasoned superseding report, finding or addendum with
@@ -110,7 +112,8 @@ the proposal recorded by the `MarketResearch` job
 ([FRD-27](frd-27-send-to-ai-reviewed-proposals-and-ai-job-list.md#ai-job-list));
 it never becomes the Engineer's Value by itself.
 
-**Engineer's Value** is adopted only by an explicit Apply, in this order:
+**Engineer's Value** is adopted only by an explicit Apply by an enabled human
+staff member, in this order:
 commercial VAT 20%, prior total loss 10% or 20%, fixed additions, then
 condition deduction, rounding to whole pounds away from zero. A generic
 assessment save never writes the adopted value. This calculation is current
@@ -149,7 +152,7 @@ own. Job states and attribution are owned by
 ### Valuation readiness
 
 Any valuation check required before Review or Hand to Engineer must be
-resolvable at that stage by an authorised person. The Engineer sections are
+resolvable at that stage by an authorised human staff member. The Engineer sections are
 editable before handoff in Not ready and Review, so availability is not a
 reason to defer such a check. Engineer's Value, settlement and report
 calculations are engineering work, not invented pre-assignment blockers. A
