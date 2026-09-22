@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
 
@@ -19,7 +20,7 @@ public sealed class EfUnroadworthyReasonBankStore(
         return rows.Select(Map).ToArray();
     }
 
-    public async Task<UnroadworthyReason> AddAsync(
+    public async Task<UnroadworthyReason?> AddAsync(
         SaveUnroadworthyReasonRequest request, string normalized, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -33,7 +34,15 @@ public sealed class EfUnroadworthyReasonBankStore(
             CreatedAtUtc = timeProvider.GetUtcNow(),
         };
         context.UnroadworthyReasons.Add(entity);
-        await context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+            when (exception.GetBaseException() is SqlException { Number: 2601 or 2627 })
+        {
+            return null;
+        }
         return Map(entity);
     }
 

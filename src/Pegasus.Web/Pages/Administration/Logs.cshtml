@@ -100,7 +100,7 @@
                                     <td class="logs-item"><a href="/Received/@row.ReceiptId.ToString("D")/Source" target="_blank" rel="noopener">@row.Item</a></td>
                                     <td>
                                         <partial name="Shared/_StatusChip" model="@OperatorLabels.IntakeLog.Outcome(row.Outcome)"
-                                                 view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.IntakeLog.OutcomeTone(row.Outcome) }' />
+ />
                                         @if (!string.IsNullOrWhiteSpace(row.OutcomeReason) && row.Outcome is IntakeLogOutcome.Closed or IntakeLogOutcome.CouldNotBeRead or IntakeLogOutcome.ProcessingFailed)
                                         {
                                             <span class="logs-reason">@row.OutcomeReason</span>
@@ -146,7 +146,7 @@
                         <dl class="logs-facts">
                             <dt>Received</dt><dd>@OperatorLabels.OfficeTime(detail.Row.ReceivedAtUtc)</dd>
                             <dt>Source</dt><dd>@OperatorLabels.IntakeLog.Source(detail.Row.Source)</dd>
-                            <dt>Outcome</dt><dd><partial name="Shared/_StatusChip" model="@OperatorLabels.IntakeLog.Outcome(detail.Row.Outcome)" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = OperatorLabels.IntakeLog.OutcomeTone(detail.Row.Outcome) }' /></dd>
+                            <dt>Outcome</dt><dd><partial name="Shared/_StatusChip" model="@OperatorLabels.IntakeLog.Outcome(detail.Row.Outcome)" /></dd>
                             <dt>Became</dt><dd class="mono">@if (detail.Row.Became is { } drawerBecame) { <a href="@OperatorLabels.IntakeLog.BecameHref(drawerBecame)">@drawerBecame.Reference</a> } else { <span class="muted">—</span> }</dd>
                             <dt>Attempts</dt><dd>@detail.Row.ProcessingAttempts processing · @detail.Row.AllocationAttempts allocation</dd>
                         </dl>

@@ -44,6 +44,15 @@
         plan = AssessmentVocabulary.DamagePlanAreas,
         other = AssessmentVocabulary.DamageOtherAreas,
         names = AssessmentVocabulary.DamageAreas,
+        centres = DamageAreaGeometry.Centres.ToDictionary(
+            entry => entry.Key,
+            entry => new { x = entry.Value.X, y = entry.Value.Y }),
+        canonical = new
+        {
+            w = DamageAreaGeometry.CanonicalWidth,
+            h = DamageAreaGeometry.CanonicalHeight,
+            margin = DamageAreaGeometry.Margin
+        },
         box = new { x = DamagePlanGeometry.PlanLeft, y = DamagePlanGeometry.PlanTop, w = DamagePlanGeometry.PlanWidth, h = DamagePlanGeometry.PlanHeight },
         bands = new { front = DamageAreaGeometry.FrontBand, rear = DamageAreaGeometry.RearBand, left = DamageAreaGeometry.LeftBand, right = DamageAreaGeometry.RightBand },
         radius = DamageAreaGeometry.BaseRadius
@@ -137,6 +146,15 @@
                     @if (editable)
                     {
                         <g class="dm-guides" aria-hidden="true"><path d="@DamagePlanGeometry.GuidesPath" /></g>
+                        @foreach (var area in AssessmentVocabulary.DamagePlanAreas)
+                        {
+                            var centre = DamageAreaGeometry.Centres[area];
+                            var centreX = DamagePlanGeometry.PlanLeft + centre.X * DamagePlanGeometry.PlanWidth;
+                            var centreY = DamagePlanGeometry.PlanTop + centre.Y * DamagePlanGeometry.PlanHeight;
+                            <g class="damage-plan-area" role="button" tabindex="0" data-damage-plan-area="@area" aria-label="@DamageLabels.Location(area)">
+                                <circle class="damage-plan-area-hit" cx="@Svg(centreX)" cy="@Svg(centreY)" r="12" />
+                            </g>
+                        }
                     }
                     <g class="damage-marks" data-damage-marks aria-hidden="true">
                         @for (var index = 0; index < impacts.Count; index++)

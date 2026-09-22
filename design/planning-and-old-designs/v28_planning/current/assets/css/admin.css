@@ -1,0 +1,31 @@
+/* Administration pages restyled to the v26 shell mockup (Mail settings,
+   Valuation presets, AI jobs, Automation, Reports, Service health) and the
+   connector consent frame. Shared tokens and components live in site.css. */
+
+.admin-job-detail {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.admin-report-note { margin: 0 0 12px; }
+
+.admin-report-filter { align-items: end; }
+
+.admin-actions-end { justify-content: flex-end; }
+
+.admin-service-area {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.panel-foot .pagination { margin: 0; }
+
+.consent-card .notice { margin-top: 14px; }
+
+.consent-card .panel { margin-top: 14px; }
+
+.consent-card .detail-list dd ul { margin: 0; padding-left: 18px; }

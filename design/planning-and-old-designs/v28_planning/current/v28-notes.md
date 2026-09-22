@@ -1,279 +1,312 @@
 # v28 notes
 
-As-is capture, no proposed changes. Built 18 September 2026 from `origin/dev`
-at `6c02a8608` (worktree `task/ui-baseline-capture`, HEAD equal to
-`origin/dev`).
+A faithful capture of `origin/dev` at `904903fd1` (18 September 2026, worktree
+`task/ui-baseline-rebuild`), with the operator's proposals as a switchable
+layer over it. The capture is sections 1 to 8; the proposals are section 9.
+Changes are recorded as they are made in [`working-log.md`](working-log.md).
 
-## 1. Scope relative to the previous round
+## 1. Why this round was rebuilt
 
-There is no "previous problem → change" table this round: v28 proposes
-nothing. What changed in *scope* rather than in the product:
+The first build of v28 was hand-transcribed from the Razor source into nine
+self-contained files with a bespoke mock engine. The operator rejected it as
+not faithful. A review against the running application, recorded in the
+discussion log, found:
 
-| Previous round | Scope | This round |
-| --- | --- | --- |
-| v27 | Case record only, with a togglable proposals overlay | v28 covers every routed page (the "whole shell"), with no proposals overlay at all |
-| v26 | Whole shell as one hand-written client-side SPA (two files, ~11,000 lines of bespoke JS) | Whole shell as nine independent, self-contained files sharing tokens/chrome but no client router or shared JS state (see §9 and `discussion-log.md` for the reasoning) |
-
-Every page family below was read fresh from the current live `.cshtml`/`.cs`
-sources on 18 September 2026, not carried forward from v26 or v27's content
-(those files were consulted only for CSS-class/markup-pattern reference,
-per each lane's brief).
+| Fault in the first build | What the rebuild does instead |
+| --- | --- |
+| Built from `6c02a8608`; PR 791 then removed the Administration edit leases and rewrote every settings page, so Administration was stale | Captured from `904903fd1`, and the self-check compares against the running application, so staleness fails the check |
+| Edit-only controls drawn in read mode across the Case record | Read mode and the edit session are separate captures of what the server rendered for each |
+| Page wrappers dropped and state-toggle `div`s inserted, so page-scoped CSS and `.stack` gaps did not apply | Markup is the server's; nothing is inserted into it |
+| Invented vocabulary: damage zone names, tyre and belt codes, a vehicle body dropdown, custody chip words, the report title | All values come from the application |
+| A placeholder box for the damage plan | The live SVG, with zones recorded through the live control |
+| Whole surfaces missing, including the open-records strip | The live scripts run, so the strip, dialogs, menus and section navigation work |
+| Wrong formats and tones (`T-2601`, `U-1140`, spaced registrations, chip colours) | Real formats: `T-00001`, `U1`, `AB12CDE` |
+| Incoherent fixtures (an "empty" state with non-zero counts) | One database; every count agrees with every list |
+| A self-check that tested the mockup against itself | A parity check against the running application |
 
 ## 2. Files and what they capture
 
-| File | Live pages | Shots |
-| --- | --- | --- |
-| `pegasus_work_centre_v28.html` | Work Centre | s13-s15 |
-| `pegasus_cases_index_v28.html` | Cases Index, Create Case | s16-s18 |
-| `pegasus_case_record_v28.html` | Case record + Eva/Send + Create audit (Vehicle/Workflow/Tasks/Closure/Custody are mutation-only, no markup — see §5) | s19-s24 |
-| `pegasus_triage_unidentified_v28.html` | Triage, Unidentified (both live as Cases-index tabs; the standalone Index pages are dead routes — see §5) | s25-s28 |
-| `pegasus_image_intake_v28.html` | Vehicle images (ImageIntake/Details, PreCaseImages) | s29-s30 |
-| `pegasus_mail_upload_v28.html` | Inbox, Message, Compose, Upload, UploadStatus, UploadGroupStatus | s31-s35 |
-| `pegasus_search_operations_v28.html` | Search, Operations | s01-s05 |
-| `pegasus_administration_v28.html` | Administration hub + 11 composed sub-areas | s36-s48 |
-| `pegasus_account_shell_v28.html` | Sign in, Signed out, Access denied, Password change (forced), Connector consent, Error, Status codes | s06-s12 |
+Nine family files frame 73 captured state pages and 35 presets over them.
+[`README.md`](README.md) has the table; each page folder under
+[`../pages/`](../pages/README.md) lists its states with their live routes and
+screenshots. `v28-build/captured.json` is the generated list.
 
-## 3. Live rules the mockup mirrors
+## 3. How a state is captured
 
-- Rail order and gating: `_Layout.cshtml` — Work Centre, Inbox, Upload,
-  Cases, Search, Operations always; Administration only when
-  `User.IsInRole(StaffRoleNames.Administrator)`; Inbox/Upload/Operations
-  only when `ViewData["ShellInboxEnabled"]` (`Environment.IsProduction() ||
-  (IsDevelopment() && Features:LocalIntake)`) — captured as always-on since
-  the deployed instance is Production.
-- Rail counts: `RailCountsPageFilter.cs` supplies real counts; an absent
-  count renders nothing, never a stale `0` (`_Layout.cshtml` `CountFor`).
-- Status-chip tone table: `Shared/_StatusChip.cshtml`'s `key switch` —
-  amber for incomplete/pending, navy for Review/in-flight, green only for
-  confirmed completion, red for blocked/failed, neutral otherwise. Two
-  states fall through to neutral with no explicit entry (Query — item B;
-  every `ImageIntakeLifecycleState` wording — noted in
-  `pages/image-intake/how-it-works.md`).
-- Case record frame: `Details.Frame.cs`/`Details.cshtml` — the sticky
-  ribbon + section row, one page-wide edit session, the Actions menu gated
-  to permitted progressions, Scroll default with a session-only Tabs choice.
-- Administration nav order and gating: `Shared/_AdminNav.cshtml` — People
-  and access (Staff accounts & roles, Contacts) → Configuration (Workflow
-  configuration, Mail settings, Valuation presets) → Operations and
-  oversight (Service health, Logs, Reports, AI jobs, Automation & AI —
-  composed-only).
-- `AccessDenied.cshtml` carries no `Layout` override and so renders inside
-  the ordinary authenticated shell, not the navless `_LayoutAuth` frame —
-  item A.
+1. `v28-build/enrich.mjs` works the seeded Case through the application's own
+   edit session in a real browser: fields are set in the live controls and
+   saved by the live Save button. Nothing is written to the database directly.
+2. `v28-build/capture.mjs` opens each route in `manifest.json`, performs any
+   listed steps (pressing Edit Case, following a link), and saves the
+   response the server gives for the page the browser ended on. For the Case
+   record, the sections that load as the reader approaches them are requested
+   from the same endpoint `case-workspace.js` uses and placed where that
+   script places them.
+3. Two states are the response to a post (a failed sign-in, the signed-out
+   page), so they are saved from the rendered document instead and marked
+   `"dom": true` in `manifest.json`. States reached by a step, a post or a
+   sign-in are excluded from the parity check because no URL alone
+   reproduces them.
+4. Stylesheets, scripts, fonts and images are downloaded as served and
+   referenced relatively. Fingerprints are removed from file names.
+5. `assets/mock/shim.js` is the only script that is not the application's.
+
+Two local hosts supply the pages. Both are the synthetic fixture host that
+reuses the integration-test composition, never production and never a real
+mailbox or Box: one signs every request in as an Administrator and holds the
+seeded records; the other uses real sign-in with one throwaway User-role
+account. The host is not committed; it lives in the ignored `artifacts/`
+folder of the primary checkout (`artifacts/ui-baseline-review/visual-host`).
 
 ## 4. Frame rules, as numbers
 
-Unchanged from the design authority, verified against `site.css` /
-`case-workspace.css` by every lane: `--rail` 220px (64px collapsed),
-ribbon 56px, section row 40px, `--content-max` 1580px, `--gap` 12px,
-`--page-pad` 18px, `--row` 40px, body 13.5px, controls 36px, aside 285px
-folding above 1441px, breakpoints at 1360/1180/1100/980/900/760px per
-`docs/design/README.md`.
+Not restated. The pages carry the live `site.css` and page stylesheets
+unmodified, so every number is whatever the application ships. Screenshots
+are taken at 1580x1000, 1440x900 and 760x1000.
 
-## 5. Decisions taken
+## 5. Known limits
 
-**None.** This round proposes no design decisions; every choice below is a
-build-mechanics choice (how to capture), not a product choice, and is
-recorded for reproducibility only:
+- **Coverage follows the fixture.** One Case (With Engineer, two estimates,
+  four images of which two are in the report), one Triage, three
+  Unidentified items, one image intake, one unprocessed mail message. Queues
+  with nothing in them show their real empty state. Each page folder has a
+  "Not captured" list naming what the fixture cannot reach.
+- **Freshness.** Partial, Stale and Unavailable cannot be forced on a healthy
+  local host, so only Current is captured.
+- **Posts.** A control that posts shows a note naming its route. Two
+  transitions are wired because both ends were captured: Edit Case, and
+  leaving the edit session.
+- **Composition.** The local fixture does not compose automation or the
+  connector, so Automation & AI shows its unavailable panel, the hub omits
+  that card, and `/authorize` answers 404.
+- **Fixture wording.** Names such as "Jane Example", "integration-user" and
+  the 2031 dates are the fixture's, not invented for the mockup.
+- **Folder, not single files.** A family file needs `states/` and `assets/`
+  beside it. This is the price of not transcribing (item A below).
 
-- Nine independent self-contained files rather than one hash-routed SPA
-  (discussion-log.md, 18 September).
-- Shared `v28-build/build.py` + `shell-chrome.html` + `navless-chrome.html`
-  + `mock-engine.js` infrastructure, adapted from `v27-build`'s Python/Node
-  pattern, owned by the integrator; each lane wrote only its own
-  `pages/<name>.{body.html,js,strip.html}` and page-folder docs.
-- Two genuinely dead-route findings, confirmed from source rather than
-  guessed: `Triage/Index.cshtml`, `Unidentified/Index.cshtml` and
-  `PreCaseImages/Index.cshtml` redirect/404 (the real lists are Cases-index
-  tabs); `Cases/Vehicle.cshtml`, `Workflow.cshtml`, `Tasks.cshtml`,
-  `Closure.cshtml`, `Custody.cshtml` are POST-only mutation endpoints with
-  `OnGet() => NotFound()`, not separate screens.
+## 6. The sign-off list
 
-## 6. Deliberate departures from live, with reasons
+Items A and B are about the capture. C to H recorded what the capture found
+in the live application; the operator ruled on them on 18 September.
 
-Consolidated from every lane's page-folder Notes (see each `README.md` for
-the full detail):
+**A.** The mockup is a folder of captured pages framed by nine family files,
+not nine self-contained files. **Confirm, or** ask for each state to be
+inlined into a single file, which is possible but makes each about 1 MB.
 
-- **Search** — the "Selected Case" preview swap on row click is a static
-  toast rather than a live client-side content swap (`pages/search/README.md`).
-- **Work Centre** — filter chips/links render but do not dynamically
-  re-filter (no server); the preview panel shows the hero Case rather than
-  literal list order (`pages/work-centre/README.md`).
-- **Cases Index** — only the selected row's Quick detail renders per tab;
-  Principal filter options are representative, not derived from loaded rows.
-- **Create Case** — only the manual-creation branch is captured; the
-  receipt-seeded variant is a different screen with no direct link from
-  Cases Index/Upload/the shell's New case action in this pass.
-- **Mail** — Category filter shows a representative subset, not the exact
-  `MailOperationalDestinationPolicy`-derived list (item E); Deleted Items
-  always shows as already-searched.
-- **Upload** — `UploadStatus`'s 11 `UploadOutcomeKind` variants are all
-  modelled; `UploadGroupStatus`'s per-file button visibility is one
-  representative case, not the full boolean cross-product (item F).
-- **Triage/Unidentified** — list-tab visual fidelity depends on
-  `cases-index.css`; **settled during integration** by adding
-  `cases-index.css` to `build.py`'s `triage_unidentified` entry and
-  rebuilding (verified clean by re-running `smoke.mjs`), so this is no
-  longer an open gap.
-- **Vehicle images** — the Image-initiated Case record's lifecycle chip
-  renders neutral grey for all three states (no `_StatusChip` tone entry
-  matches `OperatorLabels.ImageIntakeLifecycleState`'s wording), captured
-  as-is rather than smoothed to a tone.
-- **Administration** — full dialogs are built for one representative row
-  per list (Accounts: Sam Whitlock; Mailboxes: one mailbox/category;
-  Contacts: Wingrove Insurance); other rows toast "Demo". Lease/heartbeat/
-  "Take over" concurrency mechanics are not modelled anywhere in this file.
-- **Case record** — the Damage Plan clicker uses a simplified rectangle-
-  zone grid rather than the exact `DamagePlanGeometry` SVG paths (the real
-  severity codes/labels/CSS colouring are used); `AssessmentCanOpen`/
-  `AssessmentIsReadOnly` is approximated (item J); per-outcome closure
-  gating is approximated (item K); Create audit's precondition set
-  collapses to one toggle; the viewer's crop is a tool-switch stub, not
-  live drag geometry.
-- **Account/navless family** — `PasswordChange`'s voluntary (signed-in,
-  full-shell) variant is not separately captured; its form fields are
-  identical to the forced variant shown, and the app-shell chrome around it
-  is already captured on every other page in this round.
+**B.** Coverage is limited to what the synthetic fixture holds (section 5 and
+every page's "Not captured" list). **Confirm, or** name the states worth
+seeding next: a Case in Review, a Held Case, a processed mail message with a
+linked Case, AI jobs, and a generated report are the largest gaps.
 
-## 7. The sign-off list
+**C to H.** *Settled 18 September: all six are valid issues to address, not
+all of them in a mockup.* What was done with each is P6 in section 9. The
+findings themselves: C, saving many Case fields at once is refused because the
+history reason overflows `CaseHistory.Reason`; D, Access denied renders in the
+full shell while the error family is navless; E, the Work Centre prints
+"Updated HH:mm" twice; F, the Cases table wraps the Due date onto four lines
+at 1440; G, one record showed "2 Sept 2026" and "18 Sep 2026"; H, Query has no
+chip tone, the AI jobs table says "Lease expires", manual Create Case offers no
+Audit type, no Administration page uses an `images/marks` mark, and the hub's
+icons differ from the nav's.
 
-Every item below is a genuine ambiguity in **how to capture** current live
-behaviour — none changes an FRD, audit event, vocabulary term or an
-operator-placed control, since this round proposes nothing. Phrased
-"Confirm, or …" per the sign-off protocol.
+Items E, F, J and K of the first build's list were transcription
+uncertainties. They no longer apply because nothing is transcribed.
 
-**A.** `Account/AccessDenied.cshtml` carries no `Layout` override, so
-ASP.NET's default (`_Layout`, the full authenticated shell with rail and
-utility bar) applies live. `docs/design/README.md`'s "Case record frame"
-section states "`_LayoutAuth` remains the navless frame: sign-in, the
-signed-out confirmation, access denied and the error family are not places
-in the application" — but Access denied is demonstrably not navless in the
-live source, unlike `Error.cshtml`, `StatusCode.cshtml` and
-`Connect/Authorize.cshtml`, which do carry the override. Captured in
-`pegasus_account_shell_v28.html` (the navless file, for grouping
-convenience) with an inline note that live rendering actually keeps the
-full shell. **Confirm, or**: is this an intentional exception the design
-doc should record, or is `AccessDenied.cshtml` missing its
-`Layout = "Shared/_LayoutAuth"` line?
+## 7. Self-check result
 
-**B.** The case-lifecycle `Query` state has no explicit entry in
-`_StatusChip.cshtml`'s tone table, so its chip renders neutral (grey) while
-every sibling workflow state (Review navy, With Engineer navy, Held amber,
-Completed green) has an explicit tone. Captured as the live neutral
-rendering. **Confirm, or**: is Query's neutral tone intentional, or a gap in
-`_StatusChip`'s switch?
+Recorded in the discussion log with the date and the full `RESULT` line.
 
-**C.** The live Work Centre AI jobs table shows "Lease expires HH:MM" for a
-Taken job (`OperatorLabels.WorkCentre.LeaseExpires`) — genuine, existing
-product copy, but "lease" is on this skill's banned-word list for *invented*
-UI text. Kept verbatim per "faithfully mirror current live behaviour; use
-only `OperatorLabels` strings." **Confirm, or**: should a future round
-propose renaming this live string, given the banned-word list's own
-rationale (operator-facing text should not expose internal/technical
-vocabulary)?
+## 8. Reproducing the round
 
-**D.** The manual Create Case form's Case-type `<select>` silently omits
-Audit (the server rejects it too), with no on-screen explanation of why.
-Captured as the live omission. **Confirm, or**: should this gap get a named
-decision (an explicit "Audit case created from an Inspection + Audit Case
-only" note, or similar) in a future round?
+From `v28-build/`, with the two fixture hosts running and `HOST_INFO` and
+`AUTH_INFO` pointing at the JSON files they write:
 
-**E.** The Mail Category filter's exact live option set (driven by
-`MailOperationalDestinationPolicy`) was not independently traced by the
-lane that built it; the mockup shows a representative subset using real
-category names. **Confirm, or**: should a follow-up pass verify the exact
-live list before this capture is relied on for that filter's completeness?
+```
+node enrich.mjs        # once per fresh fixture database
+node release.mjs       # make sure no edit session is left open
+node capture.mjs
+node frames.mjs
+node shoot.mjs
+node pagedocs.mjs
+LIVE=1 node selfcheck.mjs
+```
 
-**F.** `UploadGroupStatus`'s per-file action-button visibility depends on
-several overlapping conditions (`UploadOutcomeCompact`,
-`OpenGroupDecision`, `RefreshAutomatically`) that were not fully cross-
-verified against every combination; one representative "decided" case is
-shown. **Confirm, or**: is deeper verification of this cross-product
-warranted before Stage 2, given it governs a real staff decision point?
+## 9. Proposals
 
-**G.** `docs/design/README.md` documents `accounts.png`, `configuration.png`,
-`mailboxes.png` and `automation.png` as live on Administration panel heads,
-but no live `.cshtml` under `Pages/Administration/**` actually references
-`images/marks/` anywhere — every area head uses a Lucide icon only.
-Captured as live (no marks in use). **Confirm, or**: were these marks
-removed from Administration at some point without the design doc being
-updated, or were they never actually wired in?
+From 18 September the round is a collaboration on top of the capture. The
+captured pages are never edited; every change is in the layer:
+`assets/mock/proposals.js` and `.css` (P1 to P11),
+`assets/mock/proposals-record.js` and `.css` (the Case record, P12 to P36), and
+`assets/mock/proposals-record-2.js` and `.css` (the fifth pass, P37 to P51 and the
+corrections; P49 was dropped). The family files default to **Proposals** and
+switch to **Baseline**; on a state page `?proposals=off` is the baseline and
+`?skip=P4` turns one proposal off. [`working-log.md`](working-log.md) has the
+request, the choices and the Stage 2 consequence of each.
 
-**H.** Several already-shipped Administration strings contain words this
-skill's banned-word list forbids in *invented* copy: "Failed intake",
-"Oldest pending intake", "Cache bytes", "Verified encoded-message size
-limit (bytes)". Captured verbatim as existing live copy (same reasoning as
-item C). **Confirm, or**: should a future round propose relabelling these?
+| Id | Proposal | Shots | Status |
+| --- | --- | --- | --- |
+| P1 | The refined mark from `v27_planning/logo` replaces the lockup in the rail and on the navless frame | p01, p02 | asked for 18 September |
+| P2 | Status colour by meaning: green succeeded, red did not, amber waiting, navy in hand, neutral settled | p03, p09, p12 | asked for 18 September; the label table is a proposal |
+| P3 | "Provider" never appears: "Cancelled", "Principal" | p07 | asked for 18 September |
+| P4 | The lifecycle strip on Overview is removed | p03, p04 | asked for 18 September |
+| P5 | Damage by area: v27 variant C with the eight areas, with Reset | p05, p06 | chosen 18 September |
+| P6 | Baseline issues D to H, where a mockup can show them | p01, p08, p10, p11 | asked for 18 September |
+| P7 | The Lifecycle actions container on Overview is removed; Return to Review is already in the Actions menu | p04 | asked for 18 September |
+| P8 | Cazana drawn like the other guide sources; Get valuation a real button at the bottom centre of each card; no Basis radio, a card is chosen by clicking it | p13, p14, p33 | asked for 18 September; extended the same day |
+| P9 | "Estimate PDF" becomes "Print Estimate" and sits with Compare under More; Compare greyed out with one estimate | p15, p16 | asked for 18 September |
+| P10 | The "Use estimate · …" lock chip is removed and Use estimate is simply available | p18 | asked for 18 September; revised the same day |
+| P11 | Upload received reworked: files first, the decision beside them, Discard folded away last | p12, p17 | asked for 18 September |
+| P12 to P30 | The nineteen v27 features, rebuilt on the live record: composed sentences, CAP, salvage slider, reason bank, Delete all and Undo, regional uplift, provenance chips, richer Compare, Supplementary, address book, Attach, re-send naming, Report and Fee tabs, ribbon badges, nine-section map, click to include, Queries, decisions as radio groups, Report wording | p20 to p26 | asked for 18 September; table in the working log |
+| P31 to P35 | Repair Spec: the Estimate section renamed; notes, days and name removed with rename on the tab; one labour rate control; Target % of value slider; Contract repair agreed | p22, p27, p28 | asked for 18 September; P34 and P35 cross FRD-11 |
+| P36 | The live Glass's slot and session states, drawn from the partial because the fixture has no Glass's login | p18, p29 to p32 | live behaviour, not a proposal |
+| P6-I | A panel head's "not yet" line no longer takes empty-state padding, so the Vehicle head is the height of every other | p34 | live defect found 18 September |
+| P34 (corrected) | The price floor reads 65 %, the reference file's figure; Apply and Remove scaling freeze a version and write a System note | p35 | corrected 20 September |
+| P30 (extended) | Wording blocks drag by a grip as well as moving by the buttons; a computed Repair reserve cell sits beside the typed field on Decisions | p40, p44 | asked for 20 September |
+| P29 (extended) | When the outcome is not Total loss a "Salvage: not applicable" line says why the rows are gone, and the change is logged | p44 | asked for 20 September |
+| P22 (corrected) | Attach offers Repair Spec, the document Print Estimate opens, in place of "Breakdown"; each attachment carries a tooltip | p40 | corrected 20 September |
+| P37 | Off-pattern cells read amber with a tooltip and the roll-up carries their amount as specialist; nothing is cleared | p35 | asked for 20 September; Core already computes the anomalies |
+| P38 | Placements: claimant VAT status on Claim, the report content switches on Valuation, unrelated damage on Vehicle, Sign-off Engineer beside an Assigned engineer cell on Case details | p42, p45 | asked for 20 September |
+| P39 | Sign-off Engineer follows the assigned Engineer when that Engineer is an eligible sign-off account | — | asked for 20 September; the fixture has no eligible account, so it cannot be shown |
+| P40 | Generate report (and Produce PDF) stamp today's date into an empty Report date | p40 | asked for 20 September |
+| P41 | Working images: rotate, Full page, remove with Undo, drag to reorder mirrored to the Report strip, Add images by picker or drop, Full page and Remove on the viewer | p41 | asked for 20 September |
+| P42 | Produce PDF: a preview of the report as it will print with Report, Repair Spec and Images documents; Print Estimate opens the Repair Spec one | p38, p39 | asked for 20 September |
+| P43 | Versions history: every import, scale, clear, restore and send freezes the outgoing draft with how it came about; Sent on report; Compare with current; Restore; an origin line under the tabs | p36, p37 | asked for 20 September |
+| P44 | Every act the layer performs writes a System note to the Notes timeline | — | asked for 20 September |
+| P45 | Sub-cards fold with the live collapse toggle and are remembered like the sections | p42, p43 | asked for 20 September |
+| P47 | A page-wide stale banner under the ribbon while the report is stale | p46 | asked for 20 September |
+| P48 | Materials per line: a Material £ column; the estimate figure becomes the column total | p35 | asked for 20 September; a Core change |
+| P49 | Product type select | — | **dropped 20 September**: Case type stays Inspection or Audit, fixed at creation (FRD-01, ADR-0051); every Audit is `a.`, AP is gone; Commercial and Diminution routes stay deferred |
+| P51 | Original report: a section for an Audit Case naming the assessor (the firms Core's third-party report profiles know), the report date, its roadworthiness and its repairable status; shown on an Audit Case (standalone, or linked by Create audit) | p48, p49 | asked for 20 September |
+| P50 | One place for an image: its report role and order sit on its tile on the Images tab with the P41 tools and the count; the Report section's "Images in report" strip and preparation cards are hidden. The Files section keeps its live name, since it also holds Documents and Correspondence | p41, p47 | asked for 20 September |
 
-**I.** The Administration hub's card icons diverge from `_AdminNav`'s icons
-for the same area, for at least Service health, Reports, and Automation &
-AI. Captured as the live inconsistency. **Confirm, or**: should hub and nav
-icons be reconciled in a future round?
+### Open under the proposals
 
-**J.** The Case record's Engineer sections (Damage/Valuation/Estimate/
-Settlement/Report) become editable per `AssessmentCanOpen`/
-`AssessmentIsReadOnly`, which read from an injected `assessmentAccess`
-service outside `Details.cshtml.cs` that was not traced further. Captured
-as "assessable from Review state onward" — a judgment call, not a traced
-fact. **Confirm, or**: should a follow-up pass open that service to state
-the exact rule?
+Settled 18 September: P2 (Active and Enabled green, the two reds), P3 (one
+"Update Request" category), P5 (LH / RH), P8 (an error that says to contact an
+administrator), P9 (Compare greyed out; Print opens the preview).
 
-**K.** Per-outcome Case closure gating (`CaseLifecycleRules.ValidateClose`/
-`RequireClosureIsAllowed`, in Core) was not opened; the capture offers the
-full adverse-closure action group (Archive, Correct principal, Close case,
-etc.) whenever an edit session is open and the Case is not already closed,
-rather than a state-derived subset. **Confirm, or**: should a follow-up pass
-trace the exact per-state permitted set?
+- **P5.** Reset returns to what the record held on opening. Confirm, or say it
+  should clear the vehicle. v27's G1 is still open: is the disc stored with its
+  derived areas, or only the areas.
+- **P6.** Issue C is noted for later planning. "Lease expires HH:mm" on the AI
+  jobs table was read as "keep the live wording"; confirm. The nine panel marks
+  under `images/marks` are unused; confirm they go from `design/README.md`.
+- **P8 and P3.** "Error. Contact an administrator." and "Update Request" are new
+  copy in the operator's words; confirm the exact wording.
+- **P31.** Whether "New estimate", "Print Estimate" and Settlement's "From current
+  estimate" follow the rename to Repair Spec.
+- **P34 and P35.** They put target-% scaling and the agreed contract sum on the
+  record, which FRD-11 reserves to Core and to Send to AI. Confirm the rule
+  changes, and the floors (£50 an hour, 50 % of price).
+- **P25.** The badges crowd the ribbon at 1440. Badges, or untruncated facts.
+- **P26.** Damage and Valuation lose their own heads inside Vehicle. Confirm.
+- **P30.** Crosses FRD-11's fixed-template rule. Confirm the rule changes.
+- **P21 to P23.** Drawn on a delivery form the fixture cannot reach. Seeding a
+  generated report would let them be checked against a running page.
+- **P36.** The Glass's slot is drawn from the live partial, not captured, so it
+  sits outside the parity check. Enabling a Glass's login on the fixture
+  account would let the real thing be captured.
+- **P29.** Corrected 19 September to radio groups, with the unset state offered
+  as "Not recorded". Confirm that wording for the empty option.
+- **P32.** Estimate notes, Repair days and Estimate name are hidden, not
+  deleted, so nothing is lost on save. Confirm the three fields go from the
+  record altogether, or stay somewhere.
+- **P48.** Materials move from the estimate to each line. Confirm the Core change:
+  a `Materials` amount per line, the estimate's paint materials becoming the sum.
+- **P49.** Settled 20 September: dropped. The instruction types are Inspection,
+  Inspection + Audit (Create audit makes the linked Audit Case) and standalone
+  Audit, as FRD-01 has them; no product select, no AP, Commercial and
+  Diminution deferred. P51 keys off the Case being an Audit.
+- **P43.** Which acts freeze a version in Stage 2, and whether "Sent on report"
+  reads from the report's recorded estimate dependency.
+- **P51.** Stage 2 has a source for every cell: Core's third-party report
+  extraction records the issuer, report date, roadworthiness and outcome
+  (`ThirdPartyReportContracts.cs`), and FRD-09's standalone Audit states an
+  `originalReportVerdict`. Confirm the cells fill from the extracted original
+  report when one is filed, with the chip saying so, and stay hand-entered
+  otherwise. Confirm the firm list is the profile list plus Other.
+- **P50.** The section is "Files" again because it holds Documents and
+  Correspondence too; say if another name is wanted (the live button says
+  "Add evidence"). The Report section keeps no image surface at all; confirm
+  the report's image order is then the tile order plus each Supporting order.
+- **P41.** Whether a removed image is Not used (the live role) or leaves the
+  Case; the mockup hides it and offers Undo. Whether Full page is a report role
+  or a flag on the Supporting image.
+- **P39.** The fixture has no eligible sign-off account, so the rule is wired
+  but not shown. Flagging an account on the fixture would let it be captured.
+- **Settled 20 September (finalisation).** P5: Reset returns the areas to the
+  values held when the edit opened; Core stores the eight areas only. P32:
+  Estimate notes and Repair days are deleted; the name stays, edited on the
+  tab. P41: Remove sets the role to Not used and the file stays on the Case;
+  Full page is a flag on an included image. P31: everything says Repair Spec.
+  P48: materials move to the line (additive migration). P30, P34 and P35:
+  Engineer-owned on the record; FRD-11 is rewritten in Stage 2. P51: cells
+  fill from the extracted original report when one is filed, hand-entered
+  otherwise; the firm list is the profile list plus Other.
+- **Copy sweep, 20 September.** Read against `docs/design/README.md` ("No
+  explanatory copy", banned words, one fact one home): the P41 two-per-page
+  note and the P37 tooltip sentence are gone (the cell is named Off-pattern);
+  the P29 line is a label and a value ("Salvage · Not applicable"); the P44
+  history rows state the act without a consequence clause; the P30 wording
+  chips no longer use the banned word "composed" ("tracks fields", "from
+  Estimate", "edited"); P38 no longer repeats the assigned Engineer on Case
+  details, since the ribbon owns that fact. Still to decide by the operator:
+  the live AI jobs wording "Lease expires HH:mm" uses a banned word.
+- **After PR 792 and PR 793 (18 September, merged in the finalisation).** The
+  captured `case-record-estimate-import*` states and P36's Complete import
+  predate PR 793: an estimate upload now imports in one act, so P43 freezes v1
+  at import and the origin line reads "Imported … from …". Sign-off
+  eligibility (P38, P39) is enabled + flagged + signature after PR 792, with
+  no role test; `access-denied-user-role.html` is superseded by it.
+- **Declined 20 September.** Take over and ask to release, inline padlocks,
+  an assigned-engineer select, Engineer's value in two places, the
+  average-mileage shortcut, import overwrite after a confirm, WhatsApp as a
+  channel, implicit reopen after send, and the autosave edit model are not
+  wanted; they stay in the reference file only.
+- **Already live.** The section link following the reader as the page scrolls
+  and the sections' fold state remembered per browser are live behaviour, so
+  neither is a proposal.
 
-_No items are rejected or settled with a date yet — this is the first
-round._
+### Carried over from v27
 
-## 8. Self-check result
+v27 never went to Stage 2 and none of its proposals is live. The nineteen the
+operator listed on 18 September are now P12 to P30, with P1 (the mark) and P5
+(damage by area). v27's `offpattern`, `place`, `signoff` and `reportdate`
+switches are P37 to P40 since 20 September. Of its needs-a-decision-first list
+nothing is built: the product type select was drawn as P49 and dropped the
+same day on the operator's ruling.
 
-18 September 2026: `RESULT {"fail":[],"okCount":240}` —
-`node design/planning-and-old-designs/v28_planning/current/v28-build/selfcheck-runner.mjs`,
-run twice for stability, both clean. 240 assertions across all nine files:
-each file's default load, `window.MOCK` presence, a page-specific content
-assertion, zero console errors, and (on every shell page) the Notifications
-dialog opening via its query-string preset — each repeated across roughly
-4-13 state presets per file (more for the Case record, given its size).
+## 10. Stage 2 progress
 
-Screenshots: 144 PNGs in `v28-shots/`, at 1580×1000, 1440×900 and 760×1000
-for every state cited above, taken by
-`node design/planning-and-old-designs/v28_planning/current/v28-build/shoot.mjs shots.json`
-— all 144 reported clean (zero console/log errors during capture).
+Recorded 20 September 2026 as the slices were built; each is one PR from
+`origin/dev`, with its FRD updated in the same change.
 
-## 9. Known limits
+| Slice | Proposals | Branch / PR | State |
+| --- | --- | --- | --- |
+| A · Shell and global | P1, P2, P3, P6 D–I, P8 | `task/v28-shell`, PR 797 | built, 124 web tests green, CI running |
+| B1 · Case details | P4, P7, P12, P25, P45 (P47 was already live) | `task/v28-case-details`, PR 798 | built, 147 web tests green |
+| B2 · Section map | P26 (Case details, Claim, Decisions; Damage and Valuation nested under Vehicle), P38 (VAT registered on Claim, report switches on Valuation, Sign-off Engineer on Case details; unrelated damage stays in the nested Damage panel), P51 (Original report section on an Audit Case, hand-entered; the extraction fill is a follow-up) | `task/v28-case-details`, PR 798 | built, 121 web tests green, CI running |
+| C · Vehicle, Damage, Valuation | P5 (eight areas, Reset), P8 cards, P13 (CAP), P24 chips | `task/v28-vehicle`, PR 799 | built; two migrations (Cap source, impacts as areas) |
+| D · Repair Spec | P9, P10, P16–P20, P31–P37, P43, P44, P48 | `task/v28-repair-spec`, PR 800 | built; header-by-line and snapshot migrations |
+| E · Decisions | P14, P15, P29, P30 reserve, P35 | `task/v28-decisions`, PR 801 | built; reason-bank migration |
+| F1 · Report and Fee tabs | P24 tabs, P40 report date, P39 (already live) | `task/v28-report`, PR 802 | built; no schema change |
+| G · Upload | P11 | `task/v28-upload`, PR 804 | built; P28 deferred, see below |
+| F3 · Images | P27, P41, P50 | `task/v28-images`, PR 805 | built; Full page migration |
+| F4 · Report wording | P30 blocks | `task/v28-wording`, PR 806 | built; wording-blocks migration |
+| F2 · Delivery | P21, P22, P23, P42 | `task/v28-delivery`, PR 807 | built; no schema change |
 
-- No cross-file client router or shared JS state exists — a "case opened
-  from Search" does not actually carry into `pegasus_case_record_v28.html`
-  the way the real working-set strip would; each file's fixtures are
-  independent synthetic data using the same hero Case identity
-  (`QDOS26214` / `MA59 BDY`) by convention, not by shared runtime state.
-- Font fallback, synthetic images (no real evidence photography), a fixed
-  demo return for every "Get valuation"/lookup action, representative
-  (not exhaustive) failure codes, and several dialogs stubbed to a toast
-  rather than a full flow (noted per-page in §6) are not shown.
-- The mockup strip's Role/Data/Freshness toggles are demo-only; they do not
-  prove server-side authorisation, a real empty database, or a real clock.
-- Process note, recorded for the operator rather than hidden: during the
-  Administration lane, a sub-agent it dispatched (explicitly instructed not
-  to write files) wrote files anyway, causing a brief collision the lane
-  resolved by adopting the sub-agent's version as final after independent
-  verification; separately, repeated headless-Chromium smoke runs across
-  lanes leaked orphaned processes that briefly filled the workstation's
-  `C:` drive, resolved by killing the orphaned processes and clearing the
-  NuGet HTTP cache. Neither affected the files kept in this round — both
-  are noted for awareness, not as defects in the capture itself.
-- A completely independent, unrelated Claude session was found mid-task
-  editing `triage_unidentified`'s files in this same worktree; the two
-  sessions coordinated by message and the peer stood down. Recorded in
-  `discussion-log.md`.
+The F slices were split because the Report section is where everything else
+lands: the tabs and the report date first, then the images once they had one
+home, then the wording the report prints, then what the delivery carries.
+Each slice is stacked on the one before it, so 799 → 800 → 801 → 802 → 804 →
+805 → 806 → 807 merge in that order behind 797 and 798.
 
-## 18 September 2026 — round complete
+**P28 (Queries panel) is deferred.** The captured mockup shows an empty panel
+and the round recorded no interface contract for it: what a query is, who
+raises one, who answers it and when it closes. Shipping the panel without
+that would be a closed gate. It waits on the operator's definition.
 
-Nine files built, 240/240 self-check assertions pass, 144 screenshots taken
-clean, every routed page and every genuinely dead route accounted for (§
-"Not given a mockup surface, and why" in `pages/README.md`). Zero design
-decisions were made; eleven genuine capture ambiguities (A-K) are recorded
-above for operator sign-off. Stage 2 is not started.
+Beside the slices, the same day delivered the operator's three additions:
+release notes (PR 794), problem reports (PR 795, stacked on 794) and the
+Administration reports (PR 796). PR 793 (estimate import) carries PR 792's
+gate removal and is green.

@@ -13,20 +13,21 @@ Read from the live source on 18 September 2026.
 
 | File | Owns |
 | --- | --- |
-| `Pages/Administration/ValuationPresets/Index.cshtml` | The one table: normal rows, one editable row, the add row |
-| `Pages/Administration/ValuationPresets/Index.cshtml.cs` | `Presets`, `ValuationPresetLabels`, `Create`/`Save`/`CancelEdit`/`Remove` handlers |
+| `Pages/Administration/ValuationPresets/Index.cshtml` | The one table: every stored row already editable, plus the add row |
+| `Pages/Administration/ValuationPresets/Index.cshtml.cs` | `Presets`, `ValuationPresetLabels`, `OnPostCreateAsync`/`OnPostSaveAsync`/`OnPostRemoveAsync` handlers |
 | `Core/Assessment/ValuationCalculationPolicy` | `FormatMoney()`, the label length limit |
 
 ## Behaviours
 
 ### Table
 
-Label, Amount, State (chip, Enabled/Disabled), and row actions. A row not
-currently being edited shows Edit and, only for a taken-over edit, Take
-over, plus Remove. The one row currently being edited (`editPresetId` in the
-query string) instead shows its Label/Amount/Enabled inputs inline with
-Cancel/Save. The add row at the foot is always present and always editable
-— it has no separate "closed" state.
+Every row is already editable, no Edit/Take-over toggle: a Label input, an
+Amount input and an Enabled checkbox, each row posting through its own
+Save/Reset form (`Save` handler, keyed by that row's own hidden
+`presetId`/`expectedVersion`) plus its own Remove form, which posts
+immediately with no confirmation dialog. The add row at the foot is always
+present and always editable in the same way — it has no separate "closed"
+state.
 
 ## Things the FRD does not settle
 
