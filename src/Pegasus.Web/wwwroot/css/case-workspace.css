@@ -260,6 +260,19 @@
 #section-report .report-tab:focus-visible{outline:2px solid var(--navy);outline-offset:-2px}
 #section-report [data-report-fee-note] dd.empty{color:var(--quiet)}
 
+.image-tile-report{display:flex;flex-wrap:wrap;align-items:flex-end;gap:6px;padding:6px 0 0}
+.image-tile-report .fc{margin:0;min-width:0;flex:1 1 92px}
+.image-tile-report .fc .fi{min-height:28px;padding:2px 6px;font-size:12px}
+.image-tile-report .fc .fi.num{width:64px;flex:none}
+.image-tile-tools{display:inline-flex;gap:2px;align-items:center}
+.image-tile-tools .grip{display:inline-grid;place-items:center;width:22px;height:22px;color:var(--quiet);cursor:grab}
+.image-tile-tools .icon-button{display:inline-grid;place-items:center;width:22px;height:22px;border:1px solid transparent;border-radius:3px;background:none;color:var(--muted);cursor:pointer}
+.image-tile-tools .icon-button:hover{border-color:var(--line);color:var(--navy)}
+.image-tile-tools .icon-button[aria-pressed="true"]{border-color:var(--navy);color:var(--navy);background:#f4f7fa}
+.image-tile.is-dragging{opacity:.5}
+.image-tile.is-drop{outline:2px solid var(--navy);outline-offset:2px}
+.image-grid-count{margin:6px 0 0;font-size:12px}
+
 /* ==== estimate ==== */
 /* ---- Estimate (v26 § Estimate) ---------------------------------------------- */
 #section-estimate .estimate-tabs{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2)}

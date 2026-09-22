@@ -18,9 +18,12 @@ namespace Pegasus.Infrastructure.Reports;
 /// instead of printing a placeholder.
 /// </summary>
 internal sealed record PreparedReportImages(
-    IReadOnlyList<byte[]> Photos,
+    IReadOnlyList<PreparedReportPhoto> Photos,
     byte[] Signature,
     byte[] Logo);
+
+/// <summary>One decoded photo and whether it prints on a page of its own (v28 P41).</summary>
+internal sealed record PreparedReportPhoto(byte[] Content, bool FullPage);
 
 /// <summary>
 /// The one assessment-report layout (FRD-11, ADR-0050): the report and the
@@ -521,28 +524,61 @@ internal static class AssessmentReportLayout
         });
 
     /// <summary>
-    /// The photo grid: two square frames per row, each printing the prepared
-    /// square, a row never split across pages. Order is the snapshot's:
-    /// Close-up first, Overview second, Supporting by its persisted order.
+    /// The report's images: two to a page in the order the Engineer set, and
+    /// an image flagged Full page on a page of its own (v28 P41).
     /// </summary>
-    private static void PhotoGrid(IContainer container, IReadOnlyList<byte[]> photos) => container.Column(grid =>
+    private static void PhotoGrid(IContainer container, IReadOnlyList<PreparedReportPhoto> photos) => container.Column(grid =>
     {
         grid.Spacing(4, Unit.Millimetre);
-        for (var i = 0; i < photos.Count; i += 2)
+        var pair = new List<PreparedReportPhoto>(2);
+        var hasGroup = false;
+
+        void BeginGroup()
         {
-            var first = photos[i];
-            var second = i + 1 < photos.Count ? photos[i + 1] : null;
+            if (hasGroup)
+            {
+                grid.Item().PageBreak();
+            }
+            hasGroup = true;
+        }
+
+        void Flush()
+        {
+            if (pair.Count == 0)
+            {
+                return;
+            }
+            BeginGroup();
+            var first = pair[0];
+            var second = pair.Count > 1 ? pair[1] : null;
             grid.Item().ShowEntire().Row(row =>
             {
                 row.Spacing(4, Unit.Millimetre);
-                PhotoFrame(row.RelativeItem(), first);
+                PhotoFrame(row.RelativeItem(), first.Content);
                 var right = row.RelativeItem();
                 if (second is not null)
                 {
-                    PhotoFrame(right, second);
+                    PhotoFrame(right, second.Content);
                 }
             });
+            pair.Clear();
         }
+        foreach (var photo in photos)
+        {
+            if (photo.FullPage)
+            {
+                Flush();
+                BeginGroup();
+                grid.Item().ShowEntire().Column(page => PhotoFrame(page.Item(), photo.Content));
+                continue;
+            }
+            pair.Add(photo);
+            if (pair.Count == 2)
+            {
+                Flush();
+            }
+        }
+        Flush();
     });
 
     private static void PhotoFrame(IContainer container, byte[] square) => container

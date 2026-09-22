@@ -191,6 +191,21 @@ public sealed class CaseReportFreshnessTests
     }
 
     [Fact]
+    public void ChangingFullPageStalesWithTheImageReason()
+    {
+        var caseId = Guid.NewGuid();
+        var occurrenceId = Guid.NewGuid();
+        var versionId = Guid.NewGuid();
+        var before = Preparation(caseId, occurrenceId, versionId, CaseAssetRotation.None);
+        var after = before with { FullPage = true };
+
+        var decision = CaseReportFreshness.ClassifyImages([before], [after]);
+
+        Assert.True(decision.IsStale);
+        Assert.Equal(CaseReportStaleReasons.ImagePreparationChanged, decision.ReasonCode);
+    }
+
+    [Fact]
     public void UnchangedValuationDependenciesDoNotStale()
     {
         var dependencies = new CaseReportValuationDependencies(
@@ -293,5 +308,6 @@ public sealed class CaseReportFreshnessTests
             CaseAssetCrop.Full,
             1,
             "Staff:test",
-            DateTimeOffset.UnixEpoch);
+            DateTimeOffset.UnixEpoch,
+            false);
 }

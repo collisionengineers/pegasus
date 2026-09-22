@@ -330,10 +330,18 @@ presentation.
 The Engineer workbench is the Damage, Valuation, Estimate, Settlement and
 Report sections of the Case record. `/Cases/{id}/Assessment` is a permanent
 redirect to `/Cases/{id}?section=estimate`. The sections can always be read
-and are read-only in Completed. Report position lives on the Report section:
+and are read-only in Completed. An image has one place (v28 P50): its report
+role, its order and the tools that change them are on its tile under Files —
 a distinct `Close-up` first, `Overview` second, optional supporting images in
 explicit order, and non-destructive crops that leave the retained source and
-its hash untouched.
+its hash untouched. Beneath the grid a line counts what the report uses. The
+tile also carries Rotate, **Full page** and Remove (v28 P41): Full page is a
+flag on an image the report uses, so the image prints on a page of its own;
+Remove sets the role to Not used and the file stays on the Case, with Undo
+for eight seconds; the grip drags a tile above the one it lands on and the
+order the tiles then stand in is the report's supporting order. While the
+Case edits, clicking the image itself toggles whether the report uses it
+(v28 P27). The Report section carries no image surface.
 
 The Repair Spec section (v28 P31: the word "Estimate" stays for an imported
 repairer's document) carries the repair specification set (`EXT-09`): named

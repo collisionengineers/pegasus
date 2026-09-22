@@ -153,7 +153,8 @@ public sealed record ReportImageEvidence(
     Guid? OccurrenceId = null,
     Guid? VersionId = null,
     string? BoxFileId = null,
-    string? BoxVersionId = null)
+    string? BoxVersionId = null,
+    bool FullPage = false)
 {
     [JsonIgnore]
     public CaseAssetCrop AppliedCrop => Crop ?? CaseAssetCrop.Full;

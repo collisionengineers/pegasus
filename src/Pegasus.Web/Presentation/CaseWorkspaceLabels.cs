@@ -749,6 +749,19 @@ public static class CaseWorkspaceLabels
     /// </summary>
     public static class ReportImages
     {
+        public const string FullPage = "Full page";
+        public const string PrintOnItsOwnPage = "Print on its own page";
+        public const string Remove = "Remove image";
+        public const string Rotate = "Rotate";
+        public const string DragToReorder = "Drag to reorder";
+        public const string InReport = "In report";
+        public const string NotInReport = "Not in report";
+        public const string Undo = "Undo";
+        public const string ImageRemoved = "Image removed";
+
+        /// <summary>The count line under the image grid: how many of the Case's images the report uses.</summary>
+        public static string InReportCount(int included, int total) => $"{included} of {total} in report";
+
         public const string SectionTitle = "Report position";
         public const string Role = "Role";
         public const string Order = "Order";
