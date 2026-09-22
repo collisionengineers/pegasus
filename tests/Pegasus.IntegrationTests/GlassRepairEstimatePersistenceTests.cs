@@ -27,11 +27,11 @@ public sealed class GlassRepairEstimatePersistenceTests
         var material = await harness.Store.CreateAsync(
             harness.Material(EngineerAccountKey, GlassRepairEstimateSessionState.Unknown, "uncertain-launch"), default);
         var session = material.Session;
-        var owner = ActionActor.Staff(harness.UserId, [StaffRole.Engineer]);
+        var owner = ActionActor.Staff(harness.UserId, [StaffRole.User]);
         var request = new GlassRepairEstimateCloseRequest(owner, session.Id, session.Version, true,
             "Checked Glass's and closed the calculation.");
         await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.Store.CloseAsync(
-            request with { Actor = ActionActor.Staff(harness.OtherUserId, [StaffRole.Engineer]) }, default));
+            request with { Actor = ActionActor.Staff(harness.OtherUserId, [StaffRole.User]) }, default));
         await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.Store.CloseAsync(
             request with { ExternalSessionClosed = false }, default));
         await Assert.ThrowsAsync<GlassRepairEstimateRefusalException>(() => harness.Store.CloseAsync(

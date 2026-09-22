@@ -483,9 +483,9 @@ public sealed partial class DetailsModel
         {
             return Forbid();
         }
-        catch (GuideValuationProviderUnavailableException unavailable)
+        catch (GuideValuationProviderUnavailableException)
         {
-            TempData["CaseError"] = CaseWorkspaceLabels.Valuation.NotConnected(unavailable.ValuationSource);
+            TempData["CaseError"] = CaseWorkspaceLabels.Valuation.Error;
         }
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException

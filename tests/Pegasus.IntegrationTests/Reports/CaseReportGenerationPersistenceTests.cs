@@ -27,6 +27,29 @@ namespace Pegasus.IntegrationTests.Reports;
 [Trait("Category", "SqlServer")]
 public sealed class CaseReportGenerationPersistenceTests
 {
+    [Theory]
+    [InlineData(CaseReportArtifactKind.AssessmentReport)]
+    [InlineData(CaseReportArtifactKind.FeeNote)]
+    public async Task UserCanFreezeEachReportArtifactWithTheExistingImmutableGenerationBoundary(
+        CaseReportArtifactKind kind)
+    {
+        await using var harness = await Harness.CreateAsync(StaffRole.User);
+        var generator = harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness));
+        var report = await generator.ExecuteAsync(harness.Request(), default);
+
+        var result = kind == CaseReportArtifactKind.AssessmentReport
+            ? report
+            : await harness.Generate(new RecordingCustody(harness), new RecordingRenderer(harness))
+                .ExecuteAsync(harness.Request(
+                    CaseReportArtifactKind.FeeNote,
+                    operationKey: "user-fee-note",
+                    targetGenerationId: report.Generation!.Id), default);
+
+        var generation = Assert.IsType<CaseReportGenerationRecord>(result.Generation);
+        Assert.Contains(StaffRole.User, generation.Snapshot.GeneratedBy.ToActor().Roles);
+        Assert.Contains(generation.Artifacts, artifact => artifact.Kind == kind);
+    }
+
     [Fact]
     public async Task SourceReaderRejectsMutationDuringWorkspaceReadInsteadOfLabellingOldFieldsAsCurrent()
     {
@@ -214,7 +237,7 @@ public sealed class CaseReportGenerationPersistenceTests
         var current = Assert.Single(await harness.GenerationRowsAsync());
         Assert.Equal(generation.SnapshotHash, current.SnapshotHash);
         Assert.Equal("Ed Mawdsley", current.Snapshot.Report.Signatory.PrintedName);
-        if (change == "unchanged")
+        if (change is "unchanged" or "role")
         {
             Assert.Equal(CaseReportGenerationState.Confirmed, current.State);
             await harness.RequireDeliveryReadyAsync(delivery);
@@ -1260,7 +1283,7 @@ public sealed class CaseReportGenerationPersistenceTests
         public Dictionary<string, byte[]> EvidenceContent { get; } =
             new(StringComparer.Ordinal);
 
-        public static async Task<Harness> CreateAsync()
+        public static async Task<Harness> CreateAsync(StaffRole staffRole = StaffRole.Engineer)
         {
             var contentRoot = Path.Combine(Path.GetTempPath(), "Pegasus.ReportTests", Guid.NewGuid().ToString("N"));
             var database = await LocalDbTestDatabase.CreateAsync(
@@ -1272,7 +1295,7 @@ public sealed class CaseReportGenerationPersistenceTests
                     .UseSqlServer(database.ConnectionString)
                     .Options;
                 var factory = new PooledDbContextFactory<PegasusDbContext>(options);
-                var staffActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+                var staffActor = ActionActor.Staff(Guid.NewGuid(), [staffRole]);
                 var caseId = await SeedCaseAsync(factory);
                 await SeedSignatoryAsync(factory);
                 var closeUp = await SeedDocumentAsync(factory, caseId, "close-up.png", "image/png", 1);
@@ -1444,7 +1467,7 @@ public sealed class CaseReportGenerationPersistenceTests
             else if (change == "role")
             {
                 await store.UpdateAsync(new(
-                    actor, account.Id, StaffRole.User, false, null, null, null, false,
+                    actor, account.Id, StaffRole.User, true, "Ed Mawdsley", "ATA VDA AQP", SignatureBytes, true,
                     "change-signatory", account.Version), default);
             }
             else

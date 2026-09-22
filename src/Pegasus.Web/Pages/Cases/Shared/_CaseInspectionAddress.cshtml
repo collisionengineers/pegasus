@@ -94,7 +94,7 @@
             </div>
             <div class="fc">
                 @{ Lbl("f-inspection-date", InspectionLabels.InspectionDate); }
-                <div class="@ValueClass(inspectionDate?.ToString("d MMM yyyy"))">@Value(inspectionDate?.ToString("d MMM yyyy"))</div>
+                <div class="@ValueClass(inspectionDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))">@Value(inspectionDate?.ToString("d MMM yyyy", System.Globalization.CultureInfo.InvariantCulture))</div>
                 @if (mayEdit)
                 {
                     <input id="f-inspection-date" class="fi" name="inspectionDate" form="case-edit-form" type="date"

@@ -262,7 +262,7 @@ public sealed class CaseWorkflowPersistenceTests
                     lease.Token),
                 default));
 
-        Assert.Contains("Engineer account is disabled", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("assigned staff account is disabled", exception.Message, StringComparison.Ordinal);
         var unchanged = Assert.IsType<CaseWorkflowRecord>(
             await harness.Store.GetAsync(harness.CaseId, default));
         Assert.Equal(CaseLifecycleState.Review, unchanged.State);
@@ -847,10 +847,9 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Theory]
-    [InlineData(false, true, StaffRole.Engineer, "does not exist")]
-    [InlineData(true, false, StaffRole.Engineer, "is disabled")]
-    [InlineData(true, true, StaffRole.User, "does not hold the Engineer role")]
-    public async Task MissingDisabledOrNonEngineerStaffCannotBeAssigned(
+    [InlineData(false, true, StaffRole.User, "does not exist")]
+    [InlineData(true, false, StaffRole.User, "is disabled")]
+    public async Task MissingOrDisabledStaffCannotBeAssigned(
         bool createAccount,
         bool isEnabled,
         StaffRole role,
@@ -898,14 +897,14 @@ public sealed class CaseWorkflowPersistenceTests
     }
 
     [Fact]
-    public async Task NativeHandoffIsAtomicGuardedAndReplaySurvivesLaterDisablement()
+    public async Task NativeHandoffToAnEnabledUserIsAtomicGuardedAndReplaySurvivesLaterDisablement()
     {
         await using var harness = await WorkflowHarness.CreateAsync();
         var engineerId = Guid.NewGuid();
         await harness.SeedStaffAccountAsync(
             engineerId,
             true,
-            StaffRole.Engineer,
+            StaffRole.User,
             isSignOffEngineer: true);
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var before = Assert.IsType<CaseWorkflowRecord>(
@@ -917,8 +916,8 @@ public sealed class CaseWorkflowPersistenceTests
             harness.CaseId,
             before.Version,
             actor,
-            "assign-eligible-engineer",
-            "Assign enabled Engineer",
+            "assign-eligible-user",
+            "Assign enabled User",
             lease.Token,
             engineerId,
             new(true, true, "accepted-readiness"));

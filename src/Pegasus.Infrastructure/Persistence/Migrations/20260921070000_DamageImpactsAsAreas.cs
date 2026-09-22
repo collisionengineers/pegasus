@@ -9,7 +9,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations;
 /// Damage is recorded by area (v28 P5, ruled 20 September 2026): each impact
 /// names the plan areas under its disc, or Underside, Interior or Mechanical
 /// alone, instead of one diagram zone. A recorded zone becomes the area that
-/// held it; the roof, which the plan no longer shows, becomes both sides.
+/// held it; the roof, which the plan no longer shows, becomes the complete
+/// canonical plan-area closure.
 /// Forward only: the zone a row named is not kept.
 /// </summary>
 [DbContext(typeof(PegasusDbContext))]
@@ -33,7 +34,7 @@ public partial class DamageImpactsAsAreas : Migration
                                WHEN 'rear_centre' THEN '"rear"' WHEN 'rear_screen' THEN '"rear"' WHEN 'tailgate' THEN '"rear"'
                                WHEN 'left_quarter' THEN '"left_rear"' WHEN 'rear_left_corner' THEN '"left_rear"' WHEN 'wheel_left_rear' THEN '"left_rear"'
                                WHEN 'right_quarter' THEN '"right_rear"' WHEN 'rear_right_corner' THEN '"right_rear"' WHEN 'wheel_right_rear' THEN '"right_rear"'
-                               WHEN 'roof' THEN '"left_side","right_side"'
+                               WHEN 'roof' THEN '"front","left_front","right_front","left_side","right_side","rear","left_rear","right_rear"'
                                ELSE '"' + STRING_ESCAPE(z.zone, 'json') + '"' END
                            + '],"severity":"' + STRING_ESCAPE(z.severity, 'json') + '","note":"' + STRING_ESCAPE(ISNULL(z.note, ''), 'json') + '"}'), ',')
                            WITHIN GROUP (ORDER BY CAST(o.[key] AS int)) + ']' AS Impacts

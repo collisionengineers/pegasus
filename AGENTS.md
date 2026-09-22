@@ -13,6 +13,10 @@ and [CONTEXT.md](CONTEXT.md) for reserved business terminology.
   Web and Worker compose both. Imported source, skills and models own no policy.
 ## Verification
 
+If you are running subagents, do not have all the subagents running builds and tests simultaneously. Have them pass back to the lead, combine the work back together if needed, and run ONE single build process. We don't want to run 4 builds for 4 worktrees when we could just run one.
+
+If GitHub CI already runs a test, DO NOT RUN THE TEST LOCALLY unless SPECIFICALLY requested to do so by the user. DO NOT waste time running resource intensive local tests that could have been done on GitHub CIs.
+
 Read [engineering verification policy](docs/engineering.md#verification-policy)
 and the [verification procedure](docs/runbook.md).
 ## Repository map
