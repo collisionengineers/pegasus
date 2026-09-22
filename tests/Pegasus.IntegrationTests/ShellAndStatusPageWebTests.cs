@@ -1,4 +1,6 @@
-using System.Net;
+﻿using System.Net;
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -53,6 +55,41 @@ public sealed class ShellAndStatusPageWebTests
         Assert.DoesNotContain("class=\"workspace-tab\"", html, StringComparison.Ordinal);
         Assert.Contains("data-dialog-open=\"notifications-dialog\"", html, StringComparison.Ordinal);
         Assert.Contains("data-dialog=\"notifications-dialog\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RefinedMarksRenderFromFingerprintablePngRuntimeCopiesInBothFrames()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var authenticated = IntakeWebDriver.CreateClient(factory);
+        var frames = new[]
+        {
+            (Route: "/", Asset: "pegasus-mark-refined-128.png", Hash: "1D6758A5F9D90EA4539DBB498BF0171A93C23B85E9C3868BDDC7D6ABC724A1CB", Client: authenticated),
+            (Route: "/Account/AccessDenied", Asset: "pegasus-mark-refined-256.png", Hash: "E3C9712DE05E18D93BD21857F3961A8832941D91D942FA1E34F513944B545E1D", Client: authenticated)
+        };
+
+        foreach (var frame in frames)
+        {
+            using var frameResponse = await frame.Client.GetAsync(frame.Route);
+            Assert.True(frameResponse.IsSuccessStatusCode, $"{frame.Route} answered {(int)frameResponse.StatusCode}.");
+            var html = await frameResponse.Content.ReadAsStringAsync();
+            // MapStaticAssets fingerprints in the file name itself
+            // ("mark.tctmpgz0uo.png"), not in a query string, so the
+            // match allows either shape rather than assuming one.
+            var assetBase = Regex.Escape(Path.GetFileNameWithoutExtension(frame.Asset));
+            var assetExtension = Regex.Escape(Path.GetExtension(frame.Asset));
+            var image = Regex.Match(
+                html,
+                $"src=\"(?<url>/images/{assetBase}(?:\\.[A-Za-z0-9]+)?{assetExtension}(?:\\?v=[^\"]*)?)\"",
+                RegexOptions.CultureInvariant);
+            Assert.True(image.Success, $"{frame.Route} did not render a fingerprinted {frame.Asset} URL.");
+
+            using var imageResponse = await frame.Client.GetAsync(image.Groups["url"].Value);
+            imageResponse.EnsureSuccessStatusCode();
+            Assert.Equal("image/png", imageResponse.Content.Headers.ContentType?.MediaType);
+            var bytes = await imageResponse.Content.ReadAsByteArrayAsync();
+            Assert.Equal(frame.Hash, Convert.ToHexString(SHA256.HashData(bytes)));
+        }
     }
 
     [Fact]
@@ -203,13 +240,12 @@ public sealed class ShellAndStatusPageWebTests
     }
 
     /// <summary>
-    /// v26 shell (shot s30): a signed-in person refused a Manage route reads
-    /// the refusal inside the shell they already have — the area as the
-    /// eyebrow, "Access denied", one sentence — because the rail offers a
-    /// User nothing this page has declined.
+    /// v28 P6-D: a signed-in person refused a Manage route reads the refusal
+    /// in the navless frame with the rest of the error family — the area as
+    /// the eyebrow, "Access denied", one sentence and Return to Work Centre.
     /// </summary>
     [Fact]
-    public async Task AccessDeniedOnAManageRouteRendersInsideTheShellAndNamesTheArea()
+    public async Task AccessDeniedOnAManageRouteRendersInTheNavlessFrameAndNamesTheArea()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -218,8 +254,9 @@ public sealed class ShellAndStatusPageWebTests
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains("aria-label=\"Primary\"", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("auth-card", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("aria-label=\"Primary\"", html, StringComparison.Ordinal);
+        Assert.Contains("auth-card", html, StringComparison.Ordinal);
+        Assert.Contains("Return to Work Centre", html, StringComparison.Ordinal);
         Assert.Contains("<p class=\"eyebrow\">Administration</p>", html, StringComparison.Ordinal);
         Assert.Contains("<h1>Access denied</h1>", html, StringComparison.Ordinal);
         Assert.Contains("Administration is available to Administrators only.", html, StringComparison.Ordinal);

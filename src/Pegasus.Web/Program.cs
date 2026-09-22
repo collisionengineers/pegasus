@@ -757,6 +757,7 @@ builder.Services.AddScoped<IListAutomationActivity, ListAutomationActivity>();
 // Administration health remains available when the Automation ingress is disabled.
 builder.Services.AddScoped<Pegasus.Core.Operations.IAutomationIngressStatusQueries, AutomationIngressStatusQueries>();
 builder.Services.AddScoped<Pegasus.Core.Operations.GetServiceHealth>();
+builder.Services.AddSingleton(new Pegasus.Core.ReleaseNotes.ApplicationBuild(productVersion, sourceSha));
 if (automationMcpOptions is not null)
 {
     builder.Services.AddPegasusAutomationMcp(

@@ -7,26 +7,30 @@ public sealed class IdentityUseCaseTests
     private static readonly ActionActor Administrator =
         ActionActor.Staff(Guid.Parse("ed03353a-bcb8-48d9-aa1b-37061b114af1"), [StaffRole.Administrator]);
 
-    [Fact]
-    public async Task StaffAccountSettingsNormalizeRoleAndSignOffAsOneCommand()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public async Task EveryStaffRoleNormalizesSignOffSettingsAsOneCommand(StaffRole role)
     {
         var store = new RecordingStore();
         await new UpdateStaffAccountSettings(store).ExecuteAsync(
             SettingsRequest(Guid.NewGuid()) with
             {
+                Role = role,
                 PrintedName = "  A. Engineer  ",
                 Qualifications = "  M.Inst.IAEA  ",
                 OperationKey = "  settings-1  "
             }, default);
 
-        Assert.Equal(StaffRole.Engineer, store.SettingsRequest?.Role);
+        Assert.Equal(role, store.SettingsRequest?.Role);
         Assert.Equal("A. Engineer", store.SettingsRequest?.PrintedName);
         Assert.Equal("M.Inst.IAEA", store.SettingsRequest?.Qualifications);
         Assert.Equal("settings-1", store.SettingsRequest?.OperationKey);
     }
 
     [Fact]
-    public async Task UserRoleClearsInvalidSignOffSettingsAtomically()
+    public async Task UserRolePreservesValidSignOffSettingsAtomically()
     {
         var store = new RecordingStore();
         await new UpdateStaffAccountSettings(store).ExecuteAsync(
@@ -37,11 +41,11 @@ public sealed class IdentityUseCaseTests
                 IsDefaultSignOffEngineer = true
             }, default);
 
-        Assert.False(store.SettingsRequest!.IsSignOffEngineer);
-        Assert.False(store.SettingsRequest.IsDefaultSignOffEngineer);
-        Assert.Null(store.SettingsRequest.PrintedName);
+        Assert.True(store.SettingsRequest!.IsSignOffEngineer);
+        Assert.True(store.SettingsRequest.IsDefaultSignOffEngineer);
+        Assert.Equal("A Engineer", store.SettingsRequest.PrintedName);
         Assert.Null(store.SettingsRequest.Qualifications);
-        Assert.Null(store.SettingsRequest.Signature);
+        Assert.Equal(Png(), store.SettingsRequest.Signature);
     }
 
     [Fact]
@@ -70,24 +74,51 @@ public sealed class IdentityUseCaseTests
     }
 
     [Fact]
-    public void SignOffEligibilityAllowsAdministratorsAndEngineersOnly()
+    public void SignOffEligibilityDependsOnEnabledFlagAndCompleteProfile()
     {
-        Assert.True(SignOffEngineerEligibility.IsEligible(true, StaffRole.Administrator, true, Png()));
-        Assert.True(SignOffEngineerEligibility.IsEligible(true, StaffRole.Engineer, true, Png()));
-        Assert.False(SignOffEngineerEligibility.IsEligible(true, StaffRole.User, true, Png()));
-        Assert.False(SignOffEngineerEligibility.IsEligible(false, StaffRole.Engineer, true, Png()));
+        Assert.True(SignOffEngineerEligibility.IsEligible(true, true, Png()));
+        Assert.False(SignOffEngineerEligibility.IsEligible(false, true, Png()));
+        Assert.False(SignOffEngineerEligibility.IsEligible(true, false, Png()));
+        Assert.False(SignOffEngineerEligibility.IsEligible(true, true, null));
     }
 
     [Fact]
-    public void AdministratorInheritsEveryStaffRoleCapability()
+    public void StaffRolesReflectExactlyTheirStoredRole()
     {
         var administrator = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         var engineer = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var user = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
         Assert.True(administrator.IsInRole(StaffRole.Administrator));
-        Assert.True(administrator.IsInRole(StaffRole.Engineer));
-        Assert.True(administrator.IsInRole(StaffRole.User));
+        Assert.False(administrator.IsInRole(StaffRole.Engineer));
+        Assert.False(administrator.IsInRole(StaffRole.User));
         Assert.False(engineer.IsInRole(StaffRole.Administrator));
+        Assert.True(engineer.IsInRole(StaffRole.Engineer));
+        Assert.False(user.IsInRole(StaffRole.Administrator));
+        Assert.False(user.IsInRole(StaffRole.Engineer));
+        Assert.True(user.IsInRole(StaffRole.User));
+    }
+
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public void EveryStoredStaffRoleHasOrdinaryCaseworkRights(StaffRole role)
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
+
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+    }
+
+    [Theory]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public void OnlyAdministratorsHaveManagementRights(StaffRole role)
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
+
+        Assert.Throws<StaffAuthorizationException>(() =>
+            StaffAuthorization.Require(actor, StaffAccessRight.ManageStaffAccounts));
     }
 
     [Fact]

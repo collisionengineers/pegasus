@@ -426,6 +426,9 @@ public static class DependencyInjection
         services.AddScoped<ICaseStaffNotifier, CaseStaffNotifier>();
         services.AddScoped<IMyStaffNotifications, MyStaffNotifications>();
         services.AddScoped<PurgeStaffNotifications>();
+        services.AddScoped<Pegasus.Core.ReleaseNotes.IReleaseNoteStore, EfReleaseNoteStore>();
+        services.AddScoped<Pegasus.Core.ReleaseNotes.ReleaseNoteAdministration>();
+        services.AddScoped<Pegasus.Core.ReleaseNotes.IMyReleaseNotes, Pegasus.Core.ReleaseNotes.MyReleaseNotes>();
         services.AddScoped<ILeaseCaseForEdit>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<ICaseArchiveStore>(
             provider => provider.GetRequiredService<EfCaseWorkflowStore>());

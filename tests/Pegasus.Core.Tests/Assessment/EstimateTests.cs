@@ -13,15 +13,19 @@ namespace Pegasus.Core.Tests.Assessment;
 /// </summary>
 public sealed class EstimateTests
 {
-    [Fact]
-    public void EditorEvidenceIsResolvedWithoutChangingTheSubmittedIntent()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public void EveryStaffRoleMayAmendAnEstimateWithoutChangingSubmittedIntent(StaffRole role)
     {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
         var sourceLine = Line("repair", workUnits: 2m, materials: 7m) with
         {
             SourceRowIdentity = "repair-row-1", AmendedBy = Engineer.SubjectId, AmendedAtUtc = Now,
         };
         var existing = Estimate(Details(), sourceLine);
-        var submitted = SaveRequest(Engineer, RepairSpecificationSourceRoute.Manual) with
+        var submitted = SaveRequest(actor, RepairSpecificationSourceRoute.Manual) with
         {
             EstimateId = existing.SpecificationId, ExistingLineIds = [sourceLine.Id],
             Lines = [LineInput("repair") with { Description = sourceLine.Description, WorkUnits = 3m }],
@@ -271,10 +275,20 @@ public sealed class EstimateTests
         Assert.Equal("CR0", RegionalUpliftPolicy.OutwardCode("Croydon CR0 4XT"));
     }
 
-    [Fact]
-    public void AStaffUserWhoIsNotAnEngineerCannotSaveAnEstimate() =>
-        Assert.Throws<InvalidOperationException>(() =>
-            EstimatePolicy.ValidateSave(SaveRequest(User, RepairSpecificationSourceRoute.Manual)));
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public void EveryStaffRoleMaySaveAManualEstimate(StaffRole role)
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
+
+        var validated = EstimatePolicy.ValidateSave(
+            SaveRequest(actor, RepairSpecificationSourceRoute.Manual));
+
+        Assert.Equal(actor.SubjectId, validated.Actor.SubjectId);
+        Assert.Equal(RepairSpecificationSourceRoute.Manual, validated.Source.Route);
+    }
 
     [Fact]
     public void TheAutomationActorMayOnlySaveAiDraftsThatCiteAJob()
@@ -348,15 +362,41 @@ public sealed class EstimateTests
         EstimatePolicy.ValidateDiscard(Estimate(Details(), Line("repair", workUnits: 1m)));
     }
 
-    [Fact]
-    public void MakingCurrentIsTheEngineersAcceptanceWithTheTotalsOwnersBasis()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public async Task EveryStaffRoleMayDuplicateAndDiscardAnEstimate(StaffRole role)
     {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
+        var store = new FakeSpecificationStore();
+        var estimateId = Guid.NewGuid();
+
+        await new DuplicateEstimate(store).ExecuteAsync(
+            new(CaseId, 3, actor, "duplicate-estimate", "Duplicated estimate.", Lease, estimateId),
+            CancellationToken.None);
+        await new DiscardEstimate(store).ExecuteAsync(
+            new(CaseId, 4, actor, "discard-estimate", "Discarded estimate.", Lease, estimateId),
+            CancellationToken.None);
+
+        Assert.Equal(actor.SubjectId, Assert.Single(store.Duplicates).Actor.SubjectId);
+        Assert.Equal(actor.SubjectId, Assert.Single(store.Discards).Actor.SubjectId);
+        Assert.Equal(estimateId, store.Duplicates[0].EstimateId);
+        Assert.Equal(estimateId, store.Discards[0].EstimateId);
+    }
+
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public void EveryStaffRoleMayMakeAnEstimateCurrentWithTheTotalsOwnersBasis(StaffRole role)
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
         var draft = Estimate(
             new("Draft", 40m, 0m, 20m,
                 Vat: EstimateVatPolicy.For(RepairerVatStatus.Registered)),
             Line("new_part", price: 100m), Line("repair", workUnits: 2m));
-        EstimatePolicy.ValidateSetCurrent(draft, Engineer);
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(draft, User));
+        EstimatePolicy.ValidateSetCurrent(draft, actor);
 
         var basis = EstimatePolicy.BasisFor(draft);
         var totals = EstimateTotals.Compute(draft);
@@ -366,10 +406,10 @@ public sealed class EstimateTests
         Assert.Equal(basis, RepairSpecificationPolicy.ValidateCalculationBasis(basis));
 
         var unconfirmed = draft with { Lines = [Line("repair", workUnits: 1m, confirmed: false)] };
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(unconfirmed, Engineer));
+        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(unconfirmed, actor));
         var discarded = draft with { State = RepairSpecificationState.Discarded };
-        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(discarded, Engineer));
-        EstimatePolicy.ValidateSetCurrent(draft with { State = RepairSpecificationState.Accepted }, Engineer);
+        Assert.Throws<InvalidOperationException>(() => EstimatePolicy.ValidateSetCurrent(discarded, actor));
+        EstimatePolicy.ValidateSetCurrent(draft with { State = RepairSpecificationState.Accepted }, actor);
     }
 
     [Fact]
@@ -396,8 +436,14 @@ public sealed class EstimateTests
         await setCurrent.ExecuteAsync(SetCurrentRequest(Engineer, "op-none"), CancellationToken.None);
         Assert.Single(confirm.Commands);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            setCurrent.ExecuteAsync(SetCurrentRequest(User, "op-user"), CancellationToken.None));
+        store.Current = store.Current with { AiJobId = ready, IsCurrent = true };
+        var userCurrent = await setCurrent.ExecuteAsync(
+            SetCurrentRequest(User, "op-user"), CancellationToken.None);
+        Assert.True(userCurrent.IsCurrent);
+        Assert.Equal(ready, userCurrent.AiJobId);
+        Assert.Equal(2, confirm.Commands.Count);
+        Assert.Equal(User.SubjectId, confirm.Commands[1].Actor.SubjectId);
+        Assert.Equal("op-user:job", confirm.Commands[1].OperationKey);
     }
 
     // ---- B04 arithmetic: discounts, VAT categories and printed pennies ----
@@ -839,9 +885,13 @@ public sealed class EstimateTests
 
     // ---- The one canonical raw-estimate import ----
 
-    [Fact]
-    public async Task AnImportUsesTheSuppliedNameAndDerivesOneOnlyWhenNoneIsGiven()
+    [Theory]
+    [InlineData(StaffRole.Administrator)]
+    [InlineData(StaffRole.Engineer)]
+    [InlineData(StaffRole.User)]
+    public async Task EveryStaffRoleMayImportADraftWithTheSuppliedName(StaffRole role)
     {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [role]);
         var save = new FakeSpecificationStore();
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex"), JsonStub()],
@@ -850,9 +900,12 @@ public sealed class EstimateTests
             new StubList(),
             save);
 
-        await import.ExecuteAsync(ImportRequest(name: "  Repairer quote  "), CancellationToken.None);
+        await import.ExecuteAsync(
+            ImportRequest(name: "  Repairer quote  ", actor: actor),
+            CancellationToken.None);
 
         Assert.Equal("Repairer quote", Assert.Single(save.Saved).Details.Name);
+        Assert.Equal(actor.SubjectId, Assert.Single(save.AuthorityChecks).Actor.SubjectId);
     }
 
     [Fact]
@@ -1023,7 +1076,7 @@ public sealed class EstimateTests
     }
 
     [Fact]
-    public async Task AReplayIsAuthorizedBeforeTheReplayIsConsulted()
+    public async Task AProviderIsRejectedBeforeReplayConsultedAndAUserCanReplay()
     {
         var save = new FakeSpecificationStore();
         var already = Estimate(Details()) with
@@ -1031,14 +1084,15 @@ public sealed class EstimateTests
             Source = new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:first", "v1", ImportSha256),
         };
         var estimates = new StubList(already);
+        var documents = new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf");
         var import = new ImportRawEstimate(
             [new StubParser(RepairSpecificationSourceRoute.AudatexPdf, ".pdf", "Audatex")],
-            Retained, new StubDocuments(ImportBytes, "estimate.pdf", "application/pdf"), estimates, save);
+            Retained, documents, estimates, save);
 
-        // Non-Engineers, malformed mutation envelopes and stale persisted
+        // Non-staff actors, malformed mutation envelopes and stale persisted
         // authority all fail before consulting a source-hash replay.
-        await Assert.ThrowsAsync<InvalidOperationException>(() => import.ExecuteAsync(
-            ImportRequest(actor: User), CancellationToken.None));
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() => import.ExecuteAsync(
+            ImportRequest(actor: ActionActor.Provider(Guid.NewGuid())), CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => import.ExecuteAsync(
             ImportRequest(expectedVersion: -1), CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() => import.ExecuteAsync(
@@ -1050,9 +1104,10 @@ public sealed class EstimateTests
 
         save.RefuseAuthority = false;
         var replay = await import.ExecuteAsync(
-            ImportRequest(operationKey: "op-import-2", expectedVersion: 9), CancellationToken.None);
+            ImportRequest(operationKey: "op-import-2", actor: User, expectedVersion: 9), CancellationToken.None);
         Assert.Equal(already.SpecificationId, replay.EstimateId);
         Assert.Equal(1, estimates.Calls);
+        Assert.Empty(documents.Requests);
         Assert.Empty(save.Saved);
     }
 
@@ -1277,6 +1332,8 @@ public sealed class EstimateTests
     private sealed class FakeSpecificationStore : IRepairSpecificationStore
     {
         public List<ImportRawEstimateRequest> AuthorityChecks { get; } = [];
+        public List<DuplicateEstimateRequest> Duplicates { get; } = [];
+        public List<DiscardEstimateRequest> Discards { get; } = [];
         public bool RefuseAuthority { get; set; }
 
         public Task RequireImportAuthorityAsync(ImportRawEstimateRequest request, CancellationToken cancellationToken)
@@ -1332,11 +1389,17 @@ public sealed class EstimateTests
         public Task<RepairSpecificationVersion?> GetCurrentDraftAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<RepairSpecificationVersion> DuplicateEstimateAsync(DuplicateEstimateRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+        public Task<RepairSpecificationVersion> DuplicateEstimateAsync(DuplicateEstimateRequest request, CancellationToken cancellationToken)
+        {
+            Duplicates.Add(request);
+            return Task.FromResult(Current);
+        }
 
-        public Task<RepairSpecificationVersion> DiscardEstimateAsync(DiscardEstimateRequest request, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+        public Task<RepairSpecificationVersion> DiscardEstimateAsync(DiscardEstimateRequest request, CancellationToken cancellationToken)
+        {
+            Discards.Add(request);
+            return Task.FromResult(Current);
+        }
 
         public Task<IReadOnlyList<RepairSpecificationVersion>> ListEstimatesAsync(Guid caseId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();

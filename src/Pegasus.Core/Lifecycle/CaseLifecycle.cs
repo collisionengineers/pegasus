@@ -89,7 +89,7 @@ public sealed class AssignCaseEngineer(
             cancellationToken);
         if (current.State != CaseLifecycleState.Review && !isReplay)
         {
-            throw new InvalidOperationException("An Engineer can be assigned only while the case is in Review.");
+            throw new InvalidOperationException("A staff member can be assigned only while the case is in Review.");
         }
 
         Guid? signOffEngineerId = null;
@@ -245,7 +245,7 @@ public static class CaseEngineerEligibilityPolicy
         if (state != CaseLifecycleState.Review || assignedEngineerId is null)
         {
             throw new InvalidOperationException(
-                "Case work can start only from Review after an Engineer is assigned.");
+                "Case work can start only from Review after a staff member is assigned.");
         }
 
         await RequireEligibleAsync(source, assignedEngineerId.Value, cancellationToken);
@@ -259,19 +259,14 @@ public static class CaseEngineerEligibilityPolicy
         var eligibility = await source.GetAsync(engineerId, cancellationToken);
         if (!eligibility.AccountExists)
         {
-            throw new InvalidOperationException("The assigned Engineer account does not exist.");
+            throw new InvalidOperationException("The assigned staff account does not exist.");
         }
 
         if (!eligibility.IsEnabled)
         {
-            throw new InvalidOperationException("The assigned Engineer account is disabled.");
+            throw new InvalidOperationException("The assigned staff account is disabled.");
         }
 
-        if (!eligibility.HasEngineerRole)
-        {
-            throw new InvalidOperationException(
-                "The assigned staff account does not hold the Engineer role.");
-        }
     }
 }
 
@@ -635,7 +630,7 @@ public static class CaseLifecycleRules
     }
 
     /// <summary>
-    /// Whether the Case is in a state where an Engineer may be assigned at all:
+    /// Whether the Case is in a state where a staff member may be assigned at all:
     /// today that is Review only, the one place <see cref="AssignCaseEngineer"/>
     /// accepts an assignment.
     /// </summary>
@@ -643,8 +638,8 @@ public static class CaseLifecycleRules
         state == CaseLifecycleState.Review;
 
     /// <summary>
-    /// "Assign to me" is offered on a Case with no Engineer, in a state where
-    /// assignment is allowed. A Case that already has an Engineer is reassigned
+    /// "Assign to me" is offered on a Case with no assigned staff member, in a state where
+    /// assignment is allowed. A Case that already has a staff member is reassigned
     /// through the ordinary dialog, never taken.
     /// </summary>
     public static bool CanAssignToSelf(CaseWorkflowRecord current) =>
@@ -658,29 +653,27 @@ public static class CaseLifecycleRules
         ArgumentNullException.ThrowIfNull(current);
         if (current.AssignedEngineerId is not null)
         {
-            throw new InvalidOperationException("The case already has an Engineer.");
+            throw new InvalidOperationException("The case already has an assigned staff member.");
         }
 
         if (!CanAssignToSelf(current))
         {
-            throw new InvalidOperationException("An Engineer can be assigned only while the case is in Review.");
+            throw new InvalidOperationException("A staff member can be assigned only while the case is in Review.");
         }
     }
 
     /// <summary>
-    /// The staff identity an actor assigns to themself. Only a staff member who
-    /// holds the Engineer role can take a Case; the account's eligibility (enabled,
-    /// still an Engineer) is then checked by the assignment itself.
+    /// The staff identity an actor assigns to themself. The account must be
+    /// enabled when the assignment is checked.
     /// </summary>
-    public static Guid RequireSelfAssigningEngineer(ActionActor actor)
+    public static Guid RequireSelfAssigningStaff(ActionActor actor)
     {
         ArgumentNullException.ThrowIfNull(actor);
         if (actor.Kind != ActorKind.Staff
-            || !actor.IsInRole(StaffRole.Engineer)
             || !Guid.TryParse(actor.SubjectId, out var staffId)
             || staffId == Guid.Empty)
         {
-            throw new InvalidOperationException("Only an Engineer can assign a case to themself.");
+            throw new InvalidOperationException("Only authenticated staff can assign a case to themself.");
         }
 
         return staffId;
@@ -778,7 +771,7 @@ public static class CaseLifecycleRules
         if (request.Destination == CaseReopenDestination.ReportPreparation
             && current.AssignedEngineerId is null)
         {
-            throw new InvalidOperationException("Report preparation requires an assigned Engineer.");
+            throw new InvalidOperationException("Report preparation requires an assigned staff member.");
         }
 
         if (request.Destination == CaseReopenDestination.PostReport

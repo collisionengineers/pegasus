@@ -6,14 +6,14 @@
 
 - Every repair estimate is an immutable version. Each Case has exactly one
   current accepted version.
-- Imported or AI material stays a Draft until an Engineer accepts it with
+- Imported or AI material stays a Draft until an enabled human staff member accepts it with
   **Use estimate**. Importing never changes Current.
 - An import is keyed by Case plus source hash. The same hash replays the same
   Draft.
 - Estimate PDFs need readable embedded text. An unreadable or ambiguous
   source refuses the whole import, with no OCR and no partial Draft.
 - A Glass's answer that was lost stays `Unknown` and holds the account until
-  the owning Engineer closes the session with a reason.
+  the owning staff member closes the session with a reason.
 
 ## Purpose
 
@@ -40,10 +40,10 @@ accepted version, shared by all of the Case's report projections.
 Each version keeps its stable identity, ordered technical lines, source
 route, source artifact identity, version and hash, mapping evidence, raw
 calculation basis and totals, the selected labour-rate card version if one
-was selected, creating actor and time, and, when accepted, the named Engineer
+was selected, creating actor and time, and, when accepted, the named staff member
 and acceptance time. Glass's, Audatex PDF, an approved AI proposal and manual
 entry are provenance routes, never authorities. Imported or automated
-material stays a Draft until an authorised Engineer accepts the exact source,
+material stays a Draft until an authorised human staff member accepts the exact source,
 mapping, ordered lines and calculation basis. A Draft without the required
 provenance cannot satisfy report readiness. Obsolete development-state
 estimates need not be converted or kept.
@@ -64,7 +64,7 @@ With Engineer covers before and after the report
 occurrence must name the exact confirmed, non-removed document version; a
 correctly paired historical version is still valid evidence. The new Draft is
 guarded again in the save transaction. Importing never confirms rows or
-changes Current, even when an Engineer started it. The Engineer's
+changes Current, even when a staff member started it. The human staff
 **Use estimate** action confirms and accepts the Draft once its source,
 mapping, rows and calculation basis pass the normal acceptance rules.
 
@@ -114,7 +114,7 @@ and additional operations) are one deterministic names-only projection of
 those ordered lines, not a second renderer-owned specification.
 
 **Replay in the estimate editor.** The editor saves the Case version and line
-identities the Engineer submitted. Retrying the same operation keeps that
+identities the staff member submitted. Retrying the same operation keeps that
 intent: source evidence and amendment timestamps are resolved only for a new
 operation, not rebuilt before replay detection. A prior successful operation
 returns the same estimate identity in its current state, even after later
@@ -131,20 +131,20 @@ has not started an estimate; an existing estimate reopens by its existing
 identity. These actions sit in the Case estimate section and do not need
 credentials reset.
 
-Keeping a returned estimate's source files does not use up the Engineer's
+Keeping a returned estimate's source files does not use up the staff member's
 still-valid Case edit authority. The import uses that authority to land one
 Draft. A genuine Case edit in between, or an expired or lost lease, leaves
-the retained result waiting until the Engineer regains authority. Callback
+the retained result waiting until the staff member regains authority. Callback
 replay creates neither another Draft nor another change.
 
 **Unknown answers hold the account.** A provider write whose answer was lost
 stays `Unknown` and keeps the account. It must not create another vehicle or
 calculation, and must not release the account just because time passed. The
-owning Engineer can close any session that still holds the account, except
+owning staff member can close any session that still holds the account, except
 one in the middle of an import, only after confirming Glass's is closed and
 no estimate is open, and with a reason. Stale versions and closure by another
-Engineer are refused. An account holds one live session: while it is held
-from another Case, every Case the Engineer opens names that Case instead of
+staff member are refused. An account holds one live session: while it is held
+from another Case, every Case the staff member opens names that Case instead of
 offering a launch, and a second launch is refused before the provider is
 contacted. Reopening an estimate may come back under a different provider
 estimate id; every id a session was launched under is kept, and the provider
@@ -191,7 +191,7 @@ estimate.
 | Thing | States |
 | --- | --- |
 | Repair specification | Draft, then accepted (Current) by Use estimate; a correction makes a new version that supersedes the old |
-| Glass's session | launched, `Unknown` (holds the account), resumed, closed by the owning Engineer with a reason |
+| Glass's session | launched, `Unknown` (holds the account), resumed, closed by the owning staff member with a reason |
 
 ## Edge cases and fail-closed behaviour
 
@@ -199,7 +199,7 @@ estimate.
   mismatch refuses the whole import.
 - A Case with no unambiguous current accepted specification fails closed.
 - A lost Glass's answer stays `Unknown` and holds the account until the
-  owning Engineer closes it with a reason.
+  owning staff member closes it with a reason.
 
 ## Acceptance evidence
 
