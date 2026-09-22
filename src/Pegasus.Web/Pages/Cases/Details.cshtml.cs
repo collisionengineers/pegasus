@@ -2260,6 +2260,8 @@ public sealed partial class DetailsModel(
 
         public decimal CropHeight { get; set; }
 
+        public bool FullPage { get; set; }
+
         public CaseAssetPreparationEdit ToRequest() =>
             new(
                 OccurrenceId,
@@ -2267,7 +2269,8 @@ public sealed partial class DetailsModel(
                 Role,
                 Role == CaseAssetReportRole.Supporting ? Order : null,
                 (CaseAssetRotation)Rotation,
-                new(CropLeft, CropTop, CropWidth, CropHeight));
+                new(CropLeft, CropTop, CropWidth, CropHeight),
+                FullPage);
     }
 
     public async Task<IActionResult> OnPostSendToClaudeAsync(
