@@ -1227,6 +1227,7 @@ public sealed class CustodyOutboxIntegrationTests
     /// this is the only thing that proves an archive comes out at all, which
     /// is what the operator asked for and what never worked.
     /// </summary>
+    [Trait("Category", "Corpus")]
     [QdosMappingCustodyFact]
     public async Task EvaRoutesTransitionFirstSendAtomicallyAndResendWithoutStateChange()
     {
@@ -2500,6 +2501,7 @@ public sealed class CustodyOutboxIntegrationTests
     /// the attachments, while letterhead art stays out. Runs against the
     /// operator-supplied mapping corpus (local, git-ignored).
     /// </summary>
+    [Trait("Category", "Corpus")]
     [QdosMappingCustodyFact]
     public async Task AcceptedCaseRetainsEmbeddedPhotographsBesideTheSource()
     {
